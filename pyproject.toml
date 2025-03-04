@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "dialectical-framework"
+version = "0.1.0"
+description = "A dialectical framework for augmented intelligence."
+authors = ["Evaldas Taroza <evaldas@dialexity.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+mirascope = {extras = ["azure", "openai"], version = "^1.20.1"}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+black = "^25.1.0"
+isort = "^6.0.1"
+flake8 = "^7.1.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api" 
