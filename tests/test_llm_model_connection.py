@@ -12,7 +12,7 @@ class LLMResponse(BaseModel):
     message: str
 
 
-def dynamic_llm_call(provider: str, model: str, prompt: str):
+def dynamic_llm_call(provider: str, model: str, prompt: str) -> LLMResponse:
     """
     Dynamically call the LLM with the given provider, model, and prompt.
     """
@@ -22,7 +22,9 @@ def dynamic_llm_call(provider: str, model: str, prompt: str):
         return prompt
 
     # Call the dynamically created function
-    return cast(LLMResponse, dynamic_ping())
+    response = dynamic_ping()
+    assert isinstance(response, LLMResponse)
+    return response
 
 
 def test_llm_model_connection():
@@ -36,5 +38,4 @@ def test_llm_model_connection():
             response = dynamic_llm_call(
                 provider, model, f"Say 'Hello, this is a test from {provider} {model}'."
             )
-            assert response is not None
             print(f"\n{response.message}")

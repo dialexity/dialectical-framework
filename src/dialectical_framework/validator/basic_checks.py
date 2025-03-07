@@ -1,0 +1,48 @@
+from typing import Callable, cast
+
+from mirascope import prompt_template, llm
+from mirascope.llm import CallResponse
+
+from config import Config
+from dialectical_framework.validator.check import Check
+
+
+def is_yes_parser(resp: CallResponse) -> bool:
+    return "YES" in resp.content[:3].upper()
+
+@prompt_template("""
+Is the statement "{antithesis}" a valid antithetical opposition of statement "{thesis}"?
+
+An antithetical opposition presents the complete negation or direct opposite of the original statement.
+
+Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
+""")
+def is_antithetical_opposition(antithesis: str, thesis: str) -> bool: ...
+
+@prompt_template("""
+Can the statement "{semantic_opposition}" be considered as a semantic opposition of "{statement}"?
+
+A semantic opposition presents a contrasting but not necessarily contradictory perspective to the original statement, often highlighting an alternative viewpoint within the same domain.
+
+Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
+""")
+def is_semantic_opposition(semantic_opposition: str, statement: str) -> bool: ...
+
+@prompt_template("""
+Can the statement "{negative_side}" be considered as an exaggerated (overdeveloped, negative) side or outcome of the statement "{statement}"?
+
+Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
+""")
+def is_negative_side(negative_side: str, statement: str) -> bool: ...
+
+@prompt_template("""
+Can the statement "{positive_side}" be considered as a positive (constructive and balanced) side of the statement "{statement}"?
+
+Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
+""")
+def is_positive_side(positive_side: str, statement: str) -> bool: ...
+
+
+@llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=Check)
+def check(func: Callable[[str, str], bool], statement1: str, statement2: str) -> Check:
+    return cast(Check, func(statement1, statement2))
