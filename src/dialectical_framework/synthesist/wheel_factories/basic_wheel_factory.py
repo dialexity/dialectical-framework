@@ -6,8 +6,8 @@ from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.basic_wheel import BasicWheel
 from dialectical_framework.synthesist.wheel_factories.abstract_wheel_factory import AbstractWheelFactory
-from dialectical_framework.validator.basic_checks import check, is_antithetical_opposition, is_negative_side, \
-    is_semantic_opposition, is_positive_side
+from dialectical_framework.validator.basic_checks import check, is_valid_opposition, is_negative_side, \
+    is_strict_opposition, is_positive_side
 
 
 @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
@@ -16,9 +16,7 @@ from dialectical_framework.validator.basic_checks import check, is_antithetical_
 {text}
 </context>
 
-Identify the primary thesis or the central idea provided in the context (denote it as T). Be detailed enough to show deep understanding, yet concise enough to maintain clarity. Capture the essence without overwhelming specificity. Generalize it to no more than 6 words.
-
-(If the text does not have a clear thesis or the central idea, please also consider any implicit themes or underlying messages that could be present, and consider them as T.)
+Extract the central idea (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
 
 Output the dialectical component T and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T". 
 """)
@@ -136,7 +134,7 @@ class BasicWheelFactory(AbstractWheelFactory):
                 new_wheel.dialectical_component_copy_from(original, dialectical_component)
 
         if changed.get(base) or changed.get(other):
-            check1 = check(is_antithetical_opposition, getattr(new_wheel, base).statement, getattr(new_wheel, other).statement)
+            check1 = check(is_valid_opposition, getattr(new_wheel, base).statement, getattr(new_wheel, other).statement)
 
             if not check1.is_valid:
                 if changed.get(base) and not changed.get(other):
@@ -245,7 +243,7 @@ class BasicWheelFactory(AbstractWheelFactory):
                 additional_diagonal_check_skip = other_plus_regenerated or (not changed.get(base_minus) and not changed.get(other_plus))
 
                 if not additional_diagonal_check_skip:
-                    check4 = check(is_semantic_opposition, getattr(new_wheel, base_minus).statement, getattr(new_wheel, other_plus).statement)
+                    check4 = check(is_strict_opposition, getattr(new_wheel, base_minus).statement, getattr(new_wheel, other_plus).statement)
                     if not check4.is_valid:
                         if changed.get(base_minus) and not changed.get(other_plus):
                             # base side changed

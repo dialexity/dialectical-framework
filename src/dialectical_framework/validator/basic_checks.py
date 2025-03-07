@@ -11,22 +11,24 @@ def is_yes_parser(resp: CallResponse) -> bool:
     return "YES" in resp.content[:3].upper()
 
 @prompt_template("""
-Is the statement "{antithesis}" a valid antithetical opposition of statement "{thesis}"?
+DIALECTICAL OPPOSITION:
 
-An antithetical opposition presents the complete negation or direct opposite of the original statement.
+Is the statement "{antithesis}" a valid opposition of statement "{thesis}"?
+A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
 
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """)
-def is_antithetical_opposition(antithesis: str, thesis: str) -> bool: ...
+def is_valid_opposition(antithesis: str, thesis: str) -> bool: ...
 
 @prompt_template("""
-Can the statement "{semantic_opposition}" be considered as a semantic opposition of "{statement}"?
+CONTRADICTORY/SEMANTIC OPPOSITION:
 
-A semantic opposition presents a contrasting but not necessarily contradictory perspective to the original statement, often highlighting an alternative viewpoint within the same domain.
+Can the statement "{opposition}" be considered as a contradictory/semantic opposition of "{statement}"?
+A contradictory/semantic opposition presents a direct semantic opposition and/or contradiction to the original statement that excludes their mutual coexistence. For instance, Happiness vs. Unhappiness; Truthfulness vs. Lie/Deceptiveness; Dependence vs. Independence
 
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """)
-def is_semantic_opposition(semantic_opposition: str, statement: str) -> bool: ...
+def is_strict_opposition(opposition: str, statement: str) -> bool: ...
 
 @prompt_template("""
 Can the statement "{negative_side}" be considered as an exaggerated (overdeveloped, negative) side or outcome of the statement "{statement}"?

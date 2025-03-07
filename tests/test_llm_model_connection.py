@@ -7,7 +7,6 @@ from pydantic import BaseModel
 # Load environment variables
 load_dotenv()
 
-
 class LLMResponse(BaseModel):
     message: str
 
