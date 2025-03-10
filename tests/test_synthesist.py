@@ -11,12 +11,12 @@ user_message = "There she goes, just walking down the street, singing doo-wah-di
 
 def test_wheel_generator_with_validation():
     factory: AbstractWheelFactory = WheelGenerator.instance(BasicWheel)
-    wheel2: BasicWheel = factory.generate(user_message)
+    wheel2: BasicWheel = asyncio.run(factory.generate(user_message))
     assert all(v is not None for v in wheel2.model_dump(exclude_none=False).values())
     print("\n")
     print(wheel2)
     print("\n")
-    redefined_wheel2 = factory.redefine(
+    redefined_wheel2 = asyncio.run(factory.redefine(
         user_message,
         wheel2,
         t_minus=wheel2.t_minus.statement,
@@ -25,7 +25,7 @@ def test_wheel_generator_with_validation():
         a_minus=wheel2.a_minus.statement,
         a=wheel2.a.statement,
         a_plus=wheel2.a_plus.statement
-    )
+    ))
     assert all(v is not None for v in wheel2.model_dump(exclude_none=False).values())
     print("\n")
     print(redefined_wheel2)
