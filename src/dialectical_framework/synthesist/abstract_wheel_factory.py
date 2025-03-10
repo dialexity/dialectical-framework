@@ -14,13 +14,13 @@ class AbstractWheelFactory(ABC):
 
 
     @abstractmethod
-    def generate(self, input_text: str) -> Wheel: ...
+    async def generate(self, input_text: str) -> Wheel: ...
     """
     Subclasses must implement basic generation of a wheel from a given input text.
     """
 
     @abstractmethod
-    def redefine(self, input_text: str, original: Wheel, **modified_dialectical_components) -> Wheel: ...
+    async def redefine(self, input_text: str, original: Wheel, **modified_dialectical_components) -> Wheel: ...
     """
     Subclasses must implement the regeneration/adjustments of a wheel, provided that some components have been modified.
     The modifications are provided dialectical component names and their new values.
