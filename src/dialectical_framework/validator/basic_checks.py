@@ -13,8 +13,9 @@ def is_yes_parser(resp: CallResponse) -> bool:
 @prompt_template("""
 DIALECTICAL OPPOSITION:
 
-Is the statement "{antithesis}" a valid opposition of statement "{thesis}"?
 A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
+
+Can the statement "{antithesis}" be considered a valid dialectical opposition of statement "{thesis}"?
 
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """)
@@ -23,8 +24,9 @@ def is_valid_opposition(antithesis: str, thesis: str) -> bool: ...
 @prompt_template("""
 CONTRADICTORY/SEMANTIC OPPOSITION:
 
-Can the statement "{opposition}" be considered as a contradictory/semantic opposition of "{statement}"?
 A contradictory/semantic opposition presents a direct semantic opposition and/or contradiction to the original statement that excludes their mutual coexistence. For instance, Happiness vs. Unhappiness; Truthfulness vs. Lie/Deceptiveness; Dependence vs. Independence
+
+Can the statement "{opposition}" be considered as a contradictory/semantic opposition of "{statement}"?
 
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """)

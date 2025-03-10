@@ -1,100 +1,38 @@
-from idna import check_bidi
-from mirascope import llm, prompt_template
-from mirascope.llm import CallResponse
+from mirascope import llm
 
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory
 from dialectical_framework.synthesist.basic_wheel import BasicWheel
-from dialectical_framework.synthesist.wheel_factories.abstract_wheel_factory import AbstractWheelFactory
 from dialectical_framework.validator.basic_checks import check, is_valid_opposition, is_negative_side, \
     is_strict_opposition, is_positive_side
 
 
-@llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-@prompt_template("""
-<context>
-{text}
-</context>
+class Wheel2Factory(AbstractWheelFactory):
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    def thesis(self, text: str) -> DialecticalComponent:
+        return self.strategy.thesis(text)
 
-Extract the central idea (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    def antithesis(self, thesis: str) -> DialecticalComponent:
+        return self.strategy.antithesis(thesis)
 
-Output the dialectical component T and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T". 
-""")
-def thesis(text: str) -> str: ...
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    def negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
+        return self.strategy.negative_side(thesis, not_like_this)
 
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    def positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
+        return self.strategy.positive_side(thesis, antithesis_negative)
 
-@llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-@prompt_template("""
-<context>
-{text}
-</context>
-
-Generate a strict semantic opposition (A) of the thesis "{thesis}" (T), while considering the subtleties available in the context. If several semantic oppositions are possible, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity. Generalize all of them using up to 6 words.
-
-For instance, if T = Courage, then A = Fear. If T = Love, then A = Hate or Indifference. If T = War is bad, then A = War is good.
-
-Output the dialectical component A and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A".
-"""
-)
-def antithesis(text: str, thesis: str | CallResponse) -> str: ...
-
-
-@llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-@prompt_template("""
-<context>
-{text}
-</context>
-
-Generate a negative side (T-) of a thesis "{thesis}" (T), while considering the subtleties available in the context, representing its strict semantic exaggeration and overdevelopment, as if the author of T lost his inner control. Make sure that T- is not the same as: "{not_like_this}".
-
-For instance, if T = Courage, then T- = Foolhardiness. If T = Love, then T- = Obsession, Fixation, Loss of Mindfulness. If T = Fear, then T- = Paranoia. If T = Hate and Indifference then T- = Malevolence and Apathy.
-
-If more than one T- exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity. For instance, T- = "Obsession, Fixation, Loss of Mindfulness" can be generalized into T- = Mental Preoccupation
-
-Output the dialectical component T- and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-".
-""")
-def thesis_negative(text: str, thesis: str | CallResponse, not_like_this: str | CallResponse = "") -> str: ...
-def antithesis_negative(text: str, antithesis: str | CallResponse, not_like_this: str | CallResponse) -> str:
-    return thesis_negative(text, antithesis, not_like_this)
-
-
-@llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-@prompt_template("""
-<context>
-{text}
-</context>
-
-Generate a positive side or outcome (T+) of a thesis "{thesis}" (T), while considering the subtleties available in the context, representing its constructive (balanced) form, that is also the semantic opposition of "{antithesis_negative}" (A-).
-
-For instance, if A- = Paranoia, then T+ = Trust. If A- = Malevolence and Apathy, then T+ = Kindness and Empathy. If A- = Foolhardiness, then T+ = Prudence. If A- = Obsession, then T+ =  Mindfulness or Balance. If A- = Suppressed Natural Immunity, then T+ = Enhanced Natural Immunity.
-
-Make sure that T+ is truly connected to the semantic T, while considering the subtleties subtleties available in the context, representing its positive and constructive side or outcome that is also highly perceptive, nuanced, gentle, evolving, and instrumental in solving problems and creating friendships.
-
-For instance, T+ = Trust can be seen as the constructive side of T = Courage. T+ = Kindness and Empathy are natural constructive outcomes of T = Love.
-
-If more than one T+ exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity. 
-
-Output the dialectical component T+ and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-".
-""")
-def thesis_positive(text: str, thesis: str | CallResponse, antithesis_negative: str | CallResponse) -> str: ...
-def antithesis_positive(text: str, antithesis: str | CallResponse, thesis_negative: str | CallResponse) -> str:
-    return thesis_positive(text, antithesis, thesis_negative)
-
-class BasicWheelFactory(AbstractWheelFactory):
     def generate(self, input_text: str) -> BasicWheel:
-        t = thesis(input_text)
-        a = antithesis(input_text, t)
-        t_minus = thesis_negative(input_text, t)
-        a_minus = antithesis_negative(input_text, a, t_minus)
-        t_plus = thesis_positive(input_text, t, a_minus)
-        a_plus = antithesis_positive(input_text, a, t_minus)
+        t = self.thesis(input_text)
+        a = self.antithesis(t.statement)
+        t_minus = self.negative_side(t.statement)
+        a_minus = self.negative_side(a.statement, t_minus.statement)
+        t_plus = self.positive_side(t.statement, a_minus.statement)
+        a_plus = self.positive_side(a.statement, t_minus.statement)
 
-        assert isinstance(t_minus, DialecticalComponent)
-        assert isinstance(t, DialecticalComponent)
-        assert isinstance(t_plus, DialecticalComponent)
-        assert isinstance(a_minus, DialecticalComponent)
-        assert isinstance(a, DialecticalComponent)
-        assert isinstance(a_plus, DialecticalComponent)
         return BasicWheel(
             t_minus=t_minus,
             t=t,
@@ -139,7 +77,7 @@ class BasicWheelFactory(AbstractWheelFactory):
             if not check1.is_valid:
                 if changed.get(base) and not changed.get(other):
                     # base side changed
-                    o = antithesis(input_text, getattr(new_wheel, base).statement)
+                    o = self.antithesis(getattr(new_wheel, base).statement)
                     assert isinstance(o, DialecticalComponent)
                     o.explanation = f"REGENERATED. {o.explanation}"
                     setattr(new_wheel, other, o)
@@ -148,7 +86,7 @@ class BasicWheelFactory(AbstractWheelFactory):
                     check1.explanation = "Regenerated, therefore must be valid."
                 elif changed.get(other) and not changed.get(base):
                     # other side changed
-                    bm = antithesis(input_text, getattr(new_wheel, other).statement)
+                    bm = self.antithesis(getattr(new_wheel, other).statement)
                     assert isinstance(bm, DialecticalComponent)
                     bm.explanation = f"REGENERATED. {bm.explanation}"
                     setattr(new_wheel, base, bm)
@@ -203,7 +141,7 @@ class BasicWheelFactory(AbstractWheelFactory):
                             if hasattr(new_wheel, other_minus):
                                 if getattr(new_wheel, other_minus):
                                     not_like_other_minus = getattr(new_wheel, other_minus).statement
-                            bm = thesis_negative(input_text, getattr(new_wheel, base).statement, not_like_other_minus)
+                            bm = self.negative_side(getattr(new_wheel, base).statement, not_like_other_minus)
                             assert isinstance(bm, DialecticalComponent)
                             bm.explanation = f"REGENERATED. {bm.explanation}"
                             setattr(new_wheel, base_minus, bm)
@@ -224,7 +162,7 @@ class BasicWheelFactory(AbstractWheelFactory):
 
                     if not check3.is_valid:
                         if changed.get(other) and not changed.get(other_plus):
-                            op = antithesis_positive(input_text, getattr(new_wheel, other).statement, getattr(new_wheel, base_minus).statement)
+                            op = self.positive_side(getattr(new_wheel, other).statement, getattr(new_wheel, base_minus).statement)
                             assert isinstance(op, DialecticalComponent)
                             op.explanation = f"REGENERATED. {op.explanation}"
                             setattr(new_wheel, other_plus, op)
@@ -247,10 +185,9 @@ class BasicWheelFactory(AbstractWheelFactory):
                     if not check4.is_valid:
                         if changed.get(base_minus) and not changed.get(other_plus):
                             # base side changed
-                            op = antithesis_positive(
-                                text=input_text,
-                                antithesis=getattr(new_wheel, other).statement,
-                                thesis_negative=getattr(new_wheel, base_minus).statement
+                            op = self.positive_side(
+                                getattr(new_wheel, other).statement,
+                                getattr(new_wheel, base_minus).statement
                             )
                             assert isinstance(op, DialecticalComponent)
                             op.explanation = f"REGENERATED. {op.explanation}"
@@ -264,10 +201,9 @@ class BasicWheelFactory(AbstractWheelFactory):
                             if hasattr(new_wheel, other_minus):
                                 if getattr(new_wheel, other_minus):
                                     not_like_other_minus = getattr(new_wheel, other_minus).statement
-                            bm = thesis_negative(
-                                text=input_text,
-                                thesis=getattr(new_wheel, base).statement,
-                                not_like_this=not_like_other_minus
+                            bm = self.negative_side(
+                                getattr(new_wheel, base).statement,
+                                not_like_other_minus
                             )
                             assert isinstance(bm, DialecticalComponent)
                             bm.explanation = f"REGENERATED. {bm.explanation}"

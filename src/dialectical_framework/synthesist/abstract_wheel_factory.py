@@ -1,22 +1,26 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar
+from typing import TypeVar, Generic
 
-BasicWheelWithSubTypes = TypeVar("BasicWheelWithSubTypes", bound="BasicWheel")
+Wheel = TypeVar("Wheel", bound="BasicWheel")
+WheelStrategy = TypeVar("WheelStrategy", bound="AbstractWheelStrategy")
 
 class AbstractWheelFactory(ABC):
-    """
-    Abstract Base Class for all Wheel Factories.
-    Concrete wheel_factories must implement the create_wheel method.
-    """
+    def __init__(self, strategy: WheelStrategy):
+        self._strategy = strategy
+
+    @property
+    def strategy(self) -> WheelStrategy:
+        return self._strategy
+
 
     @abstractmethod
-    def generate(self, input_text: str) -> BasicWheelWithSubTypes: ...
+    def generate(self, input_text: str) -> Wheel: ...
     """
     Subclasses must implement basic generation of a wheel from a given input text.
     """
 
     @abstractmethod
-    def redefine(self, input_text: str, original: BasicWheelWithSubTypes, **modified_dialectical_components) -> BasicWheelWithSubTypes: ...
+    def redefine(self, input_text: str, original: Wheel, **modified_dialectical_components) -> Wheel: ...
     """
     Subclasses must implement the regeneration/adjustments of a wheel, provided that some components have been modified.
     The modifications are provided dialectical component names and their new values.

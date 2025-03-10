@@ -8,31 +8,34 @@ user_message = "Love"
 
 def test_wheel_generator():
     factory = WheelGenerator.instance(BasicWheel)
-    half_wheel: BaseModel = factory.generate(user_message)
-    assert all(v is not None for v in half_wheel.model_dump(exclude_none=False).values())
-    print(half_wheel)
+    wheel2: BaseModel = factory.generate(user_message)
+    assert all(v is not None for v in wheel2.model_dump(exclude_none=False).values())
+    print("\n")
+    print(wheel2)
 
 def test_wheel_redefine():
     # Precalculated by gpt-4o
-    half_wheel = BasicWheel(
+    wheel2 = BasicWheel(
         t_minus=DialecticalComponent.from_str('Mental Preoccupation'),
         t=DialecticalComponent.from_str('Love'),
-        t_plus=DialecticalComponent.from_str('Emotional Stability'),
-        a_minus=DialecticalComponent.from_str('Emotional Volatility'),
-        a=DialecticalComponent.from_str('Hate or Indifference'),
-        a_plus=DialecticalComponent.from_str('Respect')
+        t_plus=DialecticalComponent.from_str('Compassionate Connection'),
+        a_minus=DialecticalComponent.from_str('Nihilistic Detachment'),
+        a=DialecticalComponent.from_str('Indifference'),
+        a_plus=DialecticalComponent.from_str('Mindful Detachment')
     )
 
+    # Redefine every component of the wheel, to make it an extreme test
     factory = WheelGenerator.instance(BasicWheel)
-    redefined_half_wheel = factory.redefine(
+    redefined_wheel2 = factory.redefine(
         user_message,
-        half_wheel,
+        wheel2,
         t_minus='Mental Preoccupation',
         t='Love',
-        t_plus='Emotional Stability',
-        a_minus='Emotional Volatility',
-        a='Hate or Indifference',
-        a_plus='Respect'
+        t_plus='Compassionate Connection',
+        a_minus='Nihilistic Detachment',
+        a='Indifference',
+        a_plus='Mindful Detachment'
     )
-    assert all(v is not None for v in half_wheel.model_dump(exclude_none=False).values())
-    print(redefined_half_wheel)
+    assert all(v is not None for v in wheel2.model_dump(exclude_none=False).values())
+    print("\n")
+    print(redefined_wheel2)
