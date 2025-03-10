@@ -1,4 +1,8 @@
+from keyword import kwlist
+
+from langfuse.decorators import langfuse_context
 from mirascope import llm
+from mirascope.integrations.langfuse import with_langfuse
 
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -9,18 +13,26 @@ from dialectical_framework.validator.basic_checks import check, is_valid_opposit
 
 
 class Wheel2Factory(AbstractWheelFactory):
+    @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     def thesis(self, text: str) -> DialecticalComponent:
+        # langfuse_context.update_current_trace(
+        #     session_id="12345",
+        #     user_id="1",
+        # )
         return self.strategy.thesis(text)
 
+    @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     def antithesis(self, thesis: str) -> DialecticalComponent:
         return self.strategy.antithesis(thesis)
 
+    @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     def negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
         return self.strategy.negative_side(thesis, not_like_this)
 
+    @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     def positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
         return self.strategy.positive_side(thesis, antithesis_negative)

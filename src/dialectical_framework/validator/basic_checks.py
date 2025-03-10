@@ -1,6 +1,7 @@
 from typing import Callable, cast
 
 from mirascope import prompt_template, llm
+from mirascope.integrations.langfuse import with_langfuse
 from mirascope.llm import CallResponse
 
 from config import Config
@@ -46,7 +47,7 @@ Start answering with YES or NO. If NO, then provide a correct example. Explain y
 """)
 def is_positive_side(positive_side: str, statement: str) -> bool: ...
 
-
+@with_langfuse()
 @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=Check)
 def check(func: Callable[[str, str], bool], statement1: str, statement2: str) -> Check:
     return cast(Check, func(statement1, statement2))

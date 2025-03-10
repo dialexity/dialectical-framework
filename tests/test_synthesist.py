@@ -1,10 +1,34 @@
+from mirascope.integrations.langfuse import with_langfuse
 from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory
 from dialectical_framework.synthesist.basic_wheel import BasicWheel
+from dialectical_framework.synthesist.factories.wheel2_factory import Wheel2Factory
 from dialectical_framework.synthesist.wheel_generator import WheelGenerator
 
-user_message = "Love"
+user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
+
+def test_wheel_generator_with_validation():
+    factory: AbstractWheelFactory = WheelGenerator.instance(BasicWheel)
+    wheel2: BasicWheel = factory.generate(user_message)
+    assert all(v is not None for v in wheel2.model_dump(exclude_none=False).values())
+    print("\n")
+    print(wheel2)
+    print("\n")
+    redefined_wheel2 = factory.redefine(
+        user_message,
+        wheel2,
+        t_minus=wheel2.t_minus.statement,
+        t=wheel2.t.statement,
+        t_plus=wheel2.t_plus.statement,
+        a_minus=wheel2.a_minus.statement,
+        a=wheel2.a.statement,
+        a_plus=wheel2.a_plus.statement
+    )
+    assert all(v is not None for v in wheel2.model_dump(exclude_none=False).values())
+    print("\n")
+    print(redefined_wheel2)
 
 def test_wheel_generator():
     factory = WheelGenerator.instance(BasicWheel)
