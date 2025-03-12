@@ -12,8 +12,8 @@ WheelFactory = TypeVar("WheelFactory", bound="AbstractWheelFactory")
 
 class WheelGenerator:
     _factory_registry: dict[Type[Wheel], Type[WheelFactory]] = {
-        BaseWheel: Wheel2BaseFactory,
-        # BaseWheel: Wheel2FocusedConversationFactory,
+        # BaseWheel: Wheel2BaseFactory,
+        BaseWheel: Wheel2FocusedConversationFactory,
     }
 
     @staticmethod

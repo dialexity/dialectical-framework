@@ -81,19 +81,18 @@ class Wheel2BaseFactory(AbstractWheelFactory[Wheel2BaseStrategy], Generic[WheelS
         base = 't'
         other = "a" if base == 't' else "t"
 
-        alias_base = "T" if base == 't' else "A"
-        alias_other = "A" if base == 't' else "T"
-
-
         for dialectical_component in [base, other]:
             if changed.get(dialectical_component):
                 setattr(new_wheel, dialectical_component, DialecticalComponent(
-                    alias=new_wheel.Config.alias_generator(dialectical_component),
+                    alias=new_wheel.__pydantic_fields__.get(dialectical_component).alias,
                     statement=changed.get(dialectical_component),
-                    explanation=f"{new_wheel.Config.alias_generator(dialectical_component)} redefined."
+                    explanation=f"{new_wheel.__pydantic_fields__.get(dialectical_component).alias} redefined."
                 ))
             else:
                 new_wheel.dialectical_component_copy_from(original, dialectical_component)
+
+        alias_base = "T" if base == 't' else "A"
+        alias_other = "A" if base == 't' else "T"
 
         if changed.get(base) or changed.get(other):
             check1 = check(is_valid_opposition, getattr(new_wheel, base).statement, getattr(new_wheel, other).statement)
@@ -149,9 +148,9 @@ class Wheel2BaseFactory(AbstractWheelFactory[Wheel2BaseStrategy], Generic[WheelS
             for dialectical_component in [base_minus, other_plus]:
                 if changed.get(dialectical_component):
                     setattr(new_wheel, dialectical_component, DialecticalComponent(
-                        alias=new_wheel.Config.alias_generator(dialectical_component),
+                        alias=new_wheel.__pydantic_fields__.get(dialectical_component).alias,
                         statement=changed.get(dialectical_component),
-                        explanation=f"{new_wheel.Config.alias_generator(dialectical_component)} redefined."
+                        explanation=f"{new_wheel.__pydantic_fields__.get(dialectical_component).alias} redefined."
                     ))
                 else:
                     new_wheel.dialectical_component_copy_from(original, dialectical_component)

@@ -10,13 +10,9 @@ class Wheel2FocusedConversationFactory(Wheel2BaseFactory[Wheel2FocusedConversati
         t: DialecticalComponent = await self._thesis(input_text)
         wheel = BaseWheel(t=t)
         try:
-            alias_to_field = {
-                field_info.alias: field_name
-                for field_name, field_info in BaseWheel.__pydantic_fields__.items()
-            }
-            for _ in range(len(alias_to_field)-1):
+            for _ in range(len(BaseWheel.__pydantic_fields__)-1):
                 dc: DialecticalComponent = await self._find_next(wheel)
-                setattr(wheel, alias_to_field.get(dc.alias, dc.alias), dc)
+                setattr(wheel, dc.alias, dc)
         except StopIteration:
             pass
 
