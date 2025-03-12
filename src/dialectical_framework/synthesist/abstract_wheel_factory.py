@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic
+from typing import TypeVar
+
+from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
 
 Wheel = TypeVar("Wheel", bound="BasicWheel")
 WheelStrategy = TypeVar("WheelStrategy", bound="AbstractWheelStrategy")

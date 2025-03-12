@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Type, TypeVar, Tuple
 
-from dialectical_framework.synthesist.basic_wheel import BasicWheel
-from dialectical_framework.synthesist.strategies.wheel2_semantic_contextualized_strategy import \
-    Wheel2SemanticContextualizedStrategy
-from dialectical_framework.synthesist.strategies.wheel2_simple_semantic_strategy import Wheel2SimpleSemanticStrategy
-from dialectical_framework.synthesist.factories.wheel2_factory import Wheel2Factory
+from dialectical_framework.synthesist.base_wheel import BaseWheel
+from dialectical_framework.synthesist.factories.wheel2_focused_conversation_factory import \
+    Wheel2FocusedConversationFactory
+from dialectical_framework.synthesist.strategies.wheel2_focused_conversation_strategy import \
+    Wheel2FocusedConversationStrategy
 
 Wheel = TypeVar("Wheel", bound="BasicWheel")
 WheelFactory = TypeVar("WheelFactory", bound="AbstractWheelFactory")
@@ -14,8 +14,10 @@ WheelStrategy = TypeVar("WheelStrategy", bound="AbstractWheelStrategy")
 
 class WheelGenerator:
     _factory_registry: dict[Type[Wheel], Tuple[Type[WheelFactory], Type[WheelStrategy]]] = {
-        BasicWheel: (Wheel2Factory, Wheel2SimpleSemanticStrategy)
-        # BasicWheel: (Wheel2Factory, Wheel2SemanticContextualizedStrategy)
+        BaseWheel: (
+            # Wheel2BaseFactory, Wheel2BaseStrategy
+            Wheel2FocusedConversationFactory, Wheel2FocusedConversationStrategy
+        ),
     }
 
     @staticmethod

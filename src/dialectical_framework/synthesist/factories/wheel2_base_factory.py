@@ -1,57 +1,65 @@
 import asyncio
-from keyword import kwlist
 
-from langfuse.decorators import langfuse_context
 from mirascope import llm
 from mirascope.integrations.langfuse import with_langfuse
 
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory
-from dialectical_framework.synthesist.basic_wheel import BasicWheel
+from dialectical_framework.synthesist.base_wheel import BaseWheel
+from dialectical_framework.synthesist.strategies.wheel2_base_strategy import Wheel2BaseStrategy
 from dialectical_framework.validator.basic_checks import check, is_valid_opposition, is_negative_side, \
     is_strict_opposition, is_positive_side
-from util.is_async import is_async
 
 
-class Wheel2Factory(AbstractWheelFactory):
+class Wheel2BaseFactory(AbstractWheelFactory):
+    @property
+    def strategy(self) -> Wheel2BaseStrategy:
+        return self._strategy
+
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def thesis(self, text: str) -> DialecticalComponent:
-        # langfuse_context.update_current_trace(
-        #     session_id="12345",
-        #     user_id="1",
-        # )
+    async def _thesis(self, text: str) -> DialecticalComponent:
         return self.strategy.thesis(text)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def antithesis(self, thesis: str) -> DialecticalComponent:
+    async def _antithesis(self, thesis: str) -> DialecticalComponent:
         return self.strategy.antithesis(thesis)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
+    async def _negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
         return self.strategy.negative_side(thesis, not_like_this)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
+    async def _positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
         return self.strategy.positive_side(thesis, antithesis_negative)
 
-    async def generate(self, input_text: str) -> BasicWheel:
-        t = await self.thesis(input_text)
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def _find_next(self, wheel_so_far: BaseWheel) -> DialecticalComponent:
+        """
+        Raises:
+            ValueError – If the wheel is incorrect.
+            StopIteration – If the wheel is complete already.
+        """
+        return self.strategy.find_next(wheel_so_far)
+
+    async def generate(self, input_text: str) -> BaseWheel:
+        t = await self._thesis(input_text)
         a, t_minus = await asyncio.gather(
-            self.antithesis(t.statement),
-            self.negative_side(t.statement)
+            self._antithesis(t.statement),
+            self._negative_side(t.statement)
         )
-        a_minus = await self.negative_side(a.statement, t_minus.statement)
+        a_minus = await self._negative_side(a.statement, t_minus.statement)
         t_plus, a_plus = await asyncio.gather(
-            self.positive_side(t.statement, a_minus.statement),
-            self.positive_side(a.statement, t_minus.statement)
+            self._positive_side(t.statement, a_minus.statement),
+            self._positive_side(a.statement, t_minus.statement)
         )
 
-        return BasicWheel(
+        return BaseWheel(
             t_minus=t_minus,
             t=t,
             t_plus=t_plus,
@@ -60,15 +68,15 @@ class Wheel2Factory(AbstractWheelFactory):
             a_plus=a_plus
         )
 
-    async def redefine(self, input_text: str, original: BasicWheel, **modified_dialectical_components) -> BasicWheel:
+    async def redefine(self, input_text: str, original: BaseWheel, **modified_dialectical_components) -> BaseWheel:
         warnings: dict[str, list[str]] = {}
 
         changed: dict[str, str] = {
             k: str(v) for k, v in modified_dialectical_components.items()
-            if k in BasicWheel.__pydantic_fields__
+            if k in BaseWheel.__pydantic_fields__
         }
 
-        new_wheel: BasicWheel = BasicWheel()
+        new_wheel: BaseWheel = BaseWheel()
 
         # ==
         # Redefine opposition
@@ -83,6 +91,7 @@ class Wheel2Factory(AbstractWheelFactory):
         for dialectical_component in [base, other]:
             if changed.get(dialectical_component):
                 setattr(new_wheel, dialectical_component, DialecticalComponent(
+                    alias=new_wheel.Config.alias_generator(dialectical_component),
                     statement=changed.get(dialectical_component),
                     explanation=f"{new_wheel.Config.alias_generator(dialectical_component)} redefined."
                 ))
@@ -95,7 +104,7 @@ class Wheel2Factory(AbstractWheelFactory):
             if not check1.is_valid:
                 if changed.get(base) and not changed.get(other):
                     # base side changed
-                    o = await self.antithesis(getattr(new_wheel, base).statement)
+                    o = await self._antithesis(getattr(new_wheel, base).statement)
                     assert isinstance(o, DialecticalComponent)
                     o.explanation = f"REGENERATED. {o.explanation}"
                     setattr(new_wheel, other, o)
@@ -104,7 +113,7 @@ class Wheel2Factory(AbstractWheelFactory):
                     check1.explanation = "Regenerated, therefore must be valid."
                 elif changed.get(other) and not changed.get(base):
                     # other side changed
-                    bm = await self.antithesis(getattr(new_wheel, other).statement)
+                    bm = await self._antithesis(getattr(new_wheel, other).statement)
                     assert isinstance(bm, DialecticalComponent)
                     bm.explanation = f"REGENERATED. {bm.explanation}"
                     setattr(new_wheel, base, bm)
@@ -143,6 +152,7 @@ class Wheel2Factory(AbstractWheelFactory):
             for dialectical_component in [base_minus, other_plus]:
                 if changed.get(dialectical_component):
                     setattr(new_wheel, dialectical_component, DialecticalComponent(
+                        alias=new_wheel.Config.alias_generator(dialectical_component),
                         statement=changed.get(dialectical_component),
                         explanation=f"{new_wheel.Config.alias_generator(dialectical_component)} redefined."
                     ))
@@ -159,7 +169,7 @@ class Wheel2Factory(AbstractWheelFactory):
                             if hasattr(new_wheel, other_minus):
                                 if getattr(new_wheel, other_minus):
                                     not_like_other_minus = getattr(new_wheel, other_minus).statement
-                            bm = await self.negative_side(getattr(new_wheel, base).statement, not_like_other_minus)
+                            bm = await self._negative_side(getattr(new_wheel, base).statement, not_like_other_minus)
                             assert isinstance(bm, DialecticalComponent)
                             bm.explanation = f"REGENERATED. {bm.explanation}"
                             setattr(new_wheel, base_minus, bm)
@@ -180,7 +190,7 @@ class Wheel2Factory(AbstractWheelFactory):
 
                     if not check3.is_valid:
                         if changed.get(other) and not changed.get(other_plus):
-                            op = await self.positive_side(getattr(new_wheel, other).statement, getattr(new_wheel, base_minus).statement)
+                            op = await self._positive_side(getattr(new_wheel, other).statement, getattr(new_wheel, base_minus).statement)
                             assert isinstance(op, DialecticalComponent)
                             op.explanation = f"REGENERATED. {op.explanation}"
                             setattr(new_wheel, other_plus, op)
@@ -203,7 +213,7 @@ class Wheel2Factory(AbstractWheelFactory):
                     if not check4.is_valid:
                         if changed.get(base_minus) and not changed.get(other_plus):
                             # base side changed
-                            op = await self.positive_side(
+                            op = await self._positive_side(
                                 getattr(new_wheel, other).statement,
                                 getattr(new_wheel, base_minus).statement
                             )
@@ -219,7 +229,7 @@ class Wheel2Factory(AbstractWheelFactory):
                             if hasattr(new_wheel, other_minus):
                                 if getattr(new_wheel, other_minus):
                                     not_like_other_minus = getattr(new_wheel, other_minus).statement
-                            bm = await self.negative_side(
+                            bm = await self._negative_side(
                                 getattr(new_wheel, base).statement,
                                 not_like_other_minus
                             )
