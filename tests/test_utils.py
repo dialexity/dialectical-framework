@@ -1,6 +1,5 @@
 from utils.dc_replace import dc_replace, dc_safe_replace
 
-
 def test_dc_replace():
     text = 'T- is a good thing. "T-" is a bad thing. (T-) is a neutral thing. T-.'
     dialectical_component_name = 'T-'

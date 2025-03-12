@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-from typing import Type, TypeVar, Tuple
+from typing import Type, TypeVar
 
 from dialectical_framework.synthesist.base_wheel import BaseWheel
+from dialectical_framework.synthesist.factories.wheel2_base_factory import Wheel2BaseFactory
 from dialectical_framework.synthesist.factories.wheel2_focused_conversation_factory import \
     Wheel2FocusedConversationFactory
-from dialectical_framework.synthesist.strategies.wheel2_focused_conversation_strategy import \
-    Wheel2FocusedConversationStrategy
 
 Wheel = TypeVar("Wheel", bound="BasicWheel")
 WheelFactory = TypeVar("WheelFactory", bound="AbstractWheelFactory")
-WheelStrategy = TypeVar("WheelStrategy", bound="AbstractWheelStrategy")
 
 class WheelGenerator:
-    _factory_registry: dict[Type[Wheel], Tuple[Type[WheelFactory], Type[WheelStrategy]]] = {
-        BaseWheel: (
-            # Wheel2BaseFactory, Wheel2BaseStrategy
-            Wheel2FocusedConversationFactory, Wheel2FocusedConversationStrategy
-        ),
+    _factory_registry: dict[Type[Wheel], Type[WheelFactory]] = {
+        BaseWheel: Wheel2BaseFactory,
+        # BaseWheel: Wheel2FocusedConversationFactory,
     }
 
     @staticmethod
@@ -25,5 +21,5 @@ class WheelGenerator:
         # Ensure the wheel type is registered
         if wheel_type not in WheelGenerator._factory_registry:
             raise ValueError(f"Wheel type '{wheel_type.__name__}' doesn't have a registered factory.")
-        factory, strategy = WheelGenerator._factory_registry[wheel_type]
-        return factory(strategy())
+        factory = WheelGenerator._factory_registry[wheel_type]
+        return factory()

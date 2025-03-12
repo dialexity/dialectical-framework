@@ -1,14 +1,34 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar
+from typing import TypeVar, Generic, get_origin, get_args, Type
 
 from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
 
 Wheel = TypeVar("Wheel", bound="BasicWheel")
 WheelStrategy = TypeVar("WheelStrategy", bound="AbstractWheelStrategy")
 
-class AbstractWheelFactory(ABC):
-    def __init__(self, strategy: WheelStrategy):
-        self._strategy = strategy
+class AbstractWheelFactory(ABC, Generic[WheelStrategy]):
+    def __init__(self, strategy: WheelStrategy = None):
+        if strategy is None:
+            # Dynamically determine the strategy class using reflection
+            strategy_cls = self._get_strategy_cls()
+            self._strategy = strategy_cls()
+        else:
+            self._strategy = strategy
+
+    def _get_strategy_cls(self) -> Type[AbstractWheelStrategy]:
+        """
+        Raises:
+            TypeError: If the strategy class cannot be determined.
+        """
+        if hasattr(self, '__orig_bases__'):
+            # Iterate through the base classes to find the generic type arguments
+            for base in self.__orig_bases__:
+                origin_args = get_args(base)
+                if origin_args:
+                    strategy_cls = origin_args[0]  # The first type argument is the strategy
+                    if issubclass(strategy_cls, AbstractWheelStrategy):
+                        return strategy_cls
+        raise TypeError("Cannot determine the strategy class dynamically.")
 
     @property
     def strategy(self) -> WheelStrategy:

@@ -1,22 +1,19 @@
 import asyncio
+from typing import Generic
 
 from mirascope import llm
 from mirascope.integrations.langfuse import with_langfuse
 
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory
-from dialectical_framework.synthesist.base_wheel import BaseWheel
+from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory, WheelStrategy
+from dialectical_framework.synthesist.base_wheel import BaseWheel, ALIAS_T
 from dialectical_framework.synthesist.strategies.wheel2_base_strategy import Wheel2BaseStrategy
 from dialectical_framework.validator.basic_checks import check, is_valid_opposition, is_negative_side, \
     is_strict_opposition, is_positive_side
 
 
-class Wheel2BaseFactory(AbstractWheelFactory):
-    @property
-    def strategy(self) -> Wheel2BaseStrategy:
-        return self._strategy
-
+class Wheel2BaseFactory(AbstractWheelFactory[Wheel2BaseStrategy], Generic[WheelStrategy]):
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def _thesis(self, text: str) -> DialecticalComponent:
