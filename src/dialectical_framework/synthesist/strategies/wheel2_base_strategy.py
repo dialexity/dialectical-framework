@@ -4,7 +4,8 @@ from mirascope import prompt_template, Messages, BaseMessageParam
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
-from dialectical_framework.synthesist.base_wheel import BaseWheel
+from dialectical_framework.synthesist.base_wheel import BaseWheel, ALIAS_T, ALIAS_A, ALIAS_T_MINUS, ALIAS_A_MINUS, \
+    ALIAS_T_PLUS, ALIAS_A_PLUS
 from utils.dc_replace import dc_safe_replace
 
 
@@ -64,9 +65,9 @@ class Wheel2BaseStrategy(AbstractWheelStrategy):
         for i in range(len(tpl)):
             if tpl[i].content:
                 tpl[i].content = dc_safe_replace(tpl[i].content, {
-                    "T": "A",
-                    "T-": "A-",
-                    "A-": "T-"
+                    ALIAS_T: ALIAS_A,
+                    ALIAS_T_MINUS: ALIAS_A_MINUS,
+                    ALIAS_A_MINUS: ALIAS_T_MINUS
                 })
         return tpl
 
@@ -103,9 +104,9 @@ class Wheel2BaseStrategy(AbstractWheelStrategy):
         for i in range(len(tpl)):
             if tpl[i].content:
                 tpl[i].content = dc_safe_replace(tpl[i].content, {
-                    "T": "A",
-                    "T+": "A+",
-                    "A-": "T-"
+                    ALIAS_T: ALIAS_A,
+                    ALIAS_T_PLUS: ALIAS_A_PLUS,
+                    ALIAS_A_MINUS: ALIAS_T_MINUS
                 })
         return tpl
 
