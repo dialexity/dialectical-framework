@@ -4,13 +4,13 @@ from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, get_origin, get_args, Type
 
 from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
-from dialectical_framework.synthesist.base_wheel import BaseWheel
+from dialectical_framework.synthesist.wheel2 import Wheel2
 
 # It's important to use TypeVar so that Pydantic doesn't strip the extra fields
-Wheel = TypeVar("Wheel", bound=BaseWheel)
+Wheel = TypeVar("Wheel", bound=Wheel2)
 WheelStrategy = TypeVar("WheelStrategy", bound=AbstractWheelStrategy)
 
-class AbstractWheelFactory(ABC, Generic[WheelStrategy]):
+class AbstractWheelFactory(ABC, Generic[WheelStrategy, Wheel]):
     def __init__(self, strategy: WheelStrategy = None):
         if strategy is None:
             # Dynamically determine the strategy class using reflection
@@ -39,11 +39,20 @@ class AbstractWheelFactory(ABC, Generic[WheelStrategy]):
         return self._strategy
 
 
-    @abstractmethod
-    async def generate(self, input_text: str) -> Wheel: ...
-    """
-    Subclasses must implement basic generation of a wheel from a given input text.
-    """
+    async def generate(self, input_text: str) -> Wheel:
+        """
+        Subclasses must implement basic generation of a wheel from a given input text.
+        """
+        self.strategy.text = input_text
+        wheel = await self.strategy.expand()
+
+        try:
+            for _ in range(len(wheel.__class__.__pydantic_fields__) - 1):
+                await self.strategy.expand(wheel)
+        except StopIteration:
+            pass
+
+        return wheel
 
     @abstractmethod
     async def redefine(self, input_text: str, original: Wheel, **modified_dialectical_components) -> Wheel: ...

@@ -1,25 +1,21 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from typing import TypeVar, Generic
 
-from mirascope import Messages
+from dialectical_framework.synthesist.wheel2 import Wheel2
 
-from dialectical_framework.dialectical_component import DialecticalComponent
+# It's important to use TypeVar so that Pydantic doesn't strip the extra fields
+Wheel = TypeVar("Wheel", bound=Wheel2)
 
-
-class AbstractWheelStrategy(ABC):
-    @abstractmethod
-    def thesis(self, text: str | DialecticalComponent) -> Messages.Type: ...
-
-    @abstractmethod
-    def antithesis(self, thesis: str | DialecticalComponent) -> Messages.Type: ...
+class AbstractWheelStrategy(Generic[Wheel], ABC):
+    def __init__(self, text: str = None):
+        self.text = text
 
     @abstractmethod
-    def thesis_negative_side(self, thesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type: ...
-
-    @abstractmethod
-    def antithesis_negative_side(self, antithesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type: ...
-
-    @abstractmethod
-    def thesis_positive_side(self, thesis: str | DialecticalComponent, antithesis_negative: str | DialecticalComponent) -> Messages.Type: ...
-
-    @abstractmethod
-    def antithesis_positive_side(self, antithesis: str | DialecticalComponent, thesis_negative: str | DialecticalComponent) -> Messages.Type: ...
+    async def expand(self, wheel: Wheel = None) -> Wheel: ...
+    """
+    Raises:
+        ValueError - When the text is not provided to the strategy
+        StopIteration - When the wheel is already fully expanded
+    """

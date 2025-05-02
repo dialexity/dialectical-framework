@@ -7,13 +7,13 @@ from mirascope.integrations.langfuse import with_langfuse
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory, WheelStrategy
-from dialectical_framework.synthesist.base_wheel import BaseWheel, ALIAS_T
+from dialectical_framework.synthesist.wheel2 import Wheel2, ALIAS_T
 from dialectical_framework.synthesist.strategies.wheel2_base_strategy import Wheel2BaseStrategy
 from dialectical_framework.validator.basic_checks import check, is_valid_opposition, is_negative_side, \
     is_strict_opposition, is_positive_side
 
 
-class Wheel2BaseFactory(AbstractWheelFactory[Wheel2BaseStrategy], Generic[WheelStrategy]):
+class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def _thesis(self, text: str) -> DialecticalComponent:
@@ -34,46 +34,15 @@ class Wheel2BaseFactory(AbstractWheelFactory[Wheel2BaseStrategy], Generic[WheelS
     async def _positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
         return self.strategy.positive_side(thesis, antithesis_negative)
 
-    @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def _find_next(self, wheel_so_far: BaseWheel) -> DialecticalComponent:
-        """
-        Raises:
-            ValueError – If the wheel is incorrect.
-            StopIteration – If the wheel is complete already.
-        """
-        return self.strategy.find_next(wheel_so_far)
-
-    async def generate(self, input_text: str) -> BaseWheel:
-        t = await self._thesis(input_text)
-        a, t_minus = await asyncio.gather(
-            self._antithesis(t.statement),
-            self._negative_side(t.statement)
-        )
-        a_minus = await self._negative_side(a.statement, t_minus.statement)
-        t_plus, a_plus = await asyncio.gather(
-            self._positive_side(t.statement, a_minus.statement),
-            self._positive_side(a.statement, t_minus.statement)
-        )
-
-        return BaseWheel(
-            t_minus=t_minus,
-            t=t,
-            t_plus=t_plus,
-            a_minus=a_minus,
-            a=a,
-            a_plus=a_plus
-        )
-
-    async def redefine(self, input_text: str, original: BaseWheel, **modified_dialectical_components) -> BaseWheel:
+    async def redefine(self, input_text: str, original: Wheel2, **modified_dialectical_components) -> Wheel2:
         warnings: dict[str, list[str]] = {}
 
         changed: dict[str, str] = {
             k: str(v) for k, v in modified_dialectical_components.items()
-            if k in BaseWheel.__pydantic_fields__
+            if k in Wheel2.__pydantic_fields__
         }
 
-        new_wheel: BaseWheel = BaseWheel()
+        new_wheel: Wheel2 = Wheel2()
 
         # ==
         # Redefine opposition

@@ -1,15 +1,17 @@
 from typing import Annotated
 
-from mirascope import prompt_template, Messages, BaseMessageParam
+from mirascope import prompt_template, Messages, BaseMessageParam, llm
+from mirascope.integrations.langfuse import with_langfuse
 
+from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
-from dialectical_framework.synthesist.base_wheel import BaseWheel, ALIAS_T, ALIAS_A, ALIAS_T_MINUS, ALIAS_A_MINUS, \
+from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy, Wheel
+from dialectical_framework.synthesist.wheel2 import Wheel2, ALIAS_T, ALIAS_A, ALIAS_T_MINUS, ALIAS_A_MINUS, \
     ALIAS_T_PLUS, ALIAS_A_PLUS
 from utils.dc_replace import dc_safe_replace
 
 
-class Wheel2BaseStrategy(AbstractWheelStrategy):
+class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
     @prompt_template("""
     USER:
     <context>{text}</context>
@@ -111,7 +113,7 @@ class Wheel2BaseStrategy(AbstractWheelStrategy):
         return tpl
 
     @prompt_template()
-    def find_next(self, wheel_so_far: BaseWheel) -> Messages.Type:
+    def next_missing_component(self, wheel_so_far: Wheel2) -> Messages.Type:
         """
         Raises:
             ValueError: If the wheel is incorrect.
@@ -172,3 +174,28 @@ class Wheel2BaseStrategy(AbstractWheelStrategy):
             return prompt_messages
 
         raise StopIteration("The wheel is complete, nothing to do.")
+
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def find_thesis(self) -> DialecticalComponent:
+        return self.thesis(self.text)
+
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def find_next_missing_component(self, wheel_so_far: Wheel2) -> DialecticalComponent:
+        return self.next_missing_component(wheel_so_far)
+
+    async def expand(self, wheel: Wheel = None) -> Wheel:
+        if not self.text:
+            raise ValueError("Text is not provided")
+
+        if wheel is None:
+            wheel = Wheel2()
+            wheel.t = await self.find_thesis()
+
+        dc: DialecticalComponent = await self.find_next_missing_component(wheel)
+        setattr(wheel, dc.alias, dc)
+
+        return wheel
+
+

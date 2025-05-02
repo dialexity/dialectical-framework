@@ -13,7 +13,7 @@ ALIAS_A = 'A'
 ALIAS_A_PLUS = 'A+'
 ALIAS_A_MINUS = 'A-'
 
-class BaseWheel(BaseModel):
+class Wheel2(BaseModel):
     """
     A base class for a wheel in the dialectical framework.
     It's very restrictive, to avoid any additional fields.
@@ -53,7 +53,7 @@ class BaseWheel(BaseModel):
             for field_name, field_info in self.__pydantic_fields__.items()
         }
 
-    def dialectical_component_copy_from(self, wheel: BaseWheel, dialectical_component: str):
+    def dialectical_component_copy_from(self, wheel: Wheel2, dialectical_component: str):
         if not hasattr(wheel, dialectical_component):
             setattr(self, dialectical_component, None)
             return

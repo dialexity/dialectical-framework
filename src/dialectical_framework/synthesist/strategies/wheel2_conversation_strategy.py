@@ -1,27 +1,19 @@
 from mirascope import prompt_template, Messages
 
-from dialectical_framework.synthesist.base_wheel import BaseWheel
+from dialectical_framework.synthesist.wheel2 import Wheel2
 from dialectical_framework.synthesist.strategies.wheel2_base_strategy import Wheel2BaseStrategy
 
 
-class Wheel2FocusedConversationStrategy(Wheel2BaseStrategy):
-    def __init__(self):
-        self._text = ""
-
+class Wheel2ConversationStrategy(Wheel2BaseStrategy):
     @prompt_template()
-    def thesis(self, text: str) -> Messages.Type:
-        self._text = text
-        return super().thesis(text)
-
-    @prompt_template()
-    def find_next(self, wheel_so_far: BaseWheel) -> Messages.Type:
+    def next_missing_component(self, wheel_so_far: Wheel2) -> Messages.Type:
         if not wheel_so_far.t:
             raise ValueError("T - not found in the wheel")
 
         prompt_messages: list = []
 
         prompt_messages.extend([
-            *super().thesis(self._text),
+            *super().thesis(self.text),
             Messages.Assistant(wheel_so_far.t.to_formatted_message("Thesis (T)"))
         ])
 
