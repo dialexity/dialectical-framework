@@ -48,7 +48,7 @@ class AbstractWheelFactory(ABC, Generic[WheelStrategy, Wheel]):
 
         try:
             for _ in range(len(wheel.__class__.__pydantic_fields__) - 1):
-                await self.strategy.expand(wheel)
+                wheel = await self.strategy.expand(wheel)
         except StopIteration:
             pass
 

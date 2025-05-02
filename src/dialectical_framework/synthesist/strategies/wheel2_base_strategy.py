@@ -46,7 +46,7 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
 
     Output the dialectical component T- and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-".
     """)
-    def negative_side(self, thesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
+    def thesis_negative_side(self, thesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         if isinstance(not_like_this, DialecticalComponent):
@@ -58,11 +58,8 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
             },
         }
 
-    def thesis_negative_side(self, thesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
-        return self.negative_side(thesis, not_like_this)
-
     def antithesis_negative_side(self, antithesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
-        tpl: list[BaseMessageParam] =  self.negative_side(antithesis, not_like_this)
+        tpl: list[BaseMessageParam] =  self.thesis_negative_side(antithesis, not_like_this)
         # Replace the technical terms in the prompt, so that it makes sense when passed in the history
         for i in range(len(tpl)):
             if tpl[i].content:
@@ -85,7 +82,7 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
 
     Output the dialectical component T+ and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-".
     """)
-    def positive_side(self, thesis: str | DialecticalComponent, antithesis_negative: str | DialecticalComponent) -> Messages.Type:
+    def thesis_positive_side(self, thesis: str | DialecticalComponent, antithesis_negative: str | DialecticalComponent) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         if isinstance(antithesis_negative, DialecticalComponent):
@@ -97,11 +94,8 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
             },
         }
 
-    def thesis_positive_side(self, thesis: str | DialecticalComponent, antithesis_negative: str | DialecticalComponent) -> Messages.Type:
-        return self.positive_side(thesis, antithesis_negative)
-
     def antithesis_positive_side(self, antithesis: str | DialecticalComponent, thesis_negative: str | DialecticalComponent) -> Messages.Type:
-        tpl: list[BaseMessageParam] = self.positive_side(antithesis, thesis_negative)
+        tpl: list[BaseMessageParam] = self.thesis_positive_side(antithesis, thesis_negative)
         # Replace the technical terms in the prompt, so that it makes sense when passed in the history
         for i in range(len(tpl)):
             if tpl[i].content:
@@ -132,7 +126,7 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
 
         if not wheel_so_far.t_minus:
             prompt_messages.extend(
-                self.negative_side(
+                self.thesis_negative_side(
                     wheel_so_far.t,
                     wheel_so_far.a_minus if wheel_so_far.a_minus else ""
                 )
@@ -144,7 +138,7 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
 
         if not wheel_so_far.a_minus:
             prompt_messages.extend(
-                self.negative_side(
+                self.antithesis_negative_side(
                     wheel_so_far.a,
                     wheel_so_far.t_minus if wheel_so_far.t_minus else ""
                 )
@@ -155,7 +149,7 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
             raise ValueError("A- - not found in the wheel")
         if not wheel_so_far.t_plus:
             prompt_messages.extend(
-                self.positive_side(
+                self.thesis_positive_side(
                     wheel_so_far.t,
                     wheel_so_far.a_minus
                 )
@@ -164,9 +158,9 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
 
         if not wheel_so_far.t_minus:
             raise ValueError("T- - not found in the wheel")
-        if wheel_so_far.a_plus:
+        if not wheel_so_far.a_plus:
             prompt_messages.extend(
-                self.positive_side(
+                self.antithesis_positive_side(
                     wheel_so_far.a,
                     wheel_so_far.t_minus
                 )
@@ -182,6 +176,31 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def find_antithesis(self, thesis: str) -> DialecticalComponent:
+        return self.antithesis(thesis)
+
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def find_thesis_negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
+        return self.thesis_negative_side(thesis, not_like_this)
+
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def find_antithesis_negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
+        return self.antithesis_negative_side(thesis, not_like_this)
+
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def find_thesis_positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
+        return self.thesis_positive_side(thesis, antithesis_negative)
+
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
+    async def find_antithesis_positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
+        return self.antithesis_positive_side(thesis, antithesis_negative)
+
+    @with_langfuse()
+    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def find_next_missing_component(self, wheel_so_far: Wheel2) -> DialecticalComponent:
         return self.next_missing_component(wheel_so_far)
 
@@ -192,6 +211,8 @@ class Wheel2BaseStrategy(AbstractWheelStrategy[Wheel2]):
         if wheel is None:
             wheel = Wheel2()
             wheel.t = await self.find_thesis()
+            return wheel
+
 
         dc: DialecticalComponent = await self.find_next_missing_component(wheel)
         setattr(wheel, dc.alias, dc)

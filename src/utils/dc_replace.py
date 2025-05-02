@@ -16,17 +16,24 @@ def dc_replace(text: str, dialectical_component_name: str, replace_to: str) -> s
     #     - This captures both proper sentence endings (e.g., `T-.`) and cases where punctuation appears mid-sentence (e.g., `T-,` or `T-!`).
     """
     return re.sub(
-        r'(?<!\w)(["\'\(\[\{]?)' rf"{dialectical_component_name}" r'(\s|[\]\'\"\)\},.!?:]|$)',
+        r'(?<!\w)(["\'\(\[\{]?)' rf"{re.escape(dialectical_component_name)}" r'(\s|[\]\'\"\)\},.!?:]|$)',
         # Replacement pattern (preserves surrounding characters and spaces)
         r'\1' rf"{replace_to}" r'\2',
-        text
+        text,
+        flags=re.VERBOSE
     )
 
-def dc_safe_replace(text: str, replacements: dict) -> str:
+def dc_safe_replace(text: str, replacements: dict[str, str]) -> str:
     result = text
-    for key, value in replacements.items():
+    # Sort keys by length in descending order to replace longer keys first
+    sorted_keys = sorted(replacements.keys(), key=len, reverse=True)
+
+    # First pass: replace with temporary placeholders
+    for key in sorted_keys:
         result = dc_replace(result, key, f"_{key}_")
 
-    for key, value in replacements.items():
-        result = dc_replace(result,f"_{key}_", value)
+    # Second pass: replace placeholders with final values
+    for key in sorted_keys:
+        result = dc_replace(result, f"_{key}_", replacements[key])
+
     return result
