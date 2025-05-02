@@ -18,6 +18,7 @@ def test_wheel_generator_with_validation():
     print("\n")
     print(wheel2)
     print("\n")
+    # Redefine everything is a hacky way to validate everything
     redefined_wheel2 = asyncio.run(factory.redefine(
         user_message,
         wheel2,

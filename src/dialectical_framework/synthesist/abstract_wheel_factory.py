@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, get_origin, get_args, Type
 
 from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
+from dialectical_framework.synthesist.base_wheel import BaseWheel
 
-Wheel = TypeVar("Wheel", bound="BasicWheel")
-WheelStrategy = TypeVar("WheelStrategy", bound="AbstractWheelStrategy")
+# It's important to use TypeVar so that Pydantic doesn't strip the extra fields
+Wheel = TypeVar("Wheel", bound=BaseWheel)
+WheelStrategy = TypeVar("WheelStrategy", bound=AbstractWheelStrategy)
 
 class AbstractWheelFactory(ABC, Generic[WheelStrategy]):
     def __init__(self, strategy: WheelStrategy = None):
