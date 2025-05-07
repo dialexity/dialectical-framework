@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory
 from dialectical_framework.synthesist.strategies.wheel2_conversation_strategy import Wheel2ConversationStrategy
-from dialectical_framework.synthesist.wheel2 import Wheel2
+from dialectical_framework.wheel2 import Wheel2
 from dialectical_framework.synthesist.wheel_generator import WheelGenerator
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."

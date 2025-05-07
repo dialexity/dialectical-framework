@@ -5,7 +5,7 @@ from typing import Type, Union, get_args
 from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory
 from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
 from dialectical_framework.synthesist.factories.wheel2_factory import Wheel2Factory
-from dialectical_framework.synthesist.wheel2 import Wheel2
+from dialectical_framework.wheel2 import Wheel2
 
 
 class WheelGenerator:

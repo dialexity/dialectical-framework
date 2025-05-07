@@ -7,7 +7,7 @@ from mirascope.integrations.langfuse import with_langfuse
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.abstract_wheel_factory import AbstractWheelFactory, WheelStrategy
-from dialectical_framework.synthesist.wheel2 import Wheel2, ALIAS_T
+from dialectical_framework.wheel2 import Wheel2, ALIAS_T
 from dialectical_framework.synthesist.strategies.wheel2_base_strategy import Wheel2BaseStrategy
 from dialectical_framework.validator.basic_checks import check, is_valid_opposition, is_negative_side, \
     is_strict_opposition, is_positive_side
@@ -46,7 +46,7 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
         if changed.get(base) or changed.get(other):
             check1 = check(is_valid_opposition, getattr(new_wheel, base).statement, getattr(new_wheel, other).statement)
 
-            if not check1.is_valid:
+            if not check1.valid:
                 if changed.get(base) and not changed.get(other):
                     # base side changed
                     o = await self.strategy.find_antithesis(getattr(new_wheel, base).statement)
@@ -54,7 +54,7 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
                     o.explanation = f"REGENERATED. {o.explanation}"
                     setattr(new_wheel, other, o)
                     changed[other] = o.statement
-                    check1.is_valid = True
+                    check1.valid = 1
                     check1.explanation = "Regenerated, therefore must be valid."
                 elif changed.get(other) and not changed.get(base):
                     # other side changed
@@ -63,10 +63,10 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
                     bm.explanation = f"REGENERATED. {bm.explanation}"
                     setattr(new_wheel, base, bm)
                     changed[base] = bm.statement
-                    check1.is_valid = True
+                    check1.valid = 1
                     check1.explanation = "Regenerated, therefore must be valid."
 
-            if not check1.is_valid:
+            if not check1.valid:
                 getattr(new_wheel, base).statement = f"ERROR: {getattr(new_wheel, base).statement}"
                 getattr(new_wheel, other).statement = f"ERROR: {getattr(new_wheel, other).statement}"
                 warnings.setdefault(alias_base, []).append(check1.explanation)
@@ -111,7 +111,7 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
                 if changed.get(base_minus) or changed.get(base):
                     check2 = check(is_negative_side, getattr(new_wheel, base_minus).statement, getattr(new_wheel, base).statement)
 
-                    if not check2.is_valid:
+                    if not check2.valid:
                         if changed.get(base) and not changed.get(base_minus):
                             not_like_other_minus = ""
                             if hasattr(new_wheel, other_minus):
@@ -122,10 +122,10 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
                             bm.explanation = f"REGENERATED. {bm.explanation}"
                             setattr(new_wheel, base_minus, bm)
                             changed[base_minus] = bm.statement
-                            check2.is_valid = True
+                            check2.valid = True
                             check2.explanation = "Regenerated, therefore must be valid."
 
-                    if not check2.is_valid:
+                    if not check2.valid:
                         getattr(new_wheel, base_minus).statement = f"ERROR: {getattr(new_wheel, base_minus).statement}"
                         warnings.setdefault(alias_base_minus, []).append(check2.explanation)
                         raise AssertionError(f"{alias_base_minus}", warnings, new_wheel)
@@ -136,18 +136,18 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
                 if changed.get(other_plus) or changed.get(other):
                     check3 = check(is_positive_side, getattr(new_wheel, other_plus).statement, getattr(new_wheel, other).statement)
 
-                    if not check3.is_valid:
+                    if not check3.valid:
                         if changed.get(other) and not changed.get(other_plus):
                             op = await other_positive_side_fn(getattr(new_wheel, other).statement, getattr(new_wheel, base_minus).statement)
                             assert isinstance(op, DialecticalComponent)
                             op.explanation = f"REGENERATED. {op.explanation}"
                             setattr(new_wheel, other_plus, op)
                             changed[other_plus] = op.statement
-                            check3.is_valid = True
+                            check3.valid = True
                             check3.explanation = "Regenerated, therefore must be valid."
                             other_plus_regenerated = True
 
-                    if not check3.is_valid:
+                    if not check3.valid:
                         getattr(new_wheel, other_plus).statement = f"ERROR: {getattr(new_wheel, other_plus).statement}"
                         warnings.setdefault(alias_other_plus, []).append(check3.explanation)
                         raise AssertionError(f"{alias_other_plus}", warnings, new_wheel)
@@ -158,7 +158,7 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
 
                 if not additional_diagonal_check_skip:
                     check4 = check(is_strict_opposition, getattr(new_wheel, base_minus).statement, getattr(new_wheel, other_plus).statement)
-                    if not check4.is_valid:
+                    if not check4.valid:
                         if changed.get(base_minus) and not changed.get(other_plus):
                             # base side changed
                             op = await other_positive_side_fn(
@@ -169,7 +169,7 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
                             op.explanation = f"REGENERATED. {op.explanation}"
                             setattr(new_wheel, other_plus, op)
                             changed[other_plus] = op.statement
-                            check4.is_valid = True
+                            check4.valid = True
                             check4.explanation = "Regenerated, therefore must be valid."
                         elif changed.get(other_plus) and not changed.get(base_minus):
                             # other side changed
@@ -185,10 +185,10 @@ class Wheel2Factory(AbstractWheelFactory[Wheel2BaseStrategy, Wheel2]):
                             bm.explanation = f"REGENERATED. {bm.explanation}"
                             setattr(new_wheel, base_minus, bm)
                             changed[base_minus] = bm.statement
-                            check4.is_valid = True
+                            check4.valid = True
                             check4.explanation = "Regenerated, therefore must be valid."
 
-                    if not check4.is_valid:
+                    if not check4.valid:
                         getattr(new_wheel, base_minus).statement = f"ERROR: {getattr(new_wheel, base_minus).statement}"
                         getattr(new_wheel, other_plus).statement = f"ERROR: {getattr(new_wheel, other_plus).statement}"
                         warnings.setdefault(alias_base_minus, []).append(check4.explanation)

@@ -6,7 +6,7 @@ from mirascope.integrations.langfuse import with_langfuse
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy, Wheel
-from dialectical_framework.synthesist.wheel2 import Wheel2, ALIAS_T, ALIAS_A, ALIAS_T_MINUS, ALIAS_A_MINUS, \
+from dialectical_framework.wheel2 import Wheel2, ALIAS_T, ALIAS_A, ALIAS_T_MINUS, ALIAS_A_MINUS, \
     ALIAS_T_PLUS, ALIAS_A_PLUS
 from utils.dc_replace import dc_safe_replace
 

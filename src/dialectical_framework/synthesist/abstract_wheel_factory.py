@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, get_origin, get_args, Type
 
 from dialectical_framework.synthesist.abstract_wheel_strategy import AbstractWheelStrategy
-from dialectical_framework.synthesist.wheel2 import Wheel2
+from dialectical_framework.wheel2 import Wheel2
 
 # It's important to use TypeVar so that Pydantic doesn't strip the extra fields
 Wheel = TypeVar("Wheel", bound=Wheel2)

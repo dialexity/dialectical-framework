@@ -1,6 +1,6 @@
 from mirascope import prompt_template, Messages
 
-from dialectical_framework.synthesist.wheel2 import Wheel2
+from dialectical_framework.wheel2 import Wheel2
 from dialectical_framework.synthesist.strategies.wheel2_base_strategy import Wheel2BaseStrategy
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic
 
-from dialectical_framework.synthesist.wheel2 import Wheel2
+from dialectical_framework.wheel2 import Wheel2
 
 # It's important to use TypeVar so that Pydantic doesn't strip the extra fields
 Wheel = TypeVar("Wheel", bound=Wheel2)
