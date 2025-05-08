@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 
-from langfuse.decorators import langfuse_context
+from langfuse.decorators import langfuse_context, observe
 from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -11,6 +11,7 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
 
+@observe()
 def test_wu_find_thesis():
     reasoner = ReasonerBlind(user_message)
     thesis = asyncio.run(reasoner.find_thesis())
@@ -18,7 +19,8 @@ def test_wu_find_thesis():
     print("\n")
     print(thesis)
 
-def test_wu_generator_with_validation():
+@observe()
+def test_wu_with_validation():
     reasoner = ReasonerBlind(user_message)
     wu: WisdomUnit = asyncio.run(reasoner.generate())
     assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
@@ -38,28 +40,23 @@ def test_wu_generator_with_validation():
     print("\n")
     print(redefined_wu)
 
-def test_wu_generator():
-    langfuse_context.update_current_trace(
-        session_id=f"test {datetime.now()}",
-        user_id="test",
-    )
+@observe()
+def test_wu_reasoner():
     reasoner = ReasonerBlind(user_message)
     wu: BaseModel = asyncio.run(reasoner.generate())
     assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
     print("\n")
     print(wu)
 
-def test_wu_generator_conv_strategy():
-    langfuse_context.update_current_trace(
-        session_id=f"test {datetime.now()}",
-        user_id="test",
-    )
+@observe()
+def test_wu_reasoner_conversational():
     reasoner = ReasonerConversational(user_message)
     wu: BaseModel = asyncio.run(reasoner.generate())
     assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
     print("\n")
     print(wu)
 
+@observe()
 def test_wu_redefine():
     # Precalculated
     wu = WisdomUnit(
