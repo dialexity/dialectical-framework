@@ -13,11 +13,11 @@ ALIAS_A = 'A'
 ALIAS_A_PLUS = 'A+'
 ALIAS_A_MINUS = 'A-'
 
-class Wheel2(BaseModel):
+class WisdomUnit(BaseModel):
     """
-    A base class for a wheel in the dialectical framework.
-    It's very restrictive, to avoid any additional fields.
-    However, it's flexible, that the fields can be set by the field name or by alias.
+    A basic "molecule" in the dialectical framework, which makes up a diagonal relationship (complementary opposing pieces of the wheel).
+    It's very restrictive to avoid any additional fields.
+    However, it's flexible that the fields can be set by the field name or by alias.
     """
     model_config = ConfigDict(
         extra='forbid',
@@ -53,13 +53,40 @@ class Wheel2(BaseModel):
             for field_name, field_info in self.__pydantic_fields__.items()
         }
 
-    def dialectical_component_copy_from(self, wheel: Wheel2, dialectical_component: str):
-        if not hasattr(wheel, dialectical_component):
+    def dialectical_component_copy_from(self, wisdom_unit: WisdomUnit, dialectical_component: str):
+        if not hasattr(wisdom_unit, dialectical_component):
             setattr(self, dialectical_component, None)
             return
 
-        c: DialecticalComponent | None = getattr(wheel, dialectical_component)
+        c: DialecticalComponent | None = getattr(wisdom_unit, dialectical_component)
         setattr(self, dialectical_component, c.model_copy() if c else None)
+
+    def swap_positions(self, mutate: bool = True) -> WisdomUnit:
+        """
+        Swap thesis (T, T+, T−) and antithesis (A, A+, A−) components.
+
+        Parameters
+        ----------
+        mutate : bool, default True
+            • True – perform the swap in-place and return *self*
+            • False – leave *self* unchanged and return a **new** `WisdomUnit`
+              whose positions are swapped.
+
+        Returns
+        -------
+        WisdomUnit
+            The mutated instance (if ``mutate``) or the newly created,
+            swapped copy.
+        """
+        # Choose the object we will modify.
+        target: WisdomUnit = self if mutate else self.model_copy()
+
+        # Swap each corresponding pair.
+        target.t, target.a = target.a, target.t
+        target.t_plus, target.a_plus = target.a_plus, target.t_plus
+        target.t_minus, target.a_minus = target.a_minus, target.t_minus
+
+        return target
 
     def __str__(self):
         ini_data = []

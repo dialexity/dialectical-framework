@@ -1,0 +1,82 @@
+from mirascope import prompt_template, Messages
+
+from dialectical_framework.synthesist.basic_factory import BasicFactory
+from dialectical_framework.wisdom_unit import WisdomUnit
+
+
+class ConversationalFactory(BasicFactory):
+    @prompt_template()
+    def next_missing_component(self, wu_so_far: WisdomUnit) -> Messages.Type:
+        if not wu_so_far.t:
+            raise ValueError("T - not found in the wheel")
+
+        prompt_messages: list = []
+
+        prompt_messages.extend([
+            *super().thesis(self._text),
+            Messages.Assistant(wu_so_far.t.to_formatted_message("Thesis (T)"))
+        ])
+
+        prompt_messages.extend(
+            super().antithesis(wu_so_far.t),
+        )
+        if wu_so_far.a:
+            prompt_messages.append(
+                Messages.Assistant(wu_so_far.a.to_formatted_message("Antithesis (A)"))
+            )
+        else:
+            return prompt_messages
+
+        prompt_messages.extend(
+            super().thesis_negative_side(
+                wu_so_far.t,
+                wu_so_far.a_minus if wu_so_far.a_minus else ""
+            )
+        )
+        if wu_so_far.t_minus:
+            prompt_messages.append(
+                Messages.Assistant(wu_so_far.t_minus.to_formatted_message("Negative Side of Thesis (T-)"))
+            )
+        else:
+            return prompt_messages
+
+        prompt_messages.extend(
+            super().antithesis_negative_side(
+                wu_so_far.a,
+                wu_so_far.t_minus if wu_so_far.t_minus else ""
+            )
+        )
+        if wu_so_far.a_minus:
+            prompt_messages.extend([
+                Messages.Assistant(wu_so_far.a_minus.to_formatted_message("Negative Side of Antithesis (A-)"))
+            ])
+        else:
+            return prompt_messages
+
+        prompt_messages.extend(
+            super().thesis_positive_side(
+                wu_so_far.t,
+                wu_so_far.a_minus
+            )
+        )
+        if wu_so_far.t_plus:
+            prompt_messages.extend([
+                Messages.Assistant(wu_so_far.t_plus.to_formatted_message("Positive Side of Thesis (T+)"))
+            ])
+        else:
+            return prompt_messages
+
+        prompt_messages.extend(
+            super().antithesis_positive_side(
+                wu_so_far.a,
+                wu_so_far.t_minus
+            )
+        )
+        if wu_so_far.a_plus:
+            prompt_messages.extend([
+                Messages.Assistant(wu_so_far.a_plus.to_formatted_message("Positive Side of Antithesis (A+)"))
+            ])
+        else:
+            return prompt_messages
+
+        raise StopIteration("The wheel is complete, nothing to do.")
