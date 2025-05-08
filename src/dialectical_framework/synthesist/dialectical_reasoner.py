@@ -1,3 +1,5 @@
+from abc import ABC, abstractmethod
+
 from mirascope import prompt_template, Messages, BaseMessageParam, llm
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -10,7 +12,7 @@ from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_T, ALIAS_A, ALIA
 from utils.dc_replace import dc_safe_replace
 
 
-class BasicFactory:
+class DialecticalReasoner(ABC):
     def __init__(self, text: str):
         self._text = text
         self._wisdom_unit = None
@@ -24,7 +26,7 @@ class BasicFactory:
 
     Output the dialectical component T and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T". 
     """)
-    def thesis(self, text: str) -> Messages.Type: ...
+    def prompt_thesis(self, text: str) -> Messages.Type: ...
 
     @prompt_template("""
     A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
@@ -33,7 +35,7 @@ class BasicFactory:
 
     Output the dialectical component A and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A".
     """)
-    def antithesis(self, thesis: str | DialecticalComponent) -> Messages.Type:
+    def prompt_antithesis(self, thesis: str | DialecticalComponent) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         return {
@@ -49,7 +51,7 @@ class BasicFactory:
 
     Output the dialectical component T- and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-".
     """)
-    def thesis_negative_side(self, thesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
+    def prompt_thesis_negative_side(self, thesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         if isinstance(not_like_this, DialecticalComponent):
@@ -62,8 +64,8 @@ class BasicFactory:
         }
 
     @prompt_template()
-    def antithesis_negative_side(self, antithesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
-        tpl: list[BaseMessageParam] =  self.thesis_negative_side(antithesis, not_like_this)
+    def prompt_antithesis_negative_side(self, antithesis: str | DialecticalComponent, not_like_this: str | DialecticalComponent = "") -> Messages.Type:
+        tpl: list[BaseMessageParam] =  self.prompt_thesis_negative_side(antithesis, not_like_this)
         # Replace the technical terms in the prompt, so that it makes sense when passed in the history
         for i in range(len(tpl)):
             if tpl[i].content:
@@ -86,7 +88,7 @@ class BasicFactory:
 
     Output the dialectical component T+ and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-".
     """)
-    def thesis_positive_side(self, thesis: str | DialecticalComponent, antithesis_negative: str | DialecticalComponent) -> Messages.Type:
+    def prompt_thesis_positive_side(self, thesis: str | DialecticalComponent, antithesis_negative: str | DialecticalComponent) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         if isinstance(antithesis_negative, DialecticalComponent):
@@ -99,8 +101,8 @@ class BasicFactory:
         }
 
     @prompt_template()
-    def antithesis_positive_side(self, antithesis: str | DialecticalComponent, thesis_negative: str | DialecticalComponent) -> Messages.Type:
-        tpl: list[BaseMessageParam] = self.thesis_positive_side(antithesis, thesis_negative)
+    def prompt_antithesis_positive_side(self, antithesis: str | DialecticalComponent, thesis_negative: str | DialecticalComponent) -> Messages.Type:
+        tpl: list[BaseMessageParam] = self.prompt_thesis_positive_side(antithesis, thesis_negative)
         # Replace the technical terms in the prompt, so that it makes sense when passed in the history
         for i in range(len(tpl)):
             if tpl[i].content:
@@ -112,102 +114,43 @@ class BasicFactory:
         return tpl
 
     @prompt_template()
-    def next_missing_component(self, wu_so_far: WisdomUnit) -> Messages.Type:
-        """
-        Raises:
-            ValueError: If the wisdom unit is incorrect.
-            StopIteration: If the wisdom unit is complete already.
-        """
-        if not wu_so_far.t:
-            raise ValueError("T - not present")
-
-        prompt_messages = []
-
-        if not wu_so_far.a:
-            prompt_messages.extend(
-                self.antithesis(wu_so_far.t),
-            )
-            return prompt_messages
-
-        if not wu_so_far.t_minus:
-            prompt_messages.extend(
-                self.thesis_negative_side(
-                    wu_so_far.t,
-                    wu_so_far.a_minus if wu_so_far.a_minus else ""
-                )
-            )
-            return prompt_messages
-
-        if not wu_so_far.a:
-            raise ValueError("A - not present")
-
-        if not wu_so_far.a_minus:
-            prompt_messages.extend(
-                self.antithesis_negative_side(
-                    wu_so_far.a,
-                    wu_so_far.t_minus if wu_so_far.t_minus else ""
-                )
-            )
-            return prompt_messages
-
-        if not wu_so_far.a_minus:
-            raise ValueError("A- - not present")
-        if not wu_so_far.t_plus:
-            prompt_messages.extend(
-                self.thesis_positive_side(
-                    wu_so_far.t,
-                    wu_so_far.a_minus
-                )
-            )
-            return prompt_messages
-
-        if not wu_so_far.t_minus:
-            raise ValueError("T- - not present")
-        if not wu_so_far.a_plus:
-            prompt_messages.extend(
-                self.antithesis_positive_side(
-                    wu_so_far.a,
-                    wu_so_far.t_minus
-                )
-            )
-            return prompt_messages
-
-        raise StopIteration("The wisdom unit is complete, nothing to do.")
+    @abstractmethod
+    def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type: ...
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def find_thesis(self) -> DialecticalComponent:
-        return self.thesis(self._text)
+        return self.prompt_thesis(self._text)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def find_antithesis(self, thesis: str) -> DialecticalComponent:
-        return self.antithesis(thesis)
+        return self.prompt_antithesis(thesis)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def find_thesis_negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
-        return self.thesis_negative_side(thesis, not_like_this)
+        return self.prompt_thesis_negative_side(thesis, not_like_this)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def find_antithesis_negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
-        return self.antithesis_negative_side(thesis, not_like_this)
+        return self.prompt_antithesis_negative_side(thesis, not_like_this)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def find_thesis_positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
-        return self.thesis_positive_side(thesis, antithesis_negative)
+        return self.prompt_thesis_positive_side(thesis, antithesis_negative)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
     async def find_antithesis_positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
-        return self.antithesis_positive_side(thesis, antithesis_negative)
+        return self.prompt_antithesis_positive_side(thesis, antithesis_negative)
 
     @with_langfuse()
     @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_next_missing_component(self, wheel_so_far: WisdomUnit) -> DialecticalComponent:
-        return self.next_missing_component(wheel_so_far)
+    async def find_next(self, wu_so_far: WisdomUnit) -> DialecticalComponent:
+        return self.prompt_next(wu_so_far)
 
     async def generate(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit()
@@ -224,7 +167,7 @@ class BasicFactory:
 
         try:
             for _ in range(len(wu.__class__.__pydantic_fields__) - 1):
-                dc: DialecticalComponent = await self.find_next_missing_component(wu)
+                dc: DialecticalComponent = await self.find_next(wu)
                 setattr(wu, dc.alias, dc)
         except StopIteration:
             pass
@@ -233,12 +176,24 @@ class BasicFactory:
 
         return wu
 
-    async def redefine(self, **modified_dialectical_components) -> WisdomUnit:
+    async def redefine(
+            self,
+            *,  # ← everything after * is keyword-only
+            original: WisdomUnit | None = None,
+            **modified_dialectical_components,
+    ) -> WisdomUnit:
+
         warnings: dict[str, list[str]] = {}
 
-        original: WisdomUnit = self._wisdom_unit
+        if original is None:
+            original = self._wisdom_unit
+
+
         if original is None:
             raise ValueError("Wisdom unit is not generated yet.")
+
+        # Replace it in case the parameter "original" was given
+        self._wisdom_unit = original
 
         changed: dict[str, str] = {
             k: str(v) for k, v in modified_dialectical_components.items()
@@ -309,8 +264,8 @@ class BasicFactory:
             base = side
             other = "a" if base == 't' else "t"
 
-            base_negative_side_fn = self.thesis_negative_side if side == 't' else  self.antithesis_negative_side
-            other_positive_side_fn = self.antithesis_positive_side if side == 't' else self.thesis_positive_side
+            base_negative_side_fn = self.find_thesis_negative_side if side == 't' else  self.find_antithesis_negative_side
+            other_positive_side_fn = self.find_antithesis_positive_side if side == 't' else self.find_thesis_positive_side
 
             base_minus = "t_minus" if side == 't' else "a_minus"
             base_plus = "t_plus" if side == 't' else "a_plus"

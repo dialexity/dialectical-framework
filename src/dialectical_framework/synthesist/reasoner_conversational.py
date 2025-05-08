@@ -1,24 +1,24 @@
 from mirascope import prompt_template, Messages
 
-from dialectical_framework.synthesist.basic_factory import BasicFactory
+from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class ConversationalFactory(BasicFactory):
+class ReasonerConversational(DialecticalReasoner):
     @prompt_template()
-    def next_missing_component(self, wu_so_far: WisdomUnit) -> Messages.Type:
+    def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type:
         if not wu_so_far.t:
             raise ValueError("T - not found in the wheel")
 
         prompt_messages: list = []
 
         prompt_messages.extend([
-            *super().thesis(self._text),
+            *super().prompt_thesis(self._text),
             Messages.Assistant(wu_so_far.t.to_formatted_message("Thesis (T)"))
         ])
 
         prompt_messages.extend(
-            super().antithesis(wu_so_far.t),
+            super().prompt_antithesis(wu_so_far.t),
         )
         if wu_so_far.a:
             prompt_messages.append(
@@ -28,7 +28,7 @@ class ConversationalFactory(BasicFactory):
             return prompt_messages
 
         prompt_messages.extend(
-            super().thesis_negative_side(
+            super().prompt_thesis_negative_side(
                 wu_so_far.t,
                 wu_so_far.a_minus if wu_so_far.a_minus else ""
             )
@@ -41,7 +41,7 @@ class ConversationalFactory(BasicFactory):
             return prompt_messages
 
         prompt_messages.extend(
-            super().antithesis_negative_side(
+            super().prompt_antithesis_negative_side(
                 wu_so_far.a,
                 wu_so_far.t_minus if wu_so_far.t_minus else ""
             )
@@ -54,7 +54,7 @@ class ConversationalFactory(BasicFactory):
             return prompt_messages
 
         prompt_messages.extend(
-            super().thesis_positive_side(
+            super().prompt_thesis_positive_side(
                 wu_so_far.t,
                 wu_so_far.a_minus
             )
@@ -67,7 +67,7 @@ class ConversationalFactory(BasicFactory):
             return prompt_messages
 
         prompt_messages.extend(
-            super().antithesis_positive_side(
+            super().prompt_antithesis_positive_side(
                 wu_so_far.a,
                 wu_so_far.t_minus
             )
