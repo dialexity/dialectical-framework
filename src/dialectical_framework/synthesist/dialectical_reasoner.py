@@ -13,9 +13,66 @@ from utils.dc_replace import dc_safe_replace
 
 
 class DialecticalReasoner(ABC):
-    def __init__(self, text: str):
+    def __init__(self, text: str, *, ai_model: str = Config.MODEL, ai_provider: str | None = Config.PROVIDER) -> None:
+        if not ai_provider:
+            if not '/' in ai_model:
+                raise ValueError("ai_model must be in the form of 'provider/model' if ai_provider is not specified.")
+            else:
+                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
+                self._ai_provider, self._ai_model =  derived_ai_provider, derived_ai_model
+        else:
+            if not '/' in ai_model:
+                self._ai_provider, self._ai_model = ai_provider, ai_model
+            else:
+                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
+                if derived_ai_provider != ai_provider:
+                    raise ValueError(f"ai_provider '{ai_provider}' does not match ai_model '{ai_model}'")
+                self._ai_provider, self._ai_model =  derived_ai_provider, derived_ai_model
+
         self._text = text
         self._wisdom_unit = None
+
+    def _fix_ai_provider_and_model(self, ai_provider: str | None = None, ai_model: str | None = None) -> tuple[str, str]:
+        current_provider, current_model = self._ai_provider, self._ai_model
+
+        if ai_provider == 'litellm':
+            if not ai_model:
+                if not current_provider and not current_model:
+                    raise ValueError("ai_model not provided.")
+                else:
+                    return ai_provider, f"{current_provider}/{current_model}"
+            else:
+                if not '/' in ai_model:
+                    if not current_provider:
+                        raise ValueError("ai_model must be in the form of 'provider/model' for litellm.")
+                    else:
+                        return ai_provider, f"{current_provider}/{ai_model}"
+                else:
+                    return ai_provider, ai_model
+
+        if not ai_model and not ai_provider:
+            if Config.PROVIDER or Config.MODEL or current_provider or current_model:
+                return self._fix_ai_provider_and_model(
+                    Config.PROVIDER if not current_provider else current_provider,
+                    Config.MODEL if not current_model else current_model,
+                )
+            else:
+                raise ValueError("Cannot fallback to default model as they're not present")
+
+        if not ai_provider:
+            if not '/' in ai_model:
+                raise ValueError("ai_model must be in the form of 'provider/model' if ai_provider is not specified.")
+            else:
+                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
+                return derived_ai_provider, derived_ai_model
+        else:
+            if not '/' in ai_model:
+                return ai_provider, ai_model
+            else:
+                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
+                if derived_ai_provider != ai_provider:
+                    raise ValueError(f"ai_provider '{ai_provider}' does not match ai_model '{ai_model}'")
+                return derived_ai_provider, derived_ai_model
 
     @prompt_template("""
     USER:
@@ -118,39 +175,123 @@ class DialecticalReasoner(ABC):
     def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type: ...
 
     @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_thesis(self) -> DialecticalComponent:
-        return self.prompt_thesis(self._text)
+    async def find_thesis(self, *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
+        if overridden_ai_provider == "bedrock":
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model("litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=DialecticalComponent,
+        )
+        async def _find_thesis_call() -> DialecticalComponent:
+            return self.prompt_thesis(self._text)
+
+        return await _find_thesis_call()
 
     @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_antithesis(self, thesis: str) -> DialecticalComponent:
-        return self.prompt_antithesis(thesis)
+    async def find_antithesis(self, thesis: str, *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
+        if overridden_ai_provider == "bedrock":
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model("litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=DialecticalComponent,
+        )
+        async def _find_antithesis_call() -> DialecticalComponent:
+            return self.prompt_antithesis(thesis)
+
+        return await _find_antithesis_call()
 
     @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_thesis_negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
-        return self.prompt_thesis_negative_side(thesis, not_like_this)
+    async def find_thesis_negative_side(self, thesis: str, not_like_this: str = "", *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
+        if overridden_ai_provider == "bedrock":
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model("litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=DialecticalComponent,
+        )
+        async def _find_thesis_negative_side_call() -> DialecticalComponent:
+            return self.prompt_thesis_negative_side(thesis, not_like_this)
+
+        return await _find_thesis_negative_side_call()
 
     @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_antithesis_negative_side(self, thesis: str, not_like_this: str = "") -> DialecticalComponent:
-        return self.prompt_antithesis_negative_side(thesis, not_like_this)
+    async def find_antithesis_negative_side(self, thesis: str, not_like_this: str = "", *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
+        if overridden_ai_provider == "bedrock":
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model("litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=DialecticalComponent,
+        )
+        async def _find_antithesis_negative_side_call() -> DialecticalComponent:
+            return self.prompt_antithesis_negative_side(thesis, not_like_this)
+
+        return await _find_antithesis_negative_side_call()
 
     @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_thesis_positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
-        return self.prompt_thesis_positive_side(thesis, antithesis_negative)
+    async def find_thesis_positive_side(self, thesis: str, antithesis_negative: str, *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
+        if overridden_ai_provider == "bedrock":
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model("litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=DialecticalComponent,
+        )
+        async def _find_thesis_positive_side_call() -> DialecticalComponent:
+            return self.prompt_thesis_positive_side(thesis, antithesis_negative)
+
+        return await _find_thesis_positive_side_call()
 
     @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_antithesis_positive_side(self, thesis: str, antithesis_negative: str) -> DialecticalComponent:
-        return self.prompt_antithesis_positive_side(thesis, antithesis_negative)
+    async def find_antithesis_positive_side(self, thesis: str, antithesis_negative: str, *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
+        if overridden_ai_provider == "bedrock":
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model("litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=DialecticalComponent,
+        )
+        async def _find_antithesis_positive_side_call() -> DialecticalComponent:
+            return self.prompt_antithesis_positive_side(thesis, antithesis_negative)
+
+        return await _find_antithesis_positive_side_call()
 
     @with_langfuse()
-    @llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=DialecticalComponent)
-    async def find_next(self, wu_so_far: WisdomUnit) -> DialecticalComponent:
-        return self.prompt_next(wu_so_far)
+    async def find_next(self, wu_so_far: WisdomUnit, *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
+        if overridden_ai_provider == "bedrock":
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model("litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=DialecticalComponent,
+        )
+        async def _find_next_call() -> DialecticalComponent:
+            return self.prompt_next(wu_so_far)
+
+        return await _find_next_call()
 
     async def generate(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit()

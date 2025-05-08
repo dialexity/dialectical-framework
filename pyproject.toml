@@ -14,7 +14,7 @@ mirascope = {extras = [
     "litellm",
     "bedrock",
     "langfuse"
-], version = "^1.22.6"}
+], version = "^1.23.2"}
 python-dotenv = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]

@@ -11,6 +11,13 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
 
+def test_wu_find_thesis():
+    reasoner = ReasonerBlind(user_message)
+    thesis = asyncio.run(reasoner.find_thesis())
+    assert thesis is not None
+    print("\n")
+    print(thesis)
+
 def test_wu_generator_with_validation():
     reasoner = ReasonerBlind(user_message)
     wu: WisdomUnit = asyncio.run(reasoner.generate())
