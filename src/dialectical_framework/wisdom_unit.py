@@ -39,15 +39,43 @@ class WisdomUnit(BaseModel):
     a: DialecticalComponent | None = Field(default=None, description="The antithesis: A", alias=ALIAS_A)
     a_plus: DialecticalComponent | None = Field(default=None, description="The positive side of the antithesis: A+", alias=ALIAS_A_PLUS)
 
+    def is_complete(self):
+        return all(v is not None for v in self.model_dump(exclude_none=False).values())
+
+    def is_set(self, key: str) -> bool:
+        """
+        True if the given field/alias exists **and** its value is not ``None``.
+        >>> wu = WisdomUnit()
+        >>> wu.is_set("T")
+        >>> wu.is_set("t")
+        """
+        return self.get(key, None) is not None
+
+
+    def get(self, key: str, default: object | None = None) -> DialecticalComponent | None:
+        """
+        Dictionary-style accessor that understands both *field names* and *aliases*.
+
+        Examples
+        --------
+        >>> wu = WisdomUnit()
+        >>> wu.get("t")      # by field name
+        >>> wu.get("T")      # by alias
+        """
+        field_name: str = self.alias_to_field.get(key, key)
+        if field_name in self.__pydantic_fields__:
+            return getattr(self, field_name)
+        return default
+
     @property
-    def field_to_alias(self):
+    def field_to_alias(self) -> dict[str, str]:
         return {
             field_name: field_info.alias
             for field_name, field_info in self.__pydantic_fields__.items()
         }
 
     @property
-    def alias_to_field(self):
+    def alias_to_field(self) -> dict[str, str]:
         return {
             field_info.alias: field_name
             for field_name, field_info in self.__pydantic_fields__.items()

@@ -1,18 +1,18 @@
 import asyncio
-from datetime import datetime
 
-from langfuse.decorators import langfuse_context, observe
+from langfuse.decorators import observe
 from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.reasoner_blind import ReasonerBlind
 from dialectical_framework.synthesist.reasoner_conversational import ReasonerConversational
+from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
 
 @observe()
-def test_wu_find_thesis():
+def test_reasoner_find_thesis():
     reasoner = ReasonerBlind(user_message)
     thesis = asyncio.run(reasoner.find_thesis())
     assert thesis is not None
@@ -20,10 +20,18 @@ def test_wu_find_thesis():
     print(thesis)
 
 @observe()
-def test_wu_with_validation():
+def test_blind_reasoner():
+    reasoner = ReasonerBlind(user_message)
+    wu: BaseModel = asyncio.run(reasoner.generate())
+    assert wu.is_complete()
+    print("\n")
+    print(wu)
+
+@observe()
+def test_blind_reasoner_with_validation():
     reasoner = ReasonerBlind(user_message)
     wu: WisdomUnit = asyncio.run(reasoner.generate())
-    assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
+    assert wu.is_complete()
     print("\n")
     print(wu)
     print("\n")
@@ -36,28 +44,52 @@ def test_wu_with_validation():
         a=wu.a.statement,
         a_plus=wu.a_plus.statement
     ))
-    assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
+    assert wu.is_complete()
     print("\n")
     print(redefined_wu)
 
 @observe()
-def test_wu_reasoner():
-    reasoner = ReasonerBlind(user_message)
-    wu: BaseModel = asyncio.run(reasoner.generate())
-    assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
-    print("\n")
-    print(wu)
-
-@observe()
-def test_wu_reasoner_conversational():
+def test_conversational_reasoner():
     reasoner = ReasonerConversational(user_message)
     wu: BaseModel = asyncio.run(reasoner.generate())
-    assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
+    assert wu.is_complete()
     print("\n")
     print(wu)
 
 @observe()
-def test_wu_redefine():
+def test_fast_reasoner():
+    reasoner = ReasonerFast(user_message)
+    wu: BaseModel = asyncio.run(reasoner.generate())
+    assert wu.is_complete()
+    print("\n")
+    print(wu)
+
+@observe()
+def test_fast_reasoner_with_a_given_thesis():
+    reasoner = ReasonerFast(user_message)
+    wu: BaseModel = asyncio.run(reasoner.generate(thesis="Life is good!"))
+    assert wu.is_complete()
+    print("\n")
+    print(wu)
+
+@observe()
+def test_fast_reasoner_with_a_given_wrong_thesis():
+    reasoner = ReasonerFast(user_message)
+    wu: BaseModel = asyncio.run(reasoner.generate(thesis="She is standing in the corner"))
+    assert wu.is_complete()
+    print("\n")
+    print(wu)
+
+@observe()
+def test_fast_reasoner_with_a_given_nonsense_thesis():
+    reasoner = ReasonerFast(user_message)
+    wu: BaseModel = asyncio.run(reasoner.generate(thesis="Lithuania is a place to live"))
+    assert wu.is_complete()
+    print("\n")
+    print(wu)
+
+@observe()
+def test_redefine():
     # Precalculated
     wu = WisdomUnit(
         t_minus=DialecticalComponent.from_str('T-', 'Mental Preoccupation'),
@@ -79,6 +111,6 @@ def test_wu_redefine():
         a='Indifference',
         a_plus='Mindful Detachment'
     ))
-    assert all(v is not None for v in wu.model_dump(exclude_none=False).values())
+    assert wu.is_complete()
     print("\n")
     print(redefined_wu)

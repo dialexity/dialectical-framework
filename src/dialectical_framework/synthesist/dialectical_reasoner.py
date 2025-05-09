@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 from mirascope import prompt_template, Messages, BaseMessageParam, llm
 from mirascope.integrations.langfuse import with_langfuse
 
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.dialectical_components_box import DialecticalComponentsBox
 from dialectical_framework.validator.basic_checks import check, is_valid_opposition, is_negative_side, is_positive_side, \
     is_strict_opposition
 from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_T, ALIAS_A, ALIAS_T_MINUS, ALIAS_A_MINUS, \
@@ -31,48 +33,6 @@ class DialecticalReasoner(ABC):
 
         self._text = text
         self._wisdom_unit = None
-
-    def _fix_ai_provider_and_model(self, ai_provider: str | None = None, ai_model: str | None = None) -> tuple[str, str]:
-        current_provider, current_model = self._ai_provider, self._ai_model
-
-        if ai_provider == 'litellm':
-            if not ai_model:
-                if not current_provider and not current_model:
-                    raise ValueError("ai_model not provided.")
-                else:
-                    return ai_provider, f"{current_provider}/{current_model}"
-            else:
-                if not '/' in ai_model:
-                    if not current_provider:
-                        raise ValueError("ai_model must be in the form of 'provider/model' for litellm.")
-                    else:
-                        return ai_provider, f"{current_provider}/{ai_model}"
-                else:
-                    return ai_provider, ai_model
-
-        if not ai_model and not ai_provider:
-            if Config.PROVIDER or Config.MODEL or current_provider or current_model:
-                return self._fix_ai_provider_and_model(
-                    Config.PROVIDER if not current_provider else current_provider,
-                    Config.MODEL if not current_model else current_model,
-                )
-            else:
-                raise ValueError("Cannot fallback to default model as they're not present")
-
-        if not ai_provider:
-            if not '/' in ai_model:
-                raise ValueError("ai_model must be in the form of 'provider/model' if ai_provider is not specified.")
-            else:
-                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
-                return derived_ai_provider, derived_ai_model
-        else:
-            if not '/' in ai_model:
-                return ai_provider, ai_model
-            else:
-                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
-                if derived_ai_provider != ai_provider:
-                    raise ValueError(f"ai_provider '{ai_provider}' does not match ai_model '{ai_model}'")
-                return derived_ai_provider, derived_ai_model
 
     @prompt_template("""
     USER:
@@ -277,7 +237,11 @@ class DialecticalReasoner(ABC):
         return await _find_antithesis_positive_side_call()
 
     @with_langfuse()
-    async def find_next(self, wu_so_far: WisdomUnit, *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponent:
+    async def find_next(self, wu_so_far: WisdomUnit, *, ai_provider: str | None = None, ai_model: str | None = None) -> DialecticalComponentsBox:
+        """
+        Raises:
+            StopIteration: if nothing needs to be found anymore
+        """
         overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(ai_provider, ai_model)
         if overridden_ai_provider == "bedrock":
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
@@ -286,15 +250,16 @@ class DialecticalReasoner(ABC):
         @llm.call(
             provider=overridden_ai_provider,
             model=overridden_ai_model,
-            response_model=DialecticalComponent,
+            response_model=DialecticalComponentsBox,
         )
-        async def _find_next_call() -> DialecticalComponent:
+        async def _find_next_call() -> DialecticalComponentsBox:
             return self.prompt_next(wu_so_far)
 
         return await _find_next_call()
 
     async def generate(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit()
+
         if thesis is not None:
             if isinstance(thesis, DialecticalComponent):
                 if thesis.alias != ALIAS_T:
@@ -305,15 +270,34 @@ class DialecticalReasoner(ABC):
         else:
             wu.t = await self.find_thesis()
 
+        self._wisdom_unit = await self._fill_with_reason(wu)
+        return self._wisdom_unit
+
+    async def _fill_with_reason(self, wu: WisdomUnit) -> WisdomUnit:
+        empty_count = len(wu.alias_to_field)
+        for alias in wu.alias_to_field:
+            if wu.is_set(alias):
+                empty_count -= 1
 
         try:
-            for _ in range(len(wu.__class__.__pydantic_fields__) - 1):
-                dc: DialecticalComponent = await self.find_next(wu)
-                setattr(wu, dc.alias, dc)
+            ci = 0
+            while ci < empty_count:
+                if wu.is_complete():
+                    break
+                """
+                We assume here, that with every iteration we will find a new dialectical component(s).
+                If we keep finding the same ones (or not find at all), we will still avoid the infinite loop - that's good.
+                """
+                dc: DialecticalComponentsBox = await self.find_next(wu)
+                for d in dc.dialectical_components:
+                    if wu.get(d.alias):
+                        # Don't override if we already have it
+                        continue
+                    else:
+                        setattr(wu, d.alias, d)
+                        ci += 1
         except StopIteration:
             pass
-
-        self._wisdom_unit = wu
 
         return wu
 
@@ -521,3 +505,45 @@ class DialecticalReasoner(ABC):
                 pass
 
         return new_wu
+
+    def _fix_ai_provider_and_model(self, ai_provider: str | None = None, ai_model: str | None = None) -> tuple[str, str]:
+        current_provider, current_model = self._ai_provider, self._ai_model
+
+        if ai_provider == 'litellm':
+            if not ai_model:
+                if not current_provider and not current_model:
+                    raise ValueError("ai_model not provided.")
+                else:
+                    return ai_provider, f"{current_provider}/{current_model}"
+            else:
+                if not '/' in ai_model:
+                    if not current_provider:
+                        raise ValueError("ai_model must be in the form of 'provider/model' for litellm.")
+                    else:
+                        return ai_provider, f"{current_provider}/{ai_model}"
+                else:
+                    return ai_provider, ai_model
+
+        if not ai_model and not ai_provider:
+            if Config.PROVIDER or Config.MODEL or current_provider or current_model:
+                return self._fix_ai_provider_and_model(
+                    Config.PROVIDER if not current_provider else current_provider,
+                    Config.MODEL if not current_model else current_model,
+                )
+            else:
+                raise ValueError("Cannot fallback to default model as they're not present")
+
+        if not ai_provider:
+            if not '/' in ai_model:
+                raise ValueError("ai_model must be in the form of 'provider/model' if ai_provider is not specified.")
+            else:
+                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
+                return derived_ai_provider, derived_ai_model
+        else:
+            if not '/' in ai_model:
+                return ai_provider, ai_model
+            else:
+                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
+                if derived_ai_provider != ai_provider:
+                    raise ValueError(f"ai_provider '{ai_provider}' does not match ai_model '{ai_model}'")
+                return derived_ai_provider, derived_ai_model
