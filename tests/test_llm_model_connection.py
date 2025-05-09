@@ -5,6 +5,7 @@ from pydantic import BaseModel
 # Load environment variables
 load_dotenv()
 
+
 class LLMResponse(BaseModel):
     message: str
 
@@ -29,12 +30,9 @@ def test_llm_model_connection():
         "litellm": [
             "azure/gpt-4o",
             "anthropic/claude-3-5-haiku-latest",
-            "bedrock/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+            "bedrock/us.anthropic.claude-3-5-sonnet-20241022-v2:0",
         ],
-        "anthropic": [
-            "claude-3-5-haiku-latest",
-            "claude-3-5-sonnet-latest"
-        ],
+        "anthropic": ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest"],
         "bedrock": ["us.anthropic.claude-3-5-sonnet-20241022-v2:0"],
         # "bedrock": ["us.anthropic.claude-3-7-sonnet-20250219-v1:0"],
     }

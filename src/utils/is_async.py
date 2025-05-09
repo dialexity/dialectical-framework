@@ -11,4 +11,3 @@ def is_async(func=None):
         return True
     except RuntimeError:
         return False
-

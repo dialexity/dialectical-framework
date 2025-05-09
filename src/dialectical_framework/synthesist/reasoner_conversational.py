@@ -12,10 +12,12 @@ class ReasonerConversational(DialecticalReasoner):
 
         prompt_messages: list = []
 
-        prompt_messages.extend([
-            *super().prompt_thesis(self._text),
-            Messages.Assistant(wu_so_far.t.to_formatted_message("Thesis (T)"))
-        ])
+        prompt_messages.extend(
+            [
+                *super().prompt_thesis(self._text),
+                Messages.Assistant(wu_so_far.t.to_formatted_message("Thesis (T)")),
+            ]
+        )
 
         prompt_messages.extend(
             super().prompt_antithesis(wu_so_far.t),
@@ -29,53 +31,67 @@ class ReasonerConversational(DialecticalReasoner):
 
         prompt_messages.extend(
             super().prompt_thesis_negative_side(
-                wu_so_far.t,
-                wu_so_far.a_minus if wu_so_far.a_minus else ""
+                wu_so_far.t, wu_so_far.a_minus if wu_so_far.a_minus else ""
             )
         )
         if wu_so_far.t_minus:
             prompt_messages.append(
-                Messages.Assistant(wu_so_far.t_minus.to_formatted_message("Negative Side of Thesis (T-)"))
+                Messages.Assistant(
+                    wu_so_far.t_minus.to_formatted_message(
+                        "Negative Side of Thesis (T-)"
+                    )
+                )
             )
         else:
             return prompt_messages
 
         prompt_messages.extend(
             super().prompt_antithesis_negative_side(
-                wu_so_far.a,
-                wu_so_far.t_minus if wu_so_far.t_minus else ""
+                wu_so_far.a, wu_so_far.t_minus if wu_so_far.t_minus else ""
             )
         )
         if wu_so_far.a_minus:
-            prompt_messages.extend([
-                Messages.Assistant(wu_so_far.a_minus.to_formatted_message("Negative Side of Antithesis (A-)"))
-            ])
+            prompt_messages.extend(
+                [
+                    Messages.Assistant(
+                        wu_so_far.a_minus.to_formatted_message(
+                            "Negative Side of Antithesis (A-)"
+                        )
+                    )
+                ]
+            )
         else:
             return prompt_messages
 
         prompt_messages.extend(
-            super().prompt_thesis_positive_side(
-                wu_so_far.t,
-                wu_so_far.a_minus
-            )
+            super().prompt_thesis_positive_side(wu_so_far.t, wu_so_far.a_minus)
         )
         if wu_so_far.t_plus:
-            prompt_messages.extend([
-                Messages.Assistant(wu_so_far.t_plus.to_formatted_message("Positive Side of Thesis (T+)"))
-            ])
+            prompt_messages.extend(
+                [
+                    Messages.Assistant(
+                        wu_so_far.t_plus.to_formatted_message(
+                            "Positive Side of Thesis (T+)"
+                        )
+                    )
+                ]
+            )
         else:
             return prompt_messages
 
         prompt_messages.extend(
-            super().prompt_antithesis_positive_side(
-                wu_so_far.a,
-                wu_so_far.t_minus
-            )
+            super().prompt_antithesis_positive_side(wu_so_far.a, wu_so_far.t_minus)
         )
         if wu_so_far.a_plus:
-            prompt_messages.extend([
-                Messages.Assistant(wu_so_far.a_plus.to_formatted_message("Positive Side of Antithesis (A+)"))
-            ])
+            prompt_messages.extend(
+                [
+                    Messages.Assistant(
+                        wu_so_far.a_plus.to_formatted_message(
+                            "Positive Side of Antithesis (A+)"
+                        )
+                    )
+                ]
+            )
         else:
             return prompt_messages
 

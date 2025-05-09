@@ -3,17 +3,22 @@ from pydantic import Field
 
 
 class DialecticalComponent(BaseModel):
-    alias: str = Field(..., description="The user friendly name of the dialectical component such as T, A, T+, A+, etc.")
-    statement: str = Field(..., description="The dialectical component value that is provided after analysis.")
-    explanation: str = Field(..., description="The explanation how the dialectical component (statement) is derived.")
+    alias: str = Field(
+        ...,
+        description="The user friendly name of the dialectical component such as T, A, T+, A+, etc.",
+    )
+    statement: str = Field(
+        ...,
+        description="The dialectical component value that is provided after analysis.",
+    )
+    explanation: str = Field(
+        ...,
+        description="The explanation how the dialectical component (statement) is derived.",
+    )
 
     @classmethod
     def from_str(cls, alias: str, statement: str, explanation: str = ""):
-        return cls(
-            alias=alias,
-            statement=statement,
-            explanation=explanation
-        )
+        return cls(alias=alias, statement=statement, explanation=explanation)
 
     def to_formatted_message(self, dialectical_component_label: str) -> str:
         if not dialectical_component_label:

@@ -9,7 +9,8 @@ from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_T
 
 
 class ReasonerFast(DialecticalReasoner):
-    @prompt_template("""
+    @prompt_template(
+    """
     USER:
     <context>{text}</context>
 
@@ -115,20 +116,25 @@ class ReasonerFast(DialecticalReasoner):
     </examples>
     
     Output the dialectical components. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", etc.
-    """)
+    """
+    )
     def prompt_wu(self, text: str) -> Messages.Type: ...
 
     @prompt_template()
     def prompt_wu_with_thesis_provided(self, text: str, thesis: str) -> Messages.Type:
         tpl: list[BaseMessageParam] = self.prompt_wu(text)
-        tpl.append(BaseMessageParam(
-            role="user",
-            content=inspect.cleandoc(f"""
+        tpl.append(
+            BaseMessageParam(
+                role="user",
+                content=inspect.cleandoc(
+                f"""
                 IMPORTANT: use T = \"{thesis}\" as the primary thesis of the given context. I hope it makes sense.
                 
                 Base all the following analysis of the initial context on this primary thesis and follow the instructions as provided (skipping the part of finding the primary thesis).
-            """)
-        ))
+                """
+                ),
+            )
+        )
 
         return tpl
 
@@ -144,10 +150,11 @@ class ReasonerFast(DialecticalReasoner):
             raise StopIteration("The wisdom unit is complete, nothing to do.")
 
         if wu_so_far.t:
-            return self.prompt_wu_with_thesis_provided(text=self._text, thesis=wu_so_far.t.statement)
+            return self.prompt_wu_with_thesis_provided(
+                text=self._text, thesis=wu_so_far.t.statement
+            )
         else:
             return self.prompt_wu(text=self._text)
-
 
     async def generate(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit()
@@ -155,10 +162,14 @@ class ReasonerFast(DialecticalReasoner):
         if thesis is not None:
             if isinstance(thesis, DialecticalComponent):
                 if thesis.alias != ALIAS_T:
-                    raise ValueError(f"The thesis cannot be a dialectical component with alias '{thesis.alias}'")
+                    raise ValueError(
+                        f"The thesis cannot be a dialectical component with alias '{thesis.alias}'"
+                    )
                 wu.t = thesis
             else:
-                wu.t = DialecticalComponent.from_str(ALIAS_T, thesis, "Provided as string")
+                wu.t = DialecticalComponent.from_str(
+                    ALIAS_T, thesis, "Provided as string"
+                )
 
         await self._fill_with_reason(wu)
 

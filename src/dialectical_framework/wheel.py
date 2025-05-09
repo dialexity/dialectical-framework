@@ -45,17 +45,19 @@ class Wheel(Iterable[WisdomUnit]):
         """
         n = len(self._ordered_wisdom_units)
         if n == 0:
-            raise ValueError("The wheel is empty, therefore no orthogonal segment exists.")
+            raise ValueError(
+                "The wheel is empty, therefore no orthogonal segment exists."
+            )
         if n % 2 == 0:
             return self._ordered_wisdom_units[n // 2]
         else:
             raise ValueError("The wheel is not balanced orthogonally.")
 
     def spin(
-            self,
-            offset: int = 1,
-            *,
-            mutate: bool = True,
+        self,
+        offset: int = 1,
+        *,
+        mutate: bool = True,
     ) -> List[WisdomUnit]:
         """
         Rotate the synthesis-pair list by ``offset`` positions.
@@ -81,8 +83,7 @@ class Wheel(Iterable[WisdomUnit]):
         offset %= n  # bring offset into the list’s range
 
         rotated = (
-                self._ordered_wisdom_units[offset:]
-                + self._ordered_wisdom_units[:offset]
+            self._ordered_wisdom_units[offset:] + self._ordered_wisdom_units[:offset]
         )
 
         if mutate:

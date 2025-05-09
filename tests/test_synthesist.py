@@ -5,11 +5,14 @@ from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.reasoner_blind import ReasonerBlind
-from dialectical_framework.synthesist.reasoner_conversational import ReasonerConversational
+from dialectical_framework.synthesist.reasoner_conversational import (
+    ReasonerConversational,
+)
 from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
+
 
 @observe()
 def test_reasoner_find_thesis():
@@ -19,6 +22,7 @@ def test_reasoner_find_thesis():
     print("\n")
     print(thesis)
 
+
 @observe()
 def test_blind_reasoner():
     reasoner = ReasonerBlind(user_message)
@@ -26,6 +30,7 @@ def test_blind_reasoner():
     assert wu.is_complete()
     print("\n")
     print(wu)
+
 
 @observe()
 def test_blind_reasoner_with_validation():
@@ -36,17 +41,20 @@ def test_blind_reasoner_with_validation():
     print(wu)
     print("\n")
     # Redefine everything is a hacky way to validate everything
-    redefined_wu = asyncio.run(reasoner.redefine(
-        t_minus=wu.t_minus.statement,
-        t=wu.t.statement,
-        t_plus=wu.t_plus.statement,
-        a_minus=wu.a_minus.statement,
-        a=wu.a.statement,
-        a_plus=wu.a_plus.statement
-    ))
+    redefined_wu = asyncio.run(
+        reasoner.redefine(
+            t_minus=wu.t_minus.statement,
+            t=wu.t.statement,
+            t_plus=wu.t_plus.statement,
+            a_minus=wu.a_minus.statement,
+            a=wu.a.statement,
+            a_plus=wu.a_plus.statement,
+        )
+    )
     assert wu.is_complete()
     print("\n")
     print(redefined_wu)
+
 
 @observe()
 def test_conversational_reasoner():
@@ -56,6 +64,7 @@ def test_conversational_reasoner():
     print("\n")
     print(wu)
 
+
 @observe()
 def test_fast_reasoner():
     reasoner = ReasonerFast(user_message)
@@ -63,6 +72,7 @@ def test_fast_reasoner():
     assert wu.is_complete()
     print("\n")
     print(wu)
+
 
 @observe()
 def test_fast_reasoner_with_a_given_thesis():
@@ -72,45 +82,54 @@ def test_fast_reasoner_with_a_given_thesis():
     print("\n")
     print(wu)
 
+
 @observe()
 def test_fast_reasoner_with_a_given_wrong_thesis():
     reasoner = ReasonerFast(user_message)
-    wu: BaseModel = asyncio.run(reasoner.generate(thesis="She is standing in the corner"))
+    wu: BaseModel = asyncio.run(
+        reasoner.generate(thesis="She is standing in the corner")
+    )
     assert wu.is_complete()
     print("\n")
     print(wu)
 
+
 @observe()
 def test_fast_reasoner_with_a_given_nonsense_thesis():
     reasoner = ReasonerFast(user_message)
-    wu: BaseModel = asyncio.run(reasoner.generate(thesis="Lithuania is a place to live"))
+    wu: BaseModel = asyncio.run(
+        reasoner.generate(thesis="Lithuania is a place to live")
+    )
     assert wu.is_complete()
     print("\n")
     print(wu)
+
 
 @observe()
 def test_redefine():
     # Precalculated
     wu = WisdomUnit(
-        t_minus=DialecticalComponent.from_str('T-', 'Mental Preoccupation'),
-        t=DialecticalComponent.from_str('T', 'Love'),
-        t_plus=DialecticalComponent.from_str('T+', 'Compassionate Connection'),
-        a_minus=DialecticalComponent.from_str('A-', 'Nihilistic Detachment'),
-        a=DialecticalComponent.from_str('A', 'Indifference'),
-        a_plus=DialecticalComponent.from_str('A+', 'Mindful Detachment')
+        t_minus=DialecticalComponent.from_str("T-", "Mental Preoccupation"),
+        t=DialecticalComponent.from_str("T", "Love"),
+        t_plus=DialecticalComponent.from_str("T+", "Compassionate Connection"),
+        a_minus=DialecticalComponent.from_str("A-", "Nihilistic Detachment"),
+        a=DialecticalComponent.from_str("A", "Indifference"),
+        a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
     )
 
     # Redefine every component of the wisdom unit to make it an extreme test
     reasoner = ReasonerBlind(user_message)
-    redefined_wu = asyncio.run(reasoner.redefine(
-        original=wu,
-        t_minus='Mental Preoccupation',
-        t='Love',
-        t_plus='Compassionate Connection',
-        a_minus='Nihilistic Detachment',
-        a='Indifference',
-        a_plus='Mindful Detachment'
-    ))
+    redefined_wu = asyncio.run(
+        reasoner.redefine(
+            original=wu,
+            t_minus="Mental Preoccupation",
+            t="Love",
+            t_plus="Compassionate Connection",
+            a_minus="Nihilistic Detachment",
+            a="Indifference",
+            a_plus="Mindful Detachment",
+        )
+    )
     assert wu.is_complete()
     print("\n")
     print(redefined_wu)

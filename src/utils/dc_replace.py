@@ -8,20 +8,23 @@ def dc_replace(text: str, dialectical_component_name: str, replace_to: str) -> s
     # 3. **`T-` **: Matches the literal `T-`.
     # 4. **`(\s|[\]'"}).,!?:]|$)`**:
     #     - Matches any of the following right after `T-`:
-    #         - A space (`\s`) (e.g., `T- something` or `T-`).
-    #         - A closing punctuation mark like `]`, `'`, `"`, `)`, `}`.
-    #         - Specific punctuation characters: `.`, `,`, `!`, `?`, or `:`.
-    #         - The end of the line (`$`).
+    #     - A space (`\s`) (e.g., `T- something` or `T-`).
+    #     - A closing punctuation mark like `]`, `'`, `"`, `)`, `}`.
+    #     - Specific punctuation characters: `.`, `,`, `!`, `?`, or `:`.
+    #     - The end of the line (`$`).
     #
     #     - This captures both proper sentence endings (e.g., `T-.`) and cases where punctuation appears mid-sentence (e.g., `T-,` or `T-!`).
     """
     return re.sub(
-        r'(?<!\w)(["\'\(\[\{]?)' rf"{re.escape(dialectical_component_name)}" r'(\s|[\]\'\"\)\},.!?:]|$)',
+        r'(?<!\w)(["\'\(\[\{]?)'
+        rf"{re.escape(dialectical_component_name)}"
+        r"(\s|[\]\'\"\)\},.!?:]|$)",
         # Replacement pattern (preserves surrounding characters and spaces)
-        r'\1' rf"{replace_to}" r'\2',
+        r"\1" rf"{replace_to}" r"\2",
         text,
-        flags=re.VERBOSE
+        flags=re.VERBOSE,
     )
+
 
 def dc_safe_replace(text: str, replacements: dict[str, str]) -> str:
     result = text

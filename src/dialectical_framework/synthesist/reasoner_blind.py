@@ -26,8 +26,7 @@ class ReasonerBlind(DialecticalReasoner):
         if not wu_so_far.t_minus:
             prompt_messages.extend(
                 self.prompt_thesis_negative_side(
-                    wu_so_far.t,
-                    wu_so_far.a_minus if wu_so_far.a_minus else ""
+                    wu_so_far.t, wu_so_far.a_minus if wu_so_far.a_minus else ""
                 )
             )
             return prompt_messages
@@ -38,8 +37,7 @@ class ReasonerBlind(DialecticalReasoner):
         if not wu_so_far.a_minus:
             prompt_messages.extend(
                 self.prompt_antithesis_negative_side(
-                    wu_so_far.a,
-                    wu_so_far.t_minus if wu_so_far.t_minus else ""
+                    wu_so_far.a, wu_so_far.t_minus if wu_so_far.t_minus else ""
                 )
             )
             return prompt_messages
@@ -48,10 +46,7 @@ class ReasonerBlind(DialecticalReasoner):
             raise ValueError("A- - not present")
         if not wu_so_far.t_plus:
             prompt_messages.extend(
-                self.prompt_thesis_positive_side(
-                    wu_so_far.t,
-                    wu_so_far.a_minus
-                )
+                self.prompt_thesis_positive_side(wu_so_far.t, wu_so_far.a_minus)
             )
             return prompt_messages
 
@@ -59,10 +54,7 @@ class ReasonerBlind(DialecticalReasoner):
             raise ValueError("T- - not present")
         if not wu_so_far.a_plus:
             prompt_messages.extend(
-                self.prompt_antithesis_positive_side(
-                    wu_so_far.a,
-                    wu_so_far.t_minus
-                )
+                self.prompt_antithesis_positive_side(wu_so_far.a, wu_so_far.t_minus)
             )
             return prompt_messages
 

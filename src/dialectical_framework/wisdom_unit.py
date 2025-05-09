@@ -6,12 +6,13 @@ from pydantic import Field, ConfigDict
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 
-ALIAS_T = 'T'
-ALIAS_T_PLUS = 'T+'
-ALIAS_T_MINUS = 'T-'
-ALIAS_A = 'A'
-ALIAS_A_PLUS = 'A+'
-ALIAS_A_MINUS = 'A-'
+ALIAS_T = "T"
+ALIAS_T_PLUS = "T+"
+ALIAS_T_MINUS = "T-"
+ALIAS_A = "A"
+ALIAS_A_PLUS = "A+"
+ALIAS_A_MINUS = "A-"
+
 
 class WisdomUnit(BaseModel):
     """
@@ -19,8 +20,9 @@ class WisdomUnit(BaseModel):
     It's very restrictive to avoid any additional fields.
     However, it's flexible that the fields can be set by the field name or by alias.
     """
+
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
         populate_by_name=True,
     )
 
@@ -32,12 +34,32 @@ class WisdomUnit(BaseModel):
             # Otherwise use the default behavior
             super().__setattr__(name, value)
 
-    t_minus: DialecticalComponent | None = Field(default=None, description="The negative side of the thesis: T-", alias=ALIAS_T_MINUS)
-    t: DialecticalComponent | None =  Field(default=None, description="The major thesis of the input: T", alias=ALIAS_T)
-    t_plus: DialecticalComponent | None = Field(default=None, description="The positive side of the thesis: T+", alias=ALIAS_T_PLUS)
-    a_minus: DialecticalComponent | None = Field(default=None, description="The negative side of the antithesis: A-", alias=ALIAS_A_MINUS)
-    a: DialecticalComponent | None = Field(default=None, description="The antithesis: A", alias=ALIAS_A)
-    a_plus: DialecticalComponent | None = Field(default=None, description="The positive side of the antithesis: A+", alias=ALIAS_A_PLUS)
+    t_minus: DialecticalComponent | None = Field(
+        default=None,
+        description="The negative side of the thesis: T-",
+        alias=ALIAS_T_MINUS,
+    )
+    t: DialecticalComponent | None = Field(
+        default=None, description="The major thesis of the input: T", alias=ALIAS_T
+    )
+    t_plus: DialecticalComponent | None = Field(
+        default=None,
+        description="The positive side of the thesis: T+",
+        alias=ALIAS_T_PLUS,
+    )
+    a_minus: DialecticalComponent | None = Field(
+        default=None,
+        description="The negative side of the antithesis: A-",
+        alias=ALIAS_A_MINUS,
+    )
+    a: DialecticalComponent | None = Field(
+        default=None, description="The antithesis: A", alias=ALIAS_A
+    )
+    a_plus: DialecticalComponent | None = Field(
+        default=None,
+        description="The positive side of the antithesis: A+",
+        alias=ALIAS_A_PLUS,
+    )
 
     def is_complete(self):
         return all(v is not None for v in self.model_dump(exclude_none=False).values())
@@ -51,8 +73,9 @@ class WisdomUnit(BaseModel):
         """
         return self.get(key, None) is not None
 
-
-    def get(self, key: str, default: object | None = None) -> DialecticalComponent | None:
+    def get(
+        self, key: str, default: object | None = None
+    ) -> DialecticalComponent | None:
         """
         Dictionary-style accessor that understands both *field names* and *aliases*.
 
@@ -81,7 +104,9 @@ class WisdomUnit(BaseModel):
             for field_name, field_info in self.__pydantic_fields__.items()
         }
 
-    def dialectical_component_copy_from(self, wisdom_unit: WisdomUnit, dialectical_component: str):
+    def dialectical_component_copy_from(
+        self, wisdom_unit: WisdomUnit, dialectical_component: str
+    ):
         if not hasattr(wisdom_unit, dialectical_component):
             setattr(self, dialectical_component, None)
             return

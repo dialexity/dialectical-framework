@@ -1,6 +1,5 @@
 # Dialectical Framework
-
-A Python project using mirascope for dialectical analysis and reasoning.
+A dialectical framework for augmented intelligence. AI reasoning powered with dialectics supports humans in: system optimization (psychology, engineering, business, politics, etc.); dispute resolution (mediation, conflicts, negotiations, etc.); decision-making (dilemmas, challenging situations, win-win, etc.).
 
 ## Development
 
