@@ -5,9 +5,8 @@ from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.reasoner_blind import ReasonerBlind
-from dialectical_framework.synthesist.reasoner_conversational import (
-    ReasonerConversational,
-)
+from dialectical_framework.synthesist.reasoner_conversational import \
+    ReasonerConversational
 from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
 from dialectical_framework.wisdom_unit import WisdomUnit
 

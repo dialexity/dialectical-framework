@@ -1,6 +1,7 @@
-from mirascope import prompt_template, Messages
+from mirascope import Messages, prompt_template
 
-from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
+from dialectical_framework.synthesist.dialectical_reasoner import \
+    DialecticalReasoner
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 

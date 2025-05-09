@@ -1,11 +1,11 @@
 import inspect
-from typing import List
 
-from mirascope import prompt_template, Messages, BaseMessageParam
+from mirascope import BaseMessageParam, Messages, prompt_template
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
-from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_T
+from dialectical_framework.synthesist.dialectical_reasoner import \
+    DialecticalReasoner
+from dialectical_framework.wisdom_unit import ALIAS_T, WisdomUnit
 
 
 class ReasonerFast(DialecticalReasoner):

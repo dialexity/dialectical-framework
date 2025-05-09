@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Iterable, overload, Iterator, Optional, List
+
+from typing import Iterable, Iterator, List, overload
 
 from dialectical_framework.wisdom_unit import WisdomUnit
 

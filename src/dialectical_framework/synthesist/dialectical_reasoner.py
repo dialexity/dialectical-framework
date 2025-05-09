@@ -1,28 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import List
 
-from mirascope import prompt_template, Messages, BaseMessageParam, llm
+from mirascope import BaseMessageParam, Messages, llm, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_box import DialecticalComponentsBox
-from dialectical_framework.validator.basic_checks import (
-    check,
-    is_valid_opposition,
-    is_negative_side,
-    is_positive_side,
-    is_strict_opposition,
-)
-from dialectical_framework.wisdom_unit import (
-    WisdomUnit,
-    ALIAS_T,
-    ALIAS_A,
-    ALIAS_T_MINUS,
-    ALIAS_A_MINUS,
-    ALIAS_T_PLUS,
-    ALIAS_A_PLUS,
-)
+from dialectical_framework.dialectical_components_box import \
+    DialecticalComponentsBox
+from dialectical_framework.validator.basic_checks import (check,
+                                                          is_negative_side,
+                                                          is_positive_side,
+                                                          is_strict_opposition,
+                                                          is_valid_opposition)
+from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
+                                               ALIAS_A_PLUS, ALIAS_T,
+                                               ALIAS_T_MINUS, ALIAS_T_PLUS,
+                                               WisdomUnit)
 from utils.dc_replace import dc_safe_replace
 
 
