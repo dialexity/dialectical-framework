@@ -25,4 +25,3 @@ poetry shell
 - Run tests: `pytest`
 - Format code: `black .`
 - Sort imports: `isort .`
-- Lint code: `flake8`
