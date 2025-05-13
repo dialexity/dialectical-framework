@@ -8,6 +8,7 @@ from dialectical_framework.synthesist.reasoner_blind import ReasonerBlind
 from dialectical_framework.synthesist.reasoner_conversational import \
     ReasonerConversational
 from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
+from dialectical_framework.synthesist.reasoner_fast_and_simple import ReasonerFastAndSimple
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
@@ -67,6 +68,14 @@ def test_conversational_reasoner():
 @observe()
 def test_fast_reasoner():
     reasoner = ReasonerFast(user_message)
+    wu: BaseModel = asyncio.run(reasoner.generate())
+    assert wu.is_complete()
+    print("\n")
+    print(wu)
+
+@observe()
+def test_fast_and_simple_reasoner():
+    reasoner = ReasonerFastAndSimple(user_message, component_length=1)
     wu: BaseModel = asyncio.run(reasoner.generate())
     assert wu.is_complete()
     print("\n")
