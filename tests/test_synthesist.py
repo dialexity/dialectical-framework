@@ -11,6 +11,7 @@ from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
 from dialectical_framework.synthesist.reasoner_fast_and_simple import ReasonerFastAndSimple
 from dialectical_framework.synthesist.reasoner_fast_and_simple_action_reflection import \
     ReasonerFastAndSimpleActionReflection
+from dialectical_framework.synthesist.reasoner_fast_polarized_conflict import ReasonerFastPolarizedConflict
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
@@ -78,6 +79,14 @@ def test_fast_reasoner():
 @observe()
 def test_fast_and_simple_reasoner():
     reasoner = ReasonerFastAndSimple(user_message, component_length=1)
+    wu: BaseModel = asyncio.run(reasoner.generate())
+    assert wu.is_complete()
+    print("\n")
+    print(wu)
+
+@observe()
+def test_fast_polarized_conflict_reasoner():
+    reasoner = ReasonerFastPolarizedConflict(user_message, component_length=2)
     wu: BaseModel = asyncio.run(reasoner.generate())
     assert wu.is_complete()
     print("\n")
