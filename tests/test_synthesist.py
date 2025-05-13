@@ -9,6 +9,8 @@ from dialectical_framework.synthesist.reasoner_conversational import \
     ReasonerConversational
 from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
 from dialectical_framework.synthesist.reasoner_fast_and_simple import ReasonerFastAndSimple
+from dialectical_framework.synthesist.reasoner_fast_and_simple_action_reflection import \
+    ReasonerFastAndSimpleActionReflection
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
@@ -112,6 +114,24 @@ def test_fast_reasoner_with_a_given_nonsense_thesis():
     print("\n")
     print(wu)
 
+
+@observe()
+def test_ac_re():
+    # Precalculated
+    wu = WisdomUnit(
+        t_minus=DialecticalComponent.from_str("T-", "Mental Preoccupation"),
+        t=DialecticalComponent.from_str("T", "Love"),
+        t_plus=DialecticalComponent.from_str("T+", "Compassionate Connection"),
+        a_minus=DialecticalComponent.from_str("A-", "Nihilistic Detachment"),
+        a=DialecticalComponent.from_str("A", "Indifference"),
+        a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
+    )
+
+    reasoner = ReasonerFastAndSimpleActionReflection(user_message, wisdom_unit=wu)
+    acre_wu = asyncio.run(reasoner.generate())
+    assert acre_wu.is_complete()
+    print("\n")
+    print(acre_wu)
 
 @observe()
 def test_redefine():

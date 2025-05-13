@@ -415,16 +415,21 @@ class DialecticalReasoner(ABC):
                 """
                 dc: DialecticalComponentsBox = await self.find_next(wu)
                 for d in dc.dialectical_components:
-                    if wu.get(d.alias):
+                    alias = self._translate_to_canonical_alias(d.alias)
+                    if wu.get(alias):
                         # Don't override if we already have it
                         continue
                     else:
-                        setattr(wu, d.alias, d)
+                        setattr(wu, alias, d)
                         ci += 1
         except StopIteration:
             pass
 
         return wu
+
+    def _translate_to_canonical_alias(self, alias: str) -> str:
+        # Intended for subclasses
+        return alias
 
     async def redefine(
         self,
