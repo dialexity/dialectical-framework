@@ -7,6 +7,7 @@ from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_box import \
     DialecticalComponentsBox
+from dialectical_framework.brain import Brain
 from dialectical_framework.validator.basic_checks import (check,
                                                           is_negative_side,
                                                           is_positive_side,
@@ -24,36 +25,15 @@ class DialecticalReasoner(ABC):
         self,
         text: str,
         *,
-        ai_model: str = Config.MODEL,
-        ai_provider: str | None = Config.PROVIDER,
-    ) -> None:
-        if not ai_provider:
-            if not "/" in ai_model:
-                raise ValueError(
-                    "ai_model must be in the form of 'provider/model' if ai_provider is not specified."
-                )
-            else:
-                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
-                self._ai_provider, self._ai_model = (
-                    derived_ai_provider,
-                    derived_ai_model,
-                )
-        else:
-            if not "/" in ai_model:
-                self._ai_provider, self._ai_model = ai_provider, ai_model
-            else:
-                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
-                if derived_ai_provider != ai_provider:
-                    raise ValueError(
-                        f"ai_provider '{ai_provider}' does not match ai_model '{ai_model}'"
-                    )
-                self._ai_provider, self._ai_model = (
-                    derived_ai_provider,
-                    derived_ai_model,
-                )
-
+        component_length=2
+    ):
         self._text = text
         self._wisdom_unit = None
+
+        self._component_length = component_length
+
+        # Default brain
+        self._brain = Brain(ai_model=Config.MODEL, ai_provider=Config.PROVIDER)
 
     @prompt_template(
     """
@@ -186,17 +166,12 @@ class DialecticalReasoner(ABC):
     def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type: ...
 
     @with_langfuse()
-    async def find_thesis(
-        self, *, ai_provider: str | None = None, ai_model: str | None = None
-    ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(
-            ai_provider, ai_model
-        )
+    async def find_thesis(self) -> DialecticalComponent:
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = (
-                self._fix_ai_provider_and_model("litellm")
-            )
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
@@ -212,18 +187,12 @@ class DialecticalReasoner(ABC):
     async def find_antithesis(
         self,
         thesis: str,
-        *,
-        ai_provider: str | None = None,
-        ai_model: str | None = None,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(
-            ai_provider, ai_model
-        )
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = (
-                self._fix_ai_provider_and_model("litellm")
-            )
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
@@ -240,18 +209,12 @@ class DialecticalReasoner(ABC):
         self,
         thesis: str,
         not_like_this: str = "",
-        *,
-        ai_provider: str | None = None,
-        ai_model: str | None = None,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(
-            ai_provider, ai_model
-        )
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = (
-                self._fix_ai_provider_and_model("litellm")
-            )
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
@@ -268,18 +231,12 @@ class DialecticalReasoner(ABC):
         self,
         thesis: str,
         not_like_this: str = "",
-        *,
-        ai_provider: str | None = None,
-        ai_model: str | None = None,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(
-            ai_provider, ai_model
-        )
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = (
-                self._fix_ai_provider_and_model("litellm")
-            )
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
@@ -296,18 +253,12 @@ class DialecticalReasoner(ABC):
         self,
         thesis: str,
         antithesis_negative: str,
-        *,
-        ai_provider: str | None = None,
-        ai_model: str | None = None,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(
-            ai_provider, ai_model
-        )
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = (
-                self._fix_ai_provider_and_model("litellm")
-            )
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
@@ -324,18 +275,12 @@ class DialecticalReasoner(ABC):
         self,
         thesis: str,
         antithesis_negative: str,
-        *,
-        ai_provider: str | None = None,
-        ai_model: str | None = None,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(
-            ai_provider, ai_model
-        )
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = (
-                self._fix_ai_provider_and_model("litellm")
-            )
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
@@ -351,22 +296,16 @@ class DialecticalReasoner(ABC):
     async def find_next(
         self,
         wu_so_far: WisdomUnit,
-        *,
-        ai_provider: str | None = None,
-        ai_model: str | None = None,
     ) -> DialecticalComponentsBox:
         """
         Raises:
             StopIteration: if nothing needs to be found anymore
         """
-        overridden_ai_provider, overridden_ai_model = self._fix_ai_provider_and_model(
-            ai_provider, ai_model
-        )
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = (
-                self._fix_ai_provider_and_model("litellm")
-            )
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
@@ -415,7 +354,7 @@ class DialecticalReasoner(ABC):
                 """
                 dc: DialecticalComponentsBox = await self.find_next(wu)
                 for d in dc.dialectical_components:
-                    alias = self._translate_to_canonical_alias(d.alias)
+                    alias = d.alias
                     if wu.get(alias):
                         # Don't override if we already have it
                         continue
@@ -426,10 +365,6 @@ class DialecticalReasoner(ABC):
             pass
 
         return wu
-
-    def _translate_to_canonical_alias(self, alias: str) -> str:
-        # Intended for subclasses
-        return alias
 
     async def redefine(
         self,
@@ -708,54 +643,12 @@ class DialecticalReasoner(ABC):
 
         return new_wu
 
-    def _fix_ai_provider_and_model(
-        self, ai_provider: str | None = None, ai_model: str | None = None
-    ) -> tuple[str, str]:
-        current_provider, current_model = self._ai_provider, self._ai_model
+    @property
+    def brain(self) -> Brain:
+        return self._brain
 
-        if ai_provider == "litellm":
-            if not ai_model:
-                if not current_provider and not current_model:
-                    raise ValueError("ai_model not provided.")
-                else:
-                    return ai_provider, f"{current_provider}/{current_model}"
-            else:
-                if not "/" in ai_model:
-                    if not current_provider:
-                        raise ValueError(
-                            "ai_model must be in the form of 'provider/model' for litellm."
-                        )
-                    else:
-                        return ai_provider, f"{current_provider}/{ai_model}"
-                else:
-                    return ai_provider, ai_model
+    @brain.setter
+    def brain(self, brain: Brain):
+        self._brain = brain
 
-        if not ai_model and not ai_provider:
-            if Config.PROVIDER or Config.MODEL or current_provider or current_model:
-                return self._fix_ai_provider_and_model(
-                    Config.PROVIDER if not current_provider else current_provider,
-                    Config.MODEL if not current_model else current_model,
-                )
-            else:
-                raise ValueError(
-                    "Cannot fallback to default model as they're not present"
-                )
 
-        if not ai_provider:
-            if not "/" in ai_model:
-                raise ValueError(
-                    "ai_model must be in the form of 'provider/model' if ai_provider is not specified."
-                )
-            else:
-                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
-                return derived_ai_provider, derived_ai_model
-        else:
-            if not "/" in ai_model:
-                return ai_provider, ai_model
-            else:
-                derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
-                if derived_ai_provider != ai_provider:
-                    raise ValueError(
-                        f"ai_provider '{ai_provider}' does not match ai_model '{ai_model}'"
-                    )
-                return derived_ai_provider, derived_ai_model

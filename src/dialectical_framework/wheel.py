@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Iterable, Iterator, List, overload
 
+from dialectical_framework.transition import Transition
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class Wheel(Iterable[WisdomUnit]):
-    _ordered_wisdom_units: list[WisdomUnit] = []
+    _wisdom_units: list[WisdomUnit] = []
+    _transitions: List[Transition | None]
 
     @overload
     def __init__(self, *wisdom_units: WisdomUnit) -> None: ...
@@ -17,23 +19,45 @@ class Wheel(Iterable[WisdomUnit]):
     def __init__(self, *wisdom_units):
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
-            self._ordered_wisdom_units = list(wisdom_units[0])
+            self._wisdom_units = list(wisdom_units[0])
         else:  # One or more Wheel2 positional args
-            self._ordered_wisdom_units = list(wisdom_units)
+            self._wisdom_units = list(wisdom_units)
+
+        if len(self._wisdom_units) > 0:
+            self._transitions = [None] * len(self._wisdom_units)
 
     def __iter__(self) -> Iterator[WisdomUnit]:
-        return iter(self._ordered_wisdom_units)
+        return iter(self._wisdom_units)
 
     @property
     def wisdom_units(self) -> list[WisdomUnit]:
-        return self._ordered_wisdom_units
+        return self._wisdom_units
 
     @property
     def main_wisdom_unit(self) -> WisdomUnit:
-        if len(self._ordered_wisdom_units) > 0:
-            return self._ordered_wisdom_units[0]
+        if len(self._wisdom_units) > 0:
+            return self._wisdom_units[0]
         else:
             raise ValueError("The wheel is empty, therefore no main segment exists.")
+
+    @property
+    def transitions(self) -> List[Transition]:
+        return self._transitions
+
+    def transition_at(self, i: int) -> Transition | None:
+        """Edge from unit i → unit (i+1)."""
+        idx = i % len(self._transitions)
+        if i < 0 or i >= len(self._transitions):
+            raise IndexError(f"index {i} out of range for wheel of length {len(self._transitions)}")
+
+        return self._transitions[idx]
+
+
+    def add_transition(self, at: int, tr: Transition) -> None:
+        idx = at % len(self._transitions)
+        if at < 0 or at >= len(self._transitions):
+            raise IndexError(f"index {at} out of range for wheel of length {len(self._transitions)}")
+        self._transitions[idx] = tr
 
     @property
     def orthogonal_wisdom_unit(self) -> WisdomUnit:
@@ -44,21 +68,19 @@ class Wheel(Iterable[WisdomUnit]):
         Returns:
             WisdomUnit: The orthogonal segment
         """
-        n = len(self._ordered_wisdom_units)
+        n = len(self._wisdom_units)
         if n == 0:
             raise ValueError(
                 "The wheel is empty, therefore no orthogonal segment exists."
             )
         if n % 2 == 0:
-            return self._ordered_wisdom_units[n // 2]
+            return self._wisdom_units[n // 2]
         else:
             raise ValueError("The wheel is not balanced orthogonally.")
 
     def spin(
         self,
         offset: int = 1,
-        *,
-        mutate: bool = True,
     ) -> List[WisdomUnit]:
         """
         Rotate the synthesis-pair list by ``offset`` positions.
@@ -68,11 +90,8 @@ class Wheel(Iterable[WisdomUnit]):
         offset : int
             How far to rotate. Positive values rotate left; negative values
             rotate right.
-        mutate : bool, default True
-            • True → rotate the internal list in place and return it.
-            • False → leave internal state untouched and return a rotated copy.
         """
-        n = len(self._ordered_wisdom_units)
+        n = len(self._wisdom_units)
         if n == 0:
             raise ValueError("Cannot spin an empty wheel")
 
@@ -83,14 +102,10 @@ class Wheel(Iterable[WisdomUnit]):
 
         offset %= n  # bring offset into the list’s range
 
-        rotated = (
-            self._ordered_wisdom_units[offset:] + self._ordered_wisdom_units[:offset]
-        )
+        def rot(lst: List) -> List:
+            return lst[offset:] + lst[:offset]
 
-        if mutate:
-            # update in place
-            self._ordered_wisdom_units[:] = rotated
-            return self.wisdom_units
+        self._wisdom_units[:] = rot(self._wisdom_units)
+        self._transitions[:] = rot(self._transitions)
 
-        # return a copy, leave the internal list unchanged
-        return rotated
+        return self._wisdom_units

@@ -9,9 +9,8 @@ from dialectical_framework.synthesist.reasoner_conversational import \
     ReasonerConversational
 from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
 from dialectical_framework.synthesist.reasoner_fast_and_simple import ReasonerFastAndSimple
-from dialectical_framework.synthesist.reasoner_fast_and_simple_action_reflection import \
-    ReasonerFastAndSimpleActionReflection
 from dialectical_framework.synthesist.reasoner_fast_polarized_conflict import ReasonerFastPolarizedConflict
+from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
@@ -136,11 +135,11 @@ def test_ac_re():
         a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
     )
 
-    reasoner = ReasonerFastAndSimpleActionReflection(user_message, wisdom_unit=wu)
-    acre_wu = asyncio.run(reasoner.generate())
-    assert acre_wu.is_complete()
+    reasoner = ThinkActionReflection(user_message, wisdom_unit=wu)
+    transition = asyncio.run(reasoner.think())
+    assert transition.action_reflection.is_complete()
     print("\n")
-    print(acre_wu)
+    print(transition)
 
 @observe()
 def test_redefine():
