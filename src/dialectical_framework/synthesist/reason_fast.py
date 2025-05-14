@@ -3,12 +3,12 @@ import inspect
 from mirascope import BaseMessageParam, Messages, prompt_template
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.dialectical_reasoner import \
-    DialecticalReasoner
+from dialectical_framework.synthesist.dialectical_reasoning import \
+    DialecticalReasoning
 from dialectical_framework.wisdom_unit import ALIAS_T, WisdomUnit
 
 
-class ReasonerFast(DialecticalReasoner):
+class ReasonFast(DialecticalReasoning):
     @prompt_template(
     """
     USER:
@@ -156,7 +156,7 @@ class ReasonerFast(DialecticalReasoner):
         else:
             return self.prompt_wu(text=self._text)
 
-    async def generate(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
+    async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit()
 
         if thesis is not None:

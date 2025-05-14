@@ -4,12 +4,12 @@ from langfuse.decorators import observe
 from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.reasoner_blind import ReasonerBlind
-from dialectical_framework.synthesist.reasoner_conversational import \
-    ReasonerConversational
-from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
-from dialectical_framework.synthesist.reasoner_fast_and_simple import ReasonerFastAndSimple
-from dialectical_framework.synthesist.reasoner_fast_polarized_conflict import ReasonerFastPolarizedConflict
+from dialectical_framework.synthesist.reason_blind import ReasonBlind
+from dialectical_framework.synthesist.reason_conversational import \
+    ReasonConversational
+from dialectical_framework.synthesist.reason_fast import ReasonFast
+from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
+from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
 from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -18,7 +18,7 @@ user_message = "There she goes, just walking down the street, singing doo-wah-di
 
 @observe()
 def test_reasoner_find_thesis():
-    reasoner = ReasonerBlind(user_message)
+    reasoner = ReasonBlind(user_message)
     thesis = asyncio.run(reasoner.find_thesis())
     assert thesis is not None
     print("\n")
@@ -27,8 +27,8 @@ def test_reasoner_find_thesis():
 
 @observe()
 def test_blind_reasoner():
-    reasoner = ReasonerBlind(user_message)
-    wu: BaseModel = asyncio.run(reasoner.generate())
+    reasoner = ReasonBlind(user_message)
+    wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")
     print(wu)
@@ -36,8 +36,8 @@ def test_blind_reasoner():
 
 @observe()
 def test_blind_reasoner_with_validation():
-    reasoner = ReasonerBlind(user_message)
-    wu: WisdomUnit = asyncio.run(reasoner.generate())
+    reasoner = ReasonBlind(user_message)
+    wu: WisdomUnit = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")
     print(wu)
@@ -60,8 +60,8 @@ def test_blind_reasoner_with_validation():
 
 @observe()
 def test_conversational_reasoner():
-    reasoner = ReasonerConversational(user_message)
-    wu: BaseModel = asyncio.run(reasoner.generate())
+    reasoner = ReasonConversational(user_message)
+    wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")
     print(wu)
@@ -69,24 +69,24 @@ def test_conversational_reasoner():
 
 @observe()
 def test_fast_reasoner():
-    reasoner = ReasonerFast(user_message)
-    wu: BaseModel = asyncio.run(reasoner.generate())
+    reasoner = ReasonFast(user_message)
+    wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")
     print(wu)
 
 @observe()
 def test_fast_and_simple_reasoner():
-    reasoner = ReasonerFastAndSimple(user_message, component_length=1)
-    wu: BaseModel = asyncio.run(reasoner.generate())
+    reasoner = ReasonFastAndSimple(user_message, component_length=1)
+    wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")
     print(wu)
 
 @observe()
 def test_fast_polarized_conflict_reasoner():
-    reasoner = ReasonerFastPolarizedConflict(user_message, component_length=2)
-    wu: BaseModel = asyncio.run(reasoner.generate())
+    reasoner = ReasonFastPolarizedConflict(user_message, component_length=2)
+    wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")
     print(wu)
@@ -94,8 +94,8 @@ def test_fast_polarized_conflict_reasoner():
 
 @observe()
 def test_fast_reasoner_with_a_given_thesis():
-    reasoner = ReasonerFast(user_message)
-    wu: BaseModel = asyncio.run(reasoner.generate(thesis="Life is good!"))
+    reasoner = ReasonFast(user_message)
+    wu: BaseModel = asyncio.run(reasoner.think(thesis="Life is good!"))
     assert wu.is_complete()
     print("\n")
     print(wu)
@@ -103,9 +103,9 @@ def test_fast_reasoner_with_a_given_thesis():
 
 @observe()
 def test_fast_reasoner_with_a_given_wrong_thesis():
-    reasoner = ReasonerFast(user_message)
+    reasoner = ReasonFast(user_message)
     wu: BaseModel = asyncio.run(
-        reasoner.generate(thesis="She is standing in the corner")
+        reasoner.think(thesis="She is standing in the corner")
     )
     assert wu.is_complete()
     print("\n")
@@ -114,9 +114,9 @@ def test_fast_reasoner_with_a_given_wrong_thesis():
 
 @observe()
 def test_fast_reasoner_with_a_given_nonsense_thesis():
-    reasoner = ReasonerFast(user_message)
+    reasoner = ReasonFast(user_message)
     wu: BaseModel = asyncio.run(
-        reasoner.generate(thesis="Lithuania is a place to live")
+        reasoner.think(thesis="Lithuania is a place to live")
     )
     assert wu.is_complete()
     print("\n")
@@ -154,7 +154,7 @@ def test_redefine():
     )
 
     # Redefine every component of the wisdom unit to make it an extreme test
-    reasoner = ReasonerBlind(user_message)
+    reasoner = ReasonBlind(user_message)
     redefined_wu = asyncio.run(
         reasoner.redefine(
             original=wu,

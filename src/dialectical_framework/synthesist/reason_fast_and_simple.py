@@ -1,9 +1,9 @@
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.synthesist.reasoner_fast import ReasonerFast
+from dialectical_framework.synthesist.reason_fast import ReasonFast
 
 
-class ReasonerFastAndSimple(ReasonerFast):
+class ReasonFastAndSimple(ReasonFast):
     @prompt_template(
     """
     USER:

@@ -3,12 +3,12 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_box import DialecticalComponentsBox
-from dialectical_framework.synthesist.strategic_thinking import StrategicThinking
+from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 from dialectical_framework.transition import Transition
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class ThinkActionReflection(StrategicThinking):
+class ThinkActionReflection(StrategicConsulting):
     @prompt_template(
     """
     USER:

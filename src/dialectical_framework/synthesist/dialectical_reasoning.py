@@ -20,7 +20,7 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
 from utils.dc_replace import dc_safe_replace
 
 
-class DialecticalReasoner(ABC):
+class DialecticalReasoning(ABC):
     def __init__(
         self,
         text: str,
@@ -317,7 +317,7 @@ class DialecticalReasoner(ABC):
 
         return await _find_next_call()
 
-    async def generate(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
+    async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit()
 
         if thesis is not None:

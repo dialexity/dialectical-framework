@@ -9,7 +9,7 @@ from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_T, ALIAS_T_PLUS,
     ALIAS_A_MINUS
 
 
-class StrategicThinking(ABC):
+class StrategicConsulting(ABC):
     def __init__(
         self,
         text: str,
