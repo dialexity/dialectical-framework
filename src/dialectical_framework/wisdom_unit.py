@@ -140,6 +140,17 @@ class WisdomUnit(BaseModel):
 
         return target
 
+    def formatted_dialectical_analysis(self) -> str:
+        wu_formatted = []
+        for f, a in self.field_to_alias.items():
+            dc = getattr(self, f)
+            if isinstance(dc, DialecticalComponent):
+                dc_formatted = f"{a} = {dc.statement}"
+                if dc.explanation:
+                    dc_formatted += f". Explanation: {dc.explanation}"
+                wu_formatted.append(dc_formatted)
+        return "\n\n".join(wu_formatted)
+
     def __str__(self):
         ini_data = []
         for k, v in self.model_dump().items():

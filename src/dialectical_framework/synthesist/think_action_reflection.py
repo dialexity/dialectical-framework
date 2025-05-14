@@ -37,20 +37,10 @@ class ThinkActionReflection(StrategicConsulting):
     """
     )
     def prompt(self, text: str) -> Messages.Type:
-        wu_formatted = []
-        for f, a in self._wisdom_unit.field_to_alias.items():
-            dc = getattr(self._wisdom_unit, f)
-            if isinstance(dc, DialecticalComponent):
-                dc_formatted = f"{a} = {dc.statement}"
-                if dc.explanation:
-                    dc_formatted += f". Explanation: {dc.explanation}"
-                wu_formatted.append(dc_formatted)
-        dialectical_analysis = "\n\n".join(wu_formatted)
-
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": dialectical_analysis,
+                "dialectical_analysis": self._wisdom_unit.formatted_dialectical_analysis(),
                 "component_length": self._component_length,
             }
         }
