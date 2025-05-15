@@ -20,13 +20,13 @@ class DialecticalComponent(BaseModel):
     def from_str(cls, alias: str, statement: str, explanation: str = ""):
         return cls(alias=alias, statement=statement, explanation=explanation)
 
-    def to_formatted_message(self, dialectical_component_label: str) -> str:
+    def to_formatted_message(self, dialectical_component_label: str | None = None) -> str:
         if not dialectical_component_label:
             dialectical_component_label = self.alias
-        result = f"{dialectical_component_label}: {self.statement}"
+        result = f"{dialectical_component_label} = {self.statement}"
         if self.explanation:
-            result = f"{result}\n\nExplanation: {self.explanation}"
+            result = f"{result}\nExplanation: {self.explanation}"
         return result
 
     def __str__(self):
-        return self.to_formatted_message(dialectical_component_label="")
+        return self.to_formatted_message()

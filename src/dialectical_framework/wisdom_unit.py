@@ -145,10 +145,7 @@ class WisdomUnit(BaseModel):
         for f, a in self.field_to_alias.items():
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
-                dc_formatted = f"{a} = {dc.statement}"
-                if dc.explanation:
-                    dc_formatted += f". Explanation: {dc.explanation}"
-                wu_formatted.append(dc_formatted)
+                wu_formatted.append(dc.to_formatted_message())
         return "\n\n".join(wu_formatted)
 
     def __str__(self):
