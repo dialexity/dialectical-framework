@@ -68,7 +68,7 @@ class ThinkReciprocalSolution(StrategicConsulting):
     async def reciprocal_solution(self):
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 

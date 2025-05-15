@@ -2,7 +2,7 @@ from mirascope import Messages, prompt_template, llm
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_box import DialecticalComponentsBox
+from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 from dialectical_framework.transition import Transition
 from dialectical_framework.wisdom_unit import WisdomUnit
@@ -49,16 +49,16 @@ class ThinkActionReflection(StrategicConsulting):
     async def action_reflection(self):
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
             model=overridden_ai_model,
-            response_model=DialecticalComponentsBox,
+            response_model=DialecticalComponentsDeck,
         )
-        async def _action_reflection_call() -> DialecticalComponentsBox:
+        async def _action_reflection_call() -> DialecticalComponentsDeck:
             return self.prompt(self._text)
 
         return await _action_reflection_call()
@@ -68,7 +68,7 @@ class ThinkActionReflection(StrategicConsulting):
 
         # TODO: take provided action into account, now it's ignored
 
-        dc: DialecticalComponentsBox = await self.action_reflection()
+        dc: DialecticalComponentsDeck = await self.action_reflection()
         for d in dc.dialectical_components:
             alias = self._translate_to_canonical_alias(d.alias)
             # TODO: we have canonical alias pointing to a component with some fancy alias. Is it ok?

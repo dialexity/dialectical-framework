@@ -1,5 +1,4 @@
 import inspect
-from abc import ABC, abstractmethod
 from itertools import permutations
 from typing import List
 
@@ -7,12 +6,11 @@ from mirascope import prompt_template, Messages, llm
 from mirascope.integrations.langfuse import with_langfuse
 
 from config import Config
+from dialectical_framework.analyst.causal_cycles_deck import CausalCyclesDeck
 from dialectical_framework.brain import Brain
-from dialectical_framework.causal_cycle import CausalCycle
-from dialectical_framework.causal_cycles_box import CausalCyclesBox
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_box import DialecticalComponentsBox
+from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 
 
 class ThoughtMapping:
@@ -49,7 +47,7 @@ class ThoughtMapping:
     async def find_thesis1(self) -> DialecticalComponent:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
@@ -119,25 +117,25 @@ class ThoughtMapping:
     def prompt_thesis4(self, text, component_length: int) -> Messages.Type: ...
 
     @with_langfuse()
-    async def find_multiple(self, prompt_stuff: Messages.Type) -> DialecticalComponentsBox:
+    async def find_multiple(self, prompt_stuff: Messages.Type) -> DialecticalComponentsDeck:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
             model=overridden_ai_model,
-            response_model=DialecticalComponentsBox,
+            response_model=DialecticalComponentsDeck,
         )
-        async def _find_multiple_call() -> DialecticalComponentsBox:
+        async def _find_multiple_call() -> DialecticalComponentsDeck:
             return prompt_stuff
 
         return await _find_multiple_call()
 
     @prompt_template()
-    def prompt_sequencing(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsBox) -> Messages.Type:
+    def prompt_sequencing(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> Messages.Type:
         prompt_messages: list = []
 
         prompt_messages.extend(previous_prompt_stuff)
@@ -180,19 +178,19 @@ class ThoughtMapping:
         return prompt_messages
 
     @with_langfuse()
-    async def find_sequencing(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsBox) -> CausalCyclesBox:
+    async def find_sequencing(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> CausalCyclesDeck:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
             model=overridden_ai_model,
-            response_model=CausalCyclesBox,
+            response_model=CausalCyclesDeck,
         )
-        async def _find_sequencing_call() -> CausalCyclesBox:
+        async def _find_sequencing_call() -> CausalCyclesDeck:
             return self.prompt_sequencing(previous_prompt_stuff=previous_prompt_stuff, box=box)
 
         return await _find_sequencing_call()
@@ -226,4 +224,3 @@ class ThoughtMapping:
             ))
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
-

@@ -5,8 +5,8 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_box import \
-    DialecticalComponentsBox
+from dialectical_framework.dialectical_components_deck import \
+    DialecticalComponentsDeck
 from dialectical_framework.brain import Brain
 from dialectical_framework.validator.basic_checks import (check,
                                                           is_negative_side,
@@ -169,7 +169,7 @@ class DialecticalReasoning(ABC):
     async def find_thesis(self) -> DialecticalComponent:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
@@ -190,7 +190,7 @@ class DialecticalReasoning(ABC):
     ) -> DialecticalComponent:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
@@ -212,7 +212,7 @@ class DialecticalReasoning(ABC):
     ) -> DialecticalComponent:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
@@ -234,7 +234,7 @@ class DialecticalReasoning(ABC):
     ) -> DialecticalComponent:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
@@ -256,7 +256,7 @@ class DialecticalReasoning(ABC):
     ) -> DialecticalComponent:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
@@ -278,7 +278,7 @@ class DialecticalReasoning(ABC):
     ) -> DialecticalComponent:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
@@ -296,23 +296,23 @@ class DialecticalReasoning(ABC):
     async def find_next(
         self,
         wu_so_far: WisdomUnit,
-    ) -> DialecticalComponentsBox:
+    ) -> DialecticalComponentsDeck:
         """
         Raises:
             StopIteration: if nothing needs to be found anymore
         """
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallbck to litellm
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
             # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
             overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
 
         @llm.call(
             provider=overridden_ai_provider,
             model=overridden_ai_model,
-            response_model=DialecticalComponentsBox,
+            response_model=DialecticalComponentsDeck,
         )
-        async def _find_next_call() -> DialecticalComponentsBox:
+        async def _find_next_call() -> DialecticalComponentsDeck:
             return self.prompt_next(wu_so_far)
 
         return await _find_next_call()
@@ -352,7 +352,7 @@ class DialecticalReasoning(ABC):
                 We assume here, that with every iteration we will find a new dialectical component(s).
                 If we keep finding the same ones (or not find at all), we will still avoid the infinite loop - that's good.
                 """
-                dc: DialecticalComponentsBox = await self.find_next(wu)
+                dc: DialecticalComponentsDeck = await self.find_next(wu)
                 for d in dc.dialectical_components:
                     alias = d.alias
                     if wu.get(alias):

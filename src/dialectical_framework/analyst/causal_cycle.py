@@ -5,7 +5,6 @@ from pydantic import Field
 
 
 class CausalCycle(BaseModel):
-    # Comment on the model is a hint to AI how to render the output. It may work better than Field(..., description=...)
     """
     Causal circular sequence of statements, where each statement is referenced by
     """
