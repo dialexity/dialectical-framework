@@ -1,3 +1,4 @@
+import re
 from typing import List
 
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
@@ -27,10 +28,16 @@ class TwoConcepts(WheelBuilder):
             component_length=config.component_length,
         )
         wheel_wisdom_units = []
-        for idx, dc in enumerate(cycle.dialectical_components, start=1):
+        for dc in cycle.dialectical_components:
             wu = await reasoner.think(thesis=dc.statement)
             wu.t.explanation = dc.explanation
-            wu.add_indexes_to_aliases(idx)
+
+            # Extract numeric part of the alias; default to 0 when absent
+            match = re.search(r"\d+", dc.alias)
+            idx = int(match.group()) if match else 0
+            if idx:
+                wu.add_indexes_to_aliases(idx)
+
             wheel_wisdom_units.append(wu)
 
         w = Wheel(wheel_wisdom_units)

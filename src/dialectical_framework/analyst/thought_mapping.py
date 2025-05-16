@@ -162,19 +162,20 @@ class ThoughtMapping:
 
         prompt_messages.append(
             Messages.User(
-            "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
+            # "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
+            "Assess the following circular causality sequences if they're realistic (given that the final step cycles back to the first step):"
             
             f"\n\n{sequences}\n\n" +
 
             inspect.cleandoc("""
             For each sequence:
-            1) Estimate the numeric probability (0 to 1) regarding its realistic existence
-            2) Explain why this sequence might occur in reality
-            3) Describe circumstances or contexts where this sequence would be most applicable or useful
+            1) Explain why this sequence might occur in reality
+            2) Describe circumstances or contexts where this sequence would be most applicable or useful
+            3) Estimate the numeric probability (0 to 1) regarding its realistic existence
             
             <formatting>
             Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
-            However, in the explanations don't use these technical placeholders.
+            However, in the explanations don't use these technical placeholders. Probability is a float between 0 and 1.
             </formatting>
             """))
         )
@@ -211,6 +212,8 @@ class ThoughtMapping:
             Messages.Assistant(inspect.cleandoc("\n\n".join(findings)))
         )
 
+        # TODO: Do we want to add the cycle detection for theses only? prompt_sequencing1?
+
         # Prepend the dialectical analysis to the prompt stuff
         prompt_messages.append(Messages.User(inspect.cleandoc(f"""
             For each concept (T1, T2, T3, etc.) identified in the initial context, identify its semantic/functional antithesis (A), such that positive/constructive side of a given stage/thesis (T+) should oppose/contradict the negative/exaggerated side of its antithesis (A-), and negative/exaggerated side of stage/thesis (T-) should oppose/contradict the positive/constructive side of antithesis (A+). 
@@ -241,19 +244,20 @@ class ThoughtMapping:
 
         prompt_messages.append(
             Messages.User(
-                "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
+                # "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
+                "Assess the following circular causality sequences if they're realistic (given that the final step cycles back to the first step):"
 
                 f"\n\n{sequences}\n\n" +
 
                 inspect.cleandoc("""
                 For each sequence:
-                1) Estimate the numeric probability (0 to 1) regarding its realistic existence
-                2) Explain why this sequence might occur in reality
-                3) Describe circumstances or contexts where this sequence would be most applicable or useful
+                1) Explain why this sequence might occur in reality
+                2) Describe circumstances or contexts where this sequence would be most applicable or useful
+                3) Estimate the numeric probability (0 to 1) regarding its realistic existence
 
                 <formatting>
                 Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
-                However, in the explanations don't use these technical placeholders.
+                However, in the explanations don't use these technical placeholders. Probability is a float between 0 and 1.
                 </formatting>
                 """))
         )
@@ -366,15 +370,14 @@ class ThoughtMapping:
 
 def _generate_diagonal_sequences(ordered_wisdom_units: List[WisdomUnit]):
     """
-    Generate every sequence that fulfils the “diagonality” constraint:
-    for N WisdomUnits, Ti and Ai must be exactly N positions apart
-    (mod 2 · N).  We additionally pin T1 to position 0.
+    Generate all ‘diagonal’ sequences while preserving the given order of
+    WisdomUnits.  For N units the result contains 2^(N-1) sequences:
 
-    Returns
-    -------
-    list[list[str]]
-        Each sequence as a list of aliases, e.g.
-        ['T1', 'T2', 'T3', 'A1', 'A2', 'A3']
+        T1 – [T/A]2 – … – [T/A]N – A1 – … – [A/T]N
+
+    The very first thesis (T1) is always fixed at index 0; every other unit may
+    appear either as (T, A) or (A, T) across the two halves, but the **unit
+    order itself never changes**.
     """
     if not ordered_wisdom_units:
         return []
@@ -384,25 +387,23 @@ def _generate_diagonal_sequences(ordered_wisdom_units: List[WisdomUnit]):
 
     sequences = []
 
-    for perm in itertools.permutations(remaining_units):
-        # orientation[i] == True  → antithesis first (A-T)
-        # orientation[i] == False → thesis first      (T-A)
-        for orientation in itertools.product([False, True], repeat=len(perm)):
-            # Collect both halves at once: (alias, counterpart_alias)
-            first_half_pairs = [(first_unit.t.alias, first_unit.a.alias)]
+    # orientation[i] == True  → antithesis first (A-T)
+    # orientation[i] == False → thesis first      (T-A)
+    for orientation in itertools.product([False, True], repeat=len(remaining_units)):
+        # Collect both halves at once: (head_alias, tail_alias)
+        first_half_pairs = [(first_unit.t.alias, first_unit.a.alias)]
 
-            for unit, swapped in zip(perm, orientation):
-                if swapped:  # A first, then T later
-                    first_half_pairs.append((unit.a.alias, unit.t.alias))
-                else:  # T first, then A later
-                    first_half_pairs.append((unit.t.alias, unit.a.alias))
+        for unit, swapped in zip(remaining_units, orientation):
+            if swapped:                       # A first, then T later
+                first_half_pairs.append((unit.a.alias, unit.t.alias))
+            else:                             # T first, then A later
+                first_half_pairs.append((unit.t.alias, unit.a.alias))
 
-            # Flatten pairs into the required order: first all “heads”,
-            # then all “tails”.
-            first_half = [head for head, _ in first_half_pairs]
-            second_half = [tail for _, tail in first_half_pairs]
+        # Flatten: first all heads, then all tails
+        first_half = [head for head, _ in first_half_pairs]
+        second_half = [tail for _, tail in first_half_pairs]
 
-            sequences.append(first_half + second_half)
+        sequences.append(first_half + second_half)
 
     return sequences
 
