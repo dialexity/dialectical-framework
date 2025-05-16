@@ -11,8 +11,10 @@ from dialectical_framework.brain import Brain
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.wisdom_unit import WisdomUnit
 
 
+# TODO: needs heavy refactoring, this is quite dirty
 class ThoughtMapping:
     def __init__(
         self,
@@ -210,6 +212,63 @@ class ThoughtMapping:
         elif thoughts == 4:
             prompt_stuff = self.prompt_thesis4(text=self._text, component_length=self._component_length)
             box = await self.find_multiple(prompt_stuff=prompt_stuff)
+        else:
+            raise ValueError(f"More than 4 thoughts are not supported yet.")
+
+        causal_cycles_box = await self.find_sequencing(previous_prompt_stuff=prompt_stuff, box=box)
+        cycles: list[Cycle] = []
+        for causal_cycle in causal_cycles_box.causal_cycles:
+            cycles.append(Cycle(
+                dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
+                probability=causal_cycle.probability,
+                reasoning_explanation=causal_cycle.reasoning_explanation,
+                argumentation=causal_cycle.argumentation
+            ))
+        cycles.sort(key=lambda c: c.probability, reverse=True)
+        return cycles
+
+    async def resequence_with_blind_spots(self, ordered_wisdom_units: List[WisdomUnit]) -> List[Cycle]:
+        thoughts = len(ordered_wisdom_units)
+        if thoughts == 1:
+            return [Cycle(
+                dialectical_components=[
+                    ordered_wisdom_units[0].t,
+                    ordered_wisdom_units[0].a,
+                ],
+                probability=1.0,
+            )]
+        elif thoughts == 2:
+            return [Cycle(
+                dialectical_components=[
+                    ordered_wisdom_units[0].t,
+                    ordered_wisdom_units[1].t,
+                    ordered_wisdom_units[0].a,
+                    ordered_wisdom_units[1].a,
+                ],
+                probability=1.0,
+            )]
+        elif thoughts == 3:
+            prompt_stuff = self.prompt_thesis3(text=self._text, component_length=self._component_length)
+            box = DialecticalComponentsDeck(dialectical_components=[
+                ordered_wisdom_units[0].t,
+                ordered_wisdom_units[1].t,
+                ordered_wisdom_units[2].t,
+                ordered_wisdom_units[0].a,
+                ordered_wisdom_units[1].a,
+                ordered_wisdom_units[2].a,
+            ])
+        elif thoughts == 4:
+            prompt_stuff = self.prompt_thesis4(text=self._text, component_length=self._component_length)
+            box = DialecticalComponentsDeck(dialectical_components=[
+                ordered_wisdom_units[0].t,
+                ordered_wisdom_units[1].t,
+                ordered_wisdom_units[2].t,
+                ordered_wisdom_units[3].t,
+                ordered_wisdom_units[0].a,
+                ordered_wisdom_units[1].a,
+                ordered_wisdom_units[2].a,
+                ordered_wisdom_units[3].a,
+            ])
         else:
             raise ValueError(f"More than 4 thoughts are not supported yet.")
 
