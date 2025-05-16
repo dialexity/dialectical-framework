@@ -27,8 +27,12 @@ class TwoConcepts(WheelBuilder):
             component_length=config.component_length,
         )
         wheel_wisdom_units = []
-        for dc in cycle.dialectical_components:
+        for idx, dc in enumerate(cycle.dialectical_components, start=1):
             wu = await reasoner.think(thesis=dc.statement)
+            wu.t.explanation = dc.explanation
+            wu.add_indexes_to_aliases(idx)
             wheel_wisdom_units.append(wu)
 
-        return Wheel(wheel_wisdom_units)
+        w = Wheel(wheel_wisdom_units)
+        w.add_significant_cycle(cycle)
+        return w

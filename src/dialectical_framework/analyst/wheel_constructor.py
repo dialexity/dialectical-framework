@@ -34,18 +34,18 @@ class WheelMutator(BaseModel):
             raise ValueError("Not all aliases are present in the causal sequence")
 
         wu_sorted = []
-        wu_processed = WeakSet()
+        wu_processed = []
         for alias in unique_aliases:
             for wu in self.wisdom_units:
-                if wu in wu_processed:
+                if any(item is wu for item in wu_processed):
                     continue
                 if wu.t.alias == alias:
                     wu_sorted.append(wu)
-                    wu_processed.add(wu)
+                    wu_processed.append(wu)
                     break
                 if wu.a.alias == alias:
                     wu_sorted.append(wu.swap_positions())
-                    wu_processed.add(wu)
+                    wu_processed.append(wu)
                     break
 
         if len(wu_sorted) != len(self.wisdom_units):

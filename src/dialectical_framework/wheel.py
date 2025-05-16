@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from typing import Iterable, Iterator, List, overload
 
+from tabulate import tabulate
+
+from dialectical_framework.cycle import Cycle
 from dialectical_framework.transition import Transition
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class Wheel(Iterable[WisdomUnit]):
-    _wisdom_units: list[WisdomUnit] = []
+    _wisdom_units: List[WisdomUnit] = []
     _transitions: List[Transition | None]
+    _cycles: List[Cycle] = []
 
     @overload
     def __init__(self, *wisdom_units: WisdomUnit) -> None: ...
@@ -109,3 +113,37 @@ class Wheel(Iterable[WisdomUnit]):
         self._transitions[:] = rot(self._transitions)
 
         return self._wisdom_units
+
+    @property
+    def cycles(self) -> List[Cycle]:
+        return self._cycles
+
+    def add_significant_cycle(self, cycle: Cycle) -> None:
+        self._cycles.append(cycle)
+
+    def __str__(self):
+        records = [
+            ["", *range(1, len(self._wisdom_units) * 2)],
+            ["T-",
+             *[w.t_minus.statement if w.t_minus else "" for w in self._wisdom_units]],
+            ["T",
+             *[w.t.statement if w.t else "" for w in self._wisdom_units]],
+            ["T+",
+             *[w.t_plus.statement if w.t_plus else "" for w in self._wisdom_units]],
+            ["A+",
+             *[w.a_plus.statement if w.a_plus else "" for w in self._wisdom_units]],
+            ["A",
+             *[w.a.statement if w.a else "" for w in self._wisdom_units]],
+            ["A-",
+             *[w.a_minus.statement if w.a_minus else "" for w in self._wisdom_units]],
+        ]
+
+        # TODO: also add transitions
+
+        table = tabulate(
+            records,
+            headers="firstrow",
+            tablefmt="plain"  # or "github", "grid", "fancy_grid", …
+        )
+
+        return "\n---\n".join([c.__str__() for c in self.cycles]) + "\n---\n" + table

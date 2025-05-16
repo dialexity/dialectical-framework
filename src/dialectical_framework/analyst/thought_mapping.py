@@ -1,4 +1,5 @@
 import inspect
+import itertools
 from itertools import permutations
 from typing import List
 
@@ -137,7 +138,7 @@ class ThoughtMapping:
         return await _find_multiple_call()
 
     @prompt_template()
-    def prompt_sequencing(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> Messages.Type:
+    def prompt_sequencing1(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> Messages.Type:
         prompt_messages: list = []
 
         prompt_messages.extend(previous_prompt_stuff)
@@ -180,7 +181,7 @@ class ThoughtMapping:
         return prompt_messages
 
     @with_langfuse()
-    async def find_sequencing(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> CausalCyclesDeck:
+    async def find_sequencing1(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> CausalCyclesDeck:
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
             # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
@@ -192,10 +193,89 @@ class ThoughtMapping:
             model=overridden_ai_model,
             response_model=CausalCyclesDeck,
         )
-        async def _find_sequencing_call() -> CausalCyclesDeck:
-            return self.prompt_sequencing(previous_prompt_stuff=previous_prompt_stuff, box=box)
+        async def _find_sequencing1_call() -> CausalCyclesDeck:
+            return self.prompt_sequencing1(previous_prompt_stuff=previous_prompt_stuff, box=box)
 
-        return await _find_sequencing_call()
+        return await _find_sequencing1_call()
+
+    @prompt_template()
+    def prompt_sequencing2(self, previous_prompt_stuff: Messages.Type, ordered_wisdom_units: List[WisdomUnit]) -> Messages.Type:
+        prompt_messages: list = []
+
+        prompt_messages.extend(previous_prompt_stuff)
+        findings = []
+        for wu in ordered_wisdom_units:
+            findings.append(wu.t.to_formatted_message())
+
+        prompt_messages.append(
+            Messages.Assistant(inspect.cleandoc("\n\n".join(findings)))
+        )
+
+        # Prepend the dialectical analysis to the prompt stuff
+        prompt_messages.append(Messages.User(inspect.cleandoc(f"""
+            For each concept (T1, T2, T3, etc.) identified in the initial context, identify its semantic/functional antithesis (A), such that positive/constructive side of a given stage/thesis (T+) should oppose/contradict the negative/exaggerated side of its antithesis (A-), and negative/exaggerated side of stage/thesis (T-) should oppose/contradict the positive/constructive side of antithesis (A+). 
+
+            For example:
+            T = Love
+            T+ = Happiness (positive aspect of Love)
+            T- = Fixation (negative aspect of Love)
+            A = Indifference (antithesis of Love)
+            A+ = Objectivity (positive aspect of Indifference, contradicts Fixation)
+            A- = Misery (negative aspect of Indifference, contradicts Happiness).
+        """)))
+        prompt_messages.append(Messages.Assistant(
+            "# Dialectical Analysis Results\n" +
+            "\n\n".join([wu.formatted_dialectical_analysis() for wu in ordered_wisdom_units])
+        ))
+
+        if len(ordered_wisdom_units) == 1:  # degenerate 1-node cycle
+            sequences = f"{ordered_wisdom_units[0].t.alias} → {ordered_wisdom_units[0].a.alias} → {ordered_wisdom_units[0].t.alias}..."
+        else:
+            # Produce all valid diagonal sequences
+            raw_sequences = _generate_diagonal_sequences(ordered_wisdom_units)
+
+            # Human-friendly formatting
+            sequences = "\n\n".join(
+                " → ".join(seq + [seq[0]]) + "..." for seq in raw_sequences
+            )
+
+        prompt_messages.append(
+            Messages.User(
+                "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
+
+                f"\n\n{sequences}\n\n" +
+
+                inspect.cleandoc("""
+                For each sequence:
+                1) Estimate the numeric probability (0 to 1) regarding its realistic existence
+                2) Explain why this sequence might occur in reality
+                3) Describe circumstances or contexts where this sequence would be most applicable or useful
+
+                <formatting>
+                Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
+                However, in the explanations don't use these technical placeholders.
+                </formatting>
+                """))
+        )
+        return prompt_messages
+
+    @with_langfuse()
+    async def find_sequencing2(self, previous_prompt_stuff: Messages.Type, ordered_wisdom_units: List[WisdomUnit]) -> CausalCyclesDeck:
+        overridden_ai_provider, overridden_ai_model = self._brain.specification()
+        if overridden_ai_provider == "bedrock":
+            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
+            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
+            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
+
+        @llm.call(
+            provider=overridden_ai_provider,
+            model=overridden_ai_model,
+            response_model=CausalCyclesDeck,
+        )
+        async def _find_sequencing2_call() -> CausalCyclesDeck:
+            return self.prompt_sequencing2(previous_prompt_stuff=previous_prompt_stuff, ordered_wisdom_units=ordered_wisdom_units)
+
+        return await _find_sequencing2_call()
 
     async def extract(self, thoughts = 2) -> List[Cycle]:
         if thoughts == 1:
@@ -215,7 +295,7 @@ class ThoughtMapping:
         else:
             raise ValueError(f"More than 4 thoughts are not supported yet.")
 
-        causal_cycles_box = await self.find_sequencing(previous_prompt_stuff=prompt_stuff, box=box)
+        causal_cycles_box = await self.find_sequencing1(previous_prompt_stuff=prompt_stuff, box=box)
         cycles: list[Cycle] = []
         for causal_cycle in causal_cycles_box.causal_cycles:
             cycles.append(Cycle(
@@ -272,7 +352,7 @@ class ThoughtMapping:
         else:
             raise ValueError(f"More than 4 thoughts are not supported yet.")
 
-        causal_cycles_box = await self.find_sequencing(previous_prompt_stuff=prompt_stuff, box=box)
+        causal_cycles_box = await self.find_sequencing2(previous_prompt_stuff=prompt_stuff, ordered_wisdom_units=ordered_wisdom_units)
         cycles: list[Cycle] = []
         for causal_cycle in causal_cycles_box.causal_cycles:
             cycles.append(Cycle(
@@ -283,3 +363,46 @@ class ThoughtMapping:
             ))
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
+
+def _generate_diagonal_sequences(ordered_wisdom_units: List[WisdomUnit]):
+    """
+    Generate every sequence that fulfils the “diagonality” constraint:
+    for N WisdomUnits, Ti and Ai must be exactly N positions apart
+    (mod 2 · N).  We additionally pin T1 to position 0.
+
+    Returns
+    -------
+    list[list[str]]
+        Each sequence as a list of aliases, e.g.
+        ['T1', 'T2', 'T3', 'A1', 'A2', 'A3']
+    """
+    if not ordered_wisdom_units:
+        return []
+
+    first_unit = ordered_wisdom_units[0]
+    remaining_units = ordered_wisdom_units[1:]
+
+    sequences = []
+
+    for perm in itertools.permutations(remaining_units):
+        # orientation[i] == True  → antithesis first (A-T)
+        # orientation[i] == False → thesis first      (T-A)
+        for orientation in itertools.product([False, True], repeat=len(perm)):
+            # Collect both halves at once: (alias, counterpart_alias)
+            first_half_pairs = [(first_unit.t.alias, first_unit.a.alias)]
+
+            for unit, swapped in zip(perm, orientation):
+                if swapped:  # A first, then T later
+                    first_half_pairs.append((unit.a.alias, unit.t.alias))
+                else:  # T first, then A later
+                    first_half_pairs.append((unit.t.alias, unit.a.alias))
+
+            # Flatten pairs into the required order: first all “heads”,
+            # then all “tails”.
+            first_half = [head for head, _ in first_half_pairs]
+            second_half = [tail for _, tail in first_half_pairs]
+
+            sequences.append(first_half + second_half)
+
+    return sequences
+

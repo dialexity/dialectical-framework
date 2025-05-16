@@ -17,6 +17,7 @@ class StrategicConsulting(ABC):
         component_length=4,
         wisdom_unit: WisdomUnit
     ):
+        # TODO: one wisdom unit isn't enough, it should be actually based on the wheel, not on the wisdom unit
         self._text = text
         self._wisdom_unit = wisdom_unit
 

@@ -25,9 +25,9 @@ class MultipleConcepts(WheelBuilder):
             component_length=config.component_length
         )
 
-        cycles: List[Cycle] = await analyst.extract(2)
+        cycles: List[Cycle] = await analyst.extract(self._how_many)
         # The first one is the highest probability
-        cycle = cycles[0]
+        cycle1 = cycles[0]
 
         reasoner = ReasonFastAndSimple(
             text=text,
@@ -35,18 +35,23 @@ class MultipleConcepts(WheelBuilder):
         )
 
         wheel_wisdom_units = []
-        for dc in cycle.dialectical_components:
+        for idx, dc in enumerate(cycle1.dialectical_components, start=1):
             wu = await reasoner.think(thesis=dc.statement)
+            wu.t.explanation = dc.explanation
+            wu.add_indexes_to_aliases(idx)
             wheel_wisdom_units.append(wu)
 
         cycles: List[Cycle] = await analyst.resequence_with_blind_spots(ordered_wisdom_units=wheel_wisdom_units)
         # The first one is the highest probability
-        cycle = cycles[0]
+        cycle2 = cycles[0]
 
         wm = WheelMutator(wisdom_units=wheel_wisdom_units)
-        wm.rearrange_by_causal_sequence(cycle)
+        wm.rearrange_by_causal_sequence(cycle2)
 
-        return Wheel(wm.wisdom_units)
+        w = Wheel(wm.wisdom_units)
+        w.add_significant_cycle(cycle1)
+        w.add_significant_cycle(cycle2)
+        return w
 
     async def build_multiple(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
         if not config:

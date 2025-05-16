@@ -113,6 +113,14 @@ class WisdomUnit(BaseModel):
         c: DialecticalComponent | None = getattr(wisdom_unit, dialectical_component)
         setattr(self, dialectical_component, c.model_copy() if c else None)
 
+    def add_indexes_to_aliases(self, human_friendly_index: int):
+        for f, a in self.field_to_alias.items():
+            dc = getattr(self, f)
+            if isinstance(dc, DialecticalComponent):
+                base = a.rstrip('+-')
+                sign = a[len(base):]
+                dc.alias = f"{base}{human_friendly_index}{sign}"
+
     def swap_positions(self, mutate: bool = True) -> WisdomUnit:
         """
         Swap thesis (T, T+, T−) and antithesis (A, A+, A−) components.
