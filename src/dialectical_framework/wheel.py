@@ -13,6 +13,7 @@ class Wheel(Iterable[WisdomUnit]):
     _wisdom_units: List[WisdomUnit] = []
     _transitions: List[Transition | None]
     _cycles: List[Cycle] = []
+    _alternative_cycles: List[Cycle] = []
 
     @overload
     def __init__(self, *wisdom_units: WisdomUnit) -> None: ...
@@ -118,8 +119,21 @@ class Wheel(Iterable[WisdomUnit]):
     def cycles(self) -> List[Cycle]:
         return self._cycles
 
-    def add_significant_cycle(self, cycle: Cycle) -> None:
-        self._cycles.append(cycle)
+    @property
+    def alternative_cycles(self) -> List[Cycle]:
+        return self._alternative_cycles
+
+    def add_significant_cycle(self, cycle: Cycle | List[Cycle]) -> None:
+        if isinstance(cycle, list):
+            self._cycles.extend(cycle)
+        else:
+            self._cycles.append(cycle)
+
+    def add_alternative_cycle(self, cycle: Cycle | List[Cycle]) -> None:
+        if isinstance(cycle, list):
+            self._alternative_cycles.extend(cycle)
+        else:
+            self._alternative_cycles.append(cycle)
 
     def __str__(self):
         records = [
@@ -146,4 +160,9 @@ class Wheel(Iterable[WisdomUnit]):
             tablefmt="plain"  # or "github", "grid", "fancy_grid", …
         )
 
-        return "\n---\n".join([c.__str__() for c in self.cycles]) + "\n---\n" + table
+        return (
+                "\n---\n".join([c.__str__() for c in self.cycles]) +
+                "\n---\n" +
+                table +
+                "\n---\n".join([c.__str__() for c in self.alternative_cycles])
+        )

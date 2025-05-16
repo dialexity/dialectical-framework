@@ -42,4 +42,6 @@ class TwoConcepts(WheelBuilder):
 
         w = Wheel(wheel_wisdom_units)
         w.add_significant_cycle(cycle)
+        if len(cycles) > 1:
+            w.add_alternative_cycle(cycles[1:])
         return w

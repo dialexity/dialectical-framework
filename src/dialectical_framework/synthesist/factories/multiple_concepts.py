@@ -56,8 +56,9 @@ class MultipleConcepts(WheelBuilder):
         wm.rearrange_by_causal_sequence(cycle2)
 
         w = Wheel(wm.wisdom_units)
-        w.add_significant_cycle(cycle1)
-        w.add_significant_cycle(cycle2)
+        w.add_significant_cycle([cycle1, cycle2])
+        if len(cycles) > 1:
+            w.add_alternative_cycle(cycles[1:])
         return w
 
     async def build_multiple(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
