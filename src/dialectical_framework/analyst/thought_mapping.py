@@ -368,42 +368,78 @@ class ThoughtMapping:
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
-def _generate_diagonal_sequences(ordered_wisdom_units: List[WisdomUnit]):
+def _generate_diagonal_sequences(wisdom_units):
     """
-    Generate all ‘diagonal’ sequences while preserving the given order of
-    WisdomUnits.  For N units the result contains 2^(N-1) sequences:
+    Generate all circular, diagonally-symmetric arrangements for T/A pairs.
 
-        T1 – [T/A]2 – … – [T/A]N – A1 – … – [A/T]N
+    Each wisdom unit consists of a thesis (`T`) and its antithesis (`A`). This function arranges them
+    around a circle (of length 2n, where n is the number of units) such that:
 
-    The very first thesis (T1) is always fixed at index 0; every other unit may
-    appear either as (T, A) or (A, T) across the two halves, but the **unit
-    order itself never changes**.
+    1. **Circular Symmetry**: For each pair, if `T_i` is at position `p`, then `A_i` is at position `(p + n) % (2n)`.
+    2. **Order Preservation**: The order of all `T`s matches their input order and is strictly increasing
+       in placement (i.e., `T1` before `T2`, etc.).
+    3. **Start Condition**: The sequence always starts with the first thesis (`T1`) at position 0.
+
+    Parameters:
+        wisdom_units (list): List of wisdom units, each having `.t.alias` (thesis) and `.a.alias` (antithesis).
+
+    Returns:
+        list of list: Each inner list is a possible arrangement; positions 0..n-1 represent the 'top row'
+        (or first semi-circle), and positions n..2n-1 represent the 'bottom row' (or mirrored second semi-circle),
+        such that the diagonal relationship and thesis order constraints are always met.
+
+    Example:
+        For input units T1/A1, T2/A2, T3/A3, T4/A4, a valid output can be:
+            [T1, T2, T4, T3, A1, A2, A4, A3]
+        Which means:
+            Top:    T1 -> T2 -> T4 -> T3
+            Bottom: A1 -> A2 -> A4 -> A3 (mirrored on the circle)
     """
-    if not ordered_wisdom_units:
-        return []
 
-    first_unit = ordered_wisdom_units[0]
-    remaining_units = ordered_wisdom_units[1:]
+    n = len(wisdom_units)
+    ts = [u.t.alias for u in wisdom_units]
+    as_ = [u.a.alias for u in wisdom_units]
+    size = 2 * n
 
-    sequences = []
+    results = []
 
-    # orientation[i] == True  → antithesis first (A-T)
-    # orientation[i] == False → thesis first      (T-A)
-    for orientation in itertools.product([False, True], repeat=len(remaining_units)):
-        # Collect both halves at once: (head_alias, tail_alias)
-        first_half_pairs = [(first_unit.t.alias, first_unit.a.alias)]
+    # Step 1: set T1 at 0, its diagonal A1 at n
+    def backtrack(t_positions, next_t_idx):
+        if next_t_idx == n:
+            # Fill arrangement based on t_positions
+            arrangement = [None] * size
+            occupied = set()
+            for t_idx, pos in enumerate(t_positions):
+                arrangement[pos] = ts[t_idx]
+                diag = (pos + n) % size
+                arrangement[diag] = as_[t_idx]
+                occupied.add(pos)
+                occupied.add(diag)
+            results.append(arrangement)
+            return
 
-        for unit, swapped in zip(remaining_units, orientation):
-            if swapped:                       # A first, then T later
-                first_half_pairs.append((unit.a.alias, unit.t.alias))
-            else:                             # T first, then A later
-                first_half_pairs.append((unit.t.alias, unit.a.alias))
+        # Next ti to place: always in order, always > previous ti's position
+        # Skip positions already assigned (to ensure symmetry & distinctness)
+        prev_pos = t_positions[-1]
+        for pos in range(prev_pos + 1, size):
+            diag = (pos + n) % size
 
-        # Flatten: first all heads, then all tails
-        first_half = [head for head, _ in first_half_pairs]
-        second_half = [tail for _, tail in first_half_pairs]
+            # Check if pos or diag are used by previous Ts/A's
+            collision = False
+            for prev_t_pos in t_positions:
+                if pos == prev_t_pos or diag == prev_t_pos:
+                    collision = True
+                    break
+                prev_diag = (prev_t_pos + n) % size
+                if pos == prev_diag or diag == prev_diag:
+                    collision = True
+                    break
+            if collision:
+                continue
 
-        sequences.append(first_half + second_half)
+            # Place next T at pos, corresponding A at diag
+            backtrack(t_positions + [pos], next_t_idx + 1)
 
-    return sequences
-
+    # T1 fixed at position 0
+    backtrack([0], 1)
+    return results

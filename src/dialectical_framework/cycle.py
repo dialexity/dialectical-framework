@@ -26,7 +26,7 @@ class Cycle(BaseModel):
         else:
             aliases = [dc.alias for dc in reversed(self.dialectical_components)]
 
-        output = [" → ".join(aliases)]
+        output = [" → ".join(aliases) + f" | Probability: {self.probability}"]
 
         if self.causality_direction == "clockwise":
             for dc in self.dialectical_components:
@@ -35,7 +35,6 @@ class Cycle(BaseModel):
             for dc in reversed(self.dialectical_components):
                 output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
 
-        output.append(f"Probability: {self.probability}")
         output.append(f"Reasoning: {self.reasoning_explanation}")
         output.append(f"Argumentation: {self.argumentation}")
 

@@ -160,10 +160,20 @@ class Wheel(Iterable[WisdomUnit]):
             tablefmt="plain"  # or "github", "grid", "fancy_grid", …
         )
 
-        return (
+        output = (
                 "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.cycles]) +
                 "\n---\n" +
-                table +
-                "\n---\n" +
-                "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.alternative_cycles])
+                table
         )
+
+        if len(self.alternative_cycles) > 0:
+            output = (
+                    output +
+                    "\n---\n\n" +
+                    "\n--- Alternatives --- \n" +
+                    "\n" +
+                    "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.alternative_cycles])
+            )
+
+        return output
+
