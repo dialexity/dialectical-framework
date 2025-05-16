@@ -161,8 +161,9 @@ class Wheel(Iterable[WisdomUnit]):
         )
 
         return (
-                "\n---\n".join([c.__str__() for c in self.cycles]) +
+                "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.cycles]) +
                 "\n---\n" +
                 table +
-                "\n---\n".join([c.__str__() for c in self.alternative_cycles])
+                "\n---\n" +
+                "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.alternative_cycles])
         )

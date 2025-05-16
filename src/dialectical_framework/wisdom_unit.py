@@ -153,7 +153,7 @@ class WisdomUnit(BaseModel):
         for f, a in self.field_to_alias.items():
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
-                wu_formatted.append(dc.to_formatted_message())
+                wu_formatted.append(dc.pretty())
         return "\n\n".join(wu_formatted)
 
     def __str__(self):

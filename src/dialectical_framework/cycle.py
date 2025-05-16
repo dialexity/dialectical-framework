@@ -20,7 +20,7 @@ class Cycle(BaseModel):
     reasoning_explanation: str = Field(default="", description="Explanation why/how this cycle might occur.")
     argumentation: str = Field(default="", description="Circumstances or contexts where this cycle would be most applicable or useful.")
 
-    def __str__(self):
+    def pretty(self, *, skip_dialectical_component_explanation = False) -> str:
         if self.causality_direction == "clockwise":
             aliases = [dc.alias for dc in self.dialectical_components]
         else:
@@ -30,13 +30,16 @@ class Cycle(BaseModel):
 
         if self.causality_direction == "clockwise":
             for dc in self.dialectical_components:
-                output.append(dc.to_formatted_message())
+                output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
         else:
             for dc in reversed(self.dialectical_components):
-                output.append(dc.to_formatted_message())
+                output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
 
         output.append(f"Probability: {self.probability}")
         output.append(f"Reasoning: {self.reasoning_explanation}")
         output.append(f"Argumentation: {self.argumentation}")
 
         return "\n".join(output)
+
+    def __str__(self):
+        return self.pretty()

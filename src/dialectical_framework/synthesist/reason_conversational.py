@@ -16,7 +16,7 @@ class ReasonConversational(DialecticalReasoning):
         prompt_messages.extend(
             [
                 *super().prompt_thesis(self._text),
-                Messages.Assistant(wu_so_far.t.to_formatted_message("Thesis (T)")),
+                Messages.Assistant(wu_so_far.t.pretty("Thesis (T)")),
             ]
         )
 
@@ -25,7 +25,7 @@ class ReasonConversational(DialecticalReasoning):
         )
         if wu_so_far.a:
             prompt_messages.append(
-                Messages.Assistant(wu_so_far.a.to_formatted_message("Antithesis (A)"))
+                Messages.Assistant(wu_so_far.a.pretty("Antithesis (A)"))
             )
         else:
             return prompt_messages
@@ -38,7 +38,7 @@ class ReasonConversational(DialecticalReasoning):
         if wu_so_far.t_minus:
             prompt_messages.append(
                 Messages.Assistant(
-                    wu_so_far.t_minus.to_formatted_message(
+                    wu_so_far.t_minus.pretty(
                         "Negative Side of Thesis (T-)"
                     )
                 )
@@ -55,7 +55,7 @@ class ReasonConversational(DialecticalReasoning):
             prompt_messages.extend(
                 [
                     Messages.Assistant(
-                        wu_so_far.a_minus.to_formatted_message(
+                        wu_so_far.a_minus.pretty(
                             "Negative Side of Antithesis (A-)"
                         )
                     )
@@ -71,7 +71,7 @@ class ReasonConversational(DialecticalReasoning):
             prompt_messages.extend(
                 [
                     Messages.Assistant(
-                        wu_so_far.t_plus.to_formatted_message(
+                        wu_so_far.t_plus.pretty(
                             "Positive Side of Thesis (T+)"
                         )
                     )
@@ -87,7 +87,7 @@ class ReasonConversational(DialecticalReasoning):
             prompt_messages.extend(
                 [
                     Messages.Assistant(
-                        wu_so_far.a_plus.to_formatted_message(
+                        wu_so_far.a_plus.pretty(
                             "Positive Side of Antithesis (A+)"
                         )
                     )

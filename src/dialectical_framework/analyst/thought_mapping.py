@@ -145,7 +145,7 @@ class ThoughtMapping:
         findings = []
         aliases = []
         for dc in box.dialectical_components:
-            findings.append(dc.to_formatted_message())
+            findings.append(dc.pretty())
             aliases.append(dc.alias)
         prompt_messages.append(
             Messages.Assistant(inspect.cleandoc("\n\n".join(findings)))
@@ -206,7 +206,7 @@ class ThoughtMapping:
         prompt_messages.extend(previous_prompt_stuff)
         findings = []
         for wu in ordered_wisdom_units:
-            findings.append(wu.t.to_formatted_message())
+            findings.append(wu.t.pretty())
 
         prompt_messages.append(
             Messages.Assistant(inspect.cleandoc("\n\n".join(findings)))
