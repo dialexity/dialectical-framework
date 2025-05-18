@@ -8,9 +8,19 @@ load_dotenv()
 
 class Config:
     # Default settings
-    PROVIDER = os.getenv("DEFAULT_MODEL_PROVIDER", None)
     MODEL = os.getenv("DEFAULT_MODEL", None)
+    PROVIDER = os.getenv("DEFAULT_MODEL_PROVIDER", None)
 
-
-if __name__ == "__main__":
-    print(f"You are using: provider={Config.PROVIDER}, model={Config.MODEL}")
+    @classmethod
+    def validate(cls):
+        missing = []
+        if not cls.MODEL:
+            missing.append('DEFAULT_MODEL')
+        if not cls.PROVIDER:
+            if "/" not in cls.MODEL:
+                missing.append('DEFAULT_MODEL_PROVIDER')
+            else:
+                # We will give litellm a chance to derive the provider from the model
+                pass
+        if missing:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
