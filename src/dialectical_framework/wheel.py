@@ -175,7 +175,7 @@ class Wheel(Iterable[WisdomUnit]):
         for i in range(n_units):
             headers.extend([f"Alias (WU{i + 1})", f"Statement (WU{i + 1})"])
             if has_transitions and i < n_units:
-                # Add transition column after each wisdom unit except last (cycle or not)
+                # Add a transition column after each wisdom unit except last (cycle or not)
                 headers.extend([f"Transition ({i + 1}→{(i + 2) if i + 1 < n_units else 1})", " "])
 
         table = []
