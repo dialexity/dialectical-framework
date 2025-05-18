@@ -4,9 +4,6 @@ from mirascope import prompt_template, Messages, llm
 from mirascope.integrations.langfuse import with_langfuse
 from mirascope.llm import CallResponse
 
-from dialectical_framework.brain import Brain
-from dialectical_framework.synthesist.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.utils.config import Config
 from dialectical_framework.validator.check import Check
 
 
@@ -63,7 +60,7 @@ def is_positive_side(positive_side: str, statement: str) -> Messages.Type: ...
 
 
 @with_langfuse()
-def check(func: Callable[[str, str], Messages.Type], reasoner: DialecticalReasoning, statement1: str, statement2: str) -> Check:
+def check(func: Callable[[str, str], Messages.Type], reasoner, statement1: str, statement2: str) -> Check:
     (provider, model) = reasoner.brain.specification()
     @llm.call(provider=provider, model=model, response_model=Check)
     def _check() -> Check:
