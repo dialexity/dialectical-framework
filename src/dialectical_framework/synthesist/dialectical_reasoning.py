@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from mirascope import BaseMessageParam, Messages, llm, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from config import Config
+from dialectical_framework.utils.config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
@@ -17,7 +17,7 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, ALIAS_T,
                                                ALIAS_T_MINUS, ALIAS_T_PLUS,
                                                WisdomUnit)
-from utils.dc_replace import dc_safe_replace
+from dialectical_framework.utils.dc_replace import dc_safe_replace
 
 
 class DialecticalReasoning(ABC):

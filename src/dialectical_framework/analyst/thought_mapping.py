@@ -1,12 +1,11 @@
 import inspect
-import itertools
 from itertools import permutations
 from typing import List
 
 from mirascope import prompt_template, Messages, llm
 from mirascope.integrations.langfuse import with_langfuse
 
-from config import Config
+from dialectical_framework.utils.config import Config
 from dialectical_framework.analyst.causal_cycles_deck import CausalCyclesDeck
 from dialectical_framework.brain import Brain
 from dialectical_framework.cycle import Cycle

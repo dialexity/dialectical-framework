@@ -1,4 +1,4 @@
-from config import Config
+from dialectical_framework.utils.config import Config
 
 
 class Brain:

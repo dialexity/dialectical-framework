@@ -1,4 +1,4 @@
-from utils.dc_replace import dc_replace, dc_safe_replace
+from dialectical_framework.utils.dc_replace import dc_replace, dc_safe_replace
 
 
 def test_dc_replace():

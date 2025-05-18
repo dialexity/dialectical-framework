@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from config import Config
+from dialectical_framework.utils.config import Config
 from dialectical_framework.brain import Brain
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.transition import Transition, ALIAS_AC, ALIAS_AC_PLUS, ALIAS_AC_MINUS, ALIAS_RE, \

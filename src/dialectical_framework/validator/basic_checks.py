@@ -4,7 +4,7 @@ from mirascope import llm, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 from mirascope.llm import CallResponse
 
-from config import Config
+from dialectical_framework.utils.config import Config
 from dialectical_framework.validator.check import Check
 
 
