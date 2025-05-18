@@ -192,11 +192,12 @@ class Wheel(Iterable[WisdomUnit]):
                     # Add transition after each wisdom unit
                     if i < len(self._transitions):
                         tr = self._transitions[i]
-                        ac_re: WisdomUnit | None = tr.action_reflection
-                        if ac_re:
-                            component = getattr(ac_re, role_attr, None)
-                            row.append(component.alias if component else '')
-                            row.append(component.statement if component else '')
+                        if tr is not None:
+                            ac_re: WisdomUnit | None = tr.action_reflection
+                            if ac_re:
+                                component = getattr(ac_re, role_attr, None)
+                                row.append(component.alias if component else '')
+                                row.append(component.statement if component else '')
             table.append(row)
 
         return tabulate(
