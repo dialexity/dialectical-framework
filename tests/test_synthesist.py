@@ -12,6 +12,7 @@ from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAn
 from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
 from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
 from dialectical_framework.synthesist.think_reciprocal_solution import ThinkReciprocalSolution
+from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
@@ -139,8 +140,10 @@ def test_ac_re():
     reasoner = ThinkActionReflection(user_message, wisdom_unit=wu)
     transition = asyncio.run(reasoner.think())
     assert transition.action_reflection.is_complete()
+    wheel = Wheel(wu)
+    wheel.add_transition(0, transition)
     print("\n")
-    print(transition)
+    print(wheel)
 
 
 @observe()

@@ -142,7 +142,7 @@ class Wheel(Iterable[WisdomUnit]):
 
         output = (
                 "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.cycles]) +
-                "\n---\n" +
+                ("\n---\n" if self.cycles else "") +
                 table
         )
 
@@ -168,22 +168,40 @@ class Wheel(Iterable[WisdomUnit]):
         ]
 
         n_units = len(self._wisdom_units)
+        has_transitions = hasattr(self, "_transitions") and self._transitions is not None
+
+        # Create headers: WU1_alias, WU1_statement, (transition1), WU2_alias, ...
         headers = []
         for i in range(n_units):
             headers.extend([f"Alias (WU{i + 1})", f"Statement (WU{i + 1})"])
+            if has_transitions and i < n_units:
+                # Add transition column after each wisdom unit except last (cycle or not)
+                headers.extend([f"Transition ({i + 1}→{(i + 2) if i + 1 < n_units else 1})", " "])
 
         table = []
+        # Build the table: alternate wisdom unit cells and transitions
         for role_attr, role_label in roles:
             row = []
-            for wu in self._wisdom_units:
+            for i, wu in enumerate(self._wisdom_units):
+                # Wisdom unit columns
                 component = getattr(wu, role_attr, None)
                 row.append(component.alias if component else '')
                 row.append(component.statement if component else '')
+                # Transition columns
+                if has_transitions:
+                    # Add transition after each wisdom unit
+                    if i < len(self._transitions):
+                        tr = self._transitions[i]
+                        ac_re: WisdomUnit | None = tr.action_reflection
+                        if ac_re:
+                            component = getattr(ac_re, role_attr, None)
+                            row.append(component.alias if component else '')
+                            row.append(component.statement if component else '')
             table.append(row)
 
         return tabulate(
             table,
             # headers=headers,
-            # showindex=[label for _, label in roles],
             tablefmt="plain")
+
 

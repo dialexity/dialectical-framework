@@ -371,6 +371,9 @@ class DialecticalReasoning(ABC):
         original: WisdomUnit | None = None,
         **modified_dialectical_components,
     ) -> WisdomUnit:
+        """
+        This method doesn't mutate the original WisdomUnit. It returns a fresh instance.
+        """
 
         warnings: dict[str, list[str]] = {}
 
