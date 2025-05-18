@@ -46,18 +46,18 @@ class WisdomUnit(BaseModel):
         description="The positive side of the thesis: T+",
         alias=ALIAS_T_PLUS,
     )
-    a_minus: DialecticalComponent | None = Field(
-        default=None,
-        description="The negative side of the antithesis: A-",
-        alias=ALIAS_A_MINUS,
-    )
-    a: DialecticalComponent | None = Field(
-        default=None, description="The antithesis: A", alias=ALIAS_A
-    )
     a_plus: DialecticalComponent | None = Field(
         default=None,
         description="The positive side of the antithesis: A+",
         alias=ALIAS_A_PLUS,
+    )
+    a: DialecticalComponent | None = Field(
+        default=None, description="The antithesis: A", alias=ALIAS_A
+    )
+    a_minus: DialecticalComponent | None = Field(
+        default=None,
+        description="The negative side of the antithesis: A-",
+        alias=ALIAS_A_MINUS,
     )
 
     def is_complete(self):
@@ -157,8 +157,4 @@ class WisdomUnit(BaseModel):
         return "\n\n".join(wu_formatted)
 
     def __str__(self):
-        ini_data = []
-        for k, v in self.model_dump().items():
-            alias = self.field_to_alias.get(k, k)
-            ini_data.append(f"{alias} = {v}")
-        return "\n------------------\n".join(ini_data)
+        return self.formatted_dialectical_analysis()
