@@ -5,8 +5,10 @@ description = "A dialectical framework for augmented intelligence. AI reasoning 
 authors = ["Evaldas Taroza <evaldas@dialexity.com>"]
 readme = "README.md"
 
-[tool.poetry.packages]
-include = { from = "src", include = "dialectical_framework" }
+[[tool.poetry.packages]]
+include = "dialectical_framework"
+from = "src"
+
 
 
 [tool.poetry.dependencies]
