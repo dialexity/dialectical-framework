@@ -1,9 +1,11 @@
-from typing import Callable, cast
+from typing import Callable
 
-from mirascope import llm, prompt_template
+from mirascope import prompt_template, Messages, llm
 from mirascope.integrations.langfuse import with_langfuse
 from mirascope.llm import CallResponse
 
+from dialectical_framework.brain import Brain
+from dialectical_framework.synthesist.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.utils.config import Config
 from dialectical_framework.validator.check import Check
 
@@ -23,7 +25,7 @@ Can the statement "{antithesis}" be considered a valid dialectical opposition of
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """
 )
-def is_valid_opposition(antithesis: str, thesis: str) -> bool: ...
+def is_valid_opposition(antithesis: str, thesis: str) -> Messages.Type: ...
 
 
 @prompt_template(
@@ -37,7 +39,7 @@ Can the statement "{opposition}" be considered as a contradictory/semantic oppos
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """
 )
-def is_strict_opposition(opposition: str, statement: str) -> bool: ...
+def is_strict_opposition(opposition: str, statement: str) -> Messages.Type: ...
 
 
 @prompt_template(
@@ -47,7 +49,7 @@ Can the statement "{negative_side}" be considered as an exaggerated (overdevelop
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """
 )
-def is_negative_side(negative_side: str, statement: str) -> bool: ...
+def is_negative_side(negative_side: str, statement: str) -> Messages.Type: ...
 
 
 @prompt_template(
@@ -57,10 +59,14 @@ Can the statement "{positive_side}" be considered as a positive (constructive an
 Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
 """
 )
-def is_positive_side(positive_side: str, statement: str) -> bool: ...
+def is_positive_side(positive_side: str, statement: str) -> Messages.Type: ...
 
 
 @with_langfuse()
-@llm.call(provider=Config.PROVIDER, model=Config.MODEL, response_model=Check)
-def check(func: Callable[[str, str], bool], statement1: str, statement2: str) -> Check:
-    return cast(Check, func(statement1, statement2))
+def check(func: Callable[[str, str], Messages.Type], reasoner: DialecticalReasoning, statement1: str, statement2: str) -> Check:
+    (provider, model) = reasoner.brain.specification()
+    @llm.call(provider=provider, model=model, response_model=Check)
+    def _check() -> Check:
+        return func(statement1, statement2)
+
+    return _check()

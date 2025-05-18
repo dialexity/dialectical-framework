@@ -8,11 +8,10 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.brain import Brain
-from dialectical_framework.validator.basic_checks import (check,
-                                                          is_negative_side,
+from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_positive_side,
                                                           is_strict_opposition,
-                                                          is_valid_opposition)
+                                                          is_valid_opposition, check)
 from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, ALIAS_T,
                                                ALIAS_T_MINUS, ALIAS_T_PLUS,
@@ -420,6 +419,7 @@ class DialecticalReasoning(ABC):
         if changed.get(base) or changed.get(other):
             check1 = check(
                 is_valid_opposition,
+                self,
                 getattr(new_wu, base).statement,
                 getattr(new_wu, other).statement,
             )
@@ -511,6 +511,7 @@ class DialecticalReasoning(ABC):
                 if changed.get(base_minus) or changed.get(base):
                     check2 = check(
                         is_negative_side,
+                        self,
                         getattr(new_wu, base_minus).statement,
                         getattr(new_wu, base).statement,
                     )
@@ -548,6 +549,7 @@ class DialecticalReasoning(ABC):
                 if changed.get(other_plus) or changed.get(other):
                     check3 = check(
                         is_positive_side,
+                        self,
                         getattr(new_wu, other_plus).statement,
                         getattr(new_wu, other).statement,
                     )
@@ -584,6 +586,7 @@ class DialecticalReasoning(ABC):
                 if not additional_diagonal_check_skip:
                     check4 = check(
                         is_strict_opposition,
+                        self,
                         getattr(new_wu, base_minus).statement,
                         getattr(new_wu, other_plus).statement,
                     )
