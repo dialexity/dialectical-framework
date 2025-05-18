@@ -162,16 +162,15 @@ class ThoughtMapping:
 
         prompt_messages.append(
             Messages.User(
-            # "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
-            "Assess the following circular causality sequences if they're realistic (given that the final step cycles back to the first step):"
+            "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
             
             f"\n\n{sequences}\n\n" +
 
             inspect.cleandoc("""
             For each sequence:
+            1) Estimate the numeric probability (0 to 1) regarding its realistic existence
             1) Explain why this sequence might occur in reality
-            2) Describe circumstances or contexts where this sequence would be most applicable or useful
-            3) Estimate the numeric probability (0 to 1) regarding its realistic existence
+            3) Describe circumstances or contexts where this sequence would be most applicable or useful
             
             <formatting>
             Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
@@ -244,16 +243,15 @@ class ThoughtMapping:
 
         prompt_messages.append(
             Messages.User(
-                # "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
-                "Assess the following circular causality sequences if they're realistic (given that the final step cycles back to the first step):"
+                "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
 
                 f"\n\n{sequences}\n\n" +
 
                 inspect.cleandoc("""
                 For each sequence:
-                1) Explain why this sequence might occur in reality
-                2) Describe circumstances or contexts where this sequence would be most applicable or useful
-                3) Estimate the numeric probability (0 to 1) regarding its realistic existence
+                1) Estimate the numeric probability (0 to 1) regarding its realistic existence
+                2) Explain why this sequence might occur in reality
+                3) Describe circumstances or contexts where this sequence would be most applicable or useful
 
                 <formatting>
                 Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
