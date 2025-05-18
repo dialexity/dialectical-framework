@@ -6,12 +6,47 @@ from langfuse.decorators import observe
 
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.factories.multiple_concepts import MultipleConcepts
 from dialectical_framework.synthesist.factories.two_concepts import TwoConcepts
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
+from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
 
+# Examples
+example_wu1 = WisdomUnit(
+    t_minus=DialecticalComponent.from_str("T1-","Destructive aggression"),
+    t=DialecticalComponent.from_str("T1","Putin initiates war"),
+    t_plus=DialecticalComponent.from_str("T1+","Strategic power projection"),
+    a_plus=DialecticalComponent.from_str("A1+","Mutual understanding"),
+    a=DialecticalComponent.from_str("A1","Peace negotiations"),
+    a_minus=DialecticalComponent.from_str("A1-","Passive submission"),
+)
+example_wu2 = WisdomUnit(
+    t_minus=DialecticalComponent.from_str("T2-","Endless conflict and destruction"),
+    t=DialecticalComponent.from_str("T2","Ukraine resists invasion"),
+    t_plus=DialecticalComponent.from_str("T2+","Liberation and sovereignty protected"),
+    a_plus=DialecticalComponent.from_str("A2+","Immediate peace achieved"),
+    a=DialecticalComponent.from_str("A2","Ukraine surrenders to invasion"),
+    a_minus=DialecticalComponent.from_str("A2-","Freedom and independence lost"),
+)
+example_wu3 = WisdomUnit(
+    t_minus=DialecticalComponent.from_str("T3-","Military resources drain rapidly"),
+    t=DialecticalComponent.from_str("T3","Russian offensive weakens"),
+    t_plus=DialecticalComponent.from_str("T3+","Ukrainian victory approaches"),
+    a_plus=DialecticalComponent.from_str("A3+","Strategic military strength maintained"),
+    a=DialecticalComponent.from_str("A3","Russian military dominance persists"),
+    a_minus=DialecticalComponent.from_str("A3-","Total defeat inevitable"),
+)
+example_wu4 = WisdomUnit(
+    t_minus=DialecticalComponent.from_str("T4-","Vengeance intensifies"),
+    t=DialecticalComponent.from_str("T4","Ukrainian victory approaches"),
+    t_plus=DialecticalComponent.from_str("T4+","Freedom restored"),
+    a_plus=DialecticalComponent.from_str("A4+","Stability maintained"),
+    a=DialecticalComponent.from_str("A4","Russian dominance persists"),
+    a_minus=DialecticalComponent.from_str("A4-","Oppression deepens"),
+)
 
 @observe()
 def test_thought_mapping():

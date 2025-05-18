@@ -136,29 +136,9 @@ class Wheel(Iterable[WisdomUnit]):
             self._alternative_cycles.append(cycle)
 
     def __str__(self):
-        records = [
-            ["", *range(1, len(self._wisdom_units) * 2)],
-            ["T-",
-             *[w.t_minus.statement if w.t_minus else "" for w in self._wisdom_units]],
-            ["T",
-             *[w.t.statement if w.t else "" for w in self._wisdom_units]],
-            ["T+",
-             *[w.t_plus.statement if w.t_plus else "" for w in self._wisdom_units]],
-            ["A+",
-             *[w.a_plus.statement if w.a_plus else "" for w in self._wisdom_units]],
-            ["A",
-             *[w.a.statement if w.a else "" for w in self._wisdom_units]],
-            ["A-",
-             *[w.a_minus.statement if w.a_minus else "" for w in self._wisdom_units]],
-        ]
-
         # TODO: also add transitions
 
-        table = tabulate(
-            records,
-            headers="firstrow",
-            tablefmt="plain"  # or "github", "grid", "fancy_grid", …
-        )
+        table = self._print_wheel_tables()
 
         output = (
                 "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.cycles]) +
@@ -176,4 +156,34 @@ class Wheel(Iterable[WisdomUnit]):
             )
 
         return output
+
+    def _print_wheel_tables(self):
+        roles = [
+            ('t_minus', 'T-'),
+            ('t', 'T'),
+            ('t_plus', 'T+'),
+            ('a_plus', 'A+'),
+            ('a', 'A'),
+            ('a_minus', 'A-'),
+        ]
+
+        n_units = len(self._wisdom_units)
+        headers = []
+        for i in range(n_units):
+            headers.extend([f"Alias (WU{i + 1})", f"Statement (WU{i + 1})"])
+
+        table = []
+        for role_attr, role_label in roles:
+            row = []
+            for wu in self._wisdom_units:
+                component = getattr(wu, role_attr, None)
+                row.append(component.alias if component else '')
+                row.append(component.statement if component else '')
+            table.append(row)
+
+        return tabulate(
+            table,
+            # headers=headers,
+            # showindex=[label for _, label in roles],
+            tablefmt="plain")
 

@@ -15,7 +15,7 @@ class WheelMutator(BaseModel):
         description="A list of wisdom units, i.e. a list of sets of interdependent dialectical components",
     )
 
-    def rearrange_by_causal_sequence(self, cycle: Cycle):
+    def rearrange_by_causal_sequence(self, cycle: Cycle, mutate: bool = True):
         """
         We expect the cycle to be on the middle ring where theses and antitheses reside.
         This way we can swap the wisdom unit oppositions if necessary.
@@ -44,11 +44,15 @@ class WheelMutator(BaseModel):
                     wu_processed.append(wu)
                     break
                 if wu.a.alias == alias:
-                    wu_sorted.append(wu.swap_positions())
+                    wu_sorted.append(wu.swap_positions(mutate=mutate))
                     wu_processed.append(wu)
                     break
 
         if len(wu_sorted) != len(self.wisdom_units):
             raise ValueError("Not all wisdom units were mapped in the causal sequence")
 
-        self.wisdom_units[:] = wu_sorted
+        if mutate:
+            self.wisdom_units[:] = wu_sorted
+            return self.wisdom_units
+        else:
+            return wu_sorted

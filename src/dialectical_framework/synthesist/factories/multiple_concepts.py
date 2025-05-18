@@ -2,7 +2,7 @@ import re
 from typing import List
 
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
-from dialectical_framework.analyst.wheel_constructor import WheelMutator
+from dialectical_framework.analyst.wheel_mutator import WheelMutator
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
@@ -60,32 +60,4 @@ class MultipleConcepts(WheelBuilder):
         if len(cycles) > 1:
             w.add_alternative_cycle(cycles[1:])
         return w
-
-    async def build_multiple(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
-        if not config:
-            config = WheelBuilderConfig()
-
-        analyst = ThoughtMapping(
-            text=text,
-            component_length=config.component_length
-        )
-
-        cycles: List[Cycle] = await analyst.extract(2)
-        wheels: List[Wheel] = []
-        for cycle in cycles:
-            reasoner = ReasonFastAndSimple(
-                text=text,
-                component_length=config.component_length,
-            )
-            wheel_wisdom_units = []
-            for dc in cycle.dialectical_components:
-                wu = await reasoner.think(thesis=dc.statement)
-                wheel_wisdom_units.append(wu)
-
-            wm = WheelMutator(wisdom_units=wheel_wisdom_units)
-            wm.rearrange_by_causal_sequence(cycle)
-
-            wheels.append(Wheel(wm.wisdom_units))
-
-        return wheels
 
