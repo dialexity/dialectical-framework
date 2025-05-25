@@ -13,7 +13,6 @@ class Wheel(Iterable[WisdomUnit]):
     _wisdom_units: List[WisdomUnit] = []
     _transitions: List[Transition | None]
     _cycles: List[Cycle] = []
-    _alternative_cycles: List[Cycle] = []
 
     @overload
     def __init__(self, *wisdom_units: WisdomUnit) -> None: ...
@@ -119,21 +118,11 @@ class Wheel(Iterable[WisdomUnit]):
     def cycles(self) -> List[Cycle]:
         return self._cycles
 
-    @property
-    def alternative_cycles(self) -> List[Cycle]:
-        return self._alternative_cycles
-
-    def add_significant_cycle(self, cycle: Cycle | List[Cycle]) -> None:
+    def add_cycle(self, cycle: Cycle | List[Cycle]) -> None:
         if isinstance(cycle, list):
             self._cycles.extend(cycle)
         else:
             self._cycles.append(cycle)
-
-    def add_alternative_cycle(self, cycle: Cycle | List[Cycle]) -> None:
-        if isinstance(cycle, list):
-            self._alternative_cycles.extend(cycle)
-        else:
-            self._alternative_cycles.append(cycle)
 
     def __str__(self):
         # TODO: also add transitions
@@ -145,15 +134,6 @@ class Wheel(Iterable[WisdomUnit]):
                 ("\n---\n" if self.cycles else "") +
                 table
         )
-
-        if len(self.alternative_cycles) > 0:
-            output = (
-                    output +
-                    "\n---\n\n" +
-                    "\n--- Alternatives --- \n" +
-                    "\n" +
-                    "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.alternative_cycles])
-            )
 
         return output
 
@@ -175,7 +155,7 @@ class Wheel(Iterable[WisdomUnit]):
         for i in range(n_units):
             headers.extend([f"Alias (WU{i + 1})", f"Statement (WU{i + 1})"])
             if has_transitions and i < n_units:
-                # Add a transition column after each wisdom unit except last (cycle or not)
+                # Add a transition column after each wisdom unit except the last (cycle or not)
                 headers.extend([f"Transition ({i + 1}→{(i + 2) if i + 1 < n_units else 1})", " "])
 
         table = []
@@ -189,7 +169,7 @@ class Wheel(Iterable[WisdomUnit]):
                 row.append(component.statement if component else '')
                 # Transition columns
                 if has_transitions:
-                    # Add transition after each wisdom unit
+                    # Add a transition after each wisdom unit
                     if i < len(self._transitions):
                         tr = self._transitions[i]
                         if tr is not None:

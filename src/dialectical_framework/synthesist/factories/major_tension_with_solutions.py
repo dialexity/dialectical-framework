@@ -1,3 +1,5 @@
+from typing import List
+
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
@@ -12,7 +14,7 @@ class MajorTensionWithSolutions(WheelBuilder):
 
         self._theses = None
 
-    async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
+    async def build(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
         reasoner = ReasonFastPolarizedConflict(
             text=text,
             config=config,
@@ -30,4 +32,4 @@ class MajorTensionWithSolutions(WheelBuilder):
         t = await consultant.think()
         wheel.add_transition(0, t)
 
-        return wheel
+        return [wheel]

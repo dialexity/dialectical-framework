@@ -26,7 +26,7 @@ class GenericWheelBuilder(WheelBuilder):
         else:
             self._target_wu_count = max(1, target_wu_count, len(theses))
 
-    async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
+    async def build(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
         if self._target_wu_count == 2:
             decorated = TwoConcepts(theses=self._theses)
             return await decorated.build(text, config)
@@ -44,6 +44,7 @@ class GenericWheelBuilder(WheelBuilder):
         else:
             cycles: List[Cycle] = await analyst.arrange(self._theses)
 
+        # TODO: we should actually resequence2 for all cycle1 possibilities, up to a user
         # The first one is the highest probability
         cycle1 = cycles[0]
 
@@ -65,16 +66,14 @@ class GenericWheelBuilder(WheelBuilder):
 
             wheel_wisdom_units.append(wu)
 
-        cycles: List[Cycle] = await analyst.resequence_with_blind_spots(ordered_wisdom_units=wheel_wisdom_units)
-        # The first one is the highest probability
-        cycle2 = cycles[0]
+        cycles2: List[Cycle] = await analyst.resequence_with_blind_spots(ordered_wisdom_units=wheel_wisdom_units)
 
-        wm = WheelMutator(wisdom_units=wheel_wisdom_units)
-        wm.rearrange_by_causal_sequence(cycle2)
+        wheels = []
+        for cycle2 in cycles2:
+            wm = WheelMutator(wisdom_units=wheel_wisdom_units)
+            w = Wheel(wm.rearrange_by_causal_sequence(cycle2, mutate=False))
+            w.add_cycle([cycle1, cycle2])
+            wheels.append(w)
 
-        w = Wheel(wm.wisdom_units)
-        w.add_significant_cycle([cycle1, cycle2])
-        if len(cycles) > 1:
-            w.add_alternative_cycle(cycles[1:])
-        return w
+        return wheels
 

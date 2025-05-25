@@ -19,7 +19,7 @@ class TwoConcepts(WheelBuilder):
 
         self._theses = theses
 
-    async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
+    async def build(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
         analyst = ThoughtMapping(
             text=text,
             config=config
@@ -42,7 +42,7 @@ class TwoConcepts(WheelBuilder):
             wu = await reasoner.think(thesis=dc.statement)
             wu.t.explanation = dc.explanation
 
-            # Extract numeric part of the alias; default to 0 when absent
+            # Extract the numeric part of the alias; default to 0 when absent
             match = re.search(r"\d+", dc.alias)
             idx = int(match.group()) if match else 0
             if idx:
@@ -51,7 +51,5 @@ class TwoConcepts(WheelBuilder):
             wheel_wisdom_units.append(wu)
 
         w = Wheel(wheel_wisdom_units)
-        w.add_significant_cycle(cycle)
-        if len(cycles) > 1:
-            w.add_alternative_cycle(cycles[1:])
-        return w
+        w.add_cycle(cycle)
+        return [w]
