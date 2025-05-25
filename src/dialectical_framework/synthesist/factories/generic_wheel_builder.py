@@ -21,10 +21,10 @@ class GenericWheelBuilder(WheelBuilder):
             theses = [thesis for thesis in theses if thesis and thesis.strip()]
             self._theses = theses
 
-        if len(theses) > 0:
+        if theses:
             self._target_wu_count = len(theses)
         else:
-            self._target_wu_count = max(1, target_wu_count, len(theses))
+            self._target_wu_count = max(1, target_wu_count)
 
     async def build(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
         if self._target_wu_count == 2:

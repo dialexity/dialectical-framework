@@ -61,27 +61,27 @@ def test_thought_mapping():
 def test_wheel_2():
     wbc = WheelBuilderConfig(component_length=7)
     factory = TwoConcepts()
-    wheel = asyncio.run(factory.build(user_message, wbc))
-    assert len(wheel.wisdom_units) == 2
+    wheels = asyncio.run(factory.build(user_message, wbc))
+    assert len(wheels[0].wisdom_units) == 2
     print("\n")
-    print(wheel)
+    print(wheels[0])
 
 @observe()
 def test_wheel_3():
     number_of_thoughts = 3
     wbc = WheelBuilderConfig(component_length=7)
     factory = GenericWheelBuilder(target_wu_count=number_of_thoughts)
-    wheel = asyncio.run(factory.build(user_message, wbc))
-    assert len(wheel.wisdom_units) == number_of_thoughts
+    wheels = asyncio.run(factory.build(user_message, wbc))
+    assert len(wheels[0].wisdom_units) == number_of_thoughts
     print("\n")
-    print(wheel)
+    print("\n\n".join(str(wheel) for wheel in wheels))
 
 @observe()
 def test_wheel_4():
     number_of_thoughts = 4
     wbc = WheelBuilderConfig(component_length=7)
     factory = GenericWheelBuilder(target_wu_count=number_of_thoughts)
-    wheel = asyncio.run(factory.build(user_message, wbc))
-    assert len(wheel.wisdom_units) == number_of_thoughts
+    wheels = asyncio.run(factory.build(user_message, wbc))
+    assert len(wheels[0].wisdom_units) == number_of_thoughts
     print("\n")
-    print(wheel)
+    print("\n\n".join(str(wheel) for wheel in wheels))
