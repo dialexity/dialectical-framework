@@ -4,6 +4,7 @@ from langfuse.decorators import observe
 from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.synthesist.reason_blind import ReasonBlind
 from dialectical_framework.synthesist.reason_conversational import \
     ReasonConversational
@@ -79,7 +80,8 @@ def test_fast_reasoner():
 
 @observe()
 def test_fast_and_simple_reasoner():
-    reasoner = ReasonFastAndSimple(user_message, component_length=1)
+    wbc = WheelBuilderConfig(component_length=1)
+    reasoner = ReasonFastAndSimple(user_message, config=wbc)
     wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")
@@ -87,7 +89,8 @@ def test_fast_and_simple_reasoner():
 
 @observe()
 def test_fast_polarized_conflict_reasoner():
-    reasoner = ReasonFastPolarizedConflict(user_message, component_length=2)
+    wbc = WheelBuilderConfig(component_length=2)
+    reasoner = ReasonFastPolarizedConflict(user_message, config=wbc)
     wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
     print("\n")

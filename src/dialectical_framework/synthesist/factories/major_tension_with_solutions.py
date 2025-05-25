@@ -13,18 +13,15 @@ class MajorTensionWithSolutions(WheelBuilder):
         self._theses = None
 
     async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
-        if not config:
-            config = WheelBuilderConfig()
-
         reasoner = ReasonFastPolarizedConflict(
             text=text,
-            component_length=config.component_length,
+            config=config,
         )
         wu = await reasoner.think(thesis=self._theses[0] if self._theses else None)
 
         consultant = ThinkReciprocalSolution(
             text=text,
-            component_length=config.component_length,
+            config=config,
             wisdom_unit=wu,
         )
 

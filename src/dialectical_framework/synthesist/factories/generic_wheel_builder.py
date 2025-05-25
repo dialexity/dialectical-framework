@@ -27,9 +27,6 @@ class GenericWheelBuilder(WheelBuilder):
             self._target_wu_count = max(1, target_wu_count, len(theses))
 
     async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
-        if not config:
-            config = WheelBuilderConfig()
-
         if self._target_wu_count == 2:
             decorated = TwoConcepts(theses=self._theses)
             return await decorated.build(text, config)
@@ -39,7 +36,7 @@ class GenericWheelBuilder(WheelBuilder):
 
         analyst = ThoughtMapping(
             text=text,
-            component_length=config.component_length
+            config=config
         )
 
         if not self._theses:
@@ -52,7 +49,7 @@ class GenericWheelBuilder(WheelBuilder):
 
         reasoner = ReasonFastAndSimple(
             text=text,
-            component_length=config.component_length,
+            config=config
         )
 
         wheel_wisdom_units = []

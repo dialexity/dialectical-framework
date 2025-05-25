@@ -6,14 +6,11 @@ from dialectical_framework.wheel import Wheel
 
 class SingleConceptWithActionReflection(SingleConcept):
     async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
-        if not config:
-            config = WheelBuilderConfig()
-
         wheel: Wheel = await super().build(text, config)
 
         consultant = ThinkActionReflection(
             text=text,
-            component_length=config.component_length,
+            config=config,
             wisdom_unit=wheel.main_wisdom_unit,
         )
         t = await consultant.think()

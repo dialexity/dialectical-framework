@@ -20,12 +20,9 @@ class TwoConcepts(WheelBuilder):
         self._theses = theses
 
     async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
-        if not config:
-            config = WheelBuilderConfig()
-
         analyst = ThoughtMapping(
             text=text,
-            component_length=config.component_length
+            config=config
         )
 
         if not self._theses:
@@ -38,7 +35,7 @@ class TwoConcepts(WheelBuilder):
 
         reasoner = ReasonFastAndSimple(
             text=text,
-            component_length=config.component_length,
+            config=config
         )
         wheel_wisdom_units = []
         for dc in cycle.dialectical_components:

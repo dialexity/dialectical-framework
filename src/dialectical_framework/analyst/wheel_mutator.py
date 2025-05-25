@@ -1,11 +1,9 @@
-from _weakrefset import WeakSet
 from typing import List
 
 from openai import BaseModel
 from pydantic import Field
 
 from dialectical_framework.cycle import Cycle
-from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 

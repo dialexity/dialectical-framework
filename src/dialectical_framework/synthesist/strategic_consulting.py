@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.utils.config import Config
 from dialectical_framework.brain import Brain
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -14,17 +15,20 @@ class StrategicConsulting(ABC):
         self,
         text: str,
         *,
-        component_length=4,
+        config: WheelBuilderConfig = None,
         wisdom_unit: WisdomUnit
     ):
         # TODO: one wisdom unit isn't enough, it should be actually based on the wheel, not on the wisdom unit
         self._text = text
         self._wisdom_unit = wisdom_unit
 
-        self._component_length = component_length
+        if config is None:
+            config = WheelBuilderConfig(
+                component_length=4
+            )
 
-        # Default brain
-        self._brain = Brain(ai_model=Config.MODEL, ai_provider=Config.PROVIDER)
+        self._component_length = config.component_length
+        self._brain = config.brain
 
         self._transition = None
 

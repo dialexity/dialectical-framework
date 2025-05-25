@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from mirascope import BaseMessageParam, Messages, llm, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.utils.config import Config
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
@@ -24,15 +25,18 @@ class DialecticalReasoning(ABC):
         self,
         text: str,
         *,
-        component_length=2
+        config: WheelBuilderConfig = None
     ):
         self._text = text
         self._wisdom_unit = None
 
-        self._component_length = component_length
+        if config is None:
+            config = WheelBuilderConfig(
+                component_length=3
+            )
 
-        # Default brain
-        self._brain = Brain(ai_model=Config.MODEL, ai_provider=Config.PROVIDER)
+        self._component_length = config.component_length
+        self._brain = config.brain
 
     @prompt_template(
     """

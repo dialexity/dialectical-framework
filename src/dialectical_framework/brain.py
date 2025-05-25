@@ -30,6 +30,10 @@ class Brain:
                     derived_ai_model,
                 )
 
+    def __str__(self):
+        provider, model = self.specification()
+        return f"Brain(provider='{provider}', model='{model}')"
+
     def specification(self) -> tuple[str, str]:
         return self._ai_provider, self._ai_model
 

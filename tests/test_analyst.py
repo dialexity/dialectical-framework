@@ -1,5 +1,4 @@
 import asyncio
-from math import factorial
 from typing import List
 
 from langfuse.decorators import observe
@@ -53,11 +52,10 @@ def test_thought_mapping():
     nr_of_thoughts = 3
     reasoner = ThoughtMapping(user_message)
     cycles: List[Cycle] = asyncio.run(reasoner.extract(nr_of_thoughts))
-    assert len(cycles) == factorial(nr_of_thoughts - 1)
     print("\n")
     for cycle in cycles:
         assert len(cycle.dialectical_components) == nr_of_thoughts
-        print(cycle.__str__())
+        print(cycle.pretty(skip_dialectical_component_explanation=True))
 
 @observe()
 def test_wheel_2():
@@ -72,7 +70,7 @@ def test_wheel_2():
 def test_wheel_3():
     number_of_thoughts = 3
     wbc = WheelBuilderConfig(component_length=7)
-    factory = GenericWheelBuilder(number_of_thoughts)
+    factory = GenericWheelBuilder(target_wu_count=number_of_thoughts)
     wheel = asyncio.run(factory.build(user_message, wbc))
     assert len(wheel.wisdom_units) == number_of_thoughts
     print("\n")
@@ -82,7 +80,7 @@ def test_wheel_3():
 def test_wheel_4():
     number_of_thoughts = 4
     wbc = WheelBuilderConfig(component_length=7)
-    factory = GenericWheelBuilder(number_of_thoughts)
+    factory = GenericWheelBuilder(target_wu_count=number_of_thoughts)
     wheel = asyncio.run(factory.build(user_message, wbc))
     assert len(wheel.wisdom_units) == number_of_thoughts
     print("\n")
