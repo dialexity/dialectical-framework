@@ -10,6 +10,15 @@ from dialectical_framework.wheel import Wheel
 
 
 class TwoConcepts(WheelBuilder):
+    def __init__(self, *, theses: List[str] = None):
+        if theses and len(theses) != 2:
+            raise ValueError(f"TwoConcepts can have only two theses, got: {len(theses)}")
+
+        if theses and any(not thesis or not thesis.strip() for thesis in theses):
+            raise ValueError("All theses must be non-empty strings")
+
+        self._theses = theses
+
     async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
         if not config:
             config = WheelBuilderConfig()
@@ -19,7 +28,11 @@ class TwoConcepts(WheelBuilder):
             component_length=config.component_length
         )
 
-        cycles: List[Cycle] = await analyst.extract(2)
+        if not self._theses:
+            cycles: List[Cycle] = await analyst.extract(2)
+        else:
+            cycles: List[Cycle] = await analyst.arrange(self._theses)
+
         # With two concepts we have only one possible cycle T1 -> T2 -> T1
         cycle = cycles[0]
 

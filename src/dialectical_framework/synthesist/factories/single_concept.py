@@ -5,6 +5,12 @@ from dialectical_framework.wheel import Wheel
 
 
 class SingleConcept(WheelBuilder):
+    def __init__(self, *, thesis: str = None):
+        if thesis and thesis.strip():
+            self._theses = [thesis]
+
+        self._theses = None
+
     async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
         if not config:
             config = WheelBuilderConfig()
@@ -13,5 +19,5 @@ class SingleConcept(WheelBuilder):
             text=text,
             component_length=config.component_length,
         )
-        wu = await reasoner.think()
+        wu = await reasoner.think(thesis=self._theses[0] if self._theses else None)
         return Wheel(wu)

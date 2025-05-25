@@ -7,7 +7,7 @@ from langfuse.decorators import observe
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.factories.multiple_concepts import MultipleConcepts
+from dialectical_framework.synthesist.factories.generic_wheel_builder import GenericWheelBuilder
 from dialectical_framework.synthesist.factories.two_concepts import TwoConcepts
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.wisdom_unit import WisdomUnit
@@ -72,7 +72,7 @@ def test_wheel_2():
 def test_wheel_3():
     number_of_thoughts = 3
     wbc = WheelBuilderConfig(component_length=7)
-    factory = MultipleConcepts(number_of_thoughts)
+    factory = GenericWheelBuilder(number_of_thoughts)
     wheel = asyncio.run(factory.build(user_message, wbc))
     assert len(wheel.wisdom_units) == number_of_thoughts
     print("\n")
@@ -82,7 +82,7 @@ def test_wheel_3():
 def test_wheel_4():
     number_of_thoughts = 4
     wbc = WheelBuilderConfig(component_length=7)
-    factory = MultipleConcepts(number_of_thoughts)
+    factory = GenericWheelBuilder(number_of_thoughts)
     wheel = asyncio.run(factory.build(user_message, wbc))
     assert len(wheel.wisdom_units) == number_of_thoughts
     print("\n")

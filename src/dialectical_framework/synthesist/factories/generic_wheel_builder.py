@@ -4,29 +4,49 @@ from typing import List
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.analyst.wheel_mutator import WheelMutator
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.synthesist.factories.single_concept import SingleConcept
+from dialectical_framework.synthesist.factories.two_concepts import TwoConcepts
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.wheel import Wheel
 
 
-class MultipleConcepts(WheelBuilder):
-    def __init__(self, how_many: int = 3):
+class GenericWheelBuilder(WheelBuilder):
+    def __init__(self, *, target_wu_count: int = 3, theses: List[str] = None):
         super().__init__()
-        if how_many < 3:
-            raise ValueError("Use a different factory for less than 3 concepts")
-        self._how_many = how_many
+
+        self._theses = None
+        if theses:
+            theses = [thesis for thesis in theses if thesis and thesis.strip()]
+            self._theses = theses
+
+        if len(theses) > 0:
+            self._target_wu_count = len(theses)
+        else:
+            self._target_wu_count = max(1, target_wu_count, len(theses))
 
     async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
         if not config:
             config = WheelBuilderConfig()
+
+        if self._target_wu_count == 2:
+            decorated = TwoConcepts(theses=self._theses)
+            return await decorated.build(text, config)
+        elif self._target_wu_count == 1:
+            decorated = SingleConcept(thesis=self._theses[0] if self._theses else None)
+            return await decorated.build(text, config)
 
         analyst = ThoughtMapping(
             text=text,
             component_length=config.component_length
         )
 
-        cycles: List[Cycle] = await analyst.extract(self._how_many)
+        if not self._theses:
+            cycles: List[Cycle] = await analyst.extract(self._target_wu_count)
+        else:
+            cycles: List[Cycle] = await analyst.arrange(self._theses)
+
         # The first one is the highest probability
         cycle1 = cycles[0]
 

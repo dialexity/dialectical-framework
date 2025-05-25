@@ -308,6 +308,53 @@ class ThoughtMapping:
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
+    async def arrange(self, thoughts: List[str] = None) -> List[Cycle]:
+        if not thoughts:
+            raise ValueError("Thoughts are required for arrange.")
+
+        if len(thoughts) == 1:
+            return [Cycle(
+                dialectical_components=[
+                    DialecticalComponent.from_str(alias="T", statement=thoughts[0], explanation="Provided as string.")
+                ],
+                probability=1.0,
+            )]
+        elif len(thoughts) == 2:
+            prompt_stuff = self.prompt_thesis2(text=self._text, component_length=self._component_length)
+            box = DialecticalComponentsDeck(dialectical_components=[
+                DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
+                DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
+            ])
+        elif len(thoughts) == 3:
+            prompt_stuff = self.prompt_thesis3(text=self._text, component_length=self._component_length)
+            box = DialecticalComponentsDeck(dialectical_components=[
+                DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
+                DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
+                DialecticalComponent.from_str(alias="T3", statement=thoughts[2], explanation="Provided as string."),
+            ])
+        elif len(thoughts) == 4:
+            prompt_stuff = self.prompt_thesis4(text=self._text, component_length=self._component_length)
+            box = DialecticalComponentsDeck(dialectical_components=[
+                DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
+                DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
+                DialecticalComponent.from_str(alias="T3", statement=thoughts[2], explanation="Provided as string."),
+                DialecticalComponent.from_str(alias="T4", statement=thoughts[3], explanation="Provided as string."),
+            ])
+        else:
+            raise ValueError(f"More than 4 thoughts are not supported yet.")
+
+        causal_cycles_box = await self.find_sequencing1(previous_prompt_stuff=prompt_stuff, box=box)
+        cycles: list[Cycle] = []
+        for causal_cycle in causal_cycles_box.causal_cycles:
+            cycles.append(Cycle(
+                dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
+                probability=causal_cycle.probability,
+                reasoning_explanation=causal_cycle.reasoning_explanation,
+                argumentation=causal_cycle.argumentation
+            ))
+        cycles.sort(key=lambda c: c.probability, reverse=True)
+        return cycles
+
     async def resequence_with_blind_spots(self, ordered_wisdom_units: List[WisdomUnit]) -> List[Cycle]:
         thoughts = len(ordered_wisdom_units)
         if thoughts == 1:
