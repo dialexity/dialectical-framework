@@ -1,20 +1,28 @@
-from typing import List
+from typing import List, Union
 
-from dialectical_framework.synthesist.factories.single_concept import SingleConcept
+from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
 from dialectical_framework.wheel import Wheel
 
 
-class SingleConceptWithActionReflection(SingleConcept):
-    async def build(self, text: str, config: WheelBuilderConfig = None) -> List[Wheel]:
-        wheels: List[Wheel] = await super().build(text, config)
+class SingleConceptWithActionReflection(WheelBuilder):
+    def __init__(self, *, text: str = None, config: WheelBuilderConfig = None):
+        super().__init__(text=text, config=config)
+
+    async def build(self, *, theses: List[Union[str, None]] = None) -> List[Wheel]:
+        wu_count = len(theses) if theses else 1
+        if wu_count > 1:
+            raise ValueError(f"Single concept with action reflection only supports one thesis, got {wu_count}")
+
+        wheels: List[Wheel] = await super().build(theses=theses)
+        wheel = wheels[0]
 
         consultant = ThinkActionReflection(
-            text=text,
-            config=config,
-            wisdom_unit=wheels[0].main_wisdom_unit,
+            text=self.text,
+            config=self._config,
+            wisdom_unit=wheel.main_wisdom_unit,
         )
         t = await consultant.think()
-        wheels[0].add_transition(0, t)
+        wheel.add_transition(0, t)
         return wheels

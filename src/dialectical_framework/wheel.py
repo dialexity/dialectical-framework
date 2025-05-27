@@ -5,30 +5,24 @@ from typing import Iterable, Iterator, List, overload
 from tabulate import tabulate
 
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.transition import Transition
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class Wheel(Iterable[WisdomUnit]):
-    _wisdom_units: List[WisdomUnit] = []
-    _transitions: List[Transition | None]
-    _cycles: List[Cycle] = []
-
-    @overload
-    def __init__(self, *wisdom_units: WisdomUnit) -> None: ...
-
-    @overload
-    def __init__(self, wisdom_units: Iterable[WisdomUnit]) -> None: ...
-
     def __init__(self, *wisdom_units):
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
             self._wisdom_units = list(wisdom_units[0])
-        else:  # One or more Wheel2 positional args
+        else:
             self._wisdom_units = list(wisdom_units)
 
+        self._cycles: List[Cycle] = []  # <-- instance variable!
         if len(self._wisdom_units) > 0:
-            self._transitions = [None] * len(self._wisdom_units)
+            self._transitions: List[Transition | None] = [None] * len(self._wisdom_units)
+        else:
+            self._transitions: List[Transition | None] = []
 
     def __iter__(self) -> Iterator[WisdomUnit]:
         return iter(self._wisdom_units)
@@ -47,6 +41,14 @@ class Wheel(Iterable[WisdomUnit]):
     @property
     def transitions(self) -> List[Transition]:
         return self._transitions
+
+    @property
+    def theses(self) -> DialecticalComponentsDeck:
+        theses_from_wheels = []
+        for wu in self.wisdom_units:
+            theses_from_wheels.append(wu.t)
+
+        return DialecticalComponentsDeck(dialectical_components=theses_from_wheels)
 
     def transition_at(self, i: int) -> Transition | None:
         """Edge from unit i → unit (i+1)."""

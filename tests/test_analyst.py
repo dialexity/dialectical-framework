@@ -6,8 +6,7 @@ from langfuse.decorators import observe
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.factories.generic_wheel_builder import GenericWheelBuilder
-from dialectical_framework.synthesist.factories.two_concepts import TwoConcepts
+from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -47,6 +46,11 @@ example_wu4 = WisdomUnit(
     a_minus=DialecticalComponent.from_str("A4-","Oppression deepens"),
 )
 
+factory = WheelBuilder(
+    config=WheelBuilderConfig(component_length=7),
+    text=user_message,
+)
+
 @observe()
 def test_thought_mapping():
     nr_of_thoughts = 3
@@ -59,29 +63,26 @@ def test_thought_mapping():
 
 @observe()
 def test_wheel_2():
-    wbc = WheelBuilderConfig(component_length=7)
-    factory = TwoConcepts()
-    wheels = asyncio.run(factory.build(user_message, wbc))
+    wheels = asyncio.run(factory.build(theses=["", None]))
     assert len(wheels[0].wisdom_units) == 2
+    assert len(wheels[0].cycles) == 2
     print("\n")
     print(wheels[0])
 
 @observe()
 def test_wheel_3():
     number_of_thoughts = 3
-    wbc = WheelBuilderConfig(component_length=7)
-    factory = GenericWheelBuilder(target_wu_count=number_of_thoughts)
-    wheels = asyncio.run(factory.build(user_message, wbc))
+    wheels = asyncio.run(factory.build(theses=[None]*number_of_thoughts))
     assert len(wheels[0].wisdom_units) == number_of_thoughts
+    assert len(wheels[0].cycles) == 2
     print("\n")
     print("\n\n".join(str(wheel) for wheel in wheels))
 
 @observe()
 def test_wheel_4():
     number_of_thoughts = 4
-    wbc = WheelBuilderConfig(component_length=7)
-    factory = GenericWheelBuilder(target_wu_count=number_of_thoughts)
-    wheels = asyncio.run(factory.build(user_message, wbc))
+    wheels = asyncio.run(factory.build(theses=[None] * number_of_thoughts))
     assert len(wheels[0].wisdom_units) == number_of_thoughts
+    assert len(wheels[0].cycles) == 2
     print("\n")
     print("\n\n".join(str(wheel) for wheel in wheels))

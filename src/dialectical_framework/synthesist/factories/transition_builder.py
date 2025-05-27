@@ -10,6 +10,6 @@ class TransitionBuilder(WheelBuilder):
         self._decorated_builder = builder
 
     @abstractmethod
-    async def build(self, text: str, config: WheelBuilderConfig = None) -> Wheel:
+    async def build(self, *, theses: str = None) -> Wheel:
         """ Subclasses should implement the fancy logic of adding transitions and calling the decorated builder """
         pass
