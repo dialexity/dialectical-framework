@@ -8,6 +8,7 @@ from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
+from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
@@ -46,10 +47,41 @@ example_wu4 = WisdomUnit(
     a_minus=DialecticalComponent.from_str("A4-","Oppression deepens"),
 )
 
+wbc = WheelBuilderConfig(component_length=7)
 factory = WheelBuilder(
-    config=WheelBuilderConfig(component_length=7),
+    config=wbc,
     text=user_message,
 )
+
+@observe()
+def test_factory_loading():
+    wb = WheelBuilder.load(
+        text=user_message,
+        config=wbc,
+        wheels=[Wheel([example_wu1, example_wu2, example_wu3, example_wu4])]
+    )
+
+    assert len(wb.wheels) == 1
+    assert len(wb.wheels[0].wisdom_units) == 4
+    print("\n")
+    print(wb.wheels[0])
+
+@observe()
+def test_wheel_redefine():
+    wb = WheelBuilder.load(
+        text=user_message,
+        config=wbc,
+        wheels=[Wheel([example_wu1, example_wu2, example_wu3, example_wu4])]
+    )
+
+    print("\n")
+    print(wb.wheels[0])
+    print("\n")
+
+    wheels = asyncio.run(wb.redefine({"T1": "Putin starts war", "T2+": "Keeping sovereignty"}))
+    print("\n")
+    print("\n\n".join([w.__str__() for w in wheels]))
+
 
 @observe()
 def test_thought_mapping():

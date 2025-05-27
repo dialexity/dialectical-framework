@@ -402,7 +402,7 @@ class ThoughtMapping:
                 ordered_wisdom_units[3].a,
             ])
         else:
-            raise ValueError(f"More than 4 thoughts are not supported yet.")
+            raise ValueError(f"{len(ordered_wisdom_units)} thoughts are not supported yet.")
 
         causal_cycles_box = await self.find_sequencing2(previous_prompt_stuff=prompt_stuff, ordered_wisdom_units=ordered_wisdom_units)
         cycles: list[Cycle] = []

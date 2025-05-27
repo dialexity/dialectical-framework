@@ -1,6 +1,9 @@
-Todo:
-[] Refactor wheel builders (factories) to be more stateful
+# Todo:
+
+[] Redefine should not do YES/NO as it constantly doesn't pass. We need an evaluation 0..1 or maybe reevaluate the full wheel during redefine, not restricted on a component level. Problem is most likely is that we don't send the history of chat messages, so AI doesn't see how it was made initially. 
+
 [] We should let the analyst create different cycles and evaluate probabilities for them
 [] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
 
-Done: 
+# Done: 
+[x] Refactor wheel builders (factories) to be more stateful
