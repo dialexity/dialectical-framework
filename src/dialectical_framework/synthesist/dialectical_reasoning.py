@@ -46,7 +46,7 @@ class DialecticalReasoning(ABC):
     USER:
     Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
 
-    Output the dialectical component T and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T". 
+    Output the dialectical component T and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
     """
     )
     def prompt_thesis(self, text: str) -> Messages.Type: ...
@@ -57,7 +57,7 @@ class DialecticalReasoning(ABC):
     
     Generate a dialectical opposition (A) of the thesis "{thesis}" (T). Be detailed enough to show deep understanding, yet concise enough to maintain clarity. Generalize all of them using up to 6 words.
 
-    Output the dialectical component A and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A".
+    Output the dialectical component A and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
     """
     )
     def prompt_antithesis(self, thesis: str | DialecticalComponent) -> Messages.Type:
@@ -75,7 +75,7 @@ class DialecticalReasoning(ABC):
 
     If more than one T- exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity. For instance, T- = "Obsession, Fixation, Loss of Mindfulness" can be generalized into T- = Mental Preoccupation
 
-    Output the dialectical component T- and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-".
+    Output the dialectical component T- and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-" in the explanation.
     """
     )
     def prompt_thesis_negative_side(
@@ -123,7 +123,7 @@ class DialecticalReasoning(ABC):
 
     If more than one T+ exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity.
 
-    Output the dialectical component T+ and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-".
+    Output the dialectical component T+ and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation.
     """
     )
     def prompt_thesis_positive_side(
@@ -181,10 +181,10 @@ class DialecticalReasoning(ABC):
             model=overridden_ai_model,
             response_model=DialecticalComponent,
         )
-        async def _find_thesis_call() -> DialecticalComponent:
+        def _find_thesis_call() -> DialecticalComponent:
             return self.prompt_thesis(self._text)
 
-        return await _find_thesis_call()
+        return _find_thesis_call()
 
     @with_langfuse()
     async def find_antithesis(
@@ -202,10 +202,10 @@ class DialecticalReasoning(ABC):
             model=overridden_ai_model,
             response_model=DialecticalComponent,
         )
-        async def _find_antithesis_call() -> DialecticalComponent:
+        def _find_antithesis_call() -> DialecticalComponent:
             return self.prompt_antithesis(thesis)
 
-        return await _find_antithesis_call()
+        return _find_antithesis_call()
 
     @with_langfuse()
     async def find_thesis_negative_side(
@@ -224,10 +224,10 @@ class DialecticalReasoning(ABC):
             model=overridden_ai_model,
             response_model=DialecticalComponent,
         )
-        async def _find_thesis_negative_side_call() -> DialecticalComponent:
+        def _find_thesis_negative_side_call() -> DialecticalComponent:
             return self.prompt_thesis_negative_side(thesis, not_like_this)
 
-        return await _find_thesis_negative_side_call()
+        return _find_thesis_negative_side_call()
 
     @with_langfuse()
     async def find_antithesis_negative_side(
@@ -246,10 +246,10 @@ class DialecticalReasoning(ABC):
             model=overridden_ai_model,
             response_model=DialecticalComponent,
         )
-        async def _find_antithesis_negative_side_call() -> DialecticalComponent:
+        def _find_antithesis_negative_side_call() -> DialecticalComponent:
             return self.prompt_antithesis_negative_side(thesis, not_like_this)
 
-        return await _find_antithesis_negative_side_call()
+        return _find_antithesis_negative_side_call()
 
     @with_langfuse()
     async def find_thesis_positive_side(
@@ -268,10 +268,10 @@ class DialecticalReasoning(ABC):
             model=overridden_ai_model,
             response_model=DialecticalComponent,
         )
-        async def _find_thesis_positive_side_call() -> DialecticalComponent:
+        def _find_thesis_positive_side_call() -> DialecticalComponent:
             return self.prompt_thesis_positive_side(thesis, antithesis_negative)
 
-        return await _find_thesis_positive_side_call()
+        return _find_thesis_positive_side_call()
 
     @with_langfuse()
     async def find_antithesis_positive_side(
@@ -290,10 +290,10 @@ class DialecticalReasoning(ABC):
             model=overridden_ai_model,
             response_model=DialecticalComponent,
         )
-        async def _find_antithesis_positive_side_call() -> DialecticalComponent:
+        def _find_antithesis_positive_side_call() -> DialecticalComponent:
             return self.prompt_antithesis_positive_side(thesis, antithesis_negative)
 
-        return await _find_antithesis_positive_side_call()
+        return _find_antithesis_positive_side_call()
 
     @with_langfuse()
     async def find_next(
@@ -315,10 +315,10 @@ class DialecticalReasoning(ABC):
             model=overridden_ai_model,
             response_model=DialecticalComponentsDeck,
         )
-        async def _find_next_call() -> DialecticalComponentsDeck:
+        def _find_next_call() -> DialecticalComponentsDeck:
             return self.prompt_next(wu_so_far)
 
-        return await _find_next_call()
+        return _find_next_call()
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit()

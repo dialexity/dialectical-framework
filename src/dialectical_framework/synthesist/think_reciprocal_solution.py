@@ -77,10 +77,10 @@ class ThinkReciprocalSolution(StrategicConsulting):
             model=overridden_ai_model,
             response_model=ReciprocalSolution,
         )
-        async def _reciprocal_solution_call() -> ReciprocalSolution:
+        def _reciprocal_solution_call() -> ReciprocalSolution:
             return self.prompt(self._text)
 
-        return await _reciprocal_solution_call()
+        return _reciprocal_solution_call()
 
     async def think(self, action: str | DialecticalComponent = None) -> Transition:
         # TODO: take provided action into account, now it's ignored

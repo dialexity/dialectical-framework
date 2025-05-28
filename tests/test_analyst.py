@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 
+import pytest
 from langfuse.decorators import observe
 
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
@@ -66,8 +67,9 @@ def test_factory_loading():
     print("\n")
     print(wb.wheels[0])
 
+@pytest.mark.asyncio
 @observe()
-def test_wheel_redefine():
+async def test_wheel_redefine():
     wb = WheelBuilder.load(
         text=user_message,
         config=wbc,
@@ -78,7 +80,7 @@ def test_wheel_redefine():
     print(wb.wheels[0])
     print("\n")
 
-    wheels = asyncio.run(wb.redefine({"T1": "Putin starts war", "T2+": "Keeping sovereignty"}))
+    wheels = await wb.redefine({"T1": "Putin starts war", "T2+": "Keeping sovereignty"})
     print("\n")
     print("\n\n".join([w.__str__() for w in wheels]))
 

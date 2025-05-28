@@ -27,6 +27,13 @@ def test_reasoner_find_thesis():
     print("\n")
     print(thesis)
 
+@observe()
+def test_reasoner_find_antithesis():
+    reasoner = ReasonBlind(user_message)
+    antithesis = asyncio.run(reasoner.find_antithesis("Putin starts war"))
+    assert antithesis is not None
+    print("\n")
+    print(antithesis)
 
 @observe()
 def test_blind_reasoner():

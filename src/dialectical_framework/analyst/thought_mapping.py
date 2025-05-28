@@ -62,10 +62,10 @@ class ThoughtMapping:
             model=overridden_ai_model,
             response_model=DialecticalComponent,
         )
-        async def _find_thesis1_call() -> DialecticalComponent:
+        def _find_thesis1_call() -> DialecticalComponent:
             return self.prompt_thesis1(text=self._text, component_length=self._component_length)
 
-        return await _find_thesis1_call()
+        return _find_thesis1_call()
 
     @prompt_template(
         """
@@ -135,10 +135,10 @@ class ThoughtMapping:
             model=overridden_ai_model,
             response_model=DialecticalComponentsDeck,
         )
-        async def _find_multiple_call() -> DialecticalComponentsDeck:
+        def _find_multiple_call() -> DialecticalComponentsDeck:
             return prompt_stuff
 
-        return await _find_multiple_call()
+        return _find_multiple_call()
 
     @prompt_template()
     def prompt_sequencing1(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> Messages.Type:
@@ -196,10 +196,10 @@ class ThoughtMapping:
             model=overridden_ai_model,
             response_model=CausalCyclesDeck,
         )
-        async def _find_sequencing1_call() -> CausalCyclesDeck:
+        def _find_sequencing1_call() -> CausalCyclesDeck:
             return self.prompt_sequencing1(previous_prompt_stuff=previous_prompt_stuff, box=box)
 
-        return await _find_sequencing1_call()
+        return _find_sequencing1_call()
 
     @prompt_template()
     def prompt_sequencing2(self, previous_prompt_stuff: Messages.Type, ordered_wisdom_units: List[WisdomUnit]) -> Messages.Type:
@@ -277,10 +277,10 @@ class ThoughtMapping:
             model=overridden_ai_model,
             response_model=CausalCyclesDeck,
         )
-        async def _find_sequencing2_call() -> CausalCyclesDeck:
+        def _find_sequencing2_call() -> CausalCyclesDeck:
             return self.prompt_sequencing2(previous_prompt_stuff=previous_prompt_stuff, ordered_wisdom_units=ordered_wisdom_units)
 
-        return await _find_sequencing2_call()
+        return _find_sequencing2_call()
 
     async def extract(self, thoughts = 2) -> List[Cycle]:
         if thoughts == 1:

@@ -29,7 +29,12 @@ pytest = "^8.3.5"
 black = "^25.1.0"
 isort = "^6.0.1"
 #flake8 = "^7.1.2"
+pytest-asyncio = "^1.0.0"
 
 [build-system]
 requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api" 
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -3,8 +3,8 @@ from dialectical_framework.utils.config import Config
 
 class Brain:
     def __init__(self, *,
-        ai_model: str = Config.MODEL,
-        ai_provider: str | None = Config.PROVIDER):
+                 ai_model: str = Config.MODEL,
+                 ai_provider: str | None = Config.PROVIDER):
         if not ai_provider:
             if not "/" in ai_model:
                 raise ValueError(
@@ -21,14 +21,18 @@ class Brain:
                 self._ai_provider, self._ai_model = ai_provider, ai_model
             else:
                 derived_ai_provider, derived_ai_model = ai_model.split("/", 1)
-                if derived_ai_provider != ai_provider:
+                # Special case for litellm which can handle models with provider/ prefix
+                if ai_provider == "litellm":
+                    self._ai_provider, self._ai_model = ai_provider, ai_model
+                elif derived_ai_provider != ai_provider:
                     raise ValueError(
                         f"ai_provider '{ai_provider}' does not match ai_model '{ai_model}'"
                     )
-                self._ai_provider, self._ai_model = (
-                    derived_ai_provider,
-                    derived_ai_model,
-                )
+                else:
+                    self._ai_provider, self._ai_model = (
+                        derived_ai_provider,
+                        derived_ai_model,
+                    )
 
     def __str__(self):
         provider, model = self.specification()

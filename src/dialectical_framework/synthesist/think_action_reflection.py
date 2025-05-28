@@ -58,10 +58,10 @@ class ThinkActionReflection(StrategicConsulting):
             model=overridden_ai_model,
             response_model=DialecticalComponentsDeck,
         )
-        async def _action_reflection_call() -> DialecticalComponentsDeck:
+        def _action_reflection_call() -> DialecticalComponentsDeck:
             return self.prompt(self._text)
 
-        return await _action_reflection_call()
+        return _action_reflection_call()
 
     async def think(self, action: str | DialecticalComponent = None) -> Transition:
         wu = WisdomUnit()
