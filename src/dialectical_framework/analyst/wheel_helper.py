@@ -7,7 +7,7 @@ from dialectical_framework.cycle import Cycle
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class WheelMutator(BaseModel):
+class WheelHelper(BaseModel):
     wisdom_units: List[WisdomUnit] = Field(
         ...,
         description="A list of wisdom units, i.e. a list of sets of interdependent dialectical components",

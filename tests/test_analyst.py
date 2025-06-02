@@ -99,7 +99,7 @@ def test_thought_mapping():
 def test_wheel_2():
     wheels = asyncio.run(factory.build(theses=["", None]))
     assert len(wheels[0].wisdom_units) == 2
-    assert len(wheels[0].cycles) == 2
+    assert wheels[0].cycle is not None
     print("\n")
     print(wheels[0])
 
@@ -108,7 +108,7 @@ def test_wheel_3():
     number_of_thoughts = 3
     wheels = asyncio.run(factory.build(theses=[None]*number_of_thoughts))
     assert len(wheels[0].wisdom_units) == number_of_thoughts
-    assert len(wheels[0].cycles) == 2
+    assert wheels[0].cycle is not None
     print("\n")
     print("\n\n".join(str(wheel) for wheel in wheels))
 
@@ -117,6 +117,6 @@ def test_wheel_4():
     number_of_thoughts = 4
     wheels = asyncio.run(factory.build(theses=[None] * number_of_thoughts))
     assert len(wheels[0].wisdom_units) == number_of_thoughts
-    assert len(wheels[0].cycles) == 2
+    assert wheels[0].cycle is not None
     print("\n")
     print("\n\n".join(str(wheel) for wheel in wheels))

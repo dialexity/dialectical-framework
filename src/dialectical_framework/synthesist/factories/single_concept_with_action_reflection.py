@@ -1,5 +1,6 @@
 from typing import List, Union
 
+from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
@@ -10,7 +11,7 @@ class SingleConceptWithActionReflection(WheelBuilder):
     def __init__(self, *, text: str = None, config: WheelBuilderConfig = None):
         super().__init__(text=text, config=config)
 
-    async def build(self, *, theses: List[Union[str, None]] = None) -> List[Wheel]:
+    async def build(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
         wu_count = len(theses) if theses else 1
         if wu_count > 1:
             raise ValueError(f"Single concept with action reflection only supports one thesis, got {wu_count}")

@@ -1,17 +1,15 @@
 import inspect
 from itertools import permutations
-from typing import List
+from typing import List, overload, Union
 
 from mirascope import prompt_template, Messages, llm
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
-from dialectical_framework.utils.config import Config
 from dialectical_framework.analyst.causal_cycles_deck import CausalCyclesDeck
-from dialectical_framework.brain import Brain
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -237,7 +235,7 @@ class ThoughtMapping:
             sequences = f"{ordered_wisdom_units[0].t.alias} → {ordered_wisdom_units[0].a.alias} → {ordered_wisdom_units[0].t.alias}..."
         else:
             # Produce all valid diagonal sequences
-            raw_sequences = _generate_diagonal_sequences(ordered_wisdom_units)
+            raw_sequences = _generate_compatible_sequences(ordered_wisdom_units)
 
             # Human-friendly formatting
             sequences = "\n\n".join(
@@ -312,9 +310,18 @@ class ThoughtMapping:
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
-    async def arrange(self, thoughts: List[str] = None) -> List[Cycle]:
-        if not thoughts:
-            raise ValueError("Thoughts are required for arrange.")
+    @overload
+    async def arrange(self, thoughts: List[str]) -> List[Cycle]: ...
+
+
+    @overload
+    async def arrange(self, thoughts: List[WisdomUnit]) -> List[Cycle]: ...
+
+
+    async def arrange(self, thoughts: Union[List[str], List[WisdomUnit]]) -> List[Cycle]:
+        # Check if we're dealing with WisdomUnits
+        if thoughts and isinstance(thoughts[0], WisdomUnit):
+            return await self.__arrange_wisdom_units(ordered_wisdom_units=thoughts)
 
         if len(thoughts) == 1:
             return [Cycle(
@@ -359,7 +366,7 @@ class ThoughtMapping:
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
-    async def resequence_with_blind_spots(self, ordered_wisdom_units: List[WisdomUnit]) -> List[Cycle]:
+    async def __arrange_wisdom_units(self, ordered_wisdom_units: List[WisdomUnit]) -> List[Cycle]:
         thoughts = len(ordered_wisdom_units)
         if thoughts == 1:
             return [Cycle(
@@ -416,7 +423,7 @@ class ThoughtMapping:
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
-def _generate_diagonal_sequences(wisdom_units):
+def _generate_compatible_sequences(ordered_wisdom_units):
     """
     Generate all circular, diagonally-symmetric arrangements for T/A pairs.
 
@@ -429,7 +436,7 @@ def _generate_diagonal_sequences(wisdom_units):
     3. **Start Condition**: The sequence always starts with the first thesis (`T1`) at position 0.
 
     Parameters:
-        wisdom_units (list): List of wisdom units, each having `.t.alias` (thesis) and `.a.alias` (antithesis).
+        ordered_wisdom_units (list): List of wisdom units, each having `.t.alias` (thesis) and `.a.alias` (antithesis).
 
     Returns:
         list of list: Each inner list is a possible arrangement; positions 0..n-1 represent the 'top row'
@@ -444,9 +451,9 @@ def _generate_diagonal_sequences(wisdom_units):
             Bottom: A1 -> A2 -> A4 -> A3 (mirrored on the circle)
     """
 
-    n = len(wisdom_units)
-    ts = [u.t.alias for u in wisdom_units]
-    as_ = [u.a.alias for u in wisdom_units]
+    n = len(ordered_wisdom_units)
+    ts = [u.t.alias for u in ordered_wisdom_units]
+    as_ = [u.a.alias for u in ordered_wisdom_units]
     size = 2 * n
 
     results = []

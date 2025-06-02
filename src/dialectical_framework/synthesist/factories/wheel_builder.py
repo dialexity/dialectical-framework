@@ -5,7 +5,7 @@ from abc import ABC
 from typing import List, Self, Union, Dict
 
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
-from dialectical_framework.analyst.wheel_mutator import WheelMutator
+from dialectical_framework.analyst.wheel_helper import WheelHelper
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesist.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
@@ -23,6 +23,10 @@ class WheelBuilder(ABC):
             text=text,
             config=config,
         )
+        self._analyst = ThoughtMapping(
+            text=self.text,
+            config=self._config
+        )
         self._wheels: List[Wheel] = []
 
     @property
@@ -37,8 +41,8 @@ class WheelBuilder(ABC):
     def text(self) -> str | None:
         return self._text
 
-    async def build(self, *, theses: List[Union[str, None]] = None) -> List[Wheel]:
-        wu_count  = len(theses) if theses else 1
+    async def t_cycles(self, *, theses: List[Union[str, None]] = None) -> List[Cycle]:
+        wu_count = len(theses) if theses else 1
         theses = [t for t in theses or [] if t and t.strip()] or None  # how
         if theses and len(theses) != wu_count:
             raise ValueError(f"Expected {wu_count} theses, got {len(theses)}")
@@ -50,27 +54,27 @@ class WheelBuilder(ABC):
             if not theses:
                 theses = [await self.reasoner.find_thesis()]
 
-        analyst = ThoughtMapping(
-            text=self.text,
-            config=self._config
-        )
 
         if not theses:
-            cycles: List[Cycle] = await analyst.extract(wu_count)
+            cycles: List[Cycle] = await self._analyst.extract(wu_count)
         else:
-            # TODO: arrangements can be of different kinds, we need to rearchitect this part
-            cycles: List[Cycle] = await analyst.arrange(theses)
+            cycles: List[Cycle] = await self._analyst.arrange(theses)
 
-        # TODO: we should actually resequence2 for all cycle1 possibilities, up to a user
-        # The first one is the highest probability
-        cycle1 = cycles[0]
+        return cycles
+
+    async def build(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
+        if t_cycle is None:
+            cycles: List[Cycle] = await self.t_cycles(theses=theses)
+            # The first one is the highest probability
+            t_cycle = cycles[0]
+
 
         wheel_wisdom_units = []
-        for dc in cycle1.dialectical_components:
+        for dc in t_cycle.dialectical_components:
             wu = await self.reasoner.think(thesis=dc.statement)
             wu.t.explanation = dc.explanation
 
-            # Extract numeric part of the alias; default to 0 when absent
+            # Extract the numeric part of the alias; default to 0 when absent
             match = re.search(r"\d+", dc.alias)
             idx = int(match.group()) if match else 0
             if idx:
@@ -78,13 +82,13 @@ class WheelBuilder(ABC):
 
             wheel_wisdom_units.append(wu)
 
-        cycles2: List[Cycle] = await analyst.resequence_with_blind_spots(ordered_wisdom_units=wheel_wisdom_units)
+        cycles: List[Cycle] = await self._analyst.arrange(wheel_wisdom_units)
 
         wheels = []
-        for cycle2 in cycles2:
-            wm = WheelMutator(wisdom_units=wheel_wisdom_units)
-            w = Wheel(wm.rearrange_by_causal_sequence(cycle2, mutate=False))
-            w.add_cycle([cycle1, cycle2])
+        for cycle in cycles:
+            wm = WheelHelper(wisdom_units=wheel_wisdom_units)
+            w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False))
+            w.cycle = cycle
             wheels.append(w)
 
         # Save results for reference
@@ -93,7 +97,7 @@ class WheelBuilder(ABC):
 
     async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
         """
-            We can give component statements by alias, e.g. T1 = "New thesis 1", A2+ = "New positive side of antithesis 2"
+            We can give component statements by alias, e.g., T1 = "New thesis 1", A2+ = "New positive side of antithesis 2"
 
             Returns a list of wheels with modified statements (updating the internal state)
         """
@@ -138,24 +142,24 @@ class WheelBuilder(ABC):
                         else:
                             theses.append(nwu.a.statement)
 
-                    cycles: List[Cycle] = await analyst.arrange(theses)
-                    cycle1 = cycles[0]
+                    t_cycles: List[Cycle] = await analyst.arrange(theses)
+                    # TODO: we should do this for each t_cycle, not the first one only. Refactor
+                    t_cycle = t_cycles[0]
 
                     wheel_wisdom_units = []
-                    for dc in cycle1.dialectical_components:
+                    for dc in t_cycle.dialectical_components:
                         for nwu in new_wisdom_units:
                             if dc.alias in nwu.t.alias:
                                 wheel_wisdom_units.append(nwu)
                             elif dc.alias in nwu.a.alias:
                                 wheel_wisdom_units.append(nwu.swap_segments(mutate=True))
 
-                    cycles2: List[Cycle] = await analyst.resequence_with_blind_spots(
-                        ordered_wisdom_units=wheel_wisdom_units)
+                    cycles: List[Cycle] = await analyst.arrange(wheel_wisdom_units)
 
-                    for cycle2 in cycles2:
-                        wm = WheelMutator(wisdom_units=wheel_wisdom_units)
-                        w = Wheel(wm.rearrange_by_causal_sequence(cycle2, mutate=False))
-                        w.add_cycle([cycle1, cycle2])
+                    for cycle in cycles:
+                        wm = WheelHelper(wisdom_units=wheel_wisdom_units)
+                        w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False))
+                        w.cycle = cycle
                         wheels.append(w)
             self._wheels = wheels
 

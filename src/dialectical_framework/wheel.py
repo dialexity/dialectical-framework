@@ -18,7 +18,7 @@ class Wheel(Iterable[WisdomUnit]):
         else:
             self._wisdom_units = list(wisdom_units)
 
-        self._cycles: List[Cycle] = []  # <-- instance variable!
+        self._cycle: Cycle | None = None
         if len(self._wisdom_units) > 0:
             self._transitions: List[SymmetricalTransition | None] = [None] * len(self._wisdom_units)
         else:
@@ -117,14 +117,13 @@ class Wheel(Iterable[WisdomUnit]):
         return self._wisdom_units
 
     @property
-    def cycles(self) -> List[Cycle]:
-        return self._cycles
+    def cycle(self) -> Cycle:
+        return self._cycle
 
-    def add_cycle(self, cycle: Cycle | List[Cycle]) -> None:
-        if isinstance(cycle, list):
-            self._cycles.extend(cycle)
-        else:
-            self._cycles.append(cycle)
+    @cycle.setter
+    def cycle(self, cycle: Cycle):
+        # TODO: not good to have mutability here, as wisdom units may be swapped or rearranged...
+        self._cycle = cycle
 
     def __str__(self):
         # TODO: also add transitions
@@ -132,8 +131,8 @@ class Wheel(Iterable[WisdomUnit]):
         table = self._print_wheel_tables()
 
         output = (
-                "\n---\n".join([c.pretty(skip_dialectical_component_explanation=True) for c in self.cycles]) +
-                ("\n---\n" if self.cycles else "") +
+                "\n---\n".join([self.cycle.pretty(skip_dialectical_component_explanation=True) if self.cycle else ""]) +
+                ("\n---\n" if self.cycle else "") +
                 table
         )
 
