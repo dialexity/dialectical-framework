@@ -14,9 +14,8 @@ from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_strict_opposition,
                                                           is_valid_opposition, check)
 from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                               ALIAS_A_PLUS, ALIAS_T,
-                                               ALIAS_T_MINUS, ALIAS_T_PLUS,
-                                               WisdomUnit)
+                                               ALIAS_A_PLUS, WisdomUnit)
+from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 
 

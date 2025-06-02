@@ -42,7 +42,7 @@ class WheelMutator(BaseModel):
                     wu_processed.append(wu)
                     break
                 if wu.a.alias == alias:
-                    wu_sorted.append(wu.swap_positions(mutate=mutate))
+                    wu_sorted.append(wu.swap_segments(mutate=mutate))
                     wu_processed.append(wu)
                     break
 

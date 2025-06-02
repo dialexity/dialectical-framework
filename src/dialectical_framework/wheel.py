@@ -6,7 +6,7 @@ from tabulate import tabulate
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.transition import Transition
+from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -20,9 +20,9 @@ class Wheel(Iterable[WisdomUnit]):
 
         self._cycles: List[Cycle] = []  # <-- instance variable!
         if len(self._wisdom_units) > 0:
-            self._transitions: List[Transition | None] = [None] * len(self._wisdom_units)
+            self._transitions: List[SymmetricalTransition | None] = [None] * len(self._wisdom_units)
         else:
-            self._transitions: List[Transition | None] = []
+            self._transitions: List[SymmetricalTransition | None] = []
 
     def __iter__(self) -> Iterator[WisdomUnit]:
         return iter(self._wisdom_units)
@@ -39,7 +39,7 @@ class Wheel(Iterable[WisdomUnit]):
             raise ValueError("The wheel is empty, therefore no main segment exists.")
 
     @property
-    def transitions(self) -> List[Transition]:
+    def transitions(self) -> List[SymmetricalTransition]:
         return self._transitions
 
     @property
@@ -50,7 +50,7 @@ class Wheel(Iterable[WisdomUnit]):
 
         return DialecticalComponentsDeck(dialectical_components=theses_from_wheels)
 
-    def transition_at(self, i: int) -> Transition | None:
+    def transition_at(self, i: int) -> SymmetricalTransition | None:
         """Edge from unit i → unit (i+1)."""
         idx = i % len(self._transitions)
         if i < 0 or i >= len(self._transitions):
@@ -59,7 +59,7 @@ class Wheel(Iterable[WisdomUnit]):
         return self._transitions[idx]
 
 
-    def add_transition(self, at: int, tr: Transition) -> None:
+    def add_transition(self, at: int, tr: SymmetricalTransition) -> None:
         idx = at % len(self._transitions)
         if at < 0 or at >= len(self._transitions):
             raise IndexError(f"index {at} out of range for wheel of length {len(self._transitions)}")

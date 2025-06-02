@@ -230,7 +230,7 @@ class ThoughtMapping:
         """)))
         prompt_messages.append(Messages.Assistant(
             "# Dialectical Analysis Results\n" +
-            "\n\n".join([wu.formatted_dialectical_analysis() for wu in ordered_wisdom_units])
+            "\n\n".join([wu.pretty() for wu in ordered_wisdom_units])
         ))
 
         if len(ordered_wisdom_units) == 1:  # degenerate 1-node cycle

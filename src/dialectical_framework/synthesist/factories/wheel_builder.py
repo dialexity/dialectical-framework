@@ -94,6 +94,8 @@ class WheelBuilder(ABC):
     async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
         """
             We can give component statements by alias, e.g. T1 = "New thesis 1", A2+ = "New positive side of antithesis 2"
+
+            Returns a list of wheels with modified statements (updating the internal state)
         """
         if not self.wheels:
             raise ValueError("No wheels have been built yet")
@@ -145,7 +147,7 @@ class WheelBuilder(ABC):
                             if dc.alias in nwu.t.alias:
                                 wheel_wisdom_units.append(nwu)
                             elif dc.alias in nwu.a.alias:
-                                wheel_wisdom_units.append(nwu.swap_positions(mutate=True))
+                                wheel_wisdom_units.append(nwu.swap_segments(mutate=True))
 
                     cycles2: List[Cycle] = await analyst.resequence_with_blind_spots(
                         ordered_wisdom_units=wheel_wisdom_units)

@@ -4,7 +4,7 @@ from mirascope.integrations.langfuse import with_langfuse
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
-from dialectical_framework.transition import Transition
+from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -40,7 +40,7 @@ class ThinkActionReflection(StrategicConsulting):
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": self._wisdom_unit.formatted_dialectical_analysis(),
+                "dialectical_analysis": self._wisdom_unit.pretty(),
                 "component_length": self._component_length,
             }
         }
@@ -63,7 +63,7 @@ class ThinkActionReflection(StrategicConsulting):
 
         return _action_reflection_call()
 
-    async def think(self, action: str | DialecticalComponent = None) -> Transition:
+    async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
         wu = WisdomUnit()
 
         # TODO: take provided action into account, now it's ignored
@@ -74,7 +74,7 @@ class ThinkActionReflection(StrategicConsulting):
             # TODO: we have canonical alias pointing to a component with some fancy alias. Is it ok?
             setattr(wu, alias, d)
 
-        self._transition = Transition(
+        self._transition = SymmetricalTransition(
             action_reflection=wu
         )
 

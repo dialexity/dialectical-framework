@@ -4,7 +4,7 @@ from mirascope.integrations.langfuse import with_langfuse
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
 from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
-from dialectical_framework.transition import Transition
+from dialectical_framework.symmetrical_transition import SymmetricalTransition
 
 
 class ThinkReciprocalSolution(StrategicConsulting):
@@ -59,7 +59,7 @@ class ThinkReciprocalSolution(StrategicConsulting):
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": self._wisdom_unit.formatted_dialectical_analysis(),
+                "dialectical_analysis": self._wisdom_unit.pretty(),
                 "component_length": self._component_length,
             }
         }
@@ -82,11 +82,11 @@ class ThinkReciprocalSolution(StrategicConsulting):
 
         return _reciprocal_solution_call()
 
-    async def think(self, action: str | DialecticalComponent = None) -> Transition:
+    async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
         # TODO: take provided action into account, now it's ignored
 
         s: ReciprocalSolution = await self.reciprocal_solution()
-        self._transition = Transition(
+        self._transition = SymmetricalTransition(
             reciprocal_solution=s
         )
 
