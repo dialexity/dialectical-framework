@@ -60,9 +60,9 @@ The main architectural parts are:
 - Transition
 
 
-**Wheel** is composed of segments. Think of a dialectical wheel as a pizza, a segment is a slice of pizza. In the simplest case it represents some thesis (a statement, a concept, an action, a thought, an idea, etc.). A thesis can have positive and negative things related to it. Hence, a segment of a wheel is composed of these dialectical components: a thesis (T), positive side of that thesis (T+) and a negative side of that thesis (T-).
+**Wheel** is composed of segments. Think of a dialectical wheel as a pizza, a segment is a slice of pizza. In the simplest case it represents some thesis (a statement, a concept, an action, a thought, an idea, etc.). A thesis can have positive and negative things related to it. Hence, a segment of a wheel is composed of these dialectical components: a thesis (T), positive side of that thesis (T+) and a negative side of that thesis (T-). In more detailed wheels, a segment could have more than 3 layers.
 
-If we take two opposite segments, we get the basic (and the most important) structure: **Wisdom Unit**. So it's composed of:
+If we take two opposite segments, we get the basic (and the most important) structure: **Wisdom Unit** (half-wheel, verified by diagonal constraints: control statements). It's composed of:
 
 | Dialectical Component | Description                      |
 |-----------------------|----------------------------------|
@@ -73,4 +73,6 @@ If we take two opposite segments, we get the basic (and the most important) stru
 | A                     | The antithesis                   |
 | A-                    | Negative side of the antithesis  |
 
-In a Wheel segments next to each other are related. We wrap that relationship into a **Transition**. Practically, a Transition is a recipe for how to go from one segment to another in a way that we approach synthesis. A recipe implies action (Ac), whereas on the other side each action has a reflection (Re). If we were to look at a wheel as a sliced pizza, the lines that separate the slices would be Transitions.
+In a Wheel, segments next to each other are related. We wrap that relationship into a **Transition**. Practically, a Transition is a recipe for how to go from one segment to another in a way that we approach synthesis. Essentially, it shows how the negative side of a given thesis (Tn-) converts into the positive side of the following thesis (T(n+1)+). If we were to look at a wheel as a sliced pizza, the lines that separate the slices would be Transitions.
+
+If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they are symmetrical and represent a special kind of Wisdom Unit, we call it Action (Ac) and Reflection (Re). As any Wisdom Unit, Action and Reflection must be verified by diagonal constraints as well.
