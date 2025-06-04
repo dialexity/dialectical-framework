@@ -1,6 +1,7 @@
-Your task is to design and implement a reporting feature that:
+**Your task is to design and implement a reporting feature that:**
 
-- Automatically generates visual and textual reports, inspired by the examples provided in the attached PDF (use them as references, not fixed templates).
+- Automatically generates visual and textual reports, inspired by the example provided in the attached PDF (generated from an abstract user's documentation - use it as a reference, not fixed template).
+- Makes the dialectical wheel interactive — when a user clicks on a part of the wheel (e.g., a node or edge), it should display additional context or explanatory information.
 - Provides a smooth, intuitive parameter selection interface, allowing users to tailor the analysis and output to their needs.
 
 [Here's an example of a PDF report on a real use-case](./Char-Em%20Actions%20Corrected.pdf)
