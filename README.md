@@ -77,6 +77,7 @@ These will specify the default "brain" for your reasoning.
 At the core of the dialectical framework is a dialectical wheel. It is a fancy semantic graph where nodes are statements or concepts and edges are relationships such as "opposite of," "complementary to," etc. To make the graph more readable, it's depicted as a 2D wheel.
 
 ![Dialectical Wheel Diagram](docs/wheel-scheme.png)
+![Dialectical Wheel Diagram](docs/wheel-scheme2.png)
 
 The main architectural parts are:
 - Wheel
