@@ -103,5 +103,7 @@ In a Wheel, segments next to each other are related. We wrap that relationship i
 
 If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they are symmetrical and represent a special kind of Wisdom Unit, we call it Action (Ac) and Reflection (Re). As any Wisdom Unit, Action and Reflection must be verified by diagonal constraints as well.
 
-## Simplest End-User Experience
+## Prototyping & App Ideas
+
+### Simple Win-Win Finder
 ![End](./docs/b2c-mvp.png)
