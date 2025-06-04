@@ -102,3 +102,6 @@ If we take two opposite segments, we get the basic (and the most important) stru
 In a Wheel, segments next to each other are related. We wrap that relationship into a **Transition**. Practically, a Transition is a recipe for how to go from one segment to another in a way that we approach synthesis. Essentially, it shows how the negative side of a given thesis (Tn-) converts into the positive side of the following thesis (T(n+1)+). If we were to look at a wheel as a sliced pizza, the lines that separate the slices would be Transitions.
 
 If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they are symmetrical and represent a special kind of Wisdom Unit, we call it Action (Ac) and Reflection (Re). As any Wisdom Unit, Action and Reflection must be verified by diagonal constraints as well.
+
+## Simplest End-User Experience
+![End](./docs/b2c-mvp.png)
