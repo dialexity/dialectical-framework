@@ -3,6 +3,8 @@ Your task is to design and implement a reporting feature that:
 - Automatically generates visual and textual reports, inspired by the examples provided in the attached PDF (use them as references, not fixed templates).
 - Provides a smooth, intuitive parameter selection interface, allowing users to tailor the analysis and output to their needs.
 
+[Here's an example of a PDF report on a real use-case](./Char-Em%20Actions%20Corrected.pdf)
+
 Below is an outline of possible settings to support — feel free to propose cleaner, more effective alternatives during implementation. Not all options are required in the MVP, but they illustrate the scope and flexibility we’re aiming for.
 
 ## Main Settings Window
