@@ -5,6 +5,7 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
+from dialectical_framework.transition import Transition
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -63,7 +64,7 @@ class ThinkActionReflection(StrategicConsulting):
 
         return _action_reflection_call()
 
-    async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
+    async def think(self, action: str | DialecticalComponent = None) -> Transition:
         wu = WisdomUnit()
 
         # TODO: take provided action into account, now it's ignored
@@ -75,6 +76,8 @@ class ThinkActionReflection(StrategicConsulting):
             setattr(wu, alias, d)
 
         self._transition = SymmetricalTransition(
+            source=self._wisdom_unit.extract_segment_t(),
+            target=self._wisdom_unit.extract_segment_a(),
             action_reflection=wu
         )
 

@@ -19,11 +19,11 @@ class WheelHelper(BaseModel):
         This way we can swap the wisdom unit oppositions if necessary.
         """
         all_aliases = []
-        if cycle.causality_direction == "counterclockwise":
-            for dc in reversed(cycle.dialectical_components):
+        if cycle.causality_direction == "clockwise":
+            for dc in cycle.dialectical_components:
                 all_aliases.append(dc.alias)
         else:
-            for dc in cycle.dialectical_components:
+            for dc in reversed(cycle.dialectical_components):
                 all_aliases.append(dc.alias)
 
         unique_aliases = dict.fromkeys(all_aliases)

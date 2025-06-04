@@ -5,7 +5,7 @@ from dialectical_framework.brain import Brain
 from dialectical_framework.utils.config import Config
 
 
-class WheelBuilderConfig(BaseModel):
+class ConfigWheelBuilder(BaseModel):
     model_config = {
         "arbitrary_types_allowed": True
     }
@@ -14,4 +14,4 @@ class WheelBuilderConfig(BaseModel):
     brain: Brain = Field(default_factory=lambda: Brain(ai_model=Config.MODEL, ai_provider=Config.PROVIDER))
 
     def __str__(self):
-        return f"WheelBuilderConfig(component_length={self.component_length}, brain={self.brain})"
+        return f"{self.__class__}(component_length={self.component_length}, brain={self.brain})"

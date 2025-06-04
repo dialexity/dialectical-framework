@@ -9,7 +9,7 @@ from dialectical_framework.analyst.causal_cycles_deck import CausalCyclesDeck
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
+from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -19,12 +19,12 @@ class ThoughtMapping:
         self,
         text: str,
         *,
-        config: WheelBuilderConfig = None,
+        config: ConfigWheelBuilder = None,
     ):
         self._text = text
 
         if config is None:
-            config = WheelBuilderConfig(
+            config = ConfigWheelBuilder(
                 component_length=3
             )
 
@@ -318,39 +318,54 @@ class ThoughtMapping:
     async def arrange(self, thoughts: List[WisdomUnit]) -> List[Cycle]: ...
 
 
-    async def arrange(self, thoughts: Union[List[str], List[WisdomUnit]]) -> List[Cycle]:
+    async def arrange(self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]) -> List[Cycle]:
         # Check if we're dealing with WisdomUnits
         if thoughts and isinstance(thoughts[0], WisdomUnit):
             return await self.__arrange_wisdom_units(ordered_wisdom_units=thoughts)
 
         if len(thoughts) == 1:
-            return [Cycle(
-                dialectical_components=[
-                    DialecticalComponent.from_str(alias="T", statement=thoughts[0], explanation="Provided as string.")
-                ],
-                probability=1.0,
-            )]
+            if thoughts and isinstance(thoughts[0], DialecticalComponent):
+                return [Cycle(
+                    dialectical_components=thoughts,
+                    probability=1.0,
+                )]
+            else:
+                return [Cycle(
+                    dialectical_components=[
+                        DialecticalComponent.from_str(alias="T", statement=thoughts[0], explanation="Provided as string.")
+                    ],
+                    probability=1.0,
+                )]
         elif len(thoughts) == 2:
             prompt_stuff = self.prompt_thesis2(text=self._text, component_length=self._component_length)
-            box = DialecticalComponentsDeck(dialectical_components=[
-                DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
-                DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
-            ])
+            if thoughts and isinstance(thoughts[0], DialecticalComponent):
+                box = DialecticalComponentsDeck(dialectical_components=thoughts)
+            else:
+                box = DialecticalComponentsDeck(dialectical_components=[
+                    DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
+                    DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
+                ])
         elif len(thoughts) == 3:
             prompt_stuff = self.prompt_thesis3(text=self._text, component_length=self._component_length)
-            box = DialecticalComponentsDeck(dialectical_components=[
-                DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
-                DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
-                DialecticalComponent.from_str(alias="T3", statement=thoughts[2], explanation="Provided as string."),
-            ])
+            if thoughts and isinstance(thoughts[0], DialecticalComponent):
+                box = DialecticalComponentsDeck(dialectical_components=thoughts)
+            else:
+                box = DialecticalComponentsDeck(dialectical_components=[
+                    DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
+                    DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
+                    DialecticalComponent.from_str(alias="T3", statement=thoughts[2], explanation="Provided as string."),
+                ])
         elif len(thoughts) == 4:
             prompt_stuff = self.prompt_thesis4(text=self._text, component_length=self._component_length)
-            box = DialecticalComponentsDeck(dialectical_components=[
-                DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
-                DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
-                DialecticalComponent.from_str(alias="T3", statement=thoughts[2], explanation="Provided as string."),
-                DialecticalComponent.from_str(alias="T4", statement=thoughts[3], explanation="Provided as string."),
-            ])
+            if thoughts and isinstance(thoughts[0], DialecticalComponent):
+                box = DialecticalComponentsDeck(dialectical_components=thoughts)
+            else:
+                box = DialecticalComponentsDeck(dialectical_components=[
+                    DialecticalComponent.from_str(alias="T1", statement=thoughts[0], explanation="Provided as string."),
+                    DialecticalComponent.from_str(alias="T2", statement=thoughts[1], explanation="Provided as string."),
+                    DialecticalComponent.from_str(alias="T3", statement=thoughts[2], explanation="Provided as string."),
+                    DialecticalComponent.from_str(alias="T4", statement=thoughts[3], explanation="Provided as string."),
+                ])
         else:
             raise ValueError(f"More than 4 thoughts are not supported yet.")
 

@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from typing import Iterable, Iterator, List, overload
+from typing import Iterable, Iterator, List
 
 from tabulate import tabulate
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.symmetrical_transition import SymmetricalTransition
+from dialectical_framework.transition import Transition
+from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class Wheel(Iterable[WisdomUnit]):
+class Wheel:
     def __init__(self, *wisdom_units):
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
@@ -20,15 +21,19 @@ class Wheel(Iterable[WisdomUnit]):
 
         self._cycle: Cycle | None = None
         if len(self._wisdom_units) > 0:
-            self._transitions: List[SymmetricalTransition | None] = [None] * len(self._wisdom_units)
+            self._transitions: List[Transition | None] = [None] * len(self._wisdom_units)
         else:
-            self._transitions: List[SymmetricalTransition | None] = []
-
-    def __iter__(self) -> Iterator[WisdomUnit]:
-        return iter(self._wisdom_units)
+            self._transitions: List[Transition | None] = []
 
     @property
-    def wisdom_units(self) -> list[WisdomUnit]:
+    def cardinality(self) -> int:
+        if len(self._wisdom_units) > 0:
+            return len(self._wisdom_units)
+        else:
+            raise ValueError("The wheel is empty, therefore no main segment exists.")
+
+    @property
+    def wisdom_units(self) -> List[WisdomUnit]:
         return self._wisdom_units
 
     @property
@@ -39,7 +44,7 @@ class Wheel(Iterable[WisdomUnit]):
             raise ValueError("The wheel is empty, therefore no main segment exists.")
 
     @property
-    def transitions(self) -> List[SymmetricalTransition]:
+    def transitions(self) -> List[Transition]:
         return self._transitions
 
     @property
@@ -50,7 +55,27 @@ class Wheel(Iterable[WisdomUnit]):
 
         return DialecticalComponentsDeck(dialectical_components=theses_from_wheels)
 
-    def transition_at(self, i: int) -> SymmetricalTransition | None:
+    def wisdom_unit_at(self, i: int|str|WheelSegment) -> WisdomUnit:
+        if isinstance(i, WisdomUnit) and i in self.wisdom_units:
+            return i
+
+        if isinstance(i, WheelSegment):
+            for wu in self.wisdom_units:
+                if wu.t.alias == i:
+                    return wu
+            raise ValueError(f"Cannot find wisdom unit at: {i.t.alias}")
+        elif isinstance(i, str):
+            for wu in self.wisdom_units:
+                if wu.t.alias == i or wu.a.alias == i:
+                    return wu
+        elif isinstance(i, int):
+            if i < 0 or i >= len(self.wisdom_units):
+                raise IndexError(f"index {i} out of range for wheel of length {len(self.wisdom_units)}")
+            return self.wisdom_units[i]
+
+        raise ValueError(f"Cannot find wisdom unit at: {i}")
+
+    def transition_at(self, i: int) -> Transition | None:
         """Edge from unit i → unit (i+1)."""
         idx = i % len(self._transitions)
         if i < 0 or i >= len(self._transitions):
@@ -59,7 +84,7 @@ class Wheel(Iterable[WisdomUnit]):
         return self._transitions[idx]
 
 
-    def add_transition(self, at: int, tr: SymmetricalTransition) -> None:
+    def add_transition(self, at: int, tr: Transition) -> None:
         idx = at % len(self._transitions)
         if at < 0 or at >= len(self._transitions):
             raise IndexError(f"index {at} out of range for wheel of length {len(self._transitions)}")
@@ -130,10 +155,13 @@ class Wheel(Iterable[WisdomUnit]):
 
         table = self._print_wheel_tables()
 
+        transitions = [str(t) for t in self._transitions if t is not None]
+
         output = (
                 "\n---\n".join([self.cycle.pretty(skip_dialectical_component_explanation=True) if self.cycle else ""]) +
                 ("\n---\n" if self.cycle else "") +
-                table
+                table +
+                ("\n---\n" + "\n".join(transitions) if transitions else "")
         )
 
         return output

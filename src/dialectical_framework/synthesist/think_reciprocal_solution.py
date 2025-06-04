@@ -5,6 +5,7 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
 from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
+from dialectical_framework.transition import Transition
 
 
 class ThinkReciprocalSolution(StrategicConsulting):
@@ -82,11 +83,13 @@ class ThinkReciprocalSolution(StrategicConsulting):
 
         return _reciprocal_solution_call()
 
-    async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
+    async def think(self, action: str | DialecticalComponent = None) -> Transition:
         # TODO: take provided action into account, now it's ignored
 
         s: ReciprocalSolution = await self.reciprocal_solution()
         self._transition = SymmetricalTransition(
+            source=self._wisdom_unit.extract_segment_t(),
+            target=self._wisdom_unit.extract_segment_a(),
             reciprocal_solution=s
         )
 

@@ -7,39 +7,49 @@ from typing import List, Self, Union, Dict
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.analyst.wheel_helper import WheelHelper
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.synthesist.factories.wheel_builder_config import WheelBuilderConfig
+from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class WheelBuilder(ABC):
-    def __init__(self, *, text: str = None, config: WheelBuilderConfig = None):
-        self._config = config or WheelBuilderConfig()
-        self._text = text
-        # TODO: This should be pluggable/configurable?
-        self._reasoner: DialecticalReasoning = ReasonFastAndSimple(
-            text=text,
-            config=config,
+    def __init__(self, *, text: str = None, config: ConfigWheelBuilder | DialecticalReasoning = None):
+        if not config or isinstance(config, ConfigWheelBuilder):
+            self.__reasoner: DialecticalReasoning = ReasonFastAndSimple(
+                text=text,
+                config=config or ConfigWheelBuilder(),
+            )
+        elif isinstance(config, DialecticalReasoning):
+            self.__reasoner = config
+
+        self.__config = self.__reasoner.config
+        self.__text = text
+
+        # TODO: This should be pluggable/configurable, or maybe moved into the reasoner?
+        self.__analyst = ThoughtMapping(
+            text=self.__text,
+            config=self.__config
         )
-        self._analyst = ThoughtMapping(
-            text=self.text,
-            config=self._config
-        )
-        self._wheels: List[Wheel] = []
+        self.__wheels: List[Wheel] = []
 
     @property
     def reasoner(self) -> DialecticalReasoning:
-        return self._reasoner
+        return self.__reasoner
 
     @property
-    def wheels(self) -> List[Wheel]:
-        return self._wheels
+    def wheel_permutations(self) -> List[Wheel]:
+        return self.__wheels
 
     @property
     def text(self) -> str | None:
-        return self._text
+        return self.__text
+
+    @property
+    def config(self) -> ConfigWheelBuilder:
+        return self.__config
 
     async def t_cycles(self, *, theses: List[Union[str, None]] = None) -> List[Cycle]:
         wu_count = len(theses) if theses else 1
@@ -56,13 +66,13 @@ class WheelBuilder(ABC):
 
 
         if not theses:
-            cycles: List[Cycle] = await self._analyst.extract(wu_count)
+            cycles: List[Cycle] = await self.__analyst.extract(wu_count)
         else:
-            cycles: List[Cycle] = await self._analyst.arrange(theses)
+            cycles: List[Cycle] = await self.__analyst.arrange(theses)
 
         return cycles
 
-    async def build(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
+    async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
         if t_cycle is None:
             cycles: List[Cycle] = await self.t_cycles(theses=theses)
             # The first one is the highest probability
@@ -82,7 +92,7 @@ class WheelBuilder(ABC):
 
             wheel_wisdom_units.append(wu)
 
-        cycles: List[Cycle] = await self._analyst.arrange(wheel_wisdom_units)
+        cycles: List[Cycle] = await self.__analyst.arrange(wheel_wisdom_units)
 
         wheels = []
         for cycle in cycles:
@@ -92,8 +102,8 @@ class WheelBuilder(ABC):
             wheels.append(w)
 
         # Save results for reference
-        self._wheels = wheels
-        return self._wheels
+        self.__wheels = wheels
+        return self.wheel_permutations
 
     async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
         """
@@ -101,11 +111,11 @@ class WheelBuilder(ABC):
 
             Returns a list of wheels with modified statements (updating the internal state)
         """
-        if not self.wheels:
+        if not self.wheel_permutations:
             raise ValueError("No wheels have been built yet")
         if modified_statement_per_alias:
             wheels = []
-            for wheel in self.wheels:
+            for wheel in self.wheel_permutations:
                 new_wisdom_units: List[WisdomUnit] = []
                 is_dirty = False
                 for wu in wheel.wisdom_units:
@@ -132,7 +142,7 @@ class WheelBuilder(ABC):
                     # Recalculate cycles
                     analyst = ThoughtMapping(
                         text=self.text,
-                        config=self._config
+                        config=self.config
                     )
 
                     theses: List[str] = []
@@ -161,13 +171,13 @@ class WheelBuilder(ABC):
                         w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False))
                         w.cycle = cycle
                         wheels.append(w)
-            self._wheels = wheels
+            self.__wheels = wheels
 
-        return self._wheels
+        return self.wheel_permutations
 
     @classmethod
-    def load(cls, *, text: str, config: WheelBuilderConfig = None, wheels: List[Wheel] = None) -> Self:
+    def load(cls, *, text: str, config: ConfigWheelBuilder = None, wheels: List[Wheel] = None) -> Self:
         instance = cls(text=text, config=config)
         if wheels is not None:
-            instance._wheels = wheels
+            instance.__wheels = wheels
         return instance
