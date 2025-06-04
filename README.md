@@ -106,4 +106,16 @@ If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they 
 ## Prototyping & App Ideas
 
 ### Simple Win-Win Finder
-![End](./docs/b2c-mvp.png)
+![Win-Win Finder](./docs/b2c-mvp.png)
+
+### Eye-Opener
+See the project description in [PROJECT1.md](./docs/PROJECT1.md)
+
+### Argument Inspector
+Working beta product [Argument Inspector](https://app.dialexity.com)
+
+### Atlas of Feelings
+[The Atlas of Feelings](https://dialexity.com/blog/atlas-of-feelings-character-qualities/) is the Plutchik's wheel converted into the „vortex“ model, whereby the most gentle emotions are inside of the wheel, whereas the rudest are outside. As everything is interconnected with dialectical rules, we can understand human nature better.
+
+### "Spiral" Lila game
+In [this blog post](https://dialexity.com/blog/spiral-lila-with-character-traits/) we explain how the ancient Lila (Leela) game has been elevated to a new level. 
