@@ -17,7 +17,7 @@ Implement a basic settings panel (one or more) that allows users to:
 - Define component types (e.g., general concepts, actions, problems/solutions)
 - Set analysis depth and word length preferences
 
-More detailas specs are in [PROJECT1.md](./docs/PROJECT1.md)
+More detailed specs are in [PROJECT1.md](./docs/PROJECT1.md)
 
 
 To apply write to [alanas@dialexity.com](mailto:alanas@dialexity.com) or [evaldas@dialexity.com](mailto:evaldas@dialexity.com). Here's our [about page](https://dialexity.com/about).
