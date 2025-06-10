@@ -1,29 +1,3 @@
-# We Are Hiring
-
-**Full-stack with Solid Front-End Experience developer** for visual text analysis tool (MVP)
-We’re building Eye Opener – a tool that analyzes text and generates a visual map of its underlying structure and hidden assumptions. The core feature is a graph-like interface we call the Karma Wheel, that shows the delayed dialectical responses ("blind spots" or "karma effects").
-
-We’re looking for a front-end or full-stack developer (React, Vue, etc.) who:
-- Prefers building visible, interactive interfaces
-- Can understand abstract ideas and iterate UI without fixed specs
-- Has reviewed our algorithm and understands the concept
-- Can deliver a working MVP within a few weeks
-- Open to working alongside another developer and iterating together
-- Possible long-term collaboration or co-ownership if it fits
-
-The task is to build an interactive SVG-based graph component (the “Karma Wheel”) where nodes and edges can be clicked, styled, and edited.
-Implement a basic settings panel (one or more) that allows users to:
-- Choose how many components to extract from the text
-- Define component types (e.g., general concepts, actions, problems/solutions)
-- Set analysis depth and word length preferences
-
-More detailed specs are in [PROJECT1.md](./docs/PROJECT1.md)
-
-
-To apply write to [alanas@dialexity.com](mailto:alanas@dialexity.com) or [evaldas@dialexity.com](mailto:evaldas@dialexity.com). Here's our [about page](https://dialexity.com/about).
-
----
-
 # Dialectical Framework
 Turn stories, strategies, or systems into insight. Auto-generate Dialectical Wheels (DWs) from any text to reveal blind spots, surface polarities, and trace dynamic paths toward synthesis.
  DWs are semantic maps that expose tension, transformation, and coherence within a system—whether narrative, ethical, organizational, or technological.
