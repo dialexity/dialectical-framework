@@ -61,7 +61,7 @@ class Wheel:
 
         if isinstance(i, WheelSegment):
             for wu in self.wisdom_units:
-                if wu.t.alias == i:
+                if wu.t.alias == i.t.alias or wu.a.alias == i.t.alias:
                     return wu
             raise ValueError(f"Cannot find wisdom unit at: {i.t.alias}")
         elif isinstance(i, str):

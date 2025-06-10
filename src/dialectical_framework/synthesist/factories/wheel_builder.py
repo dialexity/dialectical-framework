@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import re
-from abc import ABC
 from typing import List, Self, Union, Dict
 
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.analyst.wheel_helper import WheelHelper
 from dialectical_framework.cycle import Cycle
-from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
@@ -15,7 +13,7 @@ from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class WheelBuilder(ABC):
+class WheelBuilder:
     def __init__(self, *, text: str = None, config: ConfigWheelBuilder | DialecticalReasoning = None):
         if not config or isinstance(config, ConfigWheelBuilder):
             self.__reasoner: DialecticalReasoning = ReasonFastAndSimple(
