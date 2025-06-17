@@ -3,9 +3,8 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
-from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.transition import Transition
+from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 
 
 class ThinkReciprocalSolution(StrategicConsulting):

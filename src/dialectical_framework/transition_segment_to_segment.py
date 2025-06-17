@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from typing import Self
+from pydantic import Field
 
-from pydantic import Field, field_validator, model_validator
-
-from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.transition import Transition
 from dialectical_framework.wheel_segment import WheelSegment
 

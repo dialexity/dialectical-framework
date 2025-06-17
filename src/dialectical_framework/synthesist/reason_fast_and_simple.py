@@ -28,6 +28,16 @@ class ReasonFastAndSimple(ReasonFast):
 
     <formatting>
     Output the dialectical components within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", etc.
+    
+    IMPORTANT: For the structured output, use these EXACT alias values:
+    - "T" for the main thesis
+    - "A" for the antithesis 
+    - "T+" for positive side of thesis
+    - "T-" for negative side of thesis
+    - "A+" for positive side of antithesis
+    - "A-" for negative side of antithesis
+    
+    Do NOT use descriptive names like "Positive Thesis" or "Negative Antithesis" - only use the exact technical labels above.
     </formatting>
     """)
     def prompt_wu(self, text: str) -> Messages.Type:

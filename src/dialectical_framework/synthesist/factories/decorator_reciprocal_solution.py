@@ -3,7 +3,6 @@ from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilde
 from dialectical_framework.synthesist.factories.wheel_builder_transition_calculator import \
     WheelBuilderTransitionCalculator
 from dialectical_framework.synthesist.think_reciprocal_solution import ThinkReciprocalSolution
-from dialectical_framework.transition import Transition
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
 

@@ -3,20 +3,19 @@ from abc import ABC, abstractmethod
 from mirascope import BaseMessageParam, Messages, llm, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
-from dialectical_framework.utils.config import Config
+from dialectical_framework.brain import Brain
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
-from dialectical_framework.brain import Brain
+from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
+from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_positive_side,
                                                           is_strict_opposition,
                                                           is_valid_opposition, check)
+from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, WisdomUnit)
-from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
-from dialectical_framework.utils.dc_replace import dc_safe_replace
 
 
 class DialecticalReasoning(ABC):

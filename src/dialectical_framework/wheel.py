@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-from typing import Iterable, Iterator, List
+from typing import List
 
 from tabulate import tabulate
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.spiral import Spiral
-from dialectical_framework.transition import Transition
-from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class Wheel:
-    def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle):
+    def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle, **kwargs):
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
             self._wisdom_units = list(wisdom_units[0])
@@ -136,14 +133,18 @@ class Wheel:
         return self._spiral
 
     def __str__(self):
-        table = self._print_wheel_tables()
-
+        main_segment = self.main_wisdom_unit
         output = (
-                "\n---\n".join([self.t_cycle.pretty(skip_dialectical_component_explanation=True) if self.t_cycle else ""]) +
-                ("\n---\n" if self.t_cycle else "") +
-                "\n---\n".join([self.cycle.pretty(skip_dialectical_component_explanation=True) if self.cycle else ""]) +
-                ("\n---\n" if self.cycle else "") +
-                table
+                "\n---\n" +
+                self.t_cycle.pretty(skip_dialectical_component_explanation=True, start_alias=main_segment.t) +
+                "\n---\n" +
+                "\n---\n" +
+                self.cycle.pretty(skip_dialectical_component_explanation=True, start_alias=main_segment.t) +
+                "\n---\n" +
+                self._print_wheel_tabular() +
+                "\n---\n" +
+                self.spiral.pretty(start_wheel_segment=main_segment) +
+                "\n---\n"
         )
 
         return output
@@ -151,7 +152,7 @@ class Wheel:
 
 
 
-    def _print_wheel_tables(self) -> str:
+    def _print_wheel_tabular(self) -> str:
         roles = [
             ('t_minus', 'T-'),
             ('t', 'T'),

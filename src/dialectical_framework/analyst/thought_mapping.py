@@ -489,7 +489,7 @@ def _generate_compatible_sequences(ordered_wisdom_units):
             return
 
         # Next ti to place: always in order, always > previous ti's position
-        # Skip positions already assigned (to ensure symmetry & distinctness)
+        # Skip positions already assigned (to ensure symmetry and distinctness)
         prev_pos = t_positions[-1]
         for pos in range(prev_pos + 1, size):
             diag = (pos + n) % size

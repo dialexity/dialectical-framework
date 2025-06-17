@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import List, Self, Dict, Union
 
 from dialectical_framework.cycle import Cycle
@@ -10,7 +10,7 @@ from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class WheelBuilderTransitionCalculator(WheelBuilder):
+class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     def __init__(self, builder: WheelBuilder):
         super().__init__(text=builder.text, config=builder.config)
         self.__decorated_builder = builder

@@ -76,9 +76,12 @@ class Transition(BaseModel):
 
         return new_t_class(**merged_dict)
 
-    def __str__(self):
-        str_pieces = [f"{', '.join(self.source_aliases)} → {', '.join(self.target_aliases)}"]
-        if self.text:
-            str_pieces.append(f"Summary: {self.text if self.text else 'N/A'}")
-
+    def pretty(self) -> str:
+        str_pieces = [
+            f"{', '.join(self.source_aliases)} → {', '.join(self.target_aliases)}",
+            f"Summary: {self.text if self.text else 'N/A'}"
+        ]
         return "\n".join(str_pieces)
+
+    def __str__(self):
+        return self.pretty()

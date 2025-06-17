@@ -17,9 +17,6 @@ class ReciprocalSolution(BaseModel):
             str_pieces.append(f"Linear action: {self.linear_action}")
         if self.dialectical_reflection:
             str_pieces.append(f"Dialectical reflection: {self.dialectical_reflection}")
-        if str_pieces:
-            # prepend
-            str_pieces.insert(0, "RECIPROCAL SOLUTION")
         return "\n".join(str_pieces)
 
 

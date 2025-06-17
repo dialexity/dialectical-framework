@@ -1,8 +1,8 @@
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.synthesist.factories.wheel_builder_transition_calculator import WheelBuilderTransitionCalculator
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
+from dialectical_framework.synthesist.factories.wheel_builder_transition_calculator import \
+    WheelBuilderTransitionCalculator
 from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
-from dialectical_framework.transition import Transition
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
 

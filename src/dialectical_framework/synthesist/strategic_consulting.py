@@ -1,15 +1,13 @@
 from abc import ABC, abstractmethod
 
+from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.symmetrical_transition import ALIAS_AC, ALIAS_AC_PLUS, ALIAS_AC_MINUS, ALIAS_RE, \
+    ALIAS_RE_PLUS, ALIAS_RE_MINUS
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.transition import Transition
-from dialectical_framework.utils.config import Config
-from dialectical_framework.brain import Brain
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.symmetrical_transition import SymmetricalTransition, ALIAS_AC, ALIAS_AC_PLUS, ALIAS_AC_MINUS, ALIAS_RE, \
-    ALIAS_RE_PLUS, ALIAS_RE_MINUS
+from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, \
     ALIAS_A_MINUS
-from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 
 
 class StrategicConsulting(ABC):

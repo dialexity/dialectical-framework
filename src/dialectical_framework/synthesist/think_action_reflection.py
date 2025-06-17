@@ -1,13 +1,11 @@
-from typing import override
 
 from mirascope import Messages, prompt_template, llm
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.transition import Transition
+from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -66,7 +64,6 @@ class ThinkActionReflection(StrategicConsulting):
 
         return _action_reflection_call()
 
-    @override
     async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
         # TODO: take provided action into account, now it's ignored
         ac_re_wu = WisdomUnit()

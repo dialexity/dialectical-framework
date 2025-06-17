@@ -82,12 +82,28 @@ async def test_wheel_acre_reciprocal():
     print("\n")
     print(wheels[0])
 
+@pytest.mark.asyncio
 @observe()
-def test_factory_loading():
+async def test_factory_loading():
+    tm: ThoughtMapping = ThoughtMapping(
+        user_message,
+        config=wbc,
+    )
+    t_cycles = await tm.arrange([
+        example_wu1.t.statement,
+        example_wu2.t.statement,
+        example_wu3.t.statement,
+        example_wu4.t.statement,
+    ])
+    ta_cycles = await tm.arrange([example_wu1, example_wu2, example_wu3, example_wu4])
+    w = Wheel([example_wu1, example_wu2, example_wu3, example_wu4],
+              t_cycle=t_cycles[0],
+              ta_cycle=ta_cycles[0]
+              )
     wb = WheelBuilder.load(
         text=user_message,
         config=wbc,
-        wheels=[Wheel([example_wu1, example_wu2, example_wu3, example_wu4])]
+        wheels=[w]
     )
 
     assert len(wb.wheel_permutations) == 1
@@ -98,10 +114,25 @@ def test_factory_loading():
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_redefine():
+    tm: ThoughtMapping = ThoughtMapping(
+        user_message,
+        config=wbc,
+    )
+    t_cycles = await tm.arrange([
+        example_wu1.t.statement,
+        example_wu2.t.statement,
+        example_wu3.t.statement,
+        example_wu4.t.statement,
+    ])
+    ta_cycles = await tm.arrange([example_wu1, example_wu2, example_wu3, example_wu4])
+    w = Wheel([example_wu1, example_wu2, example_wu3, example_wu4],
+              t_cycle=t_cycles[0],
+              ta_cycle=ta_cycles[0]
+              )
     wb = WheelBuilder.load(
         text=user_message,
         config=wbc,
-        wheels=[Wheel([example_wu1, example_wu2, example_wu3, example_wu4])]
+        wheels=[w]
     )
 
     print("\n")

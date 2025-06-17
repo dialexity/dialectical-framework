@@ -11,9 +11,7 @@ from dialectical_framework.synthesist.reason_conversational import \
 from dialectical_framework.synthesist.reason_fast import ReasonFast
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
-from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
 from dialectical_framework.synthesist.think_reciprocal_solution import ThinkReciprocalSolution
-from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
@@ -133,27 +131,6 @@ def test_fast_reasoner_with_a_given_nonsense_thesis():
     assert wu.is_complete()
     print("\n")
     print(wu)
-
-
-@observe()
-def test_ac_re():
-    # Precalculated
-    wu = WisdomUnit(
-        t_minus=DialecticalComponent.from_str("T-", "Mental Preoccupation"),
-        t=DialecticalComponent.from_str("T", "Love"),
-        t_plus=DialecticalComponent.from_str("T+", "Compassionate Connection"),
-        a_minus=DialecticalComponent.from_str("A-", "Nihilistic Detachment"),
-        a=DialecticalComponent.from_str("A", "Indifference"),
-        a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
-    )
-
-    reasoner = ThinkActionReflection(user_message, wisdom_unit=wu)
-    transition = asyncio.run(reasoner.think())
-    assert transition.action_reflection.is_complete()
-    wheel = Wheel(wu)
-    wheel.cycle.add_transition(0, transition)
-    print("\n")
-    print(wheel)
 
 
 @observe()

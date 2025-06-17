@@ -1,8 +1,7 @@
 from typing import Dict, Tuple, List, overload, TypeVar, Generic, Union, Callable
-from collections import deque
 
-from dialectical_framework.transition import Transition
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.transition import Transition
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.wheel_segment import WheelSegment
 
@@ -76,10 +75,19 @@ class DirectedGraph(Generic[T]):
 
     def find_outbound_source_aliases(self, start: WheelSegment) -> List[List[str]]:
         outbound_source_aliases = []
-        source_components = {comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp}
+        start_possible_components = {comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp}
         for (_, _), transition in self._transitions.items():
-            transition_components = {comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp}
-            if transition_components.issubset(source_components):
+            transition_source = transition.source
+            if isinstance(transition_source, DialecticalComponent):
+                transition_source_components = {transition_source.alias}
+            else:  # WheelSegment
+                transition_source_components = {
+                    comp.alias for comp in
+                    [transition_source.t, transition_source.t_plus, transition_source.t_minus] if
+                    comp
+                }
+
+            if start_possible_components.issubset(transition_source_components):
                 outbound_source_aliases.append(transition.source_aliases)
 
         return outbound_source_aliases
@@ -129,7 +137,8 @@ class DirectedGraph(Generic[T]):
 
             # Check for cycle in CURRENT path only
             if current_key in visited_in_path:
-                # Found a cycle in this path - can still record the path if desired
+                # Found a cycle in this path - record the path up to this point
+                all_paths.append(current_path.copy())
                 if visit_callback:
                     visit_callback(current_path, True)
                 return
@@ -150,7 +159,17 @@ class DirectedGraph(Generic[T]):
             # Explore each outgoing edge separately
             for transition in transitions:
                 new_path = current_path + [transition]
-                _dfs_helper(transition.target_aliases, new_path, new_visited)
+                target_key = frozenset(transition.target_aliases)
+                
+                # Check if target would create a cycle
+                if target_key in new_visited:
+                    # This transition would create a cycle, but record the path including this transition
+                    all_paths.append(new_path.copy())
+                    if visit_callback:
+                        visit_callback(new_path, True)
+                else:
+                    # Normal case: continue DFS
+                    _dfs_helper(transition.target_aliases, new_path, new_visited)
 
         if start_aliases is None:
             # Get all transitions and find unique source aliases
@@ -224,16 +243,15 @@ class DirectedGraph(Generic[T]):
         paths = self.traverse_dfs_with_paths(start_aliases=start_aliases)
         paths_pieces = []
         for path in paths:
-            seen_nodes = set()
             current_str = None
-            for transition in path:
+            for i, transition in enumerate(path):
                 if current_str is None:
                     current_str = f"{transition.source_aliases}"
-                if transition.target_aliases not in seen_nodes:
-                    seen_nodes.add(transition.target_aliases)
-                    current_str += f" -> {transition.target_aliases}"
+                if i == len(path) - 1 and tuple(transition.target_aliases) == tuple(path[0].source_aliases):
+                    # Skip last node if it equals the first node (completing the cycle)
+                    continue
+                current_str += f" -> {transition.target_aliases}"
             paths_pieces.append(current_str)
         return "\n".join(paths_pieces) if paths_pieces else "<empty>"
-
     def __str__(self):
         return self.pretty()

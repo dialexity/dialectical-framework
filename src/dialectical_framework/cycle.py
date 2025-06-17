@@ -4,13 +4,14 @@ from pydantic import BaseModel
 from pydantic import Field, ConfigDict
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.directed_graph import DirectedGraph, AliasInput
+from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 
 
 class Cycle(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
+        arbitrary_types_allowed=True,
     )
 
     causality_direction: Literal["clockwise", "counterclockwise"] = Field(default="clockwise", description="The direction of causality in the ring.")
@@ -25,8 +26,6 @@ class Cycle(BaseModel):
         super().__init__(**data)
         if self.ring is None:
             self.ring = DirectedGraph[TransitionCellToCell]()
-            if len(dialectical_components) < 2:
-                raise ValueError("At least two dialectical components are required for a cycle.")
             for i in range(len(dialectical_components)):
                 next_i = (i + 1) % len(dialectical_components)
                 if self.causality_direction == "clockwise":
@@ -41,6 +40,12 @@ class Cycle(BaseModel):
                     target=target,
                     # TODO: how do we set the transition text?
                 ))
+    
+    @property
+    def dialectical_components(self) -> List[DialecticalComponent]:
+        """Returns list of dialectical components from the first path of the ring."""
+        path = self.ring.first_path()
+        return [transition.source for transition in path] if path else []
 
     def pretty(self, *, skip_dialectical_component_explanation = False,  start_alias: str | DialecticalComponent  | None = None) -> str:
         output = [self.ring.pretty() + f" | Probability: {self.probability}"]
@@ -51,7 +56,7 @@ class Cycle(BaseModel):
                 f"No path found between {start_alias} and the first dialectical component in the cycle."
             )
         for transition in path:
-            dc = getattr(transition.source, transition.source_aliases[0])
+            dc = transition.source
             output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
 
         output.append(f"Reasoning: {self.reasoning_explanation}")
