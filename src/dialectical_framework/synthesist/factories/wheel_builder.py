@@ -95,8 +95,10 @@ class WheelBuilder:
         wheels = []
         for cycle in cycles:
             wm = WheelHelper(wisdom_units=wheel_wisdom_units)
-            w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False))
-            w.cycle = cycle
+            w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False),
+                t_cycle=t_cycle,
+                ta_cycle=cycle
+            )
             wheels.append(w)
 
         # Save results for reference
@@ -135,7 +137,8 @@ class WheelBuilder:
                         wu_redefined = wu
                     new_wisdom_units.append(wu_redefined)
                 if not is_dirty:
-                    wheels.append(Wheel(new_wisdom_units))
+                    # No modifications were made, so preserve the original wheel
+                    wheels.append(wheel)
                 else:
                     # Recalculate cycles
                     analyst = ThoughtMapping(
@@ -166,8 +169,10 @@ class WheelBuilder:
 
                     for cycle in cycles:
                         wm = WheelHelper(wisdom_units=wheel_wisdom_units)
-                        w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False))
-                        w.cycle = cycle
+                        w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False),
+                          t_cycle=t_cycle,
+                          ta_cycle=cycle,
+                        )
                         wheels.append(w)
             self.__wheels = wheels
 

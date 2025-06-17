@@ -1,9 +1,11 @@
 from typing import List, Literal
 
-from openai import BaseModel
+from pydantic import BaseModel
 from pydantic import Field, ConfigDict
 
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.directed_graph import DirectedGraph, AliasInput
+from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 
 
 class Cycle(BaseModel):
@@ -12,31 +14,45 @@ class Cycle(BaseModel):
     )
 
     causality_direction: Literal["clockwise", "counterclockwise"] = Field(default="clockwise", description="The direction of causality in the ring.")
-    dialectical_components: List[DialecticalComponent] = Field(
-        ...,
-        description="Dialectical components arranged in the circular causality sequence (cycle)",
-    )
+
     probability: float = Field(default=0, description="The probability 0 to 1 of the cycle to exist in reality.")
     reasoning_explanation: str = Field(default="", description="Explanation why/how this cycle might occur.")
     argumentation: str = Field(default="", description="Circumstances or contexts where this cycle would be most applicable or useful.")
 
-    def aliases_chain(self) -> str:
-        if self.causality_direction == "clockwise":
-            aliases = [dc.alias for dc in self.dialectical_components]
-        else:
-            aliases = [dc.alias for dc in reversed(self.dialectical_components)]
+    ring: DirectedGraph[TransitionCellToCell] = Field(default=None, description="Directed graph representing the cycle of dialectical components.")
 
-        return " → ".join(aliases) + f" | Probability: {self.probability}"
+    def __init__(self, dialectical_components: List[DialecticalComponent],  **data):
+        super().__init__(**data)
+        if self.ring is None:
+            self.ring = DirectedGraph[TransitionCellToCell]()
+            if len(dialectical_components) < 2:
+                raise ValueError("At least two dialectical components are required for a cycle.")
+            for i in range(len(dialectical_components)):
+                next_i = (i + 1) % len(dialectical_components)
+                if self.causality_direction == "clockwise":
+                    source = dialectical_components[i]
+                    target = dialectical_components[next_i]
+                else:
+                    source = dialectical_components[next_i]
+                    target = dialectical_components[i]
 
-    def pretty(self, *, skip_dialectical_component_explanation = False) -> str:
-        output = [self.aliases_chain()]
+                self.ring.add_transition(TransitionCellToCell(
+                    source=source,
+                    target=target,
+                    # TODO: how do we set the transition text?
+                ))
 
-        if self.causality_direction == "clockwise":
-            for dc in self.dialectical_components:
-                output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
-        else:
-            for dc in reversed(self.dialectical_components):
-                output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
+    def pretty(self, *, skip_dialectical_component_explanation = False,  start_alias: str | DialecticalComponent  | None = None) -> str:
+        output = [self.ring.pretty() + f" | Probability: {self.probability}"]
+
+        path = self.ring.first_path(start_aliases=[start_alias] if start_alias else None)
+        if not path:
+            raise ValueError(
+                f"No path found between {start_alias} and the first dialectical component in the cycle."
+            )
+        for transition in path:
+            dc = getattr(transition.source, transition.source_aliases[0])
+            output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
 
         output.append(f"Reasoning: {self.reasoning_explanation}")
         output.append(f"Argumentation: {self.argumentation}")

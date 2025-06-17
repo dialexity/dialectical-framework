@@ -83,14 +83,22 @@ class ThinkReciprocalSolution(StrategicConsulting):
 
         return _reciprocal_solution_call()
 
-    async def think(self, action: str | DialecticalComponent = None) -> Transition:
+    async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
         # TODO: take provided action into account, now it's ignored
 
         s: ReciprocalSolution = await self.reciprocal_solution()
+
         self._transition = SymmetricalTransition(
+            reciprocal_solution=s,
+
+            source_aliases=[self._wisdom_unit.t.alias],
+            target_aliases=[self._wisdom_unit.a.alias],
+
+            opposite_source_aliases=[self._wisdom_unit.a.alias],
+            opposite_target_aliases=[self._wisdom_unit.t.alias],
+
             source=self._wisdom_unit.extract_segment_t(),
             target=self._wisdom_unit.extract_segment_a(),
-            reciprocal_solution=s
         )
 
         return self._transition

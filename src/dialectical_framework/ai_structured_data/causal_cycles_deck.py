@@ -1,9 +1,9 @@
 from typing import List
 
-from openai import BaseModel
+from pydantic import BaseModel
 from pydantic import Field
 
-from dialectical_framework.analyst.causal_cycle import CausalCycle
+from dialectical_framework.ai_structured_data.causal_cycle import CausalCycle
 
 
 class CausalCyclesDeck(BaseModel):

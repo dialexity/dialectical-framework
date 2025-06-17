@@ -1,0 +1,239 @@
+from typing import Dict, Tuple, List, overload, TypeVar, Generic, Union, Callable
+from collections import deque
+
+from dialectical_framework.transition import Transition
+from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
+from dialectical_framework.wheel_segment import WheelSegment
+
+T = TypeVar('T', bound=Transition)
+
+AliasInput = Union[str, DialecticalComponent, List[Union[str, DialecticalComponent]]]
+
+
+def _extract_aliases(input_data: AliasInput) -> List[str]:
+    """Extract aliases from various input types."""
+    if isinstance(input_data, str):
+        return [input_data]
+    elif isinstance(input_data, DialecticalComponent):
+        return [input_data.alias]
+    elif isinstance(input_data, list):
+        aliases = []
+        for item in input_data:
+            if isinstance(item, str):
+                aliases.append(item)
+            elif isinstance(item, DialecticalComponent):
+                aliases.append(item.alias)
+        return aliases
+    else:
+        raise TypeError(f"Unsupported input type: {type(input_data)}")
+
+class DirectedGraph(Generic[T]):
+    def __init__(self):
+        self._transitions: Dict[Tuple[frozenset[str], frozenset[str]], T] = {}
+
+    def add_transition(self, transition: T) -> None:
+        """Add a transition to the directed graph."""
+        key = (frozenset(transition.source_aliases), frozenset(transition.target_aliases))
+
+        # For TransitionOneToOne, ensure only one outgoing transition per source
+        if isinstance(transition, TransitionCellToCell):
+            for existing_key, existing_transition in self._transitions.items():
+                if existing_key[0] == key[0]:  # Same source aliases
+                    raise ValueError(f"Multiple outgoing transitions for source aliases {transition.source_aliases} found. Only one is allowed.")
+
+        self._transitions[key] = transition
+
+    def get_transition(self, source_aliases: AliasInput, target_aliases: AliasInput) -> T | None:
+        """Retrieve a transition by source and target aliases."""
+        source_aliases_list = _extract_aliases(source_aliases)
+        target_aliases_list = _extract_aliases(target_aliases)
+        key = (frozenset(source_aliases_list), frozenset(target_aliases_list))
+        return self._transitions.get(key)
+
+    def get_transitions_from_source(self, source_aliases: AliasInput) -> List[T]:
+        """Get all transitions that have the given source aliases."""
+        source_aliases_list = _extract_aliases(source_aliases)
+        source_set = frozenset(source_aliases_list)
+        return [transition for (src_set, _), transition in self._transitions.items() if src_set == source_set]
+
+    def get_first_transition_from_source(self, source_aliases: AliasInput) -> T | None:
+        """Get the first transition that has the given source aliases."""
+        transitions = self.get_transitions_from_source(source_aliases)
+        return transitions[0] if transitions else None
+
+    def get_all_transitions(self) -> List[T]:
+        """Get all transitions in the graph."""
+        return list(self._transitions.values())
+
+    def get_transition_count(self) -> int:
+        """Get the number of transitions in the graph."""
+        return len(self._transitions)
+
+    def is_empty(self) -> bool:
+        """Check if the graph has no transitions."""
+        return len(self._transitions) == 0
+
+    def find_outbound_source_aliases(self, start: WheelSegment) -> List[List[str]]:
+        outbound_source_aliases = []
+        source_components = {comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp}
+        for (_, _), transition in self._transitions.items():
+            transition_components = {comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp}
+            if transition_components.issubset(source_components):
+                outbound_source_aliases.append(transition.source_aliases)
+
+        return outbound_source_aliases
+
+    @overload
+    def remove_transition(self, source_aliases: AliasInput, target_aliases: AliasInput) -> bool:
+        """Remove a transition by source and target aliases. Returns True if removed, False if not found."""
+        ...
+
+    @overload
+    def remove_transition(self, transition: T) -> bool:
+        """Remove a transition by Transition object."""
+        ...
+
+    def remove_transition(self, source_aliases_or_transition, target_aliases=None) -> bool:
+        """Remove a transition by source and target aliases or by Transition object."""
+        if hasattr(source_aliases_or_transition, 'source_aliases') and hasattr(source_aliases_or_transition, 'target_aliases'):
+            # Called with Transition object
+            transition = source_aliases_or_transition
+            key = (frozenset(transition.source_aliases), frozenset(transition.target_aliases))
+        else:
+            # Called with source_aliases and target_aliases
+            source_aliases_list = _extract_aliases(source_aliases_or_transition)
+            target_aliases_list = _extract_aliases(target_aliases)
+            key = (frozenset(source_aliases_list), frozenset(target_aliases_list))
+
+        if key in self._transitions:
+            del self._transitions[key]
+            return True
+        return False
+
+    def clear(self) -> None:
+        """Remove all transitions from the graph."""
+        self._transitions.clear()
+
+    def traverse_dfs_with_paths(self,
+                                start_aliases: AliasInput | None = None,
+                                visit_callback: Callable[[List[T], bool], None] | None = None) -> List[List[T]]:
+        """
+        Traverse all possible paths in the graph, detecting circles per path.
+        Returns all complete paths found.
+        """
+        all_paths = []
+
+        def _dfs_helper(current_aliases: List[str], current_path: List[T], visited_in_path: set):
+            current_key = frozenset(current_aliases)
+
+            # Check for cycle in CURRENT path only
+            if current_key in visited_in_path:
+                # Found a cycle in this path - can still record the path if desired
+                if visit_callback:
+                    visit_callback(current_path, True)
+                return
+
+            # Add to current path's visited set
+            new_visited = visited_in_path | {current_key}
+
+            # Get all outgoing transitions
+            transitions = self.get_transitions_from_source(current_aliases)
+
+            if not transitions:
+                # End of path - record it
+                all_paths.append(current_path.copy())
+                if visit_callback:
+                    visit_callback(current_path, False)
+                return
+
+            # Explore each outgoing edge separately
+            for transition in transitions:
+                new_path = current_path + [transition]
+                _dfs_helper(transition.target_aliases, new_path, new_visited)
+
+        if start_aliases is None:
+            # Get all transitions and find unique source aliases
+            all_transitions = self.get_all_transitions()
+            if all_transitions:
+                first_transition = all_transitions[0]
+                start_aliases_list = first_transition.source_aliases
+            else:
+                return []
+        else:
+            start_aliases_list = _extract_aliases(start_aliases)
+
+        _dfs_helper(start_aliases_list, [], set())
+
+        return all_paths
+
+    def first_path(self, start_aliases: AliasInput | None = None) -> List[T]:
+        # TODO: very inefficient, we shouldn't be traversing the whole graph just to get the first path
+        paths = self.traverse_dfs_with_paths(start_aliases)
+        return paths[0] if paths else []
+
+    def count_circles(self) -> int:
+        """
+        Count the number of distinct cycles (circles) in the directed graph.
+        Each unique cycle is counted only once, regardless of starting point.
+        
+        Returns:
+            Number of distinct cycles found in the graph
+        """
+        if self.is_empty():
+            return 0
+        
+        detected_cycles = set()
+        
+        # Get all unique starting nodes
+        all_nodes = set()
+        for (src_set, tgt_set), _ in self._transitions.items():
+            all_nodes.update(src_set)
+            all_nodes.update(tgt_set)
+        
+        # Check each node as a potential cycle start
+        for start_node in all_nodes:
+            paths = self.traverse_dfs_with_paths(start_node)
+            
+            for path in paths:
+                if path:  # Non-empty path
+                    # Check if end connects back to start
+                    last_transition = path[-1]
+                    path_end = frozenset(last_transition.target_aliases)
+                    path_start = frozenset([start_node])
+                    
+                    if path_end == path_start:
+                        # Found a cycle! Extract all nodes in the cycle
+                        cycle_nodes = [frozenset([start_node])]  # Start with the starting node
+                        for transition in path:
+                            cycle_nodes.append(frozenset(transition.target_aliases))
+                        
+                        # Remove the duplicate end node (it's the same as start)
+                        cycle_nodes = cycle_nodes[:-1]
+                        
+                        # Normalize: start from lexicographically smallest node
+                        min_node = min(cycle_nodes)
+                        min_idx = cycle_nodes.index(min_node)
+                        normalized_cycle = tuple(cycle_nodes[min_idx:] + cycle_nodes[:min_idx])
+                        
+                        detected_cycles.add(normalized_cycle)
+    
+        return len(detected_cycles)
+
+    def pretty(self, start_aliases: AliasInput | None = None) -> str:
+        paths = self.traverse_dfs_with_paths(start_aliases=start_aliases)
+        paths_pieces = []
+        for path in paths:
+            seen_nodes = set()
+            current_str = None
+            for transition in path:
+                if current_str is None:
+                    current_str = f"{transition.source_aliases}"
+                if transition.target_aliases not in seen_nodes:
+                    seen_nodes.add(transition.target_aliases)
+                    current_str += f" -> {transition.target_aliases}"
+            paths_pieces.append(current_str)
+        return "\n".join(paths_pieces) if paths_pieces else "<empty>"
+
+    def __str__(self):
+        return self.pretty()

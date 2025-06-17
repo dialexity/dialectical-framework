@@ -1,6 +1,6 @@
 from typing import List
 
-from openai import BaseModel
+from pydantic import BaseModel
 from pydantic import Field
 
 from dialectical_framework.cycle import Cycle
@@ -13,7 +13,7 @@ class WheelHelper(BaseModel):
         description="A list of wisdom units, i.e. a list of sets of interdependent dialectical components",
     )
 
-    def rearrange_by_causal_sequence(self, cycle: Cycle, mutate: bool = True):
+    def rearrange_by_causal_sequence(self, cycle: Cycle, mutate: bool = True) -> List[WisdomUnit]:
         """
         We expect the cycle to be on the middle ring where theses and antitheses reside.
         This way we can swap the wisdom unit oppositions if necessary.

@@ -5,7 +5,7 @@ from typing import List, overload, Union
 from mirascope import prompt_template, Messages, llm
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.analyst.causal_cycles_deck import CausalCyclesDeck
+from dialectical_framework.ai_structured_data.causal_cycles_deck import CausalCyclesDeck
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck

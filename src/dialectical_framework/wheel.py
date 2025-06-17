@@ -6,24 +6,25 @@ from tabulate import tabulate
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.directed_graph import DirectedGraph
+from dialectical_framework.spiral import Spiral
 from dialectical_framework.transition import Transition
+from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class Wheel:
-    def __init__(self, *wisdom_units):
+    def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle):
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
             self._wisdom_units = list(wisdom_units[0])
         else:
             self._wisdom_units = list(wisdom_units)
 
-        self._cycle: Cycle | None = None
-        if len(self._wisdom_units) > 0:
-            self._transitions: List[Transition | None] = [None] * len(self._wisdom_units)
-        else:
-            self._transitions: List[Transition | None] = []
+        self._ta_cycle: Cycle = ta_cycle
+        self._t_cycle: Cycle = t_cycle
+        self._spiral: Spiral  = Spiral()
 
     @property
     def cardinality(self) -> int:
@@ -42,10 +43,6 @@ class Wheel:
             return self._wisdom_units[0]
         else:
             raise ValueError("The wheel is empty, therefore no main segment exists.")
-
-    @property
-    def transitions(self) -> List[Transition]:
-        return self._transitions
 
     @property
     def theses(self) -> DialecticalComponentsDeck:
@@ -75,21 +72,6 @@ class Wheel:
 
         raise ValueError(f"Cannot find wisdom unit at: {i}")
 
-    def transition_at(self, i: int) -> Transition | None:
-        """Edge from unit i → unit (i+1)."""
-        idx = i % len(self._transitions)
-        if i < 0 or i >= len(self._transitions):
-            raise IndexError(f"index {i} out of range for wheel of length {len(self._transitions)}")
-
-        return self._transitions[idx]
-
-
-    def add_transition(self, at: int, tr: Transition) -> None:
-        idx = at % len(self._transitions)
-        if at < 0 or at >= len(self._transitions):
-            raise IndexError(f"index {at} out of range for wheel of length {len(self._transitions)}")
-        self._transitions[idx] = tr
-
     @property
     def orthogonal_wisdom_unit(self) -> WisdomUnit:
         """
@@ -113,6 +95,7 @@ class Wheel:
         self,
         offset: int = 1,
     ) -> List[WisdomUnit]:
+        # TODO: do we ned to also adjust the cycle and spiral?
         """
         Rotate the synthesis-pair list by ``offset`` positions.
 
@@ -131,42 +114,44 @@ class Wheel:
                 f"spin offset {offset} out of range for list of length {n}"
             )
 
-        offset %= n  # bring offset into the list’s range
+        offset %= n  # bring offset into the list's range
 
         def rot(lst: List) -> List:
             return lst[offset:] + lst[:offset]
 
         self._wisdom_units[:] = rot(self._wisdom_units)
-        self._transitions[:] = rot(self._transitions)
 
         return self._wisdom_units
 
     @property
     def cycle(self) -> Cycle:
-        return self._cycle
+        return self._ta_cycle
 
-    @cycle.setter
-    def cycle(self, cycle: Cycle):
-        # TODO: not good to have mutability here, as wisdom units may be swapped or rearranged...
-        self._cycle = cycle
+    @property
+    def t_cycle(self) -> Cycle:
+        return self._t_cycle
+
+    @property
+    def spiral(self) -> Spiral:
+        return self._spiral
 
     def __str__(self):
-        # TODO: also add transitions
-
         table = self._print_wheel_tables()
 
-        transitions = [str(t) for t in self._transitions if t is not None]
-
         output = (
+                "\n---\n".join([self.t_cycle.pretty(skip_dialectical_component_explanation=True) if self.t_cycle else ""]) +
+                ("\n---\n" if self.t_cycle else "") +
                 "\n---\n".join([self.cycle.pretty(skip_dialectical_component_explanation=True) if self.cycle else ""]) +
                 ("\n---\n" if self.cycle else "") +
-                table +
-                ("\n---\n" + "\n".join(transitions) if transitions else "")
+                table
         )
 
         return output
 
-    def _print_wheel_tables(self):
+
+
+
+    def _print_wheel_tables(self) -> str:
         roles = [
             ('t_minus', 'T-'),
             ('t', 'T'),
@@ -177,15 +162,11 @@ class Wheel:
         ]
 
         n_units = len(self._wisdom_units)
-        has_transitions = hasattr(self, "_transitions") and self._transitions is not None
 
         # Create headers: WU1_alias, WU1_statement, (transition1), WU2_alias, ...
         headers = []
         for i in range(n_units):
             headers.extend([f"Alias (WU{i + 1})", f"Statement (WU{i + 1})"])
-            if has_transitions and i < n_units:
-                # Add a transition column after each wisdom unit except the last (cycle or not)
-                headers.extend([f"Transition ({i + 1}→{(i + 2) if i + 1 < n_units else 1})", " "])
 
         table = []
         # Build the table: alternate wisdom unit cells and transitions
@@ -196,22 +177,9 @@ class Wheel:
                 component = getattr(wu, role_attr, None)
                 row.append(component.alias if component else '')
                 row.append(component.statement if component else '')
-                # Transition columns
-                if has_transitions:
-                    # Add a transition after each wisdom unit
-                    if i < len(self._transitions):
-                        tr = self._transitions[i]
-                        if tr is not None:
-                            ac_re: WisdomUnit | None = tr.action_reflection
-                            if ac_re:
-                                component = getattr(ac_re, role_attr, None)
-                                row.append(component.alias if component else '')
-                                row.append(component.statement if component else '')
             table.append(row)
 
         return tabulate(
             table,
             # headers=headers,
             tablefmt="plain")
-
-

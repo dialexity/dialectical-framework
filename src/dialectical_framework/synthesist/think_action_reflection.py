@@ -1,3 +1,5 @@
+from typing import override
+
 from mirascope import Messages, prompt_template, llm
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -64,21 +66,26 @@ class ThinkActionReflection(StrategicConsulting):
 
         return _action_reflection_call()
 
-    async def think(self, action: str | DialecticalComponent = None) -> Transition:
-        wu = WisdomUnit()
-
+    @override
+    async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
         # TODO: take provided action into account, now it's ignored
-
+        ac_re_wu = WisdomUnit()
         dc: DialecticalComponentsDeck = await self.action_reflection()
         for d in dc.dialectical_components:
             alias = self._translate_to_canonical_alias(d.alias)
-            # TODO: we have canonical alias pointing to a component with some fancy alias. Is it ok?
-            setattr(wu, alias, d)
+            setattr(ac_re_wu, alias, d)
 
         self._transition = SymmetricalTransition(
+            action_reflection=ac_re_wu,
+
+            source_aliases=[self._wisdom_unit.t.alias],
+            target_aliases=[self._wisdom_unit.a.alias],
+
+            opposite_source_aliases=[self._wisdom_unit.a.alias],
+            opposite_target_aliases=[self._wisdom_unit.t.alias],
+
             source=self._wisdom_unit.extract_segment_t(),
             target=self._wisdom_unit.extract_segment_a(),
-            action_reflection=wu
         )
 
         return self._transition

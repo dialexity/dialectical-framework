@@ -151,7 +151,7 @@ def test_ac_re():
     transition = asyncio.run(reasoner.think())
     assert transition.action_reflection.is_complete()
     wheel = Wheel(wu)
-    wheel.add_transition(0, transition)
+    wheel.cycle.add_transition(0, transition)
     print("\n")
     print(wheel)
 

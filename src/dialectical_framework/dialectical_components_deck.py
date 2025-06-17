@@ -1,6 +1,6 @@
 from typing import List
 
-from openai import BaseModel
+from pydantic import BaseModel
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent

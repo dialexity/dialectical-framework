@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from openai import BaseModel
+from pydantic import BaseModel
 from pydantic import ConfigDict, Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
