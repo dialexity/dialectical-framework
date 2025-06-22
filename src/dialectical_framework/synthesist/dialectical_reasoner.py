@@ -18,7 +18,7 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, WisdomUnit)
 
 
-class DialecticalReasoning(ABC):
+class DialecticalReasoner(ABC):
     def __init__(
         self,
         text: str,

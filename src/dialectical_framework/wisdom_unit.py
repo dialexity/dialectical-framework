@@ -32,6 +32,7 @@ class WisdomUnit(WheelSegment):
     )
 
     def extract_segment_t(self) -> WheelSegment:
+        # TODO: maybe it's enough to return self, because the interface is still WheelSegment?
         return WheelSegment(
             t=self.t,
             t_plus=self.t_plus,

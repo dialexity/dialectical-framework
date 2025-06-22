@@ -3,13 +3,13 @@ import inspect
 from mirascope import BaseMessageParam, Messages, prompt_template
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.dialectical_reasoning import \
-    DialecticalReasoning
+from dialectical_framework.synthesist.dialectical_reasoner import \
+    DialecticalReasoner
 from dialectical_framework.wisdom_unit import WisdomUnit
 from dialectical_framework.wheel_segment import ALIAS_T
 
 
-class ReasonFast(DialecticalReasoning):
+class ReasonFast(DialecticalReasoner):
     @prompt_template(
     """
     USER:

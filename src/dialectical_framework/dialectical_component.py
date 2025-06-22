@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 from pydantic import BaseModel
 from pydantic import Field
 
@@ -15,6 +18,22 @@ class DialecticalComponent(BaseModel):
         ...,
         description="The explanation how the dialectical component (statement) is derived.",
     )
+
+    def is_same(self, other: DialecticalComponent) -> bool:
+        """
+        Determines if the current object is equal to another object based on their attributes.
+
+        This method compares the `alias` and `statement` attributes of the current object
+        with those of another object to check if they are identical.
+
+        Args:
+            other: The object to compare against the current object.
+
+        Returns:
+            bool: True if both `alias` and `statement` attributes of the objects are
+            the same, otherwise False.
+        """
+        return self == other or self.alias == other.alias and self.statement == other.statement
 
     @classmethod
     def from_str(cls, alias: str, statement: str, explanation: str = ""):

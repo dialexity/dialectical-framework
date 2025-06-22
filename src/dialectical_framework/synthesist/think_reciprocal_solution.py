@@ -4,10 +4,10 @@ from mirascope.integrations.langfuse import with_langfuse
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.synthesist.strategic_consulting import StrategicConsulting
+from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
 
 
-class ThinkReciprocalSolution(StrategicConsulting):
+class ThinkReciprocalSolution(StrategicConsultant):
     @prompt_template(
     """
     USER:
@@ -82,7 +82,7 @@ class ThinkReciprocalSolution(StrategicConsulting):
 
         return _reciprocal_solution_call()
 
-    async def think(self, action: str | DialecticalComponent = None) -> SymmetricalTransition:
+    async def think(self) -> SymmetricalTransition:
         # TODO: take provided action into account, now it's ignored
 
         s: ReciprocalSolution = await self.reciprocal_solution()

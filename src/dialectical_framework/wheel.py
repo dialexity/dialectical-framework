@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Union
 
 from tabulate import tabulate
 
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.spiral import Spiral
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
+WheelSegmentReference = Union[int, WheelSegment, str, DialecticalComponent]
 
 class Wheel:
     def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle, **kwargs):
@@ -24,11 +26,16 @@ class Wheel:
         self._spiral: Spiral  = Spiral()
 
     @property
-    def cardinality(self) -> int:
-        if len(self._wisdom_units) > 0:
-            return len(self._wisdom_units)
-        else:
-            raise ValueError("The wheel is empty, therefore no main segment exists.")
+    def order(self) -> int:
+        """The order of the wheel (number of wisdom units in the dialectical structure)"""
+        if len(self._wisdom_units) == 0:
+            raise ValueError("The wheel is empty, therefore order is undefined.")
+        return len(self._wisdom_units)
+
+    @property
+    def degree(self) -> int:
+        """The degree of the wheel (total number of segments = 2 × order)"""
+        return self.order * 2
 
     @property
     def wisdom_units(self) -> List[WisdomUnit]:
@@ -39,34 +46,107 @@ class Wheel:
         if len(self._wisdom_units) > 0:
             return self._wisdom_units[0]
         else:
-            raise ValueError("The wheel is empty, therefore no main segment exists.")
+            raise ValueError("The wheel is empty.")
 
-    @property
-    def theses(self) -> DialecticalComponentsDeck:
-        theses_from_wheels = []
+    def is_set(self, s: str|DialecticalComponent|WheelSegment) -> bool:
+        try:
+            self.wisdom_unit_at(s)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    def is_same(self, other: Wheel) -> bool:
+        if len(self.wisdom_units) != len(other.wisdom_units):
+            return False
         for wu in self.wisdom_units:
-            theses_from_wheels.append(wu.t)
+            if not other.is_set(wu):
+                return False
+        return True
 
-        return DialecticalComponentsDeck(dialectical_components=theses_from_wheels)
+    def wisdom_unit_at(self, i: WheelSegmentReference) -> WisdomUnit:
+        """
+        Determines and retrieves a WisdomUnit based on the input index or key.
 
-    def wisdom_unit_at(self, i: int|str|WheelSegment) -> WisdomUnit:
-        if isinstance(i, WisdomUnit) and i in self.wisdom_units:
-            return i
+        This method identifies and returns a specific WisdomUnit from the collection
+        of WisdomUnits maintained by the object. The input can be provided as an integer
+        index, string key, or an instance of the WheelSegment, with distinct lookup
+        logic applied for each type. If the input does not correspond to
+        a valid WisdomUnit, an exception is raised.
 
-        if isinstance(i, WheelSegment):
+        Parameters:
+        i : int | str | WheelSegment
+            The input used to locate a specific WisdomUnit. Can be an integer
+            index of a wisdom unit, a string alias of a dialectical component, or an instance of the WheelSegment.
+
+        Returns:
+        WisdomUnit
+            The WisdomUnit corresponding to the provided input.
+
+        Raises:
+        IndexError
+            If the integer input is out of range for the collection of WisdomUnits.
+        ValueError
+            If the input of type WheelSegment or string does not correspond to
+            a valid WisdomUnit in the collection.
+        """
+        if isinstance(i, WisdomUnit):
             for wu in self.wisdom_units:
-                if wu.t.alias == i.t.alias or wu.a.alias == i.t.alias:
+                if wu.is_same(i):
+                    return wu
+        elif isinstance(i, WheelSegment):
+            for wu in self.wisdom_units:
+                if wu.extract_segment_t().is_same(i) or wu.extract_segment_a().is_same(i):
                     return wu
             raise ValueError(f"Cannot find wisdom unit at: {i.t.alias}")
-        elif isinstance(i, str):
+        elif isinstance(i, str) or isinstance(i, DialecticalComponent):
             for wu in self.wisdom_units:
-                if wu.t.alias == i or wu.a.alias == i:
+                if wu.is_set(i):
                     return wu
         elif isinstance(i, int):
             if i < 0 or i >= len(self.wisdom_units):
                 raise IndexError(f"index {i} out of range for wheel of length {len(self.wisdom_units)}")
             return self.wisdom_units[i]
 
+        raise ValueError(f"Cannot find wisdom unit at: {i}")
+
+    def wheel_segment_at(self, i: int | str | DialecticalComponent) -> WheelSegment:
+        """
+        Retrieves a specific wheel segment from the wisdom units based on the provided index or component.
+
+        The method allows accessing a wheel segment by an integer index, a string, or a DialecticalComponent.
+        If an integer index is provided, it is validated to ensure it lies within the appropriate range and then
+        used to determine the specific segment from a sequence of wisdom units. For string or DialecticalComponent
+        inputs, the method searches through the wisdom units to locate and return the segment containing the
+        specified component.
+
+        Raises:
+            IndexError: If the integer index is out of the valid range.
+            ValueError: If no wisdom unit or segment corresponding to the given identifier is found.
+
+        Args:
+            i: The index of the wheel segment as an integer or the identifier of the component
+               as a string or DialecticalComponent.
+
+        Returns:
+            The matching WheelSegment extracted from the appropriate wisdom unit.
+        """
+        if isinstance(i, int):
+            total_segments = self.degree
+            if i < 0 or i >= total_segments:
+                raise IndexError(f"index {i} out of range for wheel of {total_segments} segments")
+            wu_index = i // 2
+            wu = self.wisdom_units[wu_index]
+            return wu.extract_segment_t() if i % 2 == 0 else wu.extract_segment_a()
+        elif isinstance(i, str) or isinstance(i, DialecticalComponent) :
+            for wu in self.wisdom_units:
+                if wu.is_set(i):
+                    segment_t = wu.extract_segment_t()
+                    if segment_t.is_set(i):
+                        return segment_t
+                    segment_a = wu.extract_segment_a()
+                    if segment_a.is_set(i):
+                        return segment_a
         raise ValueError(f"Cannot find wisdom unit at: {i}")
 
     @property
@@ -148,9 +228,6 @@ class Wheel:
         )
 
         return output
-
-
-
 
     def _print_wheel_tabular(self) -> str:
         roles = [

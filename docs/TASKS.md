@@ -1,4 +1,24 @@
 # Todo:
+[] Add index (numbering) to wheel segments, now we derive it from alias
+
+[] Transition decorator for constructive transformations (discrete spiral)
+
+[] Fake the history of messages, when it's a multi-step stuff
+
+[] Distill chain-of-thought into separate user-assitant messages and keep the history. Instead of providing single prompt with a bunch of reasoning steps to do for LLM 
+
+[] Thesis generation for different use-cases (parametrizable)
+
+[] Control statements calculation for wisdom units
+
+[] Actualization (report generation)
+
+[] Prompt engineering: add examples as user-assistant interchangeable messages, rather than in the big user prompt
+
+[] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
+
+[] Make façade that would make it easier to wrap the whole framework into an API
+
 [] Use Lillypad instead of Langfuse
 
 [] Image/Docs upload
@@ -9,7 +29,7 @@
 
 [] We should let the analyst create different cycles and evaluate probabilities for them
 
-[] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
+[] Fix the async bedrock todo, it's a fallback to litellm which ads complexity
 
 [] Parametrized API as in [PROJECT1.md](./PROJECT1.md)
 

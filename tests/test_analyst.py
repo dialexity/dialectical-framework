@@ -61,7 +61,7 @@ factory = WheelBuilder(
 async def test_wheel_acre():
     factory2 = DecoratorActionReflection(builder=factory)
     wheels = await factory2.build_wheel_permutations(theses=[None])
-    assert wheels[0].cardinality == 1
+    assert wheels[0].order == 1
     assert wheels[0].cycle is not None
 
     await factory2.calculate_transitions(wheels[0])
@@ -74,7 +74,7 @@ async def test_wheel_acre():
 async def test_wheel_acre_reciprocal():
     factory3 = DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory))
     wheels = await factory3.build_wheel_permutations(theses=[None])
-    assert wheels[0].cardinality == 1
+    assert wheels[0].order == 1
     assert wheels[0].cycle is not None
 
     await factory3.calculate_transitions(wheels[0])

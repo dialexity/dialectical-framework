@@ -31,7 +31,7 @@ class ThoughtMapping:
         self._component_length = config.component_length
         self._brain = config.brain
 
-    # TODO: this is duplication with dialectical_reasoning.py, refactor
+    # TODO: this is duplication with dialectical_reasoner.py, refactor
     @prompt_template(
         """
         USER:

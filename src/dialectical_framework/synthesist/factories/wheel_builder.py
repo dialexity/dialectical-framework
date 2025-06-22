@@ -6,7 +6,7 @@ from typing import List, Self, Union, Dict
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.analyst.wheel_helper import WheelHelper
 from dialectical_framework.cycle import Cycle
-from dialectical_framework.synthesist.dialectical_reasoning import DialecticalReasoning
+from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.wheel import Wheel
@@ -14,13 +14,13 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class WheelBuilder:
-    def __init__(self, *, text: str = None, config: ConfigWheelBuilder | DialecticalReasoning = None):
+    def __init__(self, *, text: str = None, config: ConfigWheelBuilder | DialecticalReasoner = None):
         if not config or isinstance(config, ConfigWheelBuilder):
-            self.__reasoner: DialecticalReasoning = ReasonFastAndSimple(
+            self.__reasoner: DialecticalReasoner = ReasonFastAndSimple(
                 text=text,
                 config=config or ConfigWheelBuilder(),
             )
-        elif isinstance(config, DialecticalReasoning):
+        elif isinstance(config, DialecticalReasoner):
             self.__reasoner = config
 
         self.__config = self.__reasoner.config
@@ -34,7 +34,7 @@ class WheelBuilder:
         self.__wheels: List[Wheel] = []
 
     @property
-    def reasoner(self) -> DialecticalReasoning:
+    def reasoner(self) -> DialecticalReasoner:
         return self.__reasoner
 
     @property

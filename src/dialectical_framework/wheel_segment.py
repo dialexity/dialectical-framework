@@ -41,14 +41,38 @@ class WheelSegment(BaseModel):
     def is_complete(self):
         return all(v is not None for v in self.model_dump(exclude_none=False).values())
 
-    def is_set(self, key: str) -> bool:
+    def is_same(self, other: WheelSegment) -> bool:
+        if self == other:
+            return True
+        if type(self) != type(other):
+            return False
+
+        for field in self.alias_to_field.values():
+            dc_self = self.get(field)
+            dc_other = self.get(field)
+            if dc_self is None and dc_other is None:
+                continue
+            if dc_self is None or dc_other is None:
+                return False
+            if not dc_self.is_same(dc_other):
+                return False
+        return True
+
+    def is_set(self, key: str|DialecticalComponent) -> bool:
         """
         True if the given field/alias exists **and** its value is not ``None``.
         >>> ws = WheelSegment()
         >>> ws.is_set("T")
         >>> ws.is_set("t")
         """
-        return self.get(key, None) is not None
+        if isinstance(key, DialecticalComponent):
+            return any(
+                getattr(self, field).is_same(key)
+                for field in self.alias_to_field.values()
+                if getattr(self, field) is not None
+            ) or self.get(key.alias, None) is not None
+        else:
+            return self.get(key, None) is not None
 
     def get(
         self, key: str, default: object | None = None
@@ -63,8 +87,9 @@ class WheelSegment(BaseModel):
         >>> ws.get("T")      # by alias
         """
         field_name: str = self.alias_to_field.get(key, key)
-        if field_name in self.__pydantic_fields__:
-            return getattr(self, field_name)
+        if hasattr(self, field_name):
+            value = getattr(self, field_name)
+            return value if value is not None else default
         return default
 
     @property
