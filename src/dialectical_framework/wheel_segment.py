@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 from pydantic import ConfigDict, Field
+from pydantic.fields import FieldInfo
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 
@@ -37,6 +38,14 @@ class WheelSegment(BaseModel):
         description="The positive side of the thesis: T+",
         alias=ALIAS_T_PLUS,
     )
+
+    def _get_dialectical_fields(self) -> dict[str, FieldInfo]:
+        """Get only fields that contain DialecticalComponent instances and have aliases."""
+        return {
+            field_name: field_info
+            for field_name, field_info in self.__pydantic_fields__.items()
+            if hasattr(field_info, 'alias') and field_info.alias is not None
+        }
 
     def is_complete(self):
         return all(v is not None for v in self.model_dump(exclude_none=False).values())
@@ -96,14 +105,14 @@ class WheelSegment(BaseModel):
     def field_to_alias(self) -> dict[str, str]:
         return {
             field_name: field_info.alias
-            for field_name, field_info in self.__pydantic_fields__.items()
+            for field_name, field_info in self._get_dialectical_fields().items()
         }
 
     @property
     def alias_to_field(self) -> dict[str, str]:
         return {
             field_info.alias: field_name
-            for field_name, field_info in self.__pydantic_fields__.items()
+            for field_name, field_info in self._get_dialectical_fields().items()
         }
 
     def dialectical_component_copy_from(

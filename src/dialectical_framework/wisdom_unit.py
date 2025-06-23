@@ -17,6 +17,11 @@ class WisdomUnit(WheelSegment):
     However, it's flexible that the fields can be set by the field name or by alias.
     """
 
+    reasoning_strategy: str = Field(
+        default="default",
+        description="The type of dialectical reasoning strategy used to construct this wisdom unit (e.g., 'General Concepts' = default, 'Problem/Solution', 'Action Plan/Steps')",
+    )
+
     a_plus: DialecticalComponent | None = Field(
         default=None,
         description="The positive side of the antithesis: A+",

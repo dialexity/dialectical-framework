@@ -20,12 +20,12 @@ class Cycle(BaseModel):
     reasoning_explanation: str = Field(default="", description="Explanation why/how this cycle might occur.")
     argumentation: str = Field(default="", description="Circumstances or contexts where this cycle would be most applicable or useful.")
 
-    ring: DirectedGraph[TransitionCellToCell] = Field(default=None, description="Directed graph representing the cycle of dialectical components.")
+    graph: DirectedGraph[TransitionCellToCell] = Field(default=None, description="Directed graph representing the cycle of dialectical components.")
 
     def __init__(self, dialectical_components: List[DialecticalComponent],  **data):
         super().__init__(**data)
-        if self.ring is None:
-            self.ring = DirectedGraph[TransitionCellToCell]()
+        if self.graph is None:
+            self.graph = DirectedGraph[TransitionCellToCell]()
             for i in range(len(dialectical_components)):
                 next_i = (i + 1) % len(dialectical_components)
                 if self.causality_direction == "clockwise":
@@ -35,8 +35,9 @@ class Cycle(BaseModel):
                     source = dialectical_components[next_i]
                     target = dialectical_components[i]
 
-                self.ring.add_transition(TransitionCellToCell(
+                self.graph.add_transition(TransitionCellToCell(
                     source=source,
+                    predicate="causes",
                     target=target,
                     # TODO: how do we set the transition text?
                 ))
@@ -44,13 +45,13 @@ class Cycle(BaseModel):
     @property
     def dialectical_components(self) -> List[DialecticalComponent]:
         """Returns list of dialectical components from the first path of the ring."""
-        path = self.ring.first_path()
+        path = self.graph.first_path()
         return [transition.source for transition in path] if path else []
 
     def pretty(self, *, skip_dialectical_component_explanation = False,  start_alias: str | DialecticalComponent  | None = None) -> str:
-        output = [self.ring.pretty() + f" | Probability: {self.probability}"]
+        output = [self.graph.pretty() + f" | Probability: {self.probability}"]
 
-        path = self.ring.first_path(start_aliases=[start_alias] if start_alias else None)
+        path = self.graph.first_path(start_aliases=[start_alias] if start_alias else None)
         if not path:
             raise ValueError(
                 f"No path found between {start_alias} and the first dialectical component in the cycle."

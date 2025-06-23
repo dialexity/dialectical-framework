@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Union
+from typing import List, Union, Literal
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -13,10 +13,16 @@ class Transition(BaseModel):
         extra="forbid",
     )
 
+
     source_aliases: List[str] = Field(default_factory=list, description="Aliases of the source segment of the wheel.")
     source: Union[WheelSegment, DialecticalComponent] = Field(description="Source segment of the wheel or dialectical component.")
     target_aliases: List[str] = Field(default_factory=list, description="Aliases of the target segment of the wheel.")
     target: Union[WheelSegment, DialecticalComponent] = Field(description="Target segment of the wheel or dialectical component.")
+
+    predicate: Literal["causes", "constructively_converges_to", "transforms_to"] = Field(
+        ...,
+        description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
+    )
 
     text: str | None = Field(default=None, description="The useful summary of the transition.")
 

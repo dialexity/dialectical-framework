@@ -85,6 +85,8 @@ class ThinkActionReflection(StrategicConsultant):
 
             source=self._wisdom_unit.extract_segment_t(),
             target=self._wisdom_unit.extract_segment_a(),
+
+            predicate="transforms_to",
         )
 
         return self._transition

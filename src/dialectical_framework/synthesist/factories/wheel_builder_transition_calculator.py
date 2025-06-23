@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import List, Self, Dict, Union
+from typing import List, Dict, Union
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
@@ -119,9 +119,5 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
             wheel.spiral.graph.add_transition(new_a_to_t)
         else:
             wheel.spiral.graph.add_transition(transition)
-
-    @classmethod
-    def load(cls, *, text: str, config: ConfigWheelBuilder = None, wheels: List[Wheel] = None) -> Self:
-        return cls(super().load(text=text, config=config, wheels=wheels))
 
 
