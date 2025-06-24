@@ -1,10 +1,16 @@
 import asyncio
 
+import pytest
 from langfuse.decorators import observe
 from pydantic import BaseModel
 
+from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
+from dialectical_framework.synthesist.factories.decorator_action_reflection import DecoratorActionReflection
+from dialectical_framework.synthesist.factories.decorator_discrete_spiral import DecoratorDiscreteSpiral
+from dialectical_framework.synthesist.factories.decorator_reciprocal_solution import DecoratorReciprocalSolution
+from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.reason_blind import ReasonBlind
 from dialectical_framework.synthesist.reason_conversational import \
     ReasonConversational
@@ -12,9 +18,27 @@ from dialectical_framework.synthesist.reason_fast import ReasonFast
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
 from dialectical_framework.synthesist.think_reciprocal_solution import ThinkReciprocalSolution
+from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
+from tests.test_analyst import user_message
 
-user_message = "There she goes, just walking down the street, singing doo-wah-diddy-diddy-dum-diddy-do."
+wbc = ConfigWheelBuilder(component_length=7)
+factory = WheelBuilder(
+    config=wbc,
+    text=user_message,
+)
+
+@pytest.mark.asyncio
+@observe()
+async def test_full_blown_wheel():
+    factory1 = DecoratorDiscreteSpiral(DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory)))
+    wheels = await factory1.build_wheel_permutations(theses=[None, None])
+    assert wheels[0].order == 2
+
+    await factory1.calculate_transitions(wheels[0])
+
+    print("\n")
+    print(wheels[0])
 
 
 @observe()
@@ -145,8 +169,12 @@ def test_reciprocal_solution():
         a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
     )
 
-    reasoner = ThinkReciprocalSolution(user_message, wisdom_unit=wu)
-    transition = asyncio.run(reasoner.think())
+    reasoner = ThinkReciprocalSolution(user_message, wheel=Wheel(
+        wu,
+        t_cycle=Cycle(dialectical_components=[wu.t]),
+        ta_cycle=Cycle(dialectical_components=[wu.t, wu.a])
+    ))
+    transition = asyncio.run(reasoner.think(focus=wu))
     assert not transition.action_reflection
     assert transition.reciprocal_solution
     print("\n")

@@ -5,6 +5,7 @@ from pydantic import Field, ConfigDict
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.directed_graph import DirectedGraph
+from dialectical_framework.synthesist.dialectical_reasoner import CausalityType
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 
 
@@ -14,6 +15,7 @@ class Cycle(BaseModel):
         arbitrary_types_allowed=True,
     )
 
+    causality_type: CausalityType = Field(..., description="The type of causality in the cycle.")
     causality_direction: Literal["clockwise", "counterclockwise"] = Field(default="clockwise", description="The direction of causality in the ring.")
 
     probability: float = Field(default=0, description="The probability 0 to 1 of the cycle to exist in reality.")
@@ -22,7 +24,8 @@ class Cycle(BaseModel):
 
     graph: DirectedGraph[TransitionCellToCell] = Field(default=None, description="Directed graph representing the cycle of dialectical components.")
 
-    def __init__(self, dialectical_components: List[DialecticalComponent],  **data):
+    def __init__(self, dialectical_components: List[DialecticalComponent], causality_type: CausalityType = CausalityType.REALISTIC, **data):
+        data["causality_type"] = causality_type
         super().__init__(**data)
         if self.graph is None:
             self.graph = DirectedGraph[TransitionCellToCell]()
@@ -41,7 +44,7 @@ class Cycle(BaseModel):
                     target=target,
                     # TODO: how do we set the transition text?
                 ))
-    
+
     @property
     def dialectical_components(self) -> List[DialecticalComponent]:
         """Returns list of dialectical components from the first path of the ring."""

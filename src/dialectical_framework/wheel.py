@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Union
+from typing import List, Union, Dict
 
 from tabulate import tabulate
 
@@ -8,7 +8,7 @@ from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.spiral import Spiral
 from dialectical_framework.wheel_segment import WheelSegment
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.wisdom_unit import WisdomUnit, DialecticalReasoningMode
 
 WheelSegmentReference = Union[int, WheelSegment, str, DialecticalComponent]
 
@@ -46,6 +46,15 @@ class Wheel:
             return self._wisdom_units[0]
         else:
             raise ValueError("The wheel is empty.")
+
+    @property
+    def wisdom_units_grouped_by_reasoning_mode(self) -> Dict[DialecticalReasoningMode, List[WisdomUnit]]:
+        grouped_units = {}
+        for wu in self._wisdom_units:
+            if wu.reasoning_mode not in grouped_units:
+                grouped_units[wu.reasoning_mode] = []
+            grouped_units[wu.reasoning_mode].append(wu)
+        return grouped_units
 
     def is_set(self, s: str|DialecticalComponent|WheelSegment) -> bool:
         try:
@@ -134,9 +143,9 @@ class Wheel:
             total_segments = self.degree
             if i < 0 or i >= total_segments:
                 raise IndexError(f"index {i} out of range for wheel of {total_segments} segments")
-            wu_index = i // 2
+            wu_index = i % self.order
             wu = self.wisdom_units[wu_index]
-            return wu.extract_segment_t() if i % 2 == 0 else wu.extract_segment_a()
+            return wu.extract_segment_t() if i < self.order else wu.extract_segment_a()
         elif isinstance(i, str) or isinstance(i, DialecticalComponent) :
             for wu in self.wisdom_units:
                 if wu.is_set(i):
@@ -210,6 +219,16 @@ class Wheel:
     @property
     def spiral(self) -> Spiral:
         return self._spiral
+
+    def index_of(self, ws: WheelSegment) -> int:
+        for i, wu in enumerate(self._wisdom_units):
+            if wu.extract_segment_t().is_same(ws):
+                return i
+            if wu.extract_segment_a().is_same(ws):
+                return i + self.order
+        # Should never happen
+        return -1
+
 
     def __str__(self):
         main_segment = self.main_wisdom_unit

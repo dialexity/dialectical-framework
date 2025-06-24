@@ -49,14 +49,6 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         if wheel not in self.wheel_permutations:
             raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
 
-        async def iterate_wisdom_units(wisdom_units: List[WisdomUnit]):
-            for wisdom_unit in wisdom_units:
-                if hasattr(self.decorated_builder, 'calculate_transitions'):
-                    await self.decorated_builder.calculate_transitions(wheel=wheel, at=wisdom_unit)
-                # This is for subclasses to implement
-                tr_i =  await self._do_calculate_transition(wheel=wheel, at=wisdom_unit)
-                self._take_transition(wheel=wheel, transition=tr_i)
-
         if at is None:
             # Calculate for each
             if hasattr(self.decorated_builder, 'calculate_transitions'):
@@ -67,17 +59,18 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
                 self._take_transition(wheel=wheel, transition=tr)
         elif isinstance(at, list):
             # Calculate for some
-            wus = []
             for ref in at:
-                wus.append(wheel.wisdom_unit_at(ref))
-            await iterate_wisdom_units(wus)
+                if hasattr(self.decorated_builder, 'calculate_transitions'):
+                    await self.decorated_builder.calculate_transitions(wheel=wheel, at=ref)
+                # This is for subclasses to implement
+                tr_i = await self._do_calculate_transition(wheel=wheel, at=ref)
+                self._take_transition(wheel=wheel, transition=tr_i)
         else:
             # Calculate for one
-            wu = wheel.wisdom_unit_at(at)
             if hasattr(self.decorated_builder, 'calculate_transitions'):
-                await self.decorated_builder.calculate_transitions(wheel=wheel, at=wu)
+                await self.decorated_builder.calculate_transitions(wheel=wheel, at=at)
             # This is for subclasses to implement
-            tr = await self._do_calculate_transition(wheel=wheel, at=wu)
+            tr = await self._do_calculate_transition(wheel=wheel, at=at)
             self._take_transition(wheel=wheel, transition=tr)
 
     @abstractmethod

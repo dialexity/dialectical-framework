@@ -9,6 +9,7 @@ from dialectical_framework.ai_structured_data.causal_cycles_deck import CausalCy
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.synthesist.dialectical_reasoner import CausalityType
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -75,7 +76,9 @@ class ThoughtMapping:
         
         <formatting>
         Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T1", "T+", "A-", "Ac", "Re", etc.
-        </formatting> 
+        </formatting>
+        
+        2 theses are obligatory. No more, no less.
         """
     )
     def prompt_thesis2(self, text, component_length: int) -> Messages.Type: ...
@@ -93,6 +96,8 @@ class ThoughtMapping:
         <formatting>
         Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T1", "T+", "A-", "Ac", "Re", etc.
         </formatting> 
+        
+        3 theses are obligatory. No more, no less.
         """
     )
     def prompt_thesis3(self, text, component_length: int) -> Messages.Type: ...
@@ -116,6 +121,8 @@ class ThoughtMapping:
         <formatting>
         Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T1", "T+", "A-", "Ac", "Re", etc.
         </formatting> 
+        
+        4 theses are obligatory. No more, no less.
         """
     )
     def prompt_thesis4(self, text, component_length: int) -> Messages.Type: ...
@@ -161,15 +168,33 @@ class ThoughtMapping:
                 for p in permutations(rest)
                 )
 
+        # TODO: estimation by causality type
+        """
+        Most Realistic (what typically happens)
+        a) Which of the following circular causality sequences is the most realistic (what typically happens in natural systems):
+        b) For each sequence: 1) Estimate the numeric probability (0 to 1) regarding its realistic existence in natural/existing systems
+        Most Desirable (optimal outcomes, maximum result)
+        a) Which of the following circular causality sequences is the most desirable (would produce optimal outcomes and maximum results):
+        b) For each sequence: 1) Estimate the numeric probability (0 to 1) regarding how beneficial/optimal this sequence would be if implemented
+        Most Feasible (achievable implementation, minimum resistance)
+        a) Which of the following circular causality sequences is the most feasible (most achievable with minimum resistance):
+        b) For each sequence: 1) Estimate the numeric probability (0 to 1) regarding how easily this sequence could be implemented given current constraints
+        Balanced Assessment (considers all factors)
+        a) Which of the following circular causality sequences provides the best balanced assessment (considering realism, desirability, and feasibility):
+        b) For each sequence: 1) Estimate the numeric probability (0 to 1) as a balanced assessment considering realistic existence, optimal outcomes, and implementation feasibility
+        This approach gives you four distinct prompts that can be selected based on the user's chosen evaluation criteria, each focusing the analysis on a different dimension while maintaining the same overall structure.
+        """
+
+
         prompt_messages.append(
             Messages.User(
-            "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
+            "Which of the following circular causality sequences is the most realistic, i.e. what typically happens in natural systems, (given that the final step cycles back to the first step):"
             
             f"\n\n{sequences}\n\n" +
 
             inspect.cleandoc("""
             For each sequence:
-            1) Estimate the numeric probability (0 to 1) regarding its realistic existence
+            1) Estimate the numeric probability (0 to 1) regarding its realistic existence in natural/existing systems
             1) Explain why this sequence might occur in reality
             3) Describe circumstances or contexts where this sequence would be most applicable or useful
             
@@ -242,15 +267,16 @@ class ThoughtMapping:
                 " → ".join(seq + [seq[0]]) + "..." for seq in raw_sequences
             )
 
+        # TODO: this is duplication, refactor
         prompt_messages.append(
             Messages.User(
-                "Which of the following circular causality sequences is the most realistic (given that the final step cycles back to the first step):"
+                "Which of the following circular causality sequences is the most realistic, i.e. what typically happens in natural systems, (given that the final step cycles back to the first step):"
 
                 f"\n\n{sequences}\n\n" +
 
                 inspect.cleandoc("""
                 For each sequence:
-                1) Estimate the numeric probability (0 to 1) regarding its realistic existence
+                1) Estimate the numeric probability (0 to 1) regarding its realistic existence in natural/existing systems
                 2) Explain why this sequence might occur in reality
                 3) Describe circumstances or contexts where this sequence would be most applicable or useful
 
@@ -284,7 +310,8 @@ class ThoughtMapping:
         if thoughts == 1:
             return [Cycle(
                 dialectical_components=[await self.find_thesis1()],
-                probability=1.0,
+                causality_type=CausalityType.REALISTIC,
+                probability=1.0
             )]
         elif thoughts == 2:
             prompt_stuff = self.prompt_thesis2(text=self._text, component_length=self._component_length)
@@ -301,12 +328,11 @@ class ThoughtMapping:
         causal_cycles_box = await self.find_sequencing1(previous_prompt_stuff=prompt_stuff, box=box)
         cycles: list[Cycle] = []
         for causal_cycle in causal_cycles_box.causal_cycles:
-            cycles.append(Cycle(
-                dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
-                probability=causal_cycle.probability,
-                reasoning_explanation=causal_cycle.reasoning_explanation,
-                argumentation=causal_cycle.argumentation
-            ))
+            cycles.append(Cycle(dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
+                                causality_type=CausalityType.REALISTIC,
+                                probability=causal_cycle.probability,
+                                reasoning_explanation=causal_cycle.reasoning_explanation,
+                                argumentation=causal_cycle.argumentation))
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
@@ -328,6 +354,7 @@ class ThoughtMapping:
                 return [Cycle(
                     dialectical_components=thoughts,
                     probability=1.0,
+                    causality_type=CausalityType.REALISTIC,
                 )]
             else:
                 return [Cycle(
@@ -335,6 +362,7 @@ class ThoughtMapping:
                         DialecticalComponent.from_str(alias="T", statement=thoughts[0], explanation="Provided as string.")
                     ],
                     probability=1.0,
+                    causality_type=CausalityType.REALISTIC,
                 )]
         elif len(thoughts) == 2:
             prompt_stuff = self.prompt_thesis2(text=self._text, component_length=self._component_length)
@@ -372,35 +400,28 @@ class ThoughtMapping:
         causal_cycles_box = await self.find_sequencing1(previous_prompt_stuff=prompt_stuff, box=box)
         cycles: list[Cycle] = []
         for causal_cycle in causal_cycles_box.causal_cycles:
-            cycles.append(Cycle(
-                dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
-                probability=causal_cycle.probability,
-                reasoning_explanation=causal_cycle.reasoning_explanation,
-                argumentation=causal_cycle.argumentation
-            ))
+            cycles.append(Cycle(dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
+                                causality_type=CausalityType.REALISTIC,
+                                probability=causal_cycle.probability,
+                                reasoning_explanation=causal_cycle.reasoning_explanation,
+                                argumentation=causal_cycle.argumentation))
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
     async def __arrange_wisdom_units(self, ordered_wisdom_units: List[WisdomUnit]) -> List[Cycle]:
         thoughts = len(ordered_wisdom_units)
         if thoughts == 1:
-            return [Cycle(
-                dialectical_components=[
-                    ordered_wisdom_units[0].t,
-                    ordered_wisdom_units[0].a,
-                ],
-                probability=1.0,
-            )]
+            return [Cycle(dialectical_components=[
+                ordered_wisdom_units[0].t,
+                ordered_wisdom_units[0].a,
+            ], probability=1.0, causality_type=CausalityType.REALISTIC)]
         elif thoughts == 2:
-            return [Cycle(
-                dialectical_components=[
-                    ordered_wisdom_units[0].t,
-                    ordered_wisdom_units[1].t,
-                    ordered_wisdom_units[0].a,
-                    ordered_wisdom_units[1].a,
-                ],
-                probability=1.0,
-            )]
+            return [Cycle(dialectical_components=[
+                ordered_wisdom_units[0].t,
+                ordered_wisdom_units[1].t,
+                ordered_wisdom_units[0].a,
+                ordered_wisdom_units[1].a,
+            ], probability=1.0, causality_type=CausalityType.REALISTIC)]
         elif thoughts == 3:
             prompt_stuff = self.prompt_thesis3(text=self._text, component_length=self._component_length)
             box = DialecticalComponentsDeck(dialectical_components=[
@@ -429,12 +450,11 @@ class ThoughtMapping:
         causal_cycles_box = await self.find_sequencing2(previous_prompt_stuff=prompt_stuff, ordered_wisdom_units=ordered_wisdom_units)
         cycles: list[Cycle] = []
         for causal_cycle in causal_cycles_box.causal_cycles:
-            cycles.append(Cycle(
-                dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
-                probability=causal_cycle.probability,
-                reasoning_explanation=causal_cycle.reasoning_explanation,
-                argumentation=causal_cycle.argumentation
-            ))
+            cycles.append(Cycle(dialectical_components=box.get_sorted_by_example(causal_cycle.aliases),
+                                causality_type=CausalityType.REALISTIC,
+                                probability=causal_cycle.probability,
+                                reasoning_explanation=causal_cycle.reasoning_explanation,
+                                argumentation=causal_cycle.argumentation))
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 

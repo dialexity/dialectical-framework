@@ -7,8 +7,8 @@ from dialectical_framework.dialectical_components_deck import DialecticalCompone
 from dialectical_framework.symmetrical_transition import SymmetricalTransition, ALIAS_AC, ALIAS_AC_PLUS, ALIAS_AC_MINUS, \
     ALIAS_RE, ALIAS_RE_PLUS, ALIAS_RE_MINUS
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
-from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
-from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS
+from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
+from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, DialecticalReasoningMode
 
 
 class ThinkActionReflection(StrategicConsultant):
@@ -39,17 +39,18 @@ class ThinkActionReflection(StrategicConsultant):
     </formatting>
     """
     )
-    def prompt(self, text: str) -> Messages.Type:
+    def prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
+        # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": self._wisdom_unit.pretty(),
+                "dialectical_analysis": focus.pretty(),
                 "component_length": self._component_length,
             }
         }
 
     @with_langfuse()
-    async def action_reflection(self):
+    async def action_reflection(self, focus: WisdomUnit):
         overridden_ai_provider, overridden_ai_model = self._brain.specification()
         if overridden_ai_provider == "bedrock":
             # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
@@ -62,14 +63,15 @@ class ThinkActionReflection(StrategicConsultant):
             response_model=DialecticalComponentsDeck,
         )
         def _action_reflection_call() -> DialecticalComponentsDeck:
-            return self.prompt(self._text)
+            return self.prompt(self._text, focus=focus)
 
         return _action_reflection_call()
 
-    async def think(self) -> SymmetricalTransition:
-        # TODO: take provided action into account, now it's ignored
-        ac_re_wu = WisdomUnit()
-        dc: DialecticalComponentsDeck = await self.action_reflection()
+    async def think(self, focus: WheelSegment) -> SymmetricalTransition:
+        wu = self._wheel.wisdom_unit_at(focus)
+
+        ac_re_wu = WisdomUnit(reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION)
+        dc: DialecticalComponentsDeck = await self.action_reflection(focus=wu)
         for d in dc.dialectical_components:
             alias = self._translate_to_canonical_alias(d.alias)
             setattr(ac_re_wu, alias, d)
@@ -77,14 +79,14 @@ class ThinkActionReflection(StrategicConsultant):
         self._transition = SymmetricalTransition(
             action_reflection=ac_re_wu,
 
-            source_aliases=[self._wisdom_unit.t.alias],
-            target_aliases=[self._wisdom_unit.a.alias],
+            source_aliases=[wu.t.alias],
+            target_aliases=[wu.a.alias],
 
-            opposite_source_aliases=[self._wisdom_unit.a.alias],
-            opposite_target_aliases=[self._wisdom_unit.t.alias],
+            opposite_source_aliases=[wu.a.alias],
+            opposite_target_aliases=[wu.t.alias],
 
-            source=self._wisdom_unit.extract_segment_t(),
-            target=self._wisdom_unit.extract_segment_a(),
+            source=wu.extract_segment_t(),
+            target=wu.extract_segment_a(),
 
             predicate="transforms_to",
         )

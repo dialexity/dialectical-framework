@@ -158,7 +158,7 @@ class ReasonFast(DialecticalReasoner):
             return self.prompt_wu(text=self._text)
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
-        wu = WisdomUnit()
+        wu = WisdomUnit(reasoning_mode=self._mode)
 
         if thesis is not None:
             if isinstance(thesis, DialecticalComponent):

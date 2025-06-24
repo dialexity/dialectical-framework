@@ -58,7 +58,7 @@ class WheelSegment(BaseModel):
 
         for field in self.alias_to_field.values():
             dc_self = self.get(field)
-            dc_other = self.get(field)
+            dc_other = other.get(field)
             if dc_self is None and dc_other is None:
                 continue
             if dc_self is None or dc_other is None:

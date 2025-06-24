@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.transition import Transition
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.wheel import Wheel
+from dialectical_framework.wheel_segment import WheelSegment
 
 
 class StrategicConsultant(ABC):
@@ -11,11 +12,11 @@ class StrategicConsultant(ABC):
         text: str,
         *,
         config: ConfigWheelBuilder = None,
-        wisdom_unit: WisdomUnit
+        wheel: Wheel,
     ):
         # TODO: one wisdom unit isn't enough, it should be actually based on the wheel, not on the wisdom unit
         self._text = text
-        self._wisdom_unit = wisdom_unit
+        self._wheel = wheel
 
         if config is None:
             config = ConfigWheelBuilder(
@@ -28,7 +29,7 @@ class StrategicConsultant(ABC):
         self._transition = None
 
     @abstractmethod
-    async def think(self) -> Transition: ...
+    async def think(self, focus: WheelSegment) -> Transition: ...
     """
     The main method of the class. It should return a Transition to the next WisdomUnit.
     This Transition must be saved into the current instance. 

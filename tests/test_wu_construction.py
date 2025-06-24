@@ -1,6 +1,6 @@
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.wisdom_unit import WisdomUnit
 from dialectical_framework.wheel_segment import ALIAS_T
+from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 def test_wu_construction():

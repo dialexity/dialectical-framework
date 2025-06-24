@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from enum import Enum
+
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -9,6 +11,10 @@ ALIAS_A = "A"
 ALIAS_A_PLUS = "A+"
 ALIAS_A_MINUS = "A-"
 
+class DialecticalReasoningMode(str, Enum):
+    GENERAL_CONCEPTS = "general_concepts"
+    MAJOR_TENSION = "major_tension"
+    ACTION_REFLECTION = "action_reflection"
 
 class WisdomUnit(WheelSegment):
     """
@@ -17,8 +23,8 @@ class WisdomUnit(WheelSegment):
     However, it's flexible that the fields can be set by the field name or by alias.
     """
 
-    reasoning_strategy: str = Field(
-        default="default",
+    reasoning_mode: DialecticalReasoningMode = Field(
+        default_factory=lambda : DialecticalReasoningMode.GENERAL_CONCEPTS,
         description="The type of dialectical reasoning strategy used to construct this wisdom unit (e.g., 'General Concepts' = default, 'Problem/Solution', 'Action Plan/Steps')",
     )
 

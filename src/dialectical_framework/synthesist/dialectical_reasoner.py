@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from enum import Enum
 
 from mirascope import BaseMessageParam, Messages, llm, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -15,10 +18,18 @@ from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_valid_opposition, check)
 from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                               ALIAS_A_PLUS, WisdomUnit)
+                                               ALIAS_A_PLUS, WisdomUnit, DialecticalReasoningMode)
 
+
+class CausalityType(str, Enum):
+    REALISTIC = "realistic"
+    DESIRABLE = "desirable"
+    FEASIBLE = "feasible"
+    BALANCED = "balanced"
 
 class DialecticalReasoner(ABC):
+    _mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
+
     def __init__(
         self,
         text: str,
@@ -325,7 +336,7 @@ class DialecticalReasoner(ABC):
         return _find_next_call()
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
-        wu = WisdomUnit()
+        wu = WisdomUnit(reasoning_mode=self._mode)
 
         if thesis is not None:
             if isinstance(thesis, DialecticalComponent):
@@ -400,7 +411,7 @@ class DialecticalReasoner(ABC):
             if k in WisdomUnit.__pydantic_fields__
         }
 
-        new_wu: WisdomUnit = WisdomUnit()
+        new_wu: WisdomUnit = WisdomUnit(reasoning_mode=original.reasoning_mode)
 
         # ==
         # Redefine opposition
@@ -664,5 +675,3 @@ class DialecticalReasoner(ABC):
     @brain.setter
     def brain(self, brain: Brain):
         self._brain = brain
-
-

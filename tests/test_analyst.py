@@ -3,14 +3,17 @@ from typing import List
 
 import pytest
 from langfuse.decorators import observe
+from mirascope import prompt_template, llm
+from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.analyst.thought_mapping import ThoughtMapping
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.factories.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.synthesist.factories.decorator_reciprocal_solution import DecoratorReciprocalSolution
+from dialectical_framework.synthesist.factories.reverse_engineering import ReverseEngineering
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -55,6 +58,48 @@ factory = WheelBuilder(
     config=wbc,
     text=user_message,
 )
+
+
+@pytest.mark.asyncio
+@observe()
+async def test_reverse_engineering():
+    tm: ThoughtMapping = ThoughtMapping(
+        user_message,
+        config=wbc,
+    )
+    t_cycles = await tm.arrange([
+        example_wu1.t.statement,
+        example_wu2.t.statement,
+    ])
+    ta_cycles = await tm.arrange([example_wu1, example_wu2])
+    w = Wheel([example_wu1, example_wu2],
+              t_cycle=t_cycles[0],
+              ta_cycle=ta_cycles[0]
+              )
+
+    provider, model = wbc.brain.specification()
+    @with_langfuse()
+    @llm.call(provider=provider, model=model)
+    @prompt_template(
+    """
+    MESSAGES:
+    {wheel_construction}
+    
+    USER:
+    Summarize the whole analysis
+    """)
+    def summarize():
+        return {
+            "computed_fields": {
+                "wheel_construction" : ReverseEngineering.wheel(w, text=user_message),
+            }
+        }
+
+    # Call and get the result
+    result = summarize()
+    print("\n")
+    print(result)
+
 
 @pytest.mark.asyncio
 @observe()

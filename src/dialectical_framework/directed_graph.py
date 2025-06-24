@@ -247,11 +247,12 @@ class DirectedGraph(Generic[T]):
             for i, transition in enumerate(path):
                 if current_str is None:
                     current_str = f"{transition.source_aliases}"
-                if i == len(path) - 1 and tuple(transition.target_aliases) == tuple(path[0].source_aliases):
+                if i == len(path) - 1 and i != 1 and tuple(transition.target_aliases) == tuple(path[0].source_aliases):
                     # Skip last node if it equals the first node (completing the cycle)
                     continue
                 current_str += f" -> {transition.target_aliases}"
             paths_pieces.append(current_str)
         return "\n".join(paths_pieces) if paths_pieces else "<empty>"
+
     def __str__(self):
         return self.pretty()

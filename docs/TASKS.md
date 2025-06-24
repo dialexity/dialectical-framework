@@ -1,7 +1,10 @@
 # Todo:
-[] Add index (numbering) to wheel segments, now we derive it from alias
 
 [] Transition decorator for constructive transformations (discrete spiral)
+
+[] Multiple cycles by CausalityType on a wheel
+
+[] Add index (numbering) to wheel segments, now we derive it from alias
 
 [] Fake the history of messages, when it's a multi-step stuff
 

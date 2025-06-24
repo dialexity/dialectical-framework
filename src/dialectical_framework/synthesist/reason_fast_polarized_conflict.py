@@ -1,9 +1,11 @@
 from mirascope import Messages, prompt_template
 
+from dialectical_framework.wisdom_unit import DialecticalReasoningMode
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 
 
 class ReasonFastPolarizedConflict(ReasonFastAndSimple):
+    _mode = DialecticalReasoningMode.MAJOR_TENSION
 
     @prompt_template(
     """

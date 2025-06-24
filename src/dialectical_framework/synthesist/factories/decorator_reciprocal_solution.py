@@ -11,15 +11,14 @@ from dialectical_framework.wheel_segment import WheelSegment
 
 class DecoratorReciprocalSolution(WheelBuilderTransitionCalculator):
     async def _do_calculate_transition(self, wheel: Wheel, at: WheelSegment) -> SymmetricalTransition:
-        wu = wheel.wisdom_unit_at(at)
 
         consultant = ThinkReciprocalSolution(
             text=self.text,
             config=self.config,
-            wisdom_unit=wu,
+            wheel=wheel,
         )
 
-        return await consultant.think()
+        return await consultant.think(focus=at)
 
     async def _do_calculate_transitions_all(self, wheel: Wheel) -> List[TransitionSegmentToSegment]:
         result: List[TransitionSegmentToSegment] = []
