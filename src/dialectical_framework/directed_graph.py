@@ -1,8 +1,7 @@
 from typing import Dict, Tuple, List, overload, TypeVar, Generic, Union, Callable
-from typing import Literal
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.transition import Transition
+from dialectical_framework.transition import Transition, Predicate
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.wheel_segment import WheelSegment
 
@@ -130,7 +129,7 @@ class DirectedGraph(Generic[T]):
     def traverse_dfs_with_paths(self,
                                 start_aliases: AliasInput | None = None,
                                 visit_callback: Callable[[List[T], bool], None] | None = None,
-                                predicate_filter: Literal["causes", "constructively_converges_to", "transforms_to"] | None = None) -> List[List[T]]:
+                                predicate_filter: Predicate | None = None) -> List[List[T]]:
         """
         Traverse all possible paths in the graph, detecting circles per path.
         Returns all complete paths found.
@@ -162,7 +161,7 @@ class DirectedGraph(Generic[T]):
             all_transitions = self.get_all_transitions()
         
             for transition in all_transitions:
-                if (transition.predicate == "constructively_converges_to" and
+                                if (transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO and
                     _can_connect_constructively(current_target_aliases, transition.source_aliases)):
                     constructive_transitions.append(transition)
         
@@ -185,7 +184,7 @@ class DirectedGraph(Generic[T]):
             current_key = frozenset(current_aliases)
 
             # Check for cycle based on predicate type
-            if current_predicate == "constructively_converges_to":
+            if current_predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
                 # For constructive convergence, check segment-level overlap
                 if _would_create_constructive_cycle(current_aliases, visited_in_path):
                     # Found a cycle in this path - record the path up to this point
@@ -206,7 +205,7 @@ class DirectedGraph(Generic[T]):
             new_visited = visited_in_path | {current_key}
 
             # Get transitions based on predicate type
-            if current_predicate == "constructively_converges_to":
+            if current_predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
                 # For constructive convergence, find transitions that can connect at segment level
                 transitions = _find_constructive_transitions(current_aliases)
             else:
@@ -237,7 +236,7 @@ class DirectedGraph(Generic[T]):
                 next_predicate = current_predicate if current_predicate is not None else transition.predicate
 
                 # Check if target would create a cycle based on predicate type
-                if next_predicate == "constructively_converges_to":
+                if next_predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
                     # For constructive convergence, check segment-level cycle
                     if _would_create_constructive_cycle(transition.target_aliases, new_visited):
                         # This transition would create a cycle, record the path including this transition

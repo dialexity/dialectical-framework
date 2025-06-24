@@ -6,6 +6,7 @@ from pydantic import Field, ConfigDict
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.synthesist.dialectical_reasoner import CausalityType
+from dialectical_framework.transition import Predicate
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 
 
@@ -40,7 +41,7 @@ class Cycle(BaseModel):
 
                 self.graph.add_transition(TransitionCellToCell(
                     source=source,
-                    predicate="causes",
+                    predicate=Predicate.CAUSES,
                     target=target,
                     # TODO: how do we set the transition text?
                 ))

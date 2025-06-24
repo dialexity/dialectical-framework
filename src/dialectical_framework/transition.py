@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-from typing import List, Union, Literal
+from enum import Enum
+from typing import List, Union
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.wheel_segment import WheelSegment
+
+
+class Predicate(str, Enum):
+    CAUSES = "causes"
+    CONSTRUCTIVELY_CONVERGES_TO = "constructively_converges_to"
+    TRANSFORMS_TO = "transforms_to"
 
 
 class Transition(BaseModel):
@@ -18,7 +25,7 @@ class Transition(BaseModel):
     target_aliases: List[str] = Field(default_factory=list, description="Aliases of the target segment of the wheel.")
     target: Union[WheelSegment, DialecticalComponent] = Field(description="Target segment of the wheel or dialectical component.")
 
-    predicate: Literal["causes", "constructively_converges_to", "transforms_to"] = Field(
+    predicate: Predicate = Field(
         ...,
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
