@@ -13,7 +13,6 @@ class Transition(BaseModel):
         extra="forbid",
     )
 
-
     source_aliases: List[str] = Field(default_factory=list, description="Aliases of the source segment of the wheel.")
     source: Union[WheelSegment, DialecticalComponent] = Field(description="Source segment of the wheel or dialectical component.")
     target_aliases: List[str] = Field(default_factory=list, description="Aliases of the target segment of the wheel.")

@@ -30,6 +30,15 @@ factory = WheelBuilder(
 
 @pytest.mark.asyncio
 @observe()
+async def test_build_simple_wheel():
+    wheels = await factory.build_wheel_permutations(theses=[None])
+    assert wheels[0].order == 1
+
+    print("\n")
+    print(wheels[0])
+
+@pytest.mark.asyncio
+@observe()
 async def test_full_blown_wheel():
     factory1 = DecoratorDiscreteSpiral(DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory)))
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
