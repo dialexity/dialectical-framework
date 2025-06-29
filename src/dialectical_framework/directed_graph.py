@@ -161,7 +161,7 @@ class DirectedGraph(Generic[T]):
             all_transitions = self.get_all_transitions()
         
             for transition in all_transitions:
-                                if (transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO and
+                if (transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO and
                     _can_connect_constructively(current_target_aliases, transition.source_aliases)):
                     constructive_transitions.append(transition)
         
