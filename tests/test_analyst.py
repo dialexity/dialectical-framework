@@ -1,4 +1,3 @@
-import asyncio
 from typing import List
 
 import pytest
@@ -189,37 +188,41 @@ async def test_wheel_redefine():
     print("\n\n".join([w.__str__() for w in wheels]))
 
 
+@pytest.mark.asyncio
 @observe()
-def test_thought_mapping():
+async def test_thought_mapping():
     nr_of_thoughts = 3
     reasoner = ThoughtMapping(user_message)
-    cycles: List[Cycle] = asyncio.run(reasoner.extract(nr_of_thoughts))
+    cycles: List[Cycle] = await reasoner.extract(nr_of_thoughts)
     print("\n")
     for cycle in cycles:
         assert len(cycle.dialectical_components) == nr_of_thoughts
         print(cycle.pretty(skip_dialectical_component_explanation=True))
 
+@pytest.mark.asyncio
 @observe()
-def test_wheel_2():
-    wheels = asyncio.run(factory.build_wheel_permutations(theses=["", None]))
+async def test_wheel_2():
+    wheels = await factory.build_wheel_permutations(theses=["", None])
     assert len(wheels[0].wisdom_units) == 2
     assert wheels[0].cycle is not None
     print("\n")
     print(wheels[0])
 
+@pytest.mark.asyncio
 @observe()
-def test_wheel_3():
+async def test_wheel_3():
     number_of_thoughts = 3
-    wheels = asyncio.run(factory.build_wheel_permutations(theses=[None] * number_of_thoughts))
+    wheels = await factory.build_wheel_permutations(theses=[None] * number_of_thoughts)
     assert len(wheels[0].wisdom_units) == number_of_thoughts
     assert wheels[0].cycle is not None
     print("\n")
     print("\n\n".join(str(wheel) for wheel in wheels))
 
+@pytest.mark.asyncio
 @observe()
-def test_wheel_4():
+async def test_wheel_4():
     number_of_thoughts = 4
-    wheels = asyncio.run(factory.build_wheel_permutations(theses=[None] * number_of_thoughts))
+    wheels = await factory.build_wheel_permutations(theses=[None] * number_of_thoughts)
     assert len(wheels[0].wisdom_units) == number_of_thoughts
     assert wheels[0].cycle is not None
     print("\n")

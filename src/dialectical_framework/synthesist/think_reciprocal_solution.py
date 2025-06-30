@@ -5,6 +5,7 @@ from dialectical_framework.reciprocal_solution import ReciprocalSolution
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
 from dialectical_framework.transition import Predicate
+from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -68,22 +69,11 @@ class ThinkReciprocalSolution(StrategicConsultant):
         }
 
     @with_langfuse()
+    @use_brain(
+        response_model=ReciprocalSolution,
+    )
     async def reciprocal_solution(self, focus: WisdomUnit):
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=ReciprocalSolution,
-        )
-        def _reciprocal_solution_call() -> ReciprocalSolution:
-            return self.prompt(self._text, focus=focus)
-
-        return _reciprocal_solution_call()
+        return self.prompt(self._text, focus=focus)
 
     async def think(self, focus: WheelSegment) -> SymmetricalTransition:
         wu = self._wheel.wisdom_unit_at(focus)

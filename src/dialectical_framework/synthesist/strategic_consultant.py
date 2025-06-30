@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 
+from dialectical_framework.brain import Brain
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.transition import Transition
+from dialectical_framework.utils.use_brain import HasBrain
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
 
 
-class StrategicConsultant(ABC):
+class StrategicConsultant(ABC, HasBrain):
     def __init__(
         self,
         text: str,
@@ -28,9 +30,15 @@ class StrategicConsultant(ABC):
 
         self._transition = None
 
+
+
     @abstractmethod
     async def think(self, focus: WheelSegment) -> Transition: ...
     """
     The main method of the class. It should return a Transition to the next WisdomUnit.
     This Transition must be saved into the current instance. 
     """
+
+    @property
+    def brain(self) -> Brain:
+        return self._brain

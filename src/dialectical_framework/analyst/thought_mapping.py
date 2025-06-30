@@ -11,11 +11,12 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.dialectical_reasoner import CausalityType
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
+from dialectical_framework.utils.use_brain import use_brain, HasBrain
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 # TODO: needs heavy refactoring, this is quite dirty
-class ThoughtMapping:
+class ThoughtMapping(HasBrain):
     def __init__(
         self,
         text: str,
@@ -31,6 +32,10 @@ class ThoughtMapping:
 
         self._component_length = config.component_length
         self._brain = config.brain
+
+    @property
+    def brain(self):
+        return self._brain
 
     # TODO: this is duplication with dialectical_reasoner.py, refactor
     @prompt_template(
@@ -49,22 +54,9 @@ class ThoughtMapping:
     def prompt_thesis1(self, text: str, component_length: int) -> Messages.Type: ...
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponent,)
     async def find_thesis1(self) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponent,
-        )
-        def _find_thesis1_call() -> DialecticalComponent:
-            return self.prompt_thesis1(text=self._text, component_length=self._component_length)
-
-        return _find_thesis1_call()
+        return self.prompt_thesis1(text=self._text, component_length=self._component_length)
 
     @prompt_template(
         """
@@ -128,22 +120,9 @@ class ThoughtMapping:
     def prompt_thesis4(self, text, component_length: int) -> Messages.Type: ...
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponentsDeck)
     async def find_multiple(self, prompt_stuff: Messages.Type) -> DialecticalComponentsDeck:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponentsDeck,
-        )
-        def _find_multiple_call() -> DialecticalComponentsDeck:
-            return prompt_stuff
-
-        return _find_multiple_call()
+        return prompt_stuff
 
     @prompt_template()
     def prompt_sequencing1(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> Messages.Type:
@@ -207,22 +186,9 @@ class ThoughtMapping:
         return prompt_messages
 
     @with_langfuse()
+    @use_brain(response_model=CausalCyclesDeck)
     async def find_sequencing1(self, previous_prompt_stuff: Messages.Type, box: DialecticalComponentsDeck) -> CausalCyclesDeck:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=CausalCyclesDeck,
-        )
-        def _find_sequencing1_call() -> CausalCyclesDeck:
-            return self.prompt_sequencing1(previous_prompt_stuff=previous_prompt_stuff, box=box)
-
-        return _find_sequencing1_call()
+        return self.prompt_sequencing1(previous_prompt_stuff=previous_prompt_stuff, box=box)
 
     @prompt_template()
     def prompt_sequencing2(self, previous_prompt_stuff: Messages.Type, ordered_wisdom_units: List[WisdomUnit]) -> Messages.Type:
@@ -289,22 +255,9 @@ class ThoughtMapping:
         return prompt_messages
 
     @with_langfuse()
+    @use_brain(response_model=CausalCyclesDeck)
     async def find_sequencing2(self, previous_prompt_stuff: Messages.Type, ordered_wisdom_units: List[WisdomUnit]) -> CausalCyclesDeck:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=CausalCyclesDeck,
-        )
-        def _find_sequencing2_call() -> CausalCyclesDeck:
-            return self.prompt_sequencing2(previous_prompt_stuff=previous_prompt_stuff, ordered_wisdom_units=ordered_wisdom_units)
-
-        return _find_sequencing2_call()
+        return self.prompt_sequencing2(previous_prompt_stuff=previous_prompt_stuff, ordered_wisdom_units=ordered_wisdom_units)
 
     async def extract(self, thoughts = 2) -> List[Cycle]:
         if thoughts == 1:

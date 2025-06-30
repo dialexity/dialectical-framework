@@ -7,6 +7,7 @@ from dialectical_framework.symmetrical_transition import SymmetricalTransition, 
     ALIAS_RE, ALIAS_RE_PLUS, ALIAS_RE_MINUS
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
 from dialectical_framework.transition import Predicate
+from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, DialecticalReasoningMode
 
@@ -50,22 +51,9 @@ class ThinkActionReflection(StrategicConsultant):
         }
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponentsDeck)
     async def action_reflection(self, focus: WisdomUnit):
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponentsDeck,
-        )
-        def _action_reflection_call() -> DialecticalComponentsDeck:
-            return self.prompt(self._text, focus=focus)
-
-        return _action_reflection_call()
+        return self.prompt(self._text, focus=focus)
 
     async def think(self, focus: WheelSegment) -> SymmetricalTransition:
         wu = self._wheel.wisdom_unit_at(focus)

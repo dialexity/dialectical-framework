@@ -12,6 +12,7 @@ from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.utils.dc_replace import dc_safe_replace
+from dialectical_framework.utils.use_brain import use_brain, HasBrain
 from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_positive_side,
                                                           is_strict_opposition,
@@ -27,7 +28,7 @@ class CausalityType(str, Enum):
     FEASIBLE = "feasible"
     BALANCED = "balanced"
 
-class DialecticalReasoner(ABC):
+class DialecticalReasoner(ABC, HasBrain):
     _mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
 
     def __init__(
@@ -184,133 +185,56 @@ class DialecticalReasoner(ABC):
     def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type: ...
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponent)
     async def find_thesis(self) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponent,
-        )
-        def _find_thesis_call() -> DialecticalComponent:
-            return self.prompt_thesis(self._text)
-
-        return _find_thesis_call()
+        return self.prompt_thesis(self._text)
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponent)
     async def find_antithesis(
         self,
         thesis: str,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponent,
-        )
-        def _find_antithesis_call() -> DialecticalComponent:
-            return self.prompt_antithesis(thesis)
-
-        return _find_antithesis_call()
+        return self.prompt_antithesis(thesis)
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponent)
     async def find_thesis_negative_side(
         self,
         thesis: str,
         not_like_this: str = "",
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponent,
-        )
-        def _find_thesis_negative_side_call() -> DialecticalComponent:
-            return self.prompt_thesis_negative_side(thesis, not_like_this)
-
-        return _find_thesis_negative_side_call()
+        return self.prompt_thesis_negative_side(thesis, not_like_this)
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponent)
     async def find_antithesis_negative_side(
         self,
         thesis: str,
         not_like_this: str = "",
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponent,
-        )
-        def _find_antithesis_negative_side_call() -> DialecticalComponent:
-            return self.prompt_antithesis_negative_side(thesis, not_like_this)
-
-        return _find_antithesis_negative_side_call()
+        return self.prompt_antithesis_negative_side(thesis, not_like_this)
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponent)
     async def find_thesis_positive_side(
         self,
         thesis: str,
         antithesis_negative: str,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponent,
-        )
-        def _find_thesis_positive_side_call() -> DialecticalComponent:
-            return self.prompt_thesis_positive_side(thesis, antithesis_negative)
-
-        return _find_thesis_positive_side_call()
+        return self.prompt_thesis_positive_side(thesis, antithesis_negative)
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponent)
     async def find_antithesis_positive_side(
         self,
         thesis: str,
         antithesis_negative: str,
     ) -> DialecticalComponent:
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponent,
-        )
-        def _find_antithesis_positive_side_call() -> DialecticalComponent:
-            return self.prompt_antithesis_positive_side(thesis, antithesis_negative)
-
-        return _find_antithesis_positive_side_call()
+        return self.prompt_antithesis_positive_side(thesis, antithesis_negative)
 
     @with_langfuse()
+    @use_brain(response_model=DialecticalComponentsDeck)
     async def find_next(
         self,
         wu_so_far: WisdomUnit,
@@ -319,21 +243,7 @@ class DialecticalReasoner(ABC):
         Raises:
             StopIteration: if nothing needs to be found anymore
         """
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=DialecticalComponentsDeck,
-        )
-        def _find_next_call() -> DialecticalComponentsDeck:
-            return self.prompt_next(wu_so_far)
-
-        return _find_next_call()
+        return self.prompt_next(wu_so_far)
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit(reasoning_mode=self._mode)

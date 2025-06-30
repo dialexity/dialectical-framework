@@ -5,6 +5,7 @@ from dialectical_framework.synthesist.factories.reverse_engineering import Rever
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
 from dialectical_framework.transition import Predicate
 from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
+from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import WheelSegment
 
 
@@ -39,22 +40,9 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         }
 
     @with_langfuse()
+    @use_brain(response_model=str)
     async def constructive_convergence(self, focus: WheelSegment, next_ws: WheelSegment):
-        overridden_ai_provider, overridden_ai_model = self._brain.specification()
-        if overridden_ai_provider == "bedrock":
-            # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-            # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-            overridden_ai_provider, overridden_ai_model = self._brain.modified_specification(ai_provider="litellm")
-
-        @llm.call(
-            provider=overridden_ai_provider,
-            model=overridden_ai_model,
-            response_model=str,
-        )
-        def _constructive_convergence() -> str:
-            return self.prompt(self._text, focus=focus, next_ws=next_ws)
-
-        return _constructive_convergence()
+        return self.prompt(self._text, focus=focus, next_ws=next_ws)
 
     async def think(self, focus: WheelSegment) -> TransitionSegmentToSegment:
         current_index = self._wheel.index_of(focus)
