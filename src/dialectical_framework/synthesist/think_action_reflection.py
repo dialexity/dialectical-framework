@@ -2,11 +2,11 @@
 from mirascope import Messages, prompt_template, llm
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.symmetrical_transition import SymmetricalTransition, ALIAS_AC, ALIAS_AC_PLUS, ALIAS_AC_MINUS, \
     ALIAS_RE, ALIAS_RE_PLUS, ALIAS_RE_MINUS
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
+from dialectical_framework.transition import Predicate
 from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, DialecticalReasoningMode
 
@@ -88,7 +88,7 @@ class ThinkActionReflection(StrategicConsultant):
             source=wu.extract_segment_t(),
             target=wu.extract_segment_a(),
 
-            predicate="transforms_to",
+            predicate=Predicate.TRANSFORMS_TO,
         )
 
         return self._transition

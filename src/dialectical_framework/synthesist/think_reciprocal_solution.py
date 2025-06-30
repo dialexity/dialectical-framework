@@ -4,6 +4,7 @@ from mirascope.integrations.langfuse import with_langfuse
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
+from dialectical_framework.transition import Predicate
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -101,7 +102,7 @@ class ThinkReciprocalSolution(StrategicConsultant):
             source=wu.extract_segment_t(),
             target=wu.extract_segment_a(),
 
-            predicate="transforms_to",
+            predicate=Predicate.TRANSFORMS_TO,
         )
 
         return self._transition

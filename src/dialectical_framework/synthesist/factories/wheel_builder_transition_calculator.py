@@ -9,7 +9,6 @@ from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilde
 from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wheel_segment import WheelSegment
-from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class WheelBuilderTransitionCalculator(WheelBuilder, ABC):

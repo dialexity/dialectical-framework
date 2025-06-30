@@ -1,14 +1,7 @@
 # Todo:
 
-[] Transition decorator for constructive transformations (discrete spiral)
-
-[] Multiple cycles by CausalityType on a wheel
 
 [] Add index (numbering) to wheel segments, now we derive it from alias
-
-[] Fake the history of messages, when it's a multi-step stuff
-
-[] Distill chain-of-thought into separate user-assitant messages and keep the history. Instead of providing single prompt with a bunch of reasoning steps to do for LLM 
 
 [] Thesis generation for different use-cases (parametrizable)
 
@@ -35,6 +28,3 @@
 [] Fix the async bedrock todo, it's a fallback to litellm which ads complexity
 
 [] Parametrized API as in [PROJECT1.md](./PROJECT1.md)
-
-# Done: 
-[x] Refactor wheel builders (factories) to be more stateful

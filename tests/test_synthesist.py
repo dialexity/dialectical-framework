@@ -118,7 +118,6 @@ def test_fast_reasoner():
 
 @observe()
 def test_fast_and_simple_reasoner():
-    wbc = ConfigWheelBuilder(component_length=1)
     reasoner = ReasonFastAndSimple(user_message, config=wbc)
     wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()
@@ -127,7 +126,6 @@ def test_fast_and_simple_reasoner():
 
 @observe()
 def test_fast_polarized_conflict_reasoner():
-    wbc = ConfigWheelBuilder(component_length=2)
     reasoner = ReasonFastPolarizedConflict(user_message, config=wbc)
     wu: BaseModel = asyncio.run(reasoner.think())
     assert wu.is_complete()

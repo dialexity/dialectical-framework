@@ -158,11 +158,11 @@ class DirectedGraph(Generic[T]):
             Find all transitions that can constructively connect to the current target.
             """
             constructive_transitions = []
-            all_transitions = self.get_all_transitions()
+            all_transitions_inner = self.get_all_transitions()
         
-            for transition in all_transitions:
-                                if (transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO and
-                    _can_connect_constructively(current_target_aliases, transition.source_aliases)):
+            for transition in all_transitions_inner:
+                if (transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO and
+                        _can_connect_constructively(current_target_aliases, transition.source_aliases)):
                     constructive_transitions.append(transition)
         
             return constructive_transitions

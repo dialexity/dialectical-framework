@@ -3,6 +3,7 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.synthesist.factories.reverse_engineering import ReverseEngineering
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
+from dialectical_framework.transition import Predicate
 from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.wheel_segment import WheelSegment
 
@@ -61,7 +62,7 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         next_ws = self._wheel.wheel_segment_at(next_index)
         
         self._transition = TransitionSegmentToSegment(
-            predicate="constructively_converges_to",
+            predicate=Predicate.CONSTRUCTIVELY_CONVERGES_TO,
             source_aliases=[focus.t_minus.alias, focus.t.alias],
             target_aliases=[next_ws.t_plus.alias],
             source=focus,
