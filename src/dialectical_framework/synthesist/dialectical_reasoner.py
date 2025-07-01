@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import Enum
 
-from mirascope import BaseMessageParam, Messages, llm, prompt_template
+from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.brain import Brain
@@ -21,12 +20,6 @@ from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_M
 from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, WisdomUnit, DialecticalReasoningMode)
 
-
-class CausalityType(str, Enum):
-    REALISTIC = "realistic"
-    DESIRABLE = "desirable"
-    FEASIBLE = "feasible"
-    BALANCED = "balanced"
 
 class DialecticalReasoner(ABC, HasBrain):
     _mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS

@@ -6,6 +6,7 @@ from tabulate import tabulate
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.spiral import Spiral
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit, DialecticalReasoningMode
@@ -47,15 +48,6 @@ class Wheel:
         else:
             raise ValueError("The wheel is empty.")
 
-    @property
-    def wisdom_units_grouped_by_reasoning_mode(self) -> Dict[DialecticalReasoningMode, List[WisdomUnit]]:
-        grouped_units = {}
-        for wu in self._wisdom_units:
-            if wu.reasoning_mode not in grouped_units:
-                grouped_units[wu.reasoning_mode] = []
-            grouped_units[wu.reasoning_mode].append(wu)
-        return grouped_units
-
     def is_set(self, s: str|DialecticalComponent|WheelSegment) -> bool:
         try:
             self.wisdom_unit_at(s)
@@ -64,13 +56,14 @@ class Wheel:
         else:
             return True
 
-    def is_same(self, other: Wheel) -> bool:
+    def is_same_structure(self, other: Wheel) -> bool:
         if len(self.wisdom_units) != len(other.wisdom_units):
             return False
         for wu in self.wisdom_units:
             if not other.is_set(wu):
                 return False
-        return True
+
+        return self.t_cycle.is_same_structure(other.t_cycle) and self.cycle.is_same_structure(other.cycle)
 
     def wisdom_unit_at(self, i: WheelSegmentReference) -> WisdomUnit:
         """

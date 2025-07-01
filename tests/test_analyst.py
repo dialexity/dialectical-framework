@@ -5,13 +5,13 @@ from langfuse.decorators import observe
 from mirascope import prompt_template, llm
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.analyst.thought_mapping import ThoughtMapping
+from dialectical_framework.analyst.thought_mapper import ThoughtMapper
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.factories.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.synthesist.factories.decorator_reciprocal_solution import DecoratorReciprocalSolution
-from dialectical_framework.synthesist.factories.reverse_engineering import ReverseEngineering
+from dialectical_framework.analyst.reverse_engineer import ReverseEngineer
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
@@ -62,7 +62,7 @@ factory = WheelBuilder(
 @pytest.mark.asyncio
 @observe()
 async def test_reverse_engineering():
-    tm: ThoughtMapping = ThoughtMapping(
+    tm: ThoughtMapper = ThoughtMapper(
         user_message,
         config=wbc,
     )
@@ -90,7 +90,7 @@ async def test_reverse_engineering():
     def summarize():
         return {
             "computed_fields": {
-                "wheel_construction" : ReverseEngineering.wheel(w, text=user_message),
+                "wheel_construction" : ReverseEngineer.wheel(w, text=user_message),
             }
         }
 
@@ -129,7 +129,7 @@ async def test_wheel_acre_reciprocal():
 @pytest.mark.asyncio
 @observe()
 async def test_factory_loading():
-    tm: ThoughtMapping = ThoughtMapping(
+    tm: ThoughtMapper = ThoughtMapper(
         user_message,
         config=wbc,
     )
@@ -158,7 +158,7 @@ async def test_factory_loading():
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_redefine():
-    tm: ThoughtMapping = ThoughtMapping(
+    tm: ThoughtMapper = ThoughtMapper(
         user_message,
         config=wbc,
     )
@@ -192,8 +192,8 @@ async def test_wheel_redefine():
 @observe()
 async def test_thought_mapping():
     nr_of_thoughts = 3
-    reasoner = ThoughtMapping(user_message)
-    cycles: List[Cycle] = await reasoner.extract(nr_of_thoughts)
+    reasoner = ThoughtMapper(user_message)
+    cycles: List[Cycle] = await reasoner.map(nr_of_thoughts)
     print("\n")
     for cycle in cycles:
         assert len(cycle.dialectical_components) == nr_of_thoughts

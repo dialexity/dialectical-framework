@@ -1,7 +1,7 @@
-from mirascope import Messages, prompt_template, llm
+from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.synthesist.factories.reverse_engineering import ReverseEngineering
+from dialectical_framework.analyst.reverse_engineer import ReverseEngineer
 from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
 from dialectical_framework.transition import Predicate
 from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
@@ -31,7 +31,7 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         # TODO: do we want to include transitions that are already present in the wheel?
         return {
             "computed_fields": {
-                "wheel_construction": ReverseEngineering.wheel(text=text, wheel=self._wheel),
+                "wheel_construction": ReverseEngineer.wheel(text=text, wheel=self._wheel),
                 "from_alias": focus.t.alias,
                 "from_minus_alias": focus.t_minus.alias,
                 "to_alias": next_ws.t.alias,

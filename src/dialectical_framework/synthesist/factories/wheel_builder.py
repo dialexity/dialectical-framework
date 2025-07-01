@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import List, Self, Union, Dict
 
-from dialectical_framework.analyst.thought_mapping import ThoughtMapping
+from dialectical_framework.analyst.thought_mapper import ThoughtMapper
 from dialectical_framework.analyst.wheel_helper import WheelHelper
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
@@ -26,8 +26,7 @@ class WheelBuilder:
         self.__config = self.__reasoner.config
         self.__text = text
 
-        # TODO: This should be pluggable/configurable, or maybe moved into the reasoner?
-        self.__analyst = ThoughtMapping(
+        self.__analyst = ThoughtMapper(
             text=self.__text,
             config=self.__config
         )
@@ -64,7 +63,7 @@ class WheelBuilder:
 
 
         if not theses:
-            cycles: List[Cycle] = await self.__analyst.extract(wu_count)
+            cycles: List[Cycle] = await self.__analyst.map(wu_count)
         else:
             cycles: List[Cycle] = await self.__analyst.arrange(theses)
 
@@ -141,7 +140,7 @@ class WheelBuilder:
                     wheels.append(wheel)
                 else:
                     # Recalculate cycles
-                    analyst = ThoughtMapping(
+                    analyst = ThoughtMapper(
                         text=self.text,
                         config=self.config
                     )
