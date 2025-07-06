@@ -19,7 +19,7 @@ def add_idx_to_alias(ordered_wisdom_units: List[WisdomUnit]) -> None:
             suffix = str(idx + 1)
             for field in ['t_minus', 't', 't_plus', 'a_minus', 'a', 'a_plus']:
                 component = getattr(wu, field)
-                if component:
+                if component and suffix not in component.alias:
                     base_alias = component.alias.rstrip('+-')
                     sign = component.alias[len(base_alias):]
                     component.alias = f"{base_alias}{suffix}{sign}"
