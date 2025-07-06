@@ -13,6 +13,18 @@ from dialectical_framework.utils.use_brain import use_brain, HasBrain
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
+def add_idx_to_alias(ordered_wisdom_units: List[WisdomUnit]) -> None:
+    for idx, wu in enumerate(ordered_wisdom_units):
+        if idx > 0:
+            suffix = str(idx + 1)
+            for field in ['t_minus', 't', 't_plus', 'a_minus', 'a', 'a_plus']:
+                component = getattr(wu, field)
+                if component:
+                    base_alias = component.alias.rstrip('+-')
+                    sign = component.alias[len(base_alias):]
+                    component.alias = f"{base_alias}{suffix}{sign}"
+
+
 class ThoughtMapper(HasBrain):
     def __init__(
         self,
@@ -338,6 +350,9 @@ class ThoughtMapper(HasBrain):
                 ])
             else:
                 raise ValueError(f"{len(ordered_wisdom_units)} thoughts are not supported yet.")
+
+            if len(ordered_wisdom_units) > 2:
+                add_idx_to_alias(ordered_wisdom_units)
 
             causal_cycles_box = await self.find_ta_cycles(ordered_wisdom_units=ordered_wisdom_units)
         else:
