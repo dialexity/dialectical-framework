@@ -308,14 +308,14 @@ class ThoughtMapper(HasBrain):
                 return [Cycle(dialectical_components=[
                     ordered_wisdom_units[0].t,
                     ordered_wisdom_units[0].a,
-                ], probability=1.0, causality_type=CausalityType.REALISTIC)]
+                ], probability=1.0, causality_type=self.__config.causality_type)]
             elif len(thoughts) == 2:
                 return [Cycle(dialectical_components=[
                     ordered_wisdom_units[0].t,
                     ordered_wisdom_units[1].t,
                     ordered_wisdom_units[0].a,
                     ordered_wisdom_units[1].a,
-                ], probability=1.0, causality_type=CausalityType.REALISTIC)]
+                ], probability=1.0, causality_type=self.__config.causality_type)]
             elif len(thoughts) == 3:
                 box = DialecticalComponentsDeck(dialectical_components=[
                     ordered_wisdom_units[0].t,
@@ -346,7 +346,7 @@ class ThoughtMapper(HasBrain):
                     return [Cycle(
                         dialectical_components=thoughts,
                         probability=1.0,
-                        causality_type=CausalityType.REALISTIC,
+                        causality_type=self.__config.causality_type,
                     )]
                 else:
                     return [Cycle(
@@ -354,7 +354,7 @@ class ThoughtMapper(HasBrain):
                             DialecticalComponent.from_str(alias="T", statement=thoughts[0], explanation=thoughts[0])
                         ],
                         probability=1.0,
-                        causality_type=CausalityType.REALISTIC,
+                        causality_type=self.__config.causality_type,
                     )]
             elif len(thoughts) <= 4:
                 if thoughts and isinstance(thoughts[0], DialecticalComponent):
