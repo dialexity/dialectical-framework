@@ -37,7 +37,7 @@ class ThoughtMapper(HasBrain):
         Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
 
         <formatting>
-        Output the dialectical component T within {component_length} word(s), the shorter, the better. The Explanation how it was derived in the passive voice. Don't mention any special denotations such as "T".
+        Output the dialectical component T within {component_length} word(s), the shorter, the better. The explanation how it was derived in the passive voice. Don't mention any special denotations (such as "T") in the statements nor explanations.
         </formatting> 
         """
     )
@@ -52,10 +52,10 @@ class ThoughtMapper(HasBrain):
         In the given context, identify the most important 2 theses (concepts, ideas, elements, steps), T1 and T2, that form the most essential circular causation: T1 → T2 → T1...
         
         <formatting>
-        Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T1", "T+", "A-", "Ac", "Re", etc.
+        Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations (such as "T", "T1", "T+", "A-", "Ac", "Re", etc) in statements nor explanations.
         </formatting>
         
-        2 theses are obligatory. No more, no less.
+        2 theses labeled T1 and T2 are obligatory. No more, no less.
         """
     )
     def prompt_thesis2(self, text, component_length: int) -> Messages.Type: ...
@@ -71,10 +71,10 @@ class ThoughtMapper(HasBrain):
         These concepts should represent elements that naturally flow into or cause each other in a repeating cycle.
 
         <formatting>
-        Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T1", "T+", "A-", "Ac", "Re", etc.
+        Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations (such as "T", "T1", "T+", "A-", "Ac", "Re", etc.) in statements nor explanations.
         </formatting> 
         
-        3 theses are obligatory. No more, no less.
+        3 theses labeled T1, T2, and T3 are obligatory. No more, no less.
         """
     )
     def prompt_thesis3(self, text, component_length: int) -> Messages.Type: ...
@@ -96,10 +96,10 @@ class ThoughtMapper(HasBrain):
         T4 = Exhaust - opposes T2 (Compression).
 
         <formatting>
-        Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T1", "T+", "A-", "Ac", "Re", etc.
+        Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations (such as "T", "T1", "T+", "A-", "Ac", "Re", etc.) in statements nor explanations.
         </formatting> 
         
-        4 theses are obligatory. No more, no less.
+        4 theses labeled as T1, T2, T3, and T4 are obligatory. No more, no less.
         """
     )
     def prompt_thesis4(self, text, component_length: int) -> Messages.Type: ...
