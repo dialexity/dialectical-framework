@@ -15,6 +15,7 @@ from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.utils.dc_replace import dc_safe_replace
+from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain, HasBrain
 from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_positive_side,
@@ -286,13 +287,7 @@ class DialecticalReasoner(ABC, HasBrain):
         else:
             tpl = ReverseEngineer().prompt_input_text(text=self.text)
 
-        if isinstance(prompt, list):
-            tpl.extend(prompt)
-        elif hasattr(prompt, 'messages'):
-            tpl.extend(prompt.messages)
-        else:
-            tpl.append(prompt)
-        return tpl
+        return extend_tpl(tpl, prompt)
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit(reasoning_mode=self._mode)

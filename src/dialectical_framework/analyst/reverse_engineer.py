@@ -7,6 +7,7 @@ from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.factories.config_wheel_builder import CausalityType
+from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit, DialecticalReasoningMode
 
@@ -234,12 +235,7 @@ class ReverseEngineer:
         if text:
             # Convert Messages.Type to list and extend instead of append
             input_messages = reverse_engineer.prompt_input_text(text=text)
-            if isinstance(input_messages, list):
-                tpl.extend(input_messages)
-            elif hasattr(input_messages, 'messages'):
-                tpl.extend(input_messages.messages)
-            else:
-                tpl.append(input_messages)
+            extend_tpl(tpl, input_messages)
 
         theses = [
             [
@@ -251,13 +247,7 @@ class ReverseEngineer:
         ]
 
         dc_messages = reverse_engineer.prompt_input_theses(dialectical_components=theses)
-        # Properly handle Messages.Type return
-        if isinstance(dc_messages, list):
-            tpl.extend(dc_messages)
-        elif hasattr(dc_messages, 'messages'):
-            tpl.extend(dc_messages.messages)
-        else:
-            tpl.append(dc_messages)
+        extend_tpl(tpl, dc_messages)
 
         return tpl
 
@@ -269,12 +259,7 @@ class ReverseEngineer:
         if text:
             # Convert Messages.Type to list and extend instead of append
             input_messages = reverse_engineer.prompt_input_text(text=text)
-            if isinstance(input_messages, list):
-                tpl.extend(input_messages)
-            elif hasattr(input_messages, 'messages'):
-                tpl.extend(input_messages.messages)
-            else:
-                tpl.append(input_messages)
+            extend_tpl(tpl, input_messages)
 
         wus: Dict[DialecticalReasoningMode, List[WisdomUnit]] = _wisdom_units_grouped_by_reasoning_mode(wisdom_units)
         for mode, wisdom_units in wus.items():
@@ -322,13 +307,7 @@ class ReverseEngineer:
                     wisdom_units=wu_lists
                 )
 
-            # Properly handle Messages.Type return
-            if isinstance(wu_messages, list):
-                tpl.extend(wu_messages)
-            elif hasattr(wu_messages, 'messages'):
-                tpl.extend(wu_messages.messages)
-            else:
-                tpl.append(wu_messages)
+            extend_tpl(tpl, wu_messages)
 
         return tpl
 
@@ -374,13 +353,7 @@ class ReverseEngineer:
                 estimations=list(cycles.values()),
             )
 
-        # Properly handle Messages.Type return for cycle messages
-        if isinstance(cycle_messages, list):
-            tpl.extend(cycle_messages)
-        elif hasattr(cycle_messages, 'messages'):
-            tpl.extend(cycle_messages.messages)
-        else:
-            tpl.append(cycle_messages)
+        extend_tpl(tpl, cycle_messages)
 
         return tpl
 

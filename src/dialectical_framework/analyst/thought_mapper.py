@@ -9,6 +9,7 @@ from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder, CausalityType
+from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain, HasBrain
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -228,14 +229,7 @@ class ThoughtMapper(HasBrain):
         else:
             prompt = self.prompt_sequencing_balanced(sequences=sequences)
 
-        if isinstance(prompt, list):
-            tpl.extend(prompt)
-        elif hasattr(prompt, 'messages'):
-            tpl.extend(prompt.messages)
-        else:
-            tpl.append(prompt)
-
-        return tpl
+        return extend_tpl(tpl, prompt)
 
     @with_langfuse()
     @use_brain(response_model=CausalCyclesDeck)
@@ -261,14 +255,7 @@ class ThoughtMapper(HasBrain):
         else:
             prompt = self.prompt_sequencing_balanced(sequences=sequences)
 
-        if isinstance(prompt, list):
-            tpl.extend(prompt)
-        elif hasattr(prompt, 'messages'):
-            tpl.extend(prompt.messages)
-        else:
-            tpl.append(prompt)
-
-        return tpl
+        return extend_tpl(tpl, prompt)
 
     async def map(self, thoughts: int = 2) -> List[Cycle]:
         if thoughts == 1:
