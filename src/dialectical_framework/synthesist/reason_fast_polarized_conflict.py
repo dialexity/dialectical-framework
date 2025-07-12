@@ -10,9 +10,6 @@ class ReasonFastPolarizedConflict(ReasonFastAndSimple):
     @prompt_template(
     """
     USER:
-    <context>{text}</context>
-    
-    USER:
     # Dialectical Analysis
 
     <instructions>

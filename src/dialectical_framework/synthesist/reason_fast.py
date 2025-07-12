@@ -1,4 +1,5 @@
 import inspect
+from typing import Union, List
 
 from mirascope import BaseMessageParam, Messages, prompt_template
 
@@ -12,9 +13,6 @@ from dialectical_framework.wheel_segment import ALIAS_T
 class ReasonFast(DialecticalReasoner):
     @prompt_template(
     """
-    USER:
-    <context>{text}</context>
-
     USER:
     # Dialectical Analysis
     
@@ -175,4 +173,5 @@ class ReasonFast(DialecticalReasoner):
         await self._fill_with_reason(wu)
 
         self._wisdom_unit = wu
+        self._analysis.perspectives.append(self._wisdom_unit)
         return self._wisdom_unit

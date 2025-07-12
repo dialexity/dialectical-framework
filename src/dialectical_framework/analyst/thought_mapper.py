@@ -240,8 +240,7 @@ class ThoughtMapper(HasBrain):
     @with_langfuse()
     @use_brain(response_model=CausalCyclesDeck)
     async def find_ta_cycles(self, ordered_wisdom_units: List[WisdomUnit]) -> CausalCyclesDeck:
-        t_cycle = Cycle(dialectical_components=[wu.t for wu in ordered_wisdom_units], causality_type=self.__config.causality_type)
-        tpl = ReverseEngineer.till_cycle(wisdom_units=ordered_wisdom_units, t_cycle=t_cycle, text=self.__text)
+        tpl = ReverseEngineer.till_wisdom_units(wisdom_units=ordered_wisdom_units, text=self.__text)
 
         if len(ordered_wisdom_units) == 1:  # degenerate 1-node cycle
             sequences = [f"{ordered_wisdom_units[0].t.alias} → {ordered_wisdom_units[0].a.alias} → {ordered_wisdom_units[0].t.alias}..."]
@@ -253,11 +252,11 @@ class ThoughtMapper(HasBrain):
             sequences = list(
                 " → ".join(seq + [seq[0]]) + "..." for seq in raw_sequences
             )
-        if t_cycle.causality_type == CausalityType.REALISTIC:
+        if self.__config.causality_type == CausalityType.REALISTIC:
             prompt = self.prompt_sequencing_realistic(sequences=sequences)
-        elif t_cycle.causality_type == CausalityType.DESIRABLE:
+        elif self.__config.causality_type == CausalityType.DESIRABLE:
             prompt = self.prompt_sequencing_desirable(sequences=sequences)
-        elif t_cycle.causality_type == CausalityType.FEASIBLE:
+        elif self.__config.causality_type == CausalityType.FEASIBLE:
             prompt = self.prompt_sequencing_feasible(sequences=sequences)
         else:
             prompt = self.prompt_sequencing_balanced(sequences=sequences)
@@ -310,12 +309,12 @@ class ThoughtMapper(HasBrain):
                     ordered_wisdom_units[0].a,
                 ], probability=1.0, causality_type=self.__config.causality_type)]
             elif len(thoughts) == 2:
-                return [Cycle(dialectical_components=[
+                box = DialecticalComponentsDeck(dialectical_components=[
                     ordered_wisdom_units[0].t,
                     ordered_wisdom_units[1].t,
                     ordered_wisdom_units[0].a,
                     ordered_wisdom_units[1].a,
-                ], probability=1.0, causality_type=self.__config.causality_type)]
+                ])
             elif len(thoughts) == 3:
                 box = DialecticalComponentsDeck(dialectical_components=[
                     ordered_wisdom_units[0].t,
@@ -401,10 +400,10 @@ def _generate_compatible_sequences(ordered_wisdom_units):
 
     Example:
         For input units T1/A1, T2/A2, T3/A3, T4/A4, a valid output can be:
-            [T1, T2, T4, T3, A1, A2, A4, A3]
+            [T1, T2, A4, T3, A1, A2, T4, A3]
         Which means:
-            Top:    T1 -> T2 -> T4 -> T3
-            Bottom: A1 -> A2 -> A4 -> A3 (mirrored on the circle)
+            Top:    T1 -> T2 -> A4 -> T3
+            Bottom: A1 -> A2 -> T4 -> A3 (mirrored on the circle)
     """
 
     n = len(ordered_wisdom_units)

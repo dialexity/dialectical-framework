@@ -15,7 +15,7 @@ class ReasonConversational(DialecticalReasoner):
 
         prompt_messages.extend(
             [
-                *super().prompt_thesis(self._text),
+                *super().prompt_thesis(None),
                 Messages.Assistant(wu_so_far.t.pretty("Thesis (T)")),
             ]
         )

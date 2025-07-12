@@ -14,7 +14,7 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class WheelBuilder:
-    def __init__(self, *, text: str = None, config: ConfigWheelBuilder | DialecticalReasoner = None):
+    def __init__(self, *, text: str = "", config: ConfigWheelBuilder | DialecticalReasoner = None):
         if not config or isinstance(config, ConfigWheelBuilder):
             self.__reasoner: DialecticalReasoner = ReasonFastAndSimple(
                 text=text,
@@ -22,10 +22,13 @@ class WheelBuilder:
             )
         elif isinstance(config, DialecticalReasoner):
             self.__reasoner = config
+            if not text:
+                text = self.__reasoner.text
+            self.__reasoner.load(text=text)
 
-        self.__config = self.__reasoner.config
         self.__text = text
 
+        self.__config = self.__reasoner.config
         self.__analyst = ThoughtMapper(
             text=self.__text,
             config=self.__config

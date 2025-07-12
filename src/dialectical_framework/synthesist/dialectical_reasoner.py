@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
+from typing import Union, List, Self
 
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.analyst.reverse_engineer import ReverseEngineer
 from dialectical_framework.brain import Brain
+from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
@@ -22,13 +26,12 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
 
 
 class DialecticalReasoner(ABC, HasBrain):
-    _mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
 
     def __init__(
         self,
-        text: str,
+        text: str = "",
         *,
-        config: ConfigWheelBuilder = None
+        config: ConfigWheelBuilder = None,
     ):
         self._text = text
         self._wisdom_unit = None
@@ -40,25 +43,58 @@ class DialecticalReasoner(ABC, HasBrain):
 
         self.__config = config
 
+        self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
         self._component_length = self.__config.component_length
         self._brain = self.__config.brain
+
+        self._analysis = DialecticalAnalysis(
+            corpus=self._text
+        )
 
     @property
     def config(self) -> ConfigWheelBuilder:
         return self.__config
 
+    @property
+    def text(self) -> str:
+        return self._text
+
+    def load(self, *, text: str, perspectives: WisdomUnit | List[WisdomUnit] = None) -> Self:
+        self._text = text
+        if not perspectives:
+            perspectives = []
+        if isinstance(perspectives, WisdomUnit):
+            perspectives = [perspectives]
+
+        self._analysis = DialecticalAnalysis(
+            corpus=text,
+            perspectives=perspectives,
+        )
+
+        if perspectives:
+            # Take first perspective as active
+            self._wisdom_unit = perspectives[-1]
+        return self
+
     @prompt_template(
     """
     USER:
-    <context>{text}</context>
+    {start}
     
     USER:
     Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
 
-    Output the dialectical component T and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
+    Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
     """
     )
-    def prompt_thesis(self, text: str) -> Messages.Type: ...
+    def prompt_thesis(self, text: str = None) -> Messages.Type:
+        return {
+            "computed_fields": {
+                # Sometimes we don't want the whole user input again, as we're calculating the thesis within a longer analysis
+                "start": "<context>" + inspect.cleandoc(text) + "</context>" if text else "Ok.",
+                "component_length": self._component_length
+            },
+        }
 
     @prompt_template(
     """
@@ -66,14 +102,17 @@ class DialecticalReasoner(ABC, HasBrain):
     
     Generate a dialectical opposition (A) of the thesis "{thesis}" (T). Be detailed enough to show deep understanding, yet concise enough to maintain clarity. Generalize all of them using up to 6 words.
 
-    Output the dialectical component A and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
+    Output the dialectical component A within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
     """
     )
     def prompt_antithesis(self, thesis: str | DialecticalComponent) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         return {
-            "computed_fields": {"thesis": thesis},
+            "computed_fields": {
+                "thesis": thesis,
+                "component_length": self._component_length
+            },
         }
 
     @prompt_template(
@@ -84,7 +123,7 @@ class DialecticalReasoner(ABC, HasBrain):
 
     If more than one T- exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity. For instance, T- = "Obsession, Fixation, Loss of Mindfulness" can be generalized into T- = Mental Preoccupation
 
-    Output the dialectical component T- and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-" in the explanation.
+    Output the dialectical component T- within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-" in the explanation.
     """
     )
     def prompt_thesis_negative_side(
@@ -97,7 +136,11 @@ class DialecticalReasoner(ABC, HasBrain):
         if isinstance(not_like_this, DialecticalComponent):
             not_like_this = not_like_this.statement
         return {
-            "computed_fields": {"thesis": thesis, "not_like_this": not_like_this},
+            "computed_fields": {
+                "thesis": thesis,
+                "not_like_this": not_like_this,
+                "component_length": self._component_length
+            },
         }
 
     @prompt_template()
@@ -132,7 +175,7 @@ class DialecticalReasoner(ABC, HasBrain):
 
     If more than one T+ exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity.
 
-    Output the dialectical component T+ and explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation.
+    Output the dialectical component T+  within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation.
     """
     )
     def prompt_thesis_positive_side(
@@ -148,6 +191,7 @@ class DialecticalReasoner(ABC, HasBrain):
             "computed_fields": {
                 "thesis": thesis,
                 "antithesis_negative": antithesis_negative,
+                "component_length": self._component_length
             },
         }
 
@@ -236,7 +280,19 @@ class DialecticalReasoner(ABC, HasBrain):
         Raises:
             StopIteration: if nothing needs to be found anymore
         """
-        return self.prompt_next(wu_so_far)
+        prompt = self.prompt_next(wu_so_far)
+        if self._analysis.perspectives:
+            tpl = ReverseEngineer.till_wisdom_units(wisdom_units=self._analysis.perspectives, text=self._analysis.corpus)
+        else:
+            tpl = ReverseEngineer().prompt_input_text(text=self.text)
+
+        if isinstance(prompt, list):
+            tpl.extend(prompt)
+        elif hasattr(prompt, 'messages'):
+            tpl.extend(prompt.messages)
+        else:
+            tpl.append(prompt)
+        return tpl
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit(reasoning_mode=self._mode)
@@ -256,6 +312,7 @@ class DialecticalReasoner(ABC, HasBrain):
             wu.t = await self.find_thesis()
 
         self._wisdom_unit = await self._fill_with_reason(wu)
+        self._analysis.perspectives.append(self._wisdom_unit)
         return self._wisdom_unit
 
     async def _fill_with_reason(self, wu: WisdomUnit) -> WisdomUnit:

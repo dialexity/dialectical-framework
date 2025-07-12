@@ -7,9 +7,6 @@ class ReasonFastAndSimple(ReasonFast):
     @prompt_template(
     """
     USER:
-    <context>{text}</context>
-    
-    USER:
     # Dialectical Analysis
 
     <instructions>

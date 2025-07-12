@@ -4,6 +4,10 @@
 
 [] Control statements calculation for wisdom units
 
+[] Consolidate wisdom units if the provided theses contain among them also antitheses. The overall number of theses must be ensured still
+
+[] DialecticalReasoningMode should be parametrized in config
+
 [] Actualization (report generation)
 
 [] Add index (numbering) to wheel segments, now we derive it from alias
