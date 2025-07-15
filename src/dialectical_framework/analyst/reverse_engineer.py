@@ -30,7 +30,7 @@ class ReverseEngineer:
     @prompt_template(
         """
         USER:
-        Consider these dialectical components:
+        Consider these statements:
         
         {dialectical_components:lists}
 
@@ -239,10 +239,10 @@ class ReverseEngineer:
 
         theses = [
             [
-                f"### Thesis {index + 1} ({dc.alias})",
+                f"### Statement {index + 1} ({dc.alias})",
                 f"Alias: {dc.alias}",
                 f"Statement: {dc.statement}",
-                f"Explanation: {dc.explanation if dc.explanation else 'N/A'}"
+                *([f"Explanation: {dc.explanation}"] if dc.explanation else [])
             ] for index, dc in enumerate(theses)
         ]
 

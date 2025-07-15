@@ -3,12 +3,14 @@ from typing import List, overload, Union
 from mirascope import prompt_template, Messages
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.ai_structured_data.causal_cycle import CausalCycle
 from dialectical_framework.ai_structured_data.causal_cycles_deck import CausalCyclesDeck
 from dialectical_framework.analyst.reverse_engineer import ReverseEngineer
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder, CausalityType
+from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain, HasBrain
 from dialectical_framework.wisdom_unit import WisdomUnit
@@ -114,7 +116,7 @@ class ThoughtMapper(HasBrain):
         <instructions>
         For each sequence:
         1) Estimate the numeric probability (0 to 1) regarding its realistic existence in natural/existing systems
-        1) Explain why this sequence might occur in reality
+        2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
         </instructions>
         
@@ -135,7 +137,7 @@ class ThoughtMapper(HasBrain):
         <instructions>
         For each sequence:
         1) Estimate the numeric probability (0 to 1) regarding how beneficial/optimal this sequence would be if implemented
-        1) Explain why this sequence might occur in reality
+        2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
         </instructions>
     
@@ -156,7 +158,7 @@ class ThoughtMapper(HasBrain):
         <instructions>
         For each sequence:
         1) Estimate the numeric probability (0 to 1) regarding how easily this sequence could be implemented given current constraints
-        1) Explain why this sequence might occur in reality
+        2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
         </instructions>
 
@@ -171,13 +173,13 @@ class ThoughtMapper(HasBrain):
     @prompt_template(
         """
         USER:
-        Which of the following circular causality sequences provides the best balanced assessment considering realism, desirability, and feasibility (given that the final step cycles back to the first step):
+        Which of the following circular causality sequences provides the best assessment considering realism, desirability, and feasibility (given that the final step cycles back to the first step):
         {sequences:list}
         
         <instructions>
         For each sequence:
-        1) Estimate the numeric probability (0 to 1) as a balanced assessment considering realistic existence, optimal outcomes, and implementation feasibility
-        1) Explain why this sequence might occur in reality
+        1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility
+        2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
         </instructions>
 
@@ -214,28 +216,51 @@ class ThoughtMapper(HasBrain):
             raise ValueError(f"More than 4 theses are not supported yet.")
         return box
 
-    @with_langfuse()
-    @use_brain(response_model=CausalCyclesDeck)
     async def find_t_cycles(self, theses: DialecticalComponentsDeck) -> CausalCyclesDeck:
-        tpl = ReverseEngineer.till_theses(theses=theses.dialectical_components, text=self.__text)
+        # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess
+        alias_translations: dict[str, str] = {}
+        for i, dc in enumerate(theses.dialectical_components, 1):
+            alias_translations[f"S{i}"] = dc.alias
+            dc.alias = f"S{i}"
 
         sequences = theses.get_cycles_str()
-        if self.__config.causality_type == CausalityType.REALISTIC:
-            prompt = self.prompt_sequencing_realistic(sequences=sequences)
-        elif self.__config.causality_type == CausalityType.DESIRABLE:
-            prompt = self.prompt_sequencing_desirable(sequences=sequences)
-        elif self.__config.causality_type == CausalityType.FEASIBLE:
-            prompt = self.prompt_sequencing_feasible(sequences=sequences)
-        else:
-            prompt = self.prompt_sequencing_balanced(sequences=sequences)
 
-        return extend_tpl(tpl, prompt)
+        # Add statements to sequences, for more clarity
+        for i, seq in enumerate(sequences):
+            as_is_seq = seq
+            for a in alias_translations:
+                as_is_seq = dc_replace(as_is_seq, a, theses.get_by_alias(a).statement)
+            sequences[i] = f"{seq} ({as_is_seq})"
 
-    @with_langfuse()
-    @use_brain(response_model=CausalCyclesDeck)
+        result = await self._find_cycles(sequences=sequences, dialectical_components=theses.dialectical_components)
+
+        # Translate aliases back in the parameter
+        for dc in theses.dialectical_components:
+            dc.alias = alias_translations[dc.alias]
+
+        # Translate back the aliases in the result
+        for causal_cycle in result.causal_cycles:
+            for a in causal_cycle.aliases:
+                # Normally technical aliases aren't mentioned in the texts, but who knows... let's blindly translate back
+                causal_cycle.reasoning_explanation = dc_replace(causal_cycle.reasoning_explanation, a, alias_translations[a])
+                causal_cycle.argumentation = dc_replace(causal_cycle.argumentation, a, alias_translations[a])
+            causal_cycle.aliases = [alias_translations[alias] for alias in causal_cycle.aliases]
+
+        return result
+
     async def find_ta_cycles(self, ordered_wisdom_units: List[WisdomUnit]) -> CausalCyclesDeck:
-        tpl = ReverseEngineer.till_wisdom_units(wisdom_units=ordered_wisdom_units, text=self.__text)
+        dialectical_components = []
 
+        # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess
+        alias_translations: dict[str, str] = {}
+        for i, wu in enumerate(ordered_wisdom_units, 1):
+            alias_translations[f"S{i}"] = wu.t.alias
+            alias_translations[f"S{i + len(ordered_wisdom_units)}"] = wu.a.alias
+            wu.t.alias = f"S{i}"
+            wu.a.alias = f"S{i + len(ordered_wisdom_units)}"
+            dialectical_components.extend([wu.t, wu.a])
+
+        theses = DialecticalComponentsDeck(dialectical_components=dialectical_components)
         if len(ordered_wisdom_units) == 1:  # degenerate 1-node cycle
             sequences = [f"{ordered_wisdom_units[0].t.alias} → {ordered_wisdom_units[0].a.alias} → {ordered_wisdom_units[0].t.alias}..."]
         else:
@@ -246,6 +271,35 @@ class ThoughtMapper(HasBrain):
             sequences = list(
                 " → ".join(seq + [seq[0]]) + "..." for seq in raw_sequences
             )
+
+        # Add statements to sequences, for more clarity
+        for i, seq in enumerate(sequences):
+            as_is_seq = seq
+            for a in alias_translations:
+                as_is_seq = dc_replace(as_is_seq, a, theses.get_by_alias(a).statement)
+            sequences[i] = f"{seq} ({as_is_seq})"
+
+
+        result = await self._find_cycles(sequences=sequences, dialectical_components=theses.dialectical_components)
+
+        # Translate aliases back in the parameter
+        for wu in ordered_wisdom_units:
+            wu.t.alias = alias_translations[wu.t.alias]
+            wu.a.alias = alias_translations[wu.a.alias]
+
+        # Translate back the aliases in the result
+        for causal_cycle in result.causal_cycles:
+            for a in causal_cycle.aliases:
+                # Normally technical aliases aren't mentioned in the texts, but who knows... let's blindly translate back
+                causal_cycle.reasoning_explanation = dc_replace(causal_cycle.reasoning_explanation, a, alias_translations[a])
+                causal_cycle.argumentation = dc_replace(causal_cycle.argumentation, a, alias_translations[a])
+            causal_cycle.aliases = [alias_translations[alias] for alias in causal_cycle.aliases]
+
+        return result
+
+    @with_langfuse()
+    @use_brain(response_model=CausalCyclesDeck)
+    async def _find_cycles(self, sequences: List[str], dialectical_components: List[DialecticalComponent]) -> CausalCyclesDeck:
         if self.__config.causality_type == CausalityType.REALISTIC:
             prompt = self.prompt_sequencing_realistic(sequences=sequences)
         elif self.__config.causality_type == CausalityType.DESIRABLE:
@@ -254,6 +308,8 @@ class ThoughtMapper(HasBrain):
             prompt = self.prompt_sequencing_feasible(sequences=sequences)
         else:
             prompt = self.prompt_sequencing_balanced(sequences=sequences)
+
+        tpl = ReverseEngineer.till_theses(theses=dialectical_components, text=self.__text)
 
         return extend_tpl(tpl, prompt)
 
@@ -365,9 +421,9 @@ class ThoughtMapper(HasBrain):
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
 
-def _generate_compatible_sequences(ordered_wisdom_units):
+def _generate_compatible_sequences(ordered_wisdom_units) -> List[List[str]]:
     """
-    Generate all circular, diagonally-symmetric arrangements for T/A pairs.
+    Generate all circular, diagonally symmetric arrangements for T/A pairs.
 
     Each wisdom unit consists of a thesis (`T`) and its antithesis (`A`). This function arranges them
     around a circle (of length 2n, where n is the number of units) such that:

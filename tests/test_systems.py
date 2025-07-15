@@ -14,11 +14,17 @@ async def test_seasons1():
     )
 
     wheels = await factory.build_wheel_permutations(theses=["Summer", "Spring"])
-    assert len(wheels) == 2
     assert wheels[0].order == 2
+
     for w in wheels:
         print("\n")
         print(w)
+
+    assert len(wheels) == 2
+    assert wheels[0].cycle.dialectical_components[0].statement == "Summer"
+    assert wheels[0].cycle.dialectical_components[1].statement == "Autumn" or wheels[0].cycle.dialectical_components[0].statement == "Fall"
+    assert wheels[0].cycle.dialectical_components[2].statement == "Winter"
+    assert wheels[0].cycle.dialectical_components[3].statement == "Spring"
 
 @pytest.mark.asyncio
 @observe()
@@ -29,8 +35,14 @@ async def test_seasons2():
     )
 
     wheels = await factory.build_wheel_permutations(theses=["Summer", "Spring"])
-    assert len(wheels) == 2
     assert wheels[0].order == 2
+
     for w in wheels:
         print("\n")
         print(w)
+
+    assert len(wheels) == 2
+    assert wheels[0].cycle.dialectical_components[0].statement == "Summer"
+    assert wheels[0].cycle.dialectical_components[1].statement == "Autumn" or wheels[0].cycle.dialectical_components[0].statement == "Fall"
+    assert wheels[0].cycle.dialectical_components[2].statement == "Winter"
+    assert wheels[0].cycle.dialectical_components[3].statement == "Spring"
