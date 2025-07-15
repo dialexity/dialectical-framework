@@ -26,15 +26,6 @@ class DialecticalComponentsDeck(BaseModel):
             )
         return sequences
 
-    def get_copies_without_explanations(self, alias_base = None) -> List[DialecticalComponent]:
-        copies = []
-        for i, dc in enumerate(self.dialectical_components, 1):
-            copies.append(DialecticalComponent.from_str(
-                alias=f"{alias_base}{i}" if alias_base else dc.alias,
-                statement=dc.statement)
-            )
-        return copies
-
     def get_aliases(self) -> List[str]:
         return [dc.alias for dc in self.dialectical_components]
 

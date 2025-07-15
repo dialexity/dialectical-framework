@@ -242,7 +242,8 @@ class ReverseEngineer:
                 f"### Statement {index + 1} ({dc.alias})",
                 f"Alias: {dc.alias}",
                 f"Statement: {dc.statement}",
-                *([f"Explanation: {dc.explanation}"] if dc.explanation else [])
+                # Don't render explanations here, as these might be referring to other places in the wisdom unit,
+                # which might be confusing or even misleading in further prompt
             ] for index, dc in enumerate(theses)
         ]
 
