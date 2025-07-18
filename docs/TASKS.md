@@ -1,14 +1,18 @@
 # Todo:
+[] Actualization (report generation)
 
-[] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
+[] Syntheses
 
 [] Control statements calculation for wisdom units
 
+[] Image/Docs upload
+
 [] Consolidate wisdom units if the provided theses contain among them also antitheses. The overall number of theses must be ensured still
+
+[] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
 
 [] DialecticalReasoningMode should be parametrized in config
 
-[] Actualization (report generation)
 
 [] Add index (numbering) to wheel segments, now we derive it from alias
 
@@ -17,8 +21,6 @@
 [] Make façade that would make it easier to wrap the whole framework into an API
 
 [] Use Lillypad instead of Langfuse
-
-[] Image/Docs upload
 
 [] Domain model classes shouldn't be used to communicate with AI, they're sometimes richer. We should have dedicated "DTOs", from these we'll assemble the domain model.
 
