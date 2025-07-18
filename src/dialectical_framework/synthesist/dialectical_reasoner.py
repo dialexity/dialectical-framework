@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from typing import Union, List, Self
+from typing import List, Self
 
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.analyst.reverse_engineer import ReverseEngineer
+from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.brain import Brain
 from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent

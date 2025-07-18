@@ -1,4 +1,7 @@
 # Todo:
+
+[] Linear actions
+
 [] Actualization (report generation)
 
 [] Syntheses

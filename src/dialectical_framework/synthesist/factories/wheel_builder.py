@@ -3,12 +3,11 @@ from __future__ import annotations
 import re
 from typing import List, Self, Union, Dict
 
-from dialectical_framework.analyst.thought_mapper import ThoughtMapper
-from dialectical_framework.analyst.wheel_helper import WheelHelper
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
+from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -96,8 +95,7 @@ class WheelBuilder:
 
         wheels = []
         for cycle in cycles:
-            wm = WheelHelper(wisdom_units=wheel_wisdom_units)
-            w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False),
+            w = Wheel(_rearrange_by_causal_sequence(wheel_wisdom_units, cycle, mutate=False),
                 t_cycle=t_cycle,
                 ta_cycle=cycle
             )
@@ -170,8 +168,7 @@ class WheelBuilder:
                     cycles: List[Cycle] = await analyst.arrange(wheel_wisdom_units)
 
                     for cycle in cycles:
-                        wm = WheelHelper(wisdom_units=wheel_wisdom_units)
-                        w = Wheel(wm.rearrange_by_causal_sequence(cycle, mutate=False),
+                        w = Wheel(_rearrange_by_causal_sequence(wheel_wisdom_units, cycle, mutate=False),
                           t_cycle=t_cycle,
                           ta_cycle=cycle,
                         )
@@ -186,3 +183,45 @@ class WheelBuilder:
         if wheels is not None:
             instance.__wheels = wheels
         return instance
+
+def _rearrange_by_causal_sequence(wisdom_units: List[WisdomUnit], cycle: Cycle, mutate: bool = True) -> List[WisdomUnit]:
+    """
+    We expect the cycle to be on the middle ring where theses and antitheses reside.
+    This way we can swap the wisdom unit oppositions if necessary.
+    """
+    all_aliases = []
+    if cycle.causality_direction == "clockwise":
+        for dc in cycle.dialectical_components:
+            all_aliases.append(dc.alias)
+    else:
+        for dc in reversed(cycle.dialectical_components):
+            all_aliases.append(dc.alias)
+
+    unique_aliases = dict.fromkeys(all_aliases)
+
+    if len(unique_aliases) != 2*len(wisdom_units):
+        raise ValueError("Not all aliases are present in the causal sequence")
+
+    wu_sorted = []
+    wu_processed = []
+    for alias in unique_aliases:
+        for wu in wisdom_units:
+            if any(item is wu for item in wu_processed):
+                continue
+            if wu.t.alias == alias:
+                wu_sorted.append(wu)
+                wu_processed.append(wu)
+                break
+            if wu.a.alias == alias:
+                wu_sorted.append(wu.swap_segments(mutate=mutate))
+                wu_processed.append(wu)
+                break
+
+    if len(wu_sorted) != len(wisdom_units):
+        raise ValueError("Not all wisdom units were mapped in the causal sequence")
+
+    if mutate:
+        wisdom_units[:] = wu_sorted
+        return wisdom_units
+    else:
+        return wu_sorted

@@ -1,20 +1,21 @@
 from typing import List
 
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.synthesist.factories.wheel_builder_transition_calculator import \
+from dialectical_framework.analyst.wheel_builder_transition_calculator import \
     WheelBuilderTransitionCalculator
-from dialectical_framework.synthesist.think_action_reflection import ThinkActionReflection
+from dialectical_framework.synthesist.think_reciprocal_solution import ThinkReciprocalSolution
 from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
 
 
-class DecoratorActionReflection(WheelBuilderTransitionCalculator):
+class DecoratorReciprocalSolution(WheelBuilderTransitionCalculator):
     async def _do_calculate_transition(self, wheel: Wheel, at: WheelSegment) -> SymmetricalTransition:
-        consultant = ThinkActionReflection(
+
+        consultant = ThinkReciprocalSolution(
             text=self.text,
             config=self.config,
-            wheel=wheel
+            wheel=wheel,
         )
 
         return await consultant.think(focus=at)
@@ -25,4 +26,3 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
             tr = await self._do_calculate_transition(wheel, wu)
             result.append(tr)
         return result
-

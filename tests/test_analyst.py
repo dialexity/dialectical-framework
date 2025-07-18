@@ -5,13 +5,13 @@ from langfuse.decorators import observe
 from mirascope import prompt_template, llm
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.analyst.thought_mapper import ThoughtMapper
+from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
-from dialectical_framework.synthesist.factories.decorator_action_reflection import DecoratorActionReflection
-from dialectical_framework.synthesist.factories.decorator_reciprocal_solution import DecoratorReciprocalSolution
-from dialectical_framework.analyst.reverse_engineer import ReverseEngineer
+from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
+from dialectical_framework.analyst.decorator_reciprocal_solution import DecoratorReciprocalSolution
+from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
