@@ -55,7 +55,7 @@ class ThinkConstructiveConvergence(StrategicConsultant):
             target_aliases=[next_ws.t_plus.alias],
             source=focus,
             target=next_ws,
-            text=await self.constructive_convergence(focus=focus, next_ws=next_ws),
+            advice=await self.constructive_convergence(focus=focus, next_ws=next_ws),
         )
 
         return self._transition

@@ -2,6 +2,8 @@
 
 [] Linear actions
 
+[] Transition should inherit from DialecticalComponent. This implies that SymmetricTransition is obsolete. Also Reciprocal Solution?
+
 [] Actualization (report generation)
 
 [] Syntheses

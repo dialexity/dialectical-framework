@@ -15,7 +15,7 @@ class DialecticalComponent(BaseModel):
         description="The dialectical component value that is provided after analysis.",
     )
     explanation: str = Field(
-        ...,
+        default="",
         description="The explanation how the dialectical component (statement) is derived.",
     )
 

@@ -30,7 +30,7 @@ class Transition(BaseModel):
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
 
-    text: str | None = Field(default=None, description="The useful summary of the transition.")
+    advice: str | None = Field(default=None, description="Guidance on what is needed for the transition to happen.")
 
     @field_validator('source_aliases')
     def validate_source_aliases(cls, v: list[str], info) -> list[str]:
@@ -91,7 +91,7 @@ class Transition(BaseModel):
     def pretty(self) -> str:
         str_pieces = [
             f"{', '.join(self.source_aliases)} → {', '.join(self.target_aliases)}",
-            f"Summary: {self.text if self.text else 'N/A'}"
+            f"Summary: {self.advice if self.advice else 'N/A'}"
         ]
         return "\n".join(str_pieces)
 
