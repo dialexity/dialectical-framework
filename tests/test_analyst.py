@@ -24,32 +24,32 @@ example_wu1 = WisdomUnit(
     t=DialecticalComponent(alias="T1", statement="Putin initiates war"),
     t_plus=DialecticalComponent(alias="T1+", statement="Strategic power projection"),
     a_plus=DialecticalComponent(alias="A1+", statement="Mutual understanding"),
-    a=DialecticalComponent.from_str("A1","Peace negotiations"),
-    a_minus=DialecticalComponent.from_str("A1-","Passive submission"),
+    a=DialecticalComponent(alias="A1", statement="Peace negotiations"),
+    a_minus=DialecticalComponent(alias="A1-", statement="Passive submission"),
 )
 example_wu2 = WisdomUnit(
-    t_minus=DialecticalComponent.from_str("T2-","Endless conflict and destruction"),
-    t=DialecticalComponent.from_str("T2","Ukraine resists invasion"),
-    t_plus=DialecticalComponent.from_str("T2+","Liberation and sovereignty protected"),
-    a_plus=DialecticalComponent.from_str("A2+","Immediate peace achieved"),
-    a=DialecticalComponent.from_str("A2","Ukraine surrenders to invasion"),
-    a_minus=DialecticalComponent.from_str("A2-","Freedom and independence lost"),
+    t_minus=DialecticalComponent(alias="T2-", statement="Endless conflict and destruction"),
+    t=DialecticalComponent(alias="T2", statement="Ukraine resists invasion"),
+    t_plus=DialecticalComponent(alias="T2+", statement="Liberation and sovereignty protected"),
+    a_plus=DialecticalComponent(alias="A2+", statement="Immediate peace achieved"),
+    a=DialecticalComponent(alias="A2", statement="Ukraine surrenders to invasion"),
+    a_minus=DialecticalComponent(alias="A2-", statement="Freedom and independence lost"),
 )
 example_wu3 = WisdomUnit(
-    t_minus=DialecticalComponent.from_str("T3-","Military resources drain rapidly"),
-    t=DialecticalComponent.from_str("T3","Russian offensive weakens"),
-    t_plus=DialecticalComponent.from_str("T3+","Ukrainian victory approaches"),
-    a_plus=DialecticalComponent.from_str("A3+","Strategic military strength maintained"),
-    a=DialecticalComponent.from_str("A3","Russian military dominance persists"),
-    a_minus=DialecticalComponent.from_str("A3-","Total defeat inevitable"),
+    t_minus=DialecticalComponent(alias="T3-", statement="Military resources drain rapidly"),
+    t=DialecticalComponent(alias="T3", statement="Russian offensive weakens"),
+    t_plus=DialecticalComponent(alias="T3+", statement="Ukrainian victory approaches"),
+    a_plus=DialecticalComponent(alias="A3+", statement="Strategic military strength maintained"),
+    a=DialecticalComponent(alias="A3", statement="Russian military dominance persists"),
+    a_minus=DialecticalComponent(alias="A3-", statement="Total defeat inevitable"),
 )
 example_wu4 = WisdomUnit(
-    t_minus=DialecticalComponent.from_str("T4-","Vengeance intensifies"),
-    t=DialecticalComponent.from_str("T4","Ukrainian victory approaches"),
-    t_plus=DialecticalComponent.from_str("T4+","Freedom restored"),
-    a_plus=DialecticalComponent.from_str("A4+","Stability maintained"),
-    a=DialecticalComponent.from_str("A4","Russian dominance persists"),
-    a_minus=DialecticalComponent.from_str("A4-","Oppression deepens"),
+    t_minus=DialecticalComponent(alias="T4-", statement="Vengeance intensifies"),
+    t=DialecticalComponent(alias="T4", statement="Ukrainian victory approaches"),
+    t_plus=DialecticalComponent(alias="T4+", statement="Freedom restored"),
+    a_plus=DialecticalComponent(alias="A4+", statement="Stability maintained"),
+    a=DialecticalComponent(alias="A4", statement="Russian dominance persists"),
+    a_minus=DialecticalComponent(alias="A4-", statement="Oppression deepens"),
 )
 
 wbc = ConfigWheelBuilder(component_length=7)

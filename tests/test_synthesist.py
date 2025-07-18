@@ -176,8 +176,8 @@ async def test_reciprocal_solution():
         t=DialecticalComponent(alias="T", statement="Love"),
         t_plus=DialecticalComponent(alias="T+", statement="Compassionate Connection"),
         a_minus=DialecticalComponent(alias="A-", statement="Nihilistic Detachment"),
-        a=DialecticalComponent.from_str("A", "Indifference"),
-        a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
+        a=DialecticalComponent(alias="A", statement="Indifference"),
+        a_plus=DialecticalComponent(alias="A+", statement="Mindful Detachment"),
     )
 
     reasoner = ThinkReciprocalSolution(user_message, wheel=Wheel(
@@ -196,9 +196,9 @@ async def test_reciprocal_solution():
 async def test_redefine():
     # Precalculated
     wu = WisdomUnit(
-        t_minus=DialecticalComponent.from_str("T-", "Mental Preoccupation"),
-        t=DialecticalComponent.from_str("T", "Love"),
-        t_plus=DialecticalComponent.from_str("T+", "Compassionate Connection"),
+        t_minus=DialecticalComponent(alias="T-", statement="Mental Preoccupation"),
+        t=DialecticalComponent(alias="T", statement="Love"),
+        t_plus=DialecticalComponent(alias="T+", statement="Compassionate Connection"),
         a_minus=DialecticalComponent(alias="A-", statement="Nihilistic Detachment"),
         a=DialecticalComponent(alias="A", statement="Indifference"),
         a_plus=DialecticalComponent(alias="A+", statement="Mindful Detachment"),
