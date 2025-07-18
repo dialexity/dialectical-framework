@@ -35,10 +35,6 @@ class DialecticalComponent(BaseModel):
         """
         return self == other or self.alias == other.alias and self.statement == other.statement
 
-    @classmethod
-    def from_str(cls, alias: str, statement: str, explanation: str = ""):
-        return cls(alias=alias, statement=statement, explanation=explanation)
-
     def pretty(self, dialectical_component_label: str | None = None, *, skip_explanation = False) -> str:
         if not dialectical_component_label:
             dialectical_component_label = self.alias

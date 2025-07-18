@@ -4,7 +4,7 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 def test_wu_construction():
-    thesis = {ALIAS_T: DialecticalComponent.from_str(ALIAS_T, "T is a good thing.")}
+    thesis = {ALIAS_T: DialecticalComponent(alias=ALIAS_T, statement="T is a good thing.")}
 
     w = WisdomUnit(t=thesis.get(ALIAS_T))
     assert w.t == thesis.get(ALIAS_T)

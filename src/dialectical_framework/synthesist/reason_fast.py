@@ -166,8 +166,8 @@ class ReasonFast(DialecticalReasoner):
                     )
                 wu.t = thesis
             else:
-                wu.t = DialecticalComponent.from_str(
-                    ALIAS_T, thesis, "Provided as string"
+                wu.t = DialecticalComponent(
+                    alias=ALIAS_T, statement=thesis, explanation="Provided as string"
                 )
 
         await self._fill_with_reason(wu)

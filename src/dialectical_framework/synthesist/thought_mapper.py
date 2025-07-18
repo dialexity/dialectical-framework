@@ -392,7 +392,7 @@ class ThoughtMapper(HasBrain):
                 else:
                     return [Cycle(
                         dialectical_components=[
-                            DialecticalComponent.from_str(alias="T", statement=thoughts[0], explanation=thoughts[0])
+                            DialecticalComponent(alias="T", statement=thoughts[0], explanation=thoughts[0])
                         ],
                         probability=1.0,
                         causality_type=self.__config.causality_type,
@@ -402,7 +402,7 @@ class ThoughtMapper(HasBrain):
                     box = DialecticalComponentsDeck(dialectical_components=thoughts)
                 else:
                     box = DialecticalComponentsDeck(dialectical_components=[
-                        DialecticalComponent.from_str(alias=f"T{i + 1}", statement=t, explanation="Provided as string.")
+                        DialecticalComponent(alias=f"T{i + 1}", statement=t, explanation="Provided as string.")
                         for i, t in enumerate(thoughts)
                     ])
             else:

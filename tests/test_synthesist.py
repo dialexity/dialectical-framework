@@ -172,10 +172,10 @@ async def test_fast_reasoner_with_a_given_nonsense_thesis():
 async def test_reciprocal_solution():
     # Precalculated
     wu = WisdomUnit(
-        t_minus=DialecticalComponent.from_str("T-", "Mental Preoccupation"),
-        t=DialecticalComponent.from_str("T", "Love"),
-        t_plus=DialecticalComponent.from_str("T+", "Compassionate Connection"),
-        a_minus=DialecticalComponent.from_str("A-", "Nihilistic Detachment"),
+        t_minus=DialecticalComponent(alias="T-", statement="Mental Preoccupation"),
+        t=DialecticalComponent(alias="T", statement="Love"),
+        t_plus=DialecticalComponent(alias="T+", statement="Compassionate Connection"),
+        a_minus=DialecticalComponent(alias="A-", statement="Nihilistic Detachment"),
         a=DialecticalComponent.from_str("A", "Indifference"),
         a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
     )
@@ -199,9 +199,9 @@ async def test_redefine():
         t_minus=DialecticalComponent.from_str("T-", "Mental Preoccupation"),
         t=DialecticalComponent.from_str("T", "Love"),
         t_plus=DialecticalComponent.from_str("T+", "Compassionate Connection"),
-        a_minus=DialecticalComponent.from_str("A-", "Nihilistic Detachment"),
-        a=DialecticalComponent.from_str("A", "Indifference"),
-        a_plus=DialecticalComponent.from_str("A+", "Mindful Detachment"),
+        a_minus=DialecticalComponent(alias="A-", statement="Nihilistic Detachment"),
+        a=DialecticalComponent(alias="A", statement="Indifference"),
+        a_plus=DialecticalComponent(alias="A+", statement="Mindful Detachment"),
     )
 
     # Redefine every component of the wisdom unit to make it an extreme test

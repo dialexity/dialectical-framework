@@ -20,10 +20,10 @@ user_message = "Putin started the war, Ukraine will not surrender and will final
 
 # Examples
 example_wu1 = WisdomUnit(
-    t_minus=DialecticalComponent.from_str("T1-","Destructive aggression"),
-    t=DialecticalComponent.from_str("T1","Putin initiates war"),
-    t_plus=DialecticalComponent.from_str("T1+","Strategic power projection"),
-    a_plus=DialecticalComponent.from_str("A1+","Mutual understanding"),
+    t_minus=DialecticalComponent(alias="T1-", statement="Destructive aggression"),
+    t=DialecticalComponent(alias="T1", statement="Putin initiates war"),
+    t_plus=DialecticalComponent(alias="T1+", statement="Strategic power projection"),
+    a_plus=DialecticalComponent(alias="A1+", statement="Mutual understanding"),
     a=DialecticalComponent.from_str("A1","Peace negotiations"),
     a_minus=DialecticalComponent.from_str("A1-","Passive submission"),
 )
