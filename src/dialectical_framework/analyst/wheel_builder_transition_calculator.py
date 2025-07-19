@@ -1,11 +1,15 @@
 from abc import abstractmethod, ABC
+from multiprocessing.spawn import old_main_modules
 from typing import List, Dict, Union
 
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
+from dialectical_framework.transition import Transition, Predicate
+from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wheel_segment import WheelSegment
@@ -62,30 +66,32 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
                 if hasattr(self.decorated_builder, 'calculate_transitions'):
                     await self.decorated_builder.calculate_transitions(wheel=wheel, at=ref)
                 # This is for subclasses to implement
-                tr_i = await self._do_calculate_transition(wheel=wheel, at=ref)
-                self._take_transition(wheel=wheel, transition=tr_i)
+                trs_i = await self._do_calculate_transitions(wheel=wheel, at=ref)
+                for tr in trs_i:
+                    self._take_transition(wheel=wheel, transition=tr)
         else:
             # Calculate for one
             if hasattr(self.decorated_builder, 'calculate_transitions'):
                 await self.decorated_builder.calculate_transitions(wheel=wheel, at=at)
             # This is for subclasses to implement
-            tr = await self._do_calculate_transition(wheel=wheel, at=at)
-            self._take_transition(wheel=wheel, transition=tr)
+            trs = await self._do_calculate_transitions(wheel=wheel, at=at)
+            for tr in trs:
+                self._take_transition(wheel=wheel, transition=tr)
 
     @abstractmethod
-    async def _do_calculate_transition(self, wheel: Wheel, at: WheelSegment) -> TransitionSegmentToSegment:
+    async def _do_calculate_transitions(self, wheel: Wheel, at: WheelSegment) -> List[Transition]:
         """Subclasses implement the actual transition calculation logic here."""
         pass
 
     @abstractmethod
-    async def _do_calculate_transitions_all(self, wheel: Wheel) -> List[TransitionSegmentToSegment]:
+    async def _do_calculate_transitions_all(self, wheel: Wheel) -> List[Transition]:
         """Subclasses implement the actual transition calculation logic here."""
         pass
 
     @staticmethod
-    def _take_transition(wheel: Wheel, transition: TransitionSegmentToSegment) -> None:
-        wu = wheel.wisdom_unit_at(transition.source)
+    def _take_transition(wheel: Wheel, transition: Transition) -> None:
         if isinstance(transition, SymmetricalTransition):
+            wu = wheel.wisdom_unit_at(transition.source)
             st: SymmetricalTransition = transition
 
             # Break the symmetrical transition into 2 transitions to be able to set it uniformly
@@ -110,6 +116,35 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
                 new_a_to_t = old_a_to_t.new_with(a_to_t)
             wheel.spiral.graph.add_transition(new_a_to_t)
         else:
-            wheel.spiral.graph.add_transition(transition)
+            # The decorator might be enriching the existing transition, so we need to merge, not just add
+            new_transition = transition
+            if transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
+                old_transition = wheel.spiral.graph.get_transition(transition.source_aliases, transition.target_aliases)
+                if old_transition is not None:
+                    new_transition = old_transition.new_with(transition)
+                wheel.spiral.graph.add_transition(new_transition)
+            elif transition.predicate == Predicate.CAUSES:
+                # Cycle graphs must be present in the wheel upfront, so we only enrich the transitions
+                graph = None
+                old_transition = wheel.t_cycle.graph.get_transition(transition.source_aliases, transition.target_aliases)
+                if old_transition is not None:
+                    graph = wheel.t_cycle.graph
+                if graph:
+                    if old_transition is not None:
+                        new_transition = old_transition.new_with(transition)
+                    graph.add_transition(new_transition)
+                    graph = None
+
+                old_transition = wheel.cycle.graph.get_transition(transition.source_aliases, transition.target_aliases)
+                if old_transition is not None:
+                    graph = wheel.cycle.graph
+                if graph:
+                    if old_transition is not None:
+                        new_transition = old_transition.new_with(transition)
+                    graph.add_transition(new_transition)
+
+
+
+
 
 

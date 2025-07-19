@@ -5,6 +5,7 @@ from langfuse.decorators import observe
 from mirascope import prompt_template, llm
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
 from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -99,6 +100,17 @@ async def test_reverse_engineering():
     print("\n")
     print(result)
 
+@pytest.mark.asyncio
+@observe()
+async def test_wheel_spiral():
+    factory1 = DecoratorDiscreteSpiral(builder=factory)
+    wheels = await factory1.build_wheel_permutations(theses=[None, None])
+    assert wheels[0].order == 2
+
+    await factory1.calculate_transitions(wheels[0])
+
+    print("\n")
+    print(wheels[0])
 
 @pytest.mark.asyncio
 @observe()

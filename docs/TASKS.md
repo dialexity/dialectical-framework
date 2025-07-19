@@ -2,7 +2,7 @@
 
 [] Linear actions
 
-[] Transition should inherit from DialecticalComponent. This implies that SymmetricTransition is obsolete. Also Reciprocal Solution?
+[] SymmetricTransition is crap. Refactor. Spiral becomes equivalent to converges_constructively predicate. ActionReflection should then inherit from WisdomUnit and TransitionSegmentToSegment. Reciprocal Solution is sort of a spiralic thing as well, which belongs to the WisdomUnit, rather than to the global wheel Spiral. 
 
 [] Actualization (report generation)
 

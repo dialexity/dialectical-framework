@@ -1,11 +1,11 @@
 
-from mirascope import Messages, prompt_template, llm
+from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.symmetrical_transition import SymmetricalTransition, ALIAS_AC, ALIAS_AC_PLUS, ALIAS_AC_MINUS, \
     ALIAS_RE, ALIAS_RE_PLUS, ALIAS_RE_MINUS
-from dialectical_framework.synthesist.strategic_consultant import StrategicConsultant
+from dialectical_framework.analyst.strategic_consultant import StrategicConsultant
 from dialectical_framework.transition import Predicate
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment

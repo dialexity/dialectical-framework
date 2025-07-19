@@ -15,7 +15,7 @@ from dialectical_framework.synthesist.reason_conversational import \
 from dialectical_framework.synthesist.reason_fast import ReasonFast
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
-from dialectical_framework.synthesist.think_reciprocal_solution import ThinkReciprocalSolution
+from dialectical_framework.analyst.think_reciprocal_solution import ThinkReciprocalSolution
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 from tests.test_analyst import user_message
