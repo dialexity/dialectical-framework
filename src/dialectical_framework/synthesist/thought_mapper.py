@@ -190,12 +190,13 @@ class ThoughtMapper(HasBrain):
     )
     def prompt_sequencing_balanced(self, sequences: List[str]) -> Messages.Type: ...
 
-    @with_langfuse()
     async def find_theses(self, count: int = 1) -> DialecticalComponentsDeck:
+        @with_langfuse()
         @use_brain(brain=self.__config.brain, response_model=DialecticalComponent)
         async def _find_single_thesis():
             return self.prompt_thesis1(text=self.__text, component_length=self.__config.component_length)
 
+        @with_langfuse()
         @use_brain(brain=self.__config.brain, response_model=DialecticalComponentsDeck)
         async def _find_multiple_theses():
             if count == 2:
