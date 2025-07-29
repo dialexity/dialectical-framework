@@ -1,16 +1,12 @@
 from abc import abstractmethod, ABC
-from multiprocessing.spawn import old_main_modules
 from typing import List, Dict, Union
 
 from dialectical_framework.cycle import Cycle
-from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.transition import Transition, Predicate
-from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
-from dialectical_framework.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wheel_segment import WheelSegment
 
@@ -47,6 +43,9 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
         await self.__decorated_builder.redefine(modified_statement_per_alias)
         return self.wheel_permutations
+
+    async def calculate_syntheses(self, wheel: Wheel, at: WheelSegmentReference | List[WheelSegmentReference] = None):
+        await self.__decorated_builder.calculate_syntheses(wheel=wheel, at=at)
 
     async def calculate_transitions(self, wheel: Wheel, at: WheelSegmentReference | List[WheelSegmentReference] = None):
         if wheel not in self.wheel_permutations:

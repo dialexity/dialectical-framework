@@ -4,11 +4,12 @@ import re
 from typing import List, Self, Union, Dict
 
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
 from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
 from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
-from dialectical_framework.wheel import Wheel
+from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -104,6 +105,35 @@ class WheelBuilder:
         # Save results for reference
         self.__wheels = wheels
         return self.wheel_permutations
+
+    async def calculate_syntheses(self, wheel: Wheel, at: WheelSegmentReference | List[WheelSegmentReference] = None):
+        if wheel not in self.wheel_permutations:
+            raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
+
+        wisdom_units = []
+
+        if at is None:
+            # Calculate for each
+            wisdom_units = wheel.wisdom_units
+        elif isinstance(at, list):
+            # Calculate for some
+            for ref in at:
+                wisdom_units.append(wheel.wisdom_unit_at(ref))
+        else:
+            # Calculate for one
+            wisdom_units.append(wheel.wisdom_unit_at(at))
+
+        for wu in wisdom_units:
+            ss = await self.reasoner.find_synthesis(wu)
+            wu.synthesis = Synthesis(
+                t_plus=ss.get_by_alias(ALIAS_S_PLUS),
+                t_minus = ss.get_by_alias(ALIAS_S_MINUS)
+            )
+            # Keep indexing as it was on the original wu
+            match = re.search(r"\d+", wu.t.alias)
+            idx = int(match.group()) if match else 0
+            if idx:
+                wu.synthesis.add_indexes_to_aliases(idx)
 
     async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
         """

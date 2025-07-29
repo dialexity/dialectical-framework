@@ -16,6 +16,7 @@ from dialectical_framework.synthesist.reason_fast import ReasonFast
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
 from dialectical_framework.analyst.think_reciprocal_solution import ThinkReciprocalSolution
+from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wisdom_unit import WisdomUnit
 from tests.test_analyst import user_message
@@ -218,3 +219,13 @@ async def test_redefine():
     assert wu.is_complete()
     print("\n")
     print(redefined_wu)
+
+@pytest.mark.asyncio
+@observe()
+async def test_find_theses():
+    thought_mapper = ThoughtMapper(text=factory.text, config=wbc)
+    theses_deck = await thought_mapper.find_theses(
+        count=1
+    )
+    theses = [dc.statement for dc in theses_deck.dialectical_components]
+    print("\n".join(theses))

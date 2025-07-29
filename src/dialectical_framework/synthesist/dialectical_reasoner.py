@@ -218,6 +218,41 @@ class DialecticalReasoner(ABC, HasBrain):
                 )
         return tpl
 
+    @prompt_template(
+        """
+        MESSAGES:
+        {wu_construction}
+    
+        USER:
+        Identifying Positive and Negative Syntheses
+
+        USER:
+        Consider the dialectical components identified in previous analysis:
+        {wu_dcs:list}
+        
+        For the pair of thesis and antithesis, identify both positive synthesis (S+) and negative synthesis (S-):
+        
+        S+ (Positive Synthesis): The emergent quality that arises when the positive/constructive aspects (T+ and A+) are combined in complementary harmony. This represents a new dimension where 1+1>2, expanding possibilities while preserving the unique value of each component. Consider the birth of a child from two parents, or binocular vision producing depth perception.
+
+        S- (Negative Synthesis): The uniformity that results when negative/exaggerated aspects (T- and A-) reinforce each other. This represents reduction of dimensionality where 1+1<2, increasing intensity along limited axes at the expense of diversity. Examples include pendulums aligning their rhythms, or centralized rules that suppress variation.
+         
+        Output the dialectical components S+ and S-. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation. To the explanation add a concrete real life example.
+        """
+    )
+    def prompt_synthesis(self, wisdom_unit: WisdomUnit) -> Messages.Type:
+        tpl = ReverseEngineer.till_wisdom_units(wisdom_units=[wisdom_unit], text=self._analysis.corpus)
+        wu_dcs = []
+        for field, alias in wisdom_unit.field_to_alias.items():
+            dc = wisdom_unit.get(alias)
+            if not dc: continue
+            wu_dcs.append(f"{alias} = {dc.statement}")
+        return {
+            "computed_fields": {
+                "wu_construction": tpl,
+                "wu_dcs": wu_dcs,
+            },
+        }
+
     @prompt_template()
     @abstractmethod
     def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type: ...
@@ -288,6 +323,14 @@ class DialecticalReasoner(ABC, HasBrain):
             tpl = ReverseEngineer().prompt_input_text(text=self.text)
 
         return extend_tpl(tpl, prompt)
+
+    @with_langfuse()
+    @use_brain(response_model=DialecticalComponentsDeck)
+    async def find_synthesis(
+            self,
+            wu: WisdomUnit,
+    ) -> DialecticalComponentsDeck:
+        return self.prompt_synthesis(wu)
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
         wu = WisdomUnit(reasoning_mode=self._mode)

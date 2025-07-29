@@ -108,9 +108,11 @@ async def test_wheel_spiral():
     assert wheels[0].order == 2
 
     await factory1.calculate_transitions(wheels[0])
+    await factory1.calculate_syntheses(wheels[0], 1)
 
     print("\n")
     print(wheels[0])
+    print(wheels[0].wisdom_units[1].synthesis)
 
 @pytest.mark.asyncio
 @observe()
@@ -121,9 +123,11 @@ async def test_wheel_acre():
     assert wheels[0].cycle is not None
 
     await factory2.calculate_transitions(wheels[0])
+    await factory2.calculate_syntheses(wheels[0])
 
     print("\n")
     print(wheels[0])
+    print(wheels[0].wisdom_units[0].synthesis)
 
 @pytest.mark.asyncio
 @observe()

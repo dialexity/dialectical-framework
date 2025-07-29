@@ -126,6 +126,19 @@ class WheelSegment(BaseModel):
         setattr(self, dialectical_component, c.model_copy() if c else None)
 
     def add_indexes_to_aliases(self, human_friendly_index: int):
+        """
+        Updates the aliases of dialectical components with an index to make them unique.
+
+        This method iterates over the field-to-alias mapping of the object and modifies the alias
+        of attributes that are instances of DialecticalComponent. The modified alias includes a
+        human-friendly index appended to its base while preserving any existing sign.
+
+        If the index was there, it will be overwritten.
+
+        Parameters:
+            human_friendly_index: int
+                An index to append to the base of the alias to ensure uniqueness.
+        """
         for f, a in self.field_to_alias.items():
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):

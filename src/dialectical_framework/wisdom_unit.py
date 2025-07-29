@@ -5,6 +5,7 @@ from enum import Enum
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesis import Synthesis
 from dialectical_framework.wheel_segment import WheelSegment
 
 ALIAS_A = "A"
@@ -33,14 +34,18 @@ class WisdomUnit(WheelSegment):
         description="The positive side of the antithesis: A+",
         alias=ALIAS_A_PLUS,
     )
+
     a: DialecticalComponent | None = Field(
         default=None, description="The antithesis: A", alias=ALIAS_A
     )
+
     a_minus: DialecticalComponent | None = Field(
         default=None,
         description="The negative side of the antithesis: A-",
         alias=ALIAS_A_MINUS,
     )
+
+    synthesis: Synthesis | None = Field(default=None, description="The synthesis of the wisdom unit.")
 
     def extract_segment_t(self) -> WheelSegment:
         # TODO: maybe it's enough to return self, because the interface is still WheelSegment?
@@ -83,3 +88,15 @@ class WisdomUnit(WheelSegment):
         target.t_minus, target.a_minus = target.a_minus, target.t_minus
 
         return target
+
+    def pretty(self) -> str:
+        ws_formatted = super().pretty()
+        if self.synthesis and self.synthesis.t_plus:
+            return ws_formatted + f"\nSynthesis: {self.synthesis.pretty()}"
+        else:
+            return ws_formatted
+
+    def add_indexes_to_aliases(self, human_friendly_index: int):
+        super().add_indexes_to_aliases(human_friendly_index)
+        if self.synthesis:
+            self.synthesis.add_indexes_to_aliases(human_friendly_index)
