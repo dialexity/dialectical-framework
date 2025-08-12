@@ -35,6 +35,13 @@ class WheelBuilder:
         )
         self.__wheels: List[Wheel] = []
 
+    @classmethod
+    def load(cls, *, text: str, config: ConfigWheelBuilder | DialecticalReasoner = None, wheels: List[Wheel] = None) -> Self:
+        instance = cls(text=text, config=config)
+        if wheels is not None:
+            instance.__wheels = wheels
+        return instance
+
     @property
     def reasoner(self) -> DialecticalReasoner:
         return self.__reasoner
@@ -206,13 +213,6 @@ class WheelBuilder:
             self.__wheels = wheels
 
         return self.wheel_permutations
-
-    @classmethod
-    def load(cls, *, text: str, config: ConfigWheelBuilder = None, wheels: List[Wheel] = None) -> Self:
-        instance = cls(text=text, config=config)
-        if wheels is not None:
-            instance.__wheels = wheels
-        return instance
 
 def _rearrange_by_causal_sequence(wisdom_units: List[WisdomUnit], cycle: Cycle, mutate: bool = True) -> List[WisdomUnit]:
     """
