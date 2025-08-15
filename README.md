@@ -85,7 +85,7 @@ If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they 
 ![Win-Win Finder](./docs/b2c-mvp.png)
 
 ### Eye-Opener
-See the project description in [PROJECT1.md](./docs/PROJECT1.md). It's a tool that analyzes text and generates a visual map of its underlying structure and hidden assumptions. The core feature is a graph-like interface we call the Karma Wheel, that shows the delayed dialectical responses ("blind spots" or "karma effects").
+Working beta product [Eye Opener](https://app.dialexity.com/aiapps/eye-opener). It's a tool that analyzes text and generates a visual map of its underlying structure and hidden assumptions. The core feature is a graph-like interface we call the Dialectical Wheel, that shows the delayed dialectical responses ("blind spots").
 
 ### Argument Inspector
 Working beta product [Argument Inspector](https://dialexity.com/start). Useful for analysts and mediators/facilitators to deeper understand the case.

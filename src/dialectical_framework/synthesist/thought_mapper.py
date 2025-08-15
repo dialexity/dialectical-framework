@@ -217,7 +217,7 @@ class ThoughtMapper(HasBrain):
         return box
 
     async def find_t_cycles(self, theses: DialecticalComponentsDeck) -> CausalCyclesDeck:
-        # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess
+        # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
         alias_translations: dict[str, str] = {}
         for i, dc in enumerate(theses.dialectical_components, 1):
             alias_translations[f"S{i}"] = dc.alias
@@ -253,16 +253,22 @@ class ThoughtMapper(HasBrain):
 
         # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess
         alias_translations: dict[str, str] = {}
+        # First add all theses
         for i, wu in enumerate(ordered_wisdom_units, 1):
             alias_translations[f"S{i}"] = wu.t.alias
-            alias_translations[f"S{i + len(ordered_wisdom_units)}"] = wu.a.alias
             wu.t.alias = f"S{i}"
+            dialectical_components.append(wu.t)
+
+        # Then add all antitheses
+        for i, wu in enumerate(ordered_wisdom_units, 1):
+            alias_translations[f"S{i + len(ordered_wisdom_units)}"] = wu.a.alias
             wu.a.alias = f"S{i + len(ordered_wisdom_units)}"
-            dialectical_components.extend([wu.t, wu.a])
+            dialectical_components.append(wu.a)
 
         theses = DialecticalComponentsDeck(dialectical_components=dialectical_components)
         if len(ordered_wisdom_units) == 1:  # degenerate 1-node cycle
-            sequences = [f"{ordered_wisdom_units[0].t.alias} → {ordered_wisdom_units[0].a.alias} → {ordered_wisdom_units[0].t.alias}..."]
+            sequences = [
+                f"{ordered_wisdom_units[0].t.alias} → {ordered_wisdom_units[0].a.alias} → {ordered_wisdom_units[0].t.alias}..."]
         else:
             # Produce all valid diagonal sequences
             raw_sequences = _generate_compatible_sequences(ordered_wisdom_units)
