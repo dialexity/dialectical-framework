@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 
 from pydantic import BaseModel
 from pydantic import Field
@@ -34,6 +35,37 @@ class DialecticalComponent(BaseModel):
             the same, otherwise False.
         """
         return self == other or self.alias == other.alias and self.statement == other.statement
+
+    def get_human_friendly_index(self) -> int:
+        """
+        Converts the alias of an object into a human-friendly integer index.
+
+        This method processes an alias string provided by the object and identifies 
+        the last sequence of digits as the human-readable integer index. If no index 
+        can be identified, the method defaults to returning zero.
+
+        Returns:
+            int: The extracted integer index if present; otherwise, returns 0.
+        """
+        # Find the last sequence of digits in the alias
+        match = re.search(r'(\d+)(?!.*\d)', self.alias)
+        return int(match.group(1)) if match else 0
+
+    def set_human_friendly_index(self, human_friendly_index: int):
+        """
+        Updates the alias of the object by replacing the last sequence of digits with the
+        provided human-friendly index. If the index is 0, removes any existing digits entirely.
+
+        Args:
+            human_friendly_index: The integer index to replace the last sequence of digits
+            in the alias with. If 0, removes existing digits.
+        """
+        if human_friendly_index == 0:
+            # Remove the last sequence of digits entirely
+            self.alias = re.sub(r'(\d+)(?!.*\d)', '', self.alias)
+        else:
+            # Replace the last sequence of digits with the new index
+            self.alias = re.sub(r'(\d+)(?!.*\d)', str(human_friendly_index), self.alias)
 
     def pretty(self, dialectical_component_label: str | None = None, *, skip_explanation = False) -> str:
         if not dialectical_component_label:

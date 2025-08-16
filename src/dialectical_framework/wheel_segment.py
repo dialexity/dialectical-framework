@@ -142,9 +142,7 @@ class WheelSegment(BaseModel):
         for f, a in self.field_to_alias.items():
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
-                base = a.rstrip('+-')
-                sign = a[len(base):]
-                dc.alias = f"{base}{human_friendly_index}{sign}"
+                dc.set_human_friendly_index(human_friendly_index)
 
     def pretty(self) -> str:
         ws_formatted = []

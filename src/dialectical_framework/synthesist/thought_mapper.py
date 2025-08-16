@@ -29,82 +29,29 @@ class ThoughtMapper(HasBrain):
     def brain(self):
         return self.__config.brain
 
-    # TODO: this is duplication with dialectical_reasoner.py, refactor
     @prompt_template(
         """
         USER:
         <context>{text}</context>
-
-        USER:
-        Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
-
-        <formatting>
-        Output the dialectical component T within {component_length} word(s), the shorter, the better. The explanation how it was derived in the passive voice. Don't mention any special denotations (such as "T") in the statements nor explanations.
-        </formatting> 
-        """
-    )
-    def prompt_thesis1(self, text: str, component_length: int) -> Messages.Type: ...
-
-    @prompt_template(
-        """
-        USER:
-        <context>{text}</context>
-
-        USER:
-        In the given context, identify the most important 2 theses (concepts, ideas, elements, steps), T1 and T2, that form the most essential circular causation: T1 → T2 → T1...
         
-        <formatting>
-        Output the dialectical components each within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations (such as "T", "T1", "T+", "A-", "Ac", "Re", etc) in statements nor explanations.
+        USER:
+        In the given context, identify the most important {count} concept(s) in up to {component_length} words that represent the essence of the system.
+        
+        <formatting> 
+        T1 = concept statement 1
+        Explanation: The explanation how it was derived in the passive voice.
+        
+        T2 = statement statement 2
+        Explanation: The explanation how it was derived in the passive voice.
+        
+        ...
+        
+        Tx = concept statement x
+        Explanation: The explanation how it was derived in the passive voice.
         </formatting>
-        
-        2 theses labeled T1 and T2 are obligatory. No more, no less.
         """
     )
-    def prompt_thesis2(self, text, component_length: int) -> Messages.Type: ...
-
-    @prompt_template(
-        """
-        USER:
-        <context>{text}</context>
-
-        USER:
-        In the given context, identify the most important 3 concepts (steps, theses, ideas, elements, obstacles, actions, reflections, functions, or other phenomena), T1, T2, T3, that form the most essential circular causation: T1 → T2 → T3 → T1...
-
-        These concepts should represent elements that naturally flow into or cause each other in a repeating cycle.
-
-        <formatting>
-        Output the dialectical components each within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations (such as "T", "T1", "T+", "A-", "Ac", "Re", etc.) in statements nor explanations.
-        </formatting> 
-        
-        3 theses labeled T1, T2, and T3 are obligatory. No more, no less.
-        """
-    )
-    def prompt_thesis3(self, text, component_length: int) -> Messages.Type: ...
-
-    @prompt_template(
-        """
-        USER:
-        <context>{text}</context>
-
-        USER:
-        In the given context, identify the most important 4 concepts (steps, theses, ideas, elements, obstacles, actions, reflections, functions, or other phenomena), T1, T2, T3, T4, that form the most essential circular causation: T1 → T2 → T3 → T4 → T1... 
-
-        These elements should represent the key components of the system described in the text, where opposing concepts appear diagonally: T1 opposes T3, and T2 opposes T4.
-        
-        For instance, in the 4-stroke engine we have:
-        T1 = Fuel Intake; 
-        T2 = Compression;
-        T3 = Combustion - opposes T1 (Fuel Intake); 
-        T4 = Exhaust - opposes T2 (Compression).
-
-        <formatting>
-        Output the dialectical components each within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations (such as "T", "T1", "T+", "A-", "Ac", "Re", etc.) in statements nor explanations.
-        </formatting> 
-        
-        4 theses labeled as T1, T2, T3, and T4 are obligatory. No more, no less.
-        """
-    )
-    def prompt_thesis4(self, text, component_length: int) -> Messages.Type: ...
+    def prompt_theses(self, count: int, text: str, component_length: int) -> Messages.Type: ...
 
     @prompt_template(
         """
@@ -191,27 +138,19 @@ class ThoughtMapper(HasBrain):
     def prompt_sequencing_balanced(self, sequences: List[str]) -> Messages.Type: ...
 
     async def find_theses(self, count: int = 1) -> DialecticalComponentsDeck:
-        @with_langfuse()
-        @use_brain(brain=self.__config.brain, response_model=DialecticalComponent)
-        async def _find_single_thesis():
-            return self.prompt_thesis1(text=self.__text, component_length=self.__config.component_length)
+        if count > 4 or count < 1:
+            raise ValueError(f"Incorrect number of theses requested. Max 4 theses are supported.")
 
         @with_langfuse()
         @use_brain(brain=self.__config.brain, response_model=DialecticalComponentsDeck)
-        async def _find_multiple_theses():
-            if count == 2:
-                return self.prompt_thesis2(text=self.__text, component_length=self.__config.component_length)
-            elif count == 3:
-                return self.prompt_thesis3(text=self.__text, component_length=self.__config.component_length)
-            elif count == 4:
-                return self.prompt_thesis4(text=self.__text, component_length=self.__config.component_length)
-            else:
-                raise ValueError(f"Count {count} is not supported here.")
+        async def _find_theses():
+            return self.prompt_theses(text=self.__text, count=count, component_length=self.__config.component_length)
 
-        if count <= 1:
-            box = DialecticalComponentsDeck(dialectical_components=[await _find_single_thesis()])
-        elif count <= 4:
-            box = await _find_multiple_theses()
+        if count <= 4:
+            box = await _find_theses()
+            if count == 1 and len(box.dialectical_components) == 1:
+                dc: DialecticalComponent = box.dialectical_components[0]
+                dc.set_human_friendly_index(0)
         else:
             raise ValueError(f"More than 4 theses are not supported yet.")
         return box
