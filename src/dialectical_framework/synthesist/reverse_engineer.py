@@ -239,7 +239,7 @@ class ReverseEngineer:
 
         theses = [
             [
-                f"### Statement {index + 1} ({dc.alias})",
+                f"### Concept/Statement {index + 1} ({dc.alias})",
                 f"Alias: {dc.alias}",
                 f"Statement: {dc.statement}",
                 # Don't render explanations here, as these might be referring to other places in the wisdom unit,

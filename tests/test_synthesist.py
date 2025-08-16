@@ -30,8 +30,8 @@ factory = WheelBuilder(
 @pytest.mark.asyncio
 @observe()
 async def test_build_simple_wheel():
-    wheels = await factory.build_wheel_permutations(theses=[None])
-    assert wheels[0].order == 1
+    wheels = await factory.build_wheel_permutations(theses=[None, None])
+    assert wheels[0].order == 2
 
     print("\n")
     print(wheels[0])

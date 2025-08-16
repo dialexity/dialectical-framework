@@ -159,8 +159,8 @@ class ThoughtMapper(HasBrain):
         # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
         alias_translations: dict[str, str] = {}
         for i, dc in enumerate(theses.dialectical_components, 1):
-            alias_translations[f"S{i}"] = dc.alias
-            dc.alias = f"S{i}"
+            alias_translations[f"C{i}"] = dc.alias
+            dc.alias = f"C{i}"
 
         sequences = theses.get_cycles_str()
 
@@ -194,14 +194,14 @@ class ThoughtMapper(HasBrain):
         alias_translations: dict[str, str] = {}
         # First add all theses
         for i, wu in enumerate(ordered_wisdom_units, 1):
-            alias_translations[f"S{i}"] = wu.t.alias
-            wu.t.alias = f"S{i}"
+            alias_translations[f"C{i}"] = wu.t.alias
+            wu.t.alias = f"C{i}"
             dialectical_components.append(wu.t)
 
         # Then add all antitheses
         for i, wu in enumerate(ordered_wisdom_units, 1):
-            alias_translations[f"S{i + len(ordered_wisdom_units)}"] = wu.a.alias
-            wu.a.alias = f"S{i + len(ordered_wisdom_units)}"
+            alias_translations[f"C{i + len(ordered_wisdom_units)}"] = wu.a.alias
+            wu.a.alias = f"C{i + len(ordered_wisdom_units)}"
             dialectical_components.append(wu.a)
 
         theses = DialecticalComponentsDeck(dialectical_components=dialectical_components)

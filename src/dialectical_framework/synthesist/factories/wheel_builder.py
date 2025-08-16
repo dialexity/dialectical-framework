@@ -91,9 +91,7 @@ class WheelBuilder:
             wu = await self.reasoner.think(thesis=dc.statement)
             wu.t.explanation = dc.explanation
 
-            # Extract the numeric part of the alias; default to 0 when absent
-            match = re.search(r"\d+", dc.alias)
-            idx = int(match.group()) if match else 0
+            idx = dc.get_human_friendly_index()
             if idx:
                 wu.add_indexes_to_aliases(idx)
 
@@ -136,9 +134,7 @@ class WheelBuilder:
                 t_plus=ss.get_by_alias(ALIAS_S_PLUS),
                 t_minus = ss.get_by_alias(ALIAS_S_MINUS)
             )
-            # Keep indexing as it was on the original wu
-            match = re.search(r"\d+", wu.t.alias)
-            idx = int(match.group()) if match else 0
+            idx = wu.t.get_human_friendly_index()
             if idx:
                 wu.synthesis.add_indexes_to_aliases(idx)
 
@@ -165,9 +161,7 @@ class WheelBuilder:
                     if modifications:
                         is_dirty = True
                         wu_redefined = await self.reasoner.redefine(original=wu, **modifications)
-                        # Keep indexing as it was on the original wu
-                        match = re.search(r"\d+", wu.t.alias)
-                        idx = int(match.group()) if match else 0
+                        idx = wu.t.get_human_friendly_index()
                         if idx:
                             wu_redefined.add_indexes_to_aliases(idx)
                     else:

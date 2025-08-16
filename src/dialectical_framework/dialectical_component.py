@@ -55,6 +55,7 @@ class DialecticalComponent(BaseModel):
         """
         Updates the alias of the object by replacing the last sequence of digits with the
         provided human-friendly index. If the index is 0, removes any existing digits entirely.
+        If no digits exist and index > 0, inserts the index before any trailing signs.
 
         Args:
             human_friendly_index: The integer index to replace the last sequence of digits
@@ -64,8 +65,21 @@ class DialecticalComponent(BaseModel):
             # Remove the last sequence of digits entirely
             self.alias = re.sub(r'(\d+)(?!.*\d)', '', self.alias)
         else:
-            # Replace the last sequence of digits with the new index
-            self.alias = re.sub(r'(\d+)(?!.*\d)', str(human_friendly_index), self.alias)
+            # Try to replace existing digits first
+            if re.search(r'\d', self.alias):
+                # Replace the last sequence of digits with the new index
+                self.alias = re.sub(r'(\d+)(?!.*\d)', str(human_friendly_index), self.alias)
+            else:
+                # No digits exist, insert before any trailing signs
+                match = re.search(r'([+-]+)$', self.alias)
+                if match:
+                    # Has trailing signs, insert index before them
+                    base = self.alias[:match.start()]
+                    signs = match.group(1)
+                    self.alias = f"{base}{human_friendly_index}{signs}"
+                else:
+                    # No trailing signs, just append the index
+                    self.alias = f"{self.alias}{human_friendly_index}"
 
     def pretty(self, dialectical_component_label: str | None = None, *, skip_explanation = False) -> str:
         if not dialectical_component_label:
