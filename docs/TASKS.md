@@ -1,5 +1,11 @@
 # Todo:
 
+[] Permutations with T-cycles (not only the highest probability)
+
+[] Recalculate 1 wisdom unit, and then recalculate cycles (needed when T or A is changed), it's an efficient implementation of "redefine"
+
+[] Customizable prompt/rules for thesis extraction. Some sort of system prompt for overall analysis?
+
 [] Quick Synthesis Conditions
 ```aiignore
 Transitions ("Constructively Converges") could be summarized as "Quick Synthesis Conditions" in just few short lines immediately lifting the wheel's relevance
@@ -117,8 +123,6 @@ The causation analysis (like in your PDF) is indeed a separate and valuable anal
 [] DialecticalReasoningMode should be parametrized in config
 
 [] Add index (numbering) to wheel segments, now we derive it from alias
-
-[] Prompt engineering: add examples as user-assistant interchangeable messages, rather than in the big user prompt
 
 [] Make façade that would make it easier to wrap the whole framework into an API
 
