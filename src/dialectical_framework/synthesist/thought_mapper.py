@@ -35,20 +35,35 @@ class ThoughtMapper(HasBrain):
         <context>{text}</context>
         
         USER:
-        In the given context, identify the most important {count} concept(s) in up to {component_length} words that represent the essence of the system.
+        For the given context extract **{count}** distinct, essential **concepts** that best capture the core dynamics of the text.
+
+        **For strategic/philosophical texts, focus on:**
+        - Big-picture or recurring ideas that reflect the **essence** of the content
+        - **Abstract or strategic drivers** of the text  
+        - Terms that **structure the argument** or explain system-level dynamics
+    
+        **For technical/operational texts, focus on:**
+        - **Process stages, steps, or functional components** that form the system
+        - **Sequential elements** that flow into or cause each other
+        - **Operational phases** or mechanisms that drive the system forward
+    
+        **Guidelines:**
+        - Let the content guide whether to extract high-level themes or operational stages
+        - If the text describes processes/systems, identify functional components
+        - If the text presents arguments/strategies, identify conceptual themes
+        - Aim for concepts that are **interdependent** and form a coherent framework
+
+        **Output Format:**
+        T1 = [concept in 1-{component_length} words]
+        Explanation: [The explanation how it was derived in the passive voice]
         
-        <formatting> 
-        T1 = concept statement 1
-        Explanation: The explanation how it was derived in the passive voice.
-        
-        T2 = statement statement 2
-        Explanation: The explanation how it was derived in the passive voice.
+        T2 = [concept in 1-{component_length} words]
+        Explanation: [The explanation how it was derived in the passive voice]
         
         ...
         
-        Tx = concept statement x
-        Explanation: The explanation how it was derived in the passive voice.
-        </formatting>
+        Tx = [concept in 1-{component_length} words]
+        Explanation: [The explanation how it was derived in the passive voice]
         """
     )
     def prompt_theses(self, count: int, text: str, component_length: int) -> Messages.Type: ...
