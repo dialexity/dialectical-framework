@@ -64,11 +64,15 @@ class ThoughtMapper(HasBrain):
         1) Estimate the numeric probability (0 to 1) regarding its realistic existence in natural/existing systems
         2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
+        
+        Only use the sequences **exactly as provided**, do not shorten, skip, collapse, or reorder steps. 
         </instructions>
         
+        
         <formatting>
-        Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
-        However, in the explanations don't use these technical placeholders. Probability is a float between 0 and 1.
+        - Output each circular causality sequence (cycle) as ordered aliases (technical placeholders) of statements as provided e.g. C1, C2, C3, ...
+        - In the explanations, for fluency, use explicit wording instead of aliases.
+        - Probability is a float between 0 and 1.
         </formatting>
         """
     )
@@ -85,11 +89,14 @@ class ThoughtMapper(HasBrain):
         1) Estimate the numeric probability (0 to 1) regarding how beneficial/optimal this sequence would be if implemented
         2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
+        
+        Only use the sequences **exactly as provided**, do not shorten, skip, collapse, or reorder steps. 
         </instructions>
     
         <formatting>
-        Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
-        However, in the explanations don't use these technical placeholders. Probability is a float between 0 and 1.
+        - Output each circular causality sequence (cycle) as ordered aliases (technical placeholders) of statements as provided e.g. C1, C2, C3, ...
+        - In the explanations, for fluency, use explicit wording instead of aliases.
+        - Probability is a float between 0 and 1.
         </formatting>
         """
     )
@@ -106,11 +113,14 @@ class ThoughtMapper(HasBrain):
         1) Estimate the numeric probability (0 to 1) regarding how easily this sequence could be implemented given current constraints
         2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
+        
+        Only use the sequences **exactly as provided**, do not shorten, skip, collapse, or reorder steps. 
         </instructions>
 
         <formatting>
-        Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
-        However, in the explanations don't use these technical placeholders. Probability is a float between 0 and 1.
+        - Output each circular causality sequence (cycle) as ordered aliases (technical placeholders) of statements as provided e.g. C1, C2, C3, ...
+        - In the explanations, for fluency, use explicit wording instead of aliases.
+        - Probability is a float between 0 and 1.
         </formatting>
         """
     )
@@ -127,11 +137,14 @@ class ThoughtMapper(HasBrain):
         1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility
         2) Explain why this sequence might occur (or already occurs) in reality
         3) Describe circumstances or contexts where this sequence would be most applicable or useful
+        
+        - Only use the sequences **exactly as provided**, do not shorten, skip, collapse, or reorder steps. 
         </instructions>
 
         <formatting>
-        Output the cycle as aliases (technical placeholders) of statements as provided e.g. T, T1, A2, etc.
-        However, in the explanations don't use these technical placeholders. Probability is a float between 0 and 1.
+        - Output each circular causality sequence (cycle) as ordered aliases (technical placeholders) of statements as provided e.g. C1, C2, C3, ...
+        - In the explanations, for fluency, use explicit wording instead of aliases.
+        - Probability is a float between 0 and 1.
         </formatting>
         """
     )
