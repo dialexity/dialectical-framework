@@ -15,6 +15,7 @@ class DecoratorReciprocalSolution(WheelBuilderTransitionCalculator):
             text=self.text,
             config=self.config,
             wheel=wheel,
+            brain=self.reasoner.brain
         )
 
         return [await consultant.think(focus=at)]

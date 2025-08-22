@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from dialectical_framework.brain import Brain
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
+from dialectical_framework.config import Config
 from dialectical_framework.transition import Transition
 from dialectical_framework.utils.use_brain import HasBrain
 from dialectical_framework.wheel import Wheel
@@ -11,25 +11,21 @@ from dialectical_framework.wheel_segment import WheelSegment
 class StrategicConsultant(ABC, HasBrain):
     def __init__(
         self,
-        text: str,
         *,
-        config: ConfigWheelBuilder = None,
+        text: str,
+        brain: Brain,
+        config: Config,
         wheel: Wheel,
     ):
-        # TODO: one wisdom unit isn't enough, it should be actually based on the wheel, not on the wisdom unit
+        self._brain = brain
         self._text = text
         self._wheel = wheel
-
-        if config is None:
-            config = ConfigWheelBuilder(
-                component_length=4
-            )
-
-        self._component_length = config.component_length
-        self._brain = config.brain
-
+        self._config = config
         self._transition = None
 
+    @property
+    def config(self) -> Config:
+        return self._config
 
 
     @abstractmethod

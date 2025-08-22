@@ -14,7 +14,8 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
         consultant = ThinkActionReflection(
             text=self.text,
             config=self.config,
-            wheel=wheel
+            wheel=wheel,
+            brain=self.reasoner.brain
         )
 
         return [await consultant.think(focus=at)]

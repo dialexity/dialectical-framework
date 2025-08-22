@@ -1,6 +1,6 @@
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.wisdom_unit import DialecticalReasoningMode
+from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 
 
@@ -42,6 +42,6 @@ class ReasonFastPolarizedConflict(ReasonFastAndSimple):
         return {
             "computed_fields": {
                 "text": text,
-                "component_length": self._component_length,
+                "component_length": self.config.component_length,
             }
         }

@@ -1,7 +1,11 @@
-import os
-import sys
+import pytest
 
-# Add the src directory to the Python path
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
-)
+from dialectical_framework.dialectical_reasoning import DialecticalReasoning
+
+
+@pytest.fixture(scope="session", autouse=True)
+def di_container():
+    """Set up DI container context for all tests"""
+    container = DialecticalReasoning()
+    yield container
+    container.unwire()

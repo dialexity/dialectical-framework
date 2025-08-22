@@ -2,19 +2,14 @@ from typing import List
 
 import pytest
 from langfuse.decorators import observe
-from mirascope import prompt_template, llm
-from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
-from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
+from dialectical_framework.analyst.decorator_reciprocal_solution import DecoratorReciprocalSolution
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
-from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
-from dialectical_framework.analyst.decorator_reciprocal_solution import DecoratorReciprocalSolution
-from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
-from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
-from dialectical_framework.wheel import Wheel
+from dialectical_framework.dialectical_reasoning import DialecticalReasoning
+from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
@@ -53,56 +48,23 @@ example_wu4 = WisdomUnit(
     a_minus=DialecticalComponent(alias="A4-", statement="Oppression deepens"),
 )
 
-wbc = ConfigWheelBuilder(component_length=7)
-factory = WheelBuilder(
-    config=wbc,
-    text=user_message,
-)
-
-
 @pytest.mark.asyncio
 @observe()
-async def test_reverse_engineering():
-    tm: ThoughtMapper = ThoughtMapper(
-        user_message,
-        config=wbc,
-    )
-    t_cycles = await tm.arrange([
-        example_wu1.t.statement,
-        example_wu2.t.statement,
-    ])
-    ta_cycles = await tm.arrange([example_wu1, example_wu2])
-    w = Wheel([example_wu1, example_wu2],
-              t_cycle=t_cycles[0],
-              ta_cycle=ta_cycles[0]
-              )
+async def test_full_blown_wheel():
+    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    factory1 = DecoratorDiscreteSpiral(DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory)))
+    wheels = await factory1.build_wheel_permutations(theses=[None, None])
+    assert wheels[0].order == 2
 
-    provider, model = wbc.brain.specification()
-    @with_langfuse()
-    @llm.call(provider=provider, model=model)
-    @prompt_template(
-    """
-    MESSAGES:
-    {wheel_construction}
-    
-    USER:
-    Summarize the whole analysis
-    """)
-    def summarize():
-        return {
-            "computed_fields": {
-                "wheel_construction" : ReverseEngineer.wheel(w, text=user_message),
-            }
-        }
+    await factory1.calculate_transitions(wheels[0])
 
-    # Call and get the result
-    result = summarize()
     print("\n")
-    print(result)
+    print(wheels[0])
 
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_spiral():
+    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
     factory1 = DecoratorDiscreteSpiral(builder=factory)
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].order == 2
@@ -117,6 +79,7 @@ async def test_wheel_spiral():
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_acre():
+    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
     factory2 = DecoratorActionReflection(builder=factory)
     wheels = await factory2.build_wheel_permutations(theses=[None])
     assert wheels[0].order == 1
@@ -132,6 +95,7 @@ async def test_wheel_acre():
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_acre_reciprocal():
+    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
     factory3 = DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory))
     wheels = await factory3.build_wheel_permutations(theses=[None])
     assert wheels[0].order == 1
@@ -142,104 +106,35 @@ async def test_wheel_acre_reciprocal():
     print("\n")
     print(wheels[0])
 
-@pytest.mark.asyncio
-@observe()
-async def test_factory_loading():
-    tm: ThoughtMapper = ThoughtMapper(
-        user_message,
-        config=wbc,
-    )
-    t_cycles = await tm.arrange([
-        example_wu1.t.statement,
-        example_wu2.t.statement,
-        example_wu3.t.statement,
-        example_wu4.t.statement,
-    ])
-    ta_cycles = await tm.arrange([example_wu1, example_wu2, example_wu3, example_wu4])
-    w = Wheel([example_wu1, example_wu2, example_wu3, example_wu4],
-              t_cycle=t_cycles[0],
-              ta_cycle=ta_cycles[0]
-              )
-    wb = WheelBuilder.load(
-        text=user_message,
-        config=wbc,
-        wheels=[w]
-    )
-
-    assert len(wb.wheel_permutations) == 1
-    assert len(wb.wheel_permutations[0].wisdom_units) == 4
-    print("\n")
-    print(wb.wheel_permutations[0])
 
 @pytest.mark.asyncio
 @observe()
-async def test_wheel_redefine():
-    tm: ThoughtMapper = ThoughtMapper(
-        user_message,
-        config=wbc,
-    )
-    t_cycles = await tm.arrange([
-        example_wu1.t.statement,
-        example_wu2.t.statement,
-        example_wu3.t.statement,
-        example_wu4.t.statement,
-    ])
-    ta_cycles = await tm.arrange([example_wu1, example_wu2, example_wu3, example_wu4])
-    w = Wheel([example_wu1, example_wu2, example_wu3, example_wu4],
-              t_cycle=t_cycles[0],
-              ta_cycle=ta_cycles[0]
-              )
-    wb = WheelBuilder.load(
-        text=user_message,
-        config=wbc,
-        wheels=[w]
-    )
-
-    print("\n")
-    print(wb.wheel_permutations[0])
-    print("\n")
-
-    wheels = await wb.redefine({"T1": "Putin starts war", "T2+": "Keeping sovereignty"})
-    print("\n")
-    print("\n\n".join([w.__str__() for w in wheels]))
-
-
-@pytest.mark.asyncio
-@observe()
-async def test_thought_mapping():
-    nr_of_thoughts = 3
-    reasoner = ThoughtMapper(user_message)
-    cycles: List[Cycle] = await reasoner.map(nr_of_thoughts)
+@pytest.mark.parametrize("number_of_thoughts", [
+    2,
+    3,
+    4,
+])
+async def test_thought_mapping(number_of_thoughts):
+    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    analyst = factory.causality_analyst
+    cycles: List[Cycle] = await analyst.map(number_of_thoughts)
     print("\n")
     for cycle in cycles:
-        assert len(cycle.dialectical_components) == nr_of_thoughts
+        assert len(cycle.dialectical_components) == number_of_thoughts
         print(cycle.pretty(skip_dialectical_component_explanation=True))
 
 @pytest.mark.asyncio
 @observe()
-async def test_wheel_2():
-    wheels = await factory.build_wheel_permutations(theses=["", None])
-    assert len(wheels[0].wisdom_units) == 2
-    assert wheels[0].cycle is not None
-    print("\n")
-    print(wheels[0])
-
-@pytest.mark.asyncio
-@observe()
-async def test_wheel_3():
-    number_of_thoughts = 3
-    wheels = await factory.build_wheel_permutations(theses=[None] * number_of_thoughts)
-    assert len(wheels[0].wisdom_units) == number_of_thoughts
-    assert wheels[0].cycle is not None
-    print("\n")
-    print("\n\n".join(str(wheel) for wheel in wheels))
-
-@pytest.mark.asyncio
-@observe()
-async def test_wheel_4():
-    number_of_thoughts = 4
-    wheels = await factory.build_wheel_permutations(theses=[None] * number_of_thoughts)
-    assert len(wheels[0].wisdom_units) == number_of_thoughts
-    assert wheels[0].cycle is not None
-    print("\n")
-    print("\n\n".join(str(wheel) for wheel in wheels))
+@pytest.mark.parametrize("number_of_thoughts", [
+    1,
+    2,
+    3,
+    4,
+])
+async def test_find_theses(number_of_thoughts):
+    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    theses_deck = await factory.causality_analyst.find_theses(
+        count=number_of_thoughts
+    )
+    theses = [dc.statement for dc in theses_deck.dialectical_components]
+    print("\n".join(theses))

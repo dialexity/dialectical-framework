@@ -64,7 +64,7 @@ class ThinkReciprocalSolution(StrategicConsultant):
             "computed_fields": {
                 "text": text,
                 "dialectical_analysis": focus.pretty(),
-                "component_length": self._component_length,
+                "component_length": self.config.component_length,
             }
         }
 

@@ -7,13 +7,14 @@ from typing import List, Self
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.brain import Brain
+from dialectical_framework.config import Config
 from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
+from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
+from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain, HasBrain
@@ -23,38 +24,37 @@ from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_valid_opposition, check)
 from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                               ALIAS_A_PLUS, WisdomUnit, DialecticalReasoningMode)
+                                               ALIAS_A_PLUS, WisdomUnit)
 
 
 class DialecticalReasoner(ABC, HasBrain):
 
     def __init__(
         self,
-        text: str = "",
+        config: Config,
+        brain: Brain,
         *,
-        config: ConfigWheelBuilder = None,
+        text: str = "",
+
     ):
         self._text = text
+        self._config = config
+        self._brain = brain
         self._wisdom_unit = None
 
-        if config is None:
-            config = ConfigWheelBuilder(
-                component_length=3
-            )
-
-        self.__config = config
-
         self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
-        self._component_length = self.__config.component_length
-        self._brain = self.__config.brain
 
         self._analysis = DialecticalAnalysis(
             corpus=self._text
         )
 
     @property
-    def config(self) -> ConfigWheelBuilder:
-        return self.__config
+    def config(self) -> Config:
+        return self._config
+
+    @property
+    def brain(self) -> Brain:
+        return self._brain
 
     @property
     def text(self) -> str:
@@ -75,6 +75,8 @@ class DialecticalReasoner(ABC, HasBrain):
         if perspectives:
             # Take first perspective as active
             self._wisdom_unit = perspectives[-1]
+        else:
+            self._wisdom_unit = None
         return self
 
     @prompt_template(
@@ -93,7 +95,7 @@ class DialecticalReasoner(ABC, HasBrain):
             "computed_fields": {
                 # Sometimes we don't want the whole user input again, as we're calculating the thesis within a longer analysis
                 "start": "<context>" + inspect.cleandoc(text) + "</context>" if text else "Ok.",
-                "component_length": self._component_length
+                "component_length": self.config.component_length
             },
         }
 
@@ -112,7 +114,7 @@ class DialecticalReasoner(ABC, HasBrain):
         return {
             "computed_fields": {
                 "thesis": thesis,
-                "component_length": self._component_length
+                "component_length": self.config.component_length
             },
         }
 
@@ -140,7 +142,7 @@ class DialecticalReasoner(ABC, HasBrain):
             "computed_fields": {
                 "thesis": thesis,
                 "not_like_this": not_like_this,
-                "component_length": self._component_length
+                "component_length": self.config.component_length
             },
         }
 
@@ -192,7 +194,7 @@ class DialecticalReasoner(ABC, HasBrain):
             "computed_fields": {
                 "thesis": thesis,
                 "antithesis_negative": antithesis_negative,
-                "component_length": self._component_length
+                "component_length": self.config.component_length
             },
         }
 
@@ -665,11 +667,3 @@ class DialecticalReasoner(ABC, HasBrain):
                 pass
 
         return new_wu
-
-    @property
-    def brain(self) -> Brain:
-        return self._brain
-
-    @brain.setter
-    def brain(self, brain: Brain):
-        self._brain = brain

@@ -1,50 +1,36 @@
 from __future__ import annotations
 
-import re
 from typing import List, Self, Union, Dict
 
+from dependency_injector.wiring import inject, Provide
+
+from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
 from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
-from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class WheelBuilder:
-    def __init__(self, *, text: str = "", config: ConfigWheelBuilder | DialecticalReasoner = None):
-        if not config or isinstance(config, ConfigWheelBuilder):
-            self.__reasoner: DialecticalReasoner = ReasonFastAndSimple(
-                text=text,
-                config=config or ConfigWheelBuilder(),
-            )
-        elif isinstance(config, DialecticalReasoner):
-            self.__reasoner = config
-            if not text:
-                text = self.__reasoner.text
-            self.__reasoner.load(text=text)
-
+    @inject
+    def __init__(
+            self,
+            config: Config = Provide["config"],
+            reasoner: DialecticalReasoner = Provide["reasoner"],
+            causality_analyst: ThoughtMapper = Provide["causality_analyst"],
+            *,
+            text: str = "",
+            wheels: List[Wheel] = None,
+    ):
         self.__text = text
+        self.__wheels: List[Wheel] = wheels or []
 
-        self.__config = self.__reasoner.config
-        self.__analyst = ThoughtMapper(
-            text=self.__text,
-            config=self.__config
-        )
-        self.__wheels: List[Wheel] = []
-
-    @classmethod
-    def load(cls, *, text: str, config: ConfigWheelBuilder | DialecticalReasoner = None, wheels: List[Wheel] = None) -> Self:
-        instance = cls(text=text, config=config)
-        if wheels is not None:
-            instance.__wheels = wheels
-        return instance
-
-    @property
-    def reasoner(self) -> DialecticalReasoner:
-        return self.__reasoner
+        self.__analyst = causality_analyst
+        self.__config = config
+        self.__reasoner = reasoner
+        self.load(text=text)
 
     @property
     def wheel_permutations(self) -> List[Wheel]:
@@ -55,8 +41,24 @@ class WheelBuilder:
         return self.__text
 
     @property
-    def config(self) -> ConfigWheelBuilder:
+    def config(self) -> Config:
         return self.__config
+
+    @property
+    def reasoner(self) -> DialecticalReasoner:
+        return self.__reasoner
+
+    @property
+    def causality_analyst(self) -> ThoughtMapper:
+        return self.__analyst
+
+    def load(self, *, text: str) -> Self:
+        self.__text = text
+
+        self.__reasoner.load(text=text)
+        self.__analyst.text = text
+
+        return self
 
     async def t_cycles(self, *, theses: List[Union[str, None]] = None) -> List[Cycle]:
         wu_count = len(theses) if theses else 1
@@ -71,7 +73,6 @@ class WheelBuilder:
             if not theses:
                 theses = [await self.reasoner.find_thesis()]
 
-
         if not theses:
             cycles: List[Cycle] = await self.__analyst.map(wu_count)
         else:
@@ -79,12 +80,12 @@ class WheelBuilder:
 
         return cycles
 
-    async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
+    async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[
+        Wheel]:
         if t_cycle is None:
             cycles: List[Cycle] = await self.t_cycles(theses=theses)
             # The first one is the highest probability
             t_cycle = cycles[0]
-
 
         wheel_wisdom_units = []
         for dc in t_cycle.dialectical_components:
@@ -102,16 +103,17 @@ class WheelBuilder:
         wheels = []
         for cycle in cycles:
             w = Wheel(_rearrange_by_causal_sequence(wheel_wisdom_units, cycle, mutate=False),
-                t_cycle=t_cycle,
-                ta_cycle=cycle
-            )
+                      t_cycle=t_cycle,
+                      ta_cycle=cycle
+                      )
             wheels.append(w)
 
         # Save results for reference
         self.__wheels = wheels
         return self.wheel_permutations
 
-    async def calculate_syntheses(self, wheel: Wheel, at: WheelSegmentReference | List[WheelSegmentReference] = None):
+    async def calculate_syntheses(self, *, wheel: Wheel,
+                                  at: WheelSegmentReference | List[WheelSegmentReference] = None):
         if wheel not in self.wheel_permutations:
             raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
 
@@ -132,13 +134,13 @@ class WheelBuilder:
             ss = await self.reasoner.find_synthesis(wu)
             wu.synthesis = Synthesis(
                 t_plus=ss.get_by_alias(ALIAS_S_PLUS),
-                t_minus = ss.get_by_alias(ALIAS_S_MINUS)
+                t_minus=ss.get_by_alias(ALIAS_S_MINUS)
             )
             idx = wu.t.get_human_friendly_index()
             if idx:
                 wu.synthesis.add_indexes_to_aliases(idx)
 
-    async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
+    async def redefine(self, *, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
         """
             We can give component statements by alias, e.g., T1 = "New thesis 1", A2+ = "New positive side of antithesis 2"
 
@@ -172,10 +174,7 @@ class WheelBuilder:
                     wheels.append(wheel)
                 else:
                     # Recalculate cycles
-                    analyst = ThoughtMapper(
-                        text=self.text,
-                        config=self.config
-                    )
+                    analyst = self.__analyst
 
                     theses: List[str] = []
                     for nwu in new_wisdom_units:
@@ -200,15 +199,17 @@ class WheelBuilder:
 
                     for cycle in cycles:
                         w = Wheel(_rearrange_by_causal_sequence(wheel_wisdom_units, cycle, mutate=False),
-                          t_cycle=t_cycle,
-                          ta_cycle=cycle,
-                        )
+                                  t_cycle=t_cycle,
+                                  ta_cycle=cycle,
+                                  )
                         wheels.append(w)
             self.__wheels = wheels
 
         return self.wheel_permutations
 
-def _rearrange_by_causal_sequence(wisdom_units: List[WisdomUnit], cycle: Cycle, mutate: bool = True) -> List[WisdomUnit]:
+
+def _rearrange_by_causal_sequence(wisdom_units: List[WisdomUnit], cycle: Cycle, mutate: bool = True) -> List[
+    WisdomUnit]:
     """
     We expect the cycle to be on the middle ring where theses and antitheses reside.
     This way we can swap the wisdom unit oppositions if necessary.
@@ -223,7 +224,7 @@ def _rearrange_by_causal_sequence(wisdom_units: List[WisdomUnit], cycle: Cycle, 
 
     unique_aliases = dict.fromkeys(all_aliases)
 
-    if len(unique_aliases) != 2*len(wisdom_units):
+    if len(unique_aliases) != 2 * len(wisdom_units):
         raise ValueError("Not all aliases are present in the causal sequence")
 
     wu_sorted = []

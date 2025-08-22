@@ -1,10 +1,5 @@
-from dialectical_framework.utils.config import Config
-
-
 class Brain:
-    def __init__(self, *,
-                 ai_model: str = Config.MODEL,
-                 ai_provider: str | None = Config.PROVIDER):
+    def __init__(self, *, ai_model: str, ai_provider: str | None):
         if not ai_provider:
             if not "/" in ai_model:
                 raise ValueError(
@@ -65,17 +60,6 @@ class Brain:
                         return ai_provider, f"{current_provider}/{ai_model}"
                 else:
                     return ai_provider, ai_model
-
-        if not ai_model and not ai_provider:
-            if Config.PROVIDER or Config.MODEL or current_provider or current_model:
-                return self.modified_specification(
-                    ai_provider=Config.PROVIDER if not current_provider else current_provider,
-                    ai_model=Config.MODEL if not current_model else current_model,
-                )
-            else:
-                raise ValueError(
-                    "Cannot fallback to default model as they're not present"
-                )
 
         if not ai_provider:
             if not "/" in ai_model:

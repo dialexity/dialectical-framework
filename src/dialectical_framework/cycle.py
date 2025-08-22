@@ -7,7 +7,7 @@ from pydantic import Field, ConfigDict
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.directed_graph import DirectedGraph
-from dialectical_framework.synthesist.factories.config_wheel_builder import CausalityType
+from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.transition import Predicate
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 

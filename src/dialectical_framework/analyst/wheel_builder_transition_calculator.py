@@ -1,10 +1,10 @@
 from abc import abstractmethod, ABC
 from typing import List, Dict, Union
 
+from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.transition import Transition, Predicate
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
@@ -13,7 +13,7 @@ from dialectical_framework.wheel_segment import WheelSegment
 
 class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     def __init__(self, builder: WheelBuilder):
-        super().__init__(text=builder.text, config=builder.config)
+        super().__init__(text=builder.text, config=builder.config, reasoner=builder.reasoner)
         self.__decorated_builder = builder
 
     @property
@@ -33,7 +33,7 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.__decorated_builder.text
 
     @property
-    def config(self) -> ConfigWheelBuilder:
+    def config(self) -> Config:
         return self.__decorated_builder.config
 
     async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
@@ -41,7 +41,7 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.wheel_permutations
 
     async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
-        await self.__decorated_builder.redefine(modified_statement_per_alias)
+        await self.__decorated_builder.redefine(modified_statement_per_alias=modified_statement_per_alias)
         return self.wheel_permutations
 
     async def calculate_syntheses(self, wheel: Wheel, at: WheelSegmentReference | List[WheelSegmentReference] = None):

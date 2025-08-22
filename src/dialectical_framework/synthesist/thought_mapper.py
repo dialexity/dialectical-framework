@@ -4,11 +4,13 @@ from mirascope import prompt_template, Messages
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.ai_structured_data.causal_cycles_deck import CausalCyclesDeck
-from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
+from dialectical_framework.brain import Brain
+from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.synthesist.factories.config_wheel_builder import ConfigWheelBuilder, CausalityType
+from dialectical_framework.enums.causality_type import CausalityType
+from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain, HasBrain
@@ -18,16 +20,30 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 class ThoughtMapper(HasBrain):
     def __init__(
         self,
-        text: str,
+        config: Config,
+        brain: Brain,
         *,
-        config: ConfigWheelBuilder = None,
+        text: str = "",
     ):
         self.__text = text
-        self.__config = ConfigWheelBuilder() if config is None else config
+        self.__config = config
+        self.__brain = brain
 
     @property
-    def brain(self):
-        return self.__config.brain
+    def config(self) -> Config:
+        return self.__config
+
+    @property
+    def brain(self) -> Brain:
+        return self.__brain
+
+    @property
+    def text(self) -> str:
+        return self.__text
+
+    @text.setter
+    def text(self, value: str):
+        self.__text = value
 
     @prompt_template(
         """
@@ -170,9 +186,9 @@ class ThoughtMapper(HasBrain):
             raise ValueError(f"Incorrect number of theses requested. Max 4 theses are supported.")
 
         @with_langfuse()
-        @use_brain(brain=self.__config.brain, response_model=DialecticalComponentsDeck)
+        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeck)
         async def _find_theses():
-            return self.prompt_theses(text=self.__text, count=count, component_length=self.__config.component_length)
+            return self.prompt_theses(text=self.__text, count=count, component_length=self.config.component_length)
 
         if count <= 4:
             box = await _find_theses()
@@ -273,11 +289,11 @@ class ThoughtMapper(HasBrain):
     @with_langfuse()
     @use_brain(response_model=CausalCyclesDeck)
     async def _find_cycles(self, sequences: List[str], dialectical_components: List[DialecticalComponent]) -> CausalCyclesDeck:
-        if self.__config.causality_type == CausalityType.REALISTIC:
+        if self.config.causality_type == CausalityType.REALISTIC:
             prompt = self.prompt_sequencing_realistic(sequences=sequences)
-        elif self.__config.causality_type == CausalityType.DESIRABLE:
+        elif self.config.causality_type == CausalityType.DESIRABLE:
             prompt = self.prompt_sequencing_desirable(sequences=sequences)
-        elif self.__config.causality_type == CausalityType.FEASIBLE:
+        elif self.config.causality_type == CausalityType.FEASIBLE:
             prompt = self.prompt_sequencing_feasible(sequences=sequences)
         else:
             prompt = self.prompt_sequencing_balanced(sequences=sequences)
@@ -290,7 +306,7 @@ class ThoughtMapper(HasBrain):
         if thoughts == 1:
             return [Cycle(
                 dialectical_components=(await self.find_theses()).dialectical_components,
-                causality_type=self.__config.causality_type,
+                causality_type=self.config.causality_type,
                 probability=1.0
             )]
         else:
@@ -301,7 +317,7 @@ class ThoughtMapper(HasBrain):
         cycles: list[Cycle] = []
         for causal_cycle in causal_cycles_box.causal_cycles:
             cycles.append(Cycle(dialectical_components=box.sort_by_example(causal_cycle.aliases),
-                                causality_type=self.__config.causality_type,
+                                causality_type=self.config.causality_type,
                                 probability=causal_cycle.probability,
                                 reasoning_explanation=causal_cycle.reasoning_explanation,
                                 argumentation=causal_cycle.argumentation))
@@ -323,7 +339,7 @@ class ThoughtMapper(HasBrain):
                 return [Cycle(dialectical_components=[
                     ordered_wisdom_units[0].t,
                     ordered_wisdom_units[0].a,
-                ], probability=1.0, causality_type=self.__config.causality_type)]
+                ], probability=1.0, causality_type=self.config.causality_type)]
             elif len(thoughts) == 2:
                 box = DialecticalComponentsDeck(dialectical_components=[
                     ordered_wisdom_units[0].t,
@@ -361,7 +377,7 @@ class ThoughtMapper(HasBrain):
                     return [Cycle(
                         dialectical_components=thoughts,
                         probability=1.0,
-                        causality_type=self.__config.causality_type,
+                        causality_type=self.config.causality_type,
                     )]
                 else:
                     return [Cycle(
@@ -369,7 +385,7 @@ class ThoughtMapper(HasBrain):
                             DialecticalComponent(alias="T", statement=thoughts[0], explanation=thoughts[0])
                         ],
                         probability=1.0,
-                        causality_type=self.__config.causality_type,
+                        causality_type=self.config.causality_type,
                     )]
             elif len(thoughts) <= 4:
                 if thoughts and isinstance(thoughts[0], DialecticalComponent):
@@ -387,7 +403,7 @@ class ThoughtMapper(HasBrain):
         cycles: list[Cycle] = []
         for causal_cycle in causal_cycles_box.causal_cycles:
             cycles.append(Cycle(dialectical_components=box.sort_by_example(causal_cycle.aliases),
-                                causality_type=self.__config.causality_type,
+                                causality_type=self.config.causality_type,
                                 probability=causal_cycle.probability,
                                 reasoning_explanation=causal_cycle.reasoning_explanation,
                                 argumentation=causal_cycle.argumentation))

@@ -9,7 +9,8 @@ from dialectical_framework.analyst.strategic_consultant import StrategicConsulta
 from dialectical_framework.transition import Predicate
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
-from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, DialecticalReasoningMode
+from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS
+from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
 
 
 class ThinkActionReflection(StrategicConsultant):
@@ -46,7 +47,7 @@ class ThinkActionReflection(StrategicConsultant):
             "computed_fields": {
                 "text": text,
                 "dialectical_analysis": focus.pretty(),
-                "component_length": self._component_length,
+                "component_length": self.config.component_length,
             }
         }
 

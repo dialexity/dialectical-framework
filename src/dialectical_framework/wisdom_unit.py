@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
-
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
 from dialectical_framework.synthesis import Synthesis
 from dialectical_framework.wheel_segment import WheelSegment
 
@@ -12,10 +11,6 @@ ALIAS_A = "A"
 ALIAS_A_PLUS = "A+"
 ALIAS_A_MINUS = "A-"
 
-class DialecticalReasoningMode(str, Enum):
-    GENERAL_CONCEPTS = "general_concepts"
-    MAJOR_TENSION = "major_tension"
-    ACTION_REFLECTION = "action_reflection"
 
 class WisdomUnit(WheelSegment):
     """

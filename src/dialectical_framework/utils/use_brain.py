@@ -1,6 +1,6 @@
-from abc import ABC, abstractmethod
-from typing import TypeVar, Callable, Any, Protocol, runtime_checkable, Optional
+from abc import abstractmethod
 from functools import wraps
+from typing import TypeVar, Callable, Any, Protocol, runtime_checkable, Optional
 
 from mirascope import llm
 
@@ -28,21 +28,21 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
     def decorator(method: Callable[..., Any]) -> Callable[..., T]:
         @wraps(method)
         async def wrapper(*args, **kwargs) -> T:
-            # Determine the brain to use
+            target_brain = None
             if brain is not None:
                 target_brain = brain
             else:
                 # Expect first argument to be self with HasBrain protocol
                 if not args:
-                    raise TypeError("No arguments provided and no brain specified in decorator")
+                    raise TypeError("No arguments provided, no brain specified in decorator, and no brain available from DI container")
                 
                 first_arg = args[0]
-                if isinstance(first_arg, HasBrain):
+                if isinstance(first_arg, HasBrain) and target_brain is None:
                     target_brain = first_arg.brain
                 else:
                     raise TypeError(
-                        f"{first_arg.__class__.__name__} must implement {HasBrain.__name__} protocol "
-                        "or pass brain parameter to decorator"
+                        f"{first_arg.__class__.__name__} must implement {HasBrain.__name__} protocol, "
+                        "pass brain parameter to decorator, or have Brain available in DI container"
                     )
 
             overridden_ai_provider, overridden_ai_model = target_brain.specification()

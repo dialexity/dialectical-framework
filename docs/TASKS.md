@@ -132,4 +132,6 @@ The causation analysis (like in your PDF) is indeed a separate and valuable anal
 
 [] Redefine should not do YES/NO as it constantly doesn't pass. We need an evaluation 0..1 or maybe reevaluate the full wheel during redefine, not restricted on a component level. Problem is most likely is that we don't send the history of chat messages, so AI doesn't see how it was made initially.
 
+[] Use JSON mode (now it's using tools mode), fallback to tools mode if json mode isn't available on the model, lastly fallback to text mode returning json code block
+
 [] Improve Mirascope to allow html comments in the prompts, which are stripped upon execution.

@@ -6,10 +6,12 @@ from mirascope import Messages, prompt_template, BaseMessageParam
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.synthesist.factories.config_wheel_builder import CausalityType
+from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.wheel import Wheel
-from dialectical_framework.wisdom_unit import WisdomUnit, DialecticalReasoningMode
+from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
+
 
 # TODO: reuse the prompts from the reasoners?
 class ReverseEngineer:

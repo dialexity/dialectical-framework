@@ -41,6 +41,6 @@ class ReasonFastAndSimple(ReasonFast):
         return {
             "computed_fields": {
                 "text": text,
-                "component_length": self._component_length,
+                "component_length": self.config.component_length,
             }
         }

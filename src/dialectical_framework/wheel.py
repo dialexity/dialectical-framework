@@ -9,7 +9,8 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.spiral import Spiral
 from dialectical_framework.wheel_segment import WheelSegment
-from dialectical_framework.wisdom_unit import WisdomUnit, DialecticalReasoningMode
+from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
 
 WheelSegmentReference = Union[int, WheelSegment, str, DialecticalComponent]
 
