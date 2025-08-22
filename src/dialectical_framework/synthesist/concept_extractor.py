@@ -17,7 +17,7 @@ from dialectical_framework.utils.use_brain import use_brain, HasBrain
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class ThoughtMapper(HasBrain):
+class ConceptExtractor(HasBrain):
     def __init__(
         self,
         config: Config,

@@ -108,7 +108,7 @@ Transformation - How to make sequences happen
 The causation analysis (like in your PDF) is indeed a separate and valuable analytical tool that we hadn't explicitly captured in our previous prompts.
 ```
 
-[] SymmetricTransition is crap. Refactor. Spiral becomes equivalent to converges_constructively predicate. ActionReflection should then inherit from WisdomUnit and TransitionSegmentToSegment. Reciprocal Solution is sort of a spiralic thing as well, which belongs to the WisdomUnit, rather than to the global wheel Spiral. 
+[] SymmetricTransition is crap. Refactor. Spiral becomes equivalent to converges_constructively predicate. ActionReflection should then inherit from WisdomUnit and TransitionSegmentToSegment. Reciprocal Solution is sort of a spiralic thing as well, which belongs to the WisdomUnit, rather than to the global wheel Spiral. Transition must inherit from DialecticalComponent.
 
 [] Actualization (report generation)
 

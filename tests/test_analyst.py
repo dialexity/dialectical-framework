@@ -9,7 +9,7 @@ from dialectical_framework.analyst.decorator_reciprocal_solution import Decorato
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
+from dialectical_framework.synthesist.concept_extractor import ConceptExtractor
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"

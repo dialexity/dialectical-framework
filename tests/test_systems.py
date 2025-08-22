@@ -1,10 +1,8 @@
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.config import Config
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
-from dialectical_framework.synthesist.reason_conversational import ReasonConversational
+
 
 @pytest.mark.asyncio
 @observe()

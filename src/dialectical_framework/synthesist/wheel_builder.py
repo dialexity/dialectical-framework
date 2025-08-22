@@ -8,7 +8,7 @@ from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
 from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
-from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
+from dialectical_framework.synthesist.concept_extractor import ConceptExtractor
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -19,7 +19,7 @@ class WheelBuilder:
             self,
             config: Config = Provide["config"],
             reasoner: PolarityReasoner = Provide["reasoner"],
-            causality_analyst: ThoughtMapper = Provide["causality_analyst"],
+            causality_analyst: ConceptExtractor = Provide["causality_analyst"],
             *,
             text: str = "",
             wheels: List[Wheel] = None,
@@ -49,7 +49,7 @@ class WheelBuilder:
         return self.__reasoner
 
     @property
-    def causality_analyst(self) -> ThoughtMapper:
+    def causality_analyst(self) -> ConceptExtractor:
         return self.__analyst
 
     def load(self, *, text: str) -> Self:
