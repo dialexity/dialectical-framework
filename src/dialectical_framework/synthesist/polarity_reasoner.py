@@ -27,7 +27,7 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, WisdomUnit)
 
 
-class DialecticalReasoner(ABC, HasBrain):
+class PolarityReasoner(ABC, HasBrain):
 
     def __init__(
         self,

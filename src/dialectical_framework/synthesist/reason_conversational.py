@@ -1,11 +1,11 @@
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.synthesist.dialectical_reasoner import \
-    DialecticalReasoner
+from dialectical_framework.synthesist.polarity_reasoner import \
+    PolarityReasoner
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class ReasonConversational(DialecticalReasoner):
+class ReasonConversational(PolarityReasoner):
     @prompt_template()
     def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type:
         if not wu_so_far.t:

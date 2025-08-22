@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from dialectical_framework.brain import Brain
 from dialectical_framework.config import Config
 from dialectical_framework.enums.causality_type import CausalityType
-from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
+from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.thought_mapper import ThoughtMapper

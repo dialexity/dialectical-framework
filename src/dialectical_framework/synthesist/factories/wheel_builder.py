@@ -7,7 +7,7 @@ from dependency_injector.wiring import inject, Provide
 from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
-from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
+from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
 from dialectical_framework.synthesist.thought_mapper import ThoughtMapper
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wisdom_unit import WisdomUnit
@@ -18,7 +18,7 @@ class WheelBuilder:
     def __init__(
             self,
             config: Config = Provide["config"],
-            reasoner: DialecticalReasoner = Provide["reasoner"],
+            reasoner: PolarityReasoner = Provide["reasoner"],
             causality_analyst: ThoughtMapper = Provide["causality_analyst"],
             *,
             text: str = "",
@@ -45,7 +45,7 @@ class WheelBuilder:
         return self.__config
 
     @property
-    def reasoner(self) -> DialecticalReasoner:
+    def reasoner(self) -> PolarityReasoner:
         return self.__reasoner
 
     @property

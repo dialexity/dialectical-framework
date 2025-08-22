@@ -4,13 +4,13 @@ from typing import Union, List
 from mirascope import BaseMessageParam, Messages, prompt_template
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.dialectical_reasoner import \
-    DialecticalReasoner
+from dialectical_framework.synthesist.polarity_reasoner import \
+    PolarityReasoner
 from dialectical_framework.wisdom_unit import WisdomUnit
 from dialectical_framework.wheel_segment import ALIAS_T
 
 
-class ReasonFast(DialecticalReasoner):
+class ReasonFast(PolarityReasoner):
     @prompt_template(
     """
     USER:

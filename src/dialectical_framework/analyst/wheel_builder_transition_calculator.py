@@ -4,7 +4,7 @@ from typing import List, Dict, Union
 from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.synthesist.dialectical_reasoner import DialecticalReasoner
+from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
 from dialectical_framework.synthesist.factories.wheel_builder import WheelBuilder
 from dialectical_framework.transition import Transition, Predicate
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
@@ -21,7 +21,7 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.__decorated_builder
 
     @property
-    def reasoner(self) -> DialecticalReasoner:
+    def reasoner(self) -> PolarityReasoner:
         return self.__decorated_builder.reasoner
 
     @property
