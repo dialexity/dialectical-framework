@@ -1,19 +1,15 @@
-from abc import abstractmethod
 from functools import wraps
-from typing import TypeVar, Callable, Any, Protocol, runtime_checkable, Optional
+from typing import TypeVar, Callable, Any, Optional
 
+from dependency_injector.wiring import inject
 from mirascope import llm
 
 from dialectical_framework.brain import Brain
+from dialectical_framework.protocols.has_brain import HasBrain
 
 T = TypeVar('T')
 
-@runtime_checkable
-class HasBrain(Protocol):
-    @property
-    @abstractmethod
-    def brain(self) -> Brain: ...
-
+@inject
 def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
     """
     Decorator factory for Mirascope that creates an LLM call using the brain's AI provider and model.

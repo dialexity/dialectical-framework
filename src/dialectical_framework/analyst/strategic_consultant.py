@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from dialectical_framework.brain import Brain
 from dialectical_framework.config import Config
 from dialectical_framework.transition import Transition
-from dialectical_framework.utils.use_brain import HasBrain
+from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
 
@@ -34,7 +34,3 @@ class StrategicConsultant(ABC, HasBrain):
     The main method of the class. It should return a Transition to the next WisdomUnit.
     This Transition must be saved into the current instance. 
     """
-
-    @property
-    def brain(self) -> Brain:
-        return self._brain

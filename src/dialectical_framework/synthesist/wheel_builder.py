@@ -6,6 +6,7 @@ from dependency_injector.wiring import inject, Provide
 
 from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.enums.di import DI
 from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
 from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
 from dialectical_framework.synthesist.concept_extractor import ConceptExtractor
@@ -17,9 +18,9 @@ class WheelBuilder:
     @inject
     def __init__(
             self,
-            config: Config = Provide["config"],
-            reasoner: PolarityReasoner = Provide["polarity_reasoner"],
-            causality_analyst: ConceptExtractor = Provide["causality_analyst"],
+            config: Config = Provide[DI.config],
+            reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
+            causality_analyst: ConceptExtractor = Provide[DI.causality_analyst],
             *,
             text: str = "",
             wheels: List[Wheel] = None,

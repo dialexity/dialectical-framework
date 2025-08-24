@@ -2,6 +2,7 @@
 import importlib
 import os
 import pkgutil
+from enum import Enum
 from typing import List
 
 from dependency_injector import providers, containers
@@ -18,33 +19,12 @@ from dialectical_framework.wheel import Wheel
 # Load environment variables from .env file
 load_dotenv()
 
-
-def _discover_modules() -> List[str]:
-    try:
-        package = importlib.import_module("dialectical_framework")
-        modules = []
-
-        for _, module_name, _ in pkgutil.walk_packages(
-                package.__path__,
-                package.__name__ + "."
-        ):
-            modules.append(module_name)
-
-        return modules
-    except (ImportError, AttributeError):
-        # Fallback to empty list if package can't be imported
-        return []
-
 class DialecticalReasoning(containers.DeclarativeContainer):
     """
     Main DI container for the Dialectical Reasoning Framework.
 
     Provides injectable services for building wheels and calculating transitions.
     """
-
-    wiring_config = containers.WiringConfiguration(
-        modules=_discover_modules(),
-    )
 
     config = providers.Singleton(
         lambda: DialecticalReasoning._setup_config()
@@ -114,5 +94,26 @@ class DialecticalReasoning(containers.DeclarativeContainer):
             causality_type=causality_type,
         )
 
+    # -- Wiring --
 
+    @staticmethod
+    def _discover_modules() -> List[str]:
+        try:
+            package = importlib.import_module("dialectical_framework")
+            modules = []
+
+            for _, module_name, _ in pkgutil.walk_packages(
+                    package.__path__,
+                    package.__name__ + "."
+            ):
+                modules.append(module_name)
+
+            return modules
+        except (ImportError, AttributeError):
+            # Fallback to empty list if package can't be imported
+            return []
+
+    wiring_config = containers.WiringConfiguration(
+        modules=_discover_modules(),
+    )
 

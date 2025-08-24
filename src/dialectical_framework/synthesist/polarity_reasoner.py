@@ -4,7 +4,7 @@ import inspect
 from abc import ABC, abstractmethod
 from typing import List, Self
 
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -14,11 +14,13 @@ from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
+from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
-from dialectical_framework.utils.use_brain import use_brain, HasBrain
+from dialectical_framework.utils.use_brain import use_brain
+from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.validator.basic_checks import (is_negative_side,
                                                           is_positive_side,
                                                           is_strict_opposition,
@@ -29,18 +31,16 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
 
 
 class PolarityReasoner(ABC, HasBrain):
-
+    @inject
     def __init__(
         self,
-        config: Config = Provide["config"],
-        brain: Brain = Provide["brain"],
+        config: Config = Provide[DI.config],
         *,
         text: str = "",
 
     ):
         self._text = text
         self._config = config
-        self._brain = brain
         self._wisdom_unit = None
 
         self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
@@ -52,10 +52,6 @@ class PolarityReasoner(ABC, HasBrain):
     @property
     def config(self) -> Config:
         return self._config
-
-    @property
-    def brain(self) -> Brain:
-        return self._brain
 
     @property
     def text(self) -> str:
