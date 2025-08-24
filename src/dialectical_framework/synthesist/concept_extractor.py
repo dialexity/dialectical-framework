@@ -1,5 +1,6 @@
 from typing import List, overload, Union
 
+from dependency_injector.wiring import Provide, inject
 from mirascope import prompt_template, Messages
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -18,10 +19,11 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class ConceptExtractor(HasBrain):
+    @inject
     def __init__(
         self,
-        config: Config,
-        brain: Brain,
+        config: Config = Provide["config"],
+        brain: Brain = Provide["brain"],
         *,
         text: str = "",
     ):

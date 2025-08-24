@@ -57,7 +57,7 @@ async def test_reasoner_find_thesis(di_container, reasoner_cls):
                 brain=di_container.brain,
             )
     ):
-        reasoner = di_container.reasoner()
+        reasoner = di_container.polarity_reasoner()
         reasoner.load(text=user_message)
         thesis = await reasoner.find_thesis()
         assert thesis is not None
@@ -80,7 +80,7 @@ async def test_reasoner_find_antithesis(di_container, reasoner_cls):
                 brain=di_container.brain,
             )
     ):
-        reasoner = di_container.reasoner()
+        reasoner = di_container.polarity_reasoner()
         reasoner.load(text=user_message)
         antithesis = await reasoner.find_antithesis("Putin starts war")
         assert antithesis is not None
@@ -103,7 +103,7 @@ async def test_reasoner(di_container, reasoner_cls):
                 brain=di_container.brain,
             )
     ):
-        reasoner = di_container.reasoner()
+        reasoner = di_container.polarity_reasoner()
         reasoner.load(text=user_message)
         wu: BaseModel = await reasoner.think()
         assert wu.is_complete()
@@ -123,7 +123,7 @@ async def test_redefine(di_container):
     )
 
     # Redefine every component of the wisdom unit to make it an extreme test
-    reasoner = di_container.reasoner
+    reasoner = di_container.polarity_reasoner
     redefined_wu = await reasoner.redefine(
         original=wu,
         t_minus="Mental Preoccupation",

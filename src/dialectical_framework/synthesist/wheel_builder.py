@@ -18,7 +18,7 @@ class WheelBuilder:
     def __init__(
             self,
             config: Config = Provide["config"],
-            reasoner: PolarityReasoner = Provide["reasoner"],
+            reasoner: PolarityReasoner = Provide["polarity_reasoner"],
             causality_analyst: ConceptExtractor = Provide["causality_analyst"],
             *,
             text: str = "",

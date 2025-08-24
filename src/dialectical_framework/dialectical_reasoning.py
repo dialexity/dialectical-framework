@@ -54,16 +54,12 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         lambda: DialecticalReasoning._setup_brain()
     )
 
-    reasoner = providers.Singleton(
+    polarity_reasoner = providers.Singleton(
         ReasonFastAndSimple,
-        config=config,
-        brain=brain,
     )
 
     causality_analyst = providers.Singleton(
         ConceptExtractor,
-        config=config,
-        brain=brain
     )
 
     #

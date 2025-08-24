@@ -4,6 +4,7 @@ import inspect
 from abc import ABC, abstractmethod
 from typing import List, Self
 
+from dependency_injector.wiring import Provide
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -31,8 +32,8 @@ class PolarityReasoner(ABC, HasBrain):
 
     def __init__(
         self,
-        config: Config,
-        brain: Brain,
+        config: Config = Provide["config"],
+        brain: Brain = Provide["brain"],
         *,
         text: str = "",
 
