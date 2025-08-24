@@ -1,5 +1,8 @@
+from dependency_injector.wiring import Provide
 from mirascope import Messages, prompt_template
 
+from dialectical_framework.config import Config
+from dialectical_framework.enums.di import DI
 from dialectical_framework.synthesist.reason_fast import ReasonFast
 
 
@@ -37,10 +40,10 @@ class ReasonFastAndSimple(ReasonFast):
     Do NOT use descriptive names like "Positive Thesis" or "Negative Antithesis" - only use the exact technical labels above.
     </formatting>
     """)
-    def prompt_wu(self, text: str) -> Messages.Type:
+    def prompt_wu(self, text: str, config: Config = Provide[DI.config]) -> Messages.Type:
         return {
             "computed_fields": {
                 "text": text,
-                "component_length": self.config.component_length,
+                "component_length": config.component_length,
             }
         }

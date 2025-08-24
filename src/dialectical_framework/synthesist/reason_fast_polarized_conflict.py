@@ -1,5 +1,8 @@
+from dependency_injector.wiring import Provide
 from mirascope import Messages, prompt_template
 
+from dialectical_framework.config import Config
+from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
 from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
 
@@ -38,10 +41,10 @@ class ReasonFastPolarizedConflict(ReasonFastAndSimple):
     Output the dialectical components within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", etc.
     </formatting>
     """)
-    def prompt_wu(self, text: str) -> Messages.Type:
+    def prompt_wu(self, text: str, config: Config = Provide[DI.config]) -> Messages.Type:
         return {
             "computed_fields": {
                 "text": text,
-                "component_length": self.config.component_length,
+                "component_length": config.component_length,
             }
         }

@@ -51,10 +51,8 @@ async def test_bigger_wheel(number_of_thoughts):
 ])
 async def test_reasoner_find_thesis(di_container, reasoner_cls):
     with di_container.override_providers(
-            reasoner=providers.Singleton(
+            polarity_reasoner=providers.Singleton(
                 reasoner_cls,
-                config=di_container.config,
-                brain=di_container.brain,
             )
     ):
         reasoner = di_container.polarity_reasoner()
@@ -74,10 +72,8 @@ async def test_reasoner_find_thesis(di_container, reasoner_cls):
 ])
 async def test_reasoner_find_antithesis(di_container, reasoner_cls):
     with di_container.override_providers(
-            reasoner=providers.Singleton(
+            polarity_reasoner=providers.Singleton(
                 reasoner_cls,
-                config=di_container.config,
-                brain=di_container.brain,
             )
     ):
         reasoner = di_container.polarity_reasoner()
@@ -97,10 +93,8 @@ async def test_reasoner_find_antithesis(di_container, reasoner_cls):
 ])
 async def test_reasoner(di_container, reasoner_cls):
     with di_container.override_providers(
-            reasoner=providers.Singleton(
+            polarity_reasoner=providers.Singleton(
                 ReasonBlind,
-                config=di_container.config,
-                brain=di_container.brain,
             )
     ):
         reasoner = di_container.polarity_reasoner()

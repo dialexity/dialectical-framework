@@ -31,16 +31,13 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
 
 
 class PolarityReasoner(ABC, HasBrain):
-    @inject
     def __init__(
         self,
-        config: Config = Provide[DI.config],
         *,
         text: str = "",
 
     ):
         self._text = text
-        self._config = config
         self._wisdom_unit = None
 
         self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
@@ -48,10 +45,6 @@ class PolarityReasoner(ABC, HasBrain):
         self._analysis = DialecticalAnalysis(
             corpus=self._text
         )
-
-    @property
-    def config(self) -> Config:
-        return self._config
 
     @property
     def text(self) -> str:
@@ -87,12 +80,12 @@ class PolarityReasoner(ABC, HasBrain):
     Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
     """
     )
-    def prompt_thesis(self, text: str = None) -> Messages.Type:
+    def prompt_thesis(self, text: str = None, config: Config = Provide[DI.config]) -> Messages.Type:
         return {
             "computed_fields": {
                 # Sometimes we don't want the whole user input again, as we're calculating the thesis within a longer analysis
                 "start": "<context>" + inspect.cleandoc(text) + "</context>" if text else "Ok.",
-                "component_length": self.config.component_length
+                "component_length": config.component_length
             },
         }
 
@@ -105,13 +98,13 @@ class PolarityReasoner(ABC, HasBrain):
     Output the dialectical component A within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
     """
     )
-    def prompt_antithesis(self, thesis: str | DialecticalComponent) -> Messages.Type:
+    def prompt_antithesis(self, thesis: str | DialecticalComponent, config: Config = Provide[DI.config]) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         return {
             "computed_fields": {
                 "thesis": thesis,
-                "component_length": self.config.component_length
+                "component_length": config.component_length
             },
         }
 
@@ -130,6 +123,7 @@ class PolarityReasoner(ABC, HasBrain):
         self,
         thesis: str | DialecticalComponent,
         not_like_this: str | DialecticalComponent = "",
+        config: Config = Provide[DI.config]
     ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
@@ -139,7 +133,7 @@ class PolarityReasoner(ABC, HasBrain):
             "computed_fields": {
                 "thesis": thesis,
                 "not_like_this": not_like_this,
-                "component_length": self.config.component_length
+                "component_length": config.component_length
             },
         }
 
@@ -182,6 +176,7 @@ class PolarityReasoner(ABC, HasBrain):
         self,
         thesis: str | DialecticalComponent,
         antithesis_negative: str | DialecticalComponent,
+        config: Config = Provide[DI.config]
     ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
@@ -191,7 +186,7 @@ class PolarityReasoner(ABC, HasBrain):
             "computed_fields": {
                 "thesis": thesis,
                 "antithesis_negative": antithesis_negative,
-                "component_length": self.config.component_length
+                "component_length": config.component_length
             },
         }
 
