@@ -13,7 +13,7 @@ from dialectical_framework.wheel_segment import WheelSegment
 
 class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     def __init__(self, builder: WheelBuilder):
-        super().__init__(text=builder.text, config=builder.config, reasoner=builder.reasoner)
+        super().__init__(text=builder.text)
         self.__decorated_builder = builder
 
     @property

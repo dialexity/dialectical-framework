@@ -4,21 +4,20 @@ from typing import List, Self, Union, Dict
 
 from dependency_injector.wiring import inject, Provide
 
-from dialectical_framework.config import Config
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.enums.di import DI
+from dialectical_framework.protocols.has_config import HasConfig
 from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
-from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
 from dialectical_framework.synthesist.concept_extractor import ConceptExtractor
+from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class WheelBuilder:
+class WheelBuilder(HasConfig):
     @inject
     def __init__(
             self,
-            config: Config = Provide[DI.config],
             reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
             causality_analyst: ConceptExtractor = Provide[DI.causality_analyst],
             *,
@@ -29,7 +28,6 @@ class WheelBuilder:
         self.__wheels: List[Wheel] = wheels or []
 
         self.__analyst = causality_analyst
-        self.__config = config
         self.__reasoner = reasoner
         self.load(text=text)
 
@@ -40,10 +38,6 @@ class WheelBuilder:
     @property
     def text(self) -> str | None:
         return self.__text
-
-    @property
-    def config(self) -> Config:
-        return self.__config
 
     @property
     def reasoner(self) -> PolarityReasoner:

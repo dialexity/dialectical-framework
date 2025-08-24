@@ -12,6 +12,7 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.di import DI
+from dialectical_framework.protocols.has_config import HasConfig
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
@@ -20,20 +21,14 @@ from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class ConceptExtractor(HasBrain):
+class ConceptExtractor(HasBrain, HasConfig):
     @inject
     def __init__(
         self,
-        config: Config = Provide[DI.config],
         *,
         text: str = "",
     ):
         self.__text = text
-        self.__config = config
-
-    @property
-    def config(self) -> Config:
-        return self.__config
 
     @property
     def text(self) -> str:
