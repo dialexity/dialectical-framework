@@ -83,6 +83,9 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
         
         Tx = [concept in 1-{component_length} words]
         Explanation: [The explanation how it was derived in the passive voice]
+        
+        **Rules**
+        Make sure to output {count} concepts, no more no less.
         """
     )
     def prompt_multiple_theses(self, count: int) -> Messages.Type:

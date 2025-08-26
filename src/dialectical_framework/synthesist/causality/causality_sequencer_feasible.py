@@ -28,13 +28,13 @@ class CausalitySequencerFeasible(CausalitySequencerBalanced):
         </formatting>
         """
     )
-    def prompt_assess_multiple_sequences(self, sequences: List[str]) -> Messages.Type: ...
+    def prompt_assess_multiple_sequences(self, *, sequences: List[str]) -> Messages.Type: ...
 
     @prompt_template(
         """
         USER:
         Assess the following circular causality sequence considering feasibility, i.e. best achievable with minimum resistance (given that the final step cycles back to the first step):
-        {sequences:list}
+        {sequence}
 
         <instructions>
         1) Estimate the numeric probability (0 to 1) regarding how easily this sequence could be implemented given current constraints
@@ -50,4 +50,4 @@ class CausalitySequencerFeasible(CausalitySequencerBalanced):
         </formatting>
         """
     )
-    def prompt_assess_single_sequence(self, sequences: str) -> Messages.Type: ...
+    def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...

@@ -68,7 +68,7 @@ class WheelBuilder(HasConfig):
             # Handle mixed None and str values
             final_theses = []
             none_positions = []
-            
+
             # First pass: collect provided theses and identify positions that need generation
             for i, thesis in enumerate(theses):
                 if thesis is None or (isinstance(thesis, str) and not thesis.strip()):
@@ -76,23 +76,29 @@ class WheelBuilder(HasConfig):
                     final_theses.append(None)  # Placeholder
                 else:
                     final_theses.append(thesis)
-            
+
             # Generate all missing theses at once if needed
             if none_positions:
                 if len(none_positions) == 1:
-                    # Single thesis case
+                    # Single thesis case: place at the correct original position
+                    pos = none_positions[0]
                     generated_thesis = await self.reasoner.find_thesis()
-                    final_theses[0] = generated_thesis
+                    final_theses[pos] = generated_thesis
                 else:
                     # Multiple theses case - extract all missing ones at once
                     t_deck = await self.extractor.extract_multiple_theses(count=len(none_positions))
                     generated_theses = t_deck.dialectical_components
-                    
+
                     # Place generated theses in their correct positions
                     for i, pos in enumerate(none_positions):
                         if i < len(generated_theses):
                             final_theses[pos] = generated_theses[i]
-            
+
+                    # Backfill any remaining None (it's a precaution, in case fewer were generated than requested)
+                    for pos in none_positions:
+                        if final_theses[pos] is None:
+                            final_theses[pos] = await self.reasoner.find_thesis()
+
             theses = final_theses
 
         cycles: List[Cycle] = await self.__sequencer.arrange(theses)
@@ -243,7 +249,7 @@ def _rearrange_by_causal_sequence(wisdom_units: List[WisdomUnit], cycle: Cycle, 
     unique_aliases = dict.fromkeys(all_aliases)
 
     if len(unique_aliases) != 2 * len(wisdom_units):
-        raise ValueError("Not all aliases are present in the causal sequence")
+        raise ValueError(f"Not all aliases are present in the causal sequence. wisdom_units={len(wisdom_units)}, cycle_aliases={all_aliases}")
 
     wu_sorted = []
     wu_processed = []

@@ -1,8 +1,11 @@
+import asyncio
 from typing import List, overload, Union, Self
 
 from mirascope import prompt_template, Messages
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.ai_structured_data.causal_cycle import CausalCycle
+from dialectical_framework.ai_structured_data.causal_cycle_assessment import CausalCycleAssessment
 from dialectical_framework.ai_structured_data.causal_cycles_deck import CausalCyclesDeck
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -56,13 +59,13 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         </formatting>
         """
     )
-    def prompt_assess_multiple_sequences(self, sequences: List[str]) -> Messages.Type: ...
+    def prompt_assess_multiple_sequences(self, *, sequences: List[str]) -> Messages.Type: ...
 
     @prompt_template(
         """
         USER:
         Assess the following circular causality sequence considering realism, desirability, and feasibility (given that the final step cycles back to the first step):
-        {sequences:list}
+        {sequence}
 
         <instructions>
         1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility
@@ -78,10 +81,10 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         </formatting>
         """
     )
-    def prompt_assess_single_sequence(self, sequences: str) -> Messages.Type: ...
+    def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
 
     async def _estimate_cycles(self, *, sequences: List[List[DialecticalComponent]]) -> CausalCyclesDeck:
-        sequences_str = []
+        sequences_str: dict[str, List[str]] = {}
 
         # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
         translated_components: List[DialecticalComponent] = []
@@ -105,7 +108,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
             for a in alias_translations:
                 as_is_seq = dc_replace(as_is_seq, a, deck.get_by_alias(a).statement)
             cycle = f"{cycle} ({as_is_seq})"
-            sequences_str.append(cycle)
+            sequences_str[cycle] = deck.get_aliases()
 
         dialectical_components = []
         for dc in translated_components:
@@ -115,12 +118,35 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
 
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=CausalCyclesDeck)
-        async def _estimate() -> CausalCyclesDeck:
-            prompt = self.prompt_assess_multiple_sequences(sequences=sequences_str)
+        async def _estimate_all() -> CausalCyclesDeck:
+            prompt = self.prompt_assess_multiple_sequences(sequences=list(sequences_str.keys()))
             tpl = ReverseEngineer.till_theses(theses=dialectical_components, text=self.text)
             return extend_tpl(tpl, prompt)
 
-        result = await _estimate()
+        async def _estimate_single(sequence_str: str, aliases: List[str]) -> CausalCycle:
+            @with_langfuse()
+            @use_brain(brain=self.brain, response_model=CausalCycleAssessment)
+            async def _estimate_single_call() -> CausalCycleAssessment:
+                prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
+                tpl = ReverseEngineer.till_theses(theses=dialectical_components, text=self.text)
+                return extend_tpl(tpl, prompt)
+            assessment = await _estimate_single_call()
+            return CausalCycle(
+                aliases=aliases,
+                probability=assessment.probability,
+                reasoning_explanation=assessment.reasoning_explanation,
+                argumentation=assessment.argumentation,
+            )
+
+        # result = await _estimate_all()
+        async_estimators = []
+        for sequence, aliases in sequences_str.items():
+            async_estimators.append(_estimate_single(sequence_str=sequence, aliases=aliases))
+
+        # Execute all async estimators concurrently and collect results
+        causal_cycles = await asyncio.gather(*async_estimators)
+        # Create the result deck from collected cycles
+        result = CausalCyclesDeck(causal_cycles=causal_cycles)
 
         # Translate aliases back in the parameter
         for sequence in sequences:
@@ -227,7 +253,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
 
         # Probability was a guesswork, let's make it normalized to have statistical strictness
         for cycle in cycles:
-            cycle.probability /= total_probability
+            cycle.probability = round(cycle.probability / total_probability, 3)
 
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles

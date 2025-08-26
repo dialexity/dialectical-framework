@@ -1,8 +1,10 @@
 from functools import wraps
 from typing import TypeVar, Callable, Any, Optional
 
+import litellm
 from dependency_injector.wiring import inject
 from mirascope import llm
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.protocols.has_brain import HasBrain
@@ -47,6 +49,11 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
                 # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
                 overridden_ai_provider, overridden_ai_model = target_brain.modified_specification(ai_provider="litellm")
 
+            if overridden_ai_provider == "litellm":
+                # We use LiteLLM just for convenience, the real framework is Mirascope.
+                # So anything related to litellm can be supressed
+                litellm.turn_off_message_logging = True
+
             # Merge brain specification with all parameters
             call_params = {
                 "provider": overridden_ai_provider,
@@ -54,6 +61,11 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
                 **llm_call_kwargs  # All parameters including response_model
             }
 
+            # https://mirascope.com/docs/mirascope/learn/retries
+            @retry(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=4, max=10),
+            )
             @llm.call(**call_params)
             async def _llm_call():
                 return await method(*args, **kwargs)

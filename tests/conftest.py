@@ -20,7 +20,17 @@ async def cleanup_async_resources():
     yield
     # Give time for any pending operations to complete
     await asyncio.sleep(0.1)
-    
+
+    # Gracefully drain + stop LiteLLM worker so pytest doesn't cancel it mid-teardown
+    try:
+        from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
+        from litellm._logging import verbose_logger
+        verbose_logger.exception = lambda *a, **k: None  # silence the cancel log once
+        await GLOBAL_LOGGING_WORKER.clear_queue()
+        await GLOBAL_LOGGING_WORKER.stop()
+    except Exception:
+        pass
+
     # Cancel all remaining tasks
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     for task in tasks:

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dialectical-framework"
-version = "0.2.0"
+version = "0.2.2"
 description = "A dialectical framework for augmented intelligence. AI reasoning powered with dialectics supports humans in: system optimization (psychology, engineering, business, politics, etc.); dispute resolution (mediation, conflicts, negotiations, etc.); decision-making (dilemmas, challenging situations, win-win, etc.)."
 authors = ["Evaldas Taroza <evaldas@dialexity.com>"]
 readme = "README.md"
@@ -19,19 +19,19 @@ mirascope = {extras = [
     "anthropic",
     "litellm",
     "bedrock",
-    "langfuse"
+    "langfuse",
+    "tenacity"
 ], version = "^1.25.6"}
-python-dotenv = "^1.0.1"
+python-dotenv = "^1.1.1"
 tabulate = "^0.9.0"
-notebook = "^7.4.4"
 dependency-injector = "^4.48.1"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.5"
+pytest = "^8.4.1"
 black = "^25.1.0"
 isort = "^6.0.1"
 #flake8 = "^7.1.2"
-pytest-asyncio = "^1.0.0"
+pytest-asyncio = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core"]

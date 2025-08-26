@@ -28,8 +28,8 @@ async def test_simple_wheel():
 @pytest.mark.asyncio
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
-    # 4,
-    3,
+    4,
+    # 3,
     # 2,
 ])
 async def test_bigger_wheel(number_of_thoughts):

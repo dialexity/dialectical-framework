@@ -28,13 +28,13 @@ class CausalitySequencerDesirable(CausalitySequencerBalanced):
         </formatting>
         """
     )
-    def prompt_assess_multiple_sequences(self, sequences: List[str]) -> Messages.Type: ...
+    def prompt_assess_multiple_sequences(self, *, sequences: List[str]) -> Messages.Type: ...
 
     @prompt_template(
         """
         USER:
         Assess the following circular causality sequence considering desirability, i.e. producing optimal outcomes and maximum results (given that the final step cycles back to the first step):
-        {sequences:list}
+        {sequence}
 
         <instructions>
         1) Estimate the numeric probability (0 to 1) regarding how beneficial/optimal this sequence would be if implemented
@@ -50,4 +50,4 @@ class CausalitySequencerDesirable(CausalitySequencerBalanced):
         </formatting>
         """
     )
-    def prompt_assess_single_sequence(self, sequences: str) -> Messages.Type: ...
+    def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
