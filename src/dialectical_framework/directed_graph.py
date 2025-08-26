@@ -1,7 +1,8 @@
-from typing import Dict, Tuple, List, overload, TypeVar, Generic, Union, Callable
+from typing import (Callable, Dict, Generic, List, Tuple, TypeVar, Union,
+                    overload)
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.transition import Transition, Predicate
+from dialectical_framework.transition import Predicate, Transition
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.wheel_segment import WheelSegment
 

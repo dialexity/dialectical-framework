@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import re
 
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 
 class DialecticalComponent(BaseModel):

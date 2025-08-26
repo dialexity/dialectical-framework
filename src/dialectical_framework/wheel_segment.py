@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.fields import FieldInfo
 
 from dialectical_framework.dialectical_component import DialecticalComponent

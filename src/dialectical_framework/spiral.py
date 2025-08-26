@@ -1,10 +1,8 @@
-from pydantic import BaseModel
-from pydantic import Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from dialectical_framework.directed_graph import DirectedGraph
-from dialectical_framework.transition_segment_to_segment import (
-    TransitionSegmentToSegment,
-)
+from dialectical_framework.transition_segment_to_segment import \
+    TransitionSegmentToSegment
 from dialectical_framework.wheel_segment import WheelSegment
 
 

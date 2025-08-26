@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import List, Union
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.wheel_segment import WheelSegment

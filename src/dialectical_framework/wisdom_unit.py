@@ -3,9 +3,8 @@ from __future__ import annotations
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.enums.dialectical_reasoning_mode import (
-    DialecticalReasoningMode,
-)
+from dialectical_framework.enums.dialectical_reasoning_mode import \
+    DialecticalReasoningMode
 from dialectical_framework.synthesis import Synthesis
 from dialectical_framework.wheel_segment import WheelSegment
 

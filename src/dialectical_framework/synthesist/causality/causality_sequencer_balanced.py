@@ -1,22 +1,21 @@
 import asyncio
-from typing import List, overload, Union, Self
+from typing import List, Self, Union, overload
 
-from mirascope import prompt_template, Messages
+from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.ai_structured_data.causal_cycle import CausalCycle
-from dialectical_framework.ai_structured_data.causal_cycle_assessment import (
-    CausalCycleAssessment,
-)
-from dialectical_framework.ai_structured_data.causal_cycles_deck import CausalCyclesDeck
+from dialectical_framework.ai_structured_data.causal_cycle_assessment import \
+    CausalCycleAssessment
+from dialectical_framework.ai_structured_data.causal_cycles_deck import \
+    CausalCyclesDeck
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.dialectical_components_deck import \
+    DialecticalComponentsDeck
 from dialectical_framework.protocols.causality_sequencer import (
-    CausalitySequencer,
-    generate_compatible_sequences,
-    generate_permutation_sequences,
-)
+    CausalitySequencer, generate_compatible_sequences,
+    generate_permutation_sequences)
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import HasConfig
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
@@ -302,7 +301,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         dialectical_components_deck: DialecticalComponentsDeck,
         causal_cycles_deck: CausalCyclesDeck,
     ) -> List[Cycle]:
-        from decimal import Decimal, ROUND_HALF_UP, getcontext
+        from decimal import ROUND_HALF_UP, Decimal, getcontext
 
         cycles: list[Cycle] = []
         total_probability = 0

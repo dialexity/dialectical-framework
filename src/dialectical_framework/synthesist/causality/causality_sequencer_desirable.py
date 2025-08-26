@@ -1,10 +1,9 @@
 from typing import List
 
-from mirascope import prompt_template, Messages
+from mirascope import Messages, prompt_template
 
-from dialectical_framework.synthesist.causality.causality_sequencer_balanced import (
-    CausalitySequencerBalanced,
-)
+from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
+    CausalitySequencerBalanced
 
 
 class CausalitySequencerDesirable(CausalitySequencerBalanced):

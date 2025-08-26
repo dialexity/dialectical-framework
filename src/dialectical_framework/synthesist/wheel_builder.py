@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from typing import List, Union, Dict
+from typing import Dict, List, Union
 
 from dependency_injector.wiring import Provide
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.di import DI
-from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
+from dialectical_framework.protocols.causality_sequencer import \
+    CausalitySequencer
 from dialectical_framework.protocols.has_config import HasConfig
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
-from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
-from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
+from dialectical_framework.synthesis import (ALIAS_S_MINUS, ALIAS_S_PLUS,
+                                             Synthesis)
+from dialectical_framework.synthesist.polarity.polarity_reasoner import \
+    PolarityReasoner
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wheel_segment import ALIAS_T
 from dialectical_framework.wisdom_unit import WisdomUnit

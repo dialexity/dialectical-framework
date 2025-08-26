@@ -3,30 +3,24 @@ import os
 import pkgutil
 from typing import List
 
-from dependency_injector import providers, containers
+from dependency_injector import containers, providers
 from dotenv import load_dotenv
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.config import Config
 from dialectical_framework.enums.causality_type import CausalityType
-from dialectical_framework.synthesist.causality.causality_sequencer_balanced import (
-    CausalitySequencerBalanced,
-)
-from dialectical_framework.synthesist.causality.causality_sequencer_desirable import (
-    CausalitySequencerDesirable,
-)
-from dialectical_framework.synthesist.causality.causality_sequencer_feasible import (
-    CausalitySequencerFeasible,
-)
-from dialectical_framework.synthesist.causality.causality_sequencer_realistic import (
-    CausalitySequencerRealistic,
-)
-from dialectical_framework.synthesist.concepts.thesis_extractor_basic import (
-    ThesisExtractorBasic,
-)
-from dialectical_framework.synthesist.polarity.reason_fast_and_simple import (
-    ReasonFastAndSimple,
-)
+from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
+    CausalitySequencerBalanced
+from dialectical_framework.synthesist.causality.causality_sequencer_desirable import \
+    CausalitySequencerDesirable
+from dialectical_framework.synthesist.causality.causality_sequencer_feasible import \
+    CausalitySequencerFeasible
+from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
+    CausalitySequencerRealistic
+from dialectical_framework.synthesist.concepts.thesis_extractor_basic import \
+    ThesisExtractorBasic
+from dialectical_framework.synthesist.polarity.reason_fast_and_simple import \
+    ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 
 # Load environment variables from .env file

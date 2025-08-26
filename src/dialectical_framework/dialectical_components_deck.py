@@ -1,8 +1,7 @@
 from itertools import permutations
 from typing import List
 
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 

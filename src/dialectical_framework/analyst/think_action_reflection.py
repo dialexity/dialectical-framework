@@ -1,34 +1,21 @@
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.analyst.strategic_consultant import \
+    StrategicConsultant
+from dialectical_framework.dialectical_components_deck import \
+    DialecticalComponentsDeck
+from dialectical_framework.enums.dialectical_reasoning_mode import \
+    DialecticalReasoningMode
 from dialectical_framework.symmetrical_transition import (
-    SymmetricalTransition,
-    ALIAS_AC,
-    ALIAS_AC_PLUS,
-    ALIAS_AC_MINUS,
-    ALIAS_RE,
-    ALIAS_RE_PLUS,
-    ALIAS_RE_MINUS,
-)
-from dialectical_framework.analyst.strategic_consultant import StrategicConsultant
+    ALIAS_AC, ALIAS_AC_MINUS, ALIAS_AC_PLUS, ALIAS_RE, ALIAS_RE_MINUS,
+    ALIAS_RE_PLUS, SymmetricalTransition)
 from dialectical_framework.transition import Predicate
 from dialectical_framework.utils.use_brain import use_brain
-from dialectical_framework.wheel_segment import (
-    ALIAS_T,
-    ALIAS_T_PLUS,
-    ALIAS_T_MINUS,
-    WheelSegment,
-)
-from dialectical_framework.wisdom_unit import (
-    WisdomUnit,
-    ALIAS_A,
-    ALIAS_A_PLUS,
-    ALIAS_A_MINUS,
-)
-from dialectical_framework.enums.dialectical_reasoning_mode import (
-    DialecticalReasoningMode,
-)
+from dialectical_framework.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
+                                                 ALIAS_T_PLUS, WheelSegment)
+from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
+                                               ALIAS_A_PLUS, WisdomUnit)
 
 
 class ThinkActionReflection(StrategicConsultant):

@@ -1,6 +1,6 @@
 from typing import Callable
 
-from mirascope import prompt_template, Messages, llm
+from mirascope import Messages, llm, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 from mirascope.llm import CallResponse
 

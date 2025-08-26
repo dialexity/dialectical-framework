@@ -1,10 +1,11 @@
 from typing import Self, overload
 
-from mirascope import prompt_template, Messages
+from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.dialectical_components_deck import \
+    DialecticalComponentsDeck
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import HasConfig
 from dialectical_framework.protocols.reloadable import Reloadable
