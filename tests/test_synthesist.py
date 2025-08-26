@@ -21,7 +21,6 @@ async def test_simple_wheel():
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     wheels = await factory.build_wheel_permutations(theses=[None])
     assert wheels[0].order == 1
-
     print("\n")
     print(wheels[0])
 
@@ -35,8 +34,9 @@ async def test_simple_wheel():
 async def test_bigger_wheel(number_of_thoughts):
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     wheels = await factory.build_wheel_permutations(theses=[None] * number_of_thoughts)
-    assert wheels[0].order == number_of_thoughts
     assert wheels[0].cycle is not None
+    assert sum([w.cycle.probability for w in wheels]) == 1
+    assert wheels[0].order == number_of_thoughts
     print("\n")
     print(wheels[0])
 

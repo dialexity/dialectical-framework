@@ -115,9 +115,9 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
             raise ValueError(f"More than 4 theses are not supported yet.")
         return box
 
-    async def extract_single_thesis(self) -> DialecticalComponentsDeck:
+    async def extract_single_thesis(self) -> DialecticalComponent:
         @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeck)
+        @use_brain(brain=self.brain, response_model=DialecticalComponent)
         async def _find_thesis():
             return self.prompt_single_thesis()
 

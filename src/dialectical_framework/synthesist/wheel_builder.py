@@ -5,6 +5,7 @@ from typing import List, Union, Dict
 from dependency_injector.wiring import Provide
 
 from dialectical_framework.cycle import Cycle
+from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import HasConfig
@@ -12,6 +13,7 @@ from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
 from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
+from dialectical_framework.wheel_segment import ALIAS_T
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -62,11 +64,12 @@ class WheelBuilder(HasConfig):
     async def t_cycles(self, *, theses: List[Union[str, None]] = None) -> List[Cycle]:
         if theses is None:
             # No theses provided, generate one automatically
-            t_deck = await self.extractor.extract_single_thesis()
-            theses = t_deck.dialectical_components
+            t = await self.extractor.extract_single_thesis()
+            t.alias = ALIAS_T
+            theses = [t]
         else:
             # Handle mixed None and str values
-            final_theses = []
+            final_theses: List[DialecticalComponent | None] = []
             none_positions = []
 
             # First pass: collect provided theses and identify positions that need generation
@@ -75,7 +78,13 @@ class WheelBuilder(HasConfig):
                     none_positions.append(i)
                     final_theses.append(None)  # Placeholder
                 else:
-                    final_theses.append(thesis)
+                    provided_thesis = DialecticalComponent(
+                            alias=f"{ALIAS_T}",
+                            statement=thesis,
+                            explanation="Provided as string."
+                        )
+                    provided_thesis.set_human_friendly_index(i+1)
+                    final_theses.append(provided_thesis)
 
             # Generate all missing theses at once if needed
             if none_positions:
@@ -83,6 +92,8 @@ class WheelBuilder(HasConfig):
                     # Single thesis case: place at the correct original position
                     pos = none_positions[0]
                     generated_thesis = await self.reasoner.find_thesis()
+                    generated_thesis.alias = ALIAS_T
+                    generated_thesis.set_human_friendly_index(pos+1)
                     final_theses[pos] = generated_thesis
                 else:
                     # Multiple theses case - extract all missing ones at once
@@ -92,20 +103,28 @@ class WheelBuilder(HasConfig):
                     # Place generated theses in their correct positions
                     for i, pos in enumerate(none_positions):
                         if i < len(generated_theses):
+                            generated_theses[i].alias = ALIAS_T
+                            generated_theses[i].set_human_friendly_index(pos+1)
                             final_theses[pos] = generated_theses[i]
 
                     # Backfill any remaining None (it's a precaution, in case fewer were generated than requested)
                     for pos in none_positions:
                         if final_theses[pos] is None:
-                            final_theses[pos] = await self.reasoner.find_thesis()
+                            generated_thesis = await self.reasoner.find_thesis()
+                            generated_thesis.alias = ALIAS_T
+                            generated_thesis.set_human_friendly_index(pos+1)
+                            final_theses[pos] = generated_thesis
 
             theses = final_theses
 
         cycles: List[Cycle] = await self.__sequencer.arrange(theses)
         return cycles
 
-    async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[
-        Wheel]:
+    async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
+        """
+        IMPORTANT: t_cycle is the "path" we take for permutations. If not provided, we'll take the most likely path.
+        Do not confuse it with building all wheels for all "paths"
+        """
         if t_cycle is None:
             cycles: List[Cycle] = await self.t_cycles(theses=theses)
             # The first one is the highest probability
@@ -249,7 +268,8 @@ def _rearrange_by_causal_sequence(wisdom_units: List[WisdomUnit], cycle: Cycle, 
     unique_aliases = dict.fromkeys(all_aliases)
 
     if len(unique_aliases) != 2 * len(wisdom_units):
-        raise ValueError(f"Not all aliases are present in the causal sequence. wisdom_units={len(wisdom_units)}, cycle_aliases={all_aliases}")
+        wu_aliases = [wu.t.alias for wu in wisdom_units] + [wu.a.alias for wu in wisdom_units]
+        raise ValueError(f"Not all aliases are present in the causal sequence. wisdom_unit_aliases={wu_aliases}, cycle_aliases={all_aliases}")
 
     wu_sorted = []
     wu_processed = []

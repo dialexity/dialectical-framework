@@ -3,6 +3,7 @@ from typing import Self, overload
 
 from mirascope import Messages
 
+from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.protocols.reloadable import Reloadable
 
@@ -18,4 +19,4 @@ class ThesisExtractor(Reloadable):
     async def extract_multiple_theses(self, *, count: int = 2) -> DialecticalComponentsDeck: ...
 
     @abstractmethod
-    async def extract_single_thesis(self) -> DialecticalComponentsDeck: ...
+    async def extract_single_thesis(self) -> DialecticalComponent: ...

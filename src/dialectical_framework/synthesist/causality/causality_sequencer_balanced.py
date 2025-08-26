@@ -240,20 +240,43 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
 
         return self._normalize(dialectical_components_deck, causal_cycles_deck)
 
-    def _normalize(self, dialectical_components_deck: DialecticalComponentsDeck, causal_cycles_deck: CausalCyclesDeck) -> List[Cycle]:
+    def _normalize(self, dialectical_components_deck: DialecticalComponentsDeck,
+                   causal_cycles_deck: CausalCyclesDeck) -> List[Cycle]:
+        from decimal import Decimal, ROUND_HALF_UP, getcontext
+
         cycles: list[Cycle] = []
         total_probability = 0
         for causal_cycle in causal_cycles_deck.causal_cycles:
             total_probability += causal_cycle.probability
-            cycles.append(Cycle(dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
-                                causality_type=self.config.causality_type,
-                                probability=causal_cycle.probability,
-                                reasoning_explanation=causal_cycle.reasoning_explanation,
-                                argumentation=causal_cycle.argumentation))
+            cycles.append(
+                Cycle(dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
+                      causality_type=self.config.causality_type,
+                      probability=causal_cycle.probability,
+                      reasoning_explanation=causal_cycle.reasoning_explanation,
+                      argumentation=causal_cycle.argumentation))
 
         # Probability was a guesswork, let's make it normalized to have statistical strictness
-        for cycle in cycles:
-            cycle.probability = round(cycle.probability / total_probability, 3)
+        if total_probability > 0 and cycles:
+            getcontext().prec = 16
+            q = Decimal('0.001')
+
+            # Normalize and round to 3 decimals using Decimal
+            probs = [Decimal(c.probability) / Decimal(total_probability) for c in cycles]
+            probs = [p.quantize(q, rounding=ROUND_HALF_UP) for p in probs]
+
+            # Sort by rounded probabilities (descending)
+            cycles.sort(key=lambda c: float(Decimal(c.probability) / Decimal(total_probability)), reverse=True)
+            # Recompute in sorted order
+            probs.sort(reverse=True)
+
+            # Add the exact decimal remainder to the highest-probability cycle
+            total_after = sum(probs)
+            diff = Decimal('1.000') - total_after
+            probs[0] = (probs[0] + diff).quantize(q, rounding=ROUND_HALF_UP)
+
+            # Assign back
+            for c, p in zip(cycles, probs):
+                c.probability = float(p)
 
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles

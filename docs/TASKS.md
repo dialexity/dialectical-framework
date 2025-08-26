@@ -2,8 +2,6 @@
 
 [] Permutations with T-cycles (not only the highest probability)
 
-[] Evaluate every sequence separately, as with longer chains AI starts returning shorter results
-
 [] Normalize "probabilities" for transitions
 
 [] Bring the initial context out of the prompts, should be somehow pluggable
