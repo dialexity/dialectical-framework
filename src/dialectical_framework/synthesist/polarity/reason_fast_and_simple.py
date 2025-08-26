@@ -3,7 +3,7 @@ from mirascope import Messages, prompt_template
 
 from dialectical_framework.config import Config
 from dialectical_framework.enums.di import DI
-from dialectical_framework.synthesist.reason_fast import ReasonFast
+from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
 
 
 class ReasonFastAndSimple(ReasonFast):
@@ -13,7 +13,7 @@ class ReasonFastAndSimple(ReasonFast):
     # Dialectical Analysis
 
     <instructions>
-    In the given context, identify the most important single thesis (idea, concept) T.
+    In the provided context, identify the most important single thesis (idea, concept) T.
 
     Identify its semantic/functional antithesis (A), such that positive/constructive side of thesis (T+) should oppose/contradict the negative/exaggerated side of antithesis (A-), while negative/exaggerated side of thesis (T-) should oppose/contradict the positive/constructive side of antithesis (A+). 
 

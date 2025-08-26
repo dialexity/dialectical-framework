@@ -1,0 +1,122 @@
+from typing import Self, overload
+
+from mirascope import prompt_template, Messages
+from mirascope.integrations.langfuse import with_langfuse
+
+from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.protocols.has_brain import HasBrain
+from dialectical_framework.protocols.has_config import HasConfig
+from dialectical_framework.protocols.reloadable import Reloadable
+from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
+from dialectical_framework.utils.use_brain import use_brain
+
+
+class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
+    def __init__(self, *, text: str = ""):
+        self.__text = text
+
+    @property
+    def text(self) -> str:
+        return self.__text
+
+    @text.setter
+    def text(self, value: str):
+        self.__text = value
+
+    def reload(self, *, text: str) -> Self:
+        self.text = text
+        return self
+
+
+    @prompt_template(
+        """
+        USER:
+        <context>{text}</context>
+    
+        USER:
+        Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
+    
+        Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
+        """
+    )
+    def prompt_single_thesis(self) -> Messages.Type:
+        return {
+            "computed_fields": {
+                "text": self.text,
+                "component_length": self.config.component_length
+            },
+        }
+
+    @prompt_template(
+        """
+        USER:
+        <context>{text}</context>
+        
+        USER:
+        For the given context extract **{count}** distinct, essential **concepts** that best capture the core dynamics of the text.
+
+        **For strategic/philosophical texts, focus on:**
+        - Big-picture or recurring ideas that reflect the **essence** of the content
+        - **Abstract or strategic drivers** of the text  
+        - Terms that **structure the argument** or explain system-level dynamics
+    
+        **For technical/operational texts, focus on:**
+        - **Process stages, steps, or functional components** that form the system
+        - **Sequential elements** that flow into or cause each other
+        - **Operational phases** or mechanisms that drive the system forward
+    
+        **Guidelines:**
+        - Let the content guide whether to extract high-level themes or operational stages
+        - If the text describes processes/systems, identify functional components
+        - If the text presents arguments/strategies, identify conceptual themes
+        - Aim for concepts that are **interdependent** and form a coherent framework
+
+        **Output Format:**
+        T1 = [concept in 1-{component_length} words]
+        Explanation: [The explanation how it was derived in the passive voice]
+        
+        T2 = [concept in 1-{component_length} words]
+        Explanation: [The explanation how it was derived in the passive voice]
+        
+        ...
+        
+        Tx = [concept in 1-{component_length} words]
+        Explanation: [The explanation how it was derived in the passive voice]
+        """
+    )
+    def prompt_multiple_theses(self, count: int) -> Messages.Type:
+        return {
+            "computed_fields": {
+                "text": self.text,
+                "count": count,
+                "component_length": self.config.component_length
+            },
+        }
+
+    async def extract_multiple_theses(self, *, count: int = 2) -> DialecticalComponentsDeck:
+        if count > 4 or count < 1:
+            raise ValueError(f"Incorrect number of theses requested. Max 4 theses are supported.")
+
+        @with_langfuse()
+        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeck)
+        async def _find_theses():
+            return self.prompt_multiple_theses(count=count)
+
+        if count <= 4:
+            box = await _find_theses()
+            if count == 1 and len(box.dialectical_components) == 1:
+                dc: DialecticalComponent = box.dialectical_components[0]
+                dc.set_human_friendly_index(0)
+        else:
+            raise ValueError(f"More than 4 theses are not supported yet.")
+        return box
+
+    async def extract_single_thesis(self) -> DialecticalComponentsDeck:
+        @with_langfuse()
+        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeck)
+        async def _find_thesis():
+            return self.prompt_single_thesis()
+
+        return await _find_thesis()
+

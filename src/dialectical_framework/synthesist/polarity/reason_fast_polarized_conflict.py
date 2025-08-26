@@ -4,7 +4,7 @@ from mirascope import Messages, prompt_template
 from dialectical_framework.config import Config
 from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
-from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
+from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 
 
 class ReasonFastPolarizedConflict(ReasonFastAndSimple):

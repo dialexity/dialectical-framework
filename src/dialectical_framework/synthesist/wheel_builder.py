@@ -1,25 +1,26 @@
 from __future__ import annotations
 
-from typing import List, Self, Union, Dict
+from typing import List, Union, Dict
 
-from dependency_injector.wiring import inject, Provide
+from dependency_injector.wiring import Provide
 
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.enums.di import DI
+from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import HasConfig
+from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.synthesis import Synthesis, ALIAS_S_PLUS, ALIAS_S_MINUS
-from dialectical_framework.synthesist.concept_extractor import ConceptExtractor
-from dialectical_framework.synthesist.polarity_reasoner import PolarityReasoner
+from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
 class WheelBuilder(HasConfig):
-    @inject
     def __init__(
             self,
-            reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
-            causality_analyst: ConceptExtractor = Provide[DI.causality_analyst],
+            thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],
+            causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
+            polarity_reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
             *,
             text: str = "",
             wheels: List[Wheel] = None,
@@ -27,9 +28,16 @@ class WheelBuilder(HasConfig):
         self.__text = text
         self.__wheels: List[Wheel] = wheels or []
 
-        self.__analyst = causality_analyst
-        self.__reasoner = reasoner
-        self.load(text=text)
+        # TODO: reloading singletons isn't very good design here, because we're guessing the parameters...
+
+        self.__extractor = thesis_extractor
+        self.__extractor.reload(text=text)
+
+        self.__sequencer = causality_sequencer
+        self.__sequencer.reload(text=text)
+
+        self.__reasoner = polarity_reasoner
+        self.__reasoner.reload(text=text)
 
     @property
     def wheel_permutations(self) -> List[Wheel]:
@@ -40,39 +48,54 @@ class WheelBuilder(HasConfig):
         return self.__text
 
     @property
+    def extractor(self) -> ThesisExtractor:
+        return self.__extractor
+
+    @property
     def reasoner(self) -> PolarityReasoner:
         return self.__reasoner
 
     @property
-    def causality_analyst(self) -> ConceptExtractor:
-        return self.__analyst
-
-    def load(self, *, text: str) -> Self:
-        self.__text = text
-
-        self.__reasoner.load(text=text)
-        self.__analyst.text = text
-
-        return self
+    def sequencer(self) -> CausalitySequencer:
+        return self.__sequencer
 
     async def t_cycles(self, *, theses: List[Union[str, None]] = None) -> List[Cycle]:
-        wu_count = len(theses) if theses else 1
-        theses = [t for t in theses or [] if t and t.strip()] or None  # how
-        if theses and len(theses) != wu_count:
-            raise ValueError(f"Expected {wu_count} theses, got {len(theses)}")
-        elif not theses:
-            theses = None
-            # wu_count amount of theses will be generated automatically
-
-        if wu_count == 1:
-            if not theses:
-                theses = [await self.reasoner.find_thesis()]
-
-        if not theses:
-            cycles: List[Cycle] = await self.__analyst.map(wu_count)
+        if theses is None:
+            # No theses provided, generate one automatically
+            t_deck = await self.extractor.extract_single_thesis()
+            theses = t_deck.dialectical_components
         else:
-            cycles: List[Cycle] = await self.__analyst.arrange(theses)
+            # Handle mixed None and str values
+            final_theses = []
+            none_positions = []
+            
+            # First pass: collect provided theses and identify positions that need generation
+            for i, thesis in enumerate(theses):
+                if thesis is None or (isinstance(thesis, str) and not thesis.strip()):
+                    none_positions.append(i)
+                    final_theses.append(None)  # Placeholder
+                else:
+                    final_theses.append(thesis)
+            
+            # Generate all missing theses at once if needed
+            if none_positions:
+                if len(none_positions) == 1:
+                    # Single thesis case
+                    generated_thesis = await self.reasoner.find_thesis()
+                    final_theses[0] = generated_thesis
+                else:
+                    # Multiple theses case - extract all missing ones at once
+                    t_deck = await self.extractor.extract_multiple_theses(count=len(none_positions))
+                    generated_theses = t_deck.dialectical_components
+                    
+                    # Place generated theses in their correct positions
+                    for i, pos in enumerate(none_positions):
+                        if i < len(generated_theses):
+                            final_theses[pos] = generated_theses[i]
+            
+            theses = final_theses
 
+        cycles: List[Cycle] = await self.__sequencer.arrange(theses)
         return cycles
 
     async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[
@@ -93,7 +116,7 @@ class WheelBuilder(HasConfig):
 
             wheel_wisdom_units.append(wu)
 
-        cycles: List[Cycle] = await self.__analyst.arrange(wheel_wisdom_units)
+        cycles: List[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units)
 
         wheels = []
         for cycle in cycles:
@@ -169,7 +192,7 @@ class WheelBuilder(HasConfig):
                     wheels.append(wheel)
                 else:
                     # Recalculate cycles
-                    analyst = self.__analyst
+                    analyst = self.__sequencer
 
                     theses: List[str] = []
                     for nwu in new_wisdom_units:

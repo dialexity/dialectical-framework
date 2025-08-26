@@ -13,18 +13,15 @@ class DialecticalComponentsDeck(BaseModel):
         description="A list of dialectical components. It can be empty when no dialectical components are found. It might also be filled with only one dialectical component if only one is to be found.",
     )
 
-    def get_cycles_str(self) -> List[str]:
+    def get_aliases_as_cycle_str(self) -> str:
         aliases = self.get_aliases()
 
-        if len(aliases) == 1:  # degenerate 1-node cycle
-            sequences = [f"{aliases[0]} → {aliases[0]}..."]
+        if len(aliases) < 2:
+            return ""
         else:
-            first, rest = aliases[0], aliases[1:]
-            sequences = list(
-                f"{first} → " + " → ".join(p) + f" → {first}..."
-                for p in permutations(rest)
-            )
-        return sequences
+            # Create a simple cycle: first → second → third → ... → first
+            cycle_parts = aliases + [aliases[0]]  # Add first element at the end
+            return " → ".join(cycle_parts) + "..."
 
     def get_aliases(self) -> List[str]:
         return [dc.alias for dc in self.dialectical_components]
@@ -32,7 +29,7 @@ class DialecticalComponentsDeck(BaseModel):
     def get_by_alias(self, alias: str) -> DialecticalComponent:
         return next(filter(lambda d: d.alias == alias, self.dialectical_components))
 
-    def sort_by_example(self, ordered_aliases: list[str], mutate: bool = False) -> List[DialecticalComponent]:
+    def rearrange_by_aliases(self, ordered_aliases: list[str], mutate: bool = False) -> List[DialecticalComponent]:
         # Use dict to maintain first occurrence order while removing duplicates
         unique_aliases = dict.fromkeys(ordered_aliases)
 

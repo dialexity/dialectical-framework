@@ -9,7 +9,6 @@ from dialectical_framework.analyst.decorator_reciprocal_solution import Decorato
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.synthesist.concept_extractor import ConceptExtractor
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
@@ -51,7 +50,7 @@ example_wu4 = WisdomUnit(
 @pytest.mark.asyncio
 @observe()
 async def test_full_blown_wheel():
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory1 = DecoratorDiscreteSpiral(DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory)))
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].order == 2
@@ -64,7 +63,7 @@ async def test_full_blown_wheel():
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_spiral():
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory1 = DecoratorDiscreteSpiral(builder=factory)
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].order == 2
@@ -79,7 +78,7 @@ async def test_wheel_spiral():
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_acre():
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory2 = DecoratorActionReflection(builder=factory)
     wheels = await factory2.build_wheel_permutations(theses=[None])
     assert wheels[0].order == 1
@@ -95,7 +94,7 @@ async def test_wheel_acre():
 @pytest.mark.asyncio
 @observe()
 async def test_wheel_acre_reciprocal():
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory3 = DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory))
     wheels = await factory3.build_wheel_permutations(theses=[None])
     assert wheels[0].order == 1
@@ -110,30 +109,14 @@ async def test_wheel_acre_reciprocal():
 @pytest.mark.asyncio
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
-    2,
-    3,
-    4,
-])
-async def test_thought_mapping(number_of_thoughts):
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
-    analyst = factory.causality_analyst
-    cycles: List[Cycle] = await analyst.map(number_of_thoughts)
-    print("\n")
-    for cycle in cycles:
-        assert len(cycle.dialectical_components) == number_of_thoughts
-        print(cycle.pretty(skip_dialectical_component_explanation=True))
-
-@pytest.mark.asyncio
-@observe()
-@pytest.mark.parametrize("number_of_thoughts", [
     1,
     2,
     3,
     4,
 ])
 async def test_find_theses(number_of_thoughts):
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
-    theses_deck = await factory.causality_analyst.find_theses(
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
+    theses_deck = await factory.extractor.extract_multiple_theses(
         count=number_of_thoughts
     )
     theses = [dc.statement for dc in theses_deck.dialectical_components]

@@ -9,10 +9,13 @@ from dotenv import load_dotenv
 from dialectical_framework.brain import Brain
 from dialectical_framework.config import Config
 from dialectical_framework.enums.causality_type import CausalityType
-from dialectical_framework.synthesist.concept_extractor import ConceptExtractor
-from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
+from dialectical_framework.synthesist.causality.causality_sequencer_balanced import CausalitySequencerBalanced
+from dialectical_framework.synthesist.causality.causality_sequencer_desirable import CausalitySequencerDesirable
+from dialectical_framework.synthesist.causality.causality_sequencer_feasible import CausalitySequencerFeasible
+from dialectical_framework.synthesist.causality.causality_sequencer_realistic import CausalitySequencerRealistic
+from dialectical_framework.synthesist.concepts.thesis_extractor_basic import ThesisExtractorBasic
+from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
-from dialectical_framework.wheel import Wheel
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,39 +25,53 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     Main DI container for the Dialectical Reasoning Framework.
 
     Provides injectable services for building wheels and calculating transitions.
-    """
 
-    config = providers.Singleton(
-        lambda: DialecticalReasoning._setup_config()
-    )
+
+    IMPORTANT:
+    When renaming the fields, make sure to also change it in di.py, as IDE refactoring will not do it automatically.
+    """
 
     brain = providers.Singleton(
         lambda: DialecticalReasoning._setup_brain()
+    )
+
+    config = providers.Singleton(
+        lambda: DialecticalReasoning._setup_config()
     )
 
     polarity_reasoner = providers.Singleton(
         ReasonFastAndSimple,
     )
 
-    causality_analyst = providers.Singleton(
-        ConceptExtractor,
+    causality_sequencer = providers.Singleton(
+        lambda config: DialecticalReasoning._create_causality_sequencer(config),
+        config=config
+    )
+
+    thesis_extractor = providers.Singleton(
+        ThesisExtractorBasic,
+    )
+
+    wheel_builder = providers.Factory(
+        WheelBuilder
     )
 
     #
-    # --- Factories ---
+    # --- Factory/Strategy ---
     #
-
     @staticmethod
-    def create_wheel_builder(
-            *,
-            text: str = "",
-            wheels: List[Wheel] = None,
-    ) -> WheelBuilder:
-        """Create a WheelBuilder instance from serialized data."""
-        return WheelBuilder(
-            text=text,
-            wheels=wheels,
-        )
+    def _create_causality_sequencer(config: Config):
+        """Factory method to create the appropriate causality sequencer based on config"""
+        causality_type = config.causality_type
+
+        if causality_type == CausalityType.DESIRABLE:
+            return CausalitySequencerDesirable()
+        elif causality_type == CausalityType.FEASIBLE:
+            return CausalitySequencerFeasible()
+        elif causality_type == CausalityType.REALISTIC:
+            return CausalitySequencerRealistic()
+        else:
+            return CausalitySequencerBalanced()
 
     #
     # --- Setup Helpers ---

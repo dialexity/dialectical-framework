@@ -6,4 +6,5 @@ class DI(str, Enum):
     config = "config"
     brain = "brain"
     polarity_reasoner = "polarity_reasoner"
-    causality_analyst = "causality_analyst"
+    causality_sequencer = "causality_sequencer"
+    thesis_extractor = "thesis_extractor"

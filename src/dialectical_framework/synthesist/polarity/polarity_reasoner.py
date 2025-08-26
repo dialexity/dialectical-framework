@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from typing import List, Self
+from typing import List, Self, overload
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import BaseMessageParam, Messages, prompt_template
@@ -16,6 +16,7 @@ from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
+from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
@@ -30,7 +31,7 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, WisdomUnit)
 
 
-class PolarityReasoner(ABC, HasBrain):
+class PolarityReasoner(HasBrain, Reloadable):
     def __init__(
         self,
         *,
@@ -50,7 +51,7 @@ class PolarityReasoner(ABC, HasBrain):
     def text(self) -> str:
         return self._text
 
-    def load(self, *, text: str, perspectives: WisdomUnit | List[WisdomUnit] = None) -> Self:
+    def reload(self, *, text: str, perspectives: WisdomUnit | List[WisdomUnit] = None) -> Self:
         self._text = text
         if not perspectives:
             perspectives = []
@@ -327,6 +328,7 @@ class PolarityReasoner(ABC, HasBrain):
         return self.prompt_synthesis(wu)
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
+        # TODO: when thesis is a simple str, we need to actualize it with AI, where it comes from
         wu = WisdomUnit(reasoning_mode=self._mode)
 
         if thesis is not None:

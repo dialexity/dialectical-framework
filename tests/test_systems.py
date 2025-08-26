@@ -7,7 +7,7 @@ from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 @pytest.mark.asyncio
 @observe()
 async def test_seasons():
-    factory = DialecticalReasoning.create_wheel_builder(text="4 seasons")
+    factory = DialecticalReasoning.wheel_builder(text="4 seasons")
     factory.config.component_length = 1
 
     wheels = await factory.build_wheel_permutations(theses=["Summer", "Spring"])

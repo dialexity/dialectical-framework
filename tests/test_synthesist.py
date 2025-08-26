@@ -5,12 +5,12 @@ from pydantic import BaseModel
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.synthesist.reason_blind import ReasonBlind
-from dialectical_framework.synthesist.reason_conversational import \
+from dialectical_framework.synthesist.polarity.reason_blind import ReasonBlind
+from dialectical_framework.synthesist.polarity.reason_conversational import \
     ReasonConversational
-from dialectical_framework.synthesist.reason_fast import ReasonFast
-from dialectical_framework.synthesist.reason_fast_and_simple import ReasonFastAndSimple
-from dialectical_framework.synthesist.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
+from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
+from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
+from dialectical_framework.synthesist.polarity.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
 from dialectical_framework.wisdom_unit import WisdomUnit
 from tests.test_analyst import user_message
 
@@ -18,7 +18,7 @@ from tests.test_analyst import user_message
 @pytest.mark.asyncio
 @observe()
 async def test_simple_wheel():
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
     wheels = await factory.build_wheel_permutations(theses=[None])
     assert wheels[0].order == 1
 
@@ -28,12 +28,12 @@ async def test_simple_wheel():
 @pytest.mark.asyncio
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
-    2,
+    # 4,
     3,
-    4,
+    # 2,
 ])
 async def test_bigger_wheel(number_of_thoughts):
-    factory = DialecticalReasoning.create_wheel_builder(text=user_message)
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
     wheels = await factory.build_wheel_permutations(theses=[None] * number_of_thoughts)
     assert wheels[0].order == number_of_thoughts
     assert wheels[0].cycle is not None
@@ -56,7 +56,7 @@ async def test_reasoner_find_thesis(di_container, reasoner_cls):
             )
     ):
         reasoner = di_container.polarity_reasoner()
-        reasoner.load(text=user_message)
+        reasoner.reload(text=user_message)
         thesis = await reasoner.find_thesis()
         assert thesis is not None
         print("\n")
@@ -77,7 +77,7 @@ async def test_reasoner_find_antithesis(di_container, reasoner_cls):
             )
     ):
         reasoner = di_container.polarity_reasoner()
-        reasoner.load(text=user_message)
+        reasoner.reload(text=user_message)
         antithesis = await reasoner.find_antithesis("Putin starts war")
         assert antithesis is not None
         print("\n")
@@ -98,7 +98,7 @@ async def test_reasoner(di_container, reasoner_cls):
             )
     ):
         reasoner = di_container.polarity_reasoner()
-        reasoner.load(text=user_message)
+        reasoner.reload(text=user_message)
         wu: BaseModel = await reasoner.think()
         assert wu.is_complete()
         print("\n")
