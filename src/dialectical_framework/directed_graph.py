@@ -5,7 +5,7 @@ from dialectical_framework.transition import Transition, Predicate
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.wheel_segment import WheelSegment
 
-T = TypeVar('T', bound=Transition)
+T = TypeVar("T", bound=Transition)
 
 AliasInput = Union[str, DialecticalComponent, List[Union[str, DialecticalComponent]]]
 
@@ -34,18 +34,24 @@ class DirectedGraph(Generic[T]):
 
     def add_transition(self, transition: T) -> None:
         """Add a transition to the directed graph."""
-        key = (frozenset(transition.source_aliases), frozenset(transition.target_aliases))
+        key = (
+            frozenset(transition.source_aliases),
+            frozenset(transition.target_aliases),
+        )
 
         # For TransitionOneToOne, ensure only one outgoing transition per source
         if isinstance(transition, TransitionCellToCell):
             for existing_key, existing_transition in self._transitions.items():
                 if existing_key[0] == key[0]:  # Same source aliases
                     raise ValueError(
-                        f"Multiple outgoing transitions for source aliases {transition.source_aliases} found. Only one is allowed.")
+                        f"Multiple outgoing transitions for source aliases {transition.source_aliases} found. Only one is allowed."
+                    )
 
         self._transitions[key] = transition
 
-    def get_transition(self, source_aliases: AliasInput, target_aliases: AliasInput) -> T | None:
+    def get_transition(
+        self, source_aliases: AliasInput, target_aliases: AliasInput
+    ) -> T | None:
         """Retrieve a transition by source and target aliases."""
         source_aliases_list = _extract_aliases(source_aliases)
         target_aliases_list = _extract_aliases(target_aliases)
@@ -56,7 +62,11 @@ class DirectedGraph(Generic[T]):
         """Get all transitions that have the given source aliases."""
         source_aliases_list = _extract_aliases(source_aliases)
         source_set = frozenset(source_aliases_list)
-        return [transition for (src_set, _), transition in self._transitions.items() if src_set == source_set]
+        return [
+            transition
+            for (src_set, _), transition in self._transitions.items()
+            if src_set == source_set
+        ]
 
     def get_first_transition_from_source(self, source_aliases: AliasInput) -> T | None:
         """Get the first transition that has the given source aliases."""
@@ -77,16 +87,22 @@ class DirectedGraph(Generic[T]):
 
     def find_outbound_source_aliases(self, start: WheelSegment) -> List[List[str]]:
         outbound_source_aliases = []
-        start_possible_components = {comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp}
+        start_possible_components = {
+            comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp
+        }
         for (_, _), transition in self._transitions.items():
             transition_source = transition.source
             if isinstance(transition_source, DialecticalComponent):
                 transition_source_components = {transition_source.alias}
             else:  # WheelSegment
                 transition_source_components = {
-                    comp.alias for comp in
-                    [transition_source.t, transition_source.t_plus, transition_source.t_minus] if
-                    comp
+                    comp.alias
+                    for comp in [
+                        transition_source.t,
+                        transition_source.t_plus,
+                        transition_source.t_minus,
+                    ]
+                    if comp
                 }
 
             if start_possible_components.issubset(transition_source_components):
@@ -95,7 +111,9 @@ class DirectedGraph(Generic[T]):
         return outbound_source_aliases
 
     @overload
-    def remove_transition(self, source_aliases: AliasInput, target_aliases: AliasInput) -> bool:
+    def remove_transition(
+        self, source_aliases: AliasInput, target_aliases: AliasInput
+    ) -> bool:
         """Remove a transition by source and target aliases. Returns True if removed, False if not found."""
         ...
 
@@ -104,13 +122,19 @@ class DirectedGraph(Generic[T]):
         """Remove a transition by Transition object."""
         ...
 
-    def remove_transition(self, source_aliases_or_transition, target_aliases=None) -> bool:
+    def remove_transition(
+        self, source_aliases_or_transition, target_aliases=None
+    ) -> bool:
         """Remove a transition by source and target aliases or by Transition object."""
-        if hasattr(source_aliases_or_transition, 'source_aliases') and hasattr(source_aliases_or_transition,
-                                                                               'target_aliases'):
+        if hasattr(source_aliases_or_transition, "source_aliases") and hasattr(
+            source_aliases_or_transition, "target_aliases"
+        ):
             # Called with Transition object
             transition = source_aliases_or_transition
-            key = (frozenset(transition.source_aliases), frozenset(transition.target_aliases))
+            key = (
+                frozenset(transition.source_aliases),
+                frozenset(transition.target_aliases),
+            )
         else:
             # Called with source_aliases and target_aliases
             source_aliases_list = _extract_aliases(source_aliases_or_transition)
@@ -126,14 +150,16 @@ class DirectedGraph(Generic[T]):
         """Remove all transitions from the graph."""
         self._transitions.clear()
 
-    def traverse_dfs_with_paths(self,
-                                start_aliases: AliasInput | None = None,
-                                visit_callback: Callable[[List[T], bool], None] | None = None,
-                                predicate_filter: Predicate | None = None) -> List[List[T]]:
+    def traverse_dfs_with_paths(
+        self,
+        start_aliases: AliasInput | None = None,
+        visit_callback: Callable[[List[T], bool], None] | None = None,
+        predicate_filter: Predicate | None = None,
+    ) -> List[List[T]]:
         """
         Traverse all possible paths in the graph, detecting circles per path.
         Returns all complete paths found.
-        
+
         Args:
             start_aliases: Starting aliases for traversal
             visit_callback: Optional callback function called for each path
@@ -141,46 +167,61 @@ class DirectedGraph(Generic[T]):
         """
         all_paths = []
 
-        def _can_connect_constructively(target_aliases: List[str], next_source_aliases: List[str]) -> bool:
+        def _can_connect_constructively(
+            target_aliases: List[str], next_source_aliases: List[str]
+        ) -> bool:
             """
             For constructively_converges_to, check if segments can connect at the segment level.
             E.g., [T1-, T1] -> [T2+] can connect to [T2-, T2] -> [T3+] because T2 is shared.
             """
             # Extract base aliases (remove +/- suffixes)
-            target_bases = {alias.rstrip('+-') for alias in target_aliases}
-            source_bases = {alias.rstrip('+-') for alias in next_source_aliases}
-        
+            target_bases = {alias.rstrip("+-") for alias in target_aliases}
+            source_bases = {alias.rstrip("+-") for alias in next_source_aliases}
+
             # Check if there's any overlap at the base level
             return bool(target_bases & source_bases)
 
-        def _find_constructive_transitions(current_target_aliases: List[str]) -> List[T]:
+        def _find_constructive_transitions(
+            current_target_aliases: List[str],
+        ) -> List[T]:
             """
             Find all transitions that can constructively connect to the current target.
             """
             constructive_transitions = []
             all_transitions_inner = self.get_all_transitions()
-        
+
             for transition in all_transitions_inner:
-                if (transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO and
-                        _can_connect_constructively(current_target_aliases, transition.source_aliases)):
+                if (
+                    transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO
+                    and _can_connect_constructively(
+                        current_target_aliases, transition.source_aliases
+                    )
+                ):
                     constructive_transitions.append(transition)
-        
+
             return constructive_transitions
 
-        def _would_create_constructive_cycle(current_aliases: List[str], visited_in_path: set) -> bool:
+        def _would_create_constructive_cycle(
+            current_aliases: List[str], visited_in_path: set
+        ) -> bool:
             """
             For constructively_converges_to, check if current aliases would create a cycle
             by checking segment-level overlap with any visited node.
             """
-            current_bases = {alias.rstrip('+-') for alias in current_aliases}
-        
+            current_bases = {alias.rstrip("+-") for alias in current_aliases}
+
             for visited_key in visited_in_path:
-                visited_bases = {alias.rstrip('+-') for alias in visited_key}
+                visited_bases = {alias.rstrip("+-") for alias in visited_key}
                 if current_bases & visited_bases:  # If there's any base overlap
                     return True
             return False
 
-        def _dfs_helper(current_aliases: List[str], current_path: List[T], visited_in_path: set, current_predicate: str | None = None):
+        def _dfs_helper(
+            current_aliases: List[str],
+            current_path: List[T],
+            visited_in_path: set,
+            current_predicate: str | None = None,
+        ):
             current_key = frozenset(current_aliases)
 
             # Check for cycle based on predicate type
@@ -215,10 +256,14 @@ class DirectedGraph(Generic[T]):
             # Filter transitions based on predicate requirements
             if predicate_filter is not None:
                 # Only allow transitions with the specified predicate
-                transitions = [t for t in transitions if t.predicate == predicate_filter]
+                transitions = [
+                    t for t in transitions if t.predicate == predicate_filter
+                ]
             elif current_predicate is not None:
                 # If we're already in a path with a specific predicate, only allow same predicate
-                transitions = [t for t in transitions if t.predicate == current_predicate]
+                transitions = [
+                    t for t in transitions if t.predicate == current_predicate
+                ]
 
             if not transitions:
                 # End of path - record it
@@ -233,19 +278,30 @@ class DirectedGraph(Generic[T]):
                 target_key = frozenset(transition.target_aliases)
 
                 # Determine the predicate for the next step
-                next_predicate = current_predicate if current_predicate is not None else transition.predicate
+                next_predicate = (
+                    current_predicate
+                    if current_predicate is not None
+                    else transition.predicate
+                )
 
                 # Check if target would create a cycle based on predicate type
                 if next_predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
                     # For constructive convergence, check segment-level cycle
-                    if _would_create_constructive_cycle(transition.target_aliases, new_visited):
+                    if _would_create_constructive_cycle(
+                        transition.target_aliases, new_visited
+                    ):
                         # This transition would create a cycle, record the path including this transition
                         all_paths.append(new_path.copy())
                         if visit_callback:
                             visit_callback(new_path, True)
                     else:
                         # Normal case: continue DFS
-                        _dfs_helper(transition.target_aliases, new_path, new_visited, next_predicate)
+                        _dfs_helper(
+                            transition.target_aliases,
+                            new_path,
+                            new_visited,
+                            next_predicate,
+                        )
                 else:
                     # For other predicates, use exact matching
                     if target_key in new_visited:
@@ -255,7 +311,12 @@ class DirectedGraph(Generic[T]):
                             visit_callback(new_path, True)
                     else:
                         # Normal case: continue DFS
-                        _dfs_helper(transition.target_aliases, new_path, new_visited, next_predicate)
+                        _dfs_helper(
+                            transition.target_aliases,
+                            new_path,
+                            new_visited,
+                            next_predicate,
+                        )
 
         if start_aliases is None:
             # Get all transitions and find unique source aliases
@@ -281,7 +342,7 @@ class DirectedGraph(Generic[T]):
         """
         Count the number of distinct cycles (circles) in the directed graph.
         Each unique cycle is counted only once, regardless of starting point.
-        
+
         Returns:
             Number of distinct cycles found in the graph
         """
@@ -309,7 +370,9 @@ class DirectedGraph(Generic[T]):
 
                     if path_end == path_start:
                         # Found a cycle! Extract all nodes in the cycle
-                        cycle_nodes = [frozenset([start_node])]  # Start with the starting node
+                        cycle_nodes = [
+                            frozenset([start_node])
+                        ]  # Start with the starting node
                         for transition in path:
                             cycle_nodes.append(frozenset(transition.target_aliases))
 
@@ -319,7 +382,9 @@ class DirectedGraph(Generic[T]):
                         # Normalize: start from lexicographically smallest node
                         min_node = min(cycle_nodes)
                         min_idx = cycle_nodes.index(min_node)
-                        normalized_cycle = tuple(cycle_nodes[min_idx:] + cycle_nodes[:min_idx])
+                        normalized_cycle = tuple(
+                            cycle_nodes[min_idx:] + cycle_nodes[:min_idx]
+                        )
 
                         detected_cycles.add(normalized_cycle)
 
@@ -333,7 +398,9 @@ class DirectedGraph(Generic[T]):
             for i, transition in enumerate(path):
                 if current_str is None:
                     current_str = f"{transition.source_aliases}"
-                if i == len(path) - 1 and tuple(transition.target_aliases) == tuple(path[0].source_aliases):
+                if i == len(path) - 1 and tuple(transition.target_aliases) == tuple(
+                    path[0].source_aliases
+                ):
                     # Skip last node if it equals the first node (completing the cycle)
                     continue
                 current_str += f" -> {transition.target_aliases}"

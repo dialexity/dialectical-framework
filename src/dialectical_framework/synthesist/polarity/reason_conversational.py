@@ -1,7 +1,6 @@
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.synthesist.polarity.polarity_reasoner import \
-    PolarityReasoner
+from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -38,9 +37,7 @@ class ReasonConversational(PolarityReasoner):
         if wu_so_far.t_minus:
             prompt_messages.append(
                 Messages.Assistant(
-                    wu_so_far.t_minus.pretty(
-                        "Negative Side of Thesis (T-)"
-                    )
+                    wu_so_far.t_minus.pretty("Negative Side of Thesis (T-)")
                 )
             )
         else:
@@ -55,9 +52,7 @@ class ReasonConversational(PolarityReasoner):
             prompt_messages.extend(
                 [
                     Messages.Assistant(
-                        wu_so_far.a_minus.pretty(
-                            "Negative Side of Antithesis (A-)"
-                        )
+                        wu_so_far.a_minus.pretty("Negative Side of Antithesis (A-)")
                     )
                 ]
             )
@@ -71,9 +66,7 @@ class ReasonConversational(PolarityReasoner):
             prompt_messages.extend(
                 [
                     Messages.Assistant(
-                        wu_so_far.t_plus.pretty(
-                            "Positive Side of Thesis (T+)"
-                        )
+                        wu_so_far.t_plus.pretty("Positive Side of Thesis (T+)")
                     )
                 ]
             )
@@ -87,9 +80,7 @@ class ReasonConversational(PolarityReasoner):
             prompt_messages.extend(
                 [
                     Messages.Assistant(
-                        wu_so_far.a_plus.pretty(
-                            "Positive Side of Antithesis (A+)"
-                        )
+                        wu_so_far.a_plus.pretty("Positive Side of Antithesis (A+)")
                     )
                 ]
             )

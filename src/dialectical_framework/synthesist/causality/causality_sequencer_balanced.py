@@ -5,19 +5,25 @@ from mirascope import prompt_template, Messages
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.ai_structured_data.causal_cycle import CausalCycle
-from dialectical_framework.ai_structured_data.causal_cycle_assessment import CausalCycleAssessment
+from dialectical_framework.ai_structured_data.causal_cycle_assessment import (
+    CausalCycleAssessment,
+)
 from dialectical_framework.ai_structured_data.causal_cycles_deck import CausalCyclesDeck
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.protocols.causality_sequencer import CausalitySequencer, generate_compatible_sequences, \
-    generate_permutation_sequences
+from dialectical_framework.protocols.causality_sequencer import (
+    CausalitySequencer,
+    generate_compatible_sequences,
+    generate_permutation_sequences,
+)
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import HasConfig
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
+from dialectical_framework.wheel_segment import ALIAS_T
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
@@ -59,7 +65,9 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         </formatting>
         """
     )
-    def prompt_assess_multiple_sequences(self, *, sequences: List[str]) -> Messages.Type: ...
+    def prompt_assess_multiple_sequences(
+        self, *, sequences: List[str]
+    ) -> Messages.Type: ...
 
     @prompt_template(
         """
@@ -83,7 +91,9 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
     )
     def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
 
-    async def _estimate_cycles(self, *, sequences: List[List[DialecticalComponent]]) -> CausalCyclesDeck:
+    async def _estimate_cycles(
+        self, *, sequences: List[List[DialecticalComponent]]
+    ) -> CausalCyclesDeck:
         sequences_str: dict[str, List[str]] = {}
 
         # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
@@ -113,23 +123,34 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         dialectical_components = []
         for dc in translated_components:
             # Check if this component is already in our deduplicated list
-            if not any(existing_dc.is_same(dc) for existing_dc in dialectical_components):
+            if not any(
+                existing_dc.is_same(dc) for existing_dc in dialectical_components
+            ):
                 dialectical_components.append(dc)
 
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=CausalCyclesDeck)
         async def _estimate_all() -> CausalCyclesDeck:
-            prompt = self.prompt_assess_multiple_sequences(sequences=list(sequences_str.keys()))
-            tpl = ReverseEngineer.till_theses(theses=dialectical_components, text=self.text)
+            prompt = self.prompt_assess_multiple_sequences(
+                sequences=list(sequences_str.keys())
+            )
+            tpl = ReverseEngineer.till_theses(
+                theses=dialectical_components, text=self.text
+            )
             return extend_tpl(tpl, prompt)
 
-        async def _estimate_single(sequence_str: str, aliases: List[str]) -> CausalCycle:
+        async def _estimate_single(
+            sequence_str: str, aliases: List[str]
+        ) -> CausalCycle:
             @with_langfuse()
             @use_brain(brain=self.brain, response_model=CausalCycleAssessment)
             async def _estimate_single_call() -> CausalCycleAssessment:
                 prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
-                tpl = ReverseEngineer.till_theses(theses=dialectical_components, text=self.text)
+                tpl = ReverseEngineer.till_theses(
+                    theses=dialectical_components, text=self.text
+                )
                 return extend_tpl(tpl, prompt)
+
             assessment = await _estimate_single_call()
             return CausalCycle(
                 aliases=aliases,
@@ -141,7 +162,9 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         # result = await _estimate_all()
         async_estimators = []
         for sequence, aliases in sequences_str.items():
-            async_estimators.append(_estimate_single(sequence_str=sequence, aliases=aliases))
+            async_estimators.append(
+                _estimate_single(sequence_str=sequence, aliases=aliases)
+            )
 
         # Execute all async estimators concurrently and collect results
         causal_cycles = await asyncio.gather(*async_estimators)
@@ -164,75 +187,109 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
                 causal_cycle.argumentation = dc_replace(
                     causal_cycle.argumentation, a, alias_translations[a]
                 )
-            causal_cycle.aliases = [alias_translations[alias] for alias in causal_cycle.aliases]
+            causal_cycle.aliases = [
+                alias_translations[alias] for alias in causal_cycle.aliases
+            ]
 
         return result
 
-    async def arrange(self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]) -> List[Cycle]:
+    async def arrange(
+        self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]
+    ) -> List[Cycle]:
         sequences = self._get_sequences(thoughts)
 
         if thoughts and isinstance(thoughts[0], WisdomUnit):
             ordered_wisdom_units: List[WisdomUnit] = thoughts
             if len(thoughts) == 1:
-                return [Cycle(dialectical_components=[
-                    ordered_wisdom_units[0].t,
-                    ordered_wisdom_units[0].a,
-                ], probability=1.0, causality_type=self.config.causality_type)]
+                return [
+                    Cycle(
+                        dialectical_components=[
+                            ordered_wisdom_units[0].t,
+                            ordered_wisdom_units[0].a,
+                        ],
+                        probability=1.0,
+                        causality_type=self.config.causality_type,
+                    )
+                ]
             elif len(thoughts) == 2:
-                dialectical_components_deck = DialecticalComponentsDeck(dialectical_components=[
-                    ordered_wisdom_units[0].t,
-                    ordered_wisdom_units[1].t,
-                    ordered_wisdom_units[0].a,
-                    ordered_wisdom_units[1].a,
-                ])
+                dialectical_components_deck = DialecticalComponentsDeck(
+                    dialectical_components=[
+                        ordered_wisdom_units[0].t,
+                        ordered_wisdom_units[1].t,
+                        ordered_wisdom_units[0].a,
+                        ordered_wisdom_units[1].a,
+                    ]
+                )
             elif len(thoughts) == 3:
-                dialectical_components_deck = DialecticalComponentsDeck(dialectical_components=[
-                    ordered_wisdom_units[0].t,
-                    ordered_wisdom_units[1].t,
-                    ordered_wisdom_units[2].t,
-                    ordered_wisdom_units[0].a,
-                    ordered_wisdom_units[1].a,
-                    ordered_wisdom_units[2].a,
-                ])
+                dialectical_components_deck = DialecticalComponentsDeck(
+                    dialectical_components=[
+                        ordered_wisdom_units[0].t,
+                        ordered_wisdom_units[1].t,
+                        ordered_wisdom_units[2].t,
+                        ordered_wisdom_units[0].a,
+                        ordered_wisdom_units[1].a,
+                        ordered_wisdom_units[2].a,
+                    ]
+                )
             elif len(thoughts) == 4:
-                dialectical_components_deck = DialecticalComponentsDeck(dialectical_components=[
-                    ordered_wisdom_units[0].t,
-                    ordered_wisdom_units[1].t,
-                    ordered_wisdom_units[2].t,
-                    ordered_wisdom_units[3].t,
-                    ordered_wisdom_units[0].a,
-                    ordered_wisdom_units[1].a,
-                    ordered_wisdom_units[2].a,
-                    ordered_wisdom_units[3].a,
-                ])
+                dialectical_components_deck = DialecticalComponentsDeck(
+                    dialectical_components=[
+                        ordered_wisdom_units[0].t,
+                        ordered_wisdom_units[1].t,
+                        ordered_wisdom_units[2].t,
+                        ordered_wisdom_units[3].t,
+                        ordered_wisdom_units[0].a,
+                        ordered_wisdom_units[1].a,
+                        ordered_wisdom_units[2].a,
+                        ordered_wisdom_units[3].a,
+                    ]
+                )
             else:
-                raise ValueError(f"{len(ordered_wisdom_units)} thoughts are not supported yet.")
+                raise ValueError(
+                    f"{len(ordered_wisdom_units)} thoughts are not supported yet."
+                )
             causal_cycles_deck = await self._estimate_cycles(sequences=sequences)
         else:
             if len(thoughts) == 1:
                 if thoughts and isinstance(thoughts[0], DialecticalComponent):
-                    return [Cycle(
-                        dialectical_components=thoughts,
-                        probability=1.0,
-                        causality_type=self.config.causality_type,
-                    )]
+                    return [
+                        Cycle(
+                            dialectical_components=thoughts,
+                            probability=1.0,
+                            causality_type=self.config.causality_type,
+                        )
+                    ]
                 else:
-                    return [Cycle(
-                        dialectical_components=[
-                            DialecticalComponent(alias="T", statement=thoughts[0], explanation=thoughts[0])
-                        ],
-                        probability=1.0,
-                        causality_type=self.config.causality_type,
-                    )]
+                    return [
+                        Cycle(
+                            dialectical_components=[
+                                DialecticalComponent(
+                                    alias="T",
+                                    statement=thoughts[0],
+                                    explanation=thoughts[0],
+                                )
+                            ],
+                            probability=1.0,
+                            causality_type=self.config.causality_type,
+                        )
+                    ]
             elif len(thoughts) <= 4:
                 if thoughts and isinstance(thoughts[0], DialecticalComponent):
-                    dialectical_components_deck = DialecticalComponentsDeck(dialectical_components=thoughts)
+                    dialectical_components_deck = DialecticalComponentsDeck(
+                        dialectical_components=thoughts
+                    )
                 else:
                     # TODO: We need to actualize the thesis using AI, so that we don't need to write 'Provided as string'
-                    dialectical_components_deck = DialecticalComponentsDeck(dialectical_components=[
-                        DialecticalComponent(alias=f"T{i + 1}", statement=t, explanation="Provided as string.")
-                        for i, t in enumerate(thoughts)
-                    ])
+                    dialectical_components_deck = DialecticalComponentsDeck(
+                        dialectical_components=[
+                            DialecticalComponent(
+                                alias=f"T{i + 1}",
+                                statement=t,
+                                explanation="Provided as string.",
+                            )
+                            for i, t in enumerate(thoughts)
+                        ]
+                    )
             else:
                 raise ValueError(f"More than 4 thoughts are not supported yet.")
 
@@ -240,8 +297,11 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
 
         return self._normalize(dialectical_components_deck, causal_cycles_deck)
 
-    def _normalize(self, dialectical_components_deck: DialecticalComponentsDeck,
-                   causal_cycles_deck: CausalCyclesDeck) -> List[Cycle]:
+    def _normalize(
+        self,
+        dialectical_components_deck: DialecticalComponentsDeck,
+        causal_cycles_deck: CausalCyclesDeck,
+    ) -> List[Cycle]:
         from decimal import Decimal, ROUND_HALF_UP, getcontext
 
         cycles: list[Cycle] = []
@@ -249,29 +309,41 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         for causal_cycle in causal_cycles_deck.causal_cycles:
             total_probability += causal_cycle.probability
             cycles.append(
-                Cycle(dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
-                      causality_type=self.config.causality_type,
-                      probability=causal_cycle.probability,
-                      reasoning_explanation=causal_cycle.reasoning_explanation,
-                      argumentation=causal_cycle.argumentation))
+                Cycle(
+                    dialectical_components=dialectical_components_deck.rearrange_by_aliases(
+                        causal_cycle.aliases
+                    ),
+                    causality_type=self.config.causality_type,
+                    probability=causal_cycle.probability,
+                    reasoning_explanation=causal_cycle.reasoning_explanation,
+                    argumentation=causal_cycle.argumentation,
+                )
+            )
 
         # Probability was a guesswork, let's make it normalized to have statistical strictness
         if total_probability > 0 and cycles:
             getcontext().prec = 16
-            q = Decimal('0.001')
+            q = Decimal("0.001")
 
             # Normalize and round to 3 decimals using Decimal
-            probs = [Decimal(c.probability) / Decimal(total_probability) for c in cycles]
+            probs = [
+                Decimal(c.probability) / Decimal(total_probability) for c in cycles
+            ]
             probs = [p.quantize(q, rounding=ROUND_HALF_UP) for p in probs]
 
             # Sort by rounded probabilities (descending)
-            cycles.sort(key=lambda c: float(Decimal(c.probability) / Decimal(total_probability)), reverse=True)
+            cycles.sort(
+                key=lambda c: float(
+                    Decimal(c.probability) / Decimal(total_probability)
+                ),
+                reverse=True,
+            )
             # Recompute in sorted order
             probs.sort(reverse=True)
 
             # Add the exact decimal remainder to the highest-probability cycle
             total_after = sum(probs)
-            diff = Decimal('1.000') - total_after
+            diff = Decimal("1.000") - total_after
             probs[0] = (probs[0] + diff).quantize(q, rounding=ROUND_HALF_UP)
 
             # Assign back
@@ -282,10 +354,11 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
         return cycles
 
     @staticmethod
-    def _get_sequences(thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]) -> List[List[DialecticalComponent]]:
+    def _get_sequences(
+        thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]],
+    ) -> List[List[DialecticalComponent]]:
         if len(thoughts) == 0:
             raise ValueError("No thoughts provided.")
-
 
         if thoughts and isinstance(thoughts[0], WisdomUnit):
             ordered_wisdom_units: List[WisdomUnit] = thoughts
@@ -296,7 +369,11 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
             else:
                 # TODO: We need to actualize the thesis using AI, so that we don't need to write 'Provided as string'
                 dialectical_components = [
-                    DialecticalComponent(alias=f"T{i + 1}", statement=t, explanation="Provided as string.")
+                    DialecticalComponent(
+                        alias=f"{ALIAS_T}{i + 1}",
+                        statement=t,
+                        explanation="Provided as string.",
+                    )
                     for i, t in enumerate(thoughts)
                 ]
             return generate_permutation_sequences(dialectical_components)

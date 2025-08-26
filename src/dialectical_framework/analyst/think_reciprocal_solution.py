@@ -12,51 +12,51 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 class ThinkReciprocalSolution(StrategicConsultant):
     @prompt_template(
-    """
-    USER:
-    <context>{text}</context>
-    
-    USER:
-    Previous Dialectical Analysis:
-    {dialectical_analysis}
-    
-    USER:
-    <instructions>
-    Given the initial context and the previous dialectical analysis, suggest solution(s).
-    
-    Step 1: Frame the problem as a tension between two opposing approaches, where:
-    - Thesis (T): The first approach or position
-    - Antithesis (A): The contrasting approach or position
-    
-    The solution that is suggested or implied in the text must represent the Linear Action (Ac) that transforms the negative aspect of the thesis (T-) into the positive aspect of the antithesis (A+)
-    
-    Step 2: Create a Dialectical Reflection (Re):
-    - A complementary solution that is NOT present in the analyzed text
-    - This solution should transform the negative aspect of the antithesis (A-) into the positive aspect of the thesis (T+)
-    - It should work harmoniously with the Linear Action to create a more complete solution
-    
-    <example>
-        For example:
-        In a token vesting dispute, stakeholders disagreed about extending the lock period from January 2025 to January 2026. The original solution was a staged distribution with incentives.
+        """
+        USER:
+        <context>{text}</context>
         
-        Thesis T: Vest Now
-        T+ = Trust Building
-        T- = Loss of Value
+        USER:
+        Previous Dialectical Analysis:
+        {dialectical_analysis}
         
-        Antithesis A: Vest Later
-        A+ = Value Protection (contradicts T-)
-        A- = Trust Erosion (contradicts T+)
+        USER:
+        <instructions>
+        Given the initial context and the previous dialectical analysis, suggest solution(s).
         
-        Linear Action: Staged distribution with added incentives, offering 25% immediate unlock with enhanced benefits for the delayed 75% portion.
+        Step 1: Frame the problem as a tension between two opposing approaches, where:
+        - Thesis (T): The first approach or position
+        - Antithesis (A): The contrasting approach or position
         
-        Dialectical Reflection: Liquid staking derivatives for immediate utility (25%) combined with guaranteed exit rights (75%) - complements the linear action.
-    </example>
-    </instructions>
-
-    <formatting>
-    Output Linear Action and Dialectical Reflection as a fluent text that could be useful for someone who provided the initial context. Compose the problem statement in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
-    </formatting>
-    """
+        The solution that is suggested or implied in the text must represent the Linear Action (Ac) that transforms the negative aspect of the thesis (T-) into the positive aspect of the antithesis (A+)
+        
+        Step 2: Create a Dialectical Reflection (Re):
+        - A complementary solution that is NOT present in the analyzed text
+        - This solution should transform the negative aspect of the antithesis (A-) into the positive aspect of the thesis (T+)
+        - It should work harmoniously with the Linear Action to create a more complete solution
+        
+        <example>
+            For example:
+            In a token vesting dispute, stakeholders disagreed about extending the lock period from January 2025 to January 2026. The original solution was a staged distribution with incentives.
+            
+            Thesis T: Vest Now
+            T+ = Trust Building
+            T- = Loss of Value
+            
+            Antithesis A: Vest Later
+            A+ = Value Protection (contradicts T-)
+            A- = Trust Erosion (contradicts T+)
+            
+            Linear Action: Staged distribution with added incentives, offering 25% immediate unlock with enhanced benefits for the delayed 75% portion.
+            
+            Dialectical Reflection: Liquid staking derivatives for immediate utility (25%) combined with guaranteed exit rights (75%) - complements the linear action.
+        </example>
+        </instructions>
+    
+        <formatting>
+        Output Linear Action and Dialectical Reflection as a fluent text that could be useful for someone who provided the initial context. Compose the problem statement in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
+        </formatting>
+        """
     )
     def prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
@@ -82,18 +82,13 @@ class ThinkReciprocalSolution(StrategicConsultant):
 
         self._transition = SymmetricalTransition(
             reciprocal_solution=s,
-
             source_aliases=[wu.t.alias],
             target_aliases=[wu.a.alias],
-
             opposite_source_aliases=[wu.a.alias],
             opposite_target_aliases=[wu.t.alias],
-
             source=wu.extract_segment_t(),
             target=wu.extract_segment_a(),
-
             predicate=Predicate.TRANSFORMS_TO,
         )
 
         return self._transition
-

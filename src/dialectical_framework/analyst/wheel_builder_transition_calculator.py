@@ -36,24 +36,40 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     def config(self) -> Config:
         return self.__decorated_builder.config
 
-    async def build_wheel_permutations(self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None) -> List[Wheel]:
-        await self.__decorated_builder.build_wheel_permutations(theses=theses, t_cycle=t_cycle)
+    async def build_wheel_permutations(
+        self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None
+    ) -> List[Wheel]:
+        await self.__decorated_builder.build_wheel_permutations(
+            theses=theses, t_cycle=t_cycle
+        )
         return self.wheel_permutations
 
-    async def redefine(self, modified_statement_per_alias: Dict[str, str]) -> List[Wheel]:
-        await self.__decorated_builder.redefine(modified_statement_per_alias=modified_statement_per_alias)
+    async def redefine(
+        self, modified_statement_per_alias: Dict[str, str]
+    ) -> List[Wheel]:
+        await self.__decorated_builder.redefine(
+            modified_statement_per_alias=modified_statement_per_alias
+        )
         return self.wheel_permutations
 
-    async def calculate_syntheses(self, wheel: Wheel, at: WheelSegmentReference | List[WheelSegmentReference] = None):
+    async def calculate_syntheses(
+        self,
+        wheel: Wheel,
+        at: WheelSegmentReference | List[WheelSegmentReference] = None,
+    ):
         await self.__decorated_builder.calculate_syntheses(wheel=wheel, at=at)
 
-    async def calculate_transitions(self, wheel: Wheel, at: WheelSegmentReference | List[WheelSegmentReference] = None):
+    async def calculate_transitions(
+        self,
+        wheel: Wheel,
+        at: WheelSegmentReference | List[WheelSegmentReference] = None,
+    ):
         if wheel not in self.wheel_permutations:
             raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
 
         if at is None:
             # Calculate for each
-            if hasattr(self.decorated_builder, 'calculate_transitions'):
+            if hasattr(self.decorated_builder, "calculate_transitions"):
                 await self.decorated_builder.calculate_transitions(wheel=wheel, at=None)
             # This is for subclasses to implement
             trs = await self._do_calculate_transitions_all(wheel=wheel)
@@ -62,15 +78,17 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         elif isinstance(at, list):
             # Calculate for some
             for ref in at:
-                if hasattr(self.decorated_builder, 'calculate_transitions'):
-                    await self.decorated_builder.calculate_transitions(wheel=wheel, at=ref)
+                if hasattr(self.decorated_builder, "calculate_transitions"):
+                    await self.decorated_builder.calculate_transitions(
+                        wheel=wheel, at=ref
+                    )
                 # This is for subclasses to implement
                 trs_i = await self._do_calculate_transitions(wheel=wheel, at=ref)
                 for tr in trs_i:
                     self._take_transition(wheel=wheel, transition=tr)
         else:
             # Calculate for one
-            if hasattr(self.decorated_builder, 'calculate_transitions'):
+            if hasattr(self.decorated_builder, "calculate_transitions"):
                 await self.decorated_builder.calculate_transitions(wheel=wheel, at=at)
             # This is for subclasses to implement
             trs = await self._do_calculate_transitions(wheel=wheel, at=at)
@@ -78,7 +96,9 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
                 self._take_transition(wheel=wheel, transition=tr)
 
     @abstractmethod
-    async def _do_calculate_transitions(self, wheel: Wheel, at: WheelSegment) -> List[Transition]:
+    async def _do_calculate_transitions(
+        self, wheel: Wheel, at: WheelSegment
+    ) -> List[Transition]:
         """Subclasses implement the actual transition calculation logic here."""
         pass
 
@@ -95,7 +115,9 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
 
             # Break the symmetrical transition into 2 transitions to be able to set it uniformly
 
-            old_t_to_a = wheel.spiral.graph.get_transition(st.source_aliases, st.target_aliases)
+            old_t_to_a = wheel.spiral.graph.get_transition(
+                st.source_aliases, st.target_aliases
+            )
             t_to_a = st
             new_t_to_a = t_to_a
             if old_t_to_a is not None:
@@ -118,14 +140,18 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
             # The decorator might be enriching the existing transition, so we need to merge, not just add
             new_transition = transition
             if transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
-                old_transition = wheel.spiral.graph.get_transition(transition.source_aliases, transition.target_aliases)
+                old_transition = wheel.spiral.graph.get_transition(
+                    transition.source_aliases, transition.target_aliases
+                )
                 if old_transition is not None:
                     new_transition = old_transition.new_with(transition)
                 wheel.spiral.graph.add_transition(new_transition)
             elif transition.predicate == Predicate.CAUSES:
                 # Cycle graphs must be present in the wheel upfront, so we only enrich the transitions
                 graph = None
-                old_transition = wheel.t_cycle.graph.get_transition(transition.source_aliases, transition.target_aliases)
+                old_transition = wheel.t_cycle.graph.get_transition(
+                    transition.source_aliases, transition.target_aliases
+                )
                 if old_transition is not None:
                     graph = wheel.t_cycle.graph
                 if graph:
@@ -134,16 +160,12 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
                     graph.add_transition(new_transition)
                     graph = None
 
-                old_transition = wheel.cycle.graph.get_transition(transition.source_aliases, transition.target_aliases)
+                old_transition = wheel.cycle.graph.get_transition(
+                    transition.source_aliases, transition.target_aliases
+                )
                 if old_transition is not None:
                     graph = wheel.cycle.graph
                 if graph:
                     if old_transition is not None:
                         new_transition = old_transition.new_with(transition)
                     graph.add_transition(new_transition)
-
-
-
-
-
-

@@ -27,9 +27,9 @@ class StrategicConsultant(ABC, HasBrain):
     def config(self) -> Config:
         return self._config
 
-
     @abstractmethod
     async def think(self, focus: WheelSegment) -> Transition: ...
+
     """
     The main method of the class. It should return a Transition to the next WisdomUnit.
     This Transition must be saved into the current instance. 

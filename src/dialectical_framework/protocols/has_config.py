@@ -10,6 +10,7 @@ from dialectical_framework.enums.di import DI
 def di_config(config: Config = Provide[DI.config]) -> Config:
     return config
 
+
 @runtime_checkable
 class HasConfig(Protocol):
     @property

@@ -12,11 +12,17 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 class CausalitySequencer(Reloadable):
     @abstractmethod
-    def prompt_assess_multiple_sequences(self, *, sequences: List[str]) -> Messages.Type: ...
+    def prompt_assess_multiple_sequences(
+        self, *, sequences: List[str]
+    ) -> Messages.Type: ...
+
     @abstractmethod
     def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
+
     @abstractmethod
-    async def arrange(self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]) -> List[Cycle]:
+    async def arrange(
+        self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]
+    ) -> List[Cycle]:
         """
         Arranges items in multiple sequences and arranges them as cycles.
         IMPORTANT: we don't do single sequence estimation isolated, because they all depend on each other.
@@ -25,18 +31,20 @@ class CausalitySequencer(Reloadable):
         ...
 
 
-def generate_permutation_sequences(dialectical_components: List[DialecticalComponent]) -> List[List[DialecticalComponent]]:
+def generate_permutation_sequences(
+    dialectical_components: List[DialecticalComponent],
+) -> List[List[DialecticalComponent]]:
     if len(dialectical_components) < 2:
         return []
 
     first, rest = dialectical_components[0], dialectical_components[1:]
-    sequences = list(
-        [first, *p]
-        for p in permutations(rest)
-    )
+    sequences = list([first, *p] for p in permutations(rest))
     return sequences
 
-def generate_compatible_sequences(ordered_wisdom_units: List[WisdomUnit]) -> List[List[DialecticalComponent]]:
+
+def generate_compatible_sequences(
+    ordered_wisdom_units: List[WisdomUnit],
+) -> List[List[DialecticalComponent]]:
     """
     Generate all circular, diagonally symmetric arrangements for T/A pairs.
 

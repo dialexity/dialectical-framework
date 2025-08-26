@@ -10,9 +10,12 @@ from dialectical_framework.dialectical_components_deck import DialecticalCompone
 from dialectical_framework.spiral import Spiral
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
-from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
+from dialectical_framework.enums.dialectical_reasoning_mode import (
+    DialecticalReasoningMode,
+)
 
 WheelSegmentReference = Union[int, WheelSegment, str, DialecticalComponent]
+
 
 class Wheel:
     def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle, **kwargs):
@@ -24,7 +27,7 @@ class Wheel:
 
         self._ta_cycle: Cycle = ta_cycle
         self._t_cycle: Cycle = t_cycle
-        self._spiral: Spiral  = Spiral()
+        self._spiral: Spiral = Spiral()
 
     @property
     def order(self) -> int:
@@ -49,7 +52,7 @@ class Wheel:
         else:
             raise ValueError("The wheel is empty.")
 
-    def is_set(self, s: str|DialecticalComponent|WheelSegment) -> bool:
+    def is_set(self, s: str | DialecticalComponent | WheelSegment) -> bool:
         try:
             self.wisdom_unit_at(s)
         except ValueError:
@@ -64,7 +67,9 @@ class Wheel:
             if not other.is_set(wu):
                 return False
 
-        return self.t_cycle.is_same_structure(other.t_cycle) and self.cycle.is_same_structure(other.cycle)
+        return self.t_cycle.is_same_structure(
+            other.t_cycle
+        ) and self.cycle.is_same_structure(other.cycle)
 
     def wisdom_unit_at(self, i: WheelSegmentReference) -> WisdomUnit:
         """
@@ -98,7 +103,9 @@ class Wheel:
                     return wu
         elif isinstance(i, WheelSegment):
             for wu in self.wisdom_units:
-                if wu.extract_segment_t().is_same(i) or wu.extract_segment_a().is_same(i):
+                if wu.extract_segment_t().is_same(i) or wu.extract_segment_a().is_same(
+                    i
+                ):
                     return wu
             raise ValueError(f"Cannot find wisdom unit at: {i.t.alias}")
         elif isinstance(i, str) or isinstance(i, DialecticalComponent):
@@ -107,7 +114,9 @@ class Wheel:
                     return wu
         elif isinstance(i, int):
             if i < 0 or i >= len(self.wisdom_units):
-                raise IndexError(f"index {i} out of range for wheel of length {len(self.wisdom_units)}")
+                raise IndexError(
+                    f"index {i} out of range for wheel of length {len(self.wisdom_units)}"
+                )
             return self.wisdom_units[i]
 
         raise ValueError(f"Cannot find wisdom unit at: {i}")
@@ -136,11 +145,13 @@ class Wheel:
         if isinstance(i, int):
             total_segments = self.degree
             if i < 0 or i >= total_segments:
-                raise IndexError(f"index {i} out of range for wheel of {total_segments} segments")
+                raise IndexError(
+                    f"index {i} out of range for wheel of {total_segments} segments"
+                )
             wu_index = i % self.order
             wu = self.wisdom_units[wu_index]
             return wu.extract_segment_t() if i < self.order else wu.extract_segment_a()
-        elif isinstance(i, str) or isinstance(i, DialecticalComponent) :
+        elif isinstance(i, str) or isinstance(i, DialecticalComponent):
             for wu in self.wisdom_units:
                 if wu.is_set(i):
                     segment_t = wu.extract_segment_t()
@@ -223,32 +234,35 @@ class Wheel:
         # Should never happen
         return -1
 
-
     def __str__(self):
         main_segment = self.main_wisdom_unit
         output = (
-                "\n---\n" +
-                self.t_cycle.pretty(skip_dialectical_component_explanation=True, start_alias=main_segment.t) +
-                "\n---\n" +
-                "\n---\n" +
-                self.cycle.pretty(skip_dialectical_component_explanation=True, start_alias=main_segment.t) +
-                "\n---\n" +
-                self._print_wheel_tabular() +
-                "\n---\n" +
-                self.spiral.pretty(start_wheel_segment=main_segment) +
-                "\n---\n"
+            "\n---\n"
+            + self.t_cycle.pretty(
+                skip_dialectical_component_explanation=True, start_alias=main_segment.t
+            )
+            + "\n---\n"
+            + "\n---\n"
+            + self.cycle.pretty(
+                skip_dialectical_component_explanation=True, start_alias=main_segment.t
+            )
+            + "\n---\n"
+            + self._print_wheel_tabular()
+            + "\n---\n"
+            + self.spiral.pretty(start_wheel_segment=main_segment)
+            + "\n---\n"
         )
 
         return output
 
     def _print_wheel_tabular(self) -> str:
         roles = [
-            ('t_minus', 'T-'),
-            ('t', 'T'),
-            ('t_plus', 'T+'),
-            ('a_plus', 'A+'),
-            ('a', 'A'),
-            ('a_minus', 'A-'),
+            ("t_minus", "T-"),
+            ("t", "T"),
+            ("t_plus", "T+"),
+            ("a_plus", "A+"),
+            ("a", "A"),
+            ("a_minus", "A-"),
         ]
 
         n_units = len(self._wisdom_units)
@@ -265,11 +279,12 @@ class Wheel:
             for i, wu in enumerate(self._wisdom_units):
                 # Wisdom unit columns
                 component = getattr(wu, role_attr, None)
-                row.append(component.alias if component else '')
-                row.append(component.statement if component else '')
+                row.append(component.alias if component else "")
+                row.append(component.statement if component else "")
             table.append(row)
 
         return tabulate(
             table,
             # headers=headers,
-            tablefmt="plain")
+            tablefmt="plain",
+        )

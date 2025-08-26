@@ -3,7 +3,9 @@ from __future__ import annotations
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
+from dialectical_framework.enums.dialectical_reasoning_mode import (
+    DialecticalReasoningMode,
+)
 from dialectical_framework.synthesis import Synthesis
 from dialectical_framework.wheel_segment import WheelSegment
 
@@ -20,7 +22,7 @@ class WisdomUnit(WheelSegment):
     """
 
     reasoning_mode: DialecticalReasoningMode = Field(
-        default_factory=lambda : DialecticalReasoningMode.GENERAL_CONCEPTS,
+        default_factory=lambda: DialecticalReasoningMode.GENERAL_CONCEPTS,
         description="The type of dialectical reasoning strategy used to construct this wisdom unit (e.g., 'General Concepts' = default, 'Problem/Solution', 'Action Plan/Steps')",
     )
 
@@ -40,7 +42,9 @@ class WisdomUnit(WheelSegment):
         alias=ALIAS_A_MINUS,
     )
 
-    synthesis: Synthesis | None = Field(default=None, description="The synthesis of the wisdom unit.")
+    synthesis: Synthesis | None = Field(
+        default=None, description="The synthesis of the wisdom unit."
+    )
 
     def extract_segment_t(self) -> WheelSegment:
         # TODO: maybe it's enough to return self, because the interface is still WheelSegment?

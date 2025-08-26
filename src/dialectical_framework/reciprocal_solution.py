@@ -6,8 +6,12 @@ class ReciprocalSolution(BaseModel):
         extra="forbid",
     )
     problem: str | None = Field(default=None, description="Problem statement")
-    linear_action: str | None = Field(default=None, description="Solution(s) that transforms T- into A+")
-    dialectical_reflection: str | None = Field(default=None, description="Complementary solution(s) that transforms A- into T+")
+    linear_action: str | None = Field(
+        default=None, description="Solution(s) that transforms T- into A+"
+    )
+    dialectical_reflection: str | None = Field(
+        default=None, description="Complementary solution(s) that transforms A- into T+"
+    )
 
     def __str__(self):
         str_pieces = []
@@ -18,5 +22,3 @@ class ReciprocalSolution(BaseModel):
         if self.dialectical_reflection:
             str_pieces.append(f"Dialectical reflection: {self.dialectical_reflection}")
         return "\n".join(str_pieces)
-
-

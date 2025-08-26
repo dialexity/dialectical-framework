@@ -20,24 +20,35 @@ class Transition(BaseModel):
         extra="forbid",
     )
 
-    source_aliases: List[str] = Field(default_factory=list, description="Aliases of the source segment of the wheel.")
-    source: Union[WheelSegment, DialecticalComponent] = Field(description="Source segment of the wheel or dialectical component.")
-    target_aliases: List[str] = Field(default_factory=list, description="Aliases of the target segment of the wheel.")
-    target: Union[WheelSegment, DialecticalComponent] = Field(description="Target segment of the wheel or dialectical component.")
+    source_aliases: List[str] = Field(
+        default_factory=list, description="Aliases of the source segment of the wheel."
+    )
+    source: Union[WheelSegment, DialecticalComponent] = Field(
+        description="Source segment of the wheel or dialectical component."
+    )
+    target_aliases: List[str] = Field(
+        default_factory=list, description="Aliases of the target segment of the wheel."
+    )
+    target: Union[WheelSegment, DialecticalComponent] = Field(
+        description="Target segment of the wheel or dialectical component."
+    )
 
     predicate: Predicate = Field(
         ...,
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
 
-    advice: str | None = Field(default=None, description="Guidance on what is needed for the transition to happen.")
+    advice: str | None = Field(
+        default=None,
+        description="Guidance on what is needed for the transition to happen.",
+    )
 
-    @field_validator('source_aliases')
+    @field_validator("source_aliases")
     def validate_source_aliases(cls, v: list[str], info) -> list[str]:
-        if 'source' in info.data and info.data['source']:
-            source = info.data['source']
+        if "source" in info.data and info.data["source"]:
+            source = info.data["source"]
             valid_aliases = []
-            
+
             if isinstance(source, DialecticalComponent):
                 valid_aliases = [source.alias]
             elif isinstance(source, WheelSegment):
@@ -45,18 +56,20 @@ class Transition(BaseModel):
                 for component in [source.t, source.t_plus, source.t_minus]:
                     if component:
                         valid_aliases.append(component.alias)
-            
+
             invalid_aliases = [alias for alias in v if alias not in valid_aliases]
             if invalid_aliases:
-                raise ValueError(f"Invalid source aliases: {invalid_aliases}. Valid aliases: {valid_aliases}")
+                raise ValueError(
+                    f"Invalid source aliases: {invalid_aliases}. Valid aliases: {valid_aliases}"
+                )
         return v
 
-    @field_validator('target_aliases')
+    @field_validator("target_aliases")
     def validate_target_aliases(cls, v: list[str], info) -> list[str]:
-        if 'target' in info.data and info.data['target']:
-            target = info.data['target']
+        if "target" in info.data and info.data["target"]:
+            target = info.data["target"]
             valid_aliases = []
-            
+
             if isinstance(target, DialecticalComponent):
                 valid_aliases = [target.alias]
             elif isinstance(target, WheelSegment):
@@ -64,10 +77,12 @@ class Transition(BaseModel):
                 for component in [target.t, target.t_plus, target.t_minus]:
                     if component:
                         valid_aliases.append(component.alias)
-            
+
             invalid_aliases = [alias for alias in v if alias not in valid_aliases]
             if invalid_aliases:
-                raise ValueError(f"Invalid target aliases: {invalid_aliases}. Valid aliases: {valid_aliases}")
+                raise ValueError(
+                    f"Invalid target aliases: {invalid_aliases}. Valid aliases: {valid_aliases}"
+                )
         return v
 
     def new_with(self, other: Transition) -> Transition:
@@ -81,7 +96,6 @@ class Transition(BaseModel):
             if value is not None:
                 merged_dict[key] = value
 
-
         new_t_class: type[Transition] = type(self)
         if not isinstance(other, Transition):
             new_t_class = type(other)
@@ -91,7 +105,7 @@ class Transition(BaseModel):
     def pretty(self) -> str:
         str_pieces = [
             f"{', '.join(self.source_aliases)} → {', '.join(self.target_aliases)}",
-            f"Summary: {self.advice if self.advice else 'N/A'}"
+            f"Summary: {self.advice if self.advice else 'N/A'}",
         ]
         return "\n".join(str_pieces)
 

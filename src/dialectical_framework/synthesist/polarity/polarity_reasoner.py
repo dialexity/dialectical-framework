@@ -12,23 +12,31 @@ from dialectical_framework.brain import Brain
 from dialectical_framework.config import Config
 from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
-    DialecticalComponentsDeck
+from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.enums.di import DI
-from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
+from dialectical_framework.enums.dialectical_reasoning_mode import (
+    DialecticalReasoningMode,
+)
 from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.validator.basic_checks import (is_negative_side,
-                                                          is_positive_side,
-                                                          is_strict_opposition,
-                                                          is_valid_opposition, check)
+from dialectical_framework.validator.basic_checks import (
+    is_negative_side,
+    is_positive_side,
+    is_strict_opposition,
+    is_valid_opposition,
+    check,
+)
 from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
-from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                               ALIAS_A_PLUS, WisdomUnit)
+from dialectical_framework.wisdom_unit import (
+    ALIAS_A,
+    ALIAS_A_MINUS,
+    ALIAS_A_PLUS,
+    WisdomUnit,
+)
 
 
 class PolarityReasoner(HasBrain, Reloadable):
@@ -36,22 +44,21 @@ class PolarityReasoner(HasBrain, Reloadable):
         self,
         *,
         text: str = "",
-
     ):
         self._text = text
         self._wisdom_unit = None
 
         self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
 
-        self._analysis = DialecticalAnalysis(
-            corpus=self._text
-        )
+        self._analysis = DialecticalAnalysis(corpus=self._text)
 
     @property
     def text(self) -> str:
         return self._text
 
-    def reload(self, *, text: str, perspectives: WisdomUnit | List[WisdomUnit] = None) -> Self:
+    def reload(
+        self, *, text: str, perspectives: WisdomUnit | List[WisdomUnit] = None
+    ) -> Self:
         self._text = text
         if not perspectives:
             perspectives = []
@@ -71,60 +78,68 @@ class PolarityReasoner(HasBrain, Reloadable):
         return self
 
     @prompt_template(
-    """
-    USER:
-    {start}
+        """
+        USER:
+        {start}
+        
+        USER:
+        Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
     
-    USER:
-    Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
-
-    Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
-    """
+        Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
+        """
     )
-    def prompt_thesis(self, text: str = None, config: Config = Provide[DI.config]) -> Messages.Type:
+    def prompt_thesis(
+        self, text: str = None, config: Config = Provide[DI.config]
+    ) -> Messages.Type:
         return {
             "computed_fields": {
                 # Sometimes we don't want the whole user input again, as we're calculating the thesis within a longer analysis
-                "start": "<context>" + inspect.cleandoc(text) + "</context>" if text else "Ok.",
-                "component_length": config.component_length
+                "start": (
+                    "<context>" + inspect.cleandoc(text) + "</context>"
+                    if text
+                    else "Ok."
+                ),
+                "component_length": config.component_length,
             },
         }
 
     @prompt_template(
-    """
-    A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
+        """
+        A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
+        
+        Generate a dialectical opposition (A) of the thesis "{thesis}" (T). Be detailed enough to show deep understanding, yet concise enough to maintain clarity. Generalize all of them using up to 6 words.
     
-    Generate a dialectical opposition (A) of the thesis "{thesis}" (T). Be detailed enough to show deep understanding, yet concise enough to maintain clarity. Generalize all of them using up to 6 words.
-
-    Output the dialectical component A within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
-    """
+        Output the dialectical component A within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
+        """
     )
-    def prompt_antithesis(self, thesis: str | DialecticalComponent, config: Config = Provide[DI.config]) -> Messages.Type:
+    def prompt_antithesis(
+        self, thesis: str | DialecticalComponent, config: Config = Provide[DI.config]
+    ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         return {
             "computed_fields": {
                 "thesis": thesis,
-                "component_length": config.component_length
+                "component_length": config.component_length,
             },
         }
 
     @prompt_template(
-    """
-    Generate a negative side (T-) of a thesis "{thesis}" (T), representing its strict semantic exaggeration and overdevelopment, as if the author of T lost his inner control. Make sure that T- is not the same as: "{not_like_this}".
-
-    For instance, if T = Courage, then T- = Foolhardiness. If T = Love, then T- = Obsession, Fixation, Loss of Mindfulness. If T = Fear, then T- = Paranoia. If T = Hate and Indifference then T- = Malevolence and Apathy.
-
-    If more than one T- exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity. For instance, T- = "Obsession, Fixation, Loss of Mindfulness" can be generalized into T- = Mental Preoccupation
-
-    Output the dialectical component T- within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-" in the explanation.
-    """
+        """
+        Generate a negative side (T-) of a thesis "{thesis}" (T), representing its strict semantic exaggeration and overdevelopment, as if the author of T lost his inner control. Make sure that T- is not the same as: "{not_like_this}".
+    
+        For instance, if T = Courage, then T- = Foolhardiness. If T = Love, then T- = Obsession, Fixation, Loss of Mindfulness. If T = Fear, then T- = Paranoia. If T = Hate and Indifference then T- = Malevolence and Apathy.
+    
+        If more than one T- exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity. For instance, T- = "Obsession, Fixation, Loss of Mindfulness" can be generalized into T- = Mental Preoccupation
+    
+        Output the dialectical component T- within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T-" or "A-" in the explanation.
+        """
     )
     def prompt_thesis_negative_side(
         self,
         thesis: str | DialecticalComponent,
         not_like_this: str | DialecticalComponent = "",
-        config: Config = Provide[DI.config]
+        config: Config = Provide[DI.config],
     ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
@@ -134,7 +149,7 @@ class PolarityReasoner(HasBrain, Reloadable):
             "computed_fields": {
                 "thesis": thesis,
                 "not_like_this": not_like_this,
-                "component_length": config.component_length
+                "component_length": config.component_length,
             },
         }
 
@@ -161,23 +176,23 @@ class PolarityReasoner(HasBrain, Reloadable):
         return tpl
 
     @prompt_template(
-    """
-    A contradictory/semantic opposition presents a direct semantic opposition and/or contradiction to the original statement that excludes their mutual coexistence. For instance, Happiness vs. Unhappiness; Truthfulness vs. Lie/Deceptiveness; Dependence vs. Independence.
-
-    Generate a positive side or outcome (T+) of a thesis "{thesis}" (T), representing its constructive (balanced) form/side, that is also the contradictory/semantic opposition of "{antithesis_negative}" (A-).
+        """
+        A contradictory/semantic opposition presents a direct semantic opposition and/or contradiction to the original statement that excludes their mutual coexistence. For instance, Happiness vs. Unhappiness; Truthfulness vs. Lie/Deceptiveness; Dependence vs. Independence.
     
-    Make sure that T+ is truly connected to the semantic T, representing its positive and constructive side or outcome that is also highly perceptive, nuanced, gentle, evolving, and instrumental in solving problems and creating friendships. For instance, T+ = Trust can be seen as the constructive side of T = Courage. T+ = Kindness and Empathy are natural constructive outcomes of T = Love.
-
-    If more than one T+ exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity.
-
-    Output the dialectical component T+  within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation.
-    """
+        Generate a positive side or outcome (T+) of a thesis "{thesis}" (T), representing its constructive (balanced) form/side, that is also the contradictory/semantic opposition of "{antithesis_negative}" (A-).
+        
+        Make sure that T+ is truly connected to the semantic T, representing its positive and constructive side or outcome that is also highly perceptive, nuanced, gentle, evolving, and instrumental in solving problems and creating friendships. For instance, T+ = Trust can be seen as the constructive side of T = Courage. T+ = Kindness and Empathy are natural constructive outcomes of T = Love.
+    
+        If more than one T+ exists, provide a generalized representation that encompasses their essence. Be detailed enough to show deep understanding, yet concise enough to maintain clarity.
+    
+        Output the dialectical component T+  within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation.
+        """
     )
     def prompt_thesis_positive_side(
         self,
         thesis: str | DialecticalComponent,
         antithesis_negative: str | DialecticalComponent,
-        config: Config = Provide[DI.config]
+        config: Config = Provide[DI.config],
     ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
@@ -187,7 +202,7 @@ class PolarityReasoner(HasBrain, Reloadable):
             "computed_fields": {
                 "thesis": thesis,
                 "antithesis_negative": antithesis_negative,
-                "component_length": config.component_length
+                "component_length": config.component_length,
             },
         }
 
@@ -235,11 +250,14 @@ class PolarityReasoner(HasBrain, Reloadable):
         """
     )
     def prompt_synthesis(self, wisdom_unit: WisdomUnit) -> Messages.Type:
-        tpl = ReverseEngineer.till_wisdom_units(wisdom_units=[wisdom_unit], text=self._analysis.corpus)
+        tpl = ReverseEngineer.till_wisdom_units(
+            wisdom_units=[wisdom_unit], text=self._analysis.corpus
+        )
         wu_dcs = []
         for field, alias in wisdom_unit.field_to_alias.items():
             dc = wisdom_unit.get(alias)
-            if not dc: continue
+            if not dc:
+                continue
             wu_dcs.append(f"{alias} = {dc.statement}")
         return {
             "computed_fields": {
@@ -313,7 +331,9 @@ class PolarityReasoner(HasBrain, Reloadable):
         """
         prompt = self.prompt_next(wu_so_far)
         if self._analysis.perspectives:
-            tpl = ReverseEngineer.till_wisdom_units(wisdom_units=self._analysis.perspectives, text=self._analysis.corpus)
+            tpl = ReverseEngineer.till_wisdom_units(
+                wisdom_units=self._analysis.perspectives, text=self._analysis.corpus
+            )
         else:
             tpl = ReverseEngineer().prompt_input_text(text=self.text)
 
@@ -322,8 +342,8 @@ class PolarityReasoner(HasBrain, Reloadable):
     @with_langfuse()
     @use_brain(response_model=DialecticalComponentsDeck)
     async def find_synthesis(
-            self,
-            wu: WisdomUnit,
+        self,
+        wu: WisdomUnit,
     ) -> DialecticalComponentsDeck:
         return self.prompt_synthesis(wu)
 

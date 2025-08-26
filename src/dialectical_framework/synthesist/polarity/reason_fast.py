@@ -3,15 +3,14 @@ import inspect
 from mirascope import BaseMessageParam, Messages, prompt_template
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.polarity.polarity_reasoner import \
-    PolarityReasoner
+from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
 from dialectical_framework.wisdom_unit import WisdomUnit
 from dialectical_framework.wheel_segment import ALIAS_T
 
 
 class ReasonFast(PolarityReasoner):
     @prompt_template(
-    """
+        """
     USER:
     # Dialectical Analysis
     
@@ -125,11 +124,11 @@ class ReasonFast(PolarityReasoner):
             BaseMessageParam(
                 role="user",
                 content=inspect.cleandoc(
-                f"""
-                IMPORTANT: use T = \"{thesis}\" as the primary thesis of the given context. I hope it makes sense.
-                
-                Base all the following analysis of the initial context on this primary thesis and follow the instructions as provided (skipping the part of finding the primary thesis).
-                """
+                    f"""
+                    IMPORTANT: use T = \"{thesis}\" as the primary thesis of the given context. I hope it makes sense.
+                    
+                    Base all the following analysis of the initial context on this primary thesis and follow the instructions as provided (skipping the part of finding the primary thesis).
+                    """
                 ),
             )
         )

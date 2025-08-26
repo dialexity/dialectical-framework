@@ -1,45 +1,63 @@
-
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
-from dialectical_framework.symmetrical_transition import SymmetricalTransition, ALIAS_AC, ALIAS_AC_PLUS, ALIAS_AC_MINUS, \
-    ALIAS_RE, ALIAS_RE_PLUS, ALIAS_RE_MINUS
+from dialectical_framework.symmetrical_transition import (
+    SymmetricalTransition,
+    ALIAS_AC,
+    ALIAS_AC_PLUS,
+    ALIAS_AC_MINUS,
+    ALIAS_RE,
+    ALIAS_RE_PLUS,
+    ALIAS_RE_MINUS,
+)
 from dialectical_framework.analyst.strategic_consultant import StrategicConsultant
 from dialectical_framework.transition import Predicate
 from dialectical_framework.utils.use_brain import use_brain
-from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
-from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS
-from dialectical_framework.enums.dialectical_reasoning_mode import DialecticalReasoningMode
+from dialectical_framework.wheel_segment import (
+    ALIAS_T,
+    ALIAS_T_PLUS,
+    ALIAS_T_MINUS,
+    WheelSegment,
+)
+from dialectical_framework.wisdom_unit import (
+    WisdomUnit,
+    ALIAS_A,
+    ALIAS_A_PLUS,
+    ALIAS_A_MINUS,
+)
+from dialectical_framework.enums.dialectical_reasoning_mode import (
+    DialecticalReasoningMode,
+)
 
 
 class ThinkActionReflection(StrategicConsultant):
     @prompt_template(
-    """
-    USER:
-    <context>{text}</context>
+        """
+        USER:
+        <context>{text}</context>
+        
+        USER:
+        Previous Dialectical Analysis:
+        {dialectical_analysis}
+        
+        USER:
+        <instructions>
+        Given the initial context and the previous dialectical analysis, identify the transition steps Ac and Re that transform T and A into each other as follows:
+        1) Ac must transform T into A
+        2) Ac+ must transform T- and/or T into A+
+        3) Ac- must transform T+ and/or T into A-
+        4) Re must transform A into T
+        5) Re+ must transform A- and/or A into T+
+        6) Re- must transform A+ and/or A into T-
+        7) Re+ must oppose/contradict Ac-
+        8) Re- must oppose/contradict Ac+
+        </instructions>
     
-    USER:
-    Previous Dialectical Analysis:
-    {dialectical_analysis}
-    
-    USER:
-    <instructions>
-    Given the initial context and the previous dialectical analysis, identify the transition steps Ac and Re that transform T and A into each other as follows:
-    1) Ac must transform T into A
-    2) Ac+ must transform T- and/or T into A+
-    3) Ac- must transform T+ and/or T into A-
-    4) Re must transform A into T
-    5) Re+ must transform A- and/or A into T+
-    6) Re- must transform A+ and/or A into T-
-    7) Re+ must oppose/contradict Ac-
-    8) Re- must oppose/contradict Ac+
-    </instructions>
-
-    <formatting>
-    Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
-    </formatting>
-    """
+        <formatting>
+        Output each transition step within {component_length} word(s), the shorter, the better. Compose the explanations how they were derived in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
+        </formatting>
+        """
     )
     def prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
@@ -67,16 +85,12 @@ class ThinkActionReflection(StrategicConsultant):
 
         self._transition = SymmetricalTransition(
             action_reflection=ac_re_wu,
-
             source_aliases=[wu.t.alias],
             target_aliases=[wu.a.alias],
-
             opposite_source_aliases=[wu.a.alias],
             opposite_target_aliases=[wu.t.alias],
-
             source=wu.extract_segment_t(),
             target=wu.extract_segment_a(),
-
             predicate=Predicate.TRANSFORMS_TO,
         )
 
@@ -103,4 +117,3 @@ class ThinkActionReflection(StrategicConsultant):
             return ALIAS_A_MINUS
 
         return alias
-

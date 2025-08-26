@@ -18,16 +18,36 @@ class Cycle(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-    causality_type: CausalityType = Field(..., description="The type of causality in the cycle.")
-    causality_direction: Literal["clockwise", "counterclockwise"] = Field(default="clockwise", description="The direction of causality in the ring.")
+    causality_type: CausalityType = Field(
+        ..., description="The type of causality in the cycle."
+    )
+    causality_direction: Literal["clockwise", "counterclockwise"] = Field(
+        default="clockwise", description="The direction of causality in the ring."
+    )
 
-    probability: float = Field(default=0, description="The probability 0 to 1 of the cycle to exist in reality.")
-    reasoning_explanation: str = Field(default="", description="Explanation why/how this cycle might occur.")
-    argumentation: str = Field(default="", description="Circumstances or contexts where this cycle would be most applicable or useful.")
+    probability: float = Field(
+        default=0,
+        description="The probability 0 to 1 of the cycle to exist in reality.",
+    )
+    reasoning_explanation: str = Field(
+        default="", description="Explanation why/how this cycle might occur."
+    )
+    argumentation: str = Field(
+        default="",
+        description="Circumstances or contexts where this cycle would be most applicable or useful.",
+    )
 
-    graph: DirectedGraph[TransitionCellToCell] = Field(default=None, description="Directed graph representing the cycle of dialectical components.")
+    graph: DirectedGraph[TransitionCellToCell] = Field(
+        default=None,
+        description="Directed graph representing the cycle of dialectical components.",
+    )
 
-    def __init__(self, dialectical_components: List[DialecticalComponent], causality_type: CausalityType = CausalityType.REALISTIC, **data):
+    def __init__(
+        self,
+        dialectical_components: List[DialecticalComponent],
+        causality_type: CausalityType = CausalityType.REALISTIC,
+        **data,
+    ):
         data["causality_type"] = causality_type
         super().__init__(**data)
         if self.graph is None:
@@ -41,12 +61,14 @@ class Cycle(BaseModel):
                     source = dialectical_components[next_i]
                     target = dialectical_components[i]
 
-                self.graph.add_transition(TransitionCellToCell(
-                    source=source,
-                    predicate=Predicate.CAUSES,
-                    target=target,
-                    # TODO: how do we set the transition text?
-                ))
+                self.graph.add_transition(
+                    TransitionCellToCell(
+                        source=source,
+                        predicate=Predicate.CAUSES,
+                        target=target,
+                        # TODO: how do we set the transition text?
+                    )
+                )
 
     @property
     def dialectical_components(self) -> List[DialecticalComponent]:
@@ -68,39 +90,48 @@ class Cycle(BaseModel):
         self_aliases = DialecticalComponentsDeck(
             dialectical_components=self.dialectical_components
         ).get_aliases()
-        
+
         other_aliases = DialecticalComponentsDeck(
             dialectical_components=other.dialectical_components
         ).get_aliases()
-        
+
         # Same length check
         if len(self_aliases) != len(other_aliases):
             return False
-        
+
         # Convert to sets for same elements check
         if set(self_aliases) != set(other_aliases):
             return False
-        
+
         # Check rotations only if sets are equal
         if len(self_aliases) <= 1:
             return True
-            
+
         return any(
-            self_aliases == other_aliases[i:] + other_aliases[:i] 
+            self_aliases == other_aliases[i:] + other_aliases[:i]
             for i in range(len(other_aliases))
         )
 
-    def pretty(self, *, skip_dialectical_component_explanation = False,  start_alias: str | DialecticalComponent  | None = None) -> str:
+    def pretty(
+        self,
+        *,
+        skip_dialectical_component_explanation=False,
+        start_alias: str | DialecticalComponent | None = None,
+    ) -> str:
         output = [self.graph.pretty() + f" | Probability: {self.probability}"]
 
-        path = self.graph.first_path(start_aliases=[start_alias] if start_alias else None)
+        path = self.graph.first_path(
+            start_aliases=[start_alias] if start_alias else None
+        )
         if not path:
             raise ValueError(
                 f"No path found between {start_alias} and the first dialectical component in the cycle."
             )
         for transition in path:
             dc = transition.source
-            output.append(dc.pretty(skip_explanation=skip_dialectical_component_explanation))
+            output.append(
+                dc.pretty(skip_explanation=skip_dialectical_component_explanation)
+            )
 
         output.append(f"Reasoning: {self.reasoning_explanation}")
         output.append(f"Argumentation: {self.argumentation}")

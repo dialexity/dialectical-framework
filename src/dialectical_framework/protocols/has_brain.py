@@ -10,6 +10,7 @@ from dialectical_framework.enums.di import DI
 def di_brain(brain: Brain = Provide[DI.brain]) -> Brain:
     return brain
 
+
 @runtime_checkable
 class HasBrain(Protocol):
     @property

@@ -10,6 +10,7 @@ ALIAS_T = "T"
 ALIAS_T_PLUS = "T+"
 ALIAS_T_MINUS = "T-"
 
+
 class WheelSegment(BaseModel):
 
     model_config = ConfigDict(
@@ -44,7 +45,7 @@ class WheelSegment(BaseModel):
         return {
             field_name: field_info
             for field_name, field_info in self.__pydantic_fields__.items()
-            if hasattr(field_info, 'alias') and field_info.alias is not None
+            if hasattr(field_info, "alias") and field_info.alias is not None
         }
 
     def is_complete(self):
@@ -67,7 +68,7 @@ class WheelSegment(BaseModel):
                 return False
         return True
 
-    def is_set(self, key: str|DialecticalComponent) -> bool:
+    def is_set(self, key: str | DialecticalComponent) -> bool:
         """
         True if the given field/alias exists **and** its value is not ``None``.
         >>> ws = WheelSegment()
@@ -75,11 +76,14 @@ class WheelSegment(BaseModel):
         >>> ws.is_set("t")
         """
         if isinstance(key, DialecticalComponent):
-            return any(
-                getattr(self, field).is_same(key)
-                for field in self.alias_to_field.values()
-                if getattr(self, field) is not None
-            ) or self.get(key.alias, None) is not None
+            return (
+                any(
+                    getattr(self, field).is_same(key)
+                    for field in self.alias_to_field.values()
+                    if getattr(self, field) is not None
+                )
+                or self.get(key.alias, None) is not None
+            )
         else:
             return self.get(key, None) is not None
 

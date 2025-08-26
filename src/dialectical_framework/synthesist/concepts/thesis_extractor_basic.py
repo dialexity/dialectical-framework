@@ -28,7 +28,6 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
         self.text = text
         return self
 
-
     @prompt_template(
         """
         USER:
@@ -44,7 +43,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
         return {
             "computed_fields": {
                 "text": self.text,
-                "component_length": self.config.component_length
+                "component_length": self.config.component_length,
             },
         }
 
@@ -93,13 +92,17 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
             "computed_fields": {
                 "text": self.text,
                 "count": count,
-                "component_length": self.config.component_length
+                "component_length": self.config.component_length,
             },
         }
 
-    async def extract_multiple_theses(self, *, count: int = 2) -> DialecticalComponentsDeck:
+    async def extract_multiple_theses(
+        self, *, count: int = 2
+    ) -> DialecticalComponentsDeck:
         if count > 4 or count < 1:
-            raise ValueError(f"Incorrect number of theses requested. Max 4 theses are supported.")
+            raise ValueError(
+                f"Incorrect number of theses requested. Max 4 theses are supported."
+            )
 
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=DialecticalComponentsDeck)
@@ -122,4 +125,3 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
             return self.prompt_single_thesis()
 
         return await _find_thesis()
-

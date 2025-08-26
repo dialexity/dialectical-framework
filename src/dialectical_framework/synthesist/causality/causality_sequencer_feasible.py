@@ -2,7 +2,9 @@ from typing import List
 
 from mirascope import prompt_template, Messages
 
-from dialectical_framework.synthesist.causality.causality_sequencer_balanced import CausalitySequencerBalanced
+from dialectical_framework.synthesist.causality.causality_sequencer_balanced import (
+    CausalitySequencerBalanced,
+)
 
 
 class CausalitySequencerFeasible(CausalitySequencerBalanced):
@@ -28,7 +30,9 @@ class CausalitySequencerFeasible(CausalitySequencerBalanced):
         </formatting>
         """
     )
-    def prompt_assess_multiple_sequences(self, *, sequences: List[str]) -> Messages.Type: ...
+    def prompt_assess_multiple_sequences(
+        self, *, sequences: List[str]
+    ) -> Messages.Type: ...
 
     @prompt_template(
         """

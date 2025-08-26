@@ -9,17 +9,21 @@ from dialectical_framework.transition import Transition
 
 
 class TransitionCellToCell(Transition):
-    source: DialecticalComponent = Field(description="Source dialectical component of the wheel.")
-    target: DialecticalComponent = Field(description="Target dialectical component of the wheel.")
+    source: DialecticalComponent = Field(
+        description="Source dialectical component of the wheel."
+    )
+    target: DialecticalComponent = Field(
+        description="Target dialectical component of the wheel."
+    )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def auto_populate_aliases(self) -> Self:
         # Autopopulate source_aliases if empty
         if not self.source_aliases and self.source:
             self.source_aliases = [self.source.alias]
-        
+
         # Autopopulate target_aliases if empty
         if not self.target_aliases and self.target:
             self.target_aliases = [self.target.alias]
-        
+
         return self
