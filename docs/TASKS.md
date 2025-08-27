@@ -1,16 +1,14 @@
 # Todo:
 
-[] Permutations with T-cycles (not only the highest probability)
-
-[] Normalize "probabilities" for transitions
+[] "probabilities" for transitions (auditor), also auditor for cycles (or transitions within the cycle). ta cycle probability = wheel probability - very important.
 
 [] Bring the initial context out of the prompts, should be somehow pluggable
 
 [] Recalculate 1 wisdom unit, and then recalculate cycles (needed when T or A is changed), it's an efficient implementation of "redefine"
 
-[] Customizable prompt/rules for thesis extraction. Some sort of system prompt for overall analysis?
+[] Customizable prompt/rules for thesis extraction. Some sort of "system" prompt for overall analysis?
 
-[] For every analysis (imacting probabilities) we must have a "meta" info how it was derived, so that in a multi-agent architecture we know that different agetns were working.
+[] Wheel serialization and incremental maintenance. For every analysis (impacting probabilities) we must have a "meta" info how it was derived, so that in a multi-agent architecture we know that different agetns were working.
 
 [] Quick Synthesis Conditions
 ```aiignore
