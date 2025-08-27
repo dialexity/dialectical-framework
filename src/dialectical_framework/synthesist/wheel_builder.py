@@ -129,6 +129,7 @@ class WheelBuilder(HasConfig):
         self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None
     ) -> List[Wheel]:
         """
+        TODO: theses are used only when t_cycle is not provided. should be single param or so. Refactor
         IMPORTANT: t_cycle is the "path" we take for permutations. If not provided, we'll take the most likely path.
         Do not confuse it with building all wheels for all "paths"
         """

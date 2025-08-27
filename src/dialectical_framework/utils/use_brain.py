@@ -11,8 +11,6 @@ from dialectical_framework.protocols.has_brain import HasBrain
 
 T = TypeVar("T")
 
-
-@inject
 def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
     """
     Decorator factory for Mirascope that creates an LLM call using the brain's AI provider and model.
