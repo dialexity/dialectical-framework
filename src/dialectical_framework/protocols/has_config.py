@@ -2,17 +2,17 @@ from typing import Protocol, runtime_checkable
 
 from dependency_injector.wiring import Provide, inject
 
-from dialectical_framework.config import Config
+from dialectical_framework.settings import Settings
 from dialectical_framework.enums.di import DI
 
 
 @inject
-def di_config(config: Config = Provide[DI.config]) -> Config:
-    return config
+def di_settings(settings: Settings = Provide[DI.settings]) -> Settings:
+    return settings
 
 
 @runtime_checkable
-class HasConfig(Protocol):
+class SettingsAware(Protocol):
     @property
-    def config(self) -> Config:
-        return di_config()
+    def settings(self) -> Settings:
+        return di_settings()

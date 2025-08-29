@@ -16,7 +16,7 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
         self, wheel: Wheel, at: WheelSegment
     ) -> List[SymmetricalTransition]:
         consultant = ThinkActionReflection(
-            text=self.text, config=self.config, wheel=wheel, brain=self.reasoner.brain
+            text=self.text, config=self.settings, wheel=wheel, brain=self.reasoner.brain
         )
 
         return [await consultant.think(focus=at)]

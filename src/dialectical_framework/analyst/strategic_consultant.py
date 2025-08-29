@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from dialectical_framework.brain import Brain
-from dialectical_framework.config import Config
+from dialectical_framework.settings import Settings
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.transition import Transition
 from dialectical_framework.wheel import Wheel
@@ -14,7 +14,7 @@ class StrategicConsultant(ABC, HasBrain):
         *,
         text: str,
         brain: Brain,
-        config: Config,
+        config: Settings,
         wheel: Wheel,
     ):
         self._brain = brain
@@ -24,7 +24,7 @@ class StrategicConsultant(ABC, HasBrain):
         self._transition = None
 
     @property
-    def config(self) -> Config:
+    def config(self) -> Settings:
         return self._config
 
     @abstractmethod

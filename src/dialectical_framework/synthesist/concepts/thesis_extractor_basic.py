@@ -7,13 +7,13 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.has_config import HasConfig
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.utils.use_brain import use_brain
 
 
-class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
+class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
     def __init__(self, *, text: str = ""):
         self.__text = text
 
@@ -44,7 +44,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
         return {
             "computed_fields": {
                 "text": self.text,
-                "component_length": self.config.component_length,
+                "component_length": self.settings.component_length,
             },
         }
 
@@ -93,7 +93,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, HasConfig):
             "computed_fields": {
                 "text": self.text,
                 "count": count,
-                "component_length": self.config.component_length,
+                "component_length": self.settings.component_length,
             },
         }
 

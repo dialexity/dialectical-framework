@@ -17,7 +17,7 @@ from dialectical_framework.protocols.causality_sequencer import (
     CausalitySequencer, generate_compatible_sequences,
     generate_permutation_sequences)
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.has_config import HasConfig
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
@@ -26,7 +26,7 @@ from dialectical_framework.wheel_segment import ALIAS_T
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
+class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
     def __init__(self, *, text: str = ""):
         self.__text = text
 
@@ -207,7 +207,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
                             ordered_wisdom_units[0].a,
                         ],
                         probability=1.0,
-                        causality_type=self.config.causality_type,
+                        causality_type=self.settings.causality_type,
                     )
                 ]
             elif len(thoughts) == 2:
@@ -255,7 +255,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
                         Cycle(
                             dialectical_components=thoughts,
                             probability=1.0,
-                            causality_type=self.config.causality_type,
+                            causality_type=self.settings.causality_type,
                         )
                     ]
                 else:
@@ -269,7 +269,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
                                 )
                             ],
                             probability=1.0,
-                            causality_type=self.config.causality_type,
+                            causality_type=self.settings.causality_type,
                         )
                     ]
             elif len(thoughts) <= 4:
@@ -312,7 +312,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, HasConfig):
                     dialectical_components=dialectical_components_deck.rearrange_by_aliases(
                         causal_cycle.aliases
                     ),
-                    causality_type=self.config.causality_type,
+                    causality_type=self.settings.causality_type,
                     probability=causal_cycle.probability,
                     reasoning_explanation=causal_cycle.reasoning_explanation,
                     argumentation=causal_cycle.argumentation,

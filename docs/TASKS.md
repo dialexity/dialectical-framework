@@ -1,5 +1,7 @@
 # Todo:
 
+[] Auditor/Judge/Validator agents (different models)
+
 [] "probabilities" for transitions (auditor), also auditor for cycles (or transitions within the cycle). ta cycle probability = wheel probability - very important.
 
 [] Bring the initial context out of the prompts, should be somehow pluggable

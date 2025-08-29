@@ -8,7 +8,7 @@ from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 @observe()
 async def test_seasons():
     factory = DialecticalReasoning.wheel_builder(text="4 seasons")
-    factory.config.component_length = 1
+    factory.settings.component_length = 1
 
     wheels = await factory.build_wheel_permutations(theses=["Summer", "Spring"])
     assert wheels[0].order == 2

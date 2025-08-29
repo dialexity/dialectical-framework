@@ -4,12 +4,13 @@ import gc
 import pytest
 
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
+from dialectical_framework.settings import Settings
 
 
 @pytest.fixture(scope="session", autouse=True)
 def di_container():
     """Set up DI container context for all tests"""
-    container = DialecticalReasoning()
+    container = DialecticalReasoning.setup(Settings.from_env())
     yield container
     container.unwire()
 

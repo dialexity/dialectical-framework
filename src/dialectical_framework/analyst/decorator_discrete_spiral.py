@@ -15,7 +15,7 @@ class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
         self, wheel: Wheel, at: WheelSegment
     ) -> List[TransitionSegmentToSegment]:
         consultant = ThinkConstructiveConvergence(
-            text=self.text, config=self.config, wheel=wheel, brain=self.reasoner.brain
+            text=self.text, config=self.settings, wheel=wheel, brain=self.reasoner.brain
         )
 
         return [await consultant.think(at)]

@@ -1,7 +1,7 @@
 from dependency_injector.wiring import Provide
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.config import Config
+from dialectical_framework.settings import Settings
 from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
@@ -45,7 +45,7 @@ class ReasonFastPolarizedConflict(ReasonFastAndSimple):
         """
     )
     def prompt_wu(
-        self, text: str, config: Config = Provide[DI.config]
+        self, text: str, config: Settings = Provide[DI.settings]
     ) -> Messages.Type:
         return {
             "computed_fields": {

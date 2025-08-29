@@ -28,12 +28,18 @@ async def test_simple_wheel():
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
     4,
-    # 3,
-    # 2,
+    3,
+    2,
 ])
 async def test_bigger_wheel(number_of_thoughts):
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     wheels = await factory.build_wheel_permutations(theses=[None] * number_of_thoughts)
+    if number_of_thoughts == 2:
+        assert len(wheels) == 2
+    elif number_of_thoughts == 3:
+        assert len(wheels) == 4
+    elif number_of_thoughts == 4:
+        assert len(wheels) == 8
     assert wheels[0].cycle is not None
     assert sum([w.cycle.probability for w in wheels]) == 1
     assert wheels[0].order == number_of_thoughts
@@ -117,7 +123,7 @@ async def test_redefine(di_container):
     )
 
     # Redefine every component of the wisdom unit to make it an extreme test
-    reasoner = di_container.polarity_reasoner
+    reasoner = di_container.polarity_reasoner()
     redefined_wu = await reasoner.redefine(
         original=wu,
         t_minus="Mental Preoccupation",

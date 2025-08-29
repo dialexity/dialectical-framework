@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
-from dialectical_framework.config import Config
+from dialectical_framework.settings import Settings
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
@@ -34,8 +34,8 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.__decorated_builder.text
 
     @property
-    def config(self) -> Config:
-        return self.__decorated_builder.config
+    def settings(self) -> Settings:
+        return self.__decorated_builder.settings
 
     async def build_wheel_permutations(
         self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None

@@ -9,7 +9,7 @@ from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.brain import Brain
-from dialectical_framework.config import Config
+from dialectical_framework.settings import Settings
 from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
@@ -84,7 +84,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         """
     )
     def prompt_thesis(
-        self, text: str = None, config: Config = Provide[DI.config]
+        self, text: str = None, config: Settings = Provide[DI.settings]
     ) -> Messages.Type:
         return {
             "computed_fields": {
@@ -108,7 +108,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         """
     )
     def prompt_antithesis(
-        self, thesis: str | DialecticalComponent, config: Config = Provide[DI.config]
+        self, thesis: str | DialecticalComponent, config: Settings = Provide[DI.settings]
     ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
@@ -134,7 +134,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         self,
         thesis: str | DialecticalComponent,
         not_like_this: str | DialecticalComponent = "",
-        config: Config = Provide[DI.config],
+        config: Settings = Provide[DI.settings],
     ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
@@ -187,7 +187,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         self,
         thesis: str | DialecticalComponent,
         antithesis_negative: str | DialecticalComponent,
-        config: Config = Provide[DI.config],
+        config: Settings = Provide[DI.settings],
     ) -> Messages.Type:
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement

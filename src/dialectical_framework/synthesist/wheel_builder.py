@@ -9,7 +9,7 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import \
     CausalitySequencer
-from dialectical_framework.protocols.has_config import HasConfig
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.synthesis import (ALIAS_S_MINUS, ALIAS_S_PLUS,
                                              Synthesis)
@@ -20,7 +20,7 @@ from dialectical_framework.wheel_segment import ALIAS_T
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class WheelBuilder(HasConfig):
+class WheelBuilder(SettingsAware):
     def __init__(
         self,
         thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],
