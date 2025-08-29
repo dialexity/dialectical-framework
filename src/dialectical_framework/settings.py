@@ -19,6 +19,30 @@ class Settings(BaseModel):
     causality_type: CausalityType = Field(default=CausalityType.BALANCED, description="Type of causality in the wheel.")
 
     @classmethod
+    def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
+        """
+        Create GenerationSettings by merging partial settings with environment defaults.
+        Missing fields in partial_settings are filled from Settings.from_env().
+        """
+        if partial_settings is None:
+            return cls.from_env()
+
+        # Get full defaults from environment
+        env_defaults = cls.from_env()
+
+        # Convert partial_settings to dict, excluding None values
+        partial_dict = partial_settings.model_dump(exclude_none=True) if partial_settings else {}
+
+        # Convert env_defaults to dict
+        env_dict = env_defaults.model_dump()
+
+        # Merge: partial_settings override env_defaults
+        merged_dict = {**env_dict, **partial_dict}
+
+        # Create new instance from merged data
+        return cls(**merged_dict)
+
+    @classmethod
     def from_env(cls) -> Self:
         """
         Static method to set up and return a Config instance.
