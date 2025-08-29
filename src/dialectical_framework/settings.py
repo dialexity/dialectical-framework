@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Optional, Self
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,8 +18,8 @@ class Settings(BaseModel):
     component_length: int = Field(default=7, description="Approximate length in words of the dialectical component.")
     causality_type: CausalityType = Field(default=CausalityType.BALANCED, description="Type of causality in the wheel.")
 
-    @staticmethod
-    def from_env() -> Settings:
+    @classmethod
+    def from_env(cls) -> Self:
         """
         Static method to set up and return a Config instance.
         It uses environment variables or hardcoded defaults for configuration.
@@ -42,7 +42,7 @@ class Settings(BaseModel):
                 f"Missing required environment variables: {', '.join(missing)}"
             )
 
-        return Settings(
+        return cls(
             ai_model=model,
             ai_provider=provider,
             component_length=int(os.getenv("DIALEXITY_DEFAULT_COMPONENT_LENGTH", 7)),
