@@ -43,6 +43,18 @@ class Transition(BaseModel):
         description="Guidance on what is needed for the transition to happen.",
     )
 
+    score: float | None = Field(
+        default=None,
+        ge=0.0, le=1.0,
+        description="How useful or correct the transition is"
+    )
+
+    probability: float | None = Field(
+        default=None,
+        ge=0.0, le=1.0,
+        description="Transition probability, it contributes to the global cycle/spiral and consequently the wheel"
+    )
+
     @field_validator("source_aliases")
     def validate_source_aliases(cls, v: list[str], info) -> list[str]:
         if "source" in info.data and info.data["source"]:

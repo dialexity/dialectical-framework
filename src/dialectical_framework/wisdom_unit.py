@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from statistics import geometric_mean # Import geometric_mean
+
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.synthesis import Synthesis
-from dialectical_framework.wheel_segment import WheelSegment
+from dialectical_framework.wheel_segment import WheelSegment, ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 
 ALIAS_A = "A"
 ALIAS_A_PLUS = "A+"
@@ -44,6 +46,33 @@ class WisdomUnit(WheelSegment):
     synthesis: Synthesis | None = Field(
         default=None, description="The synthesis of the wisdom unit."
     )
+
+    @property
+    def context_fidelity_score(self) -> float:
+        """
+        Calculates the context fidelity score for this wisdom unit as the geometric mean
+        of its constituent DialecticalComponent's scores, including those from its synthesis.
+        Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
+        """
+        scores_for_gm = []
+
+        for f in self.field_to_alias.keys():
+            dc: DialecticalComponent | None = getattr(self, f)
+            if isinstance(dc, DialecticalComponent) and dc.context_fidelity_score is not None and dc.context_fidelity_score > 0.0:
+                scores_for_gm.append(dc.context_fidelity_score)
+
+        # Collect scores from Synthesis (S+, S-) components if present
+        if self.synthesis is not None:
+            # Synthesis is also a WheelSegment, so it has its own components (T/T+ equivalent to S+/S-)
+            for f in self.synthesis.field_to_alias.keys():
+                dc: DialecticalComponent | None = getattr(self.synthesis, f)
+                if isinstance(dc, DialecticalComponent) and dc.context_fidelity_score is not None and dc.context_fidelity_score > 0.0:
+                    scores_for_gm.append(dc.context_fidelity_score)
+
+        if not scores_for_gm:
+            return 1.0 # Neutral impact if no components with positive scores
+        
+        return geometric_mean(scores_for_gm)
 
     def extract_segment_t(self) -> WheelSegment:
         # TODO: maybe it's enough to return self, because the interface is still WheelSegment?

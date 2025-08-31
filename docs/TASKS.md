@@ -1,5 +1,48 @@
 # Todo:
 
+[] Fidelity score evaluator
+```aiignore
+Here’s the tight version:
+Scope: don’t chase infinite alternatives—generate top-K per component with diversity (K≈3–5).
+Statement fidelity (per node): compute a user-editable CFₛ ∈ [0,1] from relevance-to-context + evidence support + consistency (simple weighted average).
+Sequence ranking: use your sequence probability Pr(S) (normalized feasibility or via edges) and path fidelity CF_S (geometric mean of CFₛ along S).
+ Score(S) = Pr(S) × CF_S^α × OA(S)^β (optional OA = outcome/OKR alignment). Sort by Score; also show Probability vs Fidelity as a quick Pareto view.
+Wheel fidelity (one number): WheelFidelity = mean or geometric mean of all CFₛ (optionally multiply by edge-coherence/coverage if you want stricter grading).
+Blind-spots: BlindSpot(s) = (1 − CFₛ) × Influence(s) (Influence = share of sequence mass through s). High value = low fidelity on a critical node.
+That’s it: top-K candidates → node CF → path CF + probability → single best choice score per sequence, plus a single wheel fidelity and a blind-spot heat signal.
+```
+```aiignore
+    @prompt_template(
+        """
+        USER:
+        Original source content:
+        {source_content}
+        
+        Extracted dialectical component:
+        Alias: {component_alias}
+        Statement: {component_statement}
+        Explanation: {component_explanation}
+        
+        <instructions>
+        Evaluate how well this dialectical component captures the essence of the source content.
+        
+        Consider:
+        - **Accuracy**: Does it reflect what's actually in the source?
+        - **Completeness**: Does it capture the key aspects relevant to its role?
+        - **Precision**: Is it specific enough to be meaningful?
+        - **Context Preservation**: Does it maintain the original meaning?
+        
+        Rate from 0.0 (completely misrepresents source) to 1.0 (perfectly captures essence).
+        </instructions>
+        
+        <formatting>
+        Output only a float between 0.0 and 1.0
+        </formatting>
+        """
+    )
+
+```
+
 [] Auditor/Judge/Validator agents (different models)
 
 [] "probabilities" for transitions (auditor), also auditor for cycles (or transitions within the cycle). ta cycle probability = wheel probability - very important.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, List, Union
+from statistics import geometric_mean # Import geometric_mean
 
 from tabulate import tabulate
 
@@ -11,8 +12,8 @@ from dialectical_framework.dialectical_components_deck import \
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.spiral import Spiral
-from dialectical_framework.wheel_segment import WheelSegment
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.wheel_segment import WheelSegment, ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
+from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS
 
 WheelSegmentReference = Union[int, WheelSegment, str, DialecticalComponent]
 
@@ -21,9 +22,9 @@ class Wheel:
     def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle, **kwargs):
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
-            self._wisdom_units = list(wisdom_units[0])
+            self._wisdom_units: List[WisdomUnit] = list(wisdom_units[0])
         else:
-            self._wisdom_units = list(wisdom_units)
+            self._wisdom_units: List[WisdomUnit] = list(wisdom_units)
 
         self._ta_cycle: Cycle = ta_cycle
         self._t_cycle: Cycle = t_cycle
@@ -40,6 +41,31 @@ class Wheel:
     def degree(self) -> int:
         """The degree of the wheel (total number of segments = 2 × order)"""
         return self.order * 2
+
+    @property
+    def context_fidelity_score(self) -> float:
+        """
+        Calculates the WheelFidelity as the geometric mean of the context_fidelity_scores
+        of ALL individual DialecticalComponent nodes across the entire wheel.
+        Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
+        """
+        all_component_scores_for_gm = []
+        for wu in self._wisdom_units:
+            for f in wu.field_to_alias.keys():
+                dc: DialecticalComponent | None = getattr(wu, f)
+                if isinstance(dc, DialecticalComponent) and dc.context_fidelity_score is not None and dc.context_fidelity_score > 0.0:
+                    all_component_scores_for_gm.append(dc.context_fidelity_score)
+
+            if wu.synthesis is not None:
+                for f in wu.synthesis.field_to_alias.keys():
+                    s_dc: DialecticalComponent | None = getattr(wu.synthesis, f)
+                    if isinstance(s_dc, DialecticalComponent) and s_dc.context_fidelity_score is not None and s_dc.context_fidelity_score > 0.0:
+                        all_component_scores_for_gm.append(s_dc.context_fidelity_score)
+
+        if not all_component_scores_for_gm:
+            return 1.0 # Default to 1.0 if no components with positive scores are found (neutral effect)
+        
+        return geometric_mean(all_component_scores_for_gm)
 
     @property
     def wisdom_units(self) -> List[WisdomUnit]:

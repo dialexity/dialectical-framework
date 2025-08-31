@@ -75,7 +75,10 @@ class DirectedGraph(Generic[T]):
         return transitions[0] if transitions else None
 
     def get_all_transitions(self) -> List[T]:
-        """Get all transitions in the graph."""
+        """
+        Get all transitions in the graph. Be mindful that these transitions might not be forming paths.
+        So rather consider using the "traverse_dfs_with_paths" or "first_path" method.
+        """
         return list(self._transitions.values())
 
     def get_transition_count(self) -> int:
@@ -335,6 +338,9 @@ class DirectedGraph(Generic[T]):
         return all_paths
 
     def first_path(self, start_aliases: AliasInput | None = None) -> List[T]:
+        """
+        We normally deal with cycles and spirals, so first path is mostly enough.
+        """
         # TODO: very inefficient, we shouldn't be traversing the whole graph just to get the first path
         paths = self.traverse_dfs_with_paths(start_aliases)
         return paths[0] if paths else []

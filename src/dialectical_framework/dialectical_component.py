@@ -19,6 +19,12 @@ class DialecticalComponent(BaseModel):
         description="The explanation how the dialectical component (statement) is derived.",
     )
 
+    context_fidelity_score: float | None = Field(
+        default=None,
+        ge=0.0, le=1.0,
+        description="How well this component represents/captures a point in the context"
+    )
+
     def is_same(self, other: DialecticalComponent) -> bool:
         """
         Determines if the current object is equal to another object based on their attributes.

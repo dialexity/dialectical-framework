@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+from statistics import geometric_mean # Import geometric_mean
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.fields import FieldInfo
 
@@ -118,6 +121,18 @@ class WheelSegment(BaseModel):
             for field_name, field_info in self._get_dialectical_fields().items()
         }
 
+    def find_component_by_alias(self, alias: str) -> DialecticalComponent | None:
+        """
+        Helper method to find a dialectical component within a wheel segment by its alias.
+        """
+        for f, a in self.field_to_alias.items():
+            dc = getattr(self, f)
+            if isinstance(dc, DialecticalComponent):
+                if dc.alias == alias:
+                    return dc
+
+        return None
+
     def dialectical_component_copy_from(
         self, wheel_segment: WheelSegment, dialectical_component: str
     ):
@@ -146,6 +161,24 @@ class WheelSegment(BaseModel):
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
                 dc.set_human_friendly_index(human_friendly_index)
+
+    @property
+    def context_fidelity_score(self) -> float:
+        """
+        Calculates the context fidelity score for this segment as the geometric mean
+        of its constituent DialecticalComponent's scores.
+        Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
+        """
+        scores_for_gm = []
+        for f in self.field_to_alias.keys(): # Iterate directly over field names
+            dc: DialecticalComponent | None = getattr(self, f)
+            if isinstance(dc, DialecticalComponent) and dc.context_fidelity_score is not None and dc.context_fidelity_score > 0.0:
+                scores_for_gm.append(dc.context_fidelity_score)
+
+        if not scores_for_gm:
+            return 1.0 # Neutral impact if no components with positive scores
+        
+        return geometric_mean(scores_for_gm)
 
     def pretty(self) -> str:
         ws_formatted = []

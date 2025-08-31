@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
+from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.settings import Settings
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
@@ -61,9 +62,9 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         await self.__decorated_builder.calculate_syntheses(wheel=wheel, at=at)
 
     async def calculate_transitions(
-        self,
-        wheel: Wheel,
-        at: WheelSegmentReference | List[WheelSegmentReference] = None,
+            self,
+            wheel: Wheel,
+            at: WheelSegmentReference | List[WheelSegmentReference] = None,
     ):
         if wheel not in self.wheel_permutations:
             raise ValueError(f"Wheel permutation {wheel} not found in available wheels")

@@ -20,6 +20,7 @@ from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
+from dialectical_framework.utils.decompose_probability import decompose_probability_into_transitions
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import ALIAS_T
@@ -304,36 +305,35 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         from decimal import ROUND_HALF_UP, Decimal, getcontext
 
         cycles: list[Cycle] = []
-        total_probability = 0
+        total_score = 0
         for causal_cycle in causal_cycles_deck.causal_cycles:
-            total_probability += causal_cycle.probability
+            total_score += causal_cycle.probability
             cycles.append(
                 Cycle(
                     dialectical_components=dialectical_components_deck.rearrange_by_aliases(
                         causal_cycle.aliases
                     ),
                     causality_type=self.settings.causality_type,
-                    probability=causal_cycle.probability,
                     reasoning_explanation=causal_cycle.reasoning_explanation,
                     argumentation=causal_cycle.argumentation,
                 )
             )
 
         # Probability was a guesswork, let's make it normalized to have statistical strictness
-        if total_probability > 0 and cycles:
+        if total_score > 0 and cycles:
             getcontext().prec = 16
             q = Decimal("0.001")
 
             # Normalize and round to 3 decimals using Decimal
             probs = [
-                Decimal(c.probability) / Decimal(total_probability) for c in cycles
+                Decimal(c.probability) / Decimal(total_score) for c in cycles
             ]
             probs = [p.quantize(q, rounding=ROUND_HALF_UP) for p in probs]
 
             # Sort by rounded probabilities (descending)
             cycles.sort(
                 key=lambda c: float(
-                    Decimal(c.probability) / Decimal(total_probability)
+                    Decimal(c.probability) / Decimal(total_score)
                 ),
                 reverse=True,
             )
@@ -348,6 +348,13 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             # Assign back
             for c, p in zip(cycles, probs):
                 c.probability = float(p)
+
+        # Calculate Score(S) = Pr(S) * CF_S^alpha and decompose probabilities into transitions
+        alpha = 1
+        for c in cycles:
+            c.calculate_score(alpha=alpha)
+            if  c.probability is not None:
+                decompose_probability_into_transitions(c.probability, c.graph.first_path())
 
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles
