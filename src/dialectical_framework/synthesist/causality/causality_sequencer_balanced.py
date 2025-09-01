@@ -4,11 +4,11 @@ from typing import List, Self, Union, overload
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.ai_structured_data.causal_cycle import CausalCycle
-from dialectical_framework.ai_structured_data.causal_cycle_assessment import \
-    CausalCycleAssessment
-from dialectical_framework.ai_structured_data.causal_cycles_deck import \
-    CausalCyclesDeck
+from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDtoDto
+from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
+    CausalCycleAssessmentDto
+from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
+    CausalCyclesDeckDto
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
@@ -93,7 +93,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
     async def _estimate_cycles(
         self, *, sequences: List[List[DialecticalComponent]]
-    ) -> CausalCyclesDeck:
+    ) -> CausalCyclesDeckDto:
         sequences_str: dict[str, List[str]] = {}
 
         # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
@@ -129,8 +129,8 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 dialectical_components.append(dc)
 
         @with_langfuse()
-        @use_brain(brain=self.brain, response_model=CausalCyclesDeck)
-        async def _estimate_all() -> CausalCyclesDeck:
+        @use_brain(brain=self.brain, response_model=CausalCyclesDeckDto)
+        async def _estimate_all() -> CausalCyclesDeckDto:
             prompt = self.prompt_assess_multiple_sequences(
                 sequences=list(sequences_str.keys())
             )
@@ -141,10 +141,10 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
         async def _estimate_single(
             sequence_str: str, aliases: List[str]
-        ) -> CausalCycle:
+        ) -> CausalCycleDtoDto:
             @with_langfuse()
-            @use_brain(brain=self.brain, response_model=CausalCycleAssessment)
-            async def _estimate_single_call() -> CausalCycleAssessment:
+            @use_brain(brain=self.brain, response_model=CausalCycleAssessmentDto)
+            async def _estimate_single_call() -> CausalCycleAssessmentDto:
                 prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
                 tpl = ReverseEngineer.till_theses(
                     theses=dialectical_components, text=self.text
@@ -152,7 +152,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 return extend_tpl(tpl, prompt)
 
             assessment = await _estimate_single_call()
-            return CausalCycle(
+            return CausalCycleDtoDto(
                 aliases=aliases,
                 probability=assessment.probability,
                 reasoning_explanation=assessment.reasoning_explanation,
@@ -169,7 +169,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         # Execute all async estimators concurrently and collect results
         causal_cycles = await asyncio.gather(*async_estimators)
         # Create the result deck from collected cycles
-        result = CausalCyclesDeck(causal_cycles=causal_cycles)
+        result = CausalCyclesDeckDto(causal_cycles=causal_cycles)
 
         # Translate aliases back in the parameter
         for sequence in sequences:
@@ -300,7 +300,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
     def _normalize(
         self,
         dialectical_components_deck: DialecticalComponentsDeck,
-        causal_cycles_deck: CausalCyclesDeck,
+        causal_cycles_deck: CausalCyclesDeckDto,
     ) -> List[Cycle]:
         from decimal import ROUND_HALF_UP, Decimal, getcontext
 
@@ -313,6 +313,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     dialectical_components=dialectical_components_deck.rearrange_by_aliases(
                         causal_cycle.aliases
                     ),
+                    probability=causal_cycle.probability, # Unnormalized
                     causality_type=self.settings.causality_type,
                     reasoning_explanation=causal_cycle.reasoning_explanation,
                     argumentation=causal_cycle.argumentation,

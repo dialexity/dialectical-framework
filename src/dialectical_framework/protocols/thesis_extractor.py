@@ -11,15 +11,7 @@ from dialectical_framework.protocols.reloadable import Reloadable
 
 class ThesisExtractor(Reloadable):
     @abstractmethod
-    def prompt_single_thesis(self) -> Messages.Type: ...
-
-    @abstractmethod
-    def prompt_multiple_theses(self, *, count: int) -> Messages.Type: ...
-
-    @abstractmethod
-    async def extract_multiple_theses(
-        self, *, count: int = 2
-    ) -> DialecticalComponentsDeck: ...
+    async def extract_multiple_theses( self, *, count: int = 2) -> DialecticalComponentsDeck: ...
 
     @abstractmethod
     async def extract_single_thesis(self) -> DialecticalComponent: ...

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from pydantic import Field, BaseModel
+from pydantic import Field, BaseModel, ConfigDict
 
 from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.transition import Transition
@@ -8,6 +8,10 @@ from dialectical_framework.utils.decompose_probability import decompose_probabil
 
 
 class AssessableCycle(ABC, BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
+
     score: float | None = Field(
         default=None,
         ge=0.0, le=1.0,

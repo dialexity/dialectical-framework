@@ -2,11 +2,11 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.ai_structured_data.causal_cycle_assessment import \
-    CausalCycleAssessment
+from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
+    CausalCycleAssessmentDto
 
 
-class CausalCycle(CausalCycleAssessment):
+class CausalCycleDtoDto(CausalCycleAssessmentDto):
     """
     Causal circular sequence of statements, where aliases reference each statement
     """

@@ -1,8 +1,13 @@
+from typing import List
+
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
+from dialectical_framework.ai_dto.dto_mapper import map_from_dto, map_list_from_dto
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
+from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.enums.dialectical_reasoning_mode import \
@@ -57,7 +62,7 @@ class ThinkActionReflection(StrategicConsultant):
         }
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponentsDeck)
+    @use_brain(response_model=DialecticalComponentsDeckDto)
     async def action_reflection(self, focus: WisdomUnit):
         return self.prompt(self._text, focus=focus)
 
@@ -65,10 +70,11 @@ class ThinkActionReflection(StrategicConsultant):
         wu = self._wheel.wisdom_unit_at(focus)
 
         ac_re_wu = WisdomUnit(reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION)
-        dc: DialecticalComponentsDeck = await self.action_reflection(focus=wu)
-        for d in dc.dialectical_components:
-            alias = self._translate_to_canonical_alias(d.alias)
-            setattr(ac_re_wu, alias, d)
+        dc_deck_dto: DialecticalComponentsDeckDto = await self.action_reflection(focus=wu)
+        dialectical_components: List[DialecticalComponent] = map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent)
+        for dc in dialectical_components:
+            alias = self._translate_to_canonical_alias(dc.alias)
+            setattr(ac_re_wu, alias, dc)
 
         self._transition = SymmetricalTransition(
             action_reflection=ac_re_wu,

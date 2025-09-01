@@ -3,6 +3,9 @@ from typing import Self, overload
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
+from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto, map_from_dto
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
@@ -106,23 +109,25 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
             )
 
         @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeck)
+        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeckDto)
         async def _find_theses():
             return self.prompt_multiple_theses(count=count)
 
         if count <= 4:
-            box = await _find_theses()
-            if count == 1 and len(box.dialectical_components) == 1:
-                dc: DialecticalComponent = box.dialectical_components[0]
+            deck_dto = await _find_theses()
+            deck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(deck_dto.dialectical_components, DialecticalComponent))
+            if count == 1 and len(deck.dialectical_components) == 1:
+                dc: DialecticalComponent = deck.dialectical_components[0]
                 dc.set_human_friendly_index(0)
         else:
             raise ValueError(f"More than 4 theses are not supported yet.")
-        return box
+        return deck
 
     async def extract_single_thesis(self) -> DialecticalComponent:
         @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponent)
+        @use_brain(brain=self.brain, response_model=DialecticalComponentDto)
         async def _find_thesis():
             return self.prompt_single_thesis()
 
-        return await _find_thesis()
+        dc_dto = await _find_thesis()
+        return map_from_dto(dc_dto, DialecticalComponent)

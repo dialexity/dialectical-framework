@@ -8,6 +8,9 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
+from dialectical_framework.ai_dto.dto_mapper import map_from_dto, map_list_from_dto
 from dialectical_framework.brain import Brain
 from dialectical_framework.settings import Settings
 from dialectical_framework.dialectical_analysis import DialecticalAnalysis
@@ -266,60 +269,60 @@ class PolarityReasoner(HasBrain, Reloadable):
     def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type: ...
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponent)
-    async def find_thesis(self) -> DialecticalComponent:
+    @use_brain(response_model=DialecticalComponentDto)
+    async def find_thesis(self) -> DialecticalComponentDto:
         return self.prompt_thesis(self._text)
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponent)
+    @use_brain(response_model=DialecticalComponentDto)
     async def find_antithesis(
         self,
         thesis: str,
-    ) -> DialecticalComponent:
+    ) -> DialecticalComponentDto:
         return self.prompt_antithesis(thesis)
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponent)
+    @use_brain(response_model=DialecticalComponentDto)
     async def find_thesis_negative_side(
         self,
         thesis: str,
         not_like_this: str = "",
-    ) -> DialecticalComponent:
+    ) -> DialecticalComponentDto:
         return self.prompt_thesis_negative_side(thesis, not_like_this)
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponent)
+    @use_brain(response_model=DialecticalComponentDto)
     async def find_antithesis_negative_side(
         self,
         thesis: str,
         not_like_this: str = "",
-    ) -> DialecticalComponent:
+    ) -> DialecticalComponentDto:
         return self.prompt_antithesis_negative_side(thesis, not_like_this)
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponent)
+    @use_brain(response_model=DialecticalComponentDto)
     async def find_thesis_positive_side(
         self,
         thesis: str,
         antithesis_negative: str,
-    ) -> DialecticalComponent:
+    ) -> DialecticalComponentDto:
         return self.prompt_thesis_positive_side(thesis, antithesis_negative)
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponent)
+    @use_brain(response_model=DialecticalComponentDto)
     async def find_antithesis_positive_side(
         self,
         thesis: str,
         antithesis_negative: str,
-    ) -> DialecticalComponent:
+    ) -> DialecticalComponentDto:
         return self.prompt_antithesis_positive_side(thesis, antithesis_negative)
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponentsDeck)
+    @use_brain(response_model=DialecticalComponentsDeckDto)
     async def find_next(
         self,
         wu_so_far: WisdomUnit,
-    ) -> DialecticalComponentsDeck:
+    ) -> DialecticalComponentsDeckDto:
         """
         Raises:
             StopIteration: if nothing needs to be found anymore
@@ -335,11 +338,11 @@ class PolarityReasoner(HasBrain, Reloadable):
         return extend_tpl(tpl, prompt)
 
     @with_langfuse()
-    @use_brain(response_model=DialecticalComponentsDeck)
+    @use_brain(response_model=DialecticalComponentsDeckDto)
     async def find_synthesis(
         self,
         wu: WisdomUnit,
-    ) -> DialecticalComponentsDeck:
+    ) -> DialecticalComponentsDeckDto:
         return self.prompt_synthesis(wu)
 
     async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
@@ -358,7 +361,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                     alias=ALIAS_T, statement=thesis, explanation="Provided as string"
                 )
         else:
-            wu.t = await self.find_thesis()
+            wu.t = map_from_dto(await self.find_thesis(), DialecticalComponent)
 
         self._wisdom_unit = await self._fill_with_reason(wu)
         self._analysis.perspectives.append(self._wisdom_unit)
@@ -379,14 +382,15 @@ class PolarityReasoner(HasBrain, Reloadable):
                 We assume here, that with every iteration we will find a new dialectical component(s).
                 If we keep finding the same ones (or not find at all), we will still avoid the infinite loop - that's good.
                 """
-                dc: DialecticalComponentsDeck = await self.find_next(wu)
-                for d in dc.dialectical_components:
-                    alias = d.alias
+                dc_deck_dto = await self.find_next(wu)
+                dc_deck: DialecticalComponentsDeck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent))
+                for dc in dc_deck.dialectical_components:
+                    alias = dc.alias
                     if wu.get(alias):
                         # Don't override if we already have it
                         continue
                     else:
-                        setattr(wu, alias, d)
+                        setattr(wu, alias, dc)
                         ci += 1
         except StopIteration:
             pass
@@ -458,7 +462,7 @@ class PolarityReasoner(HasBrain, Reloadable):
             if not check1.valid:
                 if changed.get(base) and not changed.get(other):
                     # base side changed
-                    o = await self.find_antithesis(getattr(new_wu, base).statement)
+                    o = map_from_dto(await self.find_antithesis(getattr(new_wu, base).statement), DialecticalComponent)
                     assert isinstance(o, DialecticalComponent)
                     o.explanation = f"REGENERATED. {o.explanation}"
                     setattr(new_wu, other, o)
@@ -467,7 +471,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                     check1.explanation = "Regenerated, therefore must be valid."
                 elif changed.get(other) and not changed.get(base):
                     # other side changed
-                    bm = await self.find_antithesis(getattr(new_wu, other).statement)
+                    bm = map_from_dto(await self.find_antithesis(getattr(new_wu, other).statement), DialecticalComponent)
                     assert isinstance(bm, DialecticalComponent)
                     bm.explanation = f"REGENERATED. {bm.explanation}"
                     setattr(new_wu, base, bm)
@@ -555,9 +559,9 @@ class PolarityReasoner(HasBrain, Reloadable):
                                     not_like_other_minus = getattr(
                                         new_wu, other_minus
                                     ).statement
-                            bm = await base_negative_side_fn(
+                            bm = map_from_dto(await base_negative_side_fn(
                                 getattr(new_wu, base).statement, not_like_other_minus
-                            )
+                            ), DialecticalComponent)
                             assert isinstance(bm, DialecticalComponent)
                             bm.explanation = f"REGENERATED. {bm.explanation}"
                             setattr(new_wu, base_minus, bm)
@@ -587,10 +591,10 @@ class PolarityReasoner(HasBrain, Reloadable):
 
                     if not check3.valid:
                         if changed.get(other) and not changed.get(other_plus):
-                            op = await other_positive_side_fn(
+                            op = map_from_dto(await other_positive_side_fn(
                                 getattr(new_wu, other).statement,
                                 getattr(new_wu, base_minus).statement,
-                            )
+                            ), DialecticalComponent)
                             assert isinstance(op, DialecticalComponent)
                             op.explanation = f"REGENERATED. {op.explanation}"
                             setattr(new_wu, other_plus, op)
@@ -624,10 +628,10 @@ class PolarityReasoner(HasBrain, Reloadable):
                     if not check4.valid:
                         if changed.get(base_minus) and not changed.get(other_plus):
                             # base side changed
-                            op = await other_positive_side_fn(
+                            op = map_from_dto(await other_positive_side_fn(
                                 getattr(new_wu, other).statement,
                                 getattr(new_wu, base_minus).statement,
-                            )
+                            ), DialecticalComponent)
                             assert isinstance(op, DialecticalComponent)
                             op.explanation = f"REGENERATED. {op.explanation}"
                             setattr(new_wu, other_plus, op)
@@ -642,9 +646,9 @@ class PolarityReasoner(HasBrain, Reloadable):
                                     not_like_other_minus = getattr(
                                         new_wu, other_minus
                                     ).statement
-                            bm = await base_negative_side_fn(
+                            bm = map_from_dto(await base_negative_side_fn(
                                 getattr(new_wu, base).statement, not_like_other_minus
-                            )
+                            ), DialecticalComponent)
                             assert isinstance(bm, DialecticalComponent)
                             bm.explanation = f"REGENERATED. {bm.explanation}"
                             setattr(new_wu, base_minus, bm)

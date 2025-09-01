@@ -4,8 +4,10 @@ from typing import Dict, List, Union
 
 from dependency_injector.wiring import Provide
 
+from dialectical_framework.ai_dto.dto_mapper import map_from_dto, map_list_from_dto
 from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import \
     CausalitySequencer
@@ -94,7 +96,7 @@ class WheelBuilder(SettingsAware):
                 if len(none_positions) == 1:
                     # Single thesis case: place at the correct original position
                     pos = none_positions[0]
-                    generated_thesis = await self.reasoner.find_thesis()
+                    generated_thesis = map_from_dto(await self.reasoner.find_thesis(), DialecticalComponent)
                     generated_thesis.alias = ALIAS_T
                     generated_thesis.set_human_friendly_index(pos + 1)
                     final_theses[pos] = generated_thesis
@@ -115,7 +117,7 @@ class WheelBuilder(SettingsAware):
                     # Backfill any remaining None (it's a precaution, in case fewer were generated than requested)
                     for pos in none_positions:
                         if final_theses[pos] is None:
-                            generated_thesis = await self.reasoner.find_thesis()
+                            generated_thesis = map_from_dto(await self.reasoner.find_thesis(), DialecticalComponent)
                             generated_thesis.alias = ALIAS_T
                             generated_thesis.set_human_friendly_index(pos + 1)
                             final_theses[pos] = generated_thesis
@@ -187,6 +189,15 @@ class WheelBuilder(SettingsAware):
             wisdom_units.append(wheel.wisdom_unit_at(at))
 
         for wu in wisdom_units:
+            ss_deck_dto = await self.reasoner.find_synthesis(wu)
+            ss_deck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(ss_deck_dto.dialectical_components, DialecticalComponent))
+            wu.synthesis = Synthesis(
+                t_plus=ss_deck.get_by_alias(ALIAS_S_PLUS),
+                t_minus=ss_deck.get_by_alias(ALIAS_S_MINUS),
+            )
+            idx = wu.t.get_human_friendly_index()
+            if idx:
+                wu.synthesis.add_indexes_to_aliases(idx)
             ss = await self.reasoner.find_synthesis(wu)
             wu.synthesis = Synthesis(
                 t_plus=ss.get_by_alias(ALIAS_S_PLUS),

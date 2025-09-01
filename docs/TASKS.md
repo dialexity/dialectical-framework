@@ -45,11 +45,9 @@ That’s it: top-K candidates → node CF → path CF + probability → single b
 
 [] Auditor/Judge/Validator agents (different models)
 
-[] "probabilities" for transitions (auditor), also auditor for cycles (or transitions within the cycle). ta cycle probability = wheel probability - very important.
-
 [] Bring the initial context out of the prompts, should be somehow pluggable
 
-[] Recalculate 1 wisdom unit, and then recalculate cycles (needed when T or A is changed), it's an efficient implementation of "redefine"
+[] Recalculate 1 wisdom unit, and then recalculate c[]()ycles (needed when T or A is changed), it's an efficient implementation of "redefine"
 
 [] Customizable prompt/rules for thesis extraction. Some sort of "system" prompt for overall analysis?
 
@@ -176,8 +174,6 @@ The causation analysis (like in your PDF) is indeed a separate and valuable anal
 [] Make façade that would make it easier to wrap the whole framework into an API
 
 [] Use Lillypad instead of Langfuse
-
-[] Domain model classes shouldn't be used to communicate with AI, they're sometimes richer. We should have dedicated "DTOs", from these we'll assemble the domain model.
 
 [] Redefine should not do YES/NO as it constantly doesn't pass. We need an evaluation 0..1 or maybe reevaluate the full wheel during redefine, not restricted on a component level. Problem is most likely is that we don't send the history of chat messages, so AI doesn't see how it was made initially.
 

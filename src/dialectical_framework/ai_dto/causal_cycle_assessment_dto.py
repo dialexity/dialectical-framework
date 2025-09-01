@@ -3,7 +3,7 @@ from typing import List
 from pydantic import BaseModel, Field
 
 
-class CausalCycleAssessment(BaseModel):
+class CausalCycleAssessmentDto(BaseModel):
     # TODO: rename to "score" ?
     probability: float = Field(
         default=0,

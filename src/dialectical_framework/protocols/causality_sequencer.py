@@ -12,14 +12,6 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 
 class CausalitySequencer(Reloadable):
     @abstractmethod
-    def prompt_assess_multiple_sequences(
-        self, *, sequences: List[str]
-    ) -> Messages.Type: ...
-
-    @abstractmethod
-    def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
-
-    @abstractmethod
     async def arrange(
         self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]
     ) -> List[Cycle]:
