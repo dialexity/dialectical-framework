@@ -32,12 +32,12 @@ class AssessableCycle(ABC, BaseModel):
     def calculate_score(self, alpha: float = 1.0, mutate: bool = True) -> float | None:
         """
         Calculates the final composite score for the cycle: Score(S) = Pr(S) × CF_S^α
-        This method should be called after cycle.probability and context_fidelity_score are available.
+        This method should be called after probability and context_fidelity_score are available.
         """
         if self.probability is None:
             score = None
         else:
-            cf_s = self.context_fidelity_score # This is CF_S
+            cf_s = self.context_fidelity_score
             score = self.probability * (cf_s ** alpha)
 
         if mutate:
@@ -48,20 +48,25 @@ class AssessableCycle(ABC, BaseModel):
     def calculate_probability(self, mutate: bool = True) -> float | None:
         """
         Calculates the overall probability as the multiplication of all transition probabilities.
-        This is the key method you were asking about - the  probability is the product of
-        all its constituent transition probabilities.
+        Transitions with None or 0.0 probability are skipped (treated as irrelevant).
+        If no transitions have positive probabilities, returns None.
         """
         transitions = self.graph.first_path()
         if not transitions:
             probability = None
         else:
             probability = 1.0
+            has_any_valid_probability = False
+            
             for transition in transitions:
-                if transition.probability is None:
-                    # If any transition has no probability, we can't calculate overall probability
-                    probability = None
-                    break
-                probability *= transition.probability
+                if transition.probability is not None and transition.probability > 0.0:
+                    probability *= transition.probability
+                    has_any_valid_probability = True
+                # Skip transitions with None or 0.0 probability (they're irrelevant)
+            
+            # If no transitions had valid probabilities, the overall probability is undefined
+            if not has_any_valid_probability:
+                probability = None
 
         if mutate:
             self.probability = probability
