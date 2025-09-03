@@ -1,15 +1,15 @@
 import asyncio
-from typing import List, Self, Union, overload
+from typing import List, Self, Union
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDtoDto
 from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
     CausalCycleAssessmentDto
+from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDtoDto
 from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
     CausalCyclesDeckDto
-from dialectical_framework.cycle import Cycle
+from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
@@ -20,7 +20,6 @@ from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
-from dialectical_framework.utils.decompose_probability import decompose_probability_into_transitions
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import ALIAS_T
@@ -350,12 +349,9 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             for c, p in zip(cycles, probs):
                 c.probability = float(p)
 
-        # Calculate Score(S) = Pr(S) * CF_S^alpha and decompose probabilities into transitions
-        alpha = 1
         for c in cycles:
-            c.calculate_score(alpha=alpha)
             if  c.probability is not None:
-                decompose_probability_into_transitions(c.probability, c.graph.first_path())
+                c.decompose_probability()
 
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles

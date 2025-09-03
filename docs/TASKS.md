@@ -3,6 +3,8 @@
 
 [] SymmetricTransition is crap. Refactor. Spiral becomes equivalent to converges_constructively predicate. ActionReflection should then inherit from WisdomUnit and TransitionSegmentToSegment. Reciprocal Solution is sort of a spiralic thing as well, which belongs to the WisdomUnit, rather than to the global wheel Spiral. Transition must inherit from DialecticalComponent.
 
+[] When any cell on the wheel is changed, we need to reevaluate transitions and their argumentation (including scoring and probabilities?)
+
 [] (1) transitions' feasibilities with argumentations,
 (2) optionally, condensing texts to one-liners,
 (3) the ability to use these transitions and/or argumentations as starting points for new wheels....

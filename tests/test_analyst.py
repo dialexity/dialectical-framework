@@ -1,12 +1,9 @@
-from typing import List
-
 import pytest
 from langfuse.decorators import observe
 
 from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
 from dialectical_framework.analyst.decorator_reciprocal_solution import DecoratorReciprocalSolution
-from dialectical_framework.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.wisdom_unit import WisdomUnit

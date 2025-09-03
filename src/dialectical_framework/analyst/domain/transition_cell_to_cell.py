@@ -5,7 +5,7 @@ from typing import Self
 from pydantic import Field, model_validator
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.transition import Transition
+from dialectical_framework.analyst.domain.transition import Transition
 
 
 class TransitionCellToCell(Transition):

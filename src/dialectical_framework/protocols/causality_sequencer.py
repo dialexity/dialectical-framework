@@ -2,9 +2,7 @@ from abc import abstractmethod
 from itertools import permutations
 from typing import List, Union
 
-from mirascope import Messages
-
-from dialectical_framework.cycle import Cycle
+from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.wisdom_unit import WisdomUnit

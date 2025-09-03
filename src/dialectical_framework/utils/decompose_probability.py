@@ -1,6 +1,6 @@
 from typing import List
 
-from dialectical_framework.transition import Transition
+from dialectical_framework.analyst.domain.transition import Transition
 
 
 def decompose_probability_into_transitions(

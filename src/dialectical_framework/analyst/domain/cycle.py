@@ -3,17 +3,16 @@ from __future__ import annotations
 from statistics import geometric_mean
 from typing import List, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
+from dialectical_framework.analyst.domain.assessable_cycle import AssessableCycle
+from dialectical_framework.analyst.domain.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.enums.causality_type import CausalityType
-from dialectical_framework.protocols.assessable_cycle import AssessableCycle
 from dialectical_framework.enums.predicate import Predicate
-from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
-from dialectical_framework.utils.decompose_probability import decompose_probability_into_transitions
 
 
 class Cycle(AssessableCycle):
@@ -71,8 +70,7 @@ class Cycle(AssessableCycle):
         path = self.graph.first_path()
         return [transition.source for transition in path] if path else []
 
-    @property
-    def context_fidelity_score(self) -> float:
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
         """
         Calculates the path fidelity (CF_S) as the geometric mean of the content_fidelity_scores
         of the dialectical components in this cycle.
@@ -81,33 +79,36 @@ class Cycle(AssessableCycle):
         as they represent concepts not grounded in the source context, which should not
         zero out the overall fidelity unless all components are ungrounded.
         """
+        score = 1.0 # If no components, assume perfect fidelity (neutral effect)
         transitions = self.graph.first_path()
-        if not transitions:
-            return 1.0 # If no components, assume perfect fidelity (neutral effect)
-                       # A cycle with no components can't be assessed for fidelity to content.
+        if transitions:
+            components = [transition.source for transition in transitions]
 
-        components = [transition.source for transition in transitions]
-        
-        # Filter for actual DialecticalComponent instances and, crucially,
-        # only include those with a content_fidelity_score > 0.0 for the geometric mean.
-        # Scores of 0.0 or None are treated as "not set" or "not positively grounded"
-        # and are excluded from the geometric mean calculation, to prevent zeroing out.
-        scores_for_gm = [
-            c.context_fidelity_score
-            for c in components
-            if isinstance(c, DialecticalComponent) and c.context_fidelity_score is not None and c.context_fidelity_score > 0.0
-        ]
+            # Filter for actual DialecticalComponent instances and, crucially,
+            # only include those with a content_fidelity_score > 0.0 for the geometric mean.
+            # Scores of 0.0 or None are treated as "not set" or "not positively grounded"
+            # and are excluded from the geometric mean calculation, to prevent zeroing out.
+            scores_for_gm = [
+                c.contextual_fidelity
+                for c in components
+                if isinstance(c, DialecticalComponent) and c.contextual_fidelity is not None and c.contextual_fidelity > 0.0
+            ]
 
-        if not scores_for_gm:
-            # If after filtering, no components have a positive content_fidelity_score,
-            # return 1.0. This means fidelity will have a neutral impact (x1) on the
-            # final Score(S) calculation (i.e., Score(S) = Pr(S) * 1^alpha = Pr(S)).
-            # This allows blind spots (ungrounded but relevant concepts) to be ranked
-            # purely by their probability/feasibility.
-            return 1.0
-        
-        # Calculate the geometric mean of the positive fidelity scores
-        return geometric_mean(scores_for_gm)
+            if not scores_for_gm:
+                # If after filtering, no components have a positive content_fidelity_score,
+                # return 1.0. This means fidelity will have a neutral impact (x1) on the
+                # final Score(S) calculation (i.e., Score(S) = Pr(S) * 1^alpha = Pr(S)).
+                # This allows blind spots (ungrounded but relevant concepts) to be ranked
+                # purely by their probability/feasibility.
+                score = 1.0
+            else:
+                # Calculate the geometric mean of the positive fidelity scores
+                score = geometric_mean(scores_for_gm)
+
+        if mutate:
+            self.contextual_fidelity = score
+
+        return score
 
 
     def cycle_str(self) -> str:
@@ -144,23 +145,6 @@ class Cycle(AssessableCycle):
         return any(
             self_aliases == other_aliases[i:] + other_aliases[:i]
             for i in range(len(other_aliases))
-        )
-            
-    def decompose_probability_into_transitions(self, overwrite_existing_probabilities: bool = False) -> None:
-        """
-        Decomposes the cycle's overall probability into individual transition probabilities
-        within its graph. This should be called after `cycle.probability` is set.
-        """
-        if self.probability is None:
-            # Cannot decompose if overall probability is not set
-            return
-
-        all_transitions = self.graph.get_all_transitions()
-        if not all_transitions: # If there are no transitions, nothing to decompose
-            return
-
-        decompose_probability_into_transitions(
-            self.probability, all_transitions, overwrite_existing_probabilities
         )
 
     def pretty(

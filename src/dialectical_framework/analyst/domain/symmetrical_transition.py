@@ -1,7 +1,7 @@
 from pydantic import Field
 
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
-from dialectical_framework.transition_segment_to_segment import \
+from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 

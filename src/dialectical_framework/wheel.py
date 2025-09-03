@@ -1,25 +1,24 @@
 from __future__ import annotations
 
-from typing import Dict, List, Union
+from typing import List, Union
 from statistics import geometric_mean # Import geometric_mean
 
 from tabulate import tabulate
 
-from dialectical_framework.cycle import Cycle
+from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
-    DialecticalComponentsDeck
-from dialectical_framework.enums.dialectical_reasoning_mode import \
-    DialecticalReasoningMode
-from dialectical_framework.spiral import Spiral
-from dialectical_framework.wheel_segment import WheelSegment, ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
-from dialectical_framework.wisdom_unit import WisdomUnit, ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS
+from dialectical_framework.analyst.domain.spiral import Spiral
+from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.wheel_segment import WheelSegment
+from dialectical_framework.wisdom_unit import WisdomUnit
 
 WheelSegmentReference = Union[int, WheelSegment, str, DialecticalComponent]
 
 
-class Wheel:
+class Wheel(Assessable):
     def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle, **kwargs):
+        super().__init__(**kwargs)
+
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
             self._wisdom_units: List[WisdomUnit] = list(wisdom_units[0])
@@ -42,8 +41,7 @@ class Wheel:
         """The degree of the wheel (total number of segments = 2 × order)"""
         return self.order * 2
 
-    @property
-    def context_fidelity_score(self) -> float:
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
         """
         Calculates the WheelFidelity as the geometric mean of the context_fidelity_scores
         of ALL individual DialecticalComponent nodes across the entire wheel.
@@ -53,19 +51,76 @@ class Wheel:
         for wu in self._wisdom_units:
             for f in wu.field_to_alias.keys():
                 dc: DialecticalComponent | None = getattr(wu, f)
-                if isinstance(dc, DialecticalComponent) and dc.context_fidelity_score is not None and dc.context_fidelity_score > 0.0:
-                    all_component_scores_for_gm.append(dc.context_fidelity_score)
+                if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
+                    all_component_scores_for_gm.append(dc.contextual_fidelity)
 
             if wu.synthesis is not None:
                 for f in wu.synthesis.field_to_alias.keys():
                     s_dc: DialecticalComponent | None = getattr(wu.synthesis, f)
-                    if isinstance(s_dc, DialecticalComponent) and s_dc.context_fidelity_score is not None and s_dc.context_fidelity_score > 0.0:
-                        all_component_scores_for_gm.append(s_dc.context_fidelity_score)
+                    if isinstance(s_dc, DialecticalComponent) and s_dc.contextual_fidelity is not None and s_dc.contextual_fidelity > 0.0:
+                        all_component_scores_for_gm.append(s_dc.contextual_fidelity)
 
         if not all_component_scores_for_gm:
-            return 1.0 # Default to 1.0 if no components with positive scores are found (neutral effect)
-        
-        return geometric_mean(all_component_scores_for_gm)
+            score = 1.0 # Default to 1.0 if no components with positive scores are found (neutral effect)
+        else:
+            score = geometric_mean(all_component_scores_for_gm)
+
+        if mutate:
+            self.contextual_fidelity = score
+
+        return score
+
+
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+        """
+        Calculates the wheel's overall probability as the geometric mean of its constituent cycle probabilities.
+        This represents the 'dialectical coherence' of the entire wheel.
+        """
+        probabilities_of_internal_cycles = []
+
+        # Collect probabilities from core cycles and spiral
+        # Only include if probability is not None and greater than 0
+        t_cycle_prob = self._t_cycle.probability
+        if t_cycle_prob is None:
+            t_cycle_prob = self._t_cycle.calculate_probability(mutate=mutate)
+
+        if t_cycle_prob is not None and t_cycle_prob > 0.0:
+            probabilities_of_internal_cycles.append(t_cycle_prob)
+
+        ta_cycle_prob = self._ta_cycle.probability
+        if ta_cycle_prob is None:
+            ta_cycle_prob = self._ta_cycle.calculate_probability(mutate=mutate)
+
+        if ta_cycle_prob is not None and ta_cycle_prob > 0.0:
+            probabilities_of_internal_cycles.append(ta_cycle_prob)
+
+        spiral_prob = self._spiral.probability
+        if spiral_prob is None:
+            spiral_prob = self._spiral.calculate_probability(mutate=mutate)
+
+        if spiral_prob is not None and spiral_prob > 0.0:
+            probabilities_of_internal_cycles.append(spiral_prob)
+
+        # Consider adding probabilities from WisdomUnit transformation cycles if they are assessed and relevant
+        for wu in self._wisdom_units:
+            wu_prob = wu.probability
+            if wu_prob is None:
+                wu_prob = wu.calculate_probability(mutate=mutate)
+            if wu_prob is not None and wu_prob > 0.0:
+                probabilities_of_internal_cycles.append(wu_prob)
+
+        if not probabilities_of_internal_cycles:
+            # If no cycles have valid probabilities, the wheel's probability is undefined.
+            # Return None, indicating it cannot be assessed by this method.
+            probability = None
+        else:
+            # Calculate the geometric mean of the valid cycle probabilities
+            probability = geometric_mean(probabilities_of_internal_cycles)
+
+        if mutate:
+            self.probability = probability
+
+        return self.probability
 
     @property
     def wisdom_units(self) -> List[WisdomUnit]:

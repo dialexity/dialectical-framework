@@ -446,7 +446,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                     ),
                 )
             else:
-                new_wu.dialectical_component_copy_from(original, dialectical_component)
+                new_wu.set_dialectical_component_as_copy_from_another_segment(original, dialectical_component)
 
         alias_base = "T" if base == "t" else "A"
         alias_other = "A" if base == "t" else "T"
@@ -536,7 +536,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                         ),
                     )
                 else:
-                    new_wu.dialectical_component_copy_from(
+                    new_wu.set_dialectical_component_as_copy_from_another_segment(
                         original, dialectical_component
                     )
 

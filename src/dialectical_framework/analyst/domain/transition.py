@@ -4,6 +4,7 @@ from typing import List, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.wheel_segment import WheelSegment
@@ -37,11 +38,14 @@ class Transition(BaseModel):
         description="Guidance on what is needed for the transition to happen.",
     )
 
+    rationale: Rationale | None = Field(default=None, description="Reasoning behind the transition.")
+
     score: float | None = Field(
         default=None,
         ge=0.0, le=1.0,
-        description="How useful or correct the transition is"
+        description="Score after taking all the rationales and critiques into account. "
     )
+
 
     probability: float | None = Field(
         default=None,

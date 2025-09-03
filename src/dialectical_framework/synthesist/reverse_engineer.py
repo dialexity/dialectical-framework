@@ -1,12 +1,9 @@
-from itertools import permutations
 from typing import Dict, List
 
 from mirascope import BaseMessageParam, Messages, prompt_template
 
-from dialectical_framework.cycle import Cycle
+from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
-    DialecticalComponentsDeck
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode

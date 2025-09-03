@@ -19,7 +19,7 @@ class DialecticalComponent(BaseModel):
         description="The explanation how the dialectical component (statement) is derived.",
     )
 
-    context_fidelity_score: float | None = Field(
+    contextual_fidelity: float | None = Field(
         default=None,
         ge=0.0, le=1.0,
         description="How well this component represents/captures a point in the context"

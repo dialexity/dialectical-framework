@@ -1,22 +1,26 @@
 from __future__ import annotations
 
-from statistics import geometric_mean # Import geometric_mean
+from statistics import geometric_mean  # Import geometric_mean
+from typing import TYPE_CHECKING
 
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
+from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.synthesis import Synthesis
-from dialectical_framework.transformation import Transformation
-from dialectical_framework.wheel_segment import WheelSegment, ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
+from dialectical_framework.wheel_segment import WheelSegment
+
+if TYPE_CHECKING:
+    from dialectical_framework.analyst.domain.transformation import Transformation
 
 ALIAS_A = "A"
 ALIAS_A_PLUS = "A+"
 ALIAS_A_MINUS = "A-"
 
 
-class WisdomUnit(WheelSegment):
+class WisdomUnit(WheelSegment, Assessable):
     """
     A basic "molecule" in the dialectical framework, which makes up a diagonal relationship (complementary opposing pieces of the wheel).
     It's very restrictive to avoid any additional fields.
@@ -52,8 +56,7 @@ class WisdomUnit(WheelSegment):
         default=None, description="The transformative cycle."
     )
 
-    @property
-    def context_fidelity_score(self) -> float:
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
         """
         Calculates the context fidelity score for this wisdom unit as the geometric mean
         of its constituent DialecticalComponent's scores, including those from its synthesis.
@@ -63,21 +66,37 @@ class WisdomUnit(WheelSegment):
 
         for f in self.field_to_alias.keys():
             dc: DialecticalComponent | None = getattr(self, f)
-            if isinstance(dc, DialecticalComponent) and dc.context_fidelity_score is not None and dc.context_fidelity_score > 0.0:
-                scores_for_gm.append(dc.context_fidelity_score)
+            if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
+                scores_for_gm.append(dc.contextual_fidelity)
 
         # Collect scores from Synthesis (S+, S-) components if present
         if self.synthesis is not None:
             # Synthesis is also a WheelSegment, so it has its own components (T/T+ equivalent to S+/S-)
             for f in self.synthesis.field_to_alias.keys():
                 dc: DialecticalComponent | None = getattr(self.synthesis, f)
-                if isinstance(dc, DialecticalComponent) and dc.context_fidelity_score is not None and dc.context_fidelity_score > 0.0:
-                    scores_for_gm.append(dc.context_fidelity_score)
+                if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
+                    scores_for_gm.append(dc.contextual_fidelity)
 
         if not scores_for_gm:
-            return 1.0 # Neutral impact if no components with positive scores
-        
-        return geometric_mean(scores_for_gm)
+            score = 1.0 # Neutral impact if no components with positive scores
+        else:
+            score = geometric_mean(scores_for_gm)
+
+        if mutate:
+            self.contextual_fidelity = score
+
+        return score
+
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+        if self.transformation is None:
+            return None
+        probability = self.transformation.probability
+        if probability is None:
+            probability = self.transformation.calculate_probability(mutate=mutate)
+
+        if mutate:
+            self.probability = probability
+        return probability
 
     def extract_segment_t(self) -> WheelSegment:
         # TODO: maybe it's enough to return self, because the interface is still WheelSegment?
@@ -132,3 +151,13 @@ class WisdomUnit(WheelSegment):
         super().add_indexes_to_aliases(human_friendly_index)
         if self.synthesis:
             self.synthesis.add_indexes_to_aliases(human_friendly_index)
+
+    def set_dialectical_component_as_copy_from_another_segment(
+        self, wheel_segment: WheelSegment, dc_field: str
+    ):
+        if not hasattr(wheel_segment, dc_field):
+            setattr(self, dc_field, None)
+            return
+
+        c: DialecticalComponent | None = getattr(wheel_segment, dc_field)
+        setattr(self, dc_field, c.model_copy() if c else None)

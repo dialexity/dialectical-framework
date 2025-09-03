@@ -4,7 +4,7 @@ from dialectical_framework.analyst.think_constructive_convergence import \
     ThinkConstructiveConvergence
 from dialectical_framework.analyst.wheel_builder_transition_calculator import \
     WheelBuilderTransitionCalculator
-from dialectical_framework.transition_segment_to_segment import \
+from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
@@ -15,7 +15,7 @@ class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
         self, wheel: Wheel, at: WheelSegment
     ) -> List[TransitionSegmentToSegment]:
         consultant = ThinkConstructiveConvergence(
-            text=self.text, config=self.settings, wheel=wheel, brain=self.reasoner.brain
+            text=self.text, wheel=wheel, brain=self.reasoner.brain
         )
 
         return [await consultant.think(at)]

@@ -5,7 +5,7 @@ from typing import Dict, List, Union
 from dependency_injector.wiring import Provide
 
 from dialectical_framework.ai_dto.dto_mapper import map_from_dto, map_list_from_dto
-from dialectical_framework.cycle import Cycle
+from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.enums.di import DI
@@ -160,6 +160,7 @@ class WheelBuilder(SettingsAware):
                 t_cycle=t_cycle,
                 ta_cycle=cycle,
             )
+            w.calculate_score()
             wheels.append(w)
 
         # Save results for reference
@@ -206,6 +207,7 @@ class WheelBuilder(SettingsAware):
             idx = wu.t.get_human_friendly_index()
             if idx:
                 wu.synthesis.add_indexes_to_aliases(idx)
+
 
     async def redefine(
         self, *, modified_statement_per_alias: Dict[str, str]

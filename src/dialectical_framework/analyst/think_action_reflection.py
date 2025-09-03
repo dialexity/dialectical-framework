@@ -4,16 +4,14 @@ from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
-from dialectical_framework.ai_dto.dto_mapper import map_from_dto, map_list_from_dto
+from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
-    DialecticalComponentsDeck
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.symmetrical_transition import (
+from dialectical_framework.analyst.domain.symmetrical_transition import (
     ALIAS_AC, ALIAS_AC_MINUS, ALIAS_AC_PLUS, ALIAS_RE, ALIAS_RE_MINUS,
     ALIAS_RE_PLUS, SymmetricalTransition)
 from dialectical_framework.enums.predicate import Predicate

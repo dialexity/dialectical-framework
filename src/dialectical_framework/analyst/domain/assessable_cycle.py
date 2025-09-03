@@ -1,27 +1,16 @@
 from abc import ABC, abstractmethod
 
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import Field, ConfigDict
 
+from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.directed_graph import DirectedGraph
-from dialectical_framework.transition import Transition
+from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.utils.decompose_probability import decompose_probability_into_transitions
 
 
-class AssessableCycle(ABC, BaseModel):
+class AssessableCycle(Assessable, ABC):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
-    )
-
-    score: float | None = Field(
-        default=None,
-        ge=0.0, le=1.0,
-        description="The final composite score (Pr(S) * CF_S^alpha) for ranking this cycle."
-    )
-
-    probability: float | None = Field(
-        default=None,
-        ge=0.0, le=1.0,
-        description="The normalized probability (Pr(S)) of the cycle to exist in reality.",
     )
 
     graph: DirectedGraph[Transition] = Field(
@@ -29,32 +18,7 @@ class AssessableCycle(ABC, BaseModel):
         description="Directed graph representing the cycle of dialectical components.",
     )
 
-    @property
-    @abstractmethod
-    def context_fidelity_score(self) -> float: ...
-
-    def calculate_score(self, alpha: float = 1.0, mutate: bool = True) -> float | None:
-        """
-        Calculates the final composite score for the cycle: Score(S) = Pr(S) × CF_S^α
-        This method should be called after probability and context_fidelity_score are available.
-        """
-        if self.probability is None:
-            score = None
-        else:
-            cf_s = self.context_fidelity_score
-            score = self.probability * (cf_s ** alpha)
-
-        if mutate:
-            self.score = score
-
-        return self.score
-
-    def calculate_probability(self, mutate: bool = True) -> float | None:
-        """
-        Calculates the overall probability as the multiplication of all transition probabilities.
-        Transitions with None or 0.0 probability are skipped (treated as irrelevant).
-        If no transitions have positive probabilities, returns None.
-        """
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
         transitions = self.graph.first_path()
         if not transitions:
             probability = None

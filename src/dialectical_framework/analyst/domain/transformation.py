@@ -1,6 +1,6 @@
 from pydantic import ConfigDict
 
-from dialectical_framework.spiral import Spiral
+from dialectical_framework.analyst.domain.spiral import Spiral
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 

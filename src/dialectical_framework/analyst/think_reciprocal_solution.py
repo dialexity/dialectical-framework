@@ -5,7 +5,7 @@ from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
-from dialectical_framework.symmetrical_transition import SymmetricalTransition
+from dialectical_framework.analyst.domain.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import WheelSegment

@@ -5,7 +5,7 @@ from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.enums.predicate import Predicate
-from dialectical_framework.transition_segment_to_segment import \
+from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import WheelSegment
