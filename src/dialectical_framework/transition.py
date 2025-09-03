@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-from enum import Enum
 from typing import List, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.wheel_segment import WheelSegment
-
-
-class Predicate(str, Enum):
-    CAUSES = "causes"
-    CONSTRUCTIVELY_CONVERGES_TO = "constructively_converges_to"
-    TRANSFORMS_TO = "transforms_to"
 
 
 class Transition(BaseModel):
@@ -98,7 +92,9 @@ class Transition(BaseModel):
         return v
 
     def new_with(self, other: Transition) -> Transition:
-        # Merge fields from old transition into new one, preserving non-None values from self
+        """
+        Merge fields from self into a new one, preserving non-None values from self
+        """
         self_dict = self.model_dump()
         other_dict = other.model_dump()
 

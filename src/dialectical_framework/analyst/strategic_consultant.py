@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from dialectical_framework.brain import Brain
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.settings import Settings
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.transition import Transition
@@ -13,23 +15,20 @@ class StrategicConsultant(ABC, HasBrain):
         self,
         *,
         text: str,
-        brain: Brain,
-        config: Settings,
         wheel: Wheel,
+        brain: Optional[Brain] = None,
     ):
-        self._brain = brain
         self._text = text
         self._wheel = wheel
-        self._config = config
+        self._brain = brain
         self._transition = None
 
     @property
-    def config(self) -> Settings:
-        return self._config
+    def brain(self) -> Brain:
+        return super().brain if self._brain is None else self._brain
 
     @abstractmethod
     async def think(self, focus: WheelSegment) -> Transition: ...
-
     """
     The main method of the class. It should return a Transition to the next WisdomUnit.
     This Transition must be saved into the current instance. 

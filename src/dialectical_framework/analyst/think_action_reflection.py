@@ -12,10 +12,11 @@ from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.symmetrical_transition import (
     ALIAS_AC, ALIAS_AC_MINUS, ALIAS_AC_PLUS, ALIAS_RE, ALIAS_RE_MINUS,
     ALIAS_RE_PLUS, SymmetricalTransition)
-from dialectical_framework.transition import Predicate
+from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
                                                  ALIAS_T_PLUS, WheelSegment)
@@ -23,7 +24,7 @@ from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, WisdomUnit)
 
 
-class ThinkActionReflection(StrategicConsultant):
+class ThinkActionReflection(StrategicConsultant, SettingsAware):
     @prompt_template(
         """
         USER:
@@ -57,7 +58,7 @@ class ThinkActionReflection(StrategicConsultant):
             "computed_fields": {
                 "text": text,
                 "dialectical_analysis": focus.pretty(),
-                "component_length": self.config.component_length,
+                "component_length": self.settings.component_length,
             }
         }
 

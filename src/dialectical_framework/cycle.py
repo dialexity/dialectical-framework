@@ -11,7 +11,7 @@ from dialectical_framework.dialectical_components_deck import \
 from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.protocols.assessable_cycle import AssessableCycle
-from dialectical_framework.transition import Predicate
+from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.utils.decompose_probability import decompose_probability_into_transitions
 

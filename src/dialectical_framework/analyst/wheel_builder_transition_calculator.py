@@ -8,7 +8,8 @@ from dialectical_framework.symmetrical_transition import SymmetricalTransition
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
-from dialectical_framework.transition import Predicate, Transition
+from dialectical_framework.transition import Transition
+from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wheel_segment import WheelSegment
 

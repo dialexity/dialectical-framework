@@ -3,15 +3,16 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.reciprocal_solution import ReciprocalSolution
 from dialectical_framework.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.transition import Predicate
+from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
 
-class ThinkReciprocalSolution(StrategicConsultant):
+class ThinkReciprocalSolution(StrategicConsultant, SettingsAware):
     @prompt_template(
         """
         USER:
@@ -65,7 +66,7 @@ class ThinkReciprocalSolution(StrategicConsultant):
             "computed_fields": {
                 "text": text,
                 "dialectical_analysis": focus.pretty(),
-                "component_length": self.config.component_length,
+                "component_length": self.settings.component_length,
             }
         }
 

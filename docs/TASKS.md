@@ -1,16 +1,15 @@
 # Todo:
 
+
+[] SymmetricTransition is crap. Refactor. Spiral becomes equivalent to converges_constructively predicate. ActionReflection should then inherit from WisdomUnit and TransitionSegmentToSegment. Reciprocal Solution is sort of a spiralic thing as well, which belongs to the WisdomUnit, rather than to the global wheel Spiral. Transition must inherit from DialecticalComponent.
+
+[] (1) transitions' feasibilities with argumentations,
+(2) optionally, condensing texts to one-liners,
+(3) the ability to use these transitions and/or argumentations as starting points for new wheels....
+
+[] Get rid of "reasoning mode", this seems to be connected to brain, which is a pluggable service
+
 [] Fidelity score evaluator
-```aiignore
-Here’s the tight version:
-Scope: don’t chase infinite alternatives—generate top-K per component with diversity (K≈3–5).
-Statement fidelity (per node): compute a user-editable CFₛ ∈ [0,1] from relevance-to-context + evidence support + consistency (simple weighted average).
-Sequence ranking: use your sequence probability Pr(S) (normalized feasibility or via edges) and path fidelity CF_S (geometric mean of CFₛ along S).
- Score(S) = Pr(S) × CF_S^α × OA(S)^β (optional OA = outcome/OKR alignment). Sort by Score; also show Probability vs Fidelity as a quick Pareto view.
-Wheel fidelity (one number): WheelFidelity = mean or geometric mean of all CFₛ (optionally multiply by edge-coherence/coverage if you want stricter grading).
-Blind-spots: BlindSpot(s) = (1 − CFₛ) × Influence(s) (Influence = share of sequence mass through s). High value = low fidelity on a critical node.
-That’s it: top-K candidates → node CF → path CF + probability → single best choice score per sequence, plus a single wheel fidelity and a blind-spot heat signal.
-```
 ```aiignore
     @prompt_template(
         """
@@ -154,8 +153,6 @@ Critical Analysis - Strengths/weaknesses of sequences
 Transformation - How to make sequences happen
 The causation analysis (like in your PDF) is indeed a separate and valuable analytical tool that we hadn't explicitly captured in our previous prompts.
 ```
-
-[] SymmetricTransition is crap. Refactor. Spiral becomes equivalent to converges_constructively predicate. ActionReflection should then inherit from WisdomUnit and TransitionSegmentToSegment. Reciprocal Solution is sort of a spiralic thing as well, which belongs to the WisdomUnit, rather than to the global wheel Spiral. Transition must inherit from DialecticalComponent.
 
 [] Actualization (report generation)
 

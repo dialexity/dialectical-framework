@@ -8,6 +8,7 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.synthesis import Synthesis
+from dialectical_framework.transformation import Transformation
 from dialectical_framework.wheel_segment import WheelSegment, ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS
 
 ALIAS_A = "A"
@@ -45,6 +46,10 @@ class WisdomUnit(WheelSegment):
 
     synthesis: Synthesis | None = Field(
         default=None, description="The synthesis of the wisdom unit."
+    )
+
+    transformation: Transformation | None = Field(
+        default=None, description="The transformative cycle."
     )
 
     @property
