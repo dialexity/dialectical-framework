@@ -21,9 +21,9 @@ class Wheel(Assessable):
 
         # One iterable argument → use it directly
         if len(wisdom_units) == 1 and not isinstance(wisdom_units[0], WisdomUnit):
-            self._wisdom_units: List[WisdomUnit] = list(wisdom_units[0])
+            self._wisdom_units: list[WisdomUnit] = list(wisdom_units[0])
         else:
-            self._wisdom_units: List[WisdomUnit] = list(wisdom_units)
+            self._wisdom_units: list[WisdomUnit] = list(wisdom_units)
 
         self._ta_cycle: Cycle = ta_cycle
         self._t_cycle: Cycle = t_cycle
@@ -123,7 +123,7 @@ class Wheel(Assessable):
         return self.probability
 
     @property
-    def wisdom_units(self) -> List[WisdomUnit]:
+    def wisdom_units(self) -> list[WisdomUnit]:
         return self._wisdom_units
 
     @property
@@ -265,7 +265,7 @@ class Wheel(Assessable):
     def spin(
         self,
         offset: int = 1,
-    ) -> List[WisdomUnit]:
+    ) -> list[WisdomUnit]:
         # TODO: do we ned to also adjust the cycle and spiral?
         """
         Rotate the synthesis-pair list by ``offset`` positions.

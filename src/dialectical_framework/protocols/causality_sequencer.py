@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from itertools import permutations
-from typing import List, Union
+from typing import Union
 
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -11,8 +11,8 @@ from dialectical_framework.wisdom_unit import WisdomUnit
 class CausalitySequencer(Reloadable):
     @abstractmethod
     async def arrange(
-        self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]
-    ) -> List[Cycle]:
+        self, thoughts: Union[list[str], list[WisdomUnit], list[DialecticalComponent]]
+    ) -> list[Cycle]:
         """
         Arranges items in multiple sequences and arranges them as cycles.
         IMPORTANT: we don't do single sequence estimation isolated, because they all depend on each other.
@@ -22,8 +22,8 @@ class CausalitySequencer(Reloadable):
 
 
 def generate_permutation_sequences(
-    dialectical_components: List[DialecticalComponent],
-) -> List[List[DialecticalComponent]]:
+    dialectical_components: list[DialecticalComponent],
+) -> list[list[DialecticalComponent]]:
     if len(dialectical_components) < 2:
         return []
 
@@ -33,8 +33,8 @@ def generate_permutation_sequences(
 
 
 def generate_compatible_sequences(
-    ordered_wisdom_units: List[WisdomUnit],
-) -> List[List[DialecticalComponent]]:
+    ordered_wisdom_units: list[WisdomUnit],
+) -> list[list[DialecticalComponent]]:
     """
     Generate all circular, diagonally symmetric arrangements for T/A pairs.
 

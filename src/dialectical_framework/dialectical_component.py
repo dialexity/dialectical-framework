@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from statistics import geometric_mean
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from dialectical_framework.protocols.assessable import Assessable
 

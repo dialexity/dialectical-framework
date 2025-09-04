@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Protocol, Self, runtime_checkable
+from typing import Self
 
 
 class Reloadable(ABC):

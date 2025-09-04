@@ -1,4 +1,3 @@
-from typing import List
 
 from mirascope import Messages, prompt_template
 
@@ -31,7 +30,7 @@ class CausalitySequencerRealistic(CausalitySequencerBalanced):
         """
     )
     def prompt_assess_multiple_sequences(
-        self, *, sequences: List[str]
+        self, *, sequences: list[str]
     ) -> Messages.Type: ...
 
     @prompt_template(

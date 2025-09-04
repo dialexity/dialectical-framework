@@ -1,5 +1,4 @@
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Type, TypeVar
+from typing import Dict, Generic, Type, TypeVar
 
 from pydantic import BaseModel
 

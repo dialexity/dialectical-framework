@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Union
+from typing import Dict, Union
 
 from dependency_injector.wiring import Provide
 
@@ -32,10 +32,10 @@ class WheelBuilder(SettingsAware):
         polarity_reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
         *,
         text: str = "",
-        wheels: List[Wheel] = None,
+        wheels: list[Wheel] = None,
     ):
         self.__text = text
-        self.__wheels: List[Wheel] = wheels or []
+        self.__wheels: list[Wheel] = wheels or []
 
         # TODO: reloading singletons isn't very good design here, because we're guessing the parameters...
 
@@ -49,7 +49,7 @@ class WheelBuilder(SettingsAware):
         self.__reasoner.reload(text=text)
 
     @property
-    def wheel_permutations(self) -> List[Wheel]:
+    def wheel_permutations(self) -> list[Wheel]:
         return self.__wheels
 
     @property
@@ -68,7 +68,7 @@ class WheelBuilder(SettingsAware):
     def sequencer(self) -> CausalitySequencer:
         return self.__sequencer
 
-    async def t_cycles(self, *, theses: List[Union[str, None]] = None) -> List[Cycle]:
+    async def t_cycles(self, *, theses: list[Union[str, None]] = None) -> list[Cycle]:
         if theses is None:
             # No theses provided, generate one automatically
             t = await self.extractor.extract_single_thesis()
@@ -76,7 +76,7 @@ class WheelBuilder(SettingsAware):
             theses = [t]
         else:
             # Handle mixed None and str values
-            final_theses: List[DialecticalComponent | None] = []
+            final_theses: list[DialecticalComponent | None] = []
             none_positions = []
 
             # First pass: collect provided theses and identify positions that need generation
@@ -126,19 +126,19 @@ class WheelBuilder(SettingsAware):
 
             theses = final_theses
 
-        cycles: List[Cycle] = await self.__sequencer.arrange(theses)
+        cycles: list[Cycle] = await self.__sequencer.arrange(theses)
         return cycles
 
     async def build_wheel_permutations(
-        self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None
-    ) -> List[Wheel]:
+        self, *, theses: list[Union[str, None]] = None, t_cycle: Cycle = None
+    ) -> list[Wheel]:
         """
         TODO: theses are used only when t_cycle is not provided. should be single param or so. Refactor
         IMPORTANT: t_cycle is the "path" we take for permutations. If not provided, we'll take the most likely path.
         Do not confuse it with building all wheels for all "paths"
         """
         if t_cycle is None:
-            cycles: List[Cycle] = await self.t_cycles(theses=theses)
+            cycles: list[Cycle] = await self.t_cycles(theses=theses)
             # The first one is the highest probability
             t_cycle = cycles[0]
 
@@ -153,7 +153,7 @@ class WheelBuilder(SettingsAware):
 
             wheel_wisdom_units.append(wu)
 
-        cycles: List[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units)
+        cycles: list[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units)
 
         wheels = []
         for cycle in cycles:
@@ -173,7 +173,7 @@ class WheelBuilder(SettingsAware):
         self,
         *,
         wheel: Wheel,
-        at: WheelSegmentReference | List[WheelSegmentReference] = None,
+        at: WheelSegmentReference | list[WheelSegmentReference] = None,
     ):
         if wheel not in self.wheel_permutations:
             raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
@@ -213,7 +213,7 @@ class WheelBuilder(SettingsAware):
 
     async def redefine(
         self, *, modified_statement_per_alias: Dict[str, str]
-    ) -> List[Wheel]:
+    ) -> list[Wheel]:
         """
         We can give component statements by alias, e.g., T1 = "New thesis 1", A2+ = "New positive side of antithesis 2"
 
@@ -224,7 +224,7 @@ class WheelBuilder(SettingsAware):
         if modified_statement_per_alias:
             wheels = []
             for wheel in self.wheel_permutations:
-                new_wisdom_units: List[WisdomUnit] = []
+                new_wisdom_units: list[WisdomUnit] = []
                 is_dirty = False
                 for wu in wheel.wisdom_units:
                     modifications = {}
@@ -254,14 +254,14 @@ class WheelBuilder(SettingsAware):
                     # Recalculate cycles
                     analyst = self.__sequencer
 
-                    theses: List[str] = []
+                    theses: list[str] = []
                     for nwu in new_wisdom_units:
                         if nwu.t.alias.startswith("T"):
                             theses.append(nwu.t.statement)
                         else:
                             theses.append(nwu.a.statement)
 
-                    t_cycles: List[Cycle] = await analyst.arrange(theses)
+                    t_cycles: list[Cycle] = await analyst.arrange(theses)
                     # TODO: we should do this for each t_cycle, not the first one only. Refactor
                     t_cycle = t_cycles[0]
 
@@ -275,7 +275,7 @@ class WheelBuilder(SettingsAware):
                                     nwu.swap_segments(mutate=True)
                                 )
 
-                    cycles: List[Cycle] = await analyst.arrange(wheel_wisdom_units)
+                    cycles: list[Cycle] = await analyst.arrange(wheel_wisdom_units)
 
                     for cycle in cycles:
                         w = Wheel(
@@ -292,8 +292,8 @@ class WheelBuilder(SettingsAware):
 
 
 def _rearrange_by_causal_sequence(
-    wisdom_units: List[WisdomUnit], cycle: Cycle, mutate: bool = True
-) -> List[WisdomUnit]:
+    wisdom_units: list[WisdomUnit], cycle: Cycle, mutate: bool = True
+) -> list[WisdomUnit]:
     """
     We expect the cycle to be on the middle ring where theses and antitheses reside.
     This way we can swap the wisdom unit oppositions if necessary.

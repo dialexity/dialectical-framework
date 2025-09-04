@@ -1,4 +1,3 @@
-from typing import List
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -71,7 +70,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
 
         ac_re_wu = WisdomUnit(reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION)
         dc_deck_dto: DialecticalComponentsDeckDto = await self.action_reflection(focus=wu)
-        dialectical_components: List[DialecticalComponent] = map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent)
+        dialectical_components: list[DialecticalComponent] = map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent)
         for dc in dialectical_components:
             alias = self._translate_to_canonical_alias(dc.alias)
             setattr(ac_re_wu, alias, dc)

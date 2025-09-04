@@ -1,4 +1,3 @@
-from typing import List
 
 from dialectical_framework.analyst.domain.symmetrical_transition import \
     SymmetricalTransition
@@ -15,7 +14,7 @@ from dialectical_framework.wheel_segment import WheelSegment
 class DecoratorReciprocalSolution(WheelBuilderTransitionCalculator):
     async def _do_calculate_transitions(
         self, wheel: Wheel, at: WheelSegment
-    ) -> List[SymmetricalTransition]:
+    ) -> list[SymmetricalTransition]:
         consultant = ThinkReciprocalSolution(
             text=self.text,  wheel=wheel, brain=self.reasoner.brain
         )
@@ -24,8 +23,8 @@ class DecoratorReciprocalSolution(WheelBuilderTransitionCalculator):
 
     async def _do_calculate_transitions_all(
         self, wheel: Wheel
-    ) -> List[TransitionSegmentToSegment]:
-        result: List[TransitionSegmentToSegment] = []
+    ) -> list[TransitionSegmentToSegment]:
+        result: list[TransitionSegmentToSegment] = []
         for wu in wheel.wisdom_units:
             tr = await self._do_calculate_transitions(wheel, wu)
             result.extend(tr)

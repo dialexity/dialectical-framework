@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from statistics import geometric_mean
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import Field
 
@@ -13,8 +13,8 @@ from dialectical_framework.wheel import Wheel
 class Rationale(Assessable):
     text: Optional[str] = Field(default=None)
     summary: Optional[str] = Field(default=None)
-    theses: List[DialecticalComponent] = Field(default_factory=list, description="Theses of the rationale text.")
-    wheels: List[Wheel] = Field(default_factory=list, description="Wheels that are digging deeper into the rationale.")
+    theses: list[DialecticalComponent] = Field(default_factory=list, description="Theses of the rationale text.")
+    wheels: list[Wheel] = Field(default_factory=list, description="Wheels that are digging deeper into the rationale.")
 
     def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
         """
@@ -48,7 +48,7 @@ class Rationale(Assessable):
         """
         Calculate probability from wheels in this rationale and recursively from critiques.
         """
-        probabilities_list: List[float] = []
+        probabilities_list: list[float] = []
 
         # Collect from this rationale's own wheels
         self._collect_wheel_probabilities_recursively(self, probabilities_list, mutate=mutate)

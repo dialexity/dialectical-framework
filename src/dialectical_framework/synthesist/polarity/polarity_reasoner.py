@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import inspect
-from abc import ABC, abstractmethod
-from typing import List, Self, overload
+from abc import abstractmethod
+from typing import Self
 
-from dependency_injector.wiring import Provide, inject
+from dependency_injector.wiring import Provide
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -14,7 +14,6 @@ from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
-from dialectical_framework.brain import Brain
 from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
@@ -58,7 +57,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         return self._text
 
     def reload(
-        self, *, text: str, perspectives: WisdomUnit | List[WisdomUnit] = None
+        self, *, text: str, perspectives: WisdomUnit | list[WisdomUnit] = None
     ) -> Self:
         self._text = text
         if not perspectives:

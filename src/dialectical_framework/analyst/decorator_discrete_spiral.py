@@ -1,4 +1,3 @@
-from typing import List
 
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
@@ -13,7 +12,7 @@ from dialectical_framework.wheel_segment import WheelSegment
 class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
     async def _do_calculate_transitions(
         self, wheel: Wheel, at: WheelSegment
-    ) -> List[TransitionSegmentToSegment]:
+    ) -> list[TransitionSegmentToSegment]:
         consultant = ThinkConstructiveConvergence(
             text=self.text, wheel=wheel, brain=self.reasoner.brain
         )
@@ -22,9 +21,9 @@ class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
 
     async def _do_calculate_transitions_all(
         self, wheel: Wheel
-    ) -> List[TransitionSegmentToSegment]:
+    ) -> list[TransitionSegmentToSegment]:
         # TODO: use a single prompt to derive all transitions faster?
-        result: List[TransitionSegmentToSegment] = []
+        result: list[TransitionSegmentToSegment] = []
         for i in range(wheel.degree):
             tr = await self._do_calculate_transitions(wheel, wheel.wheel_segment_at(i))
             result.extend(tr)

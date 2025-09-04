@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Self, Union
+from typing import Self, Union
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -65,7 +65,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         """
     )
     def prompt_assess_multiple_sequences(
-        self, *, sequences: List[str]
+        self, *, sequences: list[str]
     ) -> Messages.Type: ...
 
     @prompt_template(
@@ -91,12 +91,12 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
     def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
 
     async def _estimate_cycles(
-        self, *, sequences: List[List[DialecticalComponent]]
+        self, *, sequences: list[list[DialecticalComponent]]
     ) -> CausalCyclesDeckDto:
-        sequences_str: dict[str, List[str]] = {}
+        sequences_str: dict[str, list[str]] = {}
 
         # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
-        translated_components: List[DialecticalComponent] = []
+        translated_components: list[DialecticalComponent] = []
         alias_translations: dict[str, str] = {}
         for sequence in sequences:
             for i, dc in enumerate(sequence, 1):
@@ -139,7 +139,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             return extend_tpl(tpl, prompt)
 
         async def _estimate_single(
-            sequence_str: str, aliases: List[str]
+            sequence_str: str, aliases: list[str]
         ) -> CausalCycleDto:
             @with_langfuse()
             @use_brain(brain=self.brain, response_model=CausalCycleAssessmentDto)
@@ -193,12 +193,12 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         return result
 
     async def arrange(
-        self, thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]]
-    ) -> List[Cycle]:
+        self, thoughts: Union[list[str], list[WisdomUnit], list[DialecticalComponent]]
+    ) -> list[Cycle]:
         sequences = self._get_sequences(thoughts)
 
         if thoughts and isinstance(thoughts[0], WisdomUnit):
-            ordered_wisdom_units: List[WisdomUnit] = thoughts
+            ordered_wisdom_units: list[WisdomUnit] = thoughts
             if len(thoughts) == 1:
                 return [
                     Cycle(
@@ -300,7 +300,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         self,
         dialectical_components_deck: DialecticalComponentsDeck,
         causal_cycles_deck: CausalCyclesDeckDto,
-    ) -> List[Cycle]:
+    ) -> list[Cycle]:
         from decimal import ROUND_HALF_UP, Decimal, getcontext
 
         cycles: list[Cycle] = []
@@ -365,13 +365,13 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
     @staticmethod
     def _get_sequences(
-        thoughts: Union[List[str], List[WisdomUnit], List[DialecticalComponent]],
-    ) -> List[List[DialecticalComponent]]:
+        thoughts: Union[list[str], list[WisdomUnit], list[DialecticalComponent]],
+    ) -> list[list[DialecticalComponent]]:
         if len(thoughts) == 0:
             raise ValueError("No thoughts provided.")
 
         if thoughts and isinstance(thoughts[0], WisdomUnit):
-            ordered_wisdom_units: List[WisdomUnit] = thoughts
+            ordered_wisdom_units: list[WisdomUnit] = thoughts
             return generate_compatible_sequences(ordered_wisdom_units)
         else:
             if isinstance(thoughts[0], DialecticalComponent):

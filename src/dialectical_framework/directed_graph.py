@@ -1,5 +1,4 @@
-from typing import (Callable, Dict, Generic, List, Tuple, TypeVar, Union,
-                    overload)
+from typing import (Callable, Dict, Generic, Tuple, TypeVar, Union, overload)
 
 from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.analyst.domain.transition_cell_to_cell import \
@@ -10,10 +9,10 @@ from dialectical_framework.wheel_segment import WheelSegment
 
 T = TypeVar("T", bound=Transition)
 
-AliasInput = Union[str, DialecticalComponent, List[Union[str, DialecticalComponent]]]
+AliasInput = Union[str, DialecticalComponent, list[Union[str, DialecticalComponent]]]
 
 
-def _extract_aliases(input_data: AliasInput) -> List[str]:
+def _extract_aliases(input_data: AliasInput) -> list[str]:
     """Extract aliases from various input types."""
     if isinstance(input_data, str):
         return [input_data]
@@ -61,7 +60,7 @@ class DirectedGraph(Generic[T]):
         key = (frozenset(source_aliases_list), frozenset(target_aliases_list))
         return self._transitions.get(key)
 
-    def get_transitions_from_source(self, source_aliases: AliasInput) -> List[T]:
+    def get_transitions_from_source(self, source_aliases: AliasInput) -> list[T]:
         """Get all transitions that have the given source aliases."""
         source_aliases_list = _extract_aliases(source_aliases)
         source_set = frozenset(source_aliases_list)
@@ -76,7 +75,7 @@ class DirectedGraph(Generic[T]):
         transitions = self.get_transitions_from_source(source_aliases)
         return transitions[0] if transitions else None
 
-    def get_all_transitions(self) -> List[T]:
+    def get_all_transitions(self) -> list[T]:
         """
         Get all transitions in the graph. Be mindful that these transitions might not be forming paths.
         So rather consider using the "traverse_dfs_with_paths" or "first_path" method.
@@ -91,7 +90,7 @@ class DirectedGraph(Generic[T]):
         """Check if the graph has no transitions."""
         return len(self._transitions) == 0
 
-    def find_outbound_source_aliases(self, start: WheelSegment) -> List[List[str]]:
+    def find_outbound_source_aliases(self, start: WheelSegment) -> list[list[str]]:
         outbound_source_aliases = []
         start_possible_components = {
             comp.alias for comp in [start.t, start.t_plus, start.t_minus] if comp
@@ -159,9 +158,9 @@ class DirectedGraph(Generic[T]):
     def traverse_dfs_with_paths(
         self,
         start_aliases: AliasInput | None = None,
-        visit_callback: Callable[[List[T], bool], None] | None = None,
+        visit_callback: Callable[[list[T], bool], None] | None = None,
         predicate_filter: Predicate | None = None,
-    ) -> List[List[T]]:
+    ) -> list[list[T]]:
         """
         Traverse all possible paths in the graph, detecting circles per path.
         Returns all complete paths found.
@@ -174,7 +173,7 @@ class DirectedGraph(Generic[T]):
         all_paths = []
 
         def _can_connect_constructively(
-            target_aliases: List[str], next_source_aliases: List[str]
+            target_aliases: list[str], next_source_aliases: list[str]
         ) -> bool:
             """
             For constructively_converges_to, check if segments can connect at the segment level.
@@ -188,8 +187,8 @@ class DirectedGraph(Generic[T]):
             return bool(target_bases & source_bases)
 
         def _find_constructive_transitions(
-            current_target_aliases: List[str],
-        ) -> List[T]:
+            current_target_aliases: list[str],
+        ) -> list[T]:
             """
             Find all transitions that can constructively connect to the current target.
             """
@@ -208,7 +207,7 @@ class DirectedGraph(Generic[T]):
             return constructive_transitions
 
         def _would_create_constructive_cycle(
-            current_aliases: List[str], visited_in_path: set
+            current_aliases: list[str], visited_in_path: set
         ) -> bool:
             """
             For constructively_converges_to, check if current aliases would create a cycle
@@ -223,8 +222,8 @@ class DirectedGraph(Generic[T]):
             return False
 
         def _dfs_helper(
-            current_aliases: List[str],
-            current_path: List[T],
+            current_aliases: list[str],
+            current_path: list[T],
             visited_in_path: set,
             current_predicate: str | None = None,
         ):
@@ -339,7 +338,7 @@ class DirectedGraph(Generic[T]):
 
         return all_paths
 
-    def first_path(self, start_aliases: AliasInput | None = None) -> List[T]:
+    def first_path(self, start_aliases: AliasInput | None = None) -> list[T]:
         """
         We normally deal with cycles and spirals, so first path is mostly enough.
         """

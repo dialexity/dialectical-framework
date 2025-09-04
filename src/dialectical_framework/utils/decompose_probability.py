@@ -1,11 +1,10 @@
-from typing import List
 
 from dialectical_framework.analyst.domain.transition import Transition
 
 
 def decompose_probability_into_transitions(
         probability: float,
-        transitions: List[Transition],
+        transitions: list[Transition],
         overwrite_existing_transition_probabilities: bool = False
     ) -> None:
     """

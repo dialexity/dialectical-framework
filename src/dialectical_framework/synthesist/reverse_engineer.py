@@ -39,7 +39,7 @@ class ReverseEngineer:
         """
     )
     def prompt_input_theses(
-        self, *, dialectical_components: List[List:str]
+        self, *, dialectical_components: list[List:str]
     ) -> Messages.Type: ...
 
     @prompt_template(
@@ -93,8 +93,8 @@ class ReverseEngineer:
         self,
         *,
         reasoning_mode: str,
-        theses: List[List:str],
-        wisdom_units: List[List[str]],
+        theses: list[List:str],
+        wisdom_units: list[list[str]],
     ) -> Messages.Type: ...
 
     @prompt_template(
@@ -131,8 +131,8 @@ class ReverseEngineer:
         self,
         *,
         reasoning_mode: str,
-        theses: List[List[str]],
-        wisdom_units: List[List[str]],
+        theses: list[list[str]],
+        wisdom_units: list[list[str]],
     ) -> Messages.Type: ...
 
     @prompt_template(
@@ -158,7 +158,7 @@ class ReverseEngineer:
         """
     )
     def prompt_cycle__realistic(
-        self, sequences: List[str], estimations: List[List[str]]
+        self, sequences: list[str], estimations: list[list[str]]
     ) -> Messages.Type: ...
 
     @prompt_template(
@@ -184,7 +184,7 @@ class ReverseEngineer:
         """
     )
     def prompt_cycle__desirable(
-        self, sequences: List[str], estimations: List[List[str]]
+        self, sequences: list[str], estimations: list[list[str]]
     ) -> Messages.Type: ...
 
     @prompt_template(
@@ -210,7 +210,7 @@ class ReverseEngineer:
         """
     )
     def prompt_cycle__feasible(
-        self, sequences: List[str], estimations: List[List[str]]
+        self, sequences: list[str], estimations: list[list[str]]
     ) -> Messages.Type: ...
 
     @prompt_template(
@@ -236,12 +236,12 @@ class ReverseEngineer:
         """
     )
     def prompt_cycle__balanced(
-        self, sequences: List[str], estimations: List[List[str]]
+        self, sequences: list[str], estimations: list[list[str]]
     ) -> Messages.Type: ...
 
     @staticmethod
     def till_theses(
-        theses: List[DialecticalComponent], text: str = None
+        theses: list[DialecticalComponent], text: str = None
     ) -> list[BaseMessageParam]:
         reverse_engineer = ReverseEngineer()
         tpl: list[BaseMessageParam] = []
@@ -271,7 +271,7 @@ class ReverseEngineer:
 
     @staticmethod
     def till_wisdom_units(
-        wisdom_units: List[WisdomUnit], text: str = None
+        wisdom_units: list[WisdomUnit], text: str = None
     ) -> list[BaseMessageParam]:
         reverse_engineer = ReverseEngineer()
         tpl: list[BaseMessageParam] = []
@@ -281,7 +281,7 @@ class ReverseEngineer:
             input_messages = reverse_engineer.prompt_input_text(text=text)
             extend_tpl(tpl, input_messages)
 
-        wus: Dict[DialecticalReasoningMode, List[WisdomUnit]] = (
+        wus: Dict[DialecticalReasoningMode, list[WisdomUnit]] = (
             _wisdom_units_grouped_by_reasoning_mode(wisdom_units)
         )
         for mode, wisdom_units in wus.items():
@@ -333,7 +333,7 @@ class ReverseEngineer:
 
     @staticmethod
     def till_cycle(
-        wisdom_units: List[WisdomUnit],
+        wisdom_units: list[WisdomUnit],
         t_cycle: Cycle,
         ta_cycle: Cycle = None,
         text: str = None,
@@ -393,8 +393,8 @@ class ReverseEngineer:
 
 
 def _wisdom_units_grouped_by_reasoning_mode(
-    wisdom_units: List[WisdomUnit],
-) -> Dict[DialecticalReasoningMode, List[WisdomUnit]]:
+    wisdom_units: list[WisdomUnit],
+) -> Dict[DialecticalReasoningMode, list[WisdomUnit]]:
     grouped_units = {}
     for wu in wisdom_units:
         if wu.reasoning_mode not in grouped_units:

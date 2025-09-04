@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import re
 from statistics import geometric_mean  # Import geometric_mean
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 from pydantic.fields import FieldInfo
 
 from dialectical_framework.dialectical_component import DialecticalComponent

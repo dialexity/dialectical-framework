@@ -1,10 +1,7 @@
 import importlib
-import os
 import pkgutil
-from typing import List
 
 from dependency_injector import containers, providers
-from dotenv import load_dotenv
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.enums.causality_type import CausalityType
@@ -88,7 +85,7 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     # -- Wiring --
 
     @staticmethod
-    def _discover_modules() -> List[str]:
+    def _discover_modules() -> list[str]:
         try:
             package = importlib.import_module("dialectical_framework")
             modules = []

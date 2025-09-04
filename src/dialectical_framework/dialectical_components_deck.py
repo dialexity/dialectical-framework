@@ -1,5 +1,3 @@
-from itertools import permutations
-from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -7,7 +5,7 @@ from dialectical_framework.dialectical_component import DialecticalComponent
 
 
 class DialecticalComponentsDeck(BaseModel):
-    dialectical_components: List[DialecticalComponent] = Field(
+    dialectical_components: list[DialecticalComponent] = Field(
         ...,
         description="A list of dialectical components. It can be empty when no dialectical components are found. It might also be filled with only one dialectical component if only one is to be found.",
     )
@@ -22,7 +20,7 @@ class DialecticalComponentsDeck(BaseModel):
             cycle_parts = aliases + [aliases[0]]  # Add first element at the end
             return " → ".join(cycle_parts) + "..."
 
-    def get_aliases(self) -> List[str]:
+    def get_aliases(self) -> list[str]:
         return [dc.alias for dc in self.dialectical_components]
 
     def get_by_alias(self, alias: str) -> DialecticalComponent:
@@ -30,7 +28,7 @@ class DialecticalComponentsDeck(BaseModel):
 
     def rearrange_by_aliases(
         self, ordered_aliases: list[str], mutate: bool = False
-    ) -> List[DialecticalComponent]:
+    ) -> list[DialecticalComponent]:
         # Use dict to maintain first occurrence order while removing duplicates
         unique_aliases = dict.fromkeys(ordered_aliases)
 

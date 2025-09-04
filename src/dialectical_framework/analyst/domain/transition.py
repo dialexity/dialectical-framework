@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from statistics import geometric_mean
-from typing import List, Union
+from typing import Union
 
 from pydantic import ConfigDict, Field, field_validator
 
@@ -16,13 +16,15 @@ class Transition(Assessable):
         extra="forbid",
     )
 
-    source_aliases: List[str] = Field(
+    # Change list[str] to list[str]
+    source_aliases: list[str] = Field(
         default_factory=list, description="Aliases of the source segment of the wheel."
     )
     source: Union[WheelSegment, DialecticalComponent] = Field(
         description="Source segment of the wheel or dialectical component."
     )
-    target_aliases: List[str] = Field(
+    # Change list[str] to list[str]
+    target_aliases: list[str] = Field(
         default_factory=list, description="Aliases of the target segment of the wheel."
     )
     target: Union[WheelSegment, DialecticalComponent] = Field(
@@ -104,7 +106,7 @@ class Transition(Assessable):
         return probability
 
     @field_validator("source_aliases")
-    def validate_source_aliases(cls, v: list[str], info) -> list[str]:
+    def validate_source_aliases(cls, v: list[str], info) -> list[str]: # Change list[str] from list[str]
         if "source" in info.data and info.data["source"]:
             source = info.data["source"]
             valid_aliases = []
@@ -125,7 +127,7 @@ class Transition(Assessable):
         return v
 
     @field_validator("target_aliases")
-    def validate_target_aliases(cls, v: list[str], info) -> list[str]:
+    def validate_target_aliases(cls, v: list[str], info) -> list[str]: # Change list[str] from list[str]
         if "target" in info.data and info.data["target"]:
             target = info.data["target"]
             valid_aliases = []
@@ -146,9 +148,6 @@ class Transition(Assessable):
         return v
 
     def new_with(self, other: Transition) -> Transition:
-        """
-        Merge fields from self into a new one, preserving non-None values from self
-        """
         self_dict = self.model_dump()
         other_dict = other.model_dump()
 

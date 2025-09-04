@@ -2,7 +2,6 @@ from functools import wraps
 from typing import Any, Callable, Optional, TypeVar
 
 import litellm
-from dependency_injector.wiring import inject
 from mirascope import llm
 from tenacity import retry, stop_after_attempt, wait_exponential
 

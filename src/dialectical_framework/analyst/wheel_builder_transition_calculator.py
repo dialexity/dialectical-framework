@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Union
+from typing import Dict, Union
 
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.analyst.domain.symmetrical_transition import \
@@ -28,7 +28,7 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.__decorated_builder.reasoner
 
     @property
-    def wheel_permutations(self) -> List[Wheel]:
+    def wheel_permutations(self) -> list[Wheel]:
         return self.__decorated_builder.wheel_permutations
 
     @property
@@ -40,8 +40,8 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.__decorated_builder.settings
 
     async def build_wheel_permutations(
-        self, *, theses: List[Union[str, None]] = None, t_cycle: Cycle = None
-    ) -> List[Wheel]:
+        self, *, theses: list[Union[str, None]] = None, t_cycle: Cycle = None
+    ) -> list[Wheel]:
         await self.__decorated_builder.build_wheel_permutations(
             theses=theses, t_cycle=t_cycle
         )
@@ -49,7 +49,7 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
 
     async def redefine(
         self, modified_statement_per_alias: Dict[str, str]
-    ) -> List[Wheel]:
+    ) -> list[Wheel]:
         await self.__decorated_builder.redefine(
             modified_statement_per_alias=modified_statement_per_alias
         )
@@ -58,14 +58,14 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     async def calculate_syntheses(
         self,
         wheel: Wheel,
-        at: WheelSegmentReference | List[WheelSegmentReference] = None,
+        at: WheelSegmentReference | list[WheelSegmentReference] = None,
     ):
         await self.__decorated_builder.calculate_syntheses(wheel=wheel, at=at)
 
     async def calculate_transitions(
             self,
             wheel: Wheel,
-            at: WheelSegmentReference | List[WheelSegmentReference] = None,
+            at: WheelSegmentReference | list[WheelSegmentReference] = None,
     ):
         if wheel not in self.wheel_permutations:
             raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
@@ -101,14 +101,12 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     @abstractmethod
     async def _do_calculate_transitions(
         self, wheel: Wheel, at: WheelSegment
-    ) -> List[Transition]:
+    ) -> list[Transition]:
         """Subclasses implement the actual transition calculation logic here."""
-        pass
 
     @abstractmethod
-    async def _do_calculate_transitions_all(self, wheel: Wheel) -> List[Transition]:
+    async def _do_calculate_transitions_all(self, wheel: Wheel) -> list[Transition]:
         """Subclasses implement the actual transition calculation logic here."""
-        pass
 
     @staticmethod
     def _take_transition(wheel: Wheel, transition: Transition) -> None:

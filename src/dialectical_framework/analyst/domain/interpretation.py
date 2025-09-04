@@ -1,4 +1,3 @@
-from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -14,4 +13,4 @@ class Interpretation(BaseModel):
     t_cycle: Cycle
     ta_cycle: Cycle
     spiral: Spiral
-    transformations: List[Transformation]
+    transformations: list[Transformation]

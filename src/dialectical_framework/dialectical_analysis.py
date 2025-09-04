@@ -1,4 +1,3 @@
-from typing import List
 
 from pydantic import BaseModel, ConfigDict
 
@@ -12,4 +11,4 @@ class DialecticalAnalysis(BaseModel):
 
     # TODO: This should rather be documents, references, images, texts...
     corpus: str = None
-    perspectives: List[WisdomUnit] = []
+    perspectives: list[WisdomUnit] = []

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List, Tuple, final
+from typing import TYPE_CHECKING, final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -37,7 +37,7 @@ class Assessable(ABC, BaseModel):
         default=0.5, ge=0.0, le=1.0,
         description="Credibility/reputation/confidence of the expert making probability assessments. Used for weighing probabilities (applied during aggregation)")
 
-    rationales: List[Rationale] = Field(default_factory=list, description="Reasoning about this assessable instance")
+    rationales: list[Rationale] = Field(default_factory=list, description="Reasoning about this assessable instance")
 
     @property
     def best_rationale(self) -> Rationale | None:
@@ -100,8 +100,8 @@ class Assessable(ABC, BaseModel):
     Normally this method shouldn't be called, as it's called by the `calculate_score` method.
     """
 
-    def _calculate_contextual_fidelity_for_rationale_rated(self, *, mutate: bool = True) -> List[float]:
-        all_fidelities: List[float] = []
+    def _calculate_contextual_fidelity_for_rationale_rated(self, *, mutate: bool = True) -> list[float]:
+        all_fidelities: list[float] = []
         if self.rationales:
             for rationale in self.rationales:
                 rationale_fidelity = rationale.calculate_contextual_fidelity(mutate=mutate)

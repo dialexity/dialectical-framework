@@ -1,4 +1,4 @@
-from typing import Self, overload
+from typing import Self
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -14,7 +14,6 @@ from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.utils.use_brain import use_brain
 

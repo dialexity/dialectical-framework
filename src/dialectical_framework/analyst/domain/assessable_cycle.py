@@ -1,6 +1,5 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from statistics import geometric_mean
-from typing import List
 
 from pydantic import ConfigDict, Field
 
@@ -79,7 +78,7 @@ class AssessableCycle(Assessable, ABC):
 
         IMPORTANT: we don't use opinion probabilities here, because only the structural relationship matters.
         """
-        transitions: List[Transition] = self.graph.first_path()
+        transitions: list[Transition] = self.graph.first_path()
         if not transitions:
             cycle_multiplied_probability = None
         else:

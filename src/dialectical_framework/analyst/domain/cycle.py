@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from statistics import geometric_mean
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import ConfigDict, Field
 
@@ -40,7 +39,7 @@ class Cycle(AssessableCycle):
 
     def __init__(
         self,
-        dialectical_components: List[DialecticalComponent],
+        dialectical_components: list[DialecticalComponent],
         causality_type: CausalityType = CausalityType.REALISTIC,
         **data,
     ):
@@ -67,7 +66,7 @@ class Cycle(AssessableCycle):
                 )
 
     @property
-    def dialectical_components(self) -> List[DialecticalComponent]:
+    def dialectical_components(self) -> list[DialecticalComponent]:
         """Returns list of dialectical components from the first path of the ring."""
         path = self.graph.first_path()
         return [transition.source for transition in path] if path else []
