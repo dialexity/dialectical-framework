@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import re
+from statistics import geometric_mean
 
 from pydantic import BaseModel, Field
 
+from dialectical_framework.protocols.assessable import Assessable
 
-class DialecticalComponent(BaseModel):
+
+class DialecticalComponent(Assessable):
     alias: str = Field(
         ...,
         description="The user friendly name of the dialectical component such as T, A, T+, A+, etc.",
@@ -19,11 +22,44 @@ class DialecticalComponent(BaseModel):
         description="The explanation how the dialectical component (statement) is derived.",
     )
 
-    contextual_fidelity: float | None = Field(
-        default=None,
-        ge=0.0, le=1.0,
-        description="How well this component represents/captures a point in the context"
-    )
+    probability: float = Field(default=1, ge=0.0, le=1.0)
+
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+        """
+        This method doesn't make sense as it doesn't calculate anything, but if someone calls it, we will return 1.0.
+        The contextual fidelity should be set directly on the component by someone who is able to estimate it (thesis extractor or so)
+        """
+
+        all_fidelities = []
+
+        # Collect fidelities from wisdom-unit-level rationales/opinions
+        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
+
+        if not all_fidelities:
+            # Someone needs to assign it, it cannot be derived from anything
+            fidelity = self.contextual_fidelity if self.contextual_fidelity is not None else 1.0
+        else:
+            if self.contextual_fidelity is not None:
+                all_fidelities.append(self.contextual_fidelity * self.rating)
+            fidelity = geometric_mean(all_fidelities)
+
+        if mutate:
+            self.contextual_fidelity = fidelity
+
+        return fidelity
+
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+        """
+        This method doesn't make sense as it doesn't calculate anything, but if someone calls it, we will return 1.0.
+        """
+
+        # A statement is a fact, so probability is always 1.0
+        probability = self.probability if self.probability is not None else 1.0
+
+        if mutate:
+            self.probability = probability
+
+        return probability
 
     def is_same(self, other: DialecticalComponent) -> bool:
         """

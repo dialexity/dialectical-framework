@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from abc import ABC
 from statistics import geometric_mean
 from typing import List, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
-from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.protocols.assessable import Assessable
@@ -36,10 +34,13 @@ class Transition(Assessable):
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
 
-    advice: str | None = Field(
-        default=None,
-        description="Guidance on what is needed for the transition to happen.",
-    )
+    @property
+    def advice(self) -> str | None:
+        r = self.best_rationale
+        if r:
+            return r.text
+        else:
+            return None
 
     def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
         """
@@ -48,19 +49,23 @@ class Transition(Assessable):
         all_fidelities = []
 
         # Collect fidelities from rationales/opinions (existing logic)
-        all_fidelities.extend(self.calculate_contextual_fidelity_for_opinions())
+        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
 
         # Process source aliases
         for alias in self.source_aliases:
             dc = self.source.find_component_by_alias(alias)
-            if dc and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                all_fidelities.append(dc.contextual_fidelity)
+            if dc:
+                fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                if fidelity is not None and fidelity > 0.0:
+                    all_fidelities.append(fidelity)
 
         # Process target aliases  
         for alias in self.target_aliases:
             dc = self.target.find_component_by_alias(alias)
-            if dc and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                all_fidelities.append(dc.contextual_fidelity)
+            if dc:
+                fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                if fidelity is not None and fidelity > 0.0:
+                    all_fidelities.append(fidelity)
 
         # If no valid fidelities were collected, return a neutral fidelity (1.0)
         if not all_fidelities:
@@ -79,11 +84,11 @@ class Transition(Assessable):
         """
         # Base case: no rationales, use directly assigned probability
         probability = self.probability
-        if self.opinions:
+        if self.rationales:
             # Collect probabilities from all rationales
             all_probabilities = []
 
-            for rationale in self.opinions:
+            for rationale in self.rationales:
                 rationale_prob = rationale.calculate_probability(mutate=mutate)
                 if rationale_prob is not None and rationale_prob > 0.0:
                     rationale_prob = rationale_prob * rationale.confidence

@@ -7,13 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.fields import FieldInfo
 
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.protocols.assessable import Assessable
 
 ALIAS_T = "T"
 ALIAS_T_PLUS = "T+"
 ALIAS_T_MINUS = "T-"
 
 
-class WheelSegment(BaseModel):
+class WheelSegment(Assessable):
 
     model_config = ConfigDict(
         extra="forbid",
@@ -41,6 +42,48 @@ class WheelSegment(BaseModel):
         description="The positive side of the thesis: T+",
         alias=ALIAS_T_PLUS,
     )
+
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+        """
+        Calculates the context fidelity score for this wheel segment as the geometric mean
+        of its constituent DialecticalComponent's scores, including those from its synthesis,
+        and weighted rationale opinions.
+        Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
+        """
+        all_fidelities = []
+
+        # Collect fidelities from wisdom-unit-level rationales/opinions
+        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
+
+        # Collect from dialectical components
+        for f in self.field_to_alias.keys():
+            dc = getattr(self, f)
+            if isinstance(dc, DialecticalComponent):
+                fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                all_fidelities.append(fidelity)
+
+        if not all_fidelities:
+            score = 1.0  # Neutral impact if no components with positive scores
+        else:
+            score = geometric_mean(all_fidelities)
+
+        if mutate:
+            self.contextual_fidelity = score
+
+        return score
+
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+        """
+        There are no transitions, so we treat it as a fact
+        """
+
+        # A statement is a fact, so probability is always 1.0
+        probability = self.probability if self.probability is not None else 1.0
+
+        if mutate:
+            self.probability = probability
+
+        return probability
 
     def _get_dialectical_fields(self) -> dict[str, FieldInfo]:
         """Get only fields that contain DialecticalComponent instances and have aliases."""

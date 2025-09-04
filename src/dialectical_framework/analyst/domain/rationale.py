@@ -30,7 +30,7 @@ class Rationale(Assessable):
                 all_scores.append(wheel_fidelity)
 
         # Collect fidelities from critiques recursively
-        for critique in self.opinions:
+        for critique in self.rationales:
             critique_fidelity = critique.calculate_contextual_fidelity(mutate=mutate)
             if critique_fidelity is not None and critique_fidelity > 0.0:
                 all_scores.append(critique_fidelity)
@@ -76,5 +76,5 @@ class Rationale(Assessable):
                 probabilities_list.append(wheel_prob)
 
         # Recursively collect from critiques
-        for critique in r.opinions:
+        for critique in r.rationales:
             self._collect_wheel_probabilities_recursively(critique, probabilities_list, mutate=mutate)

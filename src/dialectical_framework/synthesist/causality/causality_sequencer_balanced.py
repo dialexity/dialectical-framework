@@ -6,7 +6,7 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
     CausalCycleAssessmentDto
-from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDtoDto
+from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
 from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
     CausalCyclesDeckDto
 from dialectical_framework.analyst.domain.cycle import Cycle
@@ -140,7 +140,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
         async def _estimate_single(
             sequence_str: str, aliases: List[str]
-        ) -> CausalCycleDtoDto:
+        ) -> CausalCycleDto:
             @with_langfuse()
             @use_brain(brain=self.brain, response_model=CausalCycleAssessmentDto)
             async def _estimate_single_call() -> CausalCycleAssessmentDto:
@@ -151,7 +151,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 return extend_tpl(tpl, prompt)
 
             assessment = await _estimate_single_call()
-            return CausalCycleDtoDto(
+            return CausalCycleDto(
                 aliases=aliases,
                 probability=assessment.probability,
                 reasoning_explanation=assessment.reasoning_explanation,

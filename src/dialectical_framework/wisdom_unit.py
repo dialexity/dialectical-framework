@@ -20,7 +20,7 @@ ALIAS_A_PLUS = "A+"
 ALIAS_A_MINUS = "A-"
 
 
-class WisdomUnit(WheelSegment, Assessable):
+class WisdomUnit(WheelSegment):
     """
     A basic "molecule" in the dialectical framework, which makes up a diagonal relationship (complementary opposing pieces of the wheel).
     It's very restrictive to avoid any additional fields.
@@ -66,21 +66,23 @@ class WisdomUnit(WheelSegment, Assessable):
         all_fidelities = []
 
         # Collect fidelities from wisdom-unit-level rationales/opinions
-        all_fidelities.extend(self.calculate_contextual_fidelity_for_opinions())
+        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
 
         # Collect from dialectical components
         for f in self.field_to_alias.keys():
-            dc: DialecticalComponent | None = getattr(self, f)
-            if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                all_fidelities.append(dc.contextual_fidelity)
+            dc = getattr(self, f)
+            if isinstance(dc, DialecticalComponent):
+                fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                all_fidelities.append(fidelity)
 
         # Collect scores from Synthesis (S+, S-) components if present
         if self.synthesis is not None:
             # Synthesis is also a WheelSegment, so it has its own components (T/T+ equivalent to S+/S-)
             for f in self.synthesis.field_to_alias.keys():
-                dc: DialecticalComponent | None = getattr(self.synthesis, f)
-                if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                    all_fidelities.append(dc.contextual_fidelity)
+                dc = getattr(self.synthesis, f)
+                if isinstance(dc, DialecticalComponent):
+                    fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                    all_fidelities.append(fidelity)
 
         if not all_fidelities:
             score = 1.0 # Neutral impact if no components with positive scores

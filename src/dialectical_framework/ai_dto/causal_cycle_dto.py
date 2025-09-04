@@ -6,7 +6,7 @@ from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
     CausalCycleAssessmentDto
 
 
-class CausalCycleDtoDto(CausalCycleAssessmentDto):
+class CausalCycleDto(CausalCycleAssessmentDto):
     """
     Causal circular sequence of statements, where aliases reference each statement
     """

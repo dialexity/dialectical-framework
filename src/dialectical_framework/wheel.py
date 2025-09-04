@@ -52,20 +52,22 @@ class Wheel(Assessable):
         all_fidelities = []
 
         # Collect fidelities from wheel-level rationales/opinions
-        all_fidelities.extend(self.calculate_contextual_fidelity_for_opinions())
+        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
 
         # Collect from dialectical components in wisdom units
         for wu in self._wisdom_units:
             for f in wu.field_to_alias.keys():
-                dc: DialecticalComponent | None = getattr(wu, f)
-                if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                    all_fidelities.append(dc.contextual_fidelity)
+                dc = getattr(wu, f)
+                if isinstance(dc, DialecticalComponent):
+                    fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                    all_fidelities.append(fidelity)
 
             if wu.synthesis is not None:
                 for f in wu.synthesis.field_to_alias.keys():
-                    s_dc: DialecticalComponent | None = getattr(wu.synthesis, f)
-                    if isinstance(s_dc, DialecticalComponent) and s_dc.contextual_fidelity is not None and s_dc.contextual_fidelity > 0.0:
-                        all_fidelities.append(s_dc.contextual_fidelity)
+                    dc = getattr(wu.synthesis, f)
+                    if isinstance(dc, DialecticalComponent):
+                        fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                        all_fidelities.append(fidelity)
 
         if not all_fidelities:
             score = 1.0 # Default to 1.0 if no components with positive scores are found (neutral effect)

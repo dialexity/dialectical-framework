@@ -1,6 +1,7 @@
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
@@ -80,7 +81,9 @@ class ThinkConstructiveConvergence(StrategicConsultant):
             target_aliases=[next_ws.t_plus.alias],
             source=focus,
             target=next_ws,
-            advice=await self.constructive_convergence(focus=focus, next_ws=next_ws),
+            rationales=[Rationale(
+                text=await self.constructive_convergence(focus=focus, next_ws=next_ws)
+            )],
         )
 
         return self._transition

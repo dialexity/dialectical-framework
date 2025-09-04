@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import final, List
+from typing import final, List, Tuple
 
 from pydantic import Field, BaseModel, ConfigDict
 
@@ -26,14 +26,32 @@ class Assessable(ABC, BaseModel):
     )
 
     rating: float = Field(
-        default=1.0, ge=0.0, le=1.0,
+        default=0.5, ge=0.0, le=1.0,
         description="Importance/quality rating of the rationale, used for weighing fidelity scores (applied during aggregation)."
     )
     confidence: float = Field(
-        default=1.0, ge=0.0, le=1.0,
+        default=0.5, ge=0.0, le=1.0,
         description="Credibility/reputation/confidence of the expert making probability assessments. Used for weighing probabilities (applied during aggregation)")
 
-    opinions: List[Rationale] = Field(default_factory=list, description="Reasoning about this assessable instance")
+    rationales: List[Rationale] = Field(default_factory=list, description="Reasoning about this assessable instance")
+
+    @property
+    def best_rationale(self) -> Rationale | None:
+        selected_r = None
+        score = None
+        for r in self.rationales:
+            r_score = r.calculate_score(mutate=False)
+            if r_score is not None and r_score > score:
+                score = r_score
+                selected_r = r
+
+        if score is not None:
+            return selected_r
+        else:
+            if self.rationales:
+                return self.rationales[0]
+            else:
+                return None
 
     @final
     def calculate_score(self, *, alpha: float = 1.0, mutate: bool = True) -> float | None:
@@ -78,10 +96,10 @@ class Assessable(ABC, BaseModel):
     Normally this method shouldn't be called, as it's called by the `calculate_score` method.
     """
 
-    def calculate_contextual_fidelity_for_opinions(self, *, mutate: bool = True) -> List[float]:
+    def _calculate_contextual_fidelity_for_rationale_rated(self, *, mutate: bool = True) -> List[float]:
         all_fidelities: List[float] = []
-        if self.opinions:
-            for rationale in self.opinions:
+        if self.rationales:
+            for rationale in self.rationales:
                 rationale_fidelity = rationale.calculate_contextual_fidelity(mutate=mutate)
 
                 # Check if rationale_fidelity is valid (not None and > 0.0)

@@ -31,7 +31,7 @@ class AssessableCycle(Assessable, ABC):
         """
         all_fidelities = []
 
-        all_fidelities.extend(self.calculate_contextual_fidelity_for_opinions())
+        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
 
         # Collect fidelities from dialectical components
         transitions = self.graph.first_path()
@@ -53,14 +53,11 @@ class AssessableCycle(Assessable, ABC):
                         dialectical_components.append(dc)
 
             # Filter for components with positive context_fidelity_score
-            component_fidelities = [
-                c.contextual_fidelity
-                for c in dialectical_components
-                if isinstance(c, DialecticalComponent)
-                   and c.contextual_fidelity is not None
-                   and c.contextual_fidelity > 0.0
-            ]
-            all_fidelities.extend(component_fidelities)
+            for c in dialectical_components:
+                if isinstance(c, DialecticalComponent):
+                    fidelity = c.calculate_contextual_fidelity(mutate=mutate)
+                    if fidelity is not None and fidelity > 0.0:
+                        all_fidelities.append(fidelity)
 
         # Calculate final score
         if not all_fidelities:
