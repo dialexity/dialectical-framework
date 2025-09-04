@@ -59,15 +59,20 @@ class WisdomUnit(WheelSegment, Assessable):
     def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
         """
         Calculates the context fidelity score for this wisdom unit as the geometric mean
-        of its constituent DialecticalComponent's scores, including those from its synthesis.
+        of its constituent DialecticalComponent's scores, including those from its synthesis,
+        and weighted rationale opinions.
         Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
         """
-        scores_for_gm = []
+        all_fidelities = []
 
+        # Collect fidelities from wisdom-unit-level rationales/opinions
+        all_fidelities.extend(self.calculate_contextual_fidelity_for_opinions())
+
+        # Collect from dialectical components
         for f in self.field_to_alias.keys():
             dc: DialecticalComponent | None = getattr(self, f)
             if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                scores_for_gm.append(dc.contextual_fidelity)
+                all_fidelities.append(dc.contextual_fidelity)
 
         # Collect scores from Synthesis (S+, S-) components if present
         if self.synthesis is not None:
@@ -75,12 +80,12 @@ class WisdomUnit(WheelSegment, Assessable):
             for f in self.synthesis.field_to_alias.keys():
                 dc: DialecticalComponent | None = getattr(self.synthesis, f)
                 if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                    scores_for_gm.append(dc.contextual_fidelity)
+                    all_fidelities.append(dc.contextual_fidelity)
 
-        if not scores_for_gm:
+        if not all_fidelities:
             score = 1.0 # Neutral impact if no components with positive scores
         else:
-            score = geometric_mean(scores_for_gm)
+            score = geometric_mean(all_fidelities)
 
         if mutate:
             self.contextual_fidelity = score
@@ -88,12 +93,18 @@ class WisdomUnit(WheelSegment, Assessable):
         return score
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
-        if self.transformation is None:
-            return None
-        probability = self.transformation.probability
-        if probability is None:
-            probability = self.transformation.calculate_probability(mutate=mutate)
+        """
+        Calculate probability from the transformation cycle.
+        This represents the structural feasibility of the dialectical transformation,
+        not expert opinions about it (those influence contextual_fidelity).
 
+        IMPORTANT: we don't use opinion probabilities here, because only the structural relationship matters.
+        """
+        if self.transformation is None:
+            probability = None
+        else:
+            probability = self.transformation.calculate_probability(mutate=mutate)
+        
         if mutate:
             self.probability = probability
         return probability

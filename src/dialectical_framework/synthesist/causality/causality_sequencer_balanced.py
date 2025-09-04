@@ -351,7 +351,12 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
         for c in cycles:
             if  c.probability is not None:
+                # For sequence cycles we have a probability estimate of the cycle
+                # and want to assign decomposed probabilities to transitions
                 c.decompose_probability()
+            else:
+                # If the cycle probability is None, then at some point it will be derived from its transitions. Standard case.
+                pass
 
         cycles.sort(key=lambda c: c.probability, reverse=True)
         return cycles

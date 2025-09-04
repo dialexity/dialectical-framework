@@ -43,27 +43,34 @@ class Wheel(Assessable):
 
     def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
         """
-        Calculates the WheelFidelity as the geometric mean of the context_fidelity_scores
-        of ALL individual DialecticalComponent nodes across the entire wheel.
-        Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
+        Calculates the WheelFidelity as the geometric mean of:
+        1. All individual DialecticalComponent contextual fidelity scores across the entire wheel
+        2. All wheel-level rationales/opinions (weighted by their rating)
+        
+        Components with contextual_fidelity of 0.0 or None are excluded from the calculation.
         """
-        all_component_scores_for_gm = []
+        all_fidelities = []
+
+        # Collect fidelities from wheel-level rationales/opinions
+        all_fidelities.extend(self.calculate_contextual_fidelity_for_opinions())
+
+        # Collect from dialectical components in wisdom units
         for wu in self._wisdom_units:
             for f in wu.field_to_alias.keys():
                 dc: DialecticalComponent | None = getattr(wu, f)
                 if isinstance(dc, DialecticalComponent) and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
-                    all_component_scores_for_gm.append(dc.contextual_fidelity)
+                    all_fidelities.append(dc.contextual_fidelity)
 
             if wu.synthesis is not None:
                 for f in wu.synthesis.field_to_alias.keys():
                     s_dc: DialecticalComponent | None = getattr(wu.synthesis, f)
                     if isinstance(s_dc, DialecticalComponent) and s_dc.contextual_fidelity is not None and s_dc.contextual_fidelity > 0.0:
-                        all_component_scores_for_gm.append(s_dc.contextual_fidelity)
+                        all_fidelities.append(s_dc.contextual_fidelity)
 
-        if not all_component_scores_for_gm:
+        if not all_fidelities:
             score = 1.0 # Default to 1.0 if no components with positive scores are found (neutral effect)
         else:
-            score = geometric_mean(all_component_scores_for_gm)
+            score = geometric_mean(all_fidelities)
 
         if mutate:
             self.contextual_fidelity = score
@@ -75,37 +82,28 @@ class Wheel(Assessable):
         """
         Calculates the wheel's overall probability as the geometric mean of its constituent cycle probabilities.
         This represents the 'dialectical coherence' of the entire wheel.
+
+        IMPORTANT: we don't use opinion probabilities here, because only the structural relationship matters.
         """
         probabilities_of_internal_cycles = []
 
         # Collect probabilities from core cycles and spiral
         # Only include if probability is not None and greater than 0
-        t_cycle_prob = self._t_cycle.probability
-        if t_cycle_prob is None:
-            t_cycle_prob = self._t_cycle.calculate_probability(mutate=mutate)
-
+        t_cycle_prob = self._t_cycle.calculate_probability(mutate=mutate)
         if t_cycle_prob is not None and t_cycle_prob > 0.0:
             probabilities_of_internal_cycles.append(t_cycle_prob)
 
-        ta_cycle_prob = self._ta_cycle.probability
-        if ta_cycle_prob is None:
-            ta_cycle_prob = self._ta_cycle.calculate_probability(mutate=mutate)
-
+        ta_cycle_prob = self._ta_cycle.calculate_probability(mutate=mutate)
         if ta_cycle_prob is not None and ta_cycle_prob > 0.0:
             probabilities_of_internal_cycles.append(ta_cycle_prob)
 
-        spiral_prob = self._spiral.probability
-        if spiral_prob is None:
-            spiral_prob = self._spiral.calculate_probability(mutate=mutate)
-
+        spiral_prob = self._spiral.calculate_probability(mutate=mutate)
         if spiral_prob is not None and spiral_prob > 0.0:
             probabilities_of_internal_cycles.append(spiral_prob)
 
         # Consider adding probabilities from WisdomUnit transformation cycles if they are assessed and relevant
         for wu in self._wisdom_units:
-            wu_prob = wu.probability
-            if wu_prob is None:
-                wu_prob = wu.calculate_probability(mutate=mutate)
+            wu_prob = wu.calculate_probability(mutate=mutate)
             if wu_prob is not None and wu_prob > 0.0:
                 probabilities_of_internal_cycles.append(wu_prob)
 

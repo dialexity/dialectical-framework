@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import final
+from typing import final, List
 
 from pydantic import Field, BaseModel, ConfigDict
+
+from dialectical_framework.analyst.domain.rationale import Rationale
 
 
 class Assessable(ABC, BaseModel):
@@ -12,10 +14,10 @@ class Assessable(ABC, BaseModel):
     score: float | None = Field(
         default=None,
         ge=0.0, le=1.0,
-        description="The final composite score (Pr(S) * CF_S^alpha) for ranking this cycle."
+        description="The final composite score (Pr(S) * CF_S^alpha) for ranking."
     )
 
-    contextual_fidelity: float | None = Field(default=None, description="How well it's related to the context")
+    contextual_fidelity: float | None = Field(default=None, description="Grounding in the initial context")
 
     probability: float | None = Field(
         default=None,
@@ -23,12 +25,30 @@ class Assessable(ABC, BaseModel):
         description="The normalized probability (Pr(S)) of the cycle to exist in reality.",
     )
 
+    rating: float = Field(
+        default=1.0, ge=0.0, le=1.0,
+        description="Importance/quality rating of the rationale, used for weighing fidelity scores (applied during aggregation)."
+    )
+    confidence: float = Field(
+        default=1.0, ge=0.0, le=1.0,
+        description="Credibility/reputation/confidence of the expert making probability assessments. Used for weighing probabilities (applied during aggregation)")
+
+    opinions: List[Rationale] = Field(default_factory=list, description="Reasoning about this assessable instance")
+
     @final
     def calculate_score(self, *, alpha: float = 1.0, mutate: bool = True) -> float | None:
         """
-        Calculates the final composite score using the formula: Score(X) = Pr(S) × CF_X^α.
-        This method also recalculates probability and contextual fidelity to have fresh values,
-        so it's the main statistical "recalculation" method.
+        Calculates composite score: Score(X) = Pr(S) × CF_X^α
+
+        Two-layer weighting system:
+        - rating: Domain expert weighting (applied during aggregation)
+        - alpha: System-level parameter for contextual fidelity importance
+
+        Args:
+            alpha: Contextual fidelity exponent
+                < 1.0: De-emphasize expert context assessments
+                = 1.0: Respect expert ratings fully (default)
+                > 1.0: Amplify expert context assessments
         """
         # Ensure that the overall probability has been calculated
         probability = self.calculate_probability(mutate=mutate)
@@ -53,11 +73,22 @@ class Assessable(ABC, BaseModel):
     """
 
     @abstractmethod
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
-        """
-        Calculates the overall probability as the multiplication of all transition probabilities.
-        Transitions with None or 0.0 probability are skipped (treated as irrelevant).
-        If no transitions have positive probabilities, returns None.
+    def calculate_probability(self, *, mutate: bool = True) -> float | None: ...
+    """
+    Normally this method shouldn't be called, as it's called by the `calculate_score` method.
+    """
 
-        Normally this method shouldn't be called, as it's called by the `calculate_score` method.
-        """
+    def calculate_contextual_fidelity_for_opinions(self, *, mutate: bool = True) -> List[float]:
+        all_fidelities: List[float] = []
+        if self.opinions:
+            for rationale in self.opinions:
+                rationale_fidelity = rationale.calculate_contextual_fidelity(mutate=mutate)
+
+                # Check if rationale_fidelity is valid (not None and > 0.0)
+                if rationale_fidelity is not None and rationale_fidelity > 0.0:
+                    rationale_fidelity = rationale_fidelity * rationale.rating
+
+                    # Check again after weighting, in case rating makes it zero
+                    if rationale_fidelity > 0.0:
+                        all_fidelities.append(rationale_fidelity)
+        return all_fidelities

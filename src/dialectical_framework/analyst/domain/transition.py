@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from abc import ABC
+from statistics import geometric_mean
 from typing import List, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -7,10 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
+from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.wheel_segment import WheelSegment
 
 
-class Transition(BaseModel):
+class Transition(Assessable):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -38,20 +41,62 @@ class Transition(BaseModel):
         description="Guidance on what is needed for the transition to happen.",
     )
 
-    rationale: Rationale | None = Field(default=None, description="Reasoning behind the transition.")
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+        """
+        Calculate contextual fidelity from rationales/opinions AND from source/target components.
+        """
+        all_fidelities = []
 
-    score: float | None = Field(
-        default=None,
-        ge=0.0, le=1.0,
-        description="Score after taking all the rationales and critiques into account. "
-    )
+        # Collect fidelities from rationales/opinions (existing logic)
+        all_fidelities.extend(self.calculate_contextual_fidelity_for_opinions())
 
+        # Process source aliases
+        for alias in self.source_aliases:
+            dc = self.source.find_component_by_alias(alias)
+            if dc and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
+                all_fidelities.append(dc.contextual_fidelity)
 
-    probability: float | None = Field(
-        default=None,
-        ge=0.0, le=1.0,
-        description="Transition probability, it contributes to the global cycle/spiral and consequently the wheel"
-    )
+        # Process target aliases  
+        for alias in self.target_aliases:
+            dc = self.target.find_component_by_alias(alias)
+            if dc and dc.contextual_fidelity is not None and dc.contextual_fidelity > 0.0:
+                all_fidelities.append(dc.contextual_fidelity)
+
+        # If no valid fidelities were collected, return a neutral fidelity (1.0)
+        if not all_fidelities:
+            fidelity = 1.0
+        else:
+            # Calculate geometric mean of all valid (and weighted) fidelities
+            fidelity = geometric_mean(all_fidelities)
+
+        if mutate:
+            self.contextual_fidelity = fidelity
+        return fidelity
+
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+        """
+        Calculate transition probability from all rationales and their critique trees.
+        """
+        # Base case: no rationales, use directly assigned probability
+        probability = self.probability
+        if self.opinions:
+            # Collect probabilities from all rationales
+            all_probabilities = []
+
+            for rationale in self.opinions:
+                rationale_prob = rationale.calculate_probability(mutate=mutate)
+                if rationale_prob is not None and rationale_prob > 0.0:
+                    rationale_prob = rationale_prob * rationale.confidence
+                    if rationale_prob > 0.0:
+                        all_probabilities.append(rationale_prob)
+
+            if all_probabilities:
+                # Calculate geometric mean of all rationale probabilities
+                probability = geometric_mean(all_probabilities)
+
+        if mutate:
+            self.probability = probability
+        return probability
 
     @field_validator("source_aliases")
     def validate_source_aliases(cls, v: list[str], info) -> list[str]:

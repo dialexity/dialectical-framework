@@ -70,47 +70,6 @@ class Cycle(AssessableCycle):
         path = self.graph.first_path()
         return [transition.source for transition in path] if path else []
 
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
-        """
-        Calculates the path fidelity (CF_S) as the geometric mean of the content_fidelity_scores
-        of the dialectical components in this cycle.
-        
-        Components with a content_fidelity_score of 0.0 or None are excluded from the calculation,
-        as they represent concepts not grounded in the source context, which should not
-        zero out the overall fidelity unless all components are ungrounded.
-        """
-        score = 1.0 # If no components, assume perfect fidelity (neutral effect)
-        transitions = self.graph.first_path()
-        if transitions:
-            components = [transition.source for transition in transitions]
-
-            # Filter for actual DialecticalComponent instances and, crucially,
-            # only include those with a content_fidelity_score > 0.0 for the geometric mean.
-            # Scores of 0.0 or None are treated as "not set" or "not positively grounded"
-            # and are excluded from the geometric mean calculation, to prevent zeroing out.
-            scores_for_gm = [
-                c.contextual_fidelity
-                for c in components
-                if isinstance(c, DialecticalComponent) and c.contextual_fidelity is not None and c.contextual_fidelity > 0.0
-            ]
-
-            if not scores_for_gm:
-                # If after filtering, no components have a positive content_fidelity_score,
-                # return 1.0. This means fidelity will have a neutral impact (x1) on the
-                # final Score(S) calculation (i.e., Score(S) = Pr(S) * 1^alpha = Pr(S)).
-                # This allows blind spots (ungrounded but relevant concepts) to be ranked
-                # purely by their probability/feasibility.
-                score = 1.0
-            else:
-                # Calculate the geometric mean of the positive fidelity scores
-                score = geometric_mean(scores_for_gm)
-
-        if mutate:
-            self.contextual_fidelity = score
-
-        return score
-
-
     def cycle_str(self) -> str:
         """Returns a string representation of the cycle sequence."""
         aliases = [dc.alias for dc in self.dialectical_components]
