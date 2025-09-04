@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dialectical_framework.enums.causality_type import CausalityType
 
+
 class Settings(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,

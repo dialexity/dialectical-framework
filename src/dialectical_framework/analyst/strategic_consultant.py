@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.brain import Brain
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
 

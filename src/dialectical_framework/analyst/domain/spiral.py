@@ -2,11 +2,12 @@ from statistics import geometric_mean
 
 from pydantic import ConfigDict
 
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.directed_graph import DirectedGraph
-from dialectical_framework.analyst.domain.assessable_cycle import AssessableCycle
+from dialectical_framework.analyst.domain.assessable_cycle import \
+    AssessableCycle
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
+from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.wheel_segment import WheelSegment
 
 

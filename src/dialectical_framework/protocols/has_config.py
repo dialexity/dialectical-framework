@@ -2,8 +2,8 @@ from typing import Protocol, runtime_checkable
 
 from dependency_injector.wiring import Provide, inject
 
-from dialectical_framework.settings import Settings
 from dialectical_framework.enums.di import DI
+from dialectical_framework.settings import Settings
 
 
 @inject

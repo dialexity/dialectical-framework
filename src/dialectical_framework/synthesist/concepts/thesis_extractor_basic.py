@@ -3,9 +3,12 @@ from typing import Self, overload
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
-from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
-from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto, map_from_dto
+from dialectical_framework.ai_dto.dialectical_component_dto import \
+    DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
+    DialecticalComponentsDeckDto
+from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
+                                                     map_list_from_dto)
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck

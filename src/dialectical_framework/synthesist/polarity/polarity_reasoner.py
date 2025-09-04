@@ -8,11 +8,13 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
-from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
-from dialectical_framework.ai_dto.dto_mapper import map_from_dto, map_list_from_dto
+from dialectical_framework.ai_dto.dialectical_component_dto import \
+    DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
+    DialecticalComponentsDeckDto
+from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
+                                                     map_list_from_dto)
 from dialectical_framework.brain import Brain
-from dialectical_framework.settings import Settings
 from dialectical_framework.dialectical_analysis import DialecticalAnalysis
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
@@ -22,6 +24,7 @@ from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.reloadable import Reloadable
+from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl

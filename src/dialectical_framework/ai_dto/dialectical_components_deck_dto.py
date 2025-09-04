@@ -2,7 +2,8 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_component_dto import \
+    DialecticalComponentDto
 
 
 class DialecticalComponentsDeckDto(BaseModel):

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic, Type, Dict, Any
+from typing import Any, Dict, Generic, Type, TypeVar
+
 from pydantic import BaseModel
 
 # Type variables for generic mapping

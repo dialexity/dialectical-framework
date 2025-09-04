@@ -1,12 +1,13 @@
 from typing import List
 
+from dialectical_framework.analyst.domain.symmetrical_transition import \
+    SymmetricalTransition
+from dialectical_framework.analyst.domain.transition_segment_to_segment import \
+    TransitionSegmentToSegment
 from dialectical_framework.analyst.think_action_reflection import \
     ThinkActionReflection
 from dialectical_framework.analyst.wheel_builder_transition_calculator import \
     WheelBuilderTransitionCalculator
-from dialectical_framework.analyst.domain.symmetrical_transition import SymmetricalTransition
-from dialectical_framework.analyst.domain.transition_segment_to_segment import \
-    TransitionSegmentToSegment
 from dialectical_framework.wheel import Wheel
 from dialectical_framework.wheel_segment import WheelSegment
 

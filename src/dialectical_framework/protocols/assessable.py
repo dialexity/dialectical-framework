@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import final, List, Tuple
+from typing import TYPE_CHECKING, List, Tuple, final
 
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from dialectical_framework.analyst.domain.rationale import Rationale
+if TYPE_CHECKING: # Conditionally import Rationale for type checking only
+    from dialectical_framework.analyst.domain.rationale import Rationale
+
 
 
 class Assessable(ABC, BaseModel):

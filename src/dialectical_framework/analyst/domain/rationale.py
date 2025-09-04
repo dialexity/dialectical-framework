@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from statistics import geometric_mean
-from typing import Optional, List
+from typing import List, Optional
 
 from pydantic import Field
 

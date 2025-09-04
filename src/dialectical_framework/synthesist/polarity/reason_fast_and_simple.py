@@ -1,8 +1,8 @@
 from dependency_injector.wiring import Provide
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.settings import Settings
 from dialectical_framework.enums.di import DI
+from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
 
 

@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 from statistics import geometric_mean
 from typing import List
 
-from pydantic import Field, ConfigDict
+from pydantic import ConfigDict, Field
 
 from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.protocols.assessable import Assessable
-from dialectical_framework.utils.decompose_probability import decompose_probability_into_transitions
+from dialectical_framework.utils.decompose_probability import \
+    decompose_probability_into_transitions
 
 
 class AssessableCycle(Assessable, ABC):

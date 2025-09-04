@@ -1,14 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 
-from dialectical_framework.settings import Settings
 from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.analyst.domain.symmetrical_transition import SymmetricalTransition
+from dialectical_framework.analyst.domain.symmetrical_transition import \
+    SymmetricalTransition
+from dialectical_framework.analyst.domain.transition import Transition
+from dialectical_framework.enums.predicate import Predicate
+from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
-from dialectical_framework.analyst.domain.transition import Transition
-from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
 from dialectical_framework.wheel_segment import WheelSegment
 
