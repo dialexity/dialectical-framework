@@ -312,6 +312,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     dialectical_components=dialectical_components_deck.rearrange_by_aliases(
                         causal_cycle.aliases
                     ),
+                    # TODO: set CF instead / together? We don't set probability on non-Ratable!
                     probability=causal_cycle.probability, # Unnormalized
                     causality_type=self.settings.causality_type,
                     reasoning_explanation=causal_cycle.reasoning_explanation,
@@ -320,7 +321,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             )
 
         # Probability was a guesswork, let's make it normalized to have statistical strictness
-        if total_score > 0 and cycles:
+        if total_score > 0 and cycles and len(cycles) > 1:
             getcontext().prec = 16
             q = Decimal("0.001")
 

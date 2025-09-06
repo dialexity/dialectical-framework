@@ -41,7 +41,7 @@ def decompose_probability_into_transitions(
             len(transitions)
         )
         for transition in transitions:
-            transition.probability = individual_prob
+            transition.manual_probability = individual_prob
     else:
         # Mixed case: some have probabilities, some don't
         # Calculate what's "left over" for the unassigned transitions

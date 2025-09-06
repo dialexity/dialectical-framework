@@ -51,7 +51,7 @@ class WisdomUnit(WheelSegment):
         default=None, description="The synthesis of the wisdom unit."
     )
 
-    # TODO: fill this with ActionReflection transition
+    # TODO: fill this with ActionReflection transition decorator
     transformation: Transformation | None = Field(
         default=None, description="The transformative cycle."
     )
