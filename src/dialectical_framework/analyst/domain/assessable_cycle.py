@@ -21,7 +21,7 @@ class AssessableCycle(Assessable, ABC):
         description="Directed graph representing the cycle of dialectical components.",
     )
 
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
         Calculates the cycle fidelity (CF_S) as the geometric mean of:
         1. All dialectical components' contextual fidelity scores within the cycle's transitions
@@ -29,46 +29,15 @@ class AssessableCycle(Assessable, ABC):
 
         Components/rationales with contextual_fidelity of 0.0 or None are excluded from the calculation.
         """
-        all_fidelities = []
-
-        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
+        parts = []
 
         # Collect fidelities from dialectical components
-        transitions = self.graph.first_path()
+        transitions = self.graph.get_all_transitions()
         if transitions:
-            # Collect all unique dialectical components by resolving aliases
-            dialectical_components = []
-
             for transition in transitions:
-                # Process source aliases
-                for alias in transition.source_aliases:
-                    dc = transition.source.find_component_by_alias(alias)
-                    if dc and not any(dc.is_same(udc) for udc in dialectical_components):
-                        dialectical_components.append(dc)
+                parts.append(transition.calculate_contextual_fidelity(mutate=mutate))
 
-                # Process target aliases
-                for alias in transition.target_aliases:
-                    dc = transition.target.find_component_by_alias(alias)
-                    if dc and not any(dc.is_same(c) for c in dialectical_components):
-                        dialectical_components.append(dc)
-
-            # Filter for components with positive context_fidelity_score
-            for c in dialectical_components:
-                if isinstance(c, DialecticalComponent):
-                    fidelity = c.calculate_contextual_fidelity(mutate=mutate)
-                    if fidelity is not None and fidelity > 0.0:
-                        all_fidelities.append(fidelity)
-
-        # Calculate final score
-        if not all_fidelities:
-            score = 1.0  # Neutral effect if no fidelities available
-        else:
-            score = geometric_mean(all_fidelities)
-
-        if mutate:
-            self.contextual_fidelity = score
-
-        return score
+        return parts
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """

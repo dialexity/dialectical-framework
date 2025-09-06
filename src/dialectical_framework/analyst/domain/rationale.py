@@ -7,42 +7,34 @@ from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.protocols.ratable import Ratable
 from dialectical_framework.wheel import Wheel
 
 
-class Rationale(Assessable):
-    text: Optional[str] = Field(default=None)
+class Rationale(Ratable):
+    headline: Optional[str] = Field(default=None)
     summary: Optional[str] = Field(default=None)
+    text: Optional[str] = Field(default=None)
     theses: list[DialecticalComponent] = Field(default_factory=list, description="Theses of the rationale text.")
     wheels: list[Wheel] = Field(default_factory=list, description="Wheels that are digging deeper into the rationale.")
 
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
-        Calculate contextual fidelity by aggregating wheel fidelities and critique fidelities.
-        No need to pass context - it's already embedded in the dialectical components.
+        CF(rationale) is evidence-driven:
+          - If there is child evidence (wheels/critiques), aggregate it.
+          - Otherwise, fall back to the rationale's own CF × rating (via get_fidelity()).
+        Do NOT apply self.get_rating() to child wheels; the parent that consumes this
+        rationale will apply rationale.rating to CF(rationale).
         """
-        all_scores = []
+        parts: list[float] = []
 
-        # Collect fidelities from this rationale's wheels
+        # Wheels spawned by this rationale — include as-is (no rating here)
         for wheel in self.wheels:
-            wheel_fidelity = wheel.calculate_contextual_fidelity(mutate=mutate)
-            if wheel_fidelity is not None and wheel_fidelity > 0.0:
-                all_scores.append(wheel_fidelity)
+            w_cf = wheel.calculate_contextual_fidelity(mutate=mutate)
+            if w_cf is not None and w_cf > 0.0:
+                parts.append(w_cf)
 
-        # Collect fidelities from critiques recursively
-        for critique in self.rationales:
-            critique_fidelity = critique.calculate_contextual_fidelity(mutate=mutate)
-            if critique_fidelity is not None and critique_fidelity > 0.0:
-                all_scores.append(critique_fidelity)
-
-        if not all_scores:
-            score = 1.0  # Neutral if no dialectical analysis available
-        else:
-            score = geometric_mean(all_scores)
-
-        if mutate:
-            self.contextual_fidelity = score
-        return score
+        return parts
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """

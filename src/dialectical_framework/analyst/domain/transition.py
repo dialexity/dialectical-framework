@@ -1,29 +1,28 @@
 from __future__ import annotations
 
 from statistics import geometric_mean
-from typing import Union
+from typing import Tuple, Union
 
 from pydantic import ConfigDict, Field, field_validator
 
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
-from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.protocols.ratable import Ratable
 from dialectical_framework.wheel_segment import WheelSegment
 
 
-class Transition(Assessable):
+class Transition(Ratable):
     model_config = ConfigDict(
         extra="forbid",
     )
 
-    # Change list[str] to list[str]
     source_aliases: list[str] = Field(
         default_factory=list, description="Aliases of the source segment of the wheel."
     )
     source: Union[WheelSegment, DialecticalComponent] = Field(
         description="Source segment of the wheel or dialectical component."
     )
-    # Change list[str] to list[str]
+
     target_aliases: list[str] = Field(
         default_factory=list, description="Aliases of the target segment of the wheel."
     )
@@ -36,6 +35,13 @@ class Transition(Assessable):
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
 
+    def get_key(self) -> Tuple[frozenset[str], frozenset[str]]:
+        """Get the key used to uniquely identify this transition based on source and target aliases."""
+        return (
+            frozenset(self.source_aliases),
+            frozenset(self.target_aliases),
+        )
+
     @property
     def advice(self) -> str | None:
         r = self.best_rationale
@@ -43,42 +49,6 @@ class Transition(Assessable):
             return r.text
         else:
             return None
-
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
-        """
-        Calculate contextual fidelity from rationales/opinions AND from source/target components.
-        """
-        all_fidelities = []
-
-        # Collect fidelities from rationales/opinions (existing logic)
-        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
-
-        # Process source aliases
-        for alias in self.source_aliases:
-            dc = self.source.find_component_by_alias(alias)
-            if dc:
-                fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
-                if fidelity is not None and fidelity > 0.0:
-                    all_fidelities.append(fidelity)
-
-        # Process target aliases  
-        for alias in self.target_aliases:
-            dc = self.target.find_component_by_alias(alias)
-            if dc:
-                fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
-                if fidelity is not None and fidelity > 0.0:
-                    all_fidelities.append(fidelity)
-
-        # If no valid fidelities were collected, return a neutral fidelity (1.0)
-        if not all_fidelities:
-            fidelity = 1.0
-        else:
-            # Calculate geometric mean of all valid (and weighted) fidelities
-            fidelity = geometric_mean(all_fidelities)
-
-        if mutate:
-            self.contextual_fidelity = fidelity
-        return fidelity
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """

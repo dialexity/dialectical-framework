@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from statistics import geometric_mean  # Import geometric_mean
-from typing import List, Union
+from typing import List, Union, Any, Dict
 
 from tabulate import tabulate
 
+from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.analyst.domain.spiral import Spiral
 from dialectical_framework.dialectical_component import DialecticalComponent
@@ -41,7 +42,7 @@ class Wheel(Assessable):
         """The degree of the wheel (total number of segments = 2 × order)"""
         return self.order * 2
 
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
         Calculates the WheelFidelity as the geometric mean of:
         1. All individual DialecticalComponent contextual fidelity scores across the entire wheel
@@ -49,35 +50,57 @@ class Wheel(Assessable):
         
         Components with contextual_fidelity of 0.0 or None are excluded from the calculation.
         """
-        all_fidelities = []
+        parts = []
 
-        # Collect fidelities from wheel-level rationales/opinions
-        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
-
-        # Collect from dialectical components in wisdom units
+        # Collect from wisdom units
         for wu in self._wisdom_units:
-            for f in wu.field_to_alias.keys():
-                dc = getattr(wu, f)
-                if isinstance(dc, DialecticalComponent):
-                    fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
-                    all_fidelities.append(fidelity)
+            fidelity = wu.calculate_contextual_fidelity(mutate=mutate)
+            parts.append(fidelity)
 
-            if wu.synthesis is not None:
-                for f in wu.synthesis.field_to_alias.keys():
-                    dc = getattr(wu.synthesis, f)
-                    if isinstance(dc, DialecticalComponent):
-                        fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
-                        all_fidelities.append(fidelity)
+        # Collect transitions from cycles without overlaps
+        unique_transitions: Dict[Any, Transition] = {}
 
-        if not all_fidelities:
-            score = 1.0 # Default to 1.0 if no components with positive scores are found (neutral effect)
-        else:
-            score = geometric_mean(all_fidelities)
+        # Get transitions from t_cycle (most generic)
+        if self._t_cycle.graph and not self._t_cycle.graph.is_empty():
+            for transition in self._t_cycle.graph.get_all_transitions():
+                unique_transitions[transition.get_key()] = transition
+        
+        # Get transitions from ta_cycle (more specific than t_cycle, so we prefer this)
+        if self._ta_cycle.graph and not self._ta_cycle.graph.is_empty():
+            for transition in self._ta_cycle.graph.get_all_transitions():
+                if transition.get_key() in unique_transitions:
+                    ta_fidelity = transition.calculate_contextual_fidelity(mutate=mutate)
+                    if ta_fidelity == 1.0:
+                        # no effect, we can stick to moe generic level, whatever fidelity will be there, it will be (more) correct
+                        pass
+                    else:
+                        # calculate the one which is being overwritten
+                        unique_transitions[transition.get_key()].calculate_contextual_fidelity(mutate=mutate)
+                        # take the more specific one
+                        unique_transitions[transition.get_key()] = transition
+        
+        # Get transitions from spiral (even more specific, than ta_cycle, so we prefer this)
+        if self._spiral.graph and not self._spiral.graph.is_empty():
+            for transition in self._spiral.graph.get_all_transitions():
+                if transition.get_key() in unique_transitions:
+                    sp_fidelity = transition.calculate_contextual_fidelity(mutate=mutate)
+                    if sp_fidelity == 1.0:
+                        # no effect, we can stick to moe generic level, whatever fidelity will be there, it will be (more) correct
+                        pass
+                    else:
+                        # calculate the one which is being overwritten
+                        unique_transitions[transition.get_key()].calculate_contextual_fidelity(mutate=mutate)
+                        # take the more specific one
+                        unique_transitions[transition.get_key()] = transition
+        
+        # Extract fidelity scores from unique transitions
+        for transition in unique_transitions.values():
+            transition_fidelity = transition.calculate_contextual_fidelity(mutate=mutate)
+            if transition_fidelity is not None and transition_fidelity > 0.0:
+                parts.append(transition_fidelity)
 
-        if mutate:
-            self.contextual_fidelity = score
 
-        return score
+        return parts
 
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:

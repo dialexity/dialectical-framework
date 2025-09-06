@@ -42,34 +42,23 @@ class WheelSegment(Assessable):
         alias=ALIAS_T_PLUS,
     )
 
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
         Calculates the context fidelity score for this wheel segment as the geometric mean
         of its constituent DialecticalComponent's scores, including those from its synthesis,
         and weighted rationale opinions.
         Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
         """
-        all_fidelities = []
-
-        # Collect fidelities from wisdom-unit-level rationales/opinions
-        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
+        parts = []
 
         # Collect from dialectical components
         for f in self.field_to_alias.keys():
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
                 fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
-                all_fidelities.append(fidelity)
+                parts.append(fidelity)
 
-        if not all_fidelities:
-            score = 1.0  # Neutral impact if no components with positive scores
-        else:
-            score = geometric_mean(all_fidelities)
-
-        if mutate:
-            self.contextual_fidelity = score
-
-        return score
+        return parts
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """

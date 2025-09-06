@@ -56,24 +56,21 @@ class WisdomUnit(WheelSegment):
         default=None, description="The transformative cycle."
     )
 
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
         Calculates the context fidelity score for this wisdom unit as the geometric mean
         of its constituent DialecticalComponent's scores, including those from its synthesis,
         and weighted rationale opinions.
         Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
         """
-        all_fidelities = []
-
-        # Collect fidelities from wisdom-unit-level rationales/opinions
-        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationale_rated())
+        parts = []
 
         # Collect from dialectical components
         for f in self.field_to_alias.keys():
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
                 fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
-                all_fidelities.append(fidelity)
+                parts.append(fidelity)
 
         # Collect scores from Synthesis (S+, S-) components if present
         if self.synthesis is not None:
@@ -82,17 +79,15 @@ class WisdomUnit(WheelSegment):
                 dc = getattr(self.synthesis, f)
                 if isinstance(dc, DialecticalComponent):
                     fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
-                    all_fidelities.append(fidelity)
+                    parts.append(fidelity)
 
-        if not all_fidelities:
-            score = 1.0 # Neutral impact if no components with positive scores
-        else:
-            score = geometric_mean(all_fidelities)
+        # Collect fidelity from transformation
+        if self.transformation is not None:
+            # We don't take transitions, we take the aggregated thing on purpose
+            fidelity = self.transformation.calculate_contextual_fidelity(mutate=mutate)
+            parts.append(fidelity)
 
-        if mutate:
-            self.contextual_fidelity = score
-
-        return score
+        return parts
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """

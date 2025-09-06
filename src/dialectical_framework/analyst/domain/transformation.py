@@ -12,3 +12,10 @@ class Transformation(
         extra="forbid",
         arbitrary_types_allowed=True,
     )
+
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
+        parts1 = Spiral._calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, mutate=mutate)
+        parts2 = WisdomUnit._calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, mutate=mutate)
+        return parts1 + parts2
+
+    # TODO: take the spiral and the things from AcRe into P
