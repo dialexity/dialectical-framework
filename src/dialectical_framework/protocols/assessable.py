@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from statistics import geometric_mean
 from typing import TYPE_CHECKING, final
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING: # Conditionally import Rationale for type checking only
     from dialectical_framework.analyst.domain.rationale import Rationale
@@ -94,7 +95,7 @@ class Assessable(BaseModel, ABC):
         if not all_fidelities:
             fidelity = 1.0  # Neutral impact if no components with positive scores
         else:
-            fidelity = geometric_mean(all_fidelities)
+            fidelity = gm_with_zeros_and_nones_handled(all_fidelities)
 
         if mutate:
             self.contextual_fidelity = fidelity

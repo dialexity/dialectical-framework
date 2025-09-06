@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from statistics import geometric_mean  # Import geometric_mean
-
 from pydantic import ConfigDict, Field
 from pydantic.fields import FieldInfo
 

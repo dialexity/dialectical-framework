@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from statistics import geometric_mean
 from typing import Tuple, Union
 
 from pydantic import ConfigDict, Field, field_validator
@@ -8,6 +7,7 @@ from pydantic import ConfigDict, Field, field_validator
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.protocols.ratable import Ratable
+from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 from dialectical_framework.wheel_segment import WheelSegment
 
 
@@ -79,7 +79,7 @@ class Transition(Ratable):
             if v > 0.0:  # skip non-positive after weighting
                 parts.append(v)
 
-        probability = geometric_mean(parts) if parts else None
+        probability = gm_with_zeros_and_nones_handled(parts) if parts else None
 
         if mutate:
             self.probability = probability

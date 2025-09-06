@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from statistics import geometric_mean
 from typing import Optional
 
 from pydantic import Field
 
 from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.protocols.ratable import Ratable
+from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 from dialectical_framework.wheel import Wheel
 
 
@@ -52,7 +51,7 @@ class Rationale(Ratable):
                 parts.append(p)
 
         # Child-first: if children exist, use them; else fallback to manual
-        probability = geometric_mean(parts) if parts else self.probability
+        probability = gm_with_zeros_and_nones_handled(parts) if parts else self.probability
 
         if mutate:
             self.probability = probability

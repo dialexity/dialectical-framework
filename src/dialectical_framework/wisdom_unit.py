@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from statistics import geometric_mean  # Import geometric_mean
 from typing import TYPE_CHECKING
 
 from pydantic import Field

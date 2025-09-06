@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from statistics import geometric_mean  # Import geometric_mean
 from typing import List, Union, Any, Dict
 
 from tabulate import tabulate
 
-from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.analyst.domain.spiral import Spiral
+from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 from dialectical_framework.wheel_segment import WheelSegment
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -102,37 +102,37 @@ class Wheel(Assessable):
 
         return parts
 
-    from statistics import geometric_mean
-
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """
-        Wheel Pr = GM over a fixed canonical set of cycle probabilities (e.g., T, TA, Spiral).
-        - Include 0.0 (impossibility should zero the wheel).
+        Wheel Pr = GM over a fixed canonical set of cycle probabilities (T, TA, Spiral).
+        - Keep 0.0 (impossibility ⇒ 0).
         - Skip None (unknown).
-        - If all canonical cycles are None -> return None.
-        No cycle-level opinions here.
+        - If all canonical cycles are None ⇒ None.
+        Optionally add a single summarized term for unit transformations (see note).
         """
-        # 1) Evaluate canonical cycles
-        cycle_probs = []
-        t_cycle_prob = self._t_cycle.calculate_probability(mutate=mutate)
-        ta_cycle_prob = self._ta_cycle.calculate_probability(mutate=mutate)
-        spiral_prob = self._spiral.calculate_probability(mutate=mutate)
-
-        for p in (t_cycle_prob, ta_cycle_prob, spiral_prob):
-            if p is not None:  # keep 0.0 and positives
-                cycle_probs.append(p)
-
-        # 2) (Optional) include unit transformations as a single summarized term
-        unit_trans_probs = []
-        for wu in self._wisdom_units:
-            p = wu.calculate_probability(mutate=mutate)  # the unit's internal 2-edge cycle
+        # 1) Canonical cycles (ensure these are EXTERNAL transitions only)
+        canonical_vals = []
+        for cyc in (self._t_cycle, self._ta_cycle, self._spiral):
+            p = cyc.calculate_probability(mutate=mutate)
             if p is not None:
-                unit_trans_probs.append(p)
-        if unit_trans_probs:
-            cycle_probs.append(geometric_mean(unit_trans_probs))  # one term, not one per unit
+                canonical_vals.append(p)
 
-        # 3) Aggregate
-        probability = geometric_mean(cycle_probs) if cycle_probs else None
+        # 2) Optional: summarize unit transformations ONCE (only if not already in canonical cycles)
+        internal_summary = None
+        unit_vals = []
+        for wu in self._wisdom_units:
+            p = wu.calculate_probability(mutate=mutate)  # Pr of the unit’s internal 2-edge Transformation
+            if p is not None:
+                unit_vals.append(p)
+        if unit_vals:
+            internal_summary = gm_with_zeros_and_nones_handled(unit_vals)
+
+        # Build final list (omit internal_summary if your canonical cycles include internal edges)
+        all_terms = list(canonical_vals)
+        if internal_summary is not None:
+            all_terms.append(internal_summary)
+
+        probability = gm_with_zeros_and_nones_handled(all_terms)
 
         if mutate:
             self.probability = probability

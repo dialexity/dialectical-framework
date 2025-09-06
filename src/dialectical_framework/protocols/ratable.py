@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC
-from statistics import geometric_mean
 from typing import TYPE_CHECKING, final
 
 from pydantic import ConfigDict, Field
 
 from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING: # Conditionally import Rationale for type checking only
     pass
@@ -56,7 +56,7 @@ class Ratable(Assessable, ABC):
         if not parts:
             fidelity = 1.0  # neutral if no contributing evidence or rating==0 and no children
         else:
-            fidelity = geometric_mean(parts)
+            fidelity = gm_with_zeros_and_nones_handled(parts)
 
         if mutate:
             self.contextual_fidelity = fidelity
