@@ -21,21 +21,6 @@ class DialecticalComponent(Ratable):
         description="The explanation how the dialectical component (statement) is derived.",
     )
 
-    probability: float = Field(default=1, ge=0.0, le=1.0)
-
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
-        """
-        This method doesn't make sense as it doesn't calculate anything, but if someone calls it, we will return 1.0.
-        """
-
-        # A statement is a fact, so probability is always 1.0
-        probability = self.probability if self.probability is not None else 1.0
-
-        if mutate:
-            self.probability = probability
-
-        return probability
-
     def is_same(self, other: DialecticalComponent) -> bool:
         """
         Determines if the current object is equal to another object based on their attributes.
@@ -102,6 +87,19 @@ class DialecticalComponent(Ratable):
                 else:
                     # No trailing signs, just append the index
                     self.alias = f"{self.alias}{human_friendly_index}"
+
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+        """
+        Fallback to 1.0 for leaves.
+        """
+
+        # A statement is a fact, so probability is always 1.0
+        probability = self.probability if self.probability is not None else 1.0
+
+        if mutate:
+            self.probability = probability
+
+        return probability
 
     def pretty(
         self, dialectical_component_label: str | None = None, *, skip_explanation=False

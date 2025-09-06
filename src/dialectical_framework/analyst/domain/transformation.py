@@ -18,4 +18,9 @@ class Transformation(
         parts2 = WisdomUnit._calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, mutate=mutate)
         return parts1 + parts2
 
-    # TODO: take the spiral and the things from AcRe into P
+    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+        # Use the cycle rule from Spiral: product of internal transitions
+        prob = Spiral.calculate_probability(self, mutate=mutate)  # explicit to avoid MRO confusion
+        if mutate:
+            self.probability = prob
+        return prob

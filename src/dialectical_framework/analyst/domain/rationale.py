@@ -37,36 +37,24 @@ class Rationale(Ratable):
         return parts
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
-        """
-        Calculate probability from wheels in this rationale and recursively from critiques.
-        """
-        probabilities_list: list[float] = []
+        parts: list[float] = []
 
-        # Collect from this rationale's own wheels
-        self._collect_wheel_probabilities_recursively(self, probabilities_list, mutate=mutate)
+        # 1) Wheels spawned by this rationale
+        for wheel in self.wheels:
+            p = wheel.calculate_probability(mutate=mutate)
+            if p is not None and p > 0.0:
+                parts.append(p)
 
-        # Base case: no wheels available, use directly assigned probability
-        probability = self.probability
+        # 2) Critiques as rationales (include their full probability, not just their wheels)
+        for r in self.rationales:
+            p = r.calculate_probability(mutate=mutate)
+            if p is not None and p > 0.0:
+                parts.append(p)
 
-        if probabilities_list:
-            # Recursive case: derive from wheel probabilities
-            probability = geometric_mean(probabilities_list)
+        # Child-first: if children exist, use them; else fallback to manual
+        probability = geometric_mean(parts) if parts else self.probability
 
         if mutate:
             self.probability = probability
         return probability
 
-    def _collect_wheel_probabilities_recursively(self, r: Rationale, probabilities_list: list, mutate: bool = True):
-        """
-        Recursively collect probabilities from all wheels in rationale and its critiques.
-        """
-
-        # Collect from this rationale's wheels
-        for wheel in r.wheels:
-            wheel_prob = wheel.calculate_probability(mutate=mutate)
-            if wheel_prob is not None and wheel_prob > 0.0:
-                probabilities_list.append(wheel_prob)
-
-        # Recursively collect from critiques
-        for critique in r.rationales:
-            self._collect_wheel_probabilities_recursively(critique, probabilities_list, mutate=mutate)

@@ -102,48 +102,41 @@ class Wheel(Assessable):
 
         return parts
 
+    from statistics import geometric_mean
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """
-        Calculates the wheel's overall probability as the geometric mean of its constituent cycle probabilities.
-        This represents the 'dialectical coherence' of the entire wheel.
-
-        IMPORTANT: we don't use opinion probabilities here, because only the structural relationship matters.
+        Wheel Pr = GM over a fixed canonical set of cycle probabilities (e.g., T, TA, Spiral).
+        - Include 0.0 (impossibility should zero the wheel).
+        - Skip None (unknown).
+        - If all canonical cycles are None -> return None.
+        No cycle-level opinions here.
         """
-        probabilities_of_internal_cycles = []
-
-        # Collect probabilities from core cycles and spiral
-        # Only include if probability is not None and greater than 0
+        # 1) Evaluate canonical cycles
+        cycle_probs = []
         t_cycle_prob = self._t_cycle.calculate_probability(mutate=mutate)
-        if t_cycle_prob is not None and t_cycle_prob > 0.0:
-            probabilities_of_internal_cycles.append(t_cycle_prob)
-
         ta_cycle_prob = self._ta_cycle.calculate_probability(mutate=mutate)
-        if ta_cycle_prob is not None and ta_cycle_prob > 0.0:
-            probabilities_of_internal_cycles.append(ta_cycle_prob)
-
         spiral_prob = self._spiral.calculate_probability(mutate=mutate)
-        if spiral_prob is not None and spiral_prob > 0.0:
-            probabilities_of_internal_cycles.append(spiral_prob)
 
-        # Consider adding probabilities from WisdomUnit transformation cycles if they are assessed and relevant
+        for p in (t_cycle_prob, ta_cycle_prob, spiral_prob):
+            if p is not None:  # keep 0.0 and positives
+                cycle_probs.append(p)
+
+        # 2) (Optional) include unit transformations as a single summarized term
+        unit_trans_probs = []
         for wu in self._wisdom_units:
-            wu_prob = wu.calculate_probability(mutate=mutate)
-            if wu_prob is not None and wu_prob > 0.0:
-                probabilities_of_internal_cycles.append(wu_prob)
+            p = wu.calculate_probability(mutate=mutate)  # the unit's internal 2-edge cycle
+            if p is not None:
+                unit_trans_probs.append(p)
+        if unit_trans_probs:
+            cycle_probs.append(geometric_mean(unit_trans_probs))  # one term, not one per unit
 
-        if not probabilities_of_internal_cycles:
-            # If no cycles have valid probabilities, the wheel's probability is undefined.
-            # Return None, indicating it cannot be assessed by this method.
-            probability = None
-        else:
-            # Calculate the geometric mean of the valid cycle probabilities
-            probability = geometric_mean(probabilities_of_internal_cycles)
+        # 3) Aggregate
+        probability = geometric_mean(cycle_probs) if cycle_probs else None
 
         if mutate:
             self.probability = probability
-
-        return self.probability
+        return probability
 
     @property
     def wisdom_units(self) -> list[WisdomUnit]:

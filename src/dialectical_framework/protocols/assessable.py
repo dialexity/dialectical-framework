@@ -112,7 +112,7 @@ class Assessable(BaseModel, ABC):
 
     @final
     def _calculate_contextual_fidelity_for_rationales(self, *, mutate: bool = True) -> list[float]:
-        all_fidelities: list[float] = []
+        fids: list[float] = []
         if self.rationales:
             for rationale in self.rationales:
                 rationale_fidelity = rationale.calculate_contextual_fidelity(mutate=mutate)
@@ -120,5 +120,8 @@ class Assessable(BaseModel, ABC):
                     rationale_fidelity = rationale_fidelity * rationale.get_rating()
                     # avoid veto
                     if rationale_fidelity > 0.0:
-                        all_fidelities.append(rationale_fidelity)
-        return all_fidelities
+                        fids.append(rationale_fidelity)
+        return fids
+
+    def _calculate_probability_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
+        return []

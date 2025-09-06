@@ -41,35 +41,30 @@ class AssessableCycle(Assessable, ABC):
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         """
-        Calculates the overall probability as the multiplication of all transition probabilities.
-        Transitions with None or 0.0 probability are skipped (treated as irrelevant).
-        If no transitions have positive probabilities, returns None.
-
-        IMPORTANT: we don't use opinion probabilities here, because only the structural relationship matters.
+        Pr(Cycle) = product of ALL transition probabilities, in order.
+        - If any transition Pr is 0.0 -> 0.0 (hard veto)
+        - If any transition Pr is None -> None (unknown)
+        - Else product of all
+        No cycle-level opinions here.
         """
-        transitions: list[Transition] = self.graph.first_path()
+        transitions: list[Transition] = self.graph.first_path()  # ensure this is the ordered full cycle
         if not transitions:
-            cycle_multiplied_probability = None
+            prob = None
         else:
-            cycle_multiplied_probability = 1.0
-            has_any_valid_probability = False
-            
-            for transition in transitions:
-                tr_prob = transition.calculate_probability(mutate=mutate)
-                if tr_prob is not None and tr_prob > 0.0:
-                    cycle_multiplied_probability *= tr_prob
-                    has_any_valid_probability = True
-                # Skip transitions with None or 0.0 probability (they're irrelevant)
-            
-            # If no transitions had valid probabilities, the overall probability is undefined
-            if not has_any_valid_probability:
-                cycle_multiplied_probability = None
+            prob = 1.0
+            for tr in transitions:
+                p = tr.calculate_probability(mutate=mutate)
+                if p is None:
+                    prob = None
+                    break
+                if p == 0.0:
+                    prob = 0.0
+                    break
+                prob *= p
 
         if mutate:
-            self.probability = cycle_multiplied_probability
-
-        return cycle_multiplied_probability
-
+            self.probability = prob
+        return prob
 
     def decompose_probability(self, overwrite_existing_probabilities: bool = False) -> None:
         """

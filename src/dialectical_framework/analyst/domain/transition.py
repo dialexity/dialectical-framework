@@ -35,6 +35,12 @@ class Transition(Ratable):
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
 
+    manual_probability: float | None = Field(
+        default=None,
+        ge=0.0, le=1.0,
+        description="The normalized probability (Pr(S)) of the cycle to exist in reality.",
+    )
+
     def get_key(self) -> Tuple[frozenset[str], frozenset[str]]:
         """Get the key used to uniquely identify this transition based on source and target aliases."""
         return (
@@ -51,25 +57,29 @@ class Transition(Ratable):
             return None
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
-        """
-        Calculate transition probability from all rationales and their critique trees.
-        """
-        # Base case: no rationales, use directly assigned probability
-        probability = self.probability
-        if self.rationales:
-            # Collect probabilities from all rationales
-            all_probabilities = []
+        parts: list[float] = []
 
-            for rationale in self.rationales:
-                rationale_prob = rationale.calculate_probability(mutate=mutate)
-                if rationale_prob is not None and rationale_prob > 0.0:
-                    rationale_prob = rationale_prob * rationale.confidence
-                    if rationale_prob > 0.0:
-                        all_probabilities.append(rationale_prob)
+        # Own manual probability (optional) × own confidence
+        p_self = self.manual_probability
+        if p_self is not None:
+            c_self = self.confidence
+            w_self = 0.5 if c_self is None else c_self
+            if w_self > 0.0:
+                # include 0.0 if p_self==0 and w_self>0 (explicit veto is allowed at the leaf)
+                parts.append(p_self * w_self)
 
-            if all_probabilities:
-                # Calculate geometric mean of all rationale probabilities
-                probability = geometric_mean(all_probabilities)
+        # Rationale probabilities × rationale confidence
+        for rationale in (self.rationales or []):
+            p = rationale.calculate_probability(mutate=mutate)
+            if p is None:
+                continue
+            c = self.confidence
+            w = 0.5 if c is None else c
+            v = p * w
+            if v > 0.0:  # skip non-positive after weighting
+                parts.append(v)
+
+        probability = geometric_mean(parts) if parts else None
 
         if mutate:
             self.probability = probability
