@@ -40,6 +40,16 @@ class WheelSegment(Assessable):
         alias=ALIAS_T_PLUS,
     )
 
+    def _get_sub_assessables(self) -> list[Assessable]:
+        result = super()._get_sub_assessables()
+        if self.t:
+            result.append(self.t)
+        if self.t_minus:
+            result.append(self.t_minus)
+        if self.t_plus:
+            result.append(self.t_plus)
+        return result
+
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
         Calculates the context fidelity score for this wheel segment as the geometric mean

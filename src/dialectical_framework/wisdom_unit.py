@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import Field
 
+from dialectical_framework import Assessable
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
@@ -55,6 +56,20 @@ class WisdomUnit(WheelSegment):
     transformation: Transformation | None = Field(
         default=None, description="The transformative cycle."
     )
+
+    def _get_sub_assessables(self) -> list[Assessable]:
+        result = super()._get_sub_assessables()
+        if self.a:
+            result.append(self.a)
+        if self.a_minus:
+            result.append(self.a_minus)
+        if self.a_plus:
+            result.append(self.a_plus)
+        if self.synthesis:
+            result.extend(self.synthesis)
+        if self.transformation:
+            result.append(self.transformation)
+        return result
 
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """

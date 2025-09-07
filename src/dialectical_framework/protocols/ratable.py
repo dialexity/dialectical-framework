@@ -21,8 +21,11 @@ class Ratable(Assessable, ABC):
         description="Importance/quality rating."
     )
 
-    def get_rating(self) -> float:
+    def rating_or_default(self) -> float:
         return self.rating if self.rating is not None else 0.5
+
+    def confidence_or_default(self) -> float:
+        return self.confidence if self.confidence is not None else 0.5
 
     @final
     def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
@@ -38,7 +41,7 @@ class Ratable(Assessable, ABC):
                 [v for v in self._calculate_contextual_fidelity_for_sub_elements_excl_rationales(mutate=mutate) if
                  v is not None and v > 0.0])
 
-        own_rating = self.get_rating()
+        own_rating = self.rating_or_default()
         own_cf = self.contextual_fidelity
 
         if own_cf is not None and own_rating > 0.0:

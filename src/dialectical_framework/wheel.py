@@ -42,6 +42,14 @@ class Wheel(Assessable):
         """The degree of the wheel (total number of segments = 2 × order)"""
         return self.order * 2
 
+    def _get_sub_assessables(self) -> list[Assessable]:
+        result = super()._get_sub_assessables()
+        result.extend(self._wisdom_units)
+        result.extend(self._t_cycle)
+        result.extend(self._ta_cycle)
+        result.extend(self._spiral)
+        return result
+
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
         Calculates the WheelFidelity as the geometric mean of:

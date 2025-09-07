@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import Field
 
+from dialectical_framework import Assessable
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.ratable import Ratable
 from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
@@ -14,8 +15,13 @@ class Rationale(Ratable):
     headline: Optional[str] = Field(default=None)
     summary: Optional[str] = Field(default=None)
     text: Optional[str] = Field(default=None)
-    theses: list[DialecticalComponent] = Field(default_factory=list, description="Theses of the rationale text.")
+    theses: list[str] = Field(default_factory=list, description="Theses of the rationale text.")
     wheels: list[Wheel] = Field(default_factory=list, description="Wheels that are digging deeper into the rationale.")
+
+    def _get_sub_assessables(self) -> list[Assessable]:
+        result = super()._get_sub_assessables()
+        result.extend(self.wheels)
+        return result
 
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """

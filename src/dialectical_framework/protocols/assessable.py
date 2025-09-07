@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,8 +9,6 @@ from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING: # Conditionally import Rationale for type checking only
     from dialectical_framework.analyst.domain.rationale import Rationale
-
-
 
 class Assessable(BaseModel, ABC):
     model_config = ConfigDict(
@@ -68,6 +66,11 @@ class Assessable(BaseModel, ABC):
                 = 1.0: Respect expert ratings fully (default)
                 > 1.0: Amplify expert context assessments
         """
+        # First, recursively calculate scores for all sub-assessables
+        sub_assessables = self._get_sub_assessables()
+        for sub_assessable in sub_assessables:
+            sub_assessable.calculate_score(alpha=alpha, mutate=mutate)
+        
         # Ensure that the overall probability has been calculated
         probability = self.calculate_probability(mutate=mutate)
         if probability is None:
@@ -108,6 +111,13 @@ class Assessable(BaseModel, ABC):
     Normally this method shouldn't be called, as it's called by the `calculate_score` method.
     """
 
+    def _get_sub_assessables(self) -> list[Assessable]:
+        """
+        Returns all direct sub-assessable elements contained within this assessable.
+        Used for recursive score calculation.
+        """
+        return self.rationales
+
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         return []
 
@@ -118,7 +128,7 @@ class Assessable(BaseModel, ABC):
             for rationale in self.rationales:
                 rationale_fidelity = rationale.calculate_contextual_fidelity(mutate=mutate)
                 if rationale_fidelity is not None and rationale_fidelity > 0.0:
-                    rationale_fidelity = rationale_fidelity * rationale.get_rating()
+                    rationale_fidelity = rationale_fidelity * rationale.rating_or_default()
                     # avoid veto
                     if rationale_fidelity > 0.0:
                         fids.append(rationale_fidelity)

@@ -19,6 +19,11 @@ class AssessableCycle(Assessable, ABC):
         description="Directed graph representing the cycle of dialectical components.",
     )
 
+    def _get_sub_assessables(self) -> list[Assessable]:
+        result = super()._get_sub_assessables()
+        result.extend(self.graph.get_all_transitions())
+        return result
+
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         """
         Calculates the cycle fidelity (CF_S) as the geometric mean of:

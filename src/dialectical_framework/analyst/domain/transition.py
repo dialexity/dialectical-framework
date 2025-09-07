@@ -4,6 +4,7 @@ from typing import Tuple, Union
 
 from pydantic import ConfigDict, Field, field_validator
 
+from dialectical_framework import Assessable
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.protocols.ratable import Ratable
@@ -41,6 +42,12 @@ class Transition(Ratable):
         description="The normalized probability (Pr(S)) of the cycle to exist in reality.",
     )
 
+    def _get_sub_assessables(self) -> list[Assessable]:
+        """
+        Don't add source/target here, as these are part of the wheel, and we'll end up infinitely recursing.
+        """
+        return super()._get_sub_assessables()
+
     def get_key(self) -> Tuple[frozenset[str], frozenset[str]]:
         """Get the key used to uniquely identify this transition based on source and target aliases."""
         return (
@@ -62,8 +69,7 @@ class Transition(Ratable):
         # Own manual probability (optional) × own confidence
         p_self = self.manual_probability
         if p_self is not None:
-            c_self = self.confidence
-            w_self = 0.5 if c_self is None else c_self
+            w_self = self.confidence_or_default()
             if w_self > 0.0:
                 # include 0.0 if p_self==0 and w_self>0 (explicit veto is allowed at the leaf)
                 parts.append(p_self * w_self)
@@ -73,8 +79,7 @@ class Transition(Ratable):
             p = rationale.calculate_probability(mutate=mutate)
             if p is None:
                 continue
-            c = self.confidence
-            w = 0.5 if c is None else c
+            w = self.confidence_or_default()
             v = p * w
             if v > 0.0:  # skip non-positive after weighting
                 parts.append(v)
