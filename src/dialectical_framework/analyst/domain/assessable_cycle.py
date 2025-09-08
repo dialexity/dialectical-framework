@@ -5,8 +5,7 @@ from pydantic import ConfigDict, Field
 from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.protocols.assessable import Assessable
-from dialectical_framework.utils.decompose_probability import \
-    decompose_probability_into_transitions
+from dialectical_framework.utils.decompose_probability_uniformly import decompose_probability_uniformly
 
 
 class AssessableCycle(Assessable, ABC):
@@ -69,19 +68,61 @@ class AssessableCycle(Assessable, ABC):
             self.probability = prob
         return prob
 
-    def decompose_probability(self, overwrite_existing_probabilities: bool = False) -> None:
-        """
-        Decomposes overall probability into individual transition probabilities.
-        This should be called after `spiral.probability` is set.
-        """
-        if self.probability is None:
-            # Cannot decompose if overall probability is not set
-            return
+def decompose_probability_into_transitions(
+        probability: float,
+        transitions: list[Transition],
+        overwrite_existing_transition_probabilities: bool = False
+) -> None:
+    """
+    **Case 1: No existing probabilities**
+    - Uses uniform decomposition: `cycle_prob^(1/n)` for all transitions
 
-        transitions = self.graph.first_path()
-        if not transitions:  # If there are no transitions, nothing to decompose
-            return
+    **Case 2: All transitions have probabilities**
+    - Does nothing - respects existing assignments
 
-        decompose_probability_into_transitions(
-            self.probability, transitions, overwrite_existing_probabilities
+    **Case 3: Mixed (some have, some don't)**
+    - Calculates "remaining probability" after accounting for assigned ones
+    - Distributes remaining probability uniformly among unassigned transitions
+
+    """
+    if not transitions:
+        return
+
+    if overwrite_existing_transition_probabilities:
+        for t in transitions:
+            t.probability = None
+
+    # Check which transitions already have probabilities
+    transitions_with_probs = [t for t in transitions if t.probability is not None and t.probability != 0]
+    transitions_without_probs = [t for t in transitions if t.probability is None or t.probability == 0]
+
+    if not transitions_without_probs:
+        # All transitions already have probabilities - don't override
+        return
+
+    if not transitions_with_probs:
+        # No transitions have probabilities - use uniform decomposition
+        individual_prob = decompose_probability_uniformly(
+            probability,
+            len(transitions)
         )
+        for transition in transitions:
+            transition.manual_probability = individual_prob
+    else:
+        # Mixed case: some have probabilities, some don't
+        # Calculate what's "left over" for the unassigned transitions
+        assigned_prob_product = 1.0
+        for transition in transitions_with_probs:
+            assigned_prob_product *= transition.probability
+
+        # Remaining probability to distribute
+        remaining_prob = probability / assigned_prob_product if assigned_prob_product > 0 else probability
+
+        # Distribute remaining probability uniformly among unassigned transitions
+        if transitions_without_probs and remaining_prob > 0:
+            individual_prob = decompose_probability_uniformly(
+                remaining_prob,
+                len(transitions_without_probs)
+            )
+            for transition in transitions_without_probs:
+                transition.probability = individual_prob

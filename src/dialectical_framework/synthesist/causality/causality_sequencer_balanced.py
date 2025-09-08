@@ -9,6 +9,7 @@ from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
 from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
 from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
     CausalCyclesDeckDto
+from dialectical_framework.analyst.domain.assessable_cycle import decompose_probability_into_transitions
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
@@ -312,9 +313,9 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     dialectical_components=dialectical_components_deck.rearrange_by_aliases(
                         causal_cycle.aliases
                     ),
-                    # TODO: set CF instead / together? We don't set probability on non-Ratable!
-                    probability=causal_cycle.probability, # Unnormalized
+                    probability=causal_cycle.probability, # Unnormalized, will be modified later
                     causality_type=self.settings.causality_type,
+                    # TODO: add the rationale. Also set CF and P to it correctly
                     reasoning_explanation=causal_cycle.reasoning_explanation,
                     argumentation=causal_cycle.argumentation,
                 )
@@ -348,15 +349,22 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
             # Assign back
             for c, p in zip(cycles, probs):
+                # Now here's the trick, the normalized probability is assigned to the cycle
+                # because the initial "probability" is actually "feasibility"
+                c.contextual_fidelity =  c.probability
                 c.probability = float(p)
 
         for c in cycles:
-            if  c.probability is not None:
-                # For sequence cycles we have a probability estimate of the cycle
-                # and want to assign decomposed probabilities to transitions
-                c.decompose_probability(overwrite_existing_probabilities=True)
-                # If there are confidence coefficients or so, let's recalculate all the probabilities right away
-                c.calculate_probability(mutate=True)
+            for t in c.graph.get_all_transitions():
+                # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
+                t.contextual_fidelity = c.unnormalized_probability
+
+            if  c.contextual_fidelity is not None:
+                # Decompose probabilities to transitions
+                decompose_probability_into_transitions(
+                    probability=c.contextual_fidelity,
+                    transitions=c.graph.get_all_transitions(),
+                    overwrite_existing_transition_probabilities=True)
             else:
                 # If the cycle probability is None, then at some point it will be derived from its transitions. Standard case.
                 pass

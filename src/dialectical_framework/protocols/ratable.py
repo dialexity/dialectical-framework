@@ -22,9 +22,16 @@ class Ratable(Assessable, ABC):
     )
 
     def rating_or_default(self) -> float:
-        return self.rating if self.rating is not None else 0.5
+        """
+        The default rating is 1.0 when None.
+        It's a convenient thing, this way we can estimate higher level CFs and propagate them up and down.
+        """
+        return self.rating if self.rating is not None else 1.0
 
     def confidence_or_default(self) -> float:
+        """
+        The default confidence is 0.5 when None. This is a rather technical thing, we are never 100% sure, so 0.5 is ok.
+        """
         return self.confidence if self.confidence is not None else 0.5
 
     @final
