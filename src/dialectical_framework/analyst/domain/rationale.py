@@ -5,12 +5,11 @@ from typing import Optional
 from pydantic import Field
 
 from dialectical_framework import Assessable
-from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.ratable import Ratable
 from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 from dialectical_framework.wheel import Wheel
 
-
+# TODO: If a leaf has a rationale, it should be the Ratable that is taken into account. How to achieve this? Will deleting the P and CF on the leaf be enough, or passing the same value to rationale?
 class Rationale(Ratable):
     headline: Optional[str] = Field(default=None)
     summary: Optional[str] = Field(default=None)

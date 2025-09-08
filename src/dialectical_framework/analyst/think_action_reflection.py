@@ -1,16 +1,18 @@
+import asyncio
+from typing import List
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework import TransitionSegmentToSegment, Transformation, Rationale
 from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto
-from dialectical_framework.analyst.domain.symmetrical_transition import (
-    ALIAS_AC, ALIAS_AC_MINUS, ALIAS_AC_PLUS, ALIAS_RE, ALIAS_RE_MINUS,
-    ALIAS_RE_PLUS, SymmetricalTransition)
+from dialectical_framework.ai_dto.reciprocal_solution_dto import ReciprocalSolutionDto
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.directed_graph import DirectedGraph
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.enums.predicate import Predicate
@@ -21,6 +23,13 @@ from dialectical_framework.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
 from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
                                                ALIAS_A_PLUS, WisdomUnit)
 
+
+ALIAS_AC = "Ac"
+ALIAS_AC_PLUS = "Ac+"
+ALIAS_AC_MINUS = "Ac-"
+ALIAS_RE = "Re"
+ALIAS_RE_PLUS = "Re+"
+ALIAS_RE_MINUS = "Re-"
 
 class ThinkActionReflection(StrategicConsultant, SettingsAware):
     @prompt_template(
@@ -50,7 +59,64 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         </formatting>
         """
     )
-    def prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
+    def ac_re_prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
+        # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
+        return {
+            "computed_fields": {
+                "text": text,
+                "dialectical_analysis": focus.pretty(),
+                "component_length": self.settings.component_length,
+            }
+        }
+
+    @prompt_template(
+        """
+        USER:
+        <context>{text}</context>
+
+        USER:
+        Previous Dialectical Analysis:
+        {dialectical_analysis}
+
+        USER:
+        <instructions>
+        Given the initial context and the previous dialectical analysis, suggest solution(s).
+
+        Step 1: Frame the problem as a tension between two opposing approaches, where:
+        - Thesis (T): The first approach or position
+        - Antithesis (A): The contrasting approach or position
+
+        The solution that is suggested or implied in the text must represent the Linear Action (Ac) that transforms the negative aspect of the thesis (T-) into the positive aspect of the antithesis (A+)
+
+        Step 2: Create a Dialectical Reflection (Re):
+        - A complementary solution that is NOT present in the analyzed text
+        - This solution should transform the negative aspect of the antithesis (A-) into the positive aspect of the thesis (T+)
+        - It should work harmoniously with the Linear Action to create a more complete solution
+
+        <example>
+            For example:
+            In a token vesting dispute, stakeholders disagreed about extending the lock period from January 2025 to January 2026. The original solution was a staged distribution with incentives.
+
+            Thesis T: Vest Now
+            T+ = Trust Building
+            T- = Loss of Value
+
+            Antithesis A: Vest Later
+            A+ = Value Protection (contradicts T-)
+            A- = Trust Erosion (contradicts T+)
+
+            Linear Action: Staged distribution with added incentives, offering 25% immediate unlock with enhanced benefits for the delayed 75% portion.
+
+            Dialectical Reflection: Liquid staking derivatives for immediate utility (25%) combined with guaranteed exit rights (75%) - complements the linear action.
+        </example>
+        </instructions>
+
+        <formatting>
+        Output Linear Action and Dialectical Reflection as a fluent text that could be useful for someone who provided the initial context. Compose the problem statement in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
+        </formatting>
+        """
+    )
+    def reciprocal_solution_prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
         return {
             "computed_fields": {
@@ -61,32 +127,73 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         }
 
     @with_langfuse()
+    @use_brain(
+        response_model=ReciprocalSolutionDto,
+    )
+    async def reciprocal_solution(self, focus: WisdomUnit):
+        return self.reciprocal_solution_prompt(self._text, focus=focus)
+
+    @with_langfuse()
     @use_brain(response_model=DialecticalComponentsDeckDto)
     async def action_reflection(self, focus: WisdomUnit):
-        return self.prompt(self._text, focus=focus)
+        return self.ac_re_prompt(self._text, focus=focus)
 
-    async def think(self, focus: WheelSegment) -> SymmetricalTransition:
+    async def think(self, focus: WheelSegment) -> List[TransitionSegmentToSegment]:
         wu = self._wheel.wisdom_unit_at(focus)
 
+        async_reasoning_threads = [
+            self.action_reflection(focus=wu),
+            self.reciprocal_solution(focus=wu)
+        ]
+
+        dc_deck_dto: DialecticalComponentsDeckDto
+        reciprocal_sol_dto: ReciprocalSolutionDto
+        dc_deck_dto, reciprocal_sol_dto  = await asyncio.gather(*async_reasoning_threads)
+
         ac_re_wu = WisdomUnit(reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION)
-        dc_deck_dto: DialecticalComponentsDeckDto = await self.action_reflection(focus=wu)
         dialectical_components: list[DialecticalComponent] = map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent)
         for dc in dialectical_components:
             alias = self._translate_to_canonical_alias(dc.alias)
             setattr(ac_re_wu, alias, dc)
 
-        self._transition = SymmetricalTransition(
-            action_reflection=ac_re_wu,
-            source_aliases=[wu.t.alias],
-            target_aliases=[wu.a.alias],
-            opposite_source_aliases=[wu.a.alias],
-            opposite_target_aliases=[wu.t.alias],
-            source=wu.extract_segment_t(),
-            target=wu.extract_segment_a(),
-            predicate=Predicate.TRANSFORMS_TO,
+        graph = DirectedGraph[TransitionSegmentToSegment]()
+        graph.add_transition(
+            TransitionSegmentToSegment(
+                predicate=Predicate.TRANSFORMS_TO,
+                source_aliases=[wu.t_minus.alias, wu.t.alias],
+                target_aliases=[wu.a_plus.alias],
+                source=wu.extract_segment_t(),
+                target=wu.extract_segment_a(),
+                rationales=[
+                    Rationale(text=reciprocal_sol_dto.linear_action)
+                ],
+            )
+        )
+        graph.add_transition(
+            TransitionSegmentToSegment(
+                predicate=Predicate.TRANSFORMS_TO,
+                source_aliases=[wu.taminus.alias, wu.a.alias],
+                target_aliases=[wu.t_plus.alias],
+                source=wu.extract_segment_a(),
+                target=wu.extract_segment_t(),
+                rationales=[
+                    Rationale(text=reciprocal_sol_dto.dialectical_reflection)
+                ],
+            )
         )
 
-        return self._transition
+        # TODO: maybe we should rather merge if there was a transformation already (e.g. as a separate rationale?)
+        wu.transformation = Transformation(
+            ac_re=ac_re_wu,
+            graph=graph
+        )
+
+        wu.transformation.rationales = [
+            Rationale(text=reciprocal_sol_dto.problem)
+        ]
+
+        # We return empty, because we're not merging anything, and we're sure there will be nothing to do with the result
+        return []
 
     @staticmethod
     def _translate_to_canonical_alias(alias: str) -> str:

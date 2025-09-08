@@ -60,4 +60,5 @@ coverage.xml
 logs/
 
 # Dialexity custom
+.claude/
 tests/play.py

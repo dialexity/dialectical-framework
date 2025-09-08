@@ -1,6 +1,3 @@
-
-from dialectical_framework.analyst.domain.symmetrical_transition import \
-    SymmetricalTransition
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
 from dialectical_framework.analyst.think_action_reflection import \
@@ -14,12 +11,12 @@ from dialectical_framework.wheel_segment import WheelSegment
 class DecoratorActionReflection(WheelBuilderTransitionCalculator):
     async def _do_calculate_transitions(
         self, wheel: Wheel, at: WheelSegment
-    ) -> list[SymmetricalTransition]:
+    ) -> list[TransitionSegmentToSegment]:
         consultant = ThinkActionReflection(
             text=self.text, wheel=wheel, brain=self.reasoner.brain
         )
 
-        return [await consultant.think(focus=at)]
+        return await consultant.think(focus=at)
 
     async def _do_calculate_transitions_all(
         self, wheel: Wheel

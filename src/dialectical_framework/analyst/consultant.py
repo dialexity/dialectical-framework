@@ -18,7 +18,6 @@ class Consultant(ABC, HasBrain):
         self._text = text
         self._wheel = wheel
         self._brain = brain
-        self._transition = None
 
     @property
     def brain(self) -> Brain:

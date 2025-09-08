@@ -2,8 +2,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, Union
 
 from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.analyst.domain.symmetrical_transition import \
-    SymmetricalTransition
 from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.settings import Settings
@@ -110,63 +108,48 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
 
     @staticmethod
     def _take_transition(wheel: Wheel, transition: Transition) -> None:
-        if isinstance(transition, SymmetricalTransition):
+        """
+        The decorator might be enriching the existing transition, so we need to merge, not just add
+        """
+        new_transition = transition
+
+        if transition.predicate == Predicate.TRANSFORMS_TO:
+            # this is only valid for wisdom units!
             wu = wheel.wisdom_unit_at(transition.source)
-            st: SymmetricalTransition = transition
-
-            # Break the symmetrical transition into 2 transitions to be able to set it uniformly
-
-            old_t_to_a = wheel.spiral.graph.get_transition(
-                st.source_aliases, st.target_aliases
+            old_transition = wu.transformation.graph.get_transition(
+                transition.source_aliases, transition.target_aliases
             )
-            t_to_a = st
-            new_t_to_a = t_to_a
-            if old_t_to_a is not None:
-                new_t_to_a = old_t_to_a.new_with(t_to_a)
-            wheel.spiral.graph.add_transition(new_t_to_a)
-
-            old_a_to_t = wheel.spiral.graph.get_transition(wu.a, wu.t)
-            a_to_t = st.model_copy()
-            a_to_t.source_aliases = st.opposite_source_aliases
-            a_to_t.opposite_source_aliases = st.source_aliases
-            a_to_t.source = wu.extract_segment_a()
-            a_to_t.target_aliases = st.opposite_target_aliases
-            a_to_t.opposite_target_aliases = st.target_aliases
-            a_to_t.target = wu.extract_segment_t()
-            new_a_to_t = a_to_t
-            if old_a_to_t is not None:
-                new_a_to_t = old_a_to_t.new_with(a_to_t)
-            wheel.spiral.graph.add_transition(new_a_to_t)
-        else:
-            # The decorator might be enriching the existing transition, so we need to merge, not just add
-            new_transition = transition
-            if transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
-                old_transition = wheel.spiral.graph.get_transition(
-                    transition.source_aliases, transition.target_aliases
-                )
+            if old_transition is not None:
+                new_transition = old_transition.new_with(transition)
+            wu.transformation.graph.add_transition(new_transition)
+        elif transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
+            old_transition = wheel.spiral.graph.get_transition(
+                transition.source_aliases, transition.target_aliases
+            )
+            if old_transition is not None:
+                new_transition = old_transition.new_with(transition)
+            wheel.spiral.graph.add_transition(new_transition)
+        elif transition.predicate == Predicate.CAUSES:
+            # Cycle graphs must be present in the wheel upfront, so we only enrich the transitions
+            # TODO: I'm not 100% confident, that given a transition we should update it in both cycles. They might have different rationales... in each cycle.
+            graph = None
+            old_transition = wheel.t_cycle.graph.get_transition(
+                transition.source_aliases, transition.target_aliases
+            )
+            if old_transition is not None:
+                graph = wheel.t_cycle.graph
+            if graph:
                 if old_transition is not None:
                     new_transition = old_transition.new_with(transition)
-                wheel.spiral.graph.add_transition(new_transition)
-            elif transition.predicate == Predicate.CAUSES:
-                # Cycle graphs must be present in the wheel upfront, so we only enrich the transitions
+                graph.add_transition(new_transition)
                 graph = None
-                old_transition = wheel.t_cycle.graph.get_transition(
-                    transition.source_aliases, transition.target_aliases
-                )
-                if old_transition is not None:
-                    graph = wheel.t_cycle.graph
-                if graph:
-                    if old_transition is not None:
-                        new_transition = old_transition.new_with(transition)
-                    graph.add_transition(new_transition)
-                    graph = None
 
-                old_transition = wheel.cycle.graph.get_transition(
-                    transition.source_aliases, transition.target_aliases
-                )
+            old_transition = wheel.cycle.graph.get_transition(
+                transition.source_aliases, transition.target_aliases
+            )
+            if old_transition is not None:
+                graph = wheel.cycle.graph
+            if graph:
                 if old_transition is not None:
-                    graph = wheel.cycle.graph
-                if graph:
-                    if old_transition is not None:
-                        new_transition = old_transition.new_with(transition)
-                    graph.add_transition(new_transition)
+                    new_transition = old_transition.new_with(transition)
+                graph.add_transition(new_transition)

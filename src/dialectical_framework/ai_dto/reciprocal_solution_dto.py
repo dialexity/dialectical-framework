@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ReciprocalSolution(BaseModel):
+class ReciprocalSolutionDto(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )

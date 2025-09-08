@@ -75,7 +75,7 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         next_index = (current_index + 1) % self._wheel.degree
         next_ws = self._wheel.wheel_segment_at(next_index)
 
-        self._transition = TransitionSegmentToSegment(
+        return TransitionSegmentToSegment(
             predicate=Predicate.CONSTRUCTIVELY_CONVERGES_TO,
             source_aliases=[focus.t_minus.alias, focus.t.alias],
             target_aliases=[next_ws.t_plus.alias],
@@ -85,5 +85,3 @@ class ThinkConstructiveConvergence(StrategicConsultant):
                 text=await self.constructive_convergence(focus=focus, next_ws=next_ws)
             )],
         )
-
-        return self._transition

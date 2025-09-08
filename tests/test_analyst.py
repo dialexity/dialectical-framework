@@ -3,7 +3,6 @@ from langfuse.decorators import observe
 
 from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
-from dialectical_framework.analyst.decorator_reciprocal_solution import DecoratorReciprocalSolution
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.wisdom_unit import WisdomUnit
@@ -48,7 +47,7 @@ example_wu4 = WisdomUnit(
 @observe()
 async def test_full_blown_wheel():
     factory = DialecticalReasoning.wheel_builder(text=user_message)
-    factory1 = DecoratorDiscreteSpiral(DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory)))
+    factory1 = DecoratorDiscreteSpiral(DecoratorActionReflection(builder=factory))
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].order == 2
 
@@ -92,7 +91,7 @@ async def test_wheel_acre():
 @observe()
 async def test_wheel_acre_reciprocal():
     factory = DialecticalReasoning.wheel_builder(text=user_message)
-    factory3 = DecoratorReciprocalSolution(DecoratorActionReflection(builder=factory))
+    factory3 = DecoratorActionReflection(builder=factory)
     wheels = await factory3.build_wheel_permutations(theses=[None])
     assert wheels[0].order == 1
     assert wheels[0].cycle is not None
