@@ -15,6 +15,7 @@ from .analyst.domain.transition_segment_to_segment import \
 from .dialectical_component import DialecticalComponent
 from .protocols.assessable import Assessable
 from .protocols.ratable import Ratable
+from .synthesis import Synthesis
 from .wheel import Wheel
 from .wheel_segment import WheelSegment
 from .wisdom_unit import WisdomUnit
@@ -29,6 +30,7 @@ Assessable.model_rebuild()
 Ratable.model_rebuild()
 DialecticalComponent.model_rebuild()
 Rationale.model_rebuild()
+Synthesis.model_rebuild()
 Wheel.model_rebuild()
 WheelSegment.model_rebuild()
 Transition.model_rebuild()

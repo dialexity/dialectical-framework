@@ -1,4 +1,3 @@
-from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.wheel_segment import WheelSegment
 
 ALIAS_S_PLUS = "S+"

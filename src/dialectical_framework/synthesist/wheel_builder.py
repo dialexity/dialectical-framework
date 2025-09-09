@@ -195,16 +195,16 @@ class WheelBuilder(SettingsAware):
             ss_deck_dto = await self.reasoner.find_synthesis(wu)
             ss_deck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(ss_deck_dto.dialectical_components, DialecticalComponent))
             wu.synthesis = Synthesis(
-                t_plus=ss_deck.get_by_alias(ALIAS_S_PLUS),
-                t_minus=ss_deck.get_by_alias(ALIAS_S_MINUS),
+                t=ss_deck.get_by_alias(ALIAS_S_PLUS),
+                a=ss_deck.get_by_alias(ALIAS_S_MINUS),
             )
             idx = wu.t.get_human_friendly_index()
             if idx:
                 wu.synthesis.add_indexes_to_aliases(idx)
             ss = await self.reasoner.find_synthesis(wu)
             wu.synthesis = Synthesis(
-                t_plus=ss.get_by_alias(ALIAS_S_PLUS),
-                t_minus=ss.get_by_alias(ALIAS_S_MINUS),
+                t=ss.get_by_alias(ALIAS_S_PLUS),
+                a=ss.get_by_alias(ALIAS_S_MINUS),
             )
             idx = wu.t.get_human_friendly_index()
             if idx:
