@@ -125,12 +125,13 @@ class Assessable(BaseModel, ABC):
         fids: list[float] = []
         if self.rationales:
             for rationale in self.rationales:
-                rationale_fidelity = rationale.calculate_contextual_fidelity(mutate=mutate)
-                if rationale_fidelity is not None and rationale_fidelity > 0.0:
-                    rationale_fidelity = rationale_fidelity * rationale.rating_or_default()
-                    # avoid veto
-                    if rationale_fidelity > 0.0:
-                        fids.append(rationale_fidelity)
+                # IMPORTANT: use the evidence view to avoid 1.0 fallback inflation
+                evidence_cf = rationale.calculate_contextual_fidelity_evidence(mutate=mutate)
+
+                if evidence_cf is not None and evidence_cf > 0.0:
+                    weighted = evidence_cf * rationale.rating_or_default()
+                    if weighted > 0.0:  # skip non-positives after weighting
+                        fids.append(weighted)
         return fids
 
     def _calculate_probability_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:

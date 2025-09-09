@@ -72,3 +72,4 @@ Tests are located in `tests/` directory. The project uses pytest with asyncio su
 - **Model Rebuilding**: Due to circular dependencies, Pydantic models require explicit rebuilding in `__init__.py`
 - **AI Brain Abstraction**: The `Brain` class provides a unified interface for different LLM providers
 - **Contextual Fidelity**: The system tracks probability and confidence propagation through dialectical structures
+- Scoring architecture is described in scoring.md

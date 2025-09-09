@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import Field
 
@@ -51,7 +51,43 @@ class Rationale(Ratable):
 
         return parts
 
-    def calculate_evidence_probability(self, *, mutate: bool = True) -> float | None:
+    def calculate_contextual_fidelity_evidence(self, *, mutate: bool = True) -> float | None:
+        parts: List[float] = []
+
+        # Critiques (child rationales) — recurse using EVIDENCE path
+        if self.rationales:
+            for r in self.rationales:
+                cf = r.calculate_contextual_fidelity_evidence(mutate=mutate)
+                if cf is not None and cf > 0.0:
+                    parts.append(cf)
+
+        # Wheels spawned by this rationale (unrated here)
+        for w in self.wheels:
+            cf = w.calculate_contextual_fidelity(mutate=mutate)
+            if cf is not None and cf > 0.0:
+                parts.append(cf)
+
+        # Own intrinsic CF (manual only), unweighted here
+        own_cf = self.contextual_fidelity
+        if own_cf is not None:
+            if own_cf == 0.0 and self._hard_veto_on_own_zero():
+                return 0.0  # explicit veto only if you enabled it for rationales
+            if own_cf > 0.0:
+                parts.append(own_cf)
+
+        # If no real CF signal, return None so parent SKIPS this rationale
+        return gm_with_zeros_and_nones_handled(parts) if parts else None
+
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+        # ---- SELF-SCORING PATH (for the rationale itself). Allows neutral fallback = 1.0. ----
+        cf_e = self.calculate_contextual_fidelity_evidence(mutate=mutate)
+        fidelity = 1.0 if cf_e is None else cf_e
+
+        # IMPORTANT: do NOT write derived CF back into contextual_fidelity
+        # That field remains manual-only; writing here would be mistaken as evidence later.
+        return fidelity
+
+    def calculate_probability_evidence(self, *, mutate: bool = True) -> float | None:
         parts: list[float] = []
 
         # 1) Wheels spawned by this rationale
@@ -62,7 +98,7 @@ class Rationale(Ratable):
 
         # 2) Critiques as rationales (include their full probability, not just their wheels)
         for critique in self.rationales:
-            p = critique.calculate_evidence_probability(mutate=mutate)
+            p = critique.calculate_probability_evidence(mutate=mutate)
             if p is not None:
                 parts.append(p)
 
@@ -70,7 +106,7 @@ class Rationale(Ratable):
         return gm_with_zeros_and_nones_handled(parts) if parts else None
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
-        probability = self.calculate_evidence_probability(mutate=True)
+        probability = self.calculate_probability_evidence(mutate=True)
 
         if probability is None:
             return 1.0
@@ -78,35 +114,3 @@ class Rationale(Ratable):
         if mutate:
             self.probability = probability
         return probability
-
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
-        """
-        Return CF of this rationale from its own CF + children (wheels/critiques),
-        but DO NOT apply rationale.rating here. The parent will weight once.
-        """
-        parts: list[float] = []
-
-        # child rationales (critiques): they themselves must also NOT self-weight their rating
-        parts.extend(v for v in (self._calculate_contextual_fidelity_for_rationales(mutate=mutate) or [])
-                     if v is not None and v > 0.0)
-
-        # wheels spawned by this rationale (unrated here)
-        parts.extend(
-            v for v in (self._calculate_contextual_fidelity_for_sub_elements_excl_rationales(mutate=mutate) or [])
-            if v is not None and v > 0.0)
-
-        # include own intrinsic CF UNWEIGHTED (no rating here)
-        if self.contextual_fidelity is not None:
-            own_cf = self.contextual_fidelity
-            if own_cf == 0.0 and not self._hard_veto_on_own_zero():
-                # ignore zero (no veto) – acts like “no contribution”
-                pass
-            elif own_cf > 0.0:
-                parts.append(own_cf)
-
-        fidelity = gm_with_zeros_and_nones_handled(parts) if parts else 1.0
-
-        # optional cache: only if no manual CF was provided
-        if mutate and self.contextual_fidelity is None:
-            self.contextual_fidelity = fidelity
-        return fidelity

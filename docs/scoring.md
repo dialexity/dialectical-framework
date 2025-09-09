@@ -44,9 +44,10 @@ Level 1: DialecticalComponent (leaf)
          └─ Includes transition-level Rationale CFs
 
          Rationale (evidence, can attach to ANY assessable)
-         ├─ Own CF (unweighted by rationale.rating)
+         ├─ Own CF (unweighted by rationale.rating) 
          ├─ Child rationale CFs (critiques/counter-evidence)
-         └─ Spawned wheel CFs (deeper dialectical analysis)
+         ├─ Spawned wheel CFs (deeper dialectical analysis)
+         └─ Returns None if no real evidence (prevents empty rationale inflation)
 ```
 
 ### Structure Hierarchy (Probability flows upward)
@@ -73,7 +74,8 @@ Level 1: Transition (leaf for probability)
 
          Rationale (evidence, contributes to P when it has probability data)
          ├─ Own probability × confidence (if provided)
-         └─ Child/spawned wheel probabilities
+         ├─ Child/spawned wheel probabilities  
+         └─ Returns None if no probability evidence (prevents empty rationale inflation)
 ```
 
 ### Key Architectural Principles
@@ -201,12 +203,12 @@ External Transitions (wheel-level cycles):
 
 **Rationale** *(special leaf-that-can-grow, `Ratable`)*
 
-* **Combine**:
-
-  * its **own CF** (unweighted here), and
-  * CFs of its **children** (spawned wheels and critiques).
-* The **parent** later multiplies by `rationale.rating`.
-* If nothing contributes → CF = 1.0.
+* **Evidence view** (`calculate_contextual_fidelity_evidence`):
+  * Combines its **own CF** (unweighted) with **children** (spawned wheels and critiques)
+  * Returns **None** if no real evidence exists (prevents "empty rationale" inflation)
+* **Self-scoring view** (`calculate_contextual_fidelity`):
+  * Falls back to CF = 1.0 if evidence view returns None (for rationale's own scoring)
+* **Parent consumption**: Uses evidence view and applies `rationale.rating` weighting
 
 **WheelSegment** *(non-leaf)*
 
@@ -260,10 +262,11 @@ External Transitions (wheel-level cycles):
 **Transition** *(leaf for probability)*
 
 * Combine as evidence:
-
-  * **manual transition probability** (optional, can be weighted by the transition’s own `confidence`), and
-  * each **rationale probability × rationale.confidence**.
-* Aggregate with geometric mean over **positive** contributions; if nothing contributes → P = **unknown**.
+  * **manual transition probability** (optional, weighted by the transition's own `confidence`), and
+  * each **rationale evidence probability × rationale.confidence** (uses `calculate_probability_evidence`)
+* **Rationale evidence**: Only includes rationales with actual probability data (spawned wheels, manual P)
+* **No "free lunch"**: Empty rationales (text-only) contribute nothing to probability
+* Aggregate with geometric mean over **positive** contributions; if nothing contributes → P = **unknown**
 
 **Cycle** *(T, TA, Spiral, Transformation)*
 

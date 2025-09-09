@@ -77,7 +77,7 @@ class Transition(Ratable):
         # Rationale probabilities × rationale confidence
         for rationale in (self.rationales or []):
             # NOTE: We rely on the evidence, not on the fallback value, that's important
-            p = rationale.calculate_evidence_probability(mutate=mutate)
+            p = rationale.calculate_probability_evidence(mutate=mutate)
             if p is None:
                 continue
             w = rationale.confidence_or_default()

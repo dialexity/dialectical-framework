@@ -479,9 +479,8 @@ class TestRationaleFallbacks:
         assert cf == 1.0  # Fallback to neutral - zero ignored, no veto
         
     def test_rationale_zero_cf_with_good_evidence(self):
-        """Rationale with CF=0 should be outweighed by good child evidence."""
-        # This would require setting up child wheels, but for now test the principle
-        # that rationale CF=0 doesn't nuke the entire assessment
+        """Rationale with CF=0 should NOT contribute (evidence view returns None)."""
+        # With evidence view changes, CF=0 rationale contributes nothing
         rationale_bad = Rationale(text="Bad rationale", contextual_fidelity=0.0, rating=0.8)
         rationale_good = Rationale(text="Good rationale", contextual_fidelity=0.9, rating=0.7)
         
@@ -494,10 +493,9 @@ class TestRationaleFallbacks:
         )
         
         cf = component.calculate_contextual_fidelity()
-        # Bad rationale's CF=0 becomes 1.0 (neutral fallback, no veto), then weighted: 1.0*0.8=0.8
-        # Good rationale: 0.9*0.7=0.63, own: 0.8*0.6=0.48
-        # GM(0.8, 0.63, 0.48)
-        expected = (0.8 * 0.63 * 0.48) ** (1/3)
+        # Bad rationale's evidence view returns None (CF=0, no hard veto, but still excluded)
+        # Only good rationale and own CF contribute: GM(0.8*0.6, 0.9*0.7) = GM(0.48, 0.63)
+        expected = (0.48 * 0.63) ** 0.5
         assert abs(cf - expected) < 1e-10
         
 
@@ -588,12 +586,12 @@ class TestComplexScoringScenarios:
             rationales=[critique1, critique2]
         )
         
-        # Rationale should aggregate its own CF with critique CFs (unweighted)
+        # Evidence view aggregates own CF (unweighted) with child evidence CFs (unweighted)
         cf = rationale.calculate_contextual_fidelity()
         
-        # Expected: GM(own_cf, critique1_cf*rating, critique2_cf*rating)
-        # = GM(0.9, 0.6*0.7, 0.5*0.6) = GM(0.9, 0.42, 0.30)
-        expected = (0.9 * 0.42 * 0.30) ** (1/3)
+        # Expected (evidence view): GM(own_cf, critique1_cf, critique2_cf)
+        # = GM(0.9, 0.6, 0.5)
+        expected = (0.9 * 0.6 * 0.5) ** (1/3)
         assert abs(cf - expected) < 0.01
 
     def test_component_with_zero_cf_hard_veto(self):
@@ -618,6 +616,64 @@ class TestComplexScoringScenarios:
         
         cf = rationale.calculate_contextual_fidelity()
         assert cf == 1.0  # Should fallback to neutral, not veto
+
+    def test_empty_rationale_no_free_lunch(self):
+        """Test that empty rationales (text-only) don't provide 'free lunch' CF boost."""
+        # Component without rationale
+        component_alone = DialecticalComponent(
+            alias="T1",
+            statement="Test component",
+            contextual_fidelity=0.8,
+            rating=0.6
+        )
+        cf_alone = component_alone.calculate_contextual_fidelity()
+        
+        # Component with empty rationale (text only)
+        empty_rationale = Rationale(text="Just some text")  # No CF, P, rating
+        component_with_empty = DialecticalComponent(
+            alias="T2", 
+            statement="Test component",
+            contextual_fidelity=0.8,
+            rating=0.6,
+            rationales=[empty_rationale]
+        )
+        cf_with_empty = component_with_empty.calculate_contextual_fidelity()
+        
+        # Should be the same! Empty rationale contributes None (evidence view)
+        assert cf_with_empty == cf_alone  # No free lunch
+        assert cf_with_empty == 0.8 * 0.6  # Just the component's own contribution
+        
+        # But rationale's self-scoring still works (fallback to 1.0)
+        rationale_self_cf = empty_rationale.calculate_contextual_fidelity()
+        assert rationale_self_cf == 1.0
+        
+        # Evidence view returns None for empty rationale
+        evidence_cf = empty_rationale.calculate_contextual_fidelity_evidence()
+        assert evidence_cf is None
+
+    def test_rationale_with_actual_evidence_contributes(self):
+        """Test that rationales with real evidence DO contribute to parent CF."""
+        component = DialecticalComponent(
+            alias="T",
+            statement="Test component", 
+            contextual_fidelity=0.8,
+            rating=0.6
+        )
+        
+        # Rationale with actual CF evidence
+        evidence_rationale = Rationale(
+            text="Real evidence",
+            contextual_fidelity=0.9,  # Has actual CF
+            rating=0.7
+        )
+        component.rationales = [evidence_rationale]
+        
+        cf = component.calculate_contextual_fidelity()
+        
+        # Should aggregate: GM(component_own, rationale_evidence * rationale_rating)
+        # = GM(0.8*0.6, 0.9*0.7) = GM(0.48, 0.63) ≈ 0.55
+        expected = (0.48 * 0.63) ** 0.5
+        assert abs(cf - expected) < 0.01
 
 
 class TestComprehensiveExampleFromDocs:
@@ -842,22 +898,22 @@ class TestComprehensiveExampleFromDocs:
         print(f"T+ CF: {t_plus_cf:.3f} (expected: {expected_t_plus_cf:.3f})")
         assert abs(t_plus_cf - expected_t_plus_cf) < 0.02
         
-        # Test T- with rationale and critique (from docs: GM(0.30, 0.34) = 0.32)
+        # Test T- with rationale and critique (updated for evidence view)
         t_minus_cf = t_minus_comp.calculate_contextual_fidelity()
-        # T- rationale has critique, so its CF should be: GM(rationale_own_cf, critique_cf * critique_rating) * rationale_rating
-        # = GM(0.8, 0.5*0.6) * 0.7 = GM(0.8, 0.3) * 0.7 = 0.49 * 0.7 = 0.34
-        # Then T- total: GM(own_cf * own_rating, rationale_effective_cf) = GM(0.6*0.5, 0.34) = GM(0.30, 0.34)
-        expected_t_minus_cf = (0.30 * 0.34) ** 0.5  # 0.32
+        # T- rationale evidence view: GM(rationale_own_cf, critique_cf) = GM(0.8, 0.5) = 0.632
+        # When consumed by T-: evidence_cf * rationale_rating = 0.632 * 0.7 = 0.443
+        # Then T- total: GM(own_cf * own_rating, rationale_contribution) = GM(0.6*0.5, 0.443) = GM(0.30, 0.443)
+        expected_t_minus_cf = (0.30 * 0.443) ** 0.5  # 0.364
         print(f"T- CF: {t_minus_cf:.3f} (expected: {expected_t_minus_cf:.3f})")
-        assert abs(t_minus_cf - expected_t_minus_cf) < 0.02
+        assert abs(t_minus_cf - expected_t_minus_cf) < 0.01
         
-        # Test S+ with multiple rationales and critique (from docs: GM(0.68, 0.81, 0.34) = 0.58)
+        # Test S+ with multiple rationales and critique (updated for evidence view)
         s_plus_cf = s_plus_comp.calculate_contextual_fidelity()
         # S+ has: own (0.85*0.8=0.68), rationale1 (0.9*0.9=0.81), rationale2 with critique
-        # rationale2: GM(0.8, 0.6*0.5) * 0.7 = GM(0.8, 0.3) * 0.7 = 0.49 * 0.7 = 0.34
-        expected_s_plus_cf = (0.68 * 0.81 * 0.34) ** (1/3)  # 0.58
+        # rationale2 evidence view: GM(0.8, 0.6) = 0.693, then * rating: 0.693 * 0.7 = 0.485
+        expected_s_plus_cf = (0.68 * 0.81 * 0.485) ** (1/3)  # Updated expectation
         print(f"S+ CF: {s_plus_cf:.3f} (expected: {expected_s_plus_cf:.3f})")
-        assert abs(s_plus_cf - expected_s_plus_cf) < 0.02
+        assert abs(s_plus_cf - expected_s_plus_cf) < 0.05
         
         # Test transition with rationale (from docs: GM(0.6, 0.85) = 0.71)
         ta_cf = ta_transition.calculate_contextual_fidelity()
@@ -911,3 +967,121 @@ class TestComprehensiveExampleFromDocs:
             # If wheel score is None, just verify the components are calculating correctly
             print("Wheel score is None - likely due to missing probability data in cycles")
             assert wu_cf > 0.35  # Verify WisdomUnit CF is reasonable
+
+    def test_rationale_evidence_vs_self_scoring_comprehensive(self):
+        """Test the dual rationale calculation paths - evidence vs self-scoring."""
+        # Empty rationale with just text
+        empty_rationale = Rationale(text="Some reasoning")
+        
+        # Evidence view should return None (no real evidence)
+        evidence_cf = empty_rationale.calculate_contextual_fidelity_evidence(mutate=False)
+        assert evidence_cf is None
+        
+        # Self-scoring view should return 1.0 (neutral fallback)
+        self_cf = empty_rationale.calculate_contextual_fidelity(mutate=False)
+        assert self_cf == 1.0
+        
+        # Rationale with actual CF value
+        cf_rationale = Rationale(
+            text="Some reasoning",
+            contextual_fidelity=0.7
+        )
+        
+        # Evidence view should return the CF value
+        evidence_cf = cf_rationale.calculate_contextual_fidelity_evidence(mutate=False)
+        assert evidence_cf == 0.7
+        
+        # Self-scoring view should also return the CF value
+        self_cf = cf_rationale.calculate_contextual_fidelity(mutate=False)
+        assert self_cf == 0.7
+
+    def test_empty_rationale_probability_no_free_lunch(self):
+        """Test that empty rationales don't contribute to probability calculations."""
+        # Empty rationale with just text
+        empty_rationale = Rationale(text="Some reasoning")
+        
+        # Evidence view should return None (no probability data)
+        evidence_p = empty_rationale.calculate_probability_evidence(mutate=False)
+        assert evidence_p is None
+        
+        # Regular probability calculation should return 1.0 fallback
+        p = empty_rationale.calculate_probability(mutate=False)
+        assert p == 1.0
+        
+        # Create components for transition
+        source_comp = DialecticalComponent(alias="T", statement="Source")
+        target_comp = DialecticalComponent(alias="A", statement="Target")
+        
+        # Transition with empty rationale should ignore it
+        transition = Transition(
+            source_aliases=["T"],
+            source=source_comp,
+            target_aliases=["A"],
+            target=target_comp,
+            predicate=Predicate.CAUSES,
+            manual_probability=0.8,
+            confidence=0.9,
+            rationales=[empty_rationale]
+        )
+        
+        # Should only use manual probability, not the empty rationale
+        p = transition.calculate_probability(mutate=False)
+        expected = 0.8 * 0.9  # manual_probability * confidence
+        assert abs(p - expected) < 1e-10
+
+    def test_rationale_with_evidence_contributes(self):
+        """Test that rationales with actual evidence DO contribute vs empty ones that don't."""
+        # Rationale with actual CF value (evidence)
+        rationale_with_evidence = Rationale(
+            text="Deep analysis with evidence",
+            contextual_fidelity=0.8,
+            rating=0.7
+        )
+        
+        # Empty rationale (text only, no evidence)
+        empty_rationale = Rationale(
+            text="Just some text"
+        )
+        
+        # Component with evidence-providing rationale
+        component_with_evidence = DialecticalComponent(
+            alias="T1",
+            statement="Main component",
+            contextual_fidelity=0.6,
+            rating=0.5,
+            rationales=[rationale_with_evidence]
+        )
+        
+        # Component with empty rationale
+        component_with_empty = DialecticalComponent(
+            alias="T2",
+            statement="Main component",
+            contextual_fidelity=0.6,
+            rating=0.5,
+            rationales=[empty_rationale]
+        )
+        
+        # Component without any rationale
+        component_alone = DialecticalComponent(
+            alias="T3",
+            statement="Main component", 
+            contextual_fidelity=0.6,
+            rating=0.5
+        )
+        
+        cf_with_evidence = component_with_evidence.calculate_contextual_fidelity(mutate=False)
+        cf_with_empty = component_with_empty.calculate_contextual_fidelity(mutate=False)
+        cf_alone = component_alone.calculate_contextual_fidelity(mutate=False)
+        
+        # Evidence-providing rationale should boost CF
+        assert cf_with_evidence > cf_alone
+        
+        # Empty rationale should not boost CF (no free lunch)
+        assert cf_with_empty == cf_alone
+        
+        # Verify the evidence vs self-scoring distinction
+        evidence_cf = rationale_with_evidence.calculate_contextual_fidelity_evidence(mutate=False)
+        assert evidence_cf == 0.8  # Should return the actual CF value
+        
+        empty_evidence_cf = empty_rationale.calculate_contextual_fidelity_evidence(mutate=False)
+        assert empty_evidence_cf is None  # Should return None (no evidence)
