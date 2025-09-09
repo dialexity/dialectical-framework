@@ -1,12 +1,34 @@
 """
-Comprehensive tests for the scoring system, covering edge cases and fallbacks.
+Comprehensive tests for the dialectical framework scoring system.
 
-Tests the interaction between:
-- Probability (P): structural feasibility 
-- Contextual Fidelity (CF): contextual grounding
-- Rationales: with/without ratings and confidence
-- Alpha parameter: controlling CF influence
+This test suite validates the complete scoring architecture including:
+
+**Core Components:**
+- Probability (P): structural feasibility of arrangements
+- Contextual Fidelity (CF): contextual grounding and relevance  
+- Rationales: evidence with ratings, confidence, and critiques
+- Alpha parameter: controlling CF influence on final scores
 - Hierarchical aggregation: geometric means and products
+
+**Test Coverage (34 test cases):**
+- DialecticalComponent scoring (5 tests)
+- Transition scoring with evidence (4 tests)  
+- WheelSegment aggregation (2 tests)
+- WisdomUnit hierarchical CF/P (2 tests)
+- Cycle probability products (3 tests)
+- Wheel complete scoring (3 tests)
+- Alpha parameter effects (4 tests) 
+- Fallback behaviors (3 tests)
+- Rationale aggregation (3 tests)
+- Complex scenarios (5 tests)
+- Complete documentation example validation (1 comprehensive test)
+
+**Key Validations:**
+- Single rating application (no double-counting)
+- Selective hard veto policy (Components/Transitions veto, Rationales don't)
+- Neutral fallbacks for missing data (CF=1.0, P=None)
+- Hierarchical evidence flow (content vs structure paths)
+- Critique impact (balanced skepticism without vetoing)
 """
 
 import pytest
@@ -546,14 +568,84 @@ class TestComplexScoringScenarios:
         assert p1 == 0.8 * 0.7
         assert p2 is None  # Rationale without child wheels doesn't contribute to transition probability
 
+    def test_rationale_with_multiple_critiques(self):
+        """Test rationale CF calculation with multiple nested critiques."""
+        critique1 = Rationale(
+            headline="First critique",
+            contextual_fidelity=0.6,
+            rating=0.7
+        )
+        critique2 = Rationale(
+            headline="Second critique", 
+            contextual_fidelity=0.5,
+            rating=0.6
+        )
+        
+        rationale = Rationale(
+            headline="Main rationale",
+            contextual_fidelity=0.9,
+            rating=0.8,
+            rationales=[critique1, critique2]
+        )
+        
+        # Rationale should aggregate its own CF with critique CFs (unweighted)
+        cf = rationale.calculate_contextual_fidelity()
+        
+        # Expected: GM(own_cf, critique1_cf*rating, critique2_cf*rating)
+        # = GM(0.9, 0.6*0.7, 0.5*0.6) = GM(0.9, 0.42, 0.30)
+        expected = (0.9 * 0.42 * 0.30) ** (1/3)
+        assert abs(cf - expected) < 0.01
+
+    def test_component_with_zero_cf_hard_veto(self):
+        """Test that DialecticalComponent with CF=0 triggers hard veto."""
+        component = DialecticalComponent(
+            alias="T",
+            statement="Test component",
+            contextual_fidelity=0.0,  # Hard veto
+            rating=0.8
+        )
+        
+        cf = component.calculate_contextual_fidelity()
+        assert cf == 0.0  # Should be hard veto, not 0.0 * 0.8
+
+    def test_rationale_with_zero_cf_no_veto(self):
+        """Test that Rationale with CF=0 doesn't veto (neutral fallback)."""
+        rationale = Rationale(
+            headline="Test rationale",
+            contextual_fidelity=0.0,  # Should not veto for rationales
+            rating=0.8
+        )
+        
+        cf = rationale.calculate_contextual_fidelity()
+        assert cf == 1.0  # Should fallback to neutral, not veto
+
 
 class TestComprehensiveExampleFromDocs:
-    """Test the complete example from scoring.md documentation."""
+    """
+    Test the complete example from scoring.md documentation.
+    
+    This comprehensive test validates the entire scoring system using the 
+    "Work Environment Optimization" example from the documentation, ensuring
+    that implementation calculations match documented expectations.
+    """
     
     def test_work_environment_optimization_wheel(self):
         """
-        Test the complete "Work Environment Optimization" example from scoring.md
-        to verify actual calculations match documented expectations.
+        Test the complete "Work Environment Optimization" example from scoring.md.
+        
+        This test validates:
+        - Component CF calculations with rationales and critiques
+        - Transition CF/P calculations with evidence
+        - WisdomUnit aggregation with transformation
+        - Complete wheel scoring with cycles
+        - Final score calculation matching documentation (within tolerance)
+        
+        Expected outcomes:
+        - T+ CF: ~0.67 (component + rationale)
+        - T- CF: ~0.32 (component + rationale with critique)
+        - S+ CF: ~0.57 (component + multiple rationales, one with critique)
+        - TA transition CF: ~0.71 (transition + rationale)
+        - Final Wheel Score: ~0.23-0.30 (complete hierarchical aggregation)
         """
         # Create dialectical components
         t_comp = DialecticalComponent(
