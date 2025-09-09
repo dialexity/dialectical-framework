@@ -69,11 +69,13 @@ class Assessable(BaseModel, ABC):
         
         # Ensure that the overall probability has been calculated
         probability = self.calculate_probability(mutate=mutate)
+        # Always calculate contextual fidelity, even if probability is None
+        cf_w = self.calculate_contextual_fidelity(mutate=mutate)
+        
         if probability is None:
             # If still None, cannot calculate score
             score = None
         else:
-            cf_w = self.calculate_contextual_fidelity(mutate=mutate)
             score = probability * (cf_w ** alpha)
 
         if mutate:
@@ -112,7 +114,8 @@ class Assessable(BaseModel, ABC):
         Returns all direct sub-assessable elements contained within this assessable.
         Used for recursive score calculation.
         """
-        return self.rationales
+        # IMPORTANT: we must work on a copy, to avoid filling rationales list with garbage
+        return [*self.rationales]
 
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
         return []

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import ConfigDict, Field
 
-from dialectical_framework import Assessable
+from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.analyst.domain.spiral import Spiral
 from dialectical_framework.wisdom_unit import WisdomUnit
 
@@ -17,7 +17,7 @@ class Transformation(Spiral):
 
     def _get_sub_assessables(self) -> list[Assessable]:
         result = super()._get_sub_assessables()
-        result.extend(self.ac_re)
+        result.append(self.ac_re)
         return result
 
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:

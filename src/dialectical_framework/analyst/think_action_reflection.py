@@ -172,7 +172,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         graph.add_transition(
             TransitionSegmentToSegment(
                 predicate=Predicate.TRANSFORMS_TO,
-                source_aliases=[wu.taminus.alias, wu.a.alias],
+                source_aliases=[wu.t_minus.alias, wu.a.alias],
                 target_aliases=[wu.t_plus.alias],
                 source=wu.extract_segment_a(),
                 target=wu.extract_segment_t(),

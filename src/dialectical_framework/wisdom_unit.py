@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import Field
 
-from dialectical_framework import Assessable
+from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
@@ -66,7 +66,7 @@ class WisdomUnit(WheelSegment):
         if self.a_plus:
             result.append(self.a_plus)
         if self.synthesis:
-            result.extend(self.synthesis)
+            result.append(self.synthesis)
         if self.transformation:
             result.append(self.transformation)
         return result

@@ -357,7 +357,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         for c in cycles:
             for t in c.graph.get_all_transitions():
                 # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
-                t.contextual_fidelity = c.unnormalized_probability
+                t.contextual_fidelity = c.contextual_fidelity
 
             if  c.contextual_fidelity is not None:
                 # Decompose probabilities to transitions

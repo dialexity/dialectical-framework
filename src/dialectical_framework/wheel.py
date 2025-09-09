@@ -45,9 +45,9 @@ class Wheel(Assessable):
     def _get_sub_assessables(self) -> list[Assessable]:
         result = super()._get_sub_assessables()
         result.extend(self._wisdom_units)
-        result.extend(self._t_cycle)
-        result.extend(self._ta_cycle)
-        result.extend(self._spiral)
+        result.append(self._t_cycle)
+        result.append(self._ta_cycle)
+        result.append(self._spiral)
         return result
 
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:

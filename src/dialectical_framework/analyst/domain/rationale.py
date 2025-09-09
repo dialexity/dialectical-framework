@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import Field
 
-from dialectical_framework import Assessable
+from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.protocols.ratable import Ratable
 from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 from dialectical_framework.wheel import Wheel
