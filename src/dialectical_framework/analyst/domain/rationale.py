@@ -16,6 +16,18 @@ class Rationale(Ratable):
     theses: list[str] = Field(default_factory=list, description="Theses of the rationale text.")
     wheels: list[Wheel] = Field(default_factory=list, description="Wheels that are digging deeper into the rationale.")
 
+    def _hard_veto_on_own_zero(self) -> bool:
+        """
+        Why not veto Rationale by default
+
+        Rationale is commentary/evidence, not structure. It can be refuted by critiques or outweighed by spawned wheels. One mistaken rationale with CF=0 shouldn’t nuke the parent.
+
+        You already have a safe “off” switch: set rationale.rating = 0 → its contribution is ignored without collapsing CF to 0.
+
+        True veto belongs at structural leaves (Components, Transitions), where “this is contextually impossible” should indeed zero things.
+        """
+        return False
+
     def _get_sub_assessables(self) -> list[Assessable]:
         result = super()._get_sub_assessables()
         result.extend(self.wheels)
@@ -67,3 +79,34 @@ class Rationale(Ratable):
             self.probability = probability
         return probability
 
+    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+        """
+        Return CF of this rationale from its own CF + children (wheels/critiques),
+        but DO NOT apply rationale.rating here. The parent will weight once.
+        """
+        parts: list[float] = []
+
+        # child rationales (critiques): they themselves must also NOT self-weight their rating
+        parts.extend(v for v in (self._calculate_contextual_fidelity_for_rationales(mutate=mutate) or [])
+                     if v is not None and v > 0.0)
+
+        # wheels spawned by this rationale (unrated here)
+        parts.extend(
+            v for v in (self._calculate_contextual_fidelity_for_sub_elements_excl_rationales(mutate=mutate) or [])
+            if v is not None and v > 0.0)
+
+        # include own intrinsic CF UNWEIGHTED (no rating here)
+        if self.contextual_fidelity is not None:
+            own_cf = self.contextual_fidelity
+            if own_cf == 0.0 and not self._hard_veto_on_own_zero():
+                # ignore zero (no veto) – acts like “no contribution”
+                pass
+            elif own_cf > 0.0:
+                parts.append(own_cf)
+
+        fidelity = gm_with_zeros_and_nones_handled(parts) if parts else 1.0
+
+        # optional cache: only if no manual CF was provided
+        if mutate and self.contextual_fidelity is None:
+            self.contextual_fidelity = fidelity
+        return fidelity

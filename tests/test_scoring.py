@@ -54,35 +54,40 @@ class TestDialecticalComponentScoring:
         
         cf = component.calculate_contextual_fidelity()
         assert cf == 1.0  # Fallback to neutral when rating=0
-        
-    def test_component_with_rationales(self):
-        """Component should aggregate rationale CFs weighted by rationale ratings."""
-        rationale1 = Rationale(
-            text="Supporting rationale",
-            contextual_fidelity=0.9,
-            rating=0.8
-        )
-        rationale2 = Rationale(
-            text="Another rationale",
-            contextual_fidelity=0.7,
-            rating=0.6
-        )
-        
+
+    def test_component_zero_cf_hard_veto(self):
+        """Component with CF=0 should trigger hard veto (CF=0) regardless of rating."""
         component = DialecticalComponent(
             alias="T",
             statement="Test thesis",
-            contextual_fidelity=0.8,
-            rating=0.5,
-            rationales=[rationale1, rationale2]
+            contextual_fidelity=0.0,  # Zero CF should trigger hard veto
+            rating=0.8  # Rating doesn't matter for hard veto
         )
         
         cf = component.calculate_contextual_fidelity()
-        # Actual behavior: rationales apply own rating first, then parent applies rating again
-        # rationale1: CF=0.9*0.8=0.72, then parent applies 0.8: 0.72*0.8=0.576
-        # rationale2: CF=0.7*0.6=0.42, then parent applies 0.6: 0.42*0.6=0.252  
-        # own: CF=0.8*0.5=0.4
-        # GM(0.576, 0.252, 0.4)
-        expected = (0.576 * 0.252 * 0.4) ** (1/3)
+        assert cf == 0.0  # Hard veto - structural impossibility
+
+    def test_component_with_rationales(self):
+        """Component should aggregate rationale CFs weighted once by rationale.rating."""
+        rationale1 = Rationale(text="Supporting rationale", contextual_fidelity=0.9, rating=0.8)
+        rationale2 = Rationale(text="Another rationale", contextual_fidelity=0.7, rating=0.6)
+
+        component = DialecticalComponent(
+            alias="T",
+            statement="Test thesis",
+            contextual_fidelity=0.8,  # component's own intrinsic CF
+            rating=0.5,  # component's own rating applies to its own CF only
+            rationales=[rationale1, rationale2]
+        )
+
+        cf = component.calculate_contextual_fidelity()
+
+        # Rationale contributions: weighted once by their own rating (by the parent)
+        r1 = 0.9 * 0.8  # = 0.72
+        r2 = 0.7 * 0.6  # = 0.42
+        own = 0.8 * 0.5  # = 0.40
+
+        expected = (r1 * r2 * own) ** (1 / 3)
         assert abs(cf - expected) < 1e-10
         
     def test_component_rationale_zero_rating_excluded(self):
@@ -107,11 +112,11 @@ class TestDialecticalComponentScoring:
         )
         
         cf = component.calculate_contextual_fidelity()
-        # rationale1: CF=0.9*0.8=0.72, then parent applies 0.8: 0.72*0.8=0.576
-        # rationale2: rating=0.0, so excluded (0.7*0.0=0.0 gets filtered out)
+        # rationale1: CF=0.9, parent applies rating once: 0.9*0.8=0.72
+        # rationale2: rating=0.0, so excluded (0.9*0.0=0.0 gets filtered out)
         # own: CF=0.8*0.5=0.4
-        # GM(0.576, 0.4)
-        expected = (0.576 * 0.4) ** (1/2)
+        # GM(0.72, 0.4)
+        expected = (0.72 * 0.4) ** (1/2)
         assert abs(cf - expected) < 1e-10
 
 
@@ -434,6 +439,38 @@ class TestRationaleFallbacks:
         
         cf = rationale.calculate_contextual_fidelity()
         assert cf == 0.7  # Uses own CF when no child wheels
+        
+    def test_rationale_zero_cf_no_veto(self):
+        """Rationale with CF=0 should not veto - ignored like no contribution."""
+        rationale = Rationale(
+            text="Bad rationale",
+            contextual_fidelity=0.0  # Zero CF - should be ignored, not veto
+        )
+        
+        cf = rationale.calculate_contextual_fidelity()
+        assert cf == 1.0  # Fallback to neutral - zero ignored, no veto
+        
+    def test_rationale_zero_cf_with_good_evidence(self):
+        """Rationale with CF=0 should be outweighed by good child evidence."""
+        # This would require setting up child wheels, but for now test the principle
+        # that rationale CF=0 doesn't nuke the entire assessment
+        rationale_bad = Rationale(text="Bad rationale", contextual_fidelity=0.0, rating=0.8)
+        rationale_good = Rationale(text="Good rationale", contextual_fidelity=0.9, rating=0.7)
+        
+        component = DialecticalComponent(
+            alias="T",
+            statement="Test",
+            contextual_fidelity=0.8,
+            rating=0.6,
+            rationales=[rationale_bad, rationale_good]
+        )
+        
+        cf = component.calculate_contextual_fidelity()
+        # Bad rationale's CF=0 becomes 1.0 (neutral fallback, no veto), then weighted: 1.0*0.8=0.8
+        # Good rationale: 0.9*0.7=0.63, own: 0.8*0.6=0.48
+        # GM(0.8, 0.63, 0.48)
+        expected = (0.8 * 0.63 * 0.48) ** (1/3)
+        assert abs(cf - expected) < 1e-10
         
 
 class TestComplexScoringScenarios:
