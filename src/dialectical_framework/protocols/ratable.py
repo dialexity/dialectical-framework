@@ -21,6 +21,10 @@ class Ratable(Assessable, ABC):
         description="Importance/quality rating."
     )
 
+    confidence: float | None = Field(
+        default=None, ge=0.0, le=1.0,
+        description="Credibility/reputation/confidence of the expert making probability assessments. Used for weighing probabilities (applied during aggregation)")
+
     def rating_or_default(self) -> float:
         """
         The default rating is 1.0 when None.
@@ -57,7 +61,8 @@ class Ratable(Assessable, ABC):
             if own_val == 0.0:
                 fidelity = 0.0
                 if mutate:
-                    self.contextual_fidelity = fidelity
+                    # do NOT overwrite manual CF; a zero veto is a return value, not a stored manual value
+                    pass
                 return fidelity
             else:
                 # Always include own CF, because Ratable is a "leaf"
@@ -69,5 +74,7 @@ class Ratable(Assessable, ABC):
             fidelity = gm_with_zeros_and_nones_handled(parts)
 
         if mutate:
-            self.contextual_fidelity = fidelity
+            # cache only if there was no manual CF provided
+            if own_cf is None:
+                self.contextual_fidelity = fidelity
         return fidelity

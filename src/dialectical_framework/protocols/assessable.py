@@ -29,10 +29,6 @@ class Assessable(BaseModel, ABC):
         description="The normalized probability (Pr(S)) of the cycle to exist in reality.",
     )
 
-    confidence: float | None = Field(
-        default=None, ge=0.0, le=1.0,
-        description="Credibility/reputation/confidence of the expert making probability assessments. Used for weighing probabilities (applied during aggregation)")
-
     rationales: list[Rationale] = Field(default_factory=list, description="Reasoning about this assessable instance")
 
     @property
