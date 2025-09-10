@@ -4,7 +4,6 @@ from typing import Dict, Union
 
 from dependency_injector.wiring import Provide
 
-from dialectical_framework import Rationale
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
 from dialectical_framework.analyst.domain.cycle import Cycle
@@ -16,8 +15,7 @@ from dialectical_framework.protocols.causality_sequencer import \
     CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
-from dialectical_framework.synthesis import (ALIAS_S_MINUS, ALIAS_S_PLUS,
-                                             Synthesis)
+from dialectical_framework.synthesis import (ALIAS_S_MINUS, ALIAS_S_PLUS, Synthesis)
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
 from dialectical_framework.wheel import Wheel, WheelSegmentReference
@@ -196,16 +194,8 @@ class WheelBuilder(SettingsAware):
             ss_deck_dto = await self.reasoner.find_synthesis(wu)
             ss_deck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(ss_deck_dto.dialectical_components, DialecticalComponent))
             wu.synthesis = Synthesis(
-                t=ss_deck.get_by_alias(ALIAS_S_PLUS),
-                a=ss_deck.get_by_alias(ALIAS_S_MINUS),
-            )
-            idx = wu.t.get_human_friendly_index()
-            if idx:
-                wu.synthesis.add_indexes_to_aliases(idx)
-            ss = await self.reasoner.find_synthesis(wu)
-            wu.synthesis = Synthesis(
-                t=ss.get_by_alias(ALIAS_S_PLUS),
-                a=ss.get_by_alias(ALIAS_S_MINUS),
+                t_plus=ss_deck.get_by_alias(ALIAS_S_PLUS),
+                t_minus=ss_deck.get_by_alias(ALIAS_S_MINUS),
             )
             idx = wu.t.get_human_friendly_index()
             if idx:

@@ -150,7 +150,10 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         reciprocal_sol_dto: ReciprocalSolutionDto
         dc_deck_dto, reciprocal_sol_dto  = await asyncio.gather(*async_reasoning_threads)
 
-        ac_re_wu = WisdomUnit(reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION)
+        ac_re_wu = WisdomUnit(
+            reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION,
+            rationales=[Rationale(text=reciprocal_sol_dto.problem)]
+        )
         dialectical_components: list[DialecticalComponent] = map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent)
         for dc in dialectical_components:
             alias = self._translate_to_canonical_alias(dc.alias)
@@ -187,10 +190,6 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             ac_re=ac_re_wu,
             graph=graph
         )
-
-        wu.transformation.rationales = [
-            Rationale(text=reciprocal_sol_dto.problem)
-        ]
 
         # We return empty, because we're not merging anything, and we're sure there will be nothing to do with the result
         return []
