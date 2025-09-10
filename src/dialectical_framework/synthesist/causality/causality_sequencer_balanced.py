@@ -106,10 +106,8 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     continue
                 translated_components.append(dc)
                 alias_translations[f"C{i}"] = dc.alias
-
-                dc_replace(dc.statement, dc.alias, f"C{i}")
-                dc_replace(dc.explanation, dc.alias, f"C{i}")
                 dc.alias = f"C{i}"
+                # TODO: we should also do dc_replace for statement/rationales texts, and later translate these back (as alias got translated)
 
             deck = DialecticalComponentsDeck(dialectical_components=sequence)
             cycle = deck.get_aliases_as_cycle_str()
@@ -267,7 +265,6 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                                 DialecticalComponent(
                                     alias="T",
                                     statement=thoughts[0],
-                                    explanation=thoughts[0],
                                 )
                             ],
                             probability=1.0,
@@ -286,7 +283,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                             DialecticalComponent(
                                 alias=f"T{i + 1}",
                                 statement=t,
-                                explanation="Provided as string.",
+                                # explanation="Provided as string.",
                             )
                             for i, t in enumerate(thoughts)
                         ]
@@ -394,7 +391,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     DialecticalComponent(
                         alias=f"{ALIAS_T}{i + 1}",
                         statement=t,
-                        explanation="Provided as string.",
+                        # explanation="Provided as string.",
                     )
                     for i, t in enumerate(thoughts)
                 ]

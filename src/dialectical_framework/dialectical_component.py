@@ -16,10 +16,6 @@ class DialecticalComponent(Ratable):
         ...,
         description="The dialectical component value that is provided after analysis.",
     )
-    explanation: str = Field(
-        default="",
-        description="The explanation how the dialectical component (statement) is derived.",
-    )
 
     def is_same(self, other: DialecticalComponent) -> bool:
         """
@@ -107,8 +103,8 @@ class DialecticalComponent(Ratable):
         if not dialectical_component_label:
             dialectical_component_label = self.alias
         result = f"{dialectical_component_label} = {self.statement}"
-        if self.explanation and not skip_explanation:
-            result = f"{result}\nExplanation: {self.explanation}"
+        if self.best_rationale and not skip_explanation:
+            result = f"{result}\nExplanation: {self.best_rationale.text if self.best_rationale else ''}"
         return result
 
     def __str__(self):

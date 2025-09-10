@@ -8,6 +8,7 @@ from dependency_injector.wiring import Provide
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+from dialectical_framework import Rationale
 from dialectical_framework.ai_dto.dialectical_component_dto import \
     DialecticalComponentDto
 from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
@@ -360,7 +361,8 @@ class PolarityReasoner(HasBrain, Reloadable):
                 wu.t = thesis
             else:
                 wu.t = DialecticalComponent(
-                    alias=ALIAS_T, statement=thesis, explanation="Provided as string"
+                    alias=ALIAS_T, statement=thesis,
+                    # explanation="Provided as string"
                 )
         else:
             wu.t = map_from_dto(await self.find_thesis(), DialecticalComponent)
@@ -444,7 +446,11 @@ class PolarityReasoner(HasBrain, Reloadable):
                             dialectical_component
                         ).alias,
                         statement=changed.get(dialectical_component),
-                        explanation=f"{new_wu.__pydantic_fields__.get(dialectical_component).alias} redefined.",
+                        rationales=[
+                            Rationale(
+                                text=f"{new_wu.__pydantic_fields__.get(dialectical_component).alias} redefined."
+                            )
+                        ]
                     ),
                 )
             else:
@@ -466,7 +472,8 @@ class PolarityReasoner(HasBrain, Reloadable):
                     # base side changed
                     o = map_from_dto(await self.find_antithesis(getattr(new_wu, base).statement), DialecticalComponent)
                     assert isinstance(o, DialecticalComponent)
-                    o.explanation = f"REGENERATED. {o.explanation}"
+                    if o.best_rationale and o.best_rationale.text:
+                        o.best_rationale.text = f"REGENERATED. {o.best_rationale.text}"
                     setattr(new_wu, other, o)
                     changed[other] = o.statement
                     check1.valid = 1
@@ -475,7 +482,8 @@ class PolarityReasoner(HasBrain, Reloadable):
                     # other side changed
                     bm = map_from_dto(await self.find_antithesis(getattr(new_wu, other).statement), DialecticalComponent)
                     assert isinstance(bm, DialecticalComponent)
-                    bm.explanation = f"REGENERATED. {bm.explanation}"
+                    if bm.best_rationale and bm.best_rationale.text:
+                        bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
                     setattr(new_wu, base, bm)
                     changed[base] = bm.statement
                     check1.valid = 1
@@ -534,7 +542,11 @@ class PolarityReasoner(HasBrain, Reloadable):
                                 dialectical_component
                             ).alias,
                             statement=changed.get(dialectical_component),
-                            explanation=f"{new_wu.__pydantic_fields__.get(dialectical_component).alias} redefined.",
+                            rationales=[
+                                Rationale(
+                                    text=f"{new_wu.__pydantic_fields__.get(dialectical_component).alias} redefined."
+                                )
+                            ]
                         ),
                     )
                 else:
@@ -565,7 +577,8 @@ class PolarityReasoner(HasBrain, Reloadable):
                                 getattr(new_wu, base).statement, not_like_other_minus
                             ), DialecticalComponent)
                             assert isinstance(bm, DialecticalComponent)
-                            bm.explanation = f"REGENERATED. {bm.explanation}"
+                            if bm.best_rationale and bm.best_rationale.text:
+                                bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
                             setattr(new_wu, base_minus, bm)
                             changed[base_minus] = bm.statement
                             check2.valid = True
@@ -598,7 +611,8 @@ class PolarityReasoner(HasBrain, Reloadable):
                                 getattr(new_wu, base_minus).statement,
                             ), DialecticalComponent)
                             assert isinstance(op, DialecticalComponent)
-                            op.explanation = f"REGENERATED. {op.explanation}"
+                            if op.best_rationale and op.best_rationale.text:
+                                op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
                             setattr(new_wu, other_plus, op)
                             changed[other_plus] = op.statement
                             check3.valid = True
@@ -635,7 +649,8 @@ class PolarityReasoner(HasBrain, Reloadable):
                                 getattr(new_wu, base_minus).statement,
                             ), DialecticalComponent)
                             assert isinstance(op, DialecticalComponent)
-                            op.explanation = f"REGENERATED. {op.explanation}"
+                            if op.best_rationale and op.best_rationale.text:
+                                op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
                             setattr(new_wu, other_plus, op)
                             changed[other_plus] = op.statement
                             check4.valid = True
@@ -652,7 +667,8 @@ class PolarityReasoner(HasBrain, Reloadable):
                                 getattr(new_wu, base).statement, not_like_other_minus
                             ), DialecticalComponent)
                             assert isinstance(bm, DialecticalComponent)
-                            bm.explanation = f"REGENERATED. {bm.explanation}"
+                            if bm.best_rationale and bm.best_rationale.text:
+                                bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
                             setattr(new_wu, base_minus, bm)
                             changed[base_minus] = bm.statement
                             check4.valid = True

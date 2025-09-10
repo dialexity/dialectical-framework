@@ -4,6 +4,7 @@ from typing import Dict, Union
 
 from dependency_injector.wiring import Provide
 
+from dialectical_framework import Rationale
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
 from dialectical_framework.analyst.domain.cycle import Cycle
@@ -88,7 +89,6 @@ class WheelBuilder(SettingsAware):
                     provided_thesis = DialecticalComponent(
                         alias=f"{ALIAS_T}",
                         statement=thesis,
-                        explanation="Provided as string.",
                     )
                     provided_thesis.set_human_friendly_index(i + 1)
                     final_theses.append(provided_thesis)
@@ -145,7 +145,8 @@ class WheelBuilder(SettingsAware):
         wheel_wisdom_units = []
         for dc in t_cycle.dialectical_components:
             wu = await self.reasoner.think(thesis=dc.statement)
-            wu.t.explanation = dc.explanation
+            if dc.rationales:
+                wu.t.rationales.extend(dc.rationales)
 
             idx = dc.get_human_friendly_index()
             if idx:

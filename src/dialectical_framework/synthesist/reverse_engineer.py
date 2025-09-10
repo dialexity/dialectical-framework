@@ -290,7 +290,7 @@ class ReverseEngineer:
                     f"### Thesis {index + 1} ({wu.t.alias})",
                     f"Alias: {wu.t.alias}",
                     f"Statement: {wu.t.statement}",
-                    f"Explanation: {wu.t.explanation if wu.t.explanation else 'N/A'}",
+                    f"Explanation: {wu.t.best_rationale.text if wu.t.best_rationale else 'N/A'}",
                 ]
                 for index, wu in enumerate(wisdom_units)
             ]
@@ -299,15 +299,15 @@ class ReverseEngineer:
                     f"### Wisdom Unit for {wu.t.alias}",
                     f"{wu.t.alias} = {wu.t.statement}",
                     f"{wu.a.alias} = {wu.a.statement}",
-                    f"{wu.a.alias} explanation: {wu.a.explanation if wu.a.explanation else 'N/A'}",
+                    f"{wu.a.alias} explanation: {wu.a.best_rationale.text if wu.a.best_rationale else 'N/A'}",
                     f"{wu.t_minus.alias} = {wu.t_minus.statement}",
-                    f"{wu.t_minus.alias} explanation: {wu.t_minus.explanation if wu.t_minus.explanation else 'N/A'}",
+                    f"{wu.t_minus.alias} explanation: {wu.t_minus.best_rationale.text if wu.t_minus.best_rationale else 'N/A'}",
                     f"{wu.t_plus.alias} = {wu.t_plus.statement}",
-                    f"{wu.t_plus.alias} explanation: {wu.t_plus.explanation if wu.t_plus.explanation else 'N/A'}",
+                    f"{wu.t_plus.alias} explanation: {wu.t_plus.best_rationale.text if wu.t_plus.best_rationale else 'N/A'}",
                     f"{wu.a_plus.alias} = {wu.a_plus.statement}",
-                    f"{wu.a_plus.alias} explanation: {wu.a_plus.explanation if wu.a_plus.explanation else 'N/A'}",
+                    f"{wu.a_plus.alias} explanation: {wu.a_plus.best_rationale.text if wu.a_plus.best_rationale else 'N/A'}",
                     f"{wu.a_minus.alias} = {wu.a_minus.statement}",
-                    f"{wu.a_minus.alias} explanation: {wu.a_minus.explanation if wu.a_minus.explanation else 'N/A'}",
+                    f"{wu.a_minus.alias} explanation: {wu.a_minus.best_rationale.text if wu.a_minus.best_rationale else 'N/A'}",
                 ]
                 for wu in wisdom_units
             ]

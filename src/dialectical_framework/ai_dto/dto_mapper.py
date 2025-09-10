@@ -2,6 +2,9 @@ from typing import Dict, Generic, Type, TypeVar
 
 from pydantic import BaseModel
 
+from dialectical_framework import DialecticalComponent, Rationale
+from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+
 # Type variables for generic mapping
 DtoType = TypeVar('DtoType', bound=BaseModel)
 ModelType = TypeVar('ModelType', bound=BaseModel)
@@ -46,10 +49,20 @@ class DtoMapper(Generic[DtoType, ModelType]):
         """
         return [self.map_from_dto(dto, **kwargs) for dto in dtos]
 
+class DialecticalComponentMapper(DtoMapper[DialecticalComponentDto, DialecticalComponent]):
+    def map_from_dto(self, dto: DialecticalComponentDto, **kwargs) -> ModelType:
+        mapped: DialecticalComponent = super().map_from_dto(dto, **kwargs)
+        if dto.explanation:
+            mapped.rationales.append(Rationale(
+                text=dto.explanation,
+            ))
+        return mapped
 
 # Registry for mappers
 _mapper_registry: Dict[tuple[Type, Type], DtoMapper] = {
     # Use default DtoMapper if no specific mapper is registered
+
+    (DialecticalComponentDto, DialecticalComponent): DialecticalComponentMapper(DialecticalComponentDto, DialecticalComponent),
 }
 
 
