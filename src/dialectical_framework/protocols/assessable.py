@@ -33,6 +33,9 @@ class Assessable(BaseModel, ABC):
 
     @property
     def best_rationale(self) -> Rationale | None:
+        if self.rationales and len(self.rationales) > 1:
+            return self.rationales[0]
+
         selected_r = None
         best_score = None  # use None sentinel
 

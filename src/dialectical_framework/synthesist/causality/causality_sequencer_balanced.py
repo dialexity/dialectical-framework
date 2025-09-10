@@ -1,5 +1,5 @@
 import asyncio
-from typing import Self, Union
+from typing import Self, Union, cast
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -11,6 +11,7 @@ from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
     CausalCyclesDeckDto
 from dialectical_framework.analyst.domain.assessable_cycle import decompose_probability_into_transitions
 from dialectical_framework.analyst.domain.cycle import Cycle
+from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_components_deck import \
     DialecticalComponentsDeck
@@ -308,32 +309,27 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         total_score = 0
         for causal_cycle in causal_cycles_deck.causal_cycles:
             total_score += causal_cycle.probability
-            cycles.append(
-                Cycle(
-                    dialectical_components=dialectical_components_deck.rearrange_by_aliases(
-                        causal_cycle.aliases
-                    ),
-                    probability=causal_cycle.probability, # Unnormalized, will be modified later
-                    causality_type=self.settings.causality_type,
-                    # TODO: add the rationale. Also set CF and P to it correctly
-                    reasoning_explanation=causal_cycle.reasoning_explanation,
-                    argumentation=causal_cycle.argumentation,
-                )
-            )
 
         # Probability was a guesswork, let's make it normalized to have statistical strictness
-        if total_score > 0 and cycles and len(cycles) > 1:
+        if total_score > 0:
             getcontext().prec = 16
             q = Decimal("0.001")
 
-            # Normalize and round to 3 decimals using Decimal
-            probs = [
-                Decimal(c.probability) / Decimal(total_score) for c in cycles
-            ]
+            if causal_cycles_deck.causal_cycles and len(causal_cycles_deck.causal_cycles) > 1:
+                # Normalize and round to 3 decimals using Decimal
+                probs = [
+                    Decimal(c.probability) / Decimal(total_score) for c in causal_cycles_deck.causal_cycles
+                ]
+            else:
+                # No normalization needed, just round to 3 decimals using Decimal
+                probs = [
+                    Decimal(c.probability) for c in causal_cycles_deck.causal_cycles
+                ]
+
             probs = [p.quantize(q, rounding=ROUND_HALF_UP) for p in probs]
 
             # Sort by rounded probabilities (descending)
-            cycles.sort(
+            causal_cycles_deck.causal_cycles.sort(
                 key=lambda c: float(
                     Decimal(c.probability) / Decimal(total_score)
                 ),
@@ -347,29 +343,36 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             diff = Decimal("1.000") - total_after
             probs[0] = (probs[0] + diff).quantize(q, rounding=ROUND_HALF_UP)
 
-            # Assign back
-            for c, p in zip(cycles, probs):
-                # Now here's the trick, the normalized probability is assigned to the cycle
-                # because the initial "probability" is actually "feasibility"
-                c.contextual_fidelity =  c.probability
-                c.probability = float(p)
+            for causal_cycle, p in zip(causal_cycles_deck.causal_cycles, probs):
+                # Create rationale from reasoning and argumentation
+                cycle_rationale = Rationale(
+                    summary=causal_cycle.reasoning_explanation,
+                    text=f"{causal_cycle.reasoning_explanation}\n\n{causal_cycle.argumentation}",
+                    # Now here's the trick, the normalized probability is assigned to the cycle
+                    # because the initial "probability" is actually "feasibility"
+                    contextual_fidelity=causal_cycle.probability,
+                    probability=float(p)
+                )
 
-        for c in cycles:
-            for t in c.graph.get_all_transitions():
-                # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
-                t.contextual_fidelity = c.contextual_fidelity
+                cycle = Cycle(
+                    dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
+                    causality_type=self.settings.causality_type,
+                )
 
-            if  c.contextual_fidelity is not None:
-                # Decompose probabilities to transitions
+                # Add the rationale to the cycle
+                cycle.rationales.append(cycle_rationale)
+                # Decompose probabilities to transitions (because cycle probability is multiplication of transition probabilities)
                 decompose_probability_into_transitions(
-                    probability=c.contextual_fidelity,
-                    transitions=c.graph.get_all_transitions(),
+                    probability=cycle_rationale.probability,
+                    transitions=cycle.graph.get_all_transitions(),
                     overwrite_existing_transition_probabilities=True)
-            else:
-                # If the cycle probability is None, then at some point it will be derived from its transitions. Standard case.
-                pass
 
-        cycles.sort(key=lambda c: c.probability, reverse=True)
+                for t in cycle.graph.get_all_transitions():
+                    # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
+                    t.contextual_fidelity = cycle_rationale.contextual_fidelity
+                cycles.append(cycle)
+
+        cycles.sort(key=lambda c: cast(Cycle, c).calculate_score(), reverse=True)
         return cycles
 
     @staticmethod

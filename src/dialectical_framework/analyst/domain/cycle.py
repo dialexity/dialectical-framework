@@ -29,9 +29,6 @@ class Cycle(AssessableCycle):
         default="clockwise", description="The direction of causality in the ring."
     )
 
-    reasoning_explanation: str = Field(
-        default="", description="Explanation why/how this cycle might occur."
-    )
     argumentation: str = Field(
         default="",
         description="Circumstances or contexts where this cycle would be most applicable or useful.",
@@ -128,8 +125,7 @@ class Cycle(AssessableCycle):
                 dc.pretty(skip_explanation=skip_dialectical_component_explanation)
             )
 
-        output.append(f"Reasoning: {self.reasoning_explanation}")
-        output.append(f"Argumentation: {self.argumentation}")
+        output.append(f"Rationale: {self.best_rationale.text if self.best_rationale else ''}")
 
         return "\n".join(output)
 

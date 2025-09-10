@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 
 
 class CausalCycleAssessmentDto(BaseModel):
-    # TODO: rename to "score" ?
     probability: float = Field(
         default=0,
         description="The probability 0 to 1 of the arranged cycle to exist in reality.",
