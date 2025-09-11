@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dialectical-framework"
-version = "0.4.6"
+version = "0.5.0"
 description = "A dialectical framework for augmented intelligence. AI reasoning powered with dialectics supports humans in: system optimization (psychology, engineering, business, politics, etc.); dispute resolution (mediation, conflicts, negotiations, etc.); decision-making (dilemmas, challenging situations, win-win, etc.)."
 authors = ["Evaldas Taroza <evaldas@dialexity.com>"]
 readme = "README.md"
