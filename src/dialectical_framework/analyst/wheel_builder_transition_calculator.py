@@ -96,6 +96,8 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
             for tr in trs:
                 self._take_transition(wheel=wheel, transition=tr)
 
+        wheel.calculate_score()
+
     @abstractmethod
     async def _do_calculate_transitions(
         self, wheel: Wheel, at: WheelSegment

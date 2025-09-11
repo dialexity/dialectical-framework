@@ -201,6 +201,8 @@ class WheelBuilder(SettingsAware):
             if idx:
                 wu.synthesis.add_indexes_to_aliases(idx)
 
+        wheel.calculate_score()
+
 
     async def redefine(
         self, *, modified_statement_per_alias: Dict[str, str]
@@ -213,7 +215,7 @@ class WheelBuilder(SettingsAware):
         if not self.wheel_permutations:
             raise ValueError("No wheels have been built yet")
         if modified_statement_per_alias:
-            wheels = []
+            wheels: list[Wheel] = []
             for wheel in self.wheel_permutations:
                 new_wisdom_units: list[WisdomUnit] = []
                 is_dirty = False
@@ -278,6 +280,9 @@ class WheelBuilder(SettingsAware):
                         )
                         wheels.append(w)
             self.__wheels = wheels
+
+        for wheel in self.wheel_permutations:
+            wheel.calculate_score()
 
         return self.wheel_permutations
 

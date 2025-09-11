@@ -1,9 +1,23 @@
 [tool.poetry]
 name = "dialectical-framework"
-version = "0.4.3"
+version = "0.4.4"
 description = "A dialectical framework for augmented intelligence. AI reasoning powered with dialectics supports humans in: system optimization (psychology, engineering, business, politics, etc.); dispute resolution (mediation, conflicts, negotiations, etc.); decision-making (dilemmas, challenging situations, win-win, etc.)."
 authors = ["Evaldas Taroza <evaldas@dialexity.com>"]
 readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/dialexity/dialectical-framework"
+repository = "https://github.com/dialexity/dialectical-framework"
+keywords = ["dialectics", "reasoning", "ai", "philosophy", "logic"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 [[tool.poetry.packages]]
 include = "dialectical_framework"
