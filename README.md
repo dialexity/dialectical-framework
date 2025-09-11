@@ -52,7 +52,7 @@ At the core of the dialectical framework is a dialectical wheel. It is a fancy s
 
 | Simple                                              | More Complicated                                     |
 |-----------------------------------------------------|------------------------------------------------------|
-| ![Dialectical Wheel Diagram](docs/wheel-scheme.png) | ![Dialectical Wheel Diagram](docs/wheel-scheme2.png) |
+| ![Dialectical Wheel Diagram](https://raw.githubusercontent.com/dialexity/dialectical-framework/main/docs/wheel-scheme.png) | ![Dialectical Wheel Diagram](https://raw.githubusercontent.com/dialexity/dialectical-framework/main/docs/wheel-scheme2.png) |
 
 The main architectural parts are:
 - Wheel
@@ -82,7 +82,7 @@ If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they 
 ## Prototyping & App Ideas
 
 ### Simple Win-Win Finder
-![Win-Win Finder](./docs/b2c-mvp.png)
+![Win-Win Finder](https://raw.githubusercontent.com/dialexity/dialectical-framework/main/docs/b2c-mvp.png)
 
 ### Eye-Opener
 Working beta product [Eye Opener](https://app.dialexity.com/aiapps/eye-opener). It's a tool that analyzes text and generates a visual map of its underlying structure and hidden assumptions. The core feature is a graph-like interface we call the Dialectical Wheel, that shows the delayed dialectical responses ("blind spots").
