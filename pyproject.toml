@@ -7,16 +7,33 @@ readme = "README.md"
 license = "MIT"
 homepage = "https://github.com/dialexity/dialectical-framework"
 repository = "https://github.com/dialexity/dialectical-framework"
-keywords = ["dialectics", "reasoning", "ai", "philosophy", "logic"]
+keywords = [
+    "dialectics", "dialectical-reasoning", "synthesis", "thesis-antithesis",
+    "ai", "artificial-intelligence", "llm", "reasoning-framework",
+    "philosophy", "logic", "argumentation", "conflict-resolution",
+    "decision-making", "critical-thinking", "semantic-graph",
+    "mirascope", "pydantic", "wisdom-units", "polarity-reasoning"
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Sociology",
+    "Framework :: Pydantic",
+    "Environment :: Console",
+    "Natural Language :: English"
 ]
 
 [[tool.poetry.packages]]
