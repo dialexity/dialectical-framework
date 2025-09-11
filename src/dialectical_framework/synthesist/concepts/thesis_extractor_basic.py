@@ -9,8 +9,8 @@ from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware

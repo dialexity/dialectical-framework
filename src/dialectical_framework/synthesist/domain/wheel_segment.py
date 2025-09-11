@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import ConfigDict, Field
 from pydantic.fields import FieldInfo
 
-from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.assessable import Assessable
 
 ALIAS_T = "T"

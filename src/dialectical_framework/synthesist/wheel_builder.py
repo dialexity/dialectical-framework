@@ -7,20 +7,20 @@ from dependency_injector.wiring import Provide
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
 from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import \
     CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
-from dialectical_framework.synthesis import (ALIAS_S_MINUS, ALIAS_S_PLUS, Synthesis)
+from dialectical_framework.synthesist.domain.synthesis import (ALIAS_S_MINUS, ALIAS_S_PLUS, Synthesis)
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
-from dialectical_framework.wheel import Wheel, WheelSegmentReference
-from dialectical_framework.wheel_segment import ALIAS_T
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wheel import Wheel, WheelSegmentReference
+from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 class WheelBuilder(SettingsAware):

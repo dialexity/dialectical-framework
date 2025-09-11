@@ -2,7 +2,7 @@ from mirascope import Messages, prompt_template
 
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 class ReasonBlind(PolarityReasoner):

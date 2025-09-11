@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from dialectical_framework.analyst.domain.transition import Transition
-from dialectical_framework.wheel_segment import WheelSegment
+from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
 
 
 class TransitionSegmentToSegment(Transition):

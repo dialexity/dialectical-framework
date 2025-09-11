@@ -4,7 +4,7 @@ from pydantic import ConfigDict, Field
 
 from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.analyst.domain.spiral import Spiral
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 class Transformation(Spiral):

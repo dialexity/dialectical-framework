@@ -3,13 +3,13 @@ from typing import Dict, List
 from mirascope import BaseMessageParam, Messages, prompt_template
 
 from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.utils.extend_tpl import extend_tpl
-from dialectical_framework.wheel import Wheel
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wheel import Wheel
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 # TODO: reuse the prompts from the reasoners?

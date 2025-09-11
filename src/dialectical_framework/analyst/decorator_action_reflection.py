@@ -4,8 +4,8 @@ from dialectical_framework.analyst.think_action_reflection import \
     ThinkActionReflection
 from dialectical_framework.analyst.wheel_builder_transition_calculator import \
     WheelBuilderTransitionCalculator
-from dialectical_framework.wheel import Wheel
-from dialectical_framework.wheel_segment import WheelSegment
+from dialectical_framework.synthesist.domain.wheel import Wheel
+from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
 
 
 class DecoratorActionReflection(WheelBuilderTransitionCalculator):

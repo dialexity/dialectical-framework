@@ -31,22 +31,20 @@ This test suite validates the complete scoring architecture including:
 - Critique impact (balanced skepticism without vetoing)
 """
 
-import pytest
-
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.analyst.domain.spiral import Spiral
 from dialectical_framework.analyst.domain.transformation import Transformation
 from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.analyst.domain.transition_segment_to_segment import TransitionSegmentToSegment
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.directed_graph import DirectedGraph
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.directed_graph import DirectedGraph
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.predicate import Predicate
-from dialectical_framework.synthesis import Synthesis
-from dialectical_framework.wheel import Wheel
-from dialectical_framework.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
-from dialectical_framework.wisdom_unit import ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, WisdomUnit
+from dialectical_framework.synthesist.domain.synthesis import Synthesis
+from dialectical_framework.synthesist.domain.wheel import Wheel
+from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
+from dialectical_framework.synthesist.domain.wisdom_unit import ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, WisdomUnit
 
 
 class TestDialecticalComponentScoring:
@@ -235,7 +233,7 @@ class TestWheelSegmentScoring:
         t_minus = DialecticalComponent(alias="T-", statement="Thesis-", contextual_fidelity=0.7)
         
         # Create a WheelSegment subclass for testing
-        from dialectical_framework.wheel_segment import WheelSegment
+        from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
         segment = WheelSegment(
             **{ALIAS_T: t_component, ALIAS_T_PLUS: t_plus, ALIAS_T_MINUS: t_minus}
         )
@@ -250,7 +248,7 @@ class TestWheelSegmentScoring:
         t_plus = DialecticalComponent(alias="T+", statement="Thesis+", contextual_fidelity=0.0)  # Zero!
         t_minus = DialecticalComponent(alias="T-", statement="Thesis-", contextual_fidelity=0.7)
         
-        from dialectical_framework.wheel_segment import WheelSegment
+        from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
         segment = WheelSegment(
             **{ALIAS_T: t_component, ALIAS_T_PLUS: t_plus, ALIAS_T_MINUS: t_minus}
         )

@@ -3,7 +3,7 @@ from dependency_injector import providers
 from langfuse.decorators import observe
 from pydantic import BaseModel
 
-from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.synthesist.polarity.reason_blind import ReasonBlind
 from dialectical_framework.synthesist.polarity.reason_conversational import \
@@ -11,7 +11,7 @@ from dialectical_framework.synthesist.polarity.reason_conversational import \
 from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.polarity.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 from tests.test_analyst import user_message
 
 

@@ -1,7 +1,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 class DialecticalAnalysis(BaseModel):

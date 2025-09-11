@@ -10,15 +10,14 @@ from .analyst.domain.spiral import Spiral
 from .analyst.domain.transformation import Transformation
 from .analyst.domain.transition import Transition
 from .analyst.domain.transition_cell_to_cell import TransitionCellToCell
-from .analyst.domain.transition_segment_to_segment import \
-    TransitionSegmentToSegment
-from .dialectical_component import DialecticalComponent
+from .analyst.domain.transition_segment_to_segment import TransitionSegmentToSegment
+from .synthesist.domain.dialectical_component import DialecticalComponent
 from .protocols.assessable import Assessable
 from .protocols.ratable import Ratable
-from .synthesis import Synthesis
-from .wheel import Wheel
-from .wheel_segment import WheelSegment
-from .wisdom_unit import WisdomUnit
+from .synthesist.domain.synthesis import Synthesis
+from .synthesist.domain.wheel import Wheel
+from .synthesist.domain.wheel_segment import WheelSegment
+from .synthesist.domain.wisdom_unit import WisdomUnit
 
 # Explicitly call `model_rebuild()` on all models that might have forward references
 # or be part of circular dependencies. This forces Pydantic to resolve their schemas

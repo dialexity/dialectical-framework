@@ -5,8 +5,8 @@ from dialectical_framework.analyst.domain.assessable_cycle import \
     AssessableCycle
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
-from dialectical_framework.directed_graph import DirectedGraph
-from dialectical_framework.wheel_segment import WheelSegment
+from dialectical_framework.synthesist.domain.directed_graph import DirectedGraph
+from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
 
 
 class Spiral(AssessableCycle):

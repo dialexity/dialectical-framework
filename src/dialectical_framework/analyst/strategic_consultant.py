@@ -4,8 +4,8 @@ from typing import Optional, List
 from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.brain import Brain
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.wheel import Wheel
-from dialectical_framework.wheel_segment import WheelSegment
+from dialectical_framework.synthesist.domain.wheel import Wheel
+from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
 
 
 class StrategicConsultant(ABC, HasBrain):

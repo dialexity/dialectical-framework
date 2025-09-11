@@ -15,9 +15,9 @@ from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
-from dialectical_framework.dialectical_analysis import DialecticalAnalysis
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
+from dialectical_framework.synthesist.domain.dialectical_analysis import DialecticalAnalysis
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import \
@@ -34,10 +34,10 @@ from dialectical_framework.validator.basic_checks import (check,
                                                           is_positive_side,
                                                           is_strict_opposition,
                                                           is_valid_opposition)
-from dialectical_framework.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
-                                                 ALIAS_T_PLUS)
-from dialectical_framework.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                               ALIAS_A_PLUS, WisdomUnit)
+from dialectical_framework.synthesist.domain.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
+                                                                   ALIAS_T_PLUS)
+from dialectical_framework.synthesist.domain.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
+                                                                 ALIAS_A_PLUS, WisdomUnit)
 
 
 class PolarityReasoner(HasBrain, Reloadable):

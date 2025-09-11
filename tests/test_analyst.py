@@ -3,9 +3,9 @@ from langfuse.decorators import observe
 
 from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
-from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
 
@@ -50,7 +50,7 @@ async def test_full_blown_wheel():
     factory1 = DecoratorDiscreteSpiral(DecoratorActionReflection(builder=factory))
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].order == 2
-
+    assert wheels[0].score > 0
     await factory1.calculate_transitions(wheels[0])
 
     print("\n")

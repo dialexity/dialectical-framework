@@ -1,8 +1,8 @@
 from abc import abstractmethod
 
 
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.protocols.reloadable import Reloadable
 

@@ -1,7 +1,7 @@
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 
 
 class DialecticalComponentsDeck(BaseModel):

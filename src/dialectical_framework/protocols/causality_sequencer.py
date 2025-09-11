@@ -3,9 +3,9 @@ from itertools import permutations
 from typing import Union
 
 from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.reloadable import Reloadable
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 class CausalitySequencer(Reloadable):

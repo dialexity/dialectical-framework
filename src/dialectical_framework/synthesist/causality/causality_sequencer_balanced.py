@@ -12,8 +12,8 @@ from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
 from dialectical_framework.analyst.domain.assessable_cycle import decompose_probability_into_transitions
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.analyst.domain.rationale import Rationale
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.protocols.causality_sequencer import (
     CausalitySequencer, generate_compatible_sequences,
@@ -24,8 +24,8 @@ from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
-from dialectical_framework.wheel_segment import ALIAS_T
-from dialectical_framework.wisdom_unit import WisdomUnit
+from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):

@@ -8,10 +8,10 @@ from dialectical_framework.analyst.domain.assessable_cycle import \
     AssessableCycle
 from dialectical_framework.analyst.domain.transition_cell_to_cell import \
     TransitionCellToCell
-from dialectical_framework.dialectical_component import DialecticalComponent
-from dialectical_framework.dialectical_components_deck import \
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
-from dialectical_framework.directed_graph import DirectedGraph
+from dialectical_framework.synthesist.domain.directed_graph import DirectedGraph
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.predicate import Predicate
 

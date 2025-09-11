@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 from pydantic import Field
 
 from dialectical_framework.protocols.assessable import Assessable
-from dialectical_framework.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
-from dialectical_framework.synthesis import Synthesis
-from dialectical_framework.wheel_segment import WheelSegment
+from dialectical_framework.synthesist.domain.synthesis import Synthesis
+from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
 
 if TYPE_CHECKING:
     from dialectical_framework.analyst.domain.transformation import \
