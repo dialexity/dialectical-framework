@@ -1,12 +1,10 @@
 # Todo:
 
-[] (1) transitions' feasibilities with argumentations,
-(2) optionally, condensing texts to one-liners,
-(3) the ability to use these transitions and/or argumentations as starting points for new wheels....
+[] the ability to use these transitions and/or argumentations as starting points for new wheels....
 
 [] Get rid of "reasoning mode", this seems to be connected to brain, which is a pluggable service
 
-[] Fidelity score evaluator for a dialectical component (what do we do with antithetical domain, where antithesis is outside of the context, but contributes to it)
+[] Fidelity score evaluator for a dialectical component
 ```aiignore
     @prompt_template(
         """
