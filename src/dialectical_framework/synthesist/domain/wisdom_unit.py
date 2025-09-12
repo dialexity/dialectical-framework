@@ -91,7 +91,9 @@ class WisdomUnit(WheelSegment):
             pairs.append((self.synthesis.t_plus, self.synthesis.t_minus))
 
         for one, two in pairs:
-            pm = pm_with_zeros_and_nones_handled((one.calculate_contextual_fidelity(mutate=mutate), two.calculate_contextual_fidelity(mutate=mutate)))
+            one_cf = one.calculate_contextual_fidelity(mutate=mutate) if one else None
+            two_cf = two.calculate_contextual_fidelity(mutate=mutate) if two else None
+            pm = pm_with_zeros_and_nones_handled((one_cf, two_cf))
             if pm is not None:
                 parts.append(pm)
 

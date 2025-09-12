@@ -5,7 +5,7 @@
 The Dialectical Framework uses a hierarchical scoring system to rank any element ("assessable") in the dialectical structure. Each element receives a **Score (S)** that combines two fundamental dimensions:
 
 * **Probability (P)** — structural feasibility. *Could this arrangement actually work?*
-* **Contextual Fidelity (CF)** — contextual grounding. *Does this mak. e sense in this specific context?*
+* **Contextual Fidelity (CF)** — contextual grounding. *Does this make sense in this specific context?*
 
 The final score formula is: **Score = P × CF^α**
 
@@ -138,11 +138,13 @@ External Transitions (wheel-level cycles):
 - **S+**: GM(0.85×0.8, 0.9×0.9, GM(0.8,0.6×0.5)×0.7) = GM(0.68, 0.81, 0.34) = 0.58
 - **S-**: 0.4 × 0.3 = 0.12
 
-**Step 2: WisdomUnit CF** (all components + synthesis + transformation)
-- All Components: GM(0.72, 0.67, 0.32, 0.56, 0.48, 0.20) = 0.49
-- Synthesis: GM(0.58, 0.12) = 0.26
+**Step 2: WisdomUnit CF** (symmetric pairs + synthesis + transformation)
+- **T ↔ A pair**: PowerMean(0.72, 0.56, p=4) = 0.66
+- **T+ ↔ A- pair**: PowerMean(0.67, 0.20, p=4) = 0.57
+- **T- ↔ A+ pair**: PowerMean(0.32, 0.48, p=4) = 0.43
+- **S+ ↔ S- pair**: PowerMean(0.58, 0.12, p=4) = 0.48
 - Transformation CF: GM(0.8, 0.7) = 0.75
-- **WisdomUnit CF** = GM(0.49, 0.26, 0.75) = 0.47
+- **WisdomUnit CF** = GM(0.66, 0.57, 0.43, 0.48, 0.75) = 0.56
 
 **Step 3: WisdomUnit P** (from Transformation)
 - **Transformation P** = Product(0.7, 0.6) = 0.42
@@ -158,12 +160,12 @@ External Transitions (wheel-level cycles):
 
 **Step 5: Wheel Aggregation**
 - **Wheel CF** = GM(WisdomUnit_cf, TA_transition_cfs)
-  = GM(0.47, 0.71, 0.5) = 0.55
+  = GM(0.56, 0.71, 0.5) = 0.58
 - **Wheel P** = GM(T_cycle_p, TA_cycle_p, Spiral_p, unit_transformations)
   = GM(1.0, 0.43, 0.42, 0.42) = 0.55
 
 **Step 6: Final Score**
-- **Wheel Score** (α=1) = 0.55 × 0.55 = **0.30**
+- **Wheel Score** (α=1) = 0.55 × 0.58 = **0.32**
 
 ---
 
@@ -218,9 +220,15 @@ External Transitions (wheel-level cycles):
 
 * CF = GM of:
 
-  * **both segments’ CFs**,
-  * **one internal-relations CF** = GM of the unit’s **two internal transitions** (summarized once),
+  * **Dialectically symmetric component pairs** using power mean (p=4, soft max):
+    * **T ↔ A**: Power mean of thesis and antithesis CFs
+    * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis CFs  
+    * **T- ↔ A+**: Power mean of negative thesis and positive antithesis CFs
+    * **S+ ↔ S-**: Power mean of synthesis components (if present)
+  * **Transformation CF** (internal spiral transitions),
   * **rated unit-level rationales**,
+
+*Note: WisdomUnit CF calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation that credits the conceptual counterpoint without penalizing it for being less explicitly grounded in initial materials. Zero-handling preserves hard veto behavior when components have CF=0.*
 
 **Cycle** *(T, TA, Spiral, Transformation — diagnostic)*
 
