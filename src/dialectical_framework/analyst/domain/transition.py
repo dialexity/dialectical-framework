@@ -4,6 +4,7 @@ from typing import Tuple, Union
 
 from pydantic import ConfigDict, Field, field_validator
 
+from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
@@ -54,14 +55,6 @@ class Transition(Ratable):
             frozenset(self.source_aliases),
             frozenset(self.target_aliases),
         )
-
-    @property
-    def advice(self) -> str | None:
-        r = self.best_rationale
-        if r:
-            return r.text
-        else:
-            return None
 
     def calculate_probability(self, *, mutate: bool = True) -> float | None:
         parts: list[float] = []
@@ -150,9 +143,10 @@ class Transition(Ratable):
         return new_t_class(**merged_dict)
 
     def pretty(self) -> str:
+        rationale = self.best_rationale
         str_pieces = [
             f"{', '.join(self.source_aliases)} → {', '.join(self.target_aliases)}",
-            f"Summary: {self.advice if self.advice else 'N/A'}",
+            f"Summary: {rationale.text if rationale else 'N/A'}",
         ]
         return "\n".join(str_pieces)
 

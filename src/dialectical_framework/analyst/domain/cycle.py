@@ -16,7 +16,7 @@ from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.predicate import Predicate
 
 
-class Cycle(AssessableCycle):
+class Cycle(AssessableCycle[TransitionCellToCell]):
     model_config = ConfigDict(
         extra="forbid",
         arbitrary_types_allowed=True,

@@ -2,6 +2,7 @@ from typing import Dict, List
 
 from mirascope import BaseMessageParam, Messages, prompt_template
 
+from dialectical_framework import Transition
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.causality_type import CausalityType
@@ -383,8 +384,7 @@ class ReverseEngineer:
         return tpl
 
     @staticmethod
-    def wheel(wheel: Wheel, text: str = None) -> list[BaseMessageParam]:
-        # TODO: transitions/spiral
+    def till_wheel_without_convergent_transitions(wheel: Wheel, text: str = None) -> list[BaseMessageParam]:
         return ReverseEngineer.till_cycle(
             wheel.wisdom_units, wheel.t_cycle, wheel.cycle, text
         )

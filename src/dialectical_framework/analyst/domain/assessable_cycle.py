@@ -1,4 +1,5 @@
 from abc import ABC
+from typing import TypeVar, Generic
 
 from pydantic import ConfigDict, Field
 
@@ -8,12 +9,15 @@ from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.utils.decompose_probability_uniformly import decompose_probability_uniformly
 
 
-class AssessableCycle(Assessable, ABC):
+T = TypeVar('T', bound=Transition)
+
+
+class AssessableCycle(Assessable, Generic[T], ABC):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
     )
 
-    graph: DirectedGraph[Transition] = Field(
+    graph: DirectedGraph[T] = Field(
         default=None,
         description="Directed graph representing the cycle of dialectical components.",
     )
@@ -49,7 +53,7 @@ class AssessableCycle(Assessable, ABC):
         - Else product of all
         No cycle-level opinions here.
         """
-        transitions: list[Transition] = self.graph.first_path()  # ensure this is the ordered full cycle
+        transitions: list[T] = self.graph.first_path()  # ensure this is the ordered full cycle
         if not transitions:
             prob = None
         else:

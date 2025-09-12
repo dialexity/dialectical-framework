@@ -9,7 +9,7 @@ from dialectical_framework.synthesist.domain.directed_graph import DirectedGraph
 from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
 
 
-class Spiral(AssessableCycle):
+class Spiral(AssessableCycle[TransitionSegmentToSegment]):
     model_config = ConfigDict(
         extra="forbid",
         arbitrary_types_allowed=True,

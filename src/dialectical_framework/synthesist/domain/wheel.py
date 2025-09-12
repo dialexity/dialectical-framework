@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import List, Union, Any, Dict
+from typing import List, Union, Any, Dict, TYPE_CHECKING
 
 from tabulate import tabulate
 
-from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.analyst.domain.spiral import Spiral
-from dialectical_framework.analyst.domain.transition import Transition
+if TYPE_CHECKING:
+    from dialectical_framework.analyst.domain.cycle import Cycle
+    from dialectical_framework.analyst.domain.spiral import Spiral
+    from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
@@ -17,7 +18,7 @@ WheelSegmentReference = Union[int, WheelSegment, str, DialecticalComponent]
 
 
 class Wheel(Assessable):
-    def __init__(self, *wisdom_units, t_cycle: Cycle, ta_cycle: Cycle, **kwargs):
+    def __init__(self, *wisdom_units, t_cycle: "Cycle", ta_cycle: "Cycle", **kwargs):
         super().__init__(**kwargs)
 
         # One iterable argument → use it directly
@@ -26,8 +27,11 @@ class Wheel(Assessable):
         else:
             self._wisdom_units: list[WisdomUnit] = list(wisdom_units)
 
-        self._ta_cycle: Cycle = ta_cycle
-        self._t_cycle: Cycle = t_cycle
+        self._ta_cycle: "Cycle" = ta_cycle
+        self._t_cycle: "Cycle" = t_cycle
+        
+        # Import Spiral at runtime to avoid circular imports
+        from dialectical_framework.analyst.domain.spiral import Spiral
         self._spiral: Spiral = Spiral()
 
     @property
@@ -58,6 +62,9 @@ class Wheel(Assessable):
         
         Components with contextual_fidelity of 0.0 or None are excluded from the calculation.
         """
+        # Import at runtime to avoid circular imports
+        from dialectical_framework.analyst.domain.transition import Transition
+        
         parts = []
 
         # Collect from wisdom units
