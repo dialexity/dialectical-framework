@@ -54,7 +54,7 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
 
             if overridden_ai_provider == "litellm":
                 # We use LiteLLM just for convenience, the real framework is Mirascope.
-                # So anything related to litellm can be supressed
+                # So anything related to litellm can be suppressed
                 litellm.turn_off_message_logging = True
 
             # Merge brain specification with all parameters

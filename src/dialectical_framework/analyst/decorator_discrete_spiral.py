@@ -1,3 +1,4 @@
+from asyncio import gather
 
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
@@ -22,9 +23,16 @@ class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
     async def _do_calculate_transitions_all(
         self, wheel: Wheel
     ) -> list[TransitionSegmentToSegment]:
-        # TODO: use a single prompt to derive all transitions faster?
+        # Run all transitions in parallel for better performance
+        async_tasks = [
+            self._do_calculate_transitions(wheel, wheel.wheel_segment_at(i))
+            for i in range(wheel.degree)
+        ]
+        
+        results = await gather(*async_tasks)
+        
+        # Flatten the list of lists
         result: list[TransitionSegmentToSegment] = []
-        for i in range(wheel.degree):
-            tr = await self._do_calculate_transitions(wheel, wheel.wheel_segment_at(i))
-            result.extend(tr)
+        for tr_list in results:
+            result.extend(tr_list)
         return result

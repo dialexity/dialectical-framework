@@ -164,14 +164,22 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         rationale = Rationale(
             text=await self.constructive_convergence(focus=focus, next_ws=next_ws)
         )
-        transition = TransitionSegmentToSegment(
-            predicate=Predicate.CONSTRUCTIVELY_CONVERGES_TO,
-            source_aliases=[focus.t_minus.alias, focus.t.alias],
-            target_aliases=[next_ws.t_plus.alias],
-            source=focus,
-            target=next_ws,
-            rationales=[rationale],
+
+        transition = self._wheel.spiral.graph.get_transition(
+            [focus.t_minus.alias, focus.t.alias],
+                        [next_ws.t_plus.alias]
         )
+        if transition is None:
+            transition = TransitionSegmentToSegment(
+                predicate=Predicate.CONSTRUCTIVELY_CONVERGES_TO,
+                source_aliases=[focus.t_minus.alias, focus.t.alias],
+                target_aliases=[next_ws.t_plus.alias],
+                source=focus,
+                target=next_ws,
+                rationales=[rationale],
+            )
+        else:
+            transition.rationales.append(rationale)
         summary = await self.summarize(transition=transition)
 
         rationale.summary = summary.one_liner

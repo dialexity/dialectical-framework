@@ -1,3 +1,5 @@
+from asyncio import gather
+
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
 from dialectical_framework.analyst.think_action_reflection import \
@@ -21,8 +23,16 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
     async def _do_calculate_transitions_all(
         self, wheel: Wheel
     ) -> list[TransitionSegmentToSegment]:
+        # Run all transitions in parallel for better performance
+        async_tasks = [
+            self._do_calculate_transitions(wheel, wu)
+            for wu in wheel.wisdom_units
+        ]
+        
+        results = await gather(*async_tasks)
+        
+        # Flatten the list of lists
         result: list[TransitionSegmentToSegment] = []
-        for wu in wheel.wisdom_units:
-            tr = await self._do_calculate_transitions(wheel, wu)
-            result.extend(tr)
+        for tr_list in results:
+            result.extend(tr_list)
         return result

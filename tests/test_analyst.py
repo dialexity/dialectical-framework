@@ -3,6 +3,7 @@ from langfuse.decorators import observe
 
 from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
+from dialectical_framework.analyst.decorator_discrete_spiral_audited import DecoratorDiscreteSpiralAudited
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
@@ -47,7 +48,7 @@ example_wu4 = WisdomUnit(
 @observe()
 async def test_full_blown_wheel():
     factory = DialecticalReasoning.wheel_builder(text=user_message)
-    factory1 = DecoratorDiscreteSpiral(DecoratorActionReflection(builder=factory))
+    factory1 = DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral(DecoratorActionReflection(builder=factory)))
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].order == 2
     assert wheels[0].score > 0

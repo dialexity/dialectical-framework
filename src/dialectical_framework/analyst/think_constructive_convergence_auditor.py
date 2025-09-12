@@ -1,6 +1,5 @@
 import asyncio
 from asyncio import gather
-from typing import cast
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -10,13 +9,9 @@ from dialectical_framework.ai_dto.constructive_convergence_transition_audit_dto 
 from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
-from dialectical_framework.analyst.strategic_consultant import \
-    StrategicConsultant
 from dialectical_framework.analyst.think_constructive_convergence import ThinkConstructiveConvergence
-from dialectical_framework.enums.predicate import Predicate
-from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
-from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
+from dialectical_framework.utils.use_brain import use_brain
 
 
 class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
@@ -104,13 +99,4 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
             ))
 
 
-        return TransitionSegmentToSegment(
-            predicate=Predicate.CONSTRUCTIVELY_CONVERGES_TO,
-            source_aliases=[focus.t_minus.alias, focus.t.alias],
-            target_aliases=[next_ws.t_plus.alias],
-            source=focus,
-            target=next_ws,
-            rationales=[Rationale(
-                text=await self.constructive_convergence(focus=focus, next_ws=next_ws)
-            )],
-        )
+        return transition
