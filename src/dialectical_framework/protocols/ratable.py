@@ -11,6 +11,8 @@ from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 if TYPE_CHECKING: # Conditionally import Rationale for type checking only
     pass
 
+DEFAULT_CONFIDENCE = 0.5
+
 class Ratable(Assessable, ABC):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -36,7 +38,7 @@ class Ratable(Assessable, ABC):
         """
         The default confidence is 0.5 when None. This is a rather technical thing, we are never 100% sure, so 0.5 is ok.
         """
-        return self.confidence if self.confidence is not None else 0.5
+        return self.confidence if self.confidence is not None else DEFAULT_CONFIDENCE
 
     def _hard_veto_on_own_zero(self) -> bool:
         return True  # default for DC and Transition

@@ -129,4 +129,4 @@ def decompose_probability_into_transitions(
                 len(transitions_without_probs)
             )
             for transition in transitions_without_probs:
-                transition.probability = individual_prob
+                transition.manual_probability = individual_prob

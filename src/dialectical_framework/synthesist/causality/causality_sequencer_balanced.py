@@ -12,20 +12,20 @@ from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
 from dialectical_framework.analyst.domain.assessable_cycle import decompose_probability_into_transitions
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.analyst.domain.rationale import Rationale
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.dialectical_components_deck import \
-    DialecticalComponentsDeck
 from dialectical_framework.protocols.causality_sequencer import (
     CausalitySequencer, generate_compatible_sequences,
     generate_permutation_sequences)
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
+    DialecticalComponentsDeck
+from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T
+from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
-from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T
-from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 
 
 class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
@@ -339,8 +339,19 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             total_after = sum(probs)
             diff = Decimal("1.000") - total_after
             probs[0] = (probs[0] + diff).quantize(q, rounding=ROUND_HALF_UP)
+            assert abs(sum(probs) - Decimal("1.000")) < Decimal("0.001")
 
             for causal_cycle, p in zip(causal_cycles_deck.causal_cycles, probs):
+                # Create cycle first to get transition count
+                cycle = Cycle(
+                    dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
+                    causality_type=self.settings.causality_type,
+                )
+                
+                # Since these are normalized probabilities from the sequencer, 
+                # they should be treated as authoritative (confidence = 1.0)
+                cycle_confidence = 1.0
+                
                 # Create rationale from reasoning and argumentation
                 cycle_rationale = Rationale(
                     summary=causal_cycle.reasoning_explanation,
@@ -348,12 +359,8 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     # Now here's the trick, the normalized probability is assigned to the cycle
                     # because the initial "probability" is actually "feasibility"
                     contextual_fidelity=causal_cycle.probability,
-                    probability=float(p)
-                )
-
-                cycle = Cycle(
-                    dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
-                    causality_type=self.settings.causality_type,
+                    probability=float(p),
+                    confidence=cycle_confidence
                 )
 
                 # Add the rationale to the cycle
@@ -363,6 +370,10 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     probability=cycle_rationale.probability,
                     transitions=cycle.graph.get_all_transitions(),
                     overwrite_existing_transition_probabilities=True)
+                
+                # Set the cycle's confidence on all transitions to maintain consistency
+                for t in cycle.graph.get_all_transitions():
+                    t.confidence = cycle_confidence
 
                 for t in cycle.graph.get_all_transitions():
                     # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
