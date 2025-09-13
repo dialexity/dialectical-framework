@@ -109,7 +109,7 @@ class Rationale(Ratable):
         probability = self.calculate_probability_evidence(mutate=True)
 
         if probability is None:
-            return 1.0
+            probability = 1.0
 
         if mutate:
             self.probability = probability
