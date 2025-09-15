@@ -42,7 +42,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         - **0.9-1.0:** Highly achievable under current or near-term conditions
         
         **Output Format:**
-        Feasibility = [number between 0 and 1]
+        Feasibility = [evaluated practical feasibility, number between 0 and 1]
         Key Factors = [2-3 most critical factors affecting feasibility]
         Argumentation = [concise explanation referencing context and evidence]
         Conditions for Success = [what would need to change to improve feasibility]
@@ -95,6 +95,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
             audit = audits[i]
             r.rationales.append(Rationale(
                 contextual_fidelity=audit.feasibility,
+                probability=1, # assume the auditor's suggestion is a fact?
                 text=f"Key Factors: {audit.key_factors}\n\nArgumentation: {audit.argumentation}\n\nConditions for Success: {audit.success_conditions}"
             ))
 

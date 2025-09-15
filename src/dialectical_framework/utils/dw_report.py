@@ -57,7 +57,7 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
                 spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | CF={_fmt_score(w.spiral.contextual_fidelity)} | P={_fmt_score(w.spiral.probability)}"
                 report += f"Spiral [{spiral_scores}]\n"
 
-            # Add tabular display of wheel components
+            # Add tabular display of wheel components and transitions
             report += _print_wheel_tabular(w) + "\n"
 
     return report
@@ -89,7 +89,7 @@ def _fmt_score(value, *, colorize: bool = False) -> str:
 
     return str(value)
 
-def _print_wheel_tabular(self) -> str:
+def _print_wheel_tabular(wheel) -> str:
     roles = [
         ("t_minus", "T-"),
         ("t", "T"),
@@ -99,7 +99,7 @@ def _print_wheel_tabular(self) -> str:
         ("a_minus", "A-"),
     ]
 
-    n_units = len(self._wisdom_units)
+    n_units = len(wheel._wisdom_units)
 
     # Create headers: WU1_alias, WU1_statement, (transition1), WU2_alias, ...
     headers = []
@@ -110,15 +110,74 @@ def _print_wheel_tabular(self) -> str:
     # Build the table: alternate wisdom unit cells and transitions
     for role_attr, role_label in roles:
         row = []
-        for i, wu in enumerate(self._wisdom_units):
+        for i, wu in enumerate(wheel._wisdom_units):
             # Wisdom unit columns
             component = getattr(wu, role_attr, None)
             row.append(component.alias if component else "")
             row.append(component.statement if component else "")
         table.append(row)
 
-    return tabulate(
+    component_table = tabulate(
         table,
-        # headers=headers,
         tablefmt="plain",
     )
+
+    # Add transition information table
+    transitions_table = _print_transitions_table(wheel)
+
+    return component_table + "\n\n" + transitions_table if transitions_table else component_table
+
+def _print_transitions_table(wheel) -> str:
+    """Print a table of all transitions with their scores, CF, and P values."""
+
+    # Get cycles to extract transitions
+    cycles = []
+    if hasattr(wheel, 't_cycle') and wheel.t_cycle:
+        cycles.append(('T-cycle', wheel.t_cycle))
+    if hasattr(wheel, 'ta_cycle') and wheel.ta_cycle:
+        cycles.append(('TA-cycle', wheel.ta_cycle))
+    if hasattr(wheel, 'spiral') and wheel.spiral:
+        cycles.append(('Spiral', wheel.spiral))
+
+    # If we don't have any cycles with transitions, return empty string
+    if not cycles:
+        return ""
+
+    transitions_data = []
+
+    # Extract transitions from each cycle
+    for cycle_name, cycle in cycles:
+        if not hasattr(cycle, 'graph') or not cycle.graph:
+            continue
+
+        for transition in cycle.graph.get_all_transitions():
+            # Format source and target nicely
+            source = ', '.join(transition.source_aliases) if transition.source_aliases else transition.source.alias
+            target = ', '.join(transition.target_aliases) if transition.target_aliases else transition.target.alias
+
+            # Format transition representation
+            trans_repr = f"{source} → {target}"
+
+            # Get scores
+            score = _fmt_score(transition.score, colorize=True)
+            cf = _fmt_score(transition.contextual_fidelity)
+            p = _fmt_score(transition.probability)
+            confidence = _fmt_score(transition.confidence)
+
+            # Add to data
+            transitions_data.append([
+                cycle_name,
+                trans_repr,
+                score,
+                cf,
+                p,
+                confidence
+            ])
+
+    # If no transitions found, return empty string
+    if not transitions_data:
+        return ""
+
+    # Create transitions table
+    headers = ["Cycle", "Transition", "Score", "CF", "P", "Confidence"]
+    return "Transitions:\n" + tabulate(transitions_data, headers=headers, tablefmt="grid")

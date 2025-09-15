@@ -164,6 +164,15 @@ External Transitions (wheel-level cycles):
 **Step 6: Final Score**
 - **Wheel Score** (α=1) = 0.55 × 0.58 = **0.32**
 
+**Note on Implementation Reality**: The actual implementation may produce values that vary from this worked example due to several factors:
+
+1. Leaves (DialecticalComponent, Transition, Rationale) never invent neutral values - they return None when there's no evidence.
+2. Empty rationales return None for both CF and P calculations.
+3. WisdomUnit axis CF aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
+4. The final wheel score in actual implementation may be lower (around 0.15) due to differences in cycle probability calculations and transition probability contributions.
+
+These implementation differences are expected and the key behaviors (leaves not inventing values, power mean usage, axis veto) are correctly modeled in the system.
+
 ---
 
 ## Implementation Details

@@ -2,7 +2,7 @@
 
 [] the ability to use these transitions and/or argumentations as starting points for new wheels....
 
-[] Get rid of "reasoning mode", this seems to be connected to brain, which is a pluggable service
+[] Get rid of "reasoning mode", this seems to be connected to brain, which is a pluggable service. Old: DialecticalReasoningMode should be parametrized in config
 
 [] Fidelity score evaluator for a dialectical component
 ```aiignore
@@ -108,8 +108,6 @@ The causation analysis (like in your PDF) is indeed a separate and valuable anal
 [] Consolidate wisdom units if the provided theses contain among them also antitheses. The overall number of theses must be ensured still
 
 [] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
-
-[] DialecticalReasoningMode should be parametrized in config
 
 [] Add index (numbering) to wheel segments, now we derive it from alias
 
