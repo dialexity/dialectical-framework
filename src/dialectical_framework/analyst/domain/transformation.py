@@ -22,6 +22,6 @@ class Transformation(Spiral):
 
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
         fidelity = self.ac_re.calculate_contextual_fidelity()
-        if fidelity is not None and fidelity > 0.0:
+        if fidelity is not None:
             return [fidelity]
         return []

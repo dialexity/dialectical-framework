@@ -54,6 +54,7 @@ async def test_full_blown_wheel():
     assert wheels[0].order == 2
     assert wheels[0].score > 0
     await factory1.calculate_transitions(wheels[0])
+    await factory1.calculate_transitions(wheels[1])
 
     print(dw_report(wheels))
 

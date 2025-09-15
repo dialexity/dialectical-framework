@@ -361,7 +361,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     # because the initial "probability" is actually "feasibility"
                     contextual_fidelity=causal_cycle.probability,
                     probability=float(p),
-                    confidence=forced_confidence
+                    # confidence=forced_confidence
                 )
 
                 # Add the rationale to the cycle

@@ -65,7 +65,7 @@ class WheelSegment(Assessable):
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
                 fidelity = dc.calculate_contextual_fidelity()
-                if fidelity is not None and fidelity > 0.0:
+                if fidelity is not None:
                     parts.append(fidelity)
 
         return parts
@@ -82,7 +82,8 @@ class WheelSegment(Assessable):
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
                 probability = dc.calculate_probability()
-                parts.append(probability)
+                if probability is not None:
+                    parts.append(probability)
 
         # Save the calculation as this object is derivative composition
         self.probability = gm_with_zeros_and_nones_handled(parts)

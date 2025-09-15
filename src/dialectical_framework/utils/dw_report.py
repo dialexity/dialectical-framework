@@ -142,9 +142,8 @@ def _format_rationale_tree(rationale, indent=0):
 
     # Add child rationales recursively
     child_lines = ""
-    if hasattr(rationale, 'rationales') and rationale.rationales:
-        for child in rationale.rationales:
-            child_lines += "\n" + _format_rationale_tree(child, indent + 1)
+    for child in rationale.rationales:
+        child_lines += "\n" + _format_rationale_tree(child, indent + 1)
 
     return tree_line + child_lines
 
@@ -155,12 +154,9 @@ def _print_transitions_table(wheel) -> str:
     cycles = []
 
     # Access cycles directly - they should be available on the wheel
-    try:
-        cycles.append(('T-cycle', wheel.t_cycle))
-        cycles.append(('TA-cycle', wheel.cycle))
-        cycles.append(('Spiral', wheel.spiral))
-    except (AttributeError, TypeError):
-        pass
+    cycles.append(('T-cycle', wheel.t_cycle))
+    cycles.append(('TA-cycle', wheel.cycle))
+    cycles.append(('Spiral', wheel.spiral))
 
     # If we don't have any cycles with transitions, return empty string
     if not cycles:
@@ -170,18 +166,11 @@ def _print_transitions_table(wheel) -> str:
 
     # Extract transitions from each cycle
     for cycle_name, cycle in cycles:
-        try:
-            transitions = cycle.graph.get_all_transitions()
-        except (AttributeError, TypeError):
-            continue
-
+        transitions = cycle.graph.get_all_transitions()
         for transition in transitions:
             # Format source and target nicely
-            try:
-                source = ', '.join(transition.source_aliases)
-                target = ', '.join(transition.target_aliases)
-            except (AttributeError, TypeError):
-                continue
+            source = ', '.join(transition.source_aliases)
+            target = ', '.join(transition.target_aliases)
 
             # Format transition representation
             trans_repr = f"{source} → {target}"
@@ -194,13 +183,8 @@ def _print_transitions_table(wheel) -> str:
 
             # Format rationales tree
             rationales_tree = ""
-            try:
-                if transition.rationales:
-                    for rationale in transition.rationales:
-                        if rationale:
-                            rationales_tree += _format_rationale_tree(rationale) + "\n"
-            except (AttributeError, TypeError):
-                pass
+            for rationale in transition.rationales:
+                rationales_tree += _format_rationale_tree(rationale) + "\n"
 
             if not rationales_tree:
                 rationales_tree = "No rationales"

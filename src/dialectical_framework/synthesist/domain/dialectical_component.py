@@ -89,6 +89,8 @@ class DialecticalComponent(Ratable):
         There are no transitions, so we treat it as a fact, so if it wasn't set it's 1.0.
         We don't save the calculation because it would overwrite the manual value.
         """
+        if self._hard_veto_on_own_zero() and self.probability == 0:
+            return 0.0
         return self.probability if self.probability is not None else 1.0
 
     def pretty(

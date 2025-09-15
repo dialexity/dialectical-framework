@@ -45,6 +45,12 @@ class Rationale(Ratable):
             if p is not None:
                 parts.append(p)
 
+        # Child rationales (critiques) - aggregate their probabilities too
+        for child_rationale in (self.rationales or []):
+            p = child_rationale.calculate_probability()
+            if p is not None:
+                parts.append(p)
+
         # Evidence comes only from wheels or manual setting. Don't mix with CF, where we look deeper.
         if self.probability is not None:
             return self.probability
@@ -56,6 +62,7 @@ class Rationale(Ratable):
         # Wheels spawned by this rationale — include as-is
         for w in (self.wheels or []):
             cf = w.calculate_contextual_fidelity()
-            if cf is not None and cf > 0.0:
-                parts.append(cf)
+            if cf is not None:
+                if self._hard_veto_on_own_zero() and cf == 0.0:
+                    parts.append(cf)
         return parts

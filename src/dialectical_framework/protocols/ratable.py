@@ -55,13 +55,13 @@ class Ratable(Assessable, ABC):
         # 1) Rated child rationales (helper already applies rationale.rating exactly once)
         parts.extend(
             v for v in (self._calculate_contextual_fidelity_for_rationales() or [])
-            if v is not None and v > 0.0
+            if v is not None
         )
 
         # 2) Leaf-specific sub-elements (default none; Rationale overrides to include wheels)
         parts.extend(
             v for v in (self._calculate_contextual_fidelity_for_sub_elements_excl_rationales() or [])
-            if v is not None and v > 0.0
+            if v is not None
         )
 
         # 3) Own manual CF

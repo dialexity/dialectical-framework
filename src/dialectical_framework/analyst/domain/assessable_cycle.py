@@ -42,7 +42,7 @@ class AssessableCycle(Assessable, Generic[T], ABC):
         if transitions:
             for transition in transitions:
                 fidelity = transition.calculate_contextual_fidelity()
-                if fidelity is not None and fidelity > 0.0:
+                if fidelity is not None:
                     parts.append(fidelity)
 
         return parts
