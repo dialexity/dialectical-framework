@@ -53,9 +53,8 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
             report += f"Wheel {i} [{wheel_scores}]\n"
 
             # Display spiral with aligned, colorized scores if available
-            if hasattr(w, 'spiral'):
-                spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | CF={_fmt_score(w.spiral.contextual_fidelity)} | P={_fmt_score(w.spiral.probability)}"
-                report += f"Spiral [{spiral_scores}]\n"
+            spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | CF={_fmt_score(w.spiral.contextual_fidelity)} | P={_fmt_score(w.spiral.probability)}"
+            report += f"Spiral [{spiral_scores}]\n"
 
             # Add tabular display of wheel components and transitions
             report += _print_wheel_tabular(w) + "\n"
@@ -99,7 +98,9 @@ def _print_wheel_tabular(wheel) -> str:
         ("a_minus", "A-"),
     ]
 
-    n_units = len(wheel._wisdom_units)
+    # Try to access wisdom units through public interface if available
+    wisdom_units = wheel.wisdom_units
+    n_units = len(wisdom_units)
 
     # Create headers: WU1_alias, WU1_statement, (transition1), WU2_alias, ...
     headers = []
@@ -110,7 +111,7 @@ def _print_wheel_tabular(wheel) -> str:
     # Build the table: alternate wisdom unit cells and transitions
     for role_attr, role_label in roles:
         row = []
-        for i, wu in enumerate(wheel._wisdom_units):
+        for i, wu in enumerate(wisdom_units):
             # Wisdom unit columns
             component = getattr(wu, role_attr, None)
             row.append(component.alias if component else "")
@@ -132,12 +133,11 @@ def _print_transitions_table(wheel) -> str:
 
     # Get cycles to extract transitions
     cycles = []
-    if hasattr(wheel, 't_cycle') and wheel.t_cycle:
-        cycles.append(('T-cycle', wheel.t_cycle))
-    if hasattr(wheel, 'ta_cycle') and wheel.ta_cycle:
-        cycles.append(('TA-cycle', wheel.ta_cycle))
-    if hasattr(wheel, 'spiral') and wheel.spiral:
-        cycles.append(('Spiral', wheel.spiral))
+
+    # Access cycles directly - they should be available on the wheel
+    cycles.append(('T-cycle', wheel.t_cycle))
+    cycles.append(('TA-cycle', wheel.cycle))
+    cycles.append(('Spiral', wheel.spiral))
 
     # If we don't have any cycles with transitions, return empty string
     if not cycles:
@@ -147,13 +147,10 @@ def _print_transitions_table(wheel) -> str:
 
     # Extract transitions from each cycle
     for cycle_name, cycle in cycles:
-        if not hasattr(cycle, 'graph') or not cycle.graph:
-            continue
-
         for transition in cycle.graph.get_all_transitions():
             # Format source and target nicely
-            source = ', '.join(transition.source_aliases) if transition.source_aliases else transition.source.alias
-            target = ', '.join(transition.target_aliases) if transition.target_aliases else transition.target.alias
+            source = ', '.join(transition.source_aliases)
+            target = ', '.join(transition.target_aliases)
 
             # Format transition representation
             trans_repr = f"{source} → {target}"
