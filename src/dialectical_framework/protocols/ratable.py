@@ -74,8 +74,8 @@ class Ratable(Assessable, ABC):
                 if val > 0.0:
                     parts.append(val)
 
-        # 4) Aggregate or neutral fallback
-        return gm_with_zeros_and_nones_handled(parts) if parts else 1.0
+        # Don't fallback to 1.0 to not improve scores for free
+        return gm_with_zeros_and_nones_handled(parts) if parts else None
 
     # Default: no extra sub-elements on generic leaves
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:

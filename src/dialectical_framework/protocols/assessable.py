@@ -33,22 +33,14 @@ class Assessable(BaseModel, ABC):
 
     @property
     def best_rationale(self) -> Rationale | None:
-        if self.rationales and len(self.rationales) > 1:
-            return self.rationales[0]
-
         selected_r = None
-        best_score = None  # use None sentinel
-
-        for r in self.rationales or []:
+        best_score = None
+        for r in (self.rationales or []):
             r_score = r.calculate_score(mutate=False)
             if r_score is not None and (best_score is None or r_score > best_score):
                 best_score = r_score
                 selected_r = r
-
-        if selected_r is not None:
-            return selected_r
-        # fallback: first rationale if present
-        return self.rationales[0] if self.rationales else None
+        return selected_r or (self.rationales[0] if self.rationales else None)
 
     @final
     def calculate_score(self, *, alpha: float = 1.0, mutate: bool = True) -> float | None:

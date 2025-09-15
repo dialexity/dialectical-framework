@@ -84,9 +84,6 @@ class WheelSegment(Assessable):
                 parts.append(probability)
 
         # Save the calculation as this object is derivative composition
-        if not parts:
-            self.probability = None
-
         self.probability = gm_with_zeros_and_nones_handled(parts)
         return self.probability
 

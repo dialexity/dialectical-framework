@@ -44,10 +44,10 @@ Level 1: DialecticalComponent (leaf)
          └─ Includes transition-level Rationale CFs
 
          Rationale (evidence, can attach to ANY assessable)
-         ├─ Own CF (unweighted by rationale.rating) 
+         ├─ Own CF (unweighted by rationale.rating)
          ├─ Child rationale CFs (critiques/counter-evidence)
          ├─ Spawned wheel CFs (deeper dialectical analysis)
-         └─ Returns None if no real evidence (prevents empty rationale inflation)
+         └─ Returns None if no real evidence (never invents neutral values)
 ```
 
 ### Structure Hierarchy (Probability flows upward)
@@ -57,20 +57,17 @@ Level 1: DialecticalComponent (leaf)
 ```
 Level 3: Wheel
          ├─ GM of canonical cycle probabilities (T, TA, Spiral)
-         ├─ Includes summary of WisdomUnit transformation probabilities
-         └─ Wheel-level rationales can provide probability evidence
+         └─ Includes summary of WisdomUnit transformation probabilities
 
-Level 2: Cycle  
-         ├─ Product of member Transition probabilities (in sequence)
-         └─ Cycle-level rationales can provide probability evidence
+Level 2: Cycle
+         └─ Product of member Transition probabilities (in sequence)
 
 Level 1: Transition (leaf for probability)
          ├─ Manual probability × confidence
          └─ Transition-level rationale probabilities × confidence
          
          WisdomUnit (feeds into Wheel P)
-         ├─ Transformation probability (internal spiral product)
-         └─ Unit-level rationales can provide probability evidence
+         └─ Transformation probability (internal spiral product)
 
          Rationale (evidence, contributes to P when it has probability data)
          ├─ Own probability × confidence (if provided)
@@ -82,9 +79,9 @@ Level 1: Transition (leaf for probability)
 
 1. **Dual-Signal Design**: CF tracks contextual relevance (content), P tracks structural feasibility (relationships)
 2. **Single Rating Application**: Each rating is applied exactly once to prevent double-counting
-3. **Hierarchical Evidence**: Information flows upward from specific elements to general containers
+3. **Hierarchical Evidence**: P and CF flow upward from specific elements to general containers
 4. **Selective Veto Power**: Different element types have different veto behaviors for robustness
-5. **Local Computation**: Scores are computed locally at each node, never averaged from children
+5. **Local Score Computation**: P and CF aggregate hierarchically; the final Score is computed locally from that node's own P and CF
 
 ## Complete Example: How Wheel Score is Calculated
 
@@ -178,9 +175,9 @@ External Transitions (wheel-level cycles):
 #### Global CF Policies
 
 * **Hierarchical aggregation:** Non-leaves take the **geometric mean** of their immediate children
-* **Neutral fallback:** If nothing contributes at a node → CF = **1.0** (neutral)
+* **Neutral fallback:** Only non-leaf nodes apply neutral CF=1.0 when their entire child set contributes nothing; leaves never invent CF values
 * **Single rating application:** Ratings are applied exactly once at the source:
-  * A leaf's **own CF** is multiplied by its **own rating**
+  * A leaf's **own CF** is multiplied by its **own rating** (only applies to DialecticalComponent and Transition)
   * A **rationale's CF** is multiplied by **rationale.rating** by the consuming parent
   * Parents never multiply their own rating onto children
 * **Selective veto policy:**
@@ -196,12 +193,13 @@ External Transitions (wheel-level cycles):
 
   * its **own CF × its rating** (if provided; 0 ⇒ hard veto), and
   * each **rationale CF × rationale.rating**.
-* If nothing contributes → CF = 1.0.
+* If nothing contributes → returns None (default policy: DC.P defaults to 1.0 unless manually set)
 
 **Transition** *(leaf, `Ratable`)*
 
 * Same rule as components (combine own CF×rating with rated rationales).
-* Do **not** inherit CF from source/target; CF(Transition) answers “is this step grounded here?”
+* If nothing contributes → returns None.
+* Do **not** inherit CF from source/target; CF(Transition) answers "is this step grounded here?"
 
 **Rationale** *(special leaf-that-can-grow, `Ratable`)*
 
@@ -209,7 +207,8 @@ External Transitions (wheel-level cycles):
   * Combines its **own CF** (unweighted) with **children** (spawned wheels and critiques)
   * Returns **None** if no real evidence exists (prevents "empty rationale" inflation)
 * **Self-scoring view** (`calculate_contextual_fidelity`):
-  * Falls back to CF = 1.0 if evidence view returns None (for rationale's own scoring)
+  * Used only when calculating the rationale's own score
+  * No fallback to CF = 1.0; leaves don't invent neutral values
 * **Parent consumption**: Uses evidence view and applies `rationale.rating` weighting
 
 **WheelSegment** *(non-leaf)*
@@ -222,13 +221,13 @@ External Transitions (wheel-level cycles):
 
   * **Dialectically symmetric component pairs** using power mean (p=4, soft max):
     * **T ↔ A**: Power mean of thesis and antithesis CFs
-    * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis CFs  
+    * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis CFs
     * **T- ↔ A+**: Power mean of negative thesis and positive antithesis CFs
     * **S+ ↔ S-**: Power mean of synthesis components (if present)
   * **Transformation CF** (internal spiral transitions),
   * **rated unit-level rationales**,
 
-*Note: WisdomUnit CF calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation that credits the conceptual counterpoint without penalizing it for being less explicitly grounded in initial materials. Zero-handling preserves hard veto behavior when components have CF=0.*
+*Note: WisdomUnit CF calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4) that balances opposing poles. Any explicit hard veto (CF=0) on a pole collapses the axis CF to 0.0.*
 
 **Cycle** *(T, TA, Spiral, Transformation — diagnostic)*
 
@@ -248,7 +247,7 @@ External Transitions (wheel-level cycles):
 * **α = 0**: ignore CF in scoring (Score depends only on P).
 * **α = 1**: CF influences score at a neutral strength.
 * **α > 1**: emphasize CF more (good CF helps more; weak CF hurts more).
-  Pick one **global** α and keep it fixed; with α fixed, increasing CF always increases the Score.
+  Pick one **global** α and keep it fixed; with α fixed, increasing either P or CF strictly increases the Score.
 
 ---
 
@@ -259,6 +258,7 @@ External Transitions (wheel-level cycles):
 #### Global P Policies
 
 * **Structure-only flow:** P aggregates only along transitions and cycles, not content elements
+* **Component default:** DialecticalComponent.P defaults to 1.0 (fact) unless manually set
 * **Confidence weighting:** Applied only when aggregating rationale probabilities at transitions
 * **No ratings in P:** Unlike CF, probability calculations ignore rating values
 * **Sequence veto behavior:** In cycles (sequences), any transition with P = 0 → entire cycle P = 0
@@ -311,10 +311,10 @@ The **alpha (α)** parameter controls how much Contextual Fidelity influences th
 The dialectical scoring system provides a robust, hierarchical approach to ranking dialectical elements by:
 
 1. **Separating concerns**: CF measures contextual fit, P measures structural feasibility
-2. **Respecting hierarchy**: Information flows upward through appropriate aggregation paths  
+2. **Respecting hierarchy**: Information flows upward through appropriate aggregation paths
 3. **Preventing double-counting**: Single application of ratings and confidence weights
-4. **Handling uncertainty**: Neutral fallbacks and selective veto policies for robustness
-5. **Local computation**: Each element computes its own score using the global α parameter
+4. **Handling uncertainty**: Selective veto policies for robustness and proper fallbacks
+5. **Local score computation**: Each element computes its own score using its aggregated P and CF with the global α parameter
 
 **Key Implementation Principle**: 
 * **CF** flows up the **content hierarchy** (components → segments → units → wheel)

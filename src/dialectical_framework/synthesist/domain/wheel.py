@@ -84,29 +84,19 @@ class Wheel(Assessable):
         if self._ta_cycle.graph and not self._ta_cycle.graph.is_empty():
             for transition in self._ta_cycle.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
-                    ta_fidelity = transition.calculate_contextual_fidelity()
-                    if ta_fidelity == 1.0:
-                        # no effect, we can stick to moe generic level, whatever fidelity will be there, it will be (more) correct
-                        pass
-                    else:
-                        # calculate the one which is being overwritten
-                        unique_transitions[transition.get_key()].calculate_contextual_fidelity()
-                        # take the more specific one
-                        unique_transitions[transition.get_key()] = transition
+                    # calculate the one which is being overwritten
+                    unique_transitions[transition.get_key()].calculate_contextual_fidelity()
+                    # take the more specific one
+                    unique_transitions[transition.get_key()] = transition
         
         # Get transitions from spiral (even more specific, than ta_cycle, so we prefer this)
         if self._spiral.graph and not self._spiral.graph.is_empty():
             for transition in self._spiral.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
-                    sp_fidelity = transition.calculate_contextual_fidelity()
-                    if sp_fidelity == 1.0:
-                        # no effect, we can stick to moe generic level, whatever fidelity will be there, it will be (more) correct
-                        pass
-                    else:
-                        # calculate the one which is being overwritten
-                        unique_transitions[transition.get_key()].calculate_contextual_fidelity()
-                        # take the more specific one
-                        unique_transitions[transition.get_key()] = transition
+                    # calculate the one which is being overwritten
+                    unique_transitions[transition.get_key()].calculate_contextual_fidelity()
+                    # take the more specific one
+                    unique_transitions[transition.get_key()] = transition
         
         # Extract fidelity scores from unique transitions
         for transition in unique_transitions.values():
