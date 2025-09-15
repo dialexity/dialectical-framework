@@ -128,6 +128,26 @@ def _print_wheel_tabular(wheel) -> str:
 
     return component_table + "\n\n" + transitions_table if transitions_table else component_table
 
+def _format_rationale_tree(rationale, indent=0):
+    """Format a rationale and its child rationales as a tree structure."""
+    if not rationale:
+        return ""
+
+    # Format this rationale with score information
+    headline = rationale.headline or "Unnamed rationale"
+    score_info = f"S={_fmt_score(rationale.score)} | CF={_fmt_score(rationale.contextual_fidelity)} | P={_fmt_score(rationale.probability)}"
+
+    # Build the tree line with proper indentation
+    tree_line = "  " * indent + "- " + headline + f" [{score_info}]"
+
+    # Add child rationales recursively
+    child_lines = ""
+    if hasattr(rationale, 'rationales') and rationale.rationales:
+        for child in rationale.rationales:
+            child_lines += "\n" + _format_rationale_tree(child, indent + 1)
+
+    return tree_line + child_lines
+
 def _print_transitions_table(wheel) -> str:
     """Print a table of all transitions with their scores, CF, and P values."""
 
@@ -135,9 +155,12 @@ def _print_transitions_table(wheel) -> str:
     cycles = []
 
     # Access cycles directly - they should be available on the wheel
-    cycles.append(('T-cycle', wheel.t_cycle))
-    cycles.append(('TA-cycle', wheel.cycle))
-    cycles.append(('Spiral', wheel.spiral))
+    try:
+        cycles.append(('T-cycle', wheel.t_cycle))
+        cycles.append(('TA-cycle', wheel.cycle))
+        cycles.append(('Spiral', wheel.spiral))
+    except (AttributeError, TypeError):
+        pass
 
     # If we don't have any cycles with transitions, return empty string
     if not cycles:
@@ -147,10 +170,18 @@ def _print_transitions_table(wheel) -> str:
 
     # Extract transitions from each cycle
     for cycle_name, cycle in cycles:
-        for transition in cycle.graph.get_all_transitions():
+        try:
+            transitions = cycle.graph.get_all_transitions()
+        except (AttributeError, TypeError):
+            continue
+
+        for transition in transitions:
             # Format source and target nicely
-            source = ', '.join(transition.source_aliases)
-            target = ', '.join(transition.target_aliases)
+            try:
+                source = ', '.join(transition.source_aliases)
+                target = ', '.join(transition.target_aliases)
+            except (AttributeError, TypeError):
+                continue
 
             # Format transition representation
             trans_repr = f"{source} → {target}"
@@ -161,6 +192,19 @@ def _print_transitions_table(wheel) -> str:
             p = _fmt_score(transition.probability)
             confidence = _fmt_score(transition.confidence)
 
+            # Format rationales tree
+            rationales_tree = ""
+            try:
+                if transition.rationales:
+                    for rationale in transition.rationales:
+                        if rationale:
+                            rationales_tree += _format_rationale_tree(rationale) + "\n"
+            except (AttributeError, TypeError):
+                pass
+
+            if not rationales_tree:
+                rationales_tree = "No rationales"
+
             # Add to data
             transitions_data.append([
                 cycle_name,
@@ -168,7 +212,8 @@ def _print_transitions_table(wheel) -> str:
                 score,
                 cf,
                 p,
-                confidence
+                confidence,
+                rationales_tree
             ])
 
     # If no transitions found, return empty string
@@ -176,5 +221,5 @@ def _print_transitions_table(wheel) -> str:
         return ""
 
     # Create transitions table
-    headers = ["Cycle", "Transition", "Score", "CF", "P", "Confidence"]
+    headers = ["Cycle", "Transition", "Score", "CF", "P", "Confidence", "Rationales"]
     return "Transitions:\n" + tabulate(transitions_data, headers=headers, tablefmt="grid")

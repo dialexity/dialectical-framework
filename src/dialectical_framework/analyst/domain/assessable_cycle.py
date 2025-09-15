@@ -41,7 +41,9 @@ class AssessableCycle(Assessable, Generic[T], ABC):
         transitions = self.graph.get_all_transitions()
         if transitions:
             for transition in transitions:
-                parts.append(transition.calculate_contextual_fidelity())
+                fidelity = transition.calculate_contextual_fidelity()
+                if fidelity is not None and fidelity > 0.0:
+                    parts.append(fidelity)
 
         return parts
 

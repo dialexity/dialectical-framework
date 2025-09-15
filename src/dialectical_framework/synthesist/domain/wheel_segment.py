@@ -65,7 +65,8 @@ class WheelSegment(Assessable):
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
                 fidelity = dc.calculate_contextual_fidelity()
-                parts.append(fidelity)
+                if fidelity is not None and fidelity > 0.0:
+                    parts.append(fidelity)
 
         return parts
 

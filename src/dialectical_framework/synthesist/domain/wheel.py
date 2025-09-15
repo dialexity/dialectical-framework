@@ -70,7 +70,8 @@ class Wheel(Assessable):
         # Collect from wisdom units
         for wu in self._wisdom_units:
             fidelity = wu.calculate_contextual_fidelity()
-            parts.append(fidelity)
+            if fidelity is not None and fidelity > 0.0:
+                parts.append(fidelity)
 
         # Collect transitions from cycles without overlaps
         unique_transitions: Dict[Any, Transition] = {}

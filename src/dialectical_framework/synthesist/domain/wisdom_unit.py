@@ -101,7 +101,8 @@ class WisdomUnit(WheelSegment):
         if self.transformation is not None:
             # We don't take transitions, we take the aggregated thing on purpose
             fidelity = self.transformation.calculate_contextual_fidelity()
-            parts.append(fidelity)
+            if fidelity is not None and fidelity > 0.0:
+                parts.append(fidelity)
 
         return parts
 
