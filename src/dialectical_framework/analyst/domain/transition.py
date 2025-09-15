@@ -37,12 +37,6 @@ class Transition(Ratable):
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
 
-    manual_probability: float | None = Field(
-        default=None,
-        ge=0.0, le=1.0,
-        description="The normalized probability (Pr(S)) of the cycle to exist in reality.",
-    )
-
     def _get_sub_assessables(self) -> list[Assessable]:
         """
         Don't add source/target here, as these are part of the wheel, and we'll end up infinitely recursing.
@@ -56,11 +50,14 @@ class Transition(Ratable):
             frozenset(self.target_aliases),
         )
 
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+    def calculate_probability(self) -> float | None:
+        """
+        We don't save the calculation because it would overwrite the manual value.
+        """
         parts: list[float] = []
 
         # Own manual probability (optional) × own confidence
-        p_self = self.manual_probability
+        p_self = self.probability
         if p_self is not None:
             w_self = self.confidence_or_default()
             if w_self > 0.0:
@@ -70,7 +67,7 @@ class Transition(Ratable):
         # Rationale probabilities × rationale confidence
         for rationale in (self.rationales or []):
             # NOTE: We rely on the evidence, not on the fallback value, that's important
-            p = rationale.calculate_probability_evidence(mutate=mutate)
+            p = rationale.calculate_probability()
             if p is None:
                 continue
             w = rationale.confidence_or_default()
@@ -78,11 +75,7 @@ class Transition(Ratable):
             if v > 0.0:  # skip non-positive after weighting
                 parts.append(v)
 
-        probability = gm_with_zeros_and_nones_handled(parts) if parts else None
-
-        if mutate:
-            self.probability = probability
-        return probability
+        return gm_with_zeros_and_nones_handled(parts) if parts else None
 
     @field_validator("source_aliases")
     def validate_source_aliases(cls, v: list[str], info) -> list[str]: # Change list[str] from list[str]

@@ -71,7 +71,7 @@ class WisdomUnit(WheelSegment):
             result.append(self.transformation)
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
         """
         Calculates the context fidelity score for this wisdom unit as the geometric mean
         of its constituent DialecticalComponent's scores, including those from its synthesis,
@@ -91,8 +91,8 @@ class WisdomUnit(WheelSegment):
             pairs.append((self.synthesis.t_plus, self.synthesis.t_minus))
 
         for one, two in pairs:
-            one_cf = one.calculate_contextual_fidelity(mutate=mutate) if one else None
-            two_cf = two.calculate_contextual_fidelity(mutate=mutate) if two else None
+            one_cf = one.calculate_contextual_fidelity() if one else None
+            two_cf = two.calculate_contextual_fidelity() if two else None
             pm = pm_with_zeros_and_nones_handled((one_cf, two_cf))
             if pm is not None:
                 parts.append(pm)
@@ -100,27 +100,28 @@ class WisdomUnit(WheelSegment):
         # Collect fidelity from transformation
         if self.transformation is not None:
             # We don't take transitions, we take the aggregated thing on purpose
-            fidelity = self.transformation.calculate_contextual_fidelity(mutate=mutate)
+            fidelity = self.transformation.calculate_contextual_fidelity()
             parts.append(fidelity)
 
         return parts
 
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+    def calculate_probability(self) -> float | None:
         """
         Calculate probability from the transformation cycle.
         This represents the structural feasibility of the dialectical transformation,
         not expert opinions about it (those influence contextual_fidelity).
 
-        IMPORTANT: we don't use opinion probabilities here, because only the structural relationship matters.
+        IMPORTANT: we don't use rationale probabilities here, because only the structural relationship matters.
         """
         if self.transformation is None:
             probability = None
         else:
-            probability = self.transformation.calculate_probability(mutate=mutate)
-        
-        if mutate:
-            self.probability = probability
-        return probability
+            probability = self.transformation.calculate_probability()
+
+        # Save the calculation as this object is derivative composition
+        self.probability = probability
+
+        return self.probability
 
     def extract_segment_t(self) -> WheelSegment:
         # TODO: maybe it's enough to return self, because the interface is still WheelSegment?

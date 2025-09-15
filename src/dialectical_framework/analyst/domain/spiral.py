@@ -24,6 +24,28 @@ class Spiral(AssessableCycle[TransitionSegmentToSegment]):
                 else DirectedGraph[TransitionSegmentToSegment]()
             )
 
+    def calculate_probability(self) -> float | None:
+        """
+        Pr(Spiral) = product of ALL transition probabilities, in order.
+        - If any transition Pr is 0.0 -> skip
+        - If any transition Pr is None -> skip
+        - Else product of all
+        No cycle-level opinions here.
+        """
+        transitions: list[TransitionSegmentToSegment] = self.graph.first_path()  # ensure this is the ordered full cycle
+        prob = None
+        if transitions:
+            for tr in transitions:
+                p = tr.calculate_probability()
+                if p is not None and p > 0:
+                    if prob is None:
+                        prob = 1.0
+                    prob *= p
+
+        # Save the calculation as this object is derivative composition
+        self.probability = prob
+        return self.probability
+
     def pretty(self, *, start_wheel_segment: WheelSegment) -> str:
         output = []
 

@@ -84,18 +84,12 @@ class DialecticalComponent(Ratable):
                     # No trailing signs, just append the index
                     self.alias = f"{self.alias}{human_friendly_index}"
 
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+    def calculate_probability(self) -> float | None:
         """
-        Fallback to 1.0 for leaves.
+        There are no transitions, so we treat it as a fact
+        We don't save the calculation because it would overwrite the manual value.
         """
-
-        # A statement is a fact, so probability is always 1.0
-        probability = self.probability if self.probability is not None else 1.0
-
-        if mutate:
-            self.probability = probability
-
-        return probability
+        return self.probability if self.probability is not None else 1.0
 
     def pretty(
         self, dialectical_component_label: str | None = None, *, skip_explanation=False

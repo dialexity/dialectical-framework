@@ -7,6 +7,7 @@ from dialectical_framework.analyst.decorator_discrete_spiral_audited import Deco
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
+from dialectical_framework.utils.dw_report import dw_report
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
 
@@ -54,8 +55,7 @@ async def test_full_blown_wheel():
     assert wheels[0].score > 0
     await factory1.calculate_transitions(wheels[0])
 
-    print("\n")
-    print(wheels[0])
+    print(dw_report(wheels))
 
 @pytest.mark.asyncio
 @observe()
@@ -68,9 +68,7 @@ async def test_wheel_spiral():
     await factory1.calculate_transitions(wheels[0])
     await factory1.calculate_syntheses(wheels[0], 1)
 
-    print("\n")
-    print(wheels[0])
-    print(wheels[0].wisdom_units[1].synthesis)
+    print(dw_report(wheels))
 
 @pytest.mark.asyncio
 @observe()

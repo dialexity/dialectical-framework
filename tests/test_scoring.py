@@ -158,7 +158,7 @@ class TestTransitionScoring:
             source=source,
             target=target,
             predicate=Predicate.CAUSES,
-            manual_probability=0.8,
+            probability=0.8,
             confidence=0.6
         )
         
@@ -181,7 +181,7 @@ class TestTransitionScoring:
             source=source,
             target=target,
             predicate=Predicate.CAUSES,
-            manual_probability=0.8,
+            probability=0.8,
             confidence=0.5,
             rationales=[rationale]
         )
@@ -317,11 +317,11 @@ class TestCycleScoring:
         # Create transitions with known probabilities
         trans1 = Transition(
             source=comp1, target=comp2, predicate=Predicate.CAUSES,
-            manual_probability=0.8, confidence=1.0
+            probability=0.8, confidence=1.0
         )
         trans2 = Transition(
             source=comp2, target=comp3, predicate=Predicate.CAUSES,
-            manual_probability=0.7, confidence=1.0
+            probability=0.7, confidence=1.0
         )
         
         # Create cycle (this requires understanding the cycle implementation)
@@ -550,7 +550,7 @@ class TestComplexScoringScenarios:
             source=comp1,
             target=comp2,
             predicate=Predicate.CAUSES,
-            manual_probability=0.8,
+            probability=0.8,
             confidence=0.7
         )
         
@@ -832,7 +832,7 @@ class TestComprehensiveExampleFromDocs:
             source_aliases=["T-"],
             target_aliases=["A+"],
             predicate=Predicate.TRANSFORMS_TO,
-            manual_probability=0.7,
+            probability=0.7,
             contextual_fidelity=0.8
         )
         
@@ -842,7 +842,7 @@ class TestComprehensiveExampleFromDocs:
             source_aliases=["A-"], 
             target_aliases=["T+"],
             predicate=Predicate.TRANSFORMS_TO,
-            manual_probability=0.6,
+            probability=0.6,
             contextual_fidelity=0.7
         )
         
@@ -876,7 +876,7 @@ class TestComprehensiveExampleFromDocs:
             source=t_comp,
             target=a_comp,
             predicate=Predicate.TRANSFORMS_TO,
-            manual_probability=0.7,
+            probability=0.7,
             contextual_fidelity=0.6
         )
         # T->A rationale
@@ -892,7 +892,7 @@ class TestComprehensiveExampleFromDocs:
             source=a_comp,
             target=t_comp,
             predicate=Predicate.TRANSFORMS_TO,
-            manual_probability=0.6,
+            probability=0.6,
             contextual_fidelity=0.5
         )
         
@@ -1038,7 +1038,7 @@ class TestComprehensiveExampleFromDocs:
         assert evidence_cf is None
         
         # Self-scoring view should return 1.0 (neutral fallback)
-        self_cf = empty_rationale.calculate_contextual_fidelity(mutate=False)
+        self_cf = empty_rationale.calculate_contextual_fidelity()
         assert self_cf == 1.0
         
         # Rationale with actual CF value
@@ -1052,7 +1052,7 @@ class TestComprehensiveExampleFromDocs:
         assert evidence_cf == 0.7
         
         # Self-scoring view should also return the CF value
-        self_cf = cf_rationale.calculate_contextual_fidelity(mutate=False)
+        self_cf = cf_rationale.calculate_contextual_fidelity()
         assert self_cf == 0.7
 
     def test_empty_rationale_probability_no_free_lunch(self):
@@ -1065,7 +1065,7 @@ class TestComprehensiveExampleFromDocs:
         assert evidence_p is None
         
         # Regular probability calculation should return 1.0 fallback
-        p = empty_rationale.calculate_probability(mutate=False)
+        p = empty_rationale.calculate_probability()
         assert p == 1.0
         
         # Create components for transition
@@ -1079,13 +1079,13 @@ class TestComprehensiveExampleFromDocs:
             target_aliases=["A"],
             target=target_comp,
             predicate=Predicate.CAUSES,
-            manual_probability=0.8,
+            probability=0.8,
             confidence=0.9,
             rationales=[empty_rationale]
         )
         
         # Should only use manual probability, not the empty rationale
-        p = transition.calculate_probability(mutate=False)
+        p = transition.calculate_probability()
         expected = 0.8 * 0.9  # manual_probability * confidence
         assert abs(p - expected) < 1e-10
 
@@ -1129,9 +1129,9 @@ class TestComprehensiveExampleFromDocs:
             rating=0.5
         )
         
-        cf_with_evidence = component_with_evidence.calculate_contextual_fidelity(mutate=False)
-        cf_with_empty = component_with_empty.calculate_contextual_fidelity(mutate=False)
-        cf_alone = component_alone.calculate_contextual_fidelity(mutate=False)
+        cf_with_evidence = component_with_evidence.calculate_contextual_fidelity()
+        cf_with_empty = component_with_empty.calculate_contextual_fidelity()
+        cf_alone = component_alone.calculate_contextual_fidelity()
         
         # Evidence-providing rationale should boost CF
         assert cf_with_evidence > cf_alone

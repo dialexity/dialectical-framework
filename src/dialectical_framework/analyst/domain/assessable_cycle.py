@@ -27,7 +27,7 @@ class AssessableCycle(Assessable, Generic[T], ABC):
         result.extend(self.graph.get_all_transitions())
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
         """
         Calculates the cycle fidelity (CF_S) as the geometric mean of:
         1. All dialectical components' contextual fidelity scores within the cycle's transitions
@@ -41,11 +41,11 @@ class AssessableCycle(Assessable, Generic[T], ABC):
         transitions = self.graph.get_all_transitions()
         if transitions:
             for transition in transitions:
-                parts.append(transition.calculate_contextual_fidelity(mutate=mutate))
+                parts.append(transition.calculate_contextual_fidelity())
 
         return parts
 
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+    def calculate_probability(self) -> float | None:
         """
         Pr(Cycle) = product of ALL transition probabilities, in order.
         - If any transition Pr is 0.0 -> 0.0 (hard veto)
@@ -59,7 +59,7 @@ class AssessableCycle(Assessable, Generic[T], ABC):
         else:
             prob = 1.0
             for tr in transitions:
-                p = tr.calculate_probability(mutate=mutate)
+                p = tr.calculate_probability()
                 if p is None:
                     prob = None
                     break
@@ -68,9 +68,9 @@ class AssessableCycle(Assessable, Generic[T], ABC):
                     break
                 prob *= p
 
-        if mutate:
-            self.probability = prob
-        return prob
+        # Save the calculation as this object is derivative composition
+        self.probability = prob
+        return self.probability
 
 def decompose_probability_into_transitions(
         probability: float,
@@ -111,7 +111,7 @@ def decompose_probability_into_transitions(
             len(transitions)
         )
         for transition in transitions:
-            transition.manual_probability = individual_prob
+            transition.probability = individual_prob
     else:
         # Mixed case: some have probabilities, some don't
         # Calculate what's "left over" for the unassigned transitions
@@ -129,4 +129,4 @@ def decompose_probability_into_transitions(
                 len(transitions_without_probs)
             )
             for transition in transitions_without_probs:
-                transition.manual_probability = individual_prob
+                transition.probability = individual_prob

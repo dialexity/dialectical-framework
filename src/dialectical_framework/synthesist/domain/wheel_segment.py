@@ -5,6 +5,7 @@ from pydantic.fields import FieldInfo
 
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
 ALIAS_T = "T"
 ALIAS_T_PLUS = "T+"
@@ -50,7 +51,7 @@ class WheelSegment(Assessable):
             result.append(self.t_plus)
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
         """
         Calculates the context fidelity score for this wheel segment as the geometric mean
         of its constituent DialecticalComponent's scores, including those from its synthesis,
@@ -63,23 +64,31 @@ class WheelSegment(Assessable):
         for f in self.field_to_alias.keys():
             dc = getattr(self, f)
             if isinstance(dc, DialecticalComponent):
-                fidelity = dc.calculate_contextual_fidelity(mutate=mutate)
+                fidelity = dc.calculate_contextual_fidelity()
                 parts.append(fidelity)
 
         return parts
 
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+    def calculate_probability(self) -> float | None:
         """
-        There are no transitions, so we treat it as a fact
+        This will normally end up to 1, as dialectical components are going to have p=1.0.
+        However, if for some reason someone set the probability of DC manually, we'll end up with GM.
         """
+        parts = []
 
-        # A statement is a fact, so probability is always 1.0
-        probability = self.probability if self.probability is not None else 1.0
+        # Collect from dialectical components
+        for f in self.field_to_alias.keys():
+            dc = getattr(self, f)
+            if isinstance(dc, DialecticalComponent):
+                probability = dc.calculate_probability()
+                parts.append(probability)
 
-        if mutate:
-            self.probability = probability
+        # Save the calculation as this object is derivative composition
+        if not parts:
+            self.probability = None
 
-        return probability
+        self.probability = gm_with_zeros_and_nones_handled(parts)
+        return self.probability
 
     def _get_dialectical_fields(self) -> dict[str, FieldInfo]:
         """Get only fields that contain DialecticalComponent instances and have aliases."""

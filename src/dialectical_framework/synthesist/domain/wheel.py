@@ -54,7 +54,7 @@ class Wheel(Assessable):
         result.append(self._spiral)
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
         """
         Calculates the WheelFidelity as the geometric mean of:
         1. All individual DialecticalComponent contextual fidelity scores across the entire wheel
@@ -69,7 +69,7 @@ class Wheel(Assessable):
 
         # Collect from wisdom units
         for wu in self._wisdom_units:
-            fidelity = wu.calculate_contextual_fidelity(mutate=mutate)
+            fidelity = wu.calculate_contextual_fidelity()
             parts.append(fidelity)
 
         # Collect transitions from cycles without overlaps
@@ -84,13 +84,13 @@ class Wheel(Assessable):
         if self._ta_cycle.graph and not self._ta_cycle.graph.is_empty():
             for transition in self._ta_cycle.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
-                    ta_fidelity = transition.calculate_contextual_fidelity(mutate=mutate)
+                    ta_fidelity = transition.calculate_contextual_fidelity()
                     if ta_fidelity == 1.0:
                         # no effect, we can stick to moe generic level, whatever fidelity will be there, it will be (more) correct
                         pass
                     else:
                         # calculate the one which is being overwritten
-                        unique_transitions[transition.get_key()].calculate_contextual_fidelity(mutate=mutate)
+                        unique_transitions[transition.get_key()].calculate_contextual_fidelity()
                         # take the more specific one
                         unique_transitions[transition.get_key()] = transition
         
@@ -98,26 +98,26 @@ class Wheel(Assessable):
         if self._spiral.graph and not self._spiral.graph.is_empty():
             for transition in self._spiral.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
-                    sp_fidelity = transition.calculate_contextual_fidelity(mutate=mutate)
+                    sp_fidelity = transition.calculate_contextual_fidelity()
                     if sp_fidelity == 1.0:
                         # no effect, we can stick to moe generic level, whatever fidelity will be there, it will be (more) correct
                         pass
                     else:
                         # calculate the one which is being overwritten
-                        unique_transitions[transition.get_key()].calculate_contextual_fidelity(mutate=mutate)
+                        unique_transitions[transition.get_key()].calculate_contextual_fidelity()
                         # take the more specific one
                         unique_transitions[transition.get_key()] = transition
         
         # Extract fidelity scores from unique transitions
         for transition in unique_transitions.values():
-            transition_fidelity = transition.calculate_contextual_fidelity(mutate=mutate)
+            transition_fidelity = transition.calculate_contextual_fidelity()
             if transition_fidelity is not None and transition_fidelity > 0.0:
                 parts.append(transition_fidelity)
 
 
         return parts
 
-    def calculate_probability(self, *, mutate: bool = True) -> float | None:
+    def calculate_probability(self) -> float | None:
         """
         Wheel Pr = GM over a fixed canonical set of cycle probabilities (T, TA, Spiral).
         - Keep 0.0 (impossibility ⇒ 0).
@@ -128,7 +128,7 @@ class Wheel(Assessable):
         # 1) Canonical cycles (ensure these are EXTERNAL transitions only)
         canonical_vals = []
         for cyc in (self._t_cycle, self._ta_cycle, self._spiral):
-            p = cyc.calculate_probability(mutate=mutate)
+            p = cyc.calculate_probability()
             if p is not None:
                 canonical_vals.append(p)
 
@@ -136,7 +136,7 @@ class Wheel(Assessable):
         internal_summary = None
         unit_vals = []
         for wu in self._wisdom_units:
-            p = wu.calculate_probability(mutate=mutate)  # Pr of the unit’s internal 2-edge Transformation
+            p = wu.calculate_probability()  # Pr of the unit’s internal 2-edge Transformation
             if p is not None:
                 unit_vals.append(p)
         if unit_vals:
@@ -147,11 +147,8 @@ class Wheel(Assessable):
         if internal_summary is not None:
             all_terms.append(internal_summary)
 
-        probability = gm_with_zeros_and_nones_handled(all_terms)
-
-        if mutate:
-            self.probability = probability
-        return probability
+        self.probability = gm_with_zeros_and_nones_handled(all_terms)
+        return self.probability
 
     @property
     def wisdom_units(self) -> list[WisdomUnit]:

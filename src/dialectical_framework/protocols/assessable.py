@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, final, TypeVar
+from typing import TYPE_CHECKING, final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -71,11 +71,11 @@ class Assessable(BaseModel, ABC):
             sub_assessable.calculate_score(alpha=alpha, mutate=mutate)
         
         # Ensure that the overall probability has been calculated
-        probability = self.calculate_probability(mutate=mutate)
+        probability = self.calculate_probability()
         # Always calculate contextual fidelity, even if probability is None
-        cf_w = self.calculate_contextual_fidelity(mutate=mutate)
+        cf_w = self.calculate_contextual_fidelity()
         
-        if probability is None:
+        if probability is None or cf_w is None:
             # If still None, cannot calculate score
             score = None
         else:
@@ -86,7 +86,7 @@ class Assessable(BaseModel, ABC):
 
         return self.score
 
-    def calculate_contextual_fidelity(self, *, mutate: bool = True) -> float:
+    def calculate_contextual_fidelity(self) -> float | None:
         """
         If not possible to calculate contextual fidelity, return 1.0 to have neutral impact on overall scoring.
         
@@ -101,13 +101,13 @@ class Assessable(BaseModel, ABC):
         else:
             fidelity = gm_with_zeros_and_nones_handled(all_fidelities)
 
-        if mutate:
-            self.contextual_fidelity = fidelity
+        # Save the state. Ratable leaves will override this and will not save, because it's only manual there.
+        self.contextual_fidelity = fidelity
 
         return fidelity
 
     @abstractmethod
-    def calculate_probability(self, *, mutate: bool = True) -> float | None: ...
+    def calculate_probability(self) -> float | None: ...
     """
     Normally this method shouldn't be called, as it's called by the `calculate_score` method.
     """
@@ -120,22 +120,18 @@ class Assessable(BaseModel, ABC):
         # IMPORTANT: we must work on a copy, to avoid filling rationales list with garbage
         return [*self.rationales]
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
+    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
         return []
 
     @final
-    def _calculate_contextual_fidelity_for_rationales(self, *, mutate: bool = True) -> list[float]:
+    def _calculate_contextual_fidelity_for_rationales(self) -> list[float]:
         fids: list[float] = []
-        if self.rationales:
-            for rationale in self.rationales:
-                # IMPORTANT: use the evidence view to avoid 1.0 fallback inflation
-                evidence_cf = rationale.calculate_contextual_fidelity_evidence(mutate=mutate)
+        for rationale in (self.rationales or []):
+            # IMPORTANT: use the evidence view to avoid 1.0 fallback inflation
+            evidence_cf = rationale.calculate_contextual_fidelity()
 
-                if evidence_cf is not None and evidence_cf > 0.0:
-                    weighted = evidence_cf * rationale.rating_or_default()
-                    if weighted > 0.0:  # skip non-positives after weighting
-                        fids.append(weighted)
+            if evidence_cf is not None and evidence_cf > 0.0:
+                weighted = evidence_cf * rationale.rating_or_default()
+                if weighted > 0.0:  # skip non-positives after weighting
+                    fids.append(weighted)
         return fids
-
-    def _calculate_probability_for_sub_elements_excl_rationales(self, *, mutate: bool = True) -> list[float]:
-        return []

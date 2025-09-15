@@ -200,6 +200,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         if thoughts and isinstance(thoughts[0], WisdomUnit):
             ordered_wisdom_units: list[WisdomUnit] = thoughts
             if len(thoughts) == 1:
+                # TODO: must we normalize anything here?
                 return [
                     Cycle(
                         dialectical_components=[
@@ -350,7 +351,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 
                 # Since these are normalized probabilities from the sequencer, 
                 # they should be treated as authoritative (confidence = 1.0)
-                cycle_confidence = 1.0
+                forced_confidence = 1.0
                 
                 # Create rationale from reasoning and argumentation
                 cycle_rationale = Rationale(
@@ -360,7 +361,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     # because the initial "probability" is actually "feasibility"
                     contextual_fidelity=causal_cycle.probability,
                     probability=float(p),
-                    confidence=cycle_confidence
+                    confidence=forced_confidence
                 )
 
                 # Add the rationale to the cycle
@@ -373,7 +374,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 
                 # Set the cycle's confidence on all transitions to maintain consistency
                 for t in cycle.graph.get_all_transitions():
-                    t.confidence = cycle_confidence
+                    t.confidence = forced_confidence
 
                 for t in cycle.graph.get_all_transitions():
                     # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
