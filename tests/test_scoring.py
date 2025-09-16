@@ -6,18 +6,17 @@ This test suite validates the complete scoring architecture including:
 **Core Components:**
 - Probability (P): structural feasibility of arrangements
 - Contextual Fidelity (CF): contextual grounding and relevance  
-- Rationales: evidence with ratings, confidence, and critiques
+- Rationales: evidence with ratings and critiques
 - Alpha parameter: controlling CF influence on final scores
 - Hierarchical aggregation: geometric means and products
 
-**Test Coverage (34 test cases):**
+**Test Coverage (32 test cases):**
 - DialecticalComponent scoring (5 tests)
-- Transition scoring with evidence (4 tests)  
-- WheelSegment aggregation (2 tests)
+- Transition scoring with evidence (4 tests)
 - WisdomUnit hierarchical CF/P (2 tests)
 - Cycle probability products (3 tests)
 - Wheel complete scoring (3 tests)
-- Alpha parameter effects (4 tests) 
+- Alpha parameter effects (4 tests)
 - Fallback behaviors (3 tests)
 - Rationale aggregation (3 tests)
 - Complex scenarios (5 tests)
@@ -149,8 +148,8 @@ class TestDialecticalComponentScoring:
 class TestTransitionScoring:
     """Test scoring for transitions (edges between components)."""
     
-    def test_transition_probability_with_manual_and_confidence(self):
-        """Transition probability should weight manual P by confidence."""
+    def test_transition_probability_with_manual_value(self):
+        """Transition probability should use manual P value directly."""
         source = DialecticalComponent(alias="T1", statement="Source")
         target = DialecticalComponent(alias="T2", statement="Target")
         
@@ -162,7 +161,7 @@ class TestTransitionScoring:
         )
         
         p = transition.calculate_probability()
-        assert p == 0.8 * 0.6  # 0.48
+        assert p == 0.8  # Manual probability used directly
         
     def test_transition_probability_with_rationale_evidence(self):
         """Transition probability calculation with rationales (rationales need child wheels for evidence)."""
@@ -187,7 +186,8 @@ class TestTransitionScoring:
         # In the current implementation, rationale.probability is considered
         # even without wheels, combined with transition's own probability
         assert p is not None  # Should calculate a probability
-        assert 0.4 < p < 0.6  # In the general range of expected values
+        # GM(0.8, 0.9) ≈ 0.848
+        assert abs(p - 0.8485) < 0.01  # Should be geometric mean of manual P and rationale P
         
     def test_transition_probability_fallback_none(self):
         """Transition with no probability inputs should return None."""
@@ -219,39 +219,6 @@ class TestTransitionScoring:
         cf = transition.calculate_contextual_fidelity()
         assert cf == 0.6 * 0.7  # Only own CF * rating, not from source/target
 
-
-class TestWheelSegmentScoring:
-    """Test scoring for wheel segments (contains 3 dialectical components)."""
-    
-    def test_wheel_segment_cf_geometric_mean_of_components(self):
-        """WheelSegment CF should be geometric mean of its 3 components."""
-        t_component = DialecticalComponent(alias="T", statement="Thesis", contextual_fidelity=0.8)
-        t_plus = DialecticalComponent(alias="T+", statement="Thesis+", contextual_fidelity=0.9)
-        t_minus = DialecticalComponent(alias="T-", statement="Thesis-", contextual_fidelity=0.7)
-        
-        # Create a WheelSegment subclass for testing
-        from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
-        segment = WheelSegment(
-            **{ALIAS_T: t_component, ALIAS_T_PLUS: t_plus, ALIAS_T_MINUS: t_minus}
-        )
-        
-        cf = segment.calculate_contextual_fidelity()
-        expected = (0.8 * 0.9 * 0.7) ** (1/3)
-        assert abs(cf - expected) < 1e-10
-        
-    def test_wheel_segment_with_zero_component_cf(self):
-        """WheelSegment with one zero CF component should propagate the zero."""
-        t_component = DialecticalComponent(alias="T", statement="Thesis", contextual_fidelity=0.8)
-        t_plus = DialecticalComponent(alias="T+", statement="Thesis+", contextual_fidelity=0.0)  # Zero!
-        t_minus = DialecticalComponent(alias="T-", statement="Thesis-", contextual_fidelity=0.7)
-        
-        from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
-        segment = WheelSegment(
-            **{ALIAS_T: t_component, ALIAS_T_PLUS: t_plus, ALIAS_T_MINUS: t_minus}
-        )
-        
-        cf = segment.calculate_contextual_fidelity()
-        assert cf == 0.0
 
 
 class TestWisdomUnitScoring:
@@ -424,17 +391,12 @@ class TestScoringAlphaParameter:
 class TestScoringFallbackBehavior:
     """Test fallback behavior when data is missing or invalid."""
 
-    def test_leaf_vs_nonleaf_fallback_distinction(self):
-        """Test that leaves return None while non-leaves apply neutral CF=1.0 fallback."""
+    def test_leaf_fallback_returns_none(self):
+        """Test that leaves with no evidence return None (no neutral fallback)."""
         # Leaf with no evidence
         component = DialecticalComponent(alias="T", statement="Test")
         component_cf = component.calculate_contextual_fidelity()
         assert component_cf is None  # Leaf should return None
-
-        # Non-leaf with no contributing children
-        segment = WheelSegment()
-        segment_cf = segment.calculate_contextual_fidelity()
-        assert segment_cf == 1.0  # Non-leaf should apply neutral fallback
     
     def test_no_probability_defaults_to_one(self):
         """If no probability is set, DialecticalComponent defaults to 1.0."""
@@ -589,9 +551,9 @@ class TestComplexScoringScenarios:
         p1 = trans_manual.calculate_probability()
         p2 = trans_rationale.calculate_probability()
         
-        assert p1 == 0.8 * 0.7
+        assert p1 == 0.8
         assert p2 is not None  # In current implementation, rationale.probability is used directly
-        assert abs(p2 - 0.6*0.8) < 0.01  # Should be around rationale P * rationale confidence
+        assert abs(p2 - 0.6) < 0.01  # Should be around rationale P value
 
     def test_rationale_with_multiple_critiques(self):
         """Test rationale CF calculation with multiple nested critiques."""
@@ -1085,7 +1047,7 @@ class TestComprehensiveExampleFromDocs:
         
         # Should only use manual probability, not the empty rationale
         p = transition.calculate_probability()
-        expected = 0.8 * 0.9  # manual_probability * confidence
+        expected = 0.8  # manual_probability used directly
         assert abs(p - expected) < 1e-10
 
     def test_rationale_with_evidence_contributes(self):
