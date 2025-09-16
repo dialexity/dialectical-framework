@@ -366,10 +366,6 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     probability=cycle_rationale.probability,
                     transitions=cycle.graph.get_all_transitions(),
                     overwrite_existing_transition_probabilities=True)
-                
-                for t in cycle.graph.get_all_transitions():
-                    # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
-                    t.contextual_fidelity = cycle_rationale.contextual_fidelity
 
                 cycles.append(cycle)
 

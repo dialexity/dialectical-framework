@@ -56,8 +56,8 @@ class Ratable(Assessable, ABC):
             if p > 0.0:
                 parts.append(p)
 
-        # Fallback to 1.0 if no evidence is present. Assume it's a fact.
-        return gm_with_zeros_and_nones_handled(parts) if parts else 1.0
+        # Don't fallback to 1.0 to not improve scores for free
+        return gm_with_zeros_and_nones_handled(parts) if parts else None
 
     def calculate_contextual_fidelity(self) -> float | None:
         """

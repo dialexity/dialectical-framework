@@ -32,13 +32,13 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
         t_cycle, grouped_wheel_permutations = group
 
         # Format scores with labels aligned
-        t_cycle_scores = f"S={_fmt_score(t_cycle.score, colorize=True)} | CF={_fmt_score(t_cycle.contextual_fidelity)} | P={_fmt_score(t_cycle.probability)}"
+        t_cycle_scores = f"S={_fmt_score(t_cycle.score, colorize=True)} | CF={_fmt_cf_or_p(t_cycle, 'contextual_fidelity')} | P={_fmt_cf_or_p(t_cycle, 'probability')}"
         gr = f"{group_key} [{t_cycle_scores}]\n"
 
         # Add cycles in this group with aligned scores
         for i, w in enumerate(grouped_wheel_permutations):
             cycle_str = w.cycle.cycle_str() if hasattr(w, 'cycle') and w.cycle else ''
-            wheel_scores = f"S={_fmt_score(w.cycle.score, colorize=True)} | CF={_fmt_score(w.cycle.contextual_fidelity)} | P={_fmt_score(w.cycle.probability)}"
+            wheel_scores = f"S={_fmt_score(w.cycle.score, colorize=True)} | CF={_fmt_cf_or_p(w.cycle, 'contextual_fidelity')} | P={_fmt_cf_or_p(w.cycle, 'probability')}"
             gr += f"  {i}. {cycle_str} [{wheel_scores}]\n"
 
         # Display detailed wheel information
@@ -49,11 +49,11 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
                 report += "\n"
 
             # Display wheel header with aligned, colorized scores
-            wheel_scores = f"S={_fmt_score(w.score, colorize=True)} | CF={_fmt_score(w.contextual_fidelity)} | P={_fmt_score(w.probability)}"
+            wheel_scores = f"S={_fmt_score(w.score, colorize=True)} | CF={_fmt_cf_or_p(w, 'contextual_fidelity')} | P={_fmt_cf_or_p(w, 'probability')}"
             report += f"Wheel {i} [{wheel_scores}]\n"
 
             # Display spiral with aligned, colorized scores if available
-            spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | CF={_fmt_score(w.spiral.contextual_fidelity)} | P={_fmt_score(w.spiral.probability)}"
+            spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | CF={_fmt_cf_or_p(w.spiral, 'contextual_fidelity')} | P={_fmt_cf_or_p(w.spiral, 'probability')}"
             report += f"Spiral [{spiral_scores}]\n"
 
             # Add tabular display of wheel components and transitions
@@ -87,6 +87,34 @@ def _fmt_score(value, *, colorize: bool = False) -> str:
         return formatted
 
     return str(value)
+
+def _fmt_cf_or_p(obj, attr_name: str, *, colorize: bool = False) -> str:
+    """
+    Format CF or P values, using calculated values when manual is None.
+    Calculated values are shown in brackets to distinguish from manual values.
+
+    Args:
+        obj: Object with the attribute and calculation method
+        attr_name: 'contextual_fidelity' or 'probability'
+        colorize: Whether to colorize the score
+    """
+    manual_value = getattr(obj, attr_name, None)
+
+    if manual_value is not None:
+        # Manual value exists, format normally
+        return _fmt_score(manual_value, colorize=colorize)
+
+    # Manual value is None, try to calculate
+    calc_method_name = f"calculate_{attr_name}"
+    if hasattr(obj, calc_method_name):
+        calculated_value = getattr(obj, calc_method_name)()
+        if calculated_value is not None:
+            # Format calculated value in brackets
+            formatted = _fmt_score(calculated_value, colorize=colorize)
+            return f"[{formatted}]"
+
+    # No manual or calculated value
+    return "None"
 
 def _print_wheel_tabular(wheel) -> str:
     roles = [
@@ -135,7 +163,7 @@ def _format_rationale_tree(rationale, indent=0):
 
     # Format this rationale with score information
     headline = rationale.headline or "Unnamed rationale"
-    score_info = f"S={_fmt_score(rationale.score)} | CF={_fmt_score(rationale.contextual_fidelity)} | P={_fmt_score(rationale.probability)}"
+    score_info = f"S={_fmt_score(rationale.score)} | CF={_fmt_cf_or_p(rationale, 'contextual_fidelity')} | P={_fmt_cf_or_p(rationale, 'probability')}"
 
     # Build the tree line with proper indentation
     tree_line = "  " * indent + "- " + headline + f" [{score_info}]"
@@ -177,8 +205,8 @@ def _print_transitions_table(wheel) -> str:
 
             # Get scores
             score = _fmt_score(transition.score, colorize=True)
-            cf = _fmt_score(transition.contextual_fidelity)
-            p = _fmt_score(transition.probability)
+            cf = _fmt_cf_or_p(transition, 'contextual_fidelity')
+            p = _fmt_cf_or_p(transition, 'probability')
 
             # Format rationales tree
             rationales_tree = ""

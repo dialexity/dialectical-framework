@@ -17,6 +17,12 @@ class DialecticalComponent(Ratable):
         description="The dialectical component value that is provided after analysis.",
     )
 
+    def calculate_probability(self) -> float | None:
+        f =  super().calculate_probability()
+        # Fallback to 1.0 if no evidence is present. Assume it's a fact.
+        return f if f is not None else 1.0
+
+
     def is_same(self, other: DialecticalComponent) -> bool:
         """
         Determines if the current object is equal to another object based on their attributes.

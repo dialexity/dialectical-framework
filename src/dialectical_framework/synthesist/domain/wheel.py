@@ -77,27 +77,27 @@ class Wheel(Assessable):
         unique_transitions: Dict[Any, Transition] = {}
 
         # Get transitions from t_cycle (most generic)
-        if self._t_cycle.graph and not self._t_cycle.graph.is_empty():
-            for transition in self._t_cycle.graph.get_all_transitions():
+        if self.t_cycle.graph and not self.t_cycle.graph.is_empty():
+            for transition in self.t_cycle.graph.get_all_transitions():
                 unique_transitions[transition.get_key()] = transition
-        
+
         # Get transitions from ta_cycle (more specific than t_cycle, so we prefer this)
-        if self._ta_cycle.graph and not self._ta_cycle.graph.is_empty():
-            for transition in self._ta_cycle.graph.get_all_transitions():
+        if self.cycle.graph and not self.cycle.graph.is_empty():
+            for transition in self.cycle.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
                     # calculate the one which is being overwritten
                     unique_transitions[transition.get_key()].calculate_contextual_fidelity()
-                    # take the more specific one
-                    unique_transitions[transition.get_key()] = transition
-        
+                # take the more specific one
+                unique_transitions[transition.get_key()] = transition
+
         # Get transitions from spiral (even more specific, than ta_cycle, so we prefer this)
-        if self._spiral.graph and not self._spiral.graph.is_empty():
-            for transition in self._spiral.graph.get_all_transitions():
+        if self.spiral.graph and not self.spiral.graph.is_empty():
+            for transition in self.spiral.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
                     # calculate the one which is being overwritten
                     unique_transitions[transition.get_key()].calculate_contextual_fidelity()
-                    # take the more specific one
-                    unique_transitions[transition.get_key()] = transition
+                # take the more specific one
+                unique_transitions[transition.get_key()] = transition
         
         # Extract fidelity scores from unique transitions
         for transition in unique_transitions.values():
