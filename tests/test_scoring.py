@@ -159,7 +159,6 @@ class TestTransitionScoring:
             target=target,
             predicate=Predicate.CAUSES,
             probability=0.8,
-            confidence=0.6
         )
         
         p = transition.calculate_probability()
@@ -174,7 +173,6 @@ class TestTransitionScoring:
         rationale = Rationale(
             text="Supporting evidence",
             probability=0.9,  # This field is not used by transitions  
-            confidence=0.7
         )
         
         transition = Transition(
@@ -182,7 +180,6 @@ class TestTransitionScoring:
             target=target,
             predicate=Predicate.CAUSES,
             probability=0.8,
-            confidence=0.5,
             rationales=[rationale]
         )
         
@@ -329,11 +326,11 @@ class TestCycleScoring:
         # Create transitions with known probabilities
         trans1 = Transition(
             source=comp1, target=comp2, predicate=Predicate.CAUSES,
-            probability=0.8, confidence=1.0
+            probability=0.8
         )
         trans2 = Transition(
             source=comp2, target=comp3, predicate=Predicate.CAUSES,
-            probability=0.7, confidence=1.0
+            probability=0.7
         )
         
         # Create cycle (this requires understanding the cycle implementation)
@@ -575,14 +572,12 @@ class TestComplexScoringScenarios:
             target=comp2,
             predicate=Predicate.CAUSES,
             probability=0.8,
-            confidence=0.7
         )
         
         # Transition with rationale-based probability
         prob_rationale = Rationale(
             text="Probability evidence",
             probability=0.6,
-            confidence=0.8
         )
         trans_rationale = Transition(
             source=comp1, 
@@ -759,7 +754,6 @@ class TestComprehensiveExampleFromDocs:
             contextual_fidelity=0.9,
             rating=0.8,
             probability=0.95,
-            confidence=0.95
         )
         t_plus_comp.rationales = [t_plus_rationale]
         
@@ -780,7 +774,6 @@ class TestComprehensiveExampleFromDocs:
             contextual_fidelity=0.8,
             rating=0.7,
             probability=0.75,
-            confidence=0.8,
             rationales=[t_minus_critique]
         )
         t_minus_comp.rationales = [t_minus_rationale]
@@ -824,14 +817,12 @@ class TestComprehensiveExampleFromDocs:
             contextual_fidelity=0.9,
             rating=0.9,
             probability=0.8,
-            confidence=0.8
         )
         s_plus_rationale2 = Rationale(
             headline="Microsoft hybrid work data",
             contextual_fidelity=0.8,
             rating=0.7,
             probability=0.85,
-            confidence=0.9,
             rationales=[s_plus_critique]
         )
         s_plus_comp.rationales = [s_plus_rationale1, s_plus_rationale2]
@@ -913,7 +904,6 @@ class TestComprehensiveExampleFromDocs:
             headline="Digital transformation necessity",
             contextual_fidelity=0.85,
             probability=0.8,
-            confidence=0.9
         )
         ta_transition.rationales = [ta_rationale]
         
@@ -1090,7 +1080,6 @@ class TestComprehensiveExampleFromDocs:
             target=target_comp,
             predicate=Predicate.CAUSES,
             probability=0.8,
-            confidence=0.9,
             rationales=[empty_rationale]
         )
         

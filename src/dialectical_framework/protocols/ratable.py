@@ -11,18 +11,12 @@ from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 if TYPE_CHECKING:
     pass
 
-DEFAULT_CONFIDENCE = 0.5
-
 class Ratable(Assessable, ABC):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     rating: float | None = Field(
         default=None, ge=0.0, le=1.0,
         description="Importance/quality rating."
-    )
-    confidence: float | None = Field(
-        default=None, ge=0.0, le=1.0,
-        description="Credibility/reputation/confidence used when aggregating probabilities at Transition."
     )
 
     def rating_or_default(self) -> float:
@@ -31,12 +25,6 @@ class Ratable(Assessable, ABC):
         It's a convenient thing, this way we can estimate higher level CFs and propagate them up and down.
         """
         return self.rating if self.rating is not None else 1.0
-
-    def confidence_or_default(self) -> float:
-        """
-        The default confidence is 0.5 when None. This is a rather technical thing, we are never 100% sure, so 0.5 is ok.
-        """
-        return self.confidence if self.confidence is not None else DEFAULT_CONFIDENCE
 
     def _hard_veto_on_own_zero(self) -> bool:
         """Default True (structural leaves: DC, Transition). Rationale overrides to False."""

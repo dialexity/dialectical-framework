@@ -95,7 +95,6 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
             audit = audits[i]
             r.rationales.append(Rationale(
                 contextual_fidelity=audit.feasibility,
-                probability=1, # assume the auditor's suggestion is a fact?
                 text=f"Key Factors: {audit.key_factors}\n\nArgumentation: {audit.argumentation}\n\nConditions for Success: {audit.success_conditions}"
             ))
 

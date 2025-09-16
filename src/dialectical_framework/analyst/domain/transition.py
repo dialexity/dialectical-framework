@@ -58,23 +58,21 @@ class Transition(Ratable):
         # Own manual probability (optional) × own confidence
         p_self = self.probability
         if p_self is not None:
-            w_self = self.confidence_or_default()
-            if w_self > 0.0:
-                # include 0.0 if p_self==0 and w_self>0 (explicit veto is allowed at the leaf)
-                parts.append(p_self * w_self)
+            if self._hard_veto_on_own_zero() and p_self == 0:
+                return 0.0
+            if p_self > 0.0:
+                parts.append(p_self)
 
         # Rationale probabilities × rationale confidence
         for rationale in (self.rationales or []):
-            # NOTE: We rely on the evidence, not on the fallback value, that's important
             p = rationale.calculate_probability()
             if p is None:
                 continue
-            w = rationale.confidence_or_default()
-            v = p * w
-            if v > 0.0:  # skip non-positive after weighting
-                parts.append(v)
+            if p > 0.0:
+                parts.append(p)
 
-        return gm_with_zeros_and_nones_handled(parts) if parts else None
+        # Fallback to 1.0 if no evidence is present. Assume it's a fact.
+        return gm_with_zeros_and_nones_handled(parts) if parts else 1.0
 
     @field_validator("source_aliases")
     def validate_source_aliases(cls, v: list[str], info) -> list[str]: # Change list[str] from list[str]

@@ -35,9 +35,17 @@ class Rationale(Ratable):
     def calculate_probability(self) -> float | None:
         """
         We don't save the calculation because it would overwrite the manual value.
+
+        NOTE: Rationale on a DialecticalComponent doesn't have any impact, so we implement it here for consumption on Transition.
         """
         # Prefer manual if present; else use evidence; else None
         parts: List[float] = []
+
+        if self.probability is not None:
+            if self._hard_veto_on_own_zero() and self.probability == 0:
+                return 0.0
+            if self.probability > 0.0:
+                parts.append(self.probability)
 
         # Wheels spawned by this rationale
         for w in (self.wheels or []):
@@ -48,12 +56,10 @@ class Rationale(Ratable):
         # Child rationales (critiques) - aggregate their probabilities too
         for child_rationale in (self.rationales or []):
             p = child_rationale.calculate_probability()
-            if p is not None:
+            if p is None:
+                continue
+            if p > 0.0:
                 parts.append(p)
-
-        # Evidence comes only from wheels or manual setting. Don't mix with CF, where we look deeper.
-        if self.probability is not None:
-            return self.probability
 
         return gm_with_zeros_and_nones_handled(parts) if parts else None
 

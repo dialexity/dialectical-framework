@@ -179,7 +179,6 @@ def _print_transitions_table(wheel) -> str:
             score = _fmt_score(transition.score, colorize=True)
             cf = _fmt_score(transition.contextual_fidelity)
             p = _fmt_score(transition.probability)
-            confidence = _fmt_score(transition.confidence)
 
             # Format rationales tree
             rationales_tree = ""
@@ -196,7 +195,6 @@ def _print_transitions_table(wheel) -> str:
                 score,
                 cf,
                 p,
-                confidence,
                 rationales_tree
             ])
 
@@ -205,5 +203,5 @@ def _print_transitions_table(wheel) -> str:
         return ""
 
     # Create transitions table
-    headers = ["Cycle", "Transition", "Score", "CF", "P", "Confidence", "Rationales"]
+    headers = ["Cycle", "Transition", "Score", "CF", "P", "Rationales"]
     return "Transitions:\n" + tabulate(transitions_data, headers=headers, tablefmt="grid")

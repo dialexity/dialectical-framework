@@ -349,10 +349,6 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     causality_type=self.settings.causality_type,
                 )
                 
-                # Since these are normalized probabilities from the sequencer, 
-                # they should be treated as authoritative (confidence = 1.0)
-                forced_confidence = 1.0
-                
                 # Create rationale from reasoning and argumentation
                 cycle_rationale = Rationale(
                     summary=causal_cycle.reasoning_explanation,
@@ -361,7 +357,6 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     # because the initial "probability" is actually "feasibility"
                     contextual_fidelity=causal_cycle.probability,
                     probability=float(p),
-                    # confidence=forced_confidence
                 )
 
                 # Add the rationale to the cycle
@@ -372,13 +367,10 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     transitions=cycle.graph.get_all_transitions(),
                     overwrite_existing_transition_probabilities=True)
                 
-                # Set the cycle's confidence on all transitions to maintain consistency
-                for t in cycle.graph.get_all_transitions():
-                    t.confidence = forced_confidence
-
                 for t in cycle.graph.get_all_transitions():
                     # Transfer the fidelity score to the leaves, so that GM of the cycle would end up correct
                     t.contextual_fidelity = cycle_rationale.contextual_fidelity
+
                 cycles.append(cycle)
 
         cycles.sort(key=lambda c: cast(Cycle, c).calculate_score(), reverse=True)
