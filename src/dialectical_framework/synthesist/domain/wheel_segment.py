@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, BaseModel
 from pydantic.fields import FieldInfo
 
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.protocols.assessable import Assessable
-from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
 ALIAS_T = "T"
 ALIAS_T_PLUS = "T+"
 ALIAS_T_MINUS = "T-"
 
 
-class WheelSegment(Assessable):
+class WheelSegment(BaseModel):
 
     model_config = ConfigDict(
         extra="forbid",
@@ -40,54 +38,6 @@ class WheelSegment(Assessable):
         description="The positive side of the thesis: T+",
         alias=ALIAS_T_PLUS,
     )
-
-    def _get_sub_assessables(self) -> list[Assessable]:
-        result = super()._get_sub_assessables()
-        if self.t:
-            result.append(self.t)
-        if self.t_minus:
-            result.append(self.t_minus)
-        if self.t_plus:
-            result.append(self.t_plus)
-        return result
-
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
-        """
-        Calculates the context fidelity score for this wheel segment as the geometric mean
-        of its constituent DialecticalComponent's scores, including those from its synthesis,
-        and weighted rationale opinions.
-        Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
-        """
-        parts = []
-
-        # Collect from dialectical components
-        for f in self.field_to_alias.keys():
-            dc = getattr(self, f)
-            if isinstance(dc, DialecticalComponent):
-                fidelity = dc.calculate_contextual_fidelity()
-                if fidelity is not None:
-                    parts.append(fidelity)
-
-        return parts
-
-    def calculate_probability(self) -> float | None:
-        """
-        This will normally end up to 1, as dialectical components are going to have p=1.0.
-        However, if for some reason someone set the probability of DC manually, we'll end up with GM.
-        """
-        parts = []
-
-        # Collect from dialectical components
-        for f in self.field_to_alias.keys():
-            dc = getattr(self, f)
-            if isinstance(dc, DialecticalComponent):
-                probability = dc.calculate_probability()
-                if probability is not None:
-                    parts.append(probability)
-
-        # Save the calculation as this object is derivative composition
-        self.probability = gm_with_zeros_and_nones_handled(parts)
-        return self.probability
 
     def _get_dialectical_fields(self) -> dict[str, FieldInfo]:
         """Get only fields that contain DialecticalComponent instances and have aliases."""

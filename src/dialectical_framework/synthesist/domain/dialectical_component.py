@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import re
-from typing import List
 
 from pydantic import Field
 
 from dialectical_framework.protocols.ratable import Ratable
-from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
 
 class DialecticalComponent(Ratable):
@@ -85,13 +83,6 @@ class DialecticalComponent(Ratable):
                 else:
                     # No trailing signs, just append the index
                     self.alias = f"{self.alias}{human_friendly_index}"
-
-    def calculate_probability(self) -> float | None:
-        """
-        There are no transitions, so we treat it as a fact (no matter what others say in rationales), so if it wasn't set it's = 1.0.
-        We don't save the calculation because it would overwrite the manual value.
-        """
-        return self.probability if self.probability is not None else 1.0
 
     def pretty(
         self, dialectical_component_label: str | None = None, *, skip_explanation=False

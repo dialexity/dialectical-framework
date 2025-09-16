@@ -21,7 +21,7 @@ ALIAS_A_PLUS = "A+"
 ALIAS_A_MINUS = "A-"
 
 
-class WisdomUnit(WheelSegment):
+class WisdomUnit(WheelSegment, Assessable):
     """
     A basic "molecule" in the dialectical framework, which makes up a diagonal relationship (complementary opposing pieces of the wheel).
     It's very restrictive to avoid any additional fields.
@@ -59,6 +59,12 @@ class WisdomUnit(WheelSegment):
 
     def _get_sub_assessables(self) -> list[Assessable]:
         result = super()._get_sub_assessables()
+        if self.t:
+            result.append(self.t)
+        if self.t_minus:
+            result.append(self.t_minus)
+        if self.t_plus:
+            result.append(self.t_plus)
         if self.a:
             result.append(self.a)
         if self.a_minus:
@@ -66,7 +72,12 @@ class WisdomUnit(WheelSegment):
         if self.a_plus:
             result.append(self.a_plus)
         if self.synthesis:
-            result.append(self.synthesis)
+            if self.synthesis.t:
+                result.append(self.synthesis.t)
+            if self.synthesis.t_minus:
+                result.append(self.synthesis.t_minus)
+            if self.synthesis.t_plus:
+                result.append(self.synthesis.t_plus)
         if self.transformation:
             result.append(self.transformation)
         return result

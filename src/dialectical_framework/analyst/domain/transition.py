@@ -49,31 +49,6 @@ class Transition(Ratable):
             frozenset(self.target_aliases),
         )
 
-    def calculate_probability(self) -> float | None:
-        """
-        We don't save the calculation because it would overwrite the manual value.
-        """
-        parts: list[float] = []
-
-        # Own manual probability (optional) × own confidence
-        p_self = self.probability
-        if p_self is not None:
-            if self._hard_veto_on_own_zero() and p_self == 0:
-                return 0.0
-            if p_self > 0.0:
-                parts.append(p_self)
-
-        # Rationale probabilities × rationale confidence
-        for rationale in (self.rationales or []):
-            p = rationale.calculate_probability()
-            if p is None:
-                continue
-            if p > 0.0:
-                parts.append(p)
-
-        # Fallback to 1.0 if no evidence is present. Assume it's a fact.
-        return gm_with_zeros_and_nones_handled(parts) if parts else 1.0
-
     @field_validator("source_aliases")
     def validate_source_aliases(cls, v: list[str], info) -> list[str]: # Change list[str] from list[str]
         if "source" in info.data and info.data["source"]:

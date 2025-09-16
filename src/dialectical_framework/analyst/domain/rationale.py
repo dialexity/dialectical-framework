@@ -31,12 +31,9 @@ class Rationale(Ratable):
     def _apply_own_rating_in_cf(self) -> bool:
         return False  # parent applies rationale.rating
 
-
     def calculate_probability(self) -> float | None:
         """
         We don't save the calculation because it would overwrite the manual value.
-
-        NOTE: Rationale on a DialecticalComponent doesn't have any impact, so we implement it here for consumption on Transition.
         """
         # Prefer manual if present; else use evidence; else None
         parts: List[float] = []
@@ -61,6 +58,7 @@ class Rationale(Ratable):
             if p > 0.0:
                 parts.append(p)
 
+        # Don't fall back to 1.0 to not improve scores for free
         return gm_with_zeros_and_nones_handled(parts) if parts else None
 
     def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:

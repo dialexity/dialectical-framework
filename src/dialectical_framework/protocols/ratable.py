@@ -34,6 +34,31 @@ class Ratable(Assessable, ABC):
         """Apply leaf.rating to the leaf's own manual CF inside evidence? True for DC/Transition; False for Rationale."""
         return True
 
+    def calculate_probability(self) -> float | None:
+        """
+        We don't save the calculation because it would overwrite the manual value.
+        """
+
+        # Prefer manual if present; else use evidence; else None
+        parts: List[float] = []
+
+        if self.probability is not None:
+            if self._hard_veto_on_own_zero() and self.probability == 0:
+                return 0.0
+            if self.probability > 0.0:
+                parts.append(self.probability)
+
+        # Child rationales (critiques) - aggregate their probabilities too
+        for child_rationale in (self.rationales or []):
+            p = child_rationale.calculate_probability()
+            if p is None:
+                continue
+            if p > 0.0:
+                parts.append(p)
+
+        # Fallback to 1.0 if no evidence is present. Assume it's a fact.
+        return gm_with_zeros_and_nones_handled(parts) if parts else 1.0
+
     def calculate_contextual_fidelity(self) -> float | None:
         """
         We are not saving CF here because it's Ratable - only manual value allowed.
