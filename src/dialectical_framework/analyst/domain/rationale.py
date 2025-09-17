@@ -40,7 +40,7 @@ class Rationale(Ratable):
 
         if self.probability is not None:
             if self._hard_veto_on_own_zero() and self.probability == 0:
-                return 0.0
+                return self.probability
             if self.probability > 0.0:
                 parts.append(self.probability)
 
@@ -68,5 +68,7 @@ class Rationale(Ratable):
             cf = w.calculate_contextual_fidelity()
             if cf is not None:
                 if self._hard_veto_on_own_zero() and cf == 0.0:
+                    parts.append(cf)
+                if cf > 0:
                     parts.append(cf)
         return parts

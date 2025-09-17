@@ -15,6 +15,32 @@ Where **alpha (α ≥ 0)** is a global parameter controlling how much contextual
 
 The dialectical framework uses **dual aggregation paths** - one for contextual relevance, another for structural feasibility:
 
+### Assessable Class Hierarchy
+
+The scoring system is built on the `Assessable` protocol with the following inheritance structure:
+
+**Abstract Protocols:**
+- `Assessable` - Base protocol with score calculation (`Score = P × CF^α`)
+  - `Ratable` - Extends Assessable for leaf nodes with rating field
+
+**Concrete Implementations:**
+- **Leaf Assessables (Ratable):**
+  - `DialecticalComponent` - Basic statements/concepts (T, A, T+, T-, A+, A-, S+, S-)
+  - `Transition` - Relationships between components with predicates
+  - `Rationale` - Evidence/commentary (special: soft exclusion instead of hard veto, evidence vs self-scoring views)
+
+- **Composite Assessables:**
+  - `AssessableCycle` - Abstract base for cycles (inherits from Assessable)
+    - `Cycle` - Sequences of transitions between components
+    - `Spiral` - Transformational cycles between segments
+  - `WisdomUnit` - Thesis-antithesis pairs with synthesis and transformation
+  - `Wheel` - Complete dialectical systems containing multiple WisdomUnits
+
+**Key Behavioral Differences:**
+- **Hard Veto Policy**: Components and transitions with zero values (CF=0 or P=0) indicate structural impossibility and return 0
+- **Soft Exclusion Policy**: Rationales with zero values are excluded from aggregation without vetoing parent elements
+- **Single Rating Application**: Each element's rating is applied exactly once to prevent double-counting
+
 ### Content Hierarchy (Contextual Fidelity flows upward)
 
 **CF tracks "Does this make sense in context?"**
@@ -190,8 +216,8 @@ These implementation differences are expected and the key behaviors (leaves not 
   * A **rationale's CF** is multiplied by **rationale.rating** by the consuming parent
   * Parents never multiply their own rating onto children
 * **Selective veto policy:**
-  * **DialecticalComponent/Transition**: CF = 0 triggers **hard veto** (CF becomes 0)
-  * **Rationale**: CF = 0 is treated as "no contribution" (ignored, not veto)
+  * **DialecticalComponent/Transition**: Zero values (CF=0 or P=0) trigger **hard veto** (return 0)
+  * **Rationale**: Zero values (CF=0 or P=0) are treated as "no contribution" (excluded, not veto)
 * **Zero handling:** Zeros from weighting (rating = 0) and `None` values are **ignored** in aggregation
 
 #### CF Calculation by Element Type
@@ -200,7 +226,7 @@ These implementation differences are expected and the key behaviors (leaves not 
 
 * Combine:
 
-  * its **own CF × its rating** (if provided; 0 ⇒ hard veto), and
+  * its **own CF × its rating** (if provided; zero values ⇒ hard veto), and
   * each **rationale CF × rationale.rating**.
 * If nothing contributes → returns None (default policy: DC.P defaults to 1.0 unless manually set)
 
@@ -210,21 +236,19 @@ These implementation differences are expected and the key behaviors (leaves not 
 * If nothing contributes → returns None.
 * Do **not** inherit CF from source/target; CF(Transition) answers "is this step grounded here?"
 
-**Rationale** *(special leaf-that-can-grow, `Ratable`)*
+**Rationale** *(special leaf-that-can-grow)*
 
-* **Evidence view** (`calculate_contextual_fidelity_evidence`):
-  * Combines its **own CF** (unweighted) with **children** (spawned wheels and critiques)
-  * Returns **None** if no real evidence exists (prevents "empty rationale" inflation)
-* **Self-scoring view** (`calculate_contextual_fidelity`):
-  * Used only when calculating the rationale's own score
-  * No fallback to CF = 1.0; leaves don't invent neutral values
-* **Parent consumption**: Uses evidence view and applies `rationale.rating` weighting
+* **Evidence contribution**: When consumed by parent elements, combines its **own CF** with **children** (spawned wheels and critiques)
+* **No free lunch**: Returns nothing if no real evidence exists (prevents "empty rationale" inflation)
+* **Rating application**: Parent applies the rationale's rating when consuming its evidence
+* **Self-scoring**: When calculating its own score for ranking, uses same evidence without external rating
+* **Soft exclusion**: Zero-value rationales (CF=0 or P=0) are excluded from aggregation (no hard veto like components/transitions)
 
 **WheelSegment** *(non-leaf)*
 
 * CF = GM of its three DialecticalComponents (+ rated segment-level rationales).
 
-**WisdomUnit** *(non-leaf; may be `Ratable`)*
+**WisdomUnit** *(non-leaf)*
 
 * CF = GM of:
 
@@ -233,10 +257,10 @@ These implementation differences are expected and the key behaviors (leaves not 
     * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis CFs
     * **T- ↔ A+**: Power mean of negative thesis and positive antithesis CFs
     * **S+ ↔ S-**: Power mean of synthesis components (if present)
-  * **Transformation CF** (internal spiral transitions),
+  * **Transformation CF** (internal spiral transitions between segments),
   * **rated unit-level rationales**,
 
-*Note: WisdomUnit CF calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4) that balances opposing poles. Any explicit hard veto (CF=0) on a pole collapses the axis CF to 0.0.*
+*Note: WisdomUnit CF calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis CF to 0.0.*
 
 **Cycle** *(T, TA, Spiral, Transformation — diagnostic)*
 
@@ -279,11 +303,11 @@ These implementation differences are expected and the key behaviors (leaves not 
 **Transition** *(leaf for probability)*
 
 * Combine as evidence:
-  * **manual transition probability** (optional, weighted by the transition's own `confidence`), and
-  * each **rationale evidence probability × rationale.confidence** (uses `calculate_probability_evidence`)
-* **Rationale evidence**: Only includes rationales with actual probability data (spawned wheels, manual P)
-* **No "free lunch"**: Empty rationales (text-only) contribute nothing to probability
-* Aggregate with geometric mean over **positive** contributions; if nothing contributes → P = **unknown**
+  * **manual transition probability** (if provided), and
+  * each **rationale probability** (from rationales attached to this transition)
+* **Rationale evidence**: Rationale probability values are used when present
+* **No "free lunch"**: Empty rationales (text-only, no probability) contribute nothing to probability
+* Aggregate with geometric mean over **positive** contributions; if nothing contributes → P = unknown
 
 **Cycle** *(T, TA, Spiral, Transformation)*
 

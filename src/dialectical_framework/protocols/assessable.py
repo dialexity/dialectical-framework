@@ -43,7 +43,7 @@ class Assessable(BaseModel, ABC):
         return selected_r or (self.rationales[0] if self.rationales else None)
 
     @final
-    def calculate_score(self, *, alpha: float = 1.0, mutate: bool = True) -> float | None:
+    def calculate_score(self, *, alpha: float = 1.0) -> float | None:
         """
         Calculates composite score: Score(X) = Pr(S) × CF_X^α
 
@@ -60,7 +60,7 @@ class Assessable(BaseModel, ABC):
         # First, recursively calculate scores for all sub-assessables
         sub_assessables = self._get_sub_assessables()
         for sub_assessable in sub_assessables:
-            sub_assessable.calculate_score(alpha=alpha, mutate=mutate)
+            sub_assessable.calculate_score(alpha=alpha)
         
         # Ensure that the overall probability has been calculated
         probability = self.calculate_probability()
@@ -73,9 +73,7 @@ class Assessable(BaseModel, ABC):
         else:
             score = probability * (cf_w ** alpha)
 
-        if mutate:
-            self.score = score
-
+        self.score = score
         return self.score
 
     def calculate_contextual_fidelity(self) -> float | None:

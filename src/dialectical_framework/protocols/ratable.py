@@ -44,7 +44,7 @@ class Ratable(Assessable, ABC):
 
         if self.probability is not None:
             if self._hard_veto_on_own_zero() and self.probability == 0:
-                return 0.0
+                return self.probability
             if self.probability > 0.0:
                 parts.append(self.probability)
 
@@ -81,7 +81,7 @@ class Ratable(Assessable, ABC):
         own_cf = self.contextual_fidelity
         if own_cf is not None:
             if own_cf == 0.0 and self._hard_veto_on_own_zero():
-                return 0.0  # explicit veto
+                return own_cf  # explicit veto
             if own_cf > 0.0:
                 val = own_cf * (self.rating_or_default() if self._apply_own_rating_in_cf() else 1.0)
                 if val > 0.0:

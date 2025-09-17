@@ -99,8 +99,8 @@ def decompose_probability_into_transitions(
             t.probability = None
 
     # Check which transitions already have probabilities
-    transitions_with_probs = [t for t in transitions if t.probability is not None and t.probability != 0]
-    transitions_without_probs = [t for t in transitions if t.probability is None or t.probability == 0]
+    transitions_with_probs = [t for t in transitions if t.probability is not None]
+    transitions_without_probs = [t for t in transitions if t.probability is None]
 
     if not transitions_without_probs:
         # All transitions already have probabilities - don't override
