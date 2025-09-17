@@ -40,18 +40,16 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     async def build_wheel_permutations(
         self, *, theses: list[Union[str, None]] = None, t_cycle: Cycle = None
     ) -> list[Wheel]:
-        await self.__decorated_builder.build_wheel_permutations(
+        return await self.__decorated_builder.build_wheel_permutations(
             theses=theses, t_cycle=t_cycle
         )
-        return self.wheel_permutations
 
     async def redefine(
         self, modified_statement_per_alias: Dict[str, str]
     ) -> list[Wheel]:
-        await self.__decorated_builder.redefine(
+        return await self.__decorated_builder.redefine(
             modified_statement_per_alias=modified_statement_per_alias
         )
-        return self.wheel_permutations
 
     async def calculate_syntheses(
         self,

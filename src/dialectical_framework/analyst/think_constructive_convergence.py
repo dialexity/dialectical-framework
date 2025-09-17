@@ -2,6 +2,7 @@ from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework import Transition
+from dialectical_framework.ai_dto.action_plan_dto import ActionPlanDto
 from dialectical_framework.ai_dto.transition_summary_dto import TransitionSummaryDto
 from dialectical_framework.analyst.domain.rationale import Rationale
 from dialectical_framework.analyst.domain.transition_segment_to_segment import \
@@ -37,17 +38,20 @@ class ThinkConstructiveConvergence(StrategicConsultant):
             - **Action**: What specific step to take (1-2 sentences)
             - **Mechanism**: How this step transforms the negative into positive (1 sentence)
             - **Timing**: When this transition is most effective (1 phrase)
+        3. Estimate the numeric probability (0 to 1) of this transition happening
         
         <examples>
-            1) T1- (Tyranny) → T2+ (Balance):
+            T1- (Tyranny) → T2+ (Balance):
             **Action**: Implement transparent priority matrices with employee input
             **Mechanism**: Converts rigid control into collaborative structure
             **Timing**: During planning cycles
+            Probability: 0.3
         </examples>
         </instructions>
     
         <formatting>
         Output the transition step as a fluent practical, implementable action plan (summarized but not mentioning derived Action, Mechanism, and Timing) that someone could take immediately to facilitate the transformation. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
+        Probability should be a number between 0 and 1.
         </formatting>
         """
     )
@@ -144,10 +148,10 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         return transition_str
 
     @with_langfuse()
-    @use_brain(response_model=str)
+    @use_brain(response_model=ActionPlanDto)
     async def constructive_convergence(
         self, focus: WheelSegment, next_ws: WheelSegment
-    ):
+    ) -> ActionPlanDto:
         return self.prompt_constructive_convergence(self._text, focus=focus, next_ws=next_ws)
 
     # TODO: use a fast and cheap model for this
@@ -161,8 +165,11 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         next_index = (current_index + 1) % self._wheel.degree
         next_ws = self._wheel.wheel_segment_at(next_index)
 
+        action_plan_dto = await self.constructive_convergence(focus=focus, next_ws=next_ws)
         rationale = Rationale(
-            text=await self.constructive_convergence(focus=focus, next_ws=next_ws)
+            text=action_plan_dto.action_plan,
+            # TODO: is it ok to use self-assigned probability here? It somewhat contradicts the t-cycle probability, which overall should be the same for the spiral, no?
+            probability=action_plan_dto.probability,
         )
 
         transition = self._wheel.spiral.graph.get_transition(

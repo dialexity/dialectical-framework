@@ -61,10 +61,12 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
     )
     def ac_re_prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
+        wu = focus.model_copy(deep=True)
+        wu.add_indexes_to_aliases(0)
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": focus.pretty(),
+                "dialectical_analysis": wu.pretty(),
                 "component_length": self.settings.component_length,
             }
         }
@@ -93,6 +95,8 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         - This solution should transform the negative aspect of the antithesis (A-) into the positive aspect of the thesis (T+)
         - It should work harmoniously with the Linear Action to create a more complete solution
 
+        Step 3. Estimate the numeric probabilities (0 to 1) of Linear Action (Ac) and Dialectical Reflection (Re) happening.
+        
         <example>
             For example:
             In a token vesting dispute, stakeholders disagreed about extending the lock period from January 2025 to January 2026. The original solution was a staged distribution with incentives.
@@ -106,22 +110,27 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             A- = Trust Erosion (contradicts T+)
 
             Linear Action: Staged distribution with added incentives, offering 25% immediate unlock with enhanced benefits for the delayed 75% portion.
+            Linear Action Probability: 0.4
 
             Dialectical Reflection: Liquid staking derivatives for immediate utility (25%) combined with guaranteed exit rights (75%) - complements the linear action.
+            Dialectical Reflection Probability: 0.6
         </example>
         </instructions>
 
         <formatting>
-        Output Linear Action and Dialectical Reflection as a fluent text that could be useful for someone who provided the initial context. Compose the problem statement in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
+        Output Linear Action and Dialectical Reflection as a fluent text (not mentioning it's actually a Linear Action or Dialectical Reflection) that could be useful for someone who provided the initial context. Compose the problem statement in the passive voice. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
+        Probabilities should be numbers between 0 and 1.
         </formatting>
         """
     )
     def reciprocal_solution_prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
+        wu = focus.model_copy(deep=True)
+        wu.add_indexes_to_aliases(0)
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": focus.pretty(),
+                "dialectical_analysis": wu.pretty(),
                 "component_length": self.settings.component_length,
             }
         }
@@ -168,7 +177,11 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
                 source=wu.extract_segment_t(),
                 target=wu.extract_segment_a(),
                 rationales=[
-                    Rationale(text=reciprocal_sol_dto.linear_action)
+                    Rationale(
+                        text=reciprocal_sol_dto.linear_action,
+                        # TODO: is it ok to use self-assigned probability here? It somewhat contradicts the t-cycle probability, which overall should be the same for the spiral, no?
+                        probability=reciprocal_sol_dto.linear_action_probability,
+                    )
                 ],
             )
         )
@@ -180,7 +193,11 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
                 source=wu.extract_segment_a(),
                 target=wu.extract_segment_t(),
                 rationales=[
-                    Rationale(text=reciprocal_sol_dto.dialectical_reflection)
+                    Rationale(
+                        text=reciprocal_sol_dto.dialectical_reflection,
+                        # TODO: is it ok to use self-assigned probability here? It somewhat contradicts the t-cycle probability, which overall should be the same for the spiral, no?
+                        probability=reciprocal_sol_dto.dialectical_reflection_probability,
+                    )
                 ],
             )
         )

@@ -36,7 +36,7 @@ class Assessable(BaseModel, ABC):
         selected_r = None
         best_score = None
         for r in (self.rationales or []):
-            r_score = r.calculate_score(mutate=False)
+            r_score = r.calculate_score()
             if r_score is not None and (best_score is None or r_score > best_score):
                 best_score = r_score
                 selected_r = r
@@ -87,7 +87,7 @@ class Assessable(BaseModel, ABC):
         all_fidelities.extend(self._calculate_contextual_fidelity_for_sub_elements_excl_rationales())
         
         if not all_fidelities:
-            fidelity = 1.0  # Neutral impact if no components with positive scores
+            fidelity = None
         else:
             fidelity = gm_with_zeros_and_nones_handled(all_fidelities)
 

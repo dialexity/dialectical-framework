@@ -16,7 +16,6 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
         permutations = [permutations]
 
     permutations = permutations.copy()
-    permutations.sort(key=lambda w: w.score if w.score is not None else 0, reverse=True)
 
     grouped: Dict[str, Tuple[Cycle, List[Wheel]]] = {}
     for w in permutations:
@@ -55,6 +54,14 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
             # Display spiral with aligned, colorized scores if available
             spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | CF={_fmt_cf_or_p(w.spiral, 'contextual_fidelity')} | P={_fmt_cf_or_p(w.spiral, 'probability')}"
             report += f"Spiral [{spiral_scores}]\n"
+
+            # Display wisdom unit transformations with scores
+            for wu_idx, wu in enumerate(w.wisdom_units):
+                if wu.transformation:
+                    transformation_scores = f"S={_fmt_score(wu.transformation.score, colorize=True)} | CF={_fmt_cf_or_p(wu.transformation, 'contextual_fidelity')} | P={_fmt_cf_or_p(wu.transformation, 'probability')}"
+                    report += f"WU{wu_idx+1} Transformation [{transformation_scores}]\n"
+                else:
+                    report += f"WU{wu_idx+1} Transformation [None]\n"
 
             # Add tabular display of wheel components and transitions
             report += _print_wheel_tabular(w) + "\n"
@@ -179,12 +186,16 @@ def _print_transitions_table(wheel) -> str:
     """Print a table of all transitions with their scores, CF, and P values."""
 
     # Get cycles to extract transitions
-    cycles = []
+    cycles = [
+        ('T-cycle', wheel.t_cycle),
+        ('TA-cycle', wheel.cycle),
+        ('Spiral', wheel.spiral)
+    ]
 
-    # Access cycles directly - they should be available on the wheel
-    cycles.append(('T-cycle', wheel.t_cycle))
-    cycles.append(('TA-cycle', wheel.cycle))
-    cycles.append(('Spiral', wheel.spiral))
+    # Add wisdom unit transformations
+    for wu_idx, wu in enumerate(wheel.wisdom_units):
+        if wu.transformation:
+            cycles.append((f'WU{wu_idx+1} Transformation', wu.transformation))
 
     # If we don't have any cycles with transitions, return empty string
     if not cycles:

@@ -197,7 +197,7 @@ class DirectedGraph(Generic[T]):
 
             for transition in all_transitions_inner:
                 if (
-                    transition.predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO
+                    transition.predicate in [Predicate.CONSTRUCTIVELY_CONVERGES_TO, Predicate.TRANSFORMS_TO]
                     and _can_connect_constructively(
                         current_target_aliases, transition.source_aliases
                     )
@@ -230,7 +230,7 @@ class DirectedGraph(Generic[T]):
             current_key = frozenset(current_aliases)
 
             # Check for cycle based on predicate type
-            if current_predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
+            if current_predicate in [Predicate.CONSTRUCTIVELY_CONVERGES_TO, Predicate.TRANSFORMS_TO]:
                 # For constructive convergence, check segment-level overlap
                 if _would_create_constructive_cycle(current_aliases, visited_in_path):
                     # Found a cycle in this path - record the path up to this point
@@ -251,7 +251,7 @@ class DirectedGraph(Generic[T]):
             new_visited = visited_in_path | {current_key}
 
             # Get transitions based on predicate type
-            if current_predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
+            if current_predicate in [Predicate.CONSTRUCTIVELY_CONVERGES_TO, Predicate.TRANSFORMS_TO]:
                 # For constructive convergence, find transitions that can connect at segment level
                 transitions = _find_constructive_transitions(current_aliases)
             else:
@@ -290,7 +290,7 @@ class DirectedGraph(Generic[T]):
                 )
 
                 # Check if target would create a cycle based on predicate type
-                if next_predicate == Predicate.CONSTRUCTIVELY_CONVERGES_TO:
+                if next_predicate in [Predicate.CONSTRUCTIVELY_CONVERGES_TO, Predicate.TRANSFORMS_TO]:
                     # For constructive convergence, check segment-level cycle
                     if _would_create_constructive_cycle(
                         transition.target_aliases, new_visited

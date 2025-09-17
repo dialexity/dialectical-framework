@@ -14,4 +14,4 @@ class DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral):
             text=self.text, wheel=wheel, brain=self.reasoner.brain
         )
 
-        return [await consultant.think(at)]
+        return await consultant.think(at)

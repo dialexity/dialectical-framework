@@ -52,9 +52,8 @@ async def test_full_blown_wheel():
     factory1 = DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral(DecoratorActionReflection(builder=factory)))
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].order == 2
-    assert wheels[0].score > 0
     await factory1.calculate_transitions(wheels[0])
-    await factory1.calculate_transitions(wheels[1])
+    assert wheels[0].score > 0
 
     print(dw_report(wheels))
 

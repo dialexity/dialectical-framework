@@ -69,34 +69,46 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
     ):
         return self.prompt_constructive_convergence_audit(self._text, transition=transition, rationale=rationale)
 
-    async def think(self, focus: WheelSegment) -> TransitionSegmentToSegment:
+    async def think(self, focus: WheelSegment) -> list[TransitionSegmentToSegment]:
         current_index = self._wheel.index_of(focus)
         next_index = (current_index + 1) % self._wheel.degree
         next_ws = self._wheel.wheel_segment_at(next_index)
 
-        transition = self._wheel.spiral.graph.get_transition([focus.t_minus.alias, focus.t.alias], [next_ws.t_plus.alias])
-        if transition is None:
+        spiral_link = self._wheel.spiral.graph.get_transition([focus.t_minus.alias, focus.t.alias], [next_ws.t_plus.alias])
+        if spiral_link is None:
             # Make sure we have the transition
-            transition = super().think(focus=focus)
+            spiral_link = super().think(focus=focus)
 
-        async_tasks = [
-            asyncio.create_task(
+        transitions = [spiral_link]
+
+        wu = self._wheel.wisdom_unit_at(focus)
+        if wu.transformation is not None and not wu.transformation.graph.is_empty():
+            # Add transformation transition going out from the focused segment
+            sources: list[list[str]] = wu.transformation.graph.find_outbound_source_aliases(focus)
+            for source in sources:
+                transitions.extend(wu.transformation.graph.get_transitions_from_source(source))
+
+        async_tasks = []
+        for transition in transitions:
+            async_tasks.extend([asyncio.create_task(
                 self.constructive_convergence_audit(
                     transition=transition,
                     rationale=r
                 )
             )
-            for r in transition.rationales
-        ]
+            for r in transition.rationales])
 
         audits: list[ConstructiveConvergenceTransitionAuditDto] = await gather(*async_tasks)
 
-        for i, r in enumerate(transition.rationales):
-            audit = audits[i]
-            r.rationales.append(Rationale(
-                contextual_fidelity=audit.feasibility,
-                text=f"Key Factors: {audit.key_factors}\n\nArgumentation: {audit.argumentation}\n\nConditions for Success: {audit.success_conditions}"
-            ))
+        # Process all audits and update corresponding transition rationales
+        audit_index = 0
+        for transition in transitions:
+            for r in transition.rationales:
+                audit = audits[audit_index]
+                r.rationales.append(Rationale(
+                    contextual_fidelity=audit.feasibility,
+                    text=f"Key Factors: {audit.key_factors}\n\nArgumentation: {audit.argumentation}\n\nConditions for Success: {audit.success_conditions}"
+                ))
+                audit_index += 1
 
-
-        return transition
+        return transitions

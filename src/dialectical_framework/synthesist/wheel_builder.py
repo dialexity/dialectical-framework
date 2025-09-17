@@ -157,8 +157,9 @@ class WheelBuilder(SettingsAware):
         wheels = []
         for cycle in cycles:
             w = Wheel(
-                _rearrange_by_causal_sequence(wheel_wisdom_units, cycle, mutate=False),
-                t_cycle=t_cycle,
+                # copy entities that are shared across the wheels, they should be independent
+                [wu.model_copy(deep=True) for wu in _rearrange_by_causal_sequence(wheel_wisdom_units, cycle, mutate=False)],
+                t_cycle=t_cycle.model_copy(deep=True),
                 ta_cycle=cycle,
             )
             w.calculate_score()

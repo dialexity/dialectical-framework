@@ -37,8 +37,6 @@
 
 ```
 
-[] Auditor/Judge/Validator agents (different models)
-
 [] Bring the initial context out of the prompts, should be somehow pluggable
 
 [] Recalculate 1 wisdom unit, and then recalculate cycles (needed when T or A is changed), it's an efficient implementation of "redefine"
@@ -108,8 +106,6 @@ The causation analysis (like in your PDF) is indeed a separate and valuable anal
 [] Consolidate wisdom units if the provided theses contain among them also antitheses. The overall number of theses must be ensured still
 
 [] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
-
-[] Add index (numbering) to wheel segments, now we derive it from alias
 
 [] Make façade that would make it easier to wrap the whole framework into an API
 
