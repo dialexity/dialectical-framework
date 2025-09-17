@@ -326,21 +326,27 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
             probs = [p.quantize(q, rounding=ROUND_HALF_UP) for p in probs]
 
-            # Sort by rounded probabilities (descending)
-            causal_cycles_deck.causal_cycles.sort(
-                key=lambda c: float(
-                    Decimal(c.probability) / Decimal(total_score)
-                ),
-                reverse=True,
-            )
-            # Recompute in sorted order
-            probs.sort(reverse=True)
+            if len(causal_cycles_deck.causal_cycles) > 1:
+                # Multiple cycles: normalize to sum to 1.0 and sort by probability
 
-            # Add the exact decimal remainder to the highest-probability cycle
-            total_after = sum(probs)
-            diff = Decimal("1.000") - total_after
-            probs[0] = (probs[0] + diff).quantize(q, rounding=ROUND_HALF_UP)
-            assert abs(sum(probs) - Decimal("1.000")) < Decimal("0.001")
+                # Sort by rounded probabilities (descending)
+                causal_cycles_deck.causal_cycles.sort(
+                    key=lambda c: float(
+                        Decimal(c.probability) / Decimal(total_score)
+                    ),
+                    reverse=True,
+                )
+                # Recompute in sorted order
+                probs.sort(reverse=True)
+
+                # Add the exact decimal remainder to the highest-probability cycle
+                total_after = sum(probs)
+                diff = Decimal("1.000") - total_after
+                probs[0] = (probs[0] + diff).quantize(q, rounding=ROUND_HALF_UP)
+                assert abs(sum(probs) - Decimal("1.000")) < Decimal("0.001")
+            else:
+                #Single cycle - keep original probability, no normalization needed
+                pass
 
             for causal_cycle, p in zip(causal_cycles_deck.causal_cycles, probs):
                 # Create cycle first to get transition count
