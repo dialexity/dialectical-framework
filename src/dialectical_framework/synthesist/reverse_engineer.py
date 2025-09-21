@@ -347,14 +347,14 @@ class ReverseEngineer:
         cycles = {
             t_cycle.cycle_str(): [
                 f"### {t_cycle.causality_type.value.capitalize()} Causality Estimation for {t_cycle.cycle_str()}",
-                f"Probability: {t_cycle.contextual_fidelity}",  # Note that it's the initial assessment that we take, not normalized
+                f"Probability: {t_cycle.relevance}",  # Note that it's the initial assessment that we take, not normalized
                 f"Rationale: {t_cycle.best_rationale.text if t_cycle.best_rationale and t_cycle.best_rationale.text else 'N/A'}",
             ],
         }
         if ta_cycle:
             cycles[ta_cycle.cycle_str()] = [
                 f"### {ta_cycle.causality_type.value.capitalize()} Causality Estimation for {ta_cycle.cycle_str()}",
-                f"Probability: {ta_cycle.contextual_fidelity}", # Note that it's the initial assessment that we take, not normalized
+                f"Probability: {ta_cycle.relevance}", # Note that it's the initial assessment that we take, not normalized
                 f"Rationale: {ta_cycle.best_rationale.text if ta_cycle.best_rationale and ta_cycle.best_rationale.text else 'N/A'}",
             ]
 

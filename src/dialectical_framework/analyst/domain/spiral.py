@@ -43,7 +43,7 @@ class Spiral(AssessableCycle[TransitionSegmentToSegment]):
                     prob *= p
 
         # Save the calculation as this object is derivative composition
-        self.probability = prob
+        self.calculated_probability = prob
         return self.probability
 
     def pretty(self, *, start_wheel_segment: WheelSegment) -> str:

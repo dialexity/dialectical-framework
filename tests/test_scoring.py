@@ -53,7 +53,7 @@ class TestDialecticalComponentScoring:
         """Component with no CF or rating should return None (no evidence)."""
         component = DialecticalComponent(alias="T", statement="Test thesis")
 
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         assert cf is None
         
     def test_component_with_manual_cf_and_rating(self):
@@ -61,11 +61,11 @@ class TestDialecticalComponentScoring:
         component = DialecticalComponent(
             alias="T", 
             statement="Test thesis",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.6
         )
         
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         assert cf == 0.8 * 0.6  # 0.48
         
     def test_component_zero_rating_excludes_cf(self):
@@ -73,11 +73,11 @@ class TestDialecticalComponentScoring:
         component = DialecticalComponent(
             alias="T",
             statement="Test thesis",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.0
         )
 
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         assert cf is None  # With rating=0, CF is excluded, resulting in None with no evidence
 
     def test_component_zero_cf_hard_veto(self):
@@ -85,27 +85,27 @@ class TestDialecticalComponentScoring:
         component = DialecticalComponent(
             alias="T",
             statement="Test thesis",
-            contextual_fidelity=0.0,  # Zero CF should trigger hard veto
+            relevance=0.0,  # Zero CF should trigger hard veto
             rating=0.8  # Rating doesn't matter for hard veto
         )
         
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         assert cf == 0.0  # Hard veto - structural impossibility
 
     def test_component_with_rationales(self):
         """Component should aggregate rationale CFs weighted once by rationale.rating."""
-        rationale1 = Rationale(text="Supporting rationale", contextual_fidelity=0.9, rating=0.8)
-        rationale2 = Rationale(text="Another rationale", contextual_fidelity=0.7, rating=0.6)
+        rationale1 = Rationale(text="Supporting rationale", relevance=0.9, rating=0.8)
+        rationale2 = Rationale(text="Another rationale", relevance=0.7, rating=0.6)
 
         component = DialecticalComponent(
             alias="T",
             statement="Test thesis",
-            contextual_fidelity=0.8,  # component's own intrinsic CF
+            relevance=0.8,  # component's own intrinsic CF
             rating=0.5,  # component's own rating applies to its own CF only
             rationales=[rationale1, rationale2]
         )
 
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
 
         # Rationale contributions: weighted once by their own rating (by the parent)
         r1 = 0.9 * 0.8  # = 0.72
@@ -119,24 +119,24 @@ class TestDialecticalComponentScoring:
         """Rationales with zero rating should be excluded from aggregation."""
         rationale1 = Rationale(
             text="Good rationale",
-            contextual_fidelity=0.9,
+            relevance=0.9,
             rating=0.8
         )
         rationale2 = Rationale(
             text="Vetoed rationale",
-            contextual_fidelity=0.7,
+            relevance=0.7,
             rating=0.0  # This should be excluded
         )
         
         component = DialecticalComponent(
             alias="T",
             statement="Test thesis",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.5,
             rationales=[rationale1, rationale2]
         )
         
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         # rationale1: CF=0.9, parent applies rating once: 0.9*0.8=0.72
         # rationale2: rating=0.0, so excluded (0.9*0.0=0.0 gets filtered out)
         # own: CF=0.8*0.5=0.4
@@ -205,18 +205,18 @@ class TestTransitionScoring:
         
     def test_transition_cf_inherits_from_own_not_source_target(self):
         """Transition CF should not inherit from source/target, only own CF."""
-        source = DialecticalComponent(alias="T1", statement="Source", contextual_fidelity=0.9)
-        target = DialecticalComponent(alias="T2", statement="Target", contextual_fidelity=0.8)
+        source = DialecticalComponent(alias="T1", statement="Source", relevance=0.9)
+        target = DialecticalComponent(alias="T2", statement="Target", relevance=0.8)
         
         transition = Transition(
             source=source,
             target=target,
             predicate=Predicate.CAUSES,
-            contextual_fidelity=0.6,
+            relevance=0.6,
             rating=0.7
         )
         
-        cf = transition.calculate_contextual_fidelity()
+        cf = transition.calculate_relevance()
         assert cf == 0.6 * 0.7  # Only own CF * rating, not from source/target
 
 
@@ -227,14 +227,14 @@ class TestWisdomUnitScoring:
     def test_wisdom_unit_cf_includes_both_segments_and_transformation(self):
         """WisdomUnit CF should use symmetric pairs with power mean (p=4)."""
         # Create thesis segment components
-        t = DialecticalComponent(alias="T", statement="Thesis", contextual_fidelity=0.8)
-        t_plus = DialecticalComponent(alias="T+", statement="Thesis+", contextual_fidelity=0.9)
-        t_minus = DialecticalComponent(alias="T-", statement="Thesis-", contextual_fidelity=0.7)
+        t = DialecticalComponent(alias="T", statement="Thesis", relevance=0.8)
+        t_plus = DialecticalComponent(alias="T+", statement="Thesis+", relevance=0.9)
+        t_minus = DialecticalComponent(alias="T-", statement="Thesis-", relevance=0.7)
         
         # Create antithesis segment components  
-        a = DialecticalComponent(alias="A", statement="Antithesis", contextual_fidelity=0.6)
-        a_plus = DialecticalComponent(alias="A+", statement="Antithesis+", contextual_fidelity=0.8)
-        a_minus = DialecticalComponent(alias="A-", statement="Antithesis-", contextual_fidelity=0.5)
+        a = DialecticalComponent(alias="A", statement="Antithesis", relevance=0.6)
+        a_plus = DialecticalComponent(alias="A+", statement="Antithesis+", relevance=0.8)
+        a_minus = DialecticalComponent(alias="A-", statement="Antithesis-", relevance=0.5)
         
         wisdom_unit = WisdomUnit(
             **{
@@ -243,7 +243,7 @@ class TestWisdomUnitScoring:
             }
         )
         
-        cf = wisdom_unit.calculate_contextual_fidelity()
+        cf = wisdom_unit.calculate_relevance()
         
         # Calculate expected using symmetric pairs with power mean (p=4)
         # T ↔ A pair: PowerMean(0.8, 0.6, p=4)
@@ -270,12 +270,12 @@ class TestWisdomUnitScoring:
     def test_wisdom_unit_axis_veto(self):
         """Test that CF=0 on any pole collapses the axis to 0."""
         # Create components with one having CF=0
-        t = DialecticalComponent(alias="T", statement="Thesis", contextual_fidelity=0.8)
-        a = DialecticalComponent(alias="A", statement="Antithesis", contextual_fidelity=0.0)  # Explicit veto
+        t = DialecticalComponent(alias="T", statement="Thesis", relevance=0.8)
+        a = DialecticalComponent(alias="A", statement="Antithesis", relevance=0.0)  # Explicit veto
 
         wisdom_unit = WisdomUnit(**{ALIAS_T: t, ALIAS_A: a})
 
-        cf = wisdom_unit.calculate_contextual_fidelity()
+        cf = wisdom_unit.calculate_relevance()
         # The T↔A axis should be 0, collapsing the WisdomUnit CF
         assert cf == 0.0
 
@@ -320,8 +320,8 @@ class TestWheelScoring:
     def test_wheel_calculate_score_recursively(self):
         """Calling calculate_score on wheel should recursively calculate all sub-elements."""
         # Create minimal wheel structure
-        t = DialecticalComponent(alias="T", statement="Thesis", contextual_fidelity=0.8)
-        a = DialecticalComponent(alias="A", statement="Antithesis", contextual_fidelity=0.6)
+        t = DialecticalComponent(alias="T", statement="Thesis", relevance=0.8)
+        a = DialecticalComponent(alias="A", statement="Antithesis", relevance=0.6)
         
         wisdom_unit = WisdomUnit(**{ALIAS_T: t, ALIAS_A: a})
         
@@ -336,12 +336,12 @@ class TestWheelScoring:
         score = wheel.calculate_score(alpha=1.0)
         
         # Verify that sub-components had their scores calculated
-        assert t.score is not None or t.contextual_fidelity is not None
-        assert a.score is not None or a.contextual_fidelity is not None
+        assert t.score is not None or t.relevance is not None
+        assert a.score is not None or a.relevance is not None
         
         # WisdomUnit without transformation has no probability, hence no score
-        # But it should have contextual fidelity calculated
-        assert wisdom_unit.contextual_fidelity is not None
+        # But it should have relevance calculated
+        assert wisdom_unit.relevance is not None
         assert wisdom_unit.score is None  # No score without probability (no transformation)
 
 
@@ -353,7 +353,7 @@ class TestScoringAlphaParameter:
         component = DialecticalComponent(
             alias="T",
             statement="Test",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             probability=0.6
         )
         
@@ -366,7 +366,7 @@ class TestScoringAlphaParameter:
         component = DialecticalComponent(
             alias="T",
             statement="Test",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             probability=0.6
         )
         
@@ -379,7 +379,7 @@ class TestScoringAlphaParameter:
         component = DialecticalComponent(
             alias="T", 
             statement="Test",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             probability=0.6
         )
         
@@ -395,7 +395,7 @@ class TestScoringFallbackBehavior:
         """Test that leaves with no evidence return None (no neutral fallback)."""
         # Leaf with no evidence
         component = DialecticalComponent(alias="T", statement="Test")
-        component_cf = component.calculate_contextual_fidelity()
+        component_cf = component.calculate_relevance()
         assert component_cf is None  # Leaf should return None
     
     def test_no_probability_defaults_to_one(self):
@@ -403,7 +403,7 @@ class TestScoringFallbackBehavior:
         component = DialecticalComponent(
             alias="T",
             statement="Test",
-            contextual_fidelity=0.8
+            relevance=0.8
             # No probability data - defaults to 1.0
         )
         
@@ -416,7 +416,7 @@ class TestScoringFallbackBehavior:
         component = DialecticalComponent(
             alias="T",
             statement="Test", 
-            contextual_fidelity=0.8,
+            relevance=0.8,
             probability=0.0
         )
         
@@ -452,37 +452,37 @@ class TestRationaleFallbacks:
         """Rationale should use its own CF when provided."""
         rationale = Rationale(
             text="Simple rationale",
-            contextual_fidelity=0.7
+            relevance=0.7
         )
 
-        cf = rationale.calculate_contextual_fidelity()
+        cf = rationale.calculate_relevance()
         assert cf == 0.7  # Uses own CF when provided
         
     def test_rationale_zero_cf_returns_none(self):
         """Rationale with CF=0 should return None (no veto, excluded from aggregation)."""
         rationale = Rationale(
             text="Bad rationale",
-            contextual_fidelity=0.0  # Zero CF
+            relevance=0.0  # Zero CF
         )
 
-        cf = rationale.calculate_contextual_fidelity()
+        cf = rationale.calculate_relevance()
         assert cf is None  # Returns None, not 0.0 (no veto for rationales)
         
     def test_rationale_zero_cf_with_good_evidence(self):
         """Rationale with CF=0 should NOT contribute (evidence view returns None)."""
         # With evidence view changes, CF=0 rationale contributes nothing
-        rationale_bad = Rationale(text="Bad rationale", contextual_fidelity=0.0, rating=0.8)
-        rationale_good = Rationale(text="Good rationale", contextual_fidelity=0.9, rating=0.7)
+        rationale_bad = Rationale(text="Bad rationale", relevance=0.0, rating=0.8)
+        rationale_good = Rationale(text="Good rationale", relevance=0.9, rating=0.7)
         
         component = DialecticalComponent(
             alias="T",
             statement="Test",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.6,
             rationales=[rationale_bad, rationale_good]
         )
         
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         # Bad rationale's evidence view returns None (CF=0, no hard veto, but still excluded)
         # Only good rationale and own CF contribute: GM(0.8*0.6, 0.9*0.7) = GM(0.48, 0.63)
         expected = (0.48 * 0.63) ** 0.5
@@ -497,13 +497,13 @@ class TestComplexScoringScenarios:
         # Component with rationale
         rationale = Rationale(
             text="Supporting evidence",
-            contextual_fidelity=0.9,
+            relevance=0.9,
             rating=0.8
         )
         comp_with_rationale = DialecticalComponent(
             alias="T1",
             statement="Has rationale",
-            contextual_fidelity=0.7,
+            relevance=0.7,
             rating=0.6,
             rationales=[rationale]
         )
@@ -512,13 +512,13 @@ class TestComplexScoringScenarios:
         comp_without_rationale = DialecticalComponent(
             alias="T2", 
             statement="No rationale",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.5
         )
         
         # Both should calculate properly
-        cf1 = comp_with_rationale.calculate_contextual_fidelity()
-        cf2 = comp_without_rationale.calculate_contextual_fidelity()
+        cf1 = comp_with_rationale.calculate_relevance()
+        cf2 = comp_without_rationale.calculate_relevance()
         
         assert cf1 > 0  # Should aggregate own + rationale
         assert cf2 == 0.8 * 0.5  # Should be own * rating
@@ -559,24 +559,24 @@ class TestComplexScoringScenarios:
         """Test rationale CF calculation with multiple nested critiques."""
         critique1 = Rationale(
             headline="First critique",
-            contextual_fidelity=0.6,
+            relevance=0.6,
             rating=0.7
         )
         critique2 = Rationale(
             headline="Second critique",
-            contextual_fidelity=0.5,
+            relevance=0.5,
             rating=0.6
         )
 
         rationale = Rationale(
             headline="Main rationale",
-            contextual_fidelity=0.9,
+            relevance=0.9,
             rating=0.8,
             rationales=[critique1, critique2]
         )
 
         # CF should include own CF and rated child critiques
-        cf = rationale.calculate_contextual_fidelity()
+        cf = rationale.calculate_relevance()
 
         # Calculate expected value based on implementation
         # Child critiques' CF values are multiplied by their rating
@@ -591,22 +591,22 @@ class TestComplexScoringScenarios:
         component = DialecticalComponent(
             alias="T",
             statement="Test component",
-            contextual_fidelity=0.0,  # Hard veto
+            relevance=0.0,  # Hard veto
             rating=0.8
         )
         
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         assert cf == 0.0  # Should be hard veto, not 0.0 * 0.8
 
     def test_rationale_with_zero_cf_returns_none(self):
         """Test that Rationale with CF=0 returns None (no veto)."""
         rationale = Rationale(
             headline="Test rationale",
-            contextual_fidelity=0.0,
+            relevance=0.0,
             rating=0.8
         )
 
-        cf = rationale.calculate_contextual_fidelity()
+        cf = rationale.calculate_relevance()
         assert cf is None  # Returns None, not 0.0 (no veto)
 
     def test_empty_rationale_no_free_lunch(self):
@@ -615,28 +615,28 @@ class TestComplexScoringScenarios:
         component_alone = DialecticalComponent(
             alias="T1",
             statement="Test component",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.6
         )
-        cf_alone = component_alone.calculate_contextual_fidelity()
+        cf_alone = component_alone.calculate_relevance()
         
         # Component with empty rationale (text only)
         empty_rationale = Rationale(text="Just some text")  # No CF, P, rating
         component_with_empty = DialecticalComponent(
             alias="T2", 
             statement="Test component",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.6,
             rationales=[empty_rationale]
         )
-        cf_with_empty = component_with_empty.calculate_contextual_fidelity()
+        cf_with_empty = component_with_empty.calculate_relevance()
         
         # Should be the same! Empty rationale contributes None (evidence view)
         assert cf_with_empty == cf_alone  # No free lunch
         assert cf_with_empty == 0.8 * 0.6  # Just the component's own contribution
         
         # Rationale with no evidence returns None
-        rationale_cf = empty_rationale.calculate_contextual_fidelity()
+        rationale_cf = empty_rationale.calculate_relevance()
         assert rationale_cf is None
 
     def test_rationale_with_actual_evidence_contributes(self):
@@ -644,19 +644,19 @@ class TestComplexScoringScenarios:
         component = DialecticalComponent(
             alias="T",
             statement="Test component", 
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.6
         )
         
         # Rationale with actual CF evidence
         evidence_rationale = Rationale(
             text="Real evidence",
-            contextual_fidelity=0.9,  # Has actual CF
+            relevance=0.9,  # Has actual CF
             rating=0.7
         )
         component.rationales = [evidence_rationale]
         
-        cf = component.calculate_contextual_fidelity()
+        cf = component.calculate_relevance()
         
         # Should aggregate: GM(component_own, rationale_evidence * rationale_rating)
         # = GM(0.8*0.6, 0.9*0.7) = GM(0.48, 0.63) ≈ 0.55
@@ -700,20 +700,20 @@ class TestComprehensiveExampleFromDocs:
         t_comp = DialecticalComponent(
             alias="T", 
             statement="Remote work increases productivity",
-            contextual_fidelity=0.8, 
+            relevance=0.8,
             rating=0.9
         )
         
         t_plus_comp = DialecticalComponent(
             alias="T+", 
             statement="Eliminates commute time",
-            contextual_fidelity=0.9, 
+            relevance=0.9,
             rating=0.7
         )
         # T+ rationale
         t_plus_rationale = Rationale(
             headline="Average 54min daily savings",
-            contextual_fidelity=0.9,
+            relevance=0.9,
             rating=0.8,
             probability=0.95,
         )
@@ -722,18 +722,18 @@ class TestComprehensiveExampleFromDocs:
         t_minus_comp = DialecticalComponent(
             alias="T-", 
             statement="Can cause isolation",
-            contextual_fidelity=0.6, 
+            relevance=0.6,
             rating=0.5
         )
         # T- rationale with critique
         t_minus_critique = Rationale(
             headline="Confounds with pandemic effects",
-            contextual_fidelity=0.5,
+            relevance=0.5,
             rating=0.6
         )
         t_minus_rationale = Rationale(
             headline="Mental health studies",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.7,
             probability=0.75,
             rationales=[t_minus_critique]
@@ -743,21 +743,21 @@ class TestComprehensiveExampleFromDocs:
         a_comp = DialecticalComponent(
             alias="A", 
             statement="Office work enables collaboration",
-            contextual_fidelity=0.7, 
+            relevance=0.7,
             rating=0.8
         )
         
         a_plus_comp = DialecticalComponent(
             alias="A+", 
             statement="Face-to-face communication",
-            contextual_fidelity=0.8, 
+            relevance=0.8,
             rating=0.6
         )
         
         a_minus_comp = DialecticalComponent(
             alias="A-", 
             statement="Requires physical presence",
-            contextual_fidelity=0.5, 
+            relevance=0.5,
             rating=0.4
         )
         
@@ -765,24 +765,24 @@ class TestComprehensiveExampleFromDocs:
         s_plus_comp = DialecticalComponent(
             alias="S+", 
             statement="Hybrid model optimizes both",
-            contextual_fidelity=0.85, 
+            relevance=0.85,
             rating=0.8
         )
         # S+ rationales with critique
         s_plus_critique = Rationale(
             headline="Corporate bias in reporting",
-            contextual_fidelity=0.6,
+            relevance=0.6,
             rating=0.5
         )
         s_plus_rationale1 = Rationale(
             headline="Best of both worlds approach",
-            contextual_fidelity=0.9,
+            relevance=0.9,
             rating=0.9,
             probability=0.8,
         )
         s_plus_rationale2 = Rationale(
             headline="Microsoft hybrid work data",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.7,
             probability=0.85,
             rationales=[s_plus_critique]
@@ -792,7 +792,7 @@ class TestComprehensiveExampleFromDocs:
         s_minus_comp = DialecticalComponent(
             alias="S-", 
             statement="Context switching overhead",
-            contextual_fidelity=0.4, 
+            relevance=0.4,
             rating=0.3
         )
         
@@ -815,7 +815,7 @@ class TestComprehensiveExampleFromDocs:
             target_aliases=["A+"],
             predicate=Predicate.TRANSFORMS_TO,
             probability=0.7,
-            contextual_fidelity=0.8
+            relevance=0.8
         )
         
         a_minus_to_t_plus_transition = TransitionSegmentToSegment(
@@ -825,7 +825,7 @@ class TestComprehensiveExampleFromDocs:
             target_aliases=["T+"],
             predicate=Predicate.TRANSFORMS_TO,
             probability=0.6,
-            contextual_fidelity=0.7
+            relevance=0.7
         )
         
         # Create spiral with transitions
@@ -859,12 +859,12 @@ class TestComprehensiveExampleFromDocs:
             target=a_comp,
             predicate=Predicate.TRANSFORMS_TO,
             probability=0.7,
-            contextual_fidelity=0.6
+            relevance=0.6
         )
         # T->A rationale
         ta_rationale = Rationale(
             headline="Digital transformation necessity",
-            contextual_fidelity=0.85,
+            relevance=0.85,
             probability=0.8,
         )
         ta_transition.rationales = [ta_rationale]
@@ -874,20 +874,20 @@ class TestComprehensiveExampleFromDocs:
             target=t_comp,
             predicate=Predicate.TRANSFORMS_TO,
             probability=0.6,
-            contextual_fidelity=0.5
+            relevance=0.5
         )
         
         # Test individual component CF calculations from the documentation
         
         # Test T+ with rationale (from docs: GM(0.63, 0.72) = 0.67)
-        t_plus_cf = t_plus_comp.calculate_contextual_fidelity()
+        t_plus_cf = t_plus_comp.calculate_relevance()
         # Expected: GM(own_cf * rating, rationale_cf * rationale_rating) = GM(0.9*0.7, 0.9*0.8)
         expected_t_plus_cf = (0.63 * 0.72) ** 0.5  # 0.67
         print(f"T+ CF: {t_plus_cf:.3f} (expected: {expected_t_plus_cf:.3f})")
         assert abs(t_plus_cf - expected_t_plus_cf) < 0.02
         
         # Test T- with rationale and critique (updated for evidence view)
-        t_minus_cf = t_minus_comp.calculate_contextual_fidelity()
+        t_minus_cf = t_minus_comp.calculate_relevance()
         # T- rationale evidence view: GM(rationale_own_cf, critique_cf) = GM(0.8, 0.5) = 0.632
         # When consumed by T-: evidence_cf * rationale_rating = 0.632 * 0.7 = 0.443
         # Then T- total: GM(own_cf * own_rating, rationale_contribution) = GM(0.6*0.5, 0.443) = GM(0.30, 0.443)
@@ -896,20 +896,20 @@ class TestComprehensiveExampleFromDocs:
         assert 0.30 < t_minus_cf < 0.35  # Using range validation instead of exact match
         
         # Test S+ with multiple rationales and critique (updated for evidence view)
-        s_plus_cf = s_plus_comp.calculate_contextual_fidelity()
+        s_plus_cf = s_plus_comp.calculate_relevance()
         # S+ has: own (0.85*0.8=0.68), rationale1 (0.9*0.9=0.81), rationale2 with critique
         # S+ calculation also has implementation differences
         print(f"S+ CF: {s_plus_cf:.3f}")
         assert 0.55 < s_plus_cf < 0.65  # Using range validation instead of exact match
         
         # Test transition with rationale (from docs: GM(0.6, 0.85) = 0.71)
-        ta_cf = ta_transition.calculate_contextual_fidelity()
+        ta_cf = ta_transition.calculate_relevance()
         expected_ta_cf = (0.6 * 0.85) ** 0.5  # 0.71
         print(f"TA transition CF: {ta_cf:.3f} (expected: {expected_ta_cf:.3f})")
         assert abs(ta_cf - expected_ta_cf) < 0.02
         
         # Test WisdomUnit aggregation using symmetric pairs + synthesis + transformation
-        wu_cf = wisdom_unit.calculate_contextual_fidelity()
+        wu_cf = wisdom_unit.calculate_relevance()
         wu_p = wisdom_unit.calculate_probability()
         print(f"WisdomUnit CF: {wu_cf:.3f}")
         print(f"WisdomUnit P: {wu_p}")
@@ -918,14 +918,14 @@ class TestComprehensiveExampleFromDocs:
         from dialectical_framework.utils.pm import pm_with_zeros_and_nones_handled
         
         # Individual component CFs (already calculated above)
-        t_cf = t_comp.calculate_contextual_fidelity()  # 0.72
-        a_cf = a_comp.calculate_contextual_fidelity()  # 0.56
-        t_plus_cf = t_plus_comp.calculate_contextual_fidelity()  # 0.67
-        a_minus_cf = a_minus_comp.calculate_contextual_fidelity()  # 0.20
-        t_minus_cf = t_minus_comp.calculate_contextual_fidelity()  # 0.32 (calculated above)
-        a_plus_cf = a_plus_comp.calculate_contextual_fidelity()  # 0.48
-        s_plus_cf = s_plus_comp.calculate_contextual_fidelity()  # 0.58 (calculated above)
-        s_minus_cf = s_minus_comp.calculate_contextual_fidelity()  # 0.12
+        t_cf = t_comp.calculate_relevance()  # 0.72
+        a_cf = a_comp.calculate_relevance()  # 0.56
+        t_plus_cf = t_plus_comp.calculate_relevance()  # 0.67
+        a_minus_cf = a_minus_comp.calculate_relevance()  # 0.20
+        t_minus_cf = t_minus_comp.calculate_relevance()  # 0.32 (calculated above)
+        a_plus_cf = a_plus_comp.calculate_relevance()  # 0.48
+        s_plus_cf = s_plus_comp.calculate_relevance()  # 0.58 (calculated above)
+        s_minus_cf = s_minus_comp.calculate_relevance()  # 0.12
         
         print(f"Individual CFs: T={t_cf:.3f}, A={a_cf:.3f}, T+={t_plus_cf:.3f}, A-={a_minus_cf:.3f}")
         print(f"                T-={t_minus_cf:.3f}, A+={a_plus_cf:.3f}, S+={s_plus_cf:.3f}, S-={s_minus_cf:.3f}")
@@ -941,7 +941,7 @@ class TestComprehensiveExampleFromDocs:
         
         # Check if transformation CF is included
         if wisdom_unit.transformation:
-            transformation_cf = wisdom_unit.transformation.calculate_contextual_fidelity()
+            transformation_cf = wisdom_unit.transformation.calculate_relevance()
             print(f"Transformation CF: {transformation_cf:.3f}")
         else:
             transformation_cf = None
@@ -978,7 +978,7 @@ class TestComprehensiveExampleFromDocs:
         )
         
         # Test the final wheel score from documentation
-        wheel_cf = wheel.calculate_contextual_fidelity()
+        wheel_cf = wheel.calculate_relevance()
         wheel_p = wheel.calculate_probability()
         wheel_score = wheel.calculate_score(alpha=1.0)
         
@@ -1003,22 +1003,22 @@ class TestComprehensiveExampleFromDocs:
             assert wu_cf > 0.35  # Verify WisdomUnit CF is reasonable
 
     def test_rationale_cf_calculation(self):
-        """Test rationale contextual fidelity calculation."""
+        """Test rationale contextual relevance calculation."""
         # Empty rationale with just text
         empty_rationale = Rationale(text="Some reasoning")
 
         # Rationale with no evidence should return None
-        self_cf = empty_rationale.calculate_contextual_fidelity()
+        self_cf = empty_rationale.calculate_relevance()
         assert self_cf is None
         
         # Rationale with actual CF value
         cf_rationale = Rationale(
             text="Some reasoning",
-            contextual_fidelity=0.7
+            relevance=0.7
         )
         
         # Self-scoring view should return the CF value
-        self_cf = cf_rationale.calculate_contextual_fidelity()
+        self_cf = cf_rationale.calculate_relevance()
         assert self_cf == 0.7
 
     def test_empty_rationale_probability_no_free_lunch(self):
@@ -1055,7 +1055,7 @@ class TestComprehensiveExampleFromDocs:
         # Rationale with actual CF value (evidence)
         rationale_with_evidence = Rationale(
             text="Deep analysis with evidence",
-            contextual_fidelity=0.8,
+            relevance=0.8,
             rating=0.7
         )
         
@@ -1068,7 +1068,7 @@ class TestComprehensiveExampleFromDocs:
         component_with_evidence = DialecticalComponent(
             alias="T1",
             statement="Main component",
-            contextual_fidelity=0.6,
+            relevance=0.6,
             rating=0.5,
             rationales=[rationale_with_evidence]
         )
@@ -1077,7 +1077,7 @@ class TestComprehensiveExampleFromDocs:
         component_with_empty = DialecticalComponent(
             alias="T2",
             statement="Main component",
-            contextual_fidelity=0.6,
+            relevance=0.6,
             rating=0.5,
             rationales=[empty_rationale]
         )
@@ -1086,13 +1086,13 @@ class TestComprehensiveExampleFromDocs:
         component_alone = DialecticalComponent(
             alias="T3",
             statement="Main component", 
-            contextual_fidelity=0.6,
+            relevance=0.6,
             rating=0.5
         )
         
-        cf_with_evidence = component_with_evidence.calculate_contextual_fidelity()
-        cf_with_empty = component_with_empty.calculate_contextual_fidelity()
-        cf_alone = component_alone.calculate_contextual_fidelity()
+        cf_with_evidence = component_with_evidence.calculate_relevance()
+        cf_with_empty = component_with_empty.calculate_relevance()
+        cf_alone = component_alone.calculate_relevance()
         
         # Evidence-providing rationale should boost CF
         assert cf_with_evidence > cf_alone
@@ -1101,5 +1101,5 @@ class TestComprehensiveExampleFromDocs:
         assert cf_with_empty == cf_alone
         
         # Verify the rationale returns its CF value
-        rationale_cf = rationale_with_evidence.calculate_contextual_fidelity()
+        rationale_cf = rationale_with_evidence.calculate_relevance()
         assert rationale_cf == 0.8  # Should return the actual CF value

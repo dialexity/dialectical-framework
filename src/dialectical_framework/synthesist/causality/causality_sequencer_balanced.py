@@ -361,7 +361,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     text=f"{causal_cycle.reasoning_explanation}\n\n{causal_cycle.argumentation}",
                     # Now here's the trick, the normalized probability is assigned to the cycle
                     # because the initial "probability" is actually "feasibility"
-                    contextual_fidelity=causal_cycle.probability,
+                    relevance=causal_cycle.probability,
                     probability=float(p),
                 )
 

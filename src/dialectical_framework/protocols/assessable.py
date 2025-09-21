@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, final
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
@@ -18,18 +18,23 @@ class Assessable(BaseModel, ABC):
     score: float | None = Field(
         default=None,
         ge=0.0, le=1.0,
-        description="The final composite score (Pr(S) * CF_S^alpha) for ranking."
-    )
-
-    contextual_fidelity: float | None = Field(default=None, description="Grounding in the initial context")
-
-    probability: float | None = Field(
-        default=None,
-        ge=0.0, le=1.0,
-        description="The normalized probability (Pr(S)) of the cycle to exist in reality.",
+        description="The final composite score (Pr(S) * R^alpha) for ranking."
     )
 
     rationales: list[Rationale] = Field(default_factory=list, description="Reasoning about this assessable instance")
+
+    calculated_relevance: float | None = Field(default=None, description="Calculated relevance")
+    calculated_probability: float | None = Field(default=None, description="Calculated probability")
+
+    @computed_field
+    @property
+    def relevance(self) -> float | None:
+        return self.calculated_relevance
+
+    @computed_field
+    @property
+    def probability(self) -> float | None:
+        return self.calculated_probability
 
     @property
     def best_rationale(self) -> Rationale | None:
@@ -45,14 +50,14 @@ class Assessable(BaseModel, ABC):
     @final
     def calculate_score(self, *, alpha: float = 1.0) -> float | None:
         """
-        Calculates composite score: Score(X) = Pr(S) × CF_X^α
+        Calculates composite score: Score(X) = Pr(S) × R^α
 
         Two-layer weighting system:
         - rating: Domain expert weighting (applied during aggregation)
-        - alpha: System-level parameter for contextual fidelity importance
+        - alpha: System-level parameter for relevance's importance
 
         Args:
-            alpha: Contextual fidelity exponent
+            alpha: Relevance exponent
                 < 1.0: De-emphasize expert context assessments
                 = 1.0: Respect expert ratings fully (default)
                 > 1.0: Amplify expert context assessments
@@ -61,40 +66,43 @@ class Assessable(BaseModel, ABC):
         sub_assessables = self._get_sub_assessables()
         for sub_assessable in sub_assessables:
             sub_assessable.calculate_score(alpha=alpha)
-        
+
         # Ensure that the overall probability has been calculated
         probability = self.calculate_probability()
-        # Always calculate contextual fidelity, even if probability is None
-        cf_w = self.calculate_contextual_fidelity()
-        
-        if probability is None or cf_w is None:
+        # Always calculate relevance, even if probability is None
+        relevance = self.calculate_relevance()
+
+        # Debug output for score calculation
+        # import inspect
+        # print(f"SCORE DEBUG {type(self).__name__}: probability={probability}, relevance={relevance}")
+
+        if probability is None or relevance is None:
             # If still None, cannot calculate score
             score = None
         else:
-            score = probability * (cf_w ** alpha)
+            score = probability * (relevance ** alpha)
 
         self.score = score
         return self.score
 
-    def calculate_contextual_fidelity(self) -> float | None:
+    def calculate_relevance(self) -> float | None:
         """
-        If not possible to calculate contextual fidelity, return 1.0 to have neutral impact on overall scoring.
+        If not possible to calculate relevance, return 1.0 to have neutral impact on overall scoring.
         
         Normally this method shouldn't be called, as it's called by the `calculate_score` method.
         """
-        all_fidelities = []
-        all_fidelities.extend(self._calculate_contextual_fidelity_for_rationales())
-        all_fidelities.extend(self._calculate_contextual_fidelity_for_sub_elements_excl_rationales())
+        all_relevances = []
+        all_relevances.extend(self._calculate_relevance_of_rationales())
+        all_relevances.extend(self._calculate_relevance_of_sub_elements_excl_rationales())
         
-        if not all_fidelities:
-            fidelity = None
+        if not all_relevances:
+            relevance = None
         else:
-            fidelity = gm_with_zeros_and_nones_handled(all_fidelities)
+            relevance = gm_with_zeros_and_nones_handled(all_relevances)
 
         # Save the state. Ratable leaves will override this and will not save, because it's only manual there.
-        self.contextual_fidelity = fidelity
-
-        return fidelity
+        self.calculated_relevance = relevance
+        return relevance
 
     @abstractmethod
     def calculate_probability(self) -> float | None: ...
@@ -110,13 +118,13 @@ class Assessable(BaseModel, ABC):
         # IMPORTANT: we must work on a copy, to avoid filling rationales list with garbage
         return [*self.rationales]
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
+    def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         return []
 
-    def _calculate_contextual_fidelity_for_rationales(self) -> list[float]:
+    def _calculate_relevance_of_rationales(self) -> list[float]:
         result: list[float] = []
         for rationale in (self.rationales or []):
-            evidence = rationale.calculate_contextual_fidelity()
+            evidence = rationale.calculate_relevance()
 
             if evidence is not None:
                 weighted = evidence * rationale.rating_or_default()

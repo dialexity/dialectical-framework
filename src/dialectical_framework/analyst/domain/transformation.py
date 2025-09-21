@@ -20,11 +20,11 @@ class Transformation(Spiral):
         result.append(self.ac_re)
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
+    def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         parts = []
-        parts.extend(super()._calculate_contextual_fidelity_for_sub_elements_excl_rationales())
+        parts.extend(super()._calculate_relevance_of_sub_elements_excl_rationales())
 
-        fidelity = self.ac_re.calculate_contextual_fidelity()
-        if fidelity is not None:
-            parts.append(fidelity)
+        relevance = self.ac_re.calculate_relevance()
+        if relevance is not None:
+            parts.append(relevance)
         return parts

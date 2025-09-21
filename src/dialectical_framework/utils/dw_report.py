@@ -31,13 +31,13 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
         t_cycle, grouped_wheel_permutations = group
 
         # Format scores with labels aligned
-        t_cycle_scores = f"S={_fmt_score(t_cycle.score, colorize=True)} | CF={_fmt_cf_or_p(t_cycle, 'contextual_fidelity')} | P={_fmt_cf_or_p(t_cycle, 'probability')}"
+        t_cycle_scores = f"S={_fmt_score(t_cycle.score, colorize=True)} | R={_fmt_p_or_r(t_cycle, 'relevance', colorize=True)} | P={_fmt_p_or_r(t_cycle, 'probability', colorize=True)}"
         gr = f"{group_key} [{t_cycle_scores}]\n"
 
         # Add cycles in this group with aligned scores
         for i, w in enumerate(grouped_wheel_permutations):
             cycle_str = w.cycle.cycle_str() if hasattr(w, 'cycle') and w.cycle else ''
-            wheel_scores = f"S={_fmt_score(w.cycle.score, colorize=True)} | CF={_fmt_cf_or_p(w.cycle, 'contextual_fidelity')} | P={_fmt_cf_or_p(w.cycle, 'probability')}"
+            wheel_scores = f"S={_fmt_score(w.cycle.score, colorize=True)} | R={_fmt_p_or_r(w.cycle, 'relevance', colorize=True)} | P={_fmt_p_or_r(w.cycle, 'probability', colorize=True)}"
             gr += f"  {i}. {cycle_str} [{wheel_scores}]\n"
 
         # Display detailed wheel information
@@ -48,17 +48,17 @@ def dw_report(permutations: List[Wheel] | Wheel) -> str:
                 report += "\n"
 
             # Display wheel header with aligned, colorized scores
-            wheel_scores = f"S={_fmt_score(w.score, colorize=True)} | CF={_fmt_cf_or_p(w, 'contextual_fidelity')} | P={_fmt_cf_or_p(w, 'probability')}"
+            wheel_scores = f"S={_fmt_score(w.score, colorize=True)} | R={_fmt_p_or_r(w, 'relevance', colorize=True)} | P={_fmt_p_or_r(w, 'probability', colorize=True)}"
             report += f"Wheel {i} [{wheel_scores}]\n"
 
             # Display spiral with aligned, colorized scores if available
-            spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | CF={_fmt_cf_or_p(w.spiral, 'contextual_fidelity')} | P={_fmt_cf_or_p(w.spiral, 'probability')}"
+            spiral_scores = f"S={_fmt_score(w.spiral.score, colorize=True)} | R={_fmt_p_or_r(w.spiral, 'relevance', colorize=True)} | P={_fmt_p_or_r(w.spiral, 'probability', colorize=True)}"
             report += f"Spiral [{spiral_scores}]\n"
 
             # Display wisdom unit transformations with scores
             for wu_idx, wu in enumerate(w.wisdom_units):
                 if wu.transformation:
-                    transformation_scores = f"S={_fmt_score(wu.transformation.score, colorize=True)} | CF={_fmt_cf_or_p(wu.transformation, 'contextual_fidelity')} | P={_fmt_cf_or_p(wu.transformation, 'probability')}"
+                    transformation_scores = f"S={_fmt_score(wu.transformation.score, colorize=True)} | R={_fmt_p_or_r(wu.transformation, 'relevance', colorize=True)} | P={_fmt_p_or_r(wu.transformation, 'probability', colorize=True)}"
                     report += f"WU{wu_idx+1} Transformation [{transformation_scores}]\n"
                 else:
                     report += f"WU{wu_idx+1} Transformation [None]\n"
@@ -95,33 +95,36 @@ def _fmt_score(value, *, colorize: bool = False) -> str:
 
     return str(value)
 
-def _fmt_cf_or_p(obj, attr_name: str, *, colorize: bool = False) -> str:
+def _fmt_p_or_r(obj, prop_name, *, colorize: bool = False) -> str:
     """
-    Format CF or P values, using calculated values when manual is None.
-    Calculated values are shown in brackets to distinguish from manual values.
+    Format a property, showing it in brackets if it comes from calculated fields.
 
     Args:
-        obj: Object with the attribute and calculation method
-        attr_name: 'contextual_fidelity' or 'probability'
-        colorize: Whether to colorize the score
+        obj: The object containing the property
+        prop_name: The property name ('relevance' or 'probability')
+        colorize: Whether to apply color formatting
     """
-    manual_value = getattr(obj, attr_name, None)
+    # Get the property value
+    value = getattr(obj, prop_name, None)
+    if value is None:
+        return "None"
 
-    if manual_value is not None:
-        # Manual value exists, format normally
-        return _fmt_score(manual_value, colorize=colorize)
+    formatted = _fmt_score(value, colorize=colorize)
 
-    # Manual value is None, try to calculate
-    calc_method_name = f"calculate_{attr_name}"
-    if hasattr(obj, calc_method_name):
-        calculated_value = getattr(obj, calc_method_name)()
-        if calculated_value is not None:
-            # Format calculated value in brackets
-            formatted = _fmt_score(calculated_value, colorize=colorize)
-            return f"[{formatted}]"
+    # For Ratable objects, check if manual value is None (meaning we're using calculated)
+    manual_field = f"manual_{prop_name}"
+    if hasattr(obj, manual_field):
+        manual_value = getattr(obj, manual_field)
+        is_calculated = manual_value is None
+    else:
+        # For pure Assessable objects, all values come from calculated fields
+        is_calculated = True
 
-    # No manual or calculated value
-    return "None"
+    # Show in brackets if calculated
+    if is_calculated:
+        return f"[{formatted}]"
+    else:
+        return formatted
 
 def _print_wheel_tabular(wheel) -> str:
     roles = [
@@ -170,7 +173,7 @@ def _format_rationale_tree(rationale, indent=0):
 
     # Format this rationale with score information
     headline = rationale.headline or "Unnamed rationale"
-    score_info = f"S={_fmt_score(rationale.score)} | CF={_fmt_cf_or_p(rationale, 'contextual_fidelity')} | P={_fmt_cf_or_p(rationale, 'probability')}"
+    score_info = f"S={_fmt_score(rationale.score)} | R={_fmt_p_or_r(rationale, 'relevance')} | P={_fmt_p_or_r(rationale, 'probability')}"
 
     # Build the tree line with proper indentation
     tree_line = "  " * indent + "- " + headline + f" [{score_info}]"
@@ -216,8 +219,8 @@ def _print_transitions_table(wheel) -> str:
 
             # Get scores
             score = _fmt_score(transition.score, colorize=True)
-            cf = _fmt_cf_or_p(transition, 'contextual_fidelity')
-            p = _fmt_cf_or_p(transition, 'probability')
+            r = _fmt_p_or_r(transition, 'relevance', colorize=True)
+            p = _fmt_p_or_r(transition, 'probability', colorize=True)
 
             # Format rationales tree
             rationales_tree = ""
@@ -232,7 +235,7 @@ def _print_transitions_table(wheel) -> str:
                 cycle_name,
                 trans_repr,
                 score,
-                cf,
+                r,
                 p,
                 rationales_tree
             ])
@@ -242,5 +245,5 @@ def _print_transitions_table(wheel) -> str:
         return ""
 
     # Create transitions table
-    headers = ["Cycle", "Transition", "Score", "CF", "P", "Rationales"]
+    headers = ["Cycle", "Transition", "Score", "R", "P", "Rationales"]
     return "Transitions:\n" + tabulate(transitions_data, headers=headers, tablefmt="grid")

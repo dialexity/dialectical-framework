@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from typing import TYPE_CHECKING, final, List
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator, computed_field
 
 from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
@@ -18,6 +18,50 @@ class Ratable(Assessable, ABC):
         default=None, ge=0.0, le=1.0,
         description="Importance/quality rating."
     )
+
+    manual_relevance: float | None = Field(default=None, description="Manual override for relevance")
+    manual_probability: float | None = Field(default=None, description="Manual override for probability")
+
+    @computed_field
+    @property
+    def relevance(self) -> float | None:
+        if self.calculated_relevance is None:
+            return self.manual_relevance
+        else:
+            return self.calculated_relevance
+
+    @relevance.setter
+    def relevance(self, value: float | None):
+        self.manual_relevance = value
+        self.calculated_relevance = None
+
+    @computed_field
+    @property
+    def probability(self) -> float | None:
+        if self.calculated_probability is None:
+            return self.manual_probability
+        else:
+            return self.calculated_probability
+
+    @probability.setter
+    def probability(self, value: float | None):
+        self.manual_probability = value
+        self.calculated_probability = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def handle_constructor_args(cls, values):
+        """Handle relevance and probability arguments passed to constructor"""
+        if isinstance(values, dict):
+            # If relevance is passed to constructor, put it in manual_relevance
+            if 'relevance' in values:
+                values['manual_relevance'] = values.pop('relevance')
+
+            # If probability is passed to constructor, put it in manual_probability
+            if 'probability' in values:
+                values['manual_probability'] = values.pop('probability')
+
+        return values
 
     def rating_or_default(self) -> float:
         """
@@ -35,10 +79,6 @@ class Ratable(Assessable, ABC):
         return True
 
     def calculate_probability(self) -> float | None:
-        """
-        We don't save the calculation because it would overwrite the manual value.
-        """
-
         # Prefer manual if present; else use evidence; else None
         parts: List[float] = []
 
@@ -57,39 +97,38 @@ class Ratable(Assessable, ABC):
                 parts.append(p)
 
         # Don't fallback to 1.0 to not improve scores for free
-        return gm_with_zeros_and_nones_handled(parts) if parts else None
+        self.calculated_probability = gm_with_zeros_and_nones_handled(parts) if parts else None
+        return self.probability
 
-    def calculate_contextual_fidelity(self) -> float | None:
-        """
-        We are not saving CF here because it's Ratable - only manual value allowed.
-        """
+    def calculate_relevance(self) -> float | None:
         parts: List[float] = []
 
         # 1) Rated child rationales (helper already applies rationale.rating exactly once)
         parts.extend(
-            v for v in (self._calculate_contextual_fidelity_for_rationales() or [])
+            v for v in (self._calculate_relevance_of_rationales() or [])
             if v is not None
         )
 
         # 2) Leaf-specific sub-elements (default none; Rationale overrides to include wheels)
         parts.extend(
-            v for v in (self._calculate_contextual_fidelity_for_sub_elements_excl_rationales() or [])
+            v for v in (self._calculate_relevance_of_sub_elements_excl_rationales() or [])
             if v is not None
         )
 
-        # 3) Own manual CF
-        own_cf = self.contextual_fidelity
-        if own_cf is not None:
-            if own_cf == 0.0 and self._hard_veto_on_own_zero():
-                return own_cf  # explicit veto
-            if own_cf > 0.0:
-                val = own_cf * (self.rating_or_default() if self._apply_own_rating_in_cf() else 1.0)
+        # 3) Own manual relevance
+        own_r = self.manual_relevance
+        if own_r is not None:
+            if own_r == 0.0 and self._hard_veto_on_own_zero():
+                return own_r  # explicit veto
+            if own_r > 0.0:
+                val = own_r * (self.rating_or_default() if self._apply_own_rating_in_cf() else 1.0)
                 if val > 0.0:
                     parts.append(val)
 
         # Don't fallback to 1.0 to not improve scores for free
-        return gm_with_zeros_and_nones_handled(parts) if parts else None
+        self.calculated_relevance = gm_with_zeros_and_nones_handled(parts) if parts else None
+        return self.relevance
 
     # Default: no extra sub-elements on generic leaves
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
+    def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         return []

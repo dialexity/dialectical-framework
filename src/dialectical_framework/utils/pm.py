@@ -4,7 +4,7 @@ from typing import Tuple
 
 def pm_with_zeros_and_nones_handled(pair: Tuple[float | None, float | None], p = 4) -> float | None:
     """
-    This is intended for calculating power mean of fidelity score for symmetrical components
+    This is intended for calculating power mean of relevance score for symmetrical components
     """
     one = pair[0]
     two = pair[1]

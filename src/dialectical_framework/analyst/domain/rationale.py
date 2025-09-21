@@ -32,9 +32,6 @@ class Rationale(Ratable):
         return False  # parent applies rationale.rating
 
     def calculate_probability(self) -> float | None:
-        """
-        We don't save the calculation because it would overwrite the manual value.
-        """
         # Prefer manual if present; else use evidence; else None
         parts: List[float] = []
 
@@ -59,13 +56,14 @@ class Rationale(Ratable):
                 parts.append(p)
 
         # Don't fall back to 1.0 to not improve scores for free
-        return gm_with_zeros_and_nones_handled(parts) if parts else None
+        self.calculated_probability = gm_with_zeros_and_nones_handled(parts) if parts else None
+        return self.probability
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
+    def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         parts = []
         # Wheels spawned by this rationale — include as-is
         for w in (self.wheels or []):
-            cf = w.calculate_contextual_fidelity()
+            cf = w.calculate_relevance()
             if cf is not None:
                 if self._hard_veto_on_own_zero() and cf == 0.0:
                     parts.append(cf)

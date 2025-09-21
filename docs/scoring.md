@@ -5,22 +5,22 @@
 The Dialectical Framework uses a hierarchical scoring system to rank any element ("assessable") in the dialectical structure. Each element receives a **Score (S)** that combines two fundamental dimensions:
 
 * **Probability (P)** — structural feasibility. *Could this arrangement actually work?*
-* **Contextual Fidelity (CF)** — contextual grounding. *Does this make sense in this specific context?*
+* **Relevance (R)** — contextual and factual alignment. *Does this make sense in this specific context or reality?*
 
-The final score formula is: **Score = P × CF^α**
+The final score formula is: **Score = P × R^α**
 
-Where **alpha (α ≥ 0)** is a global parameter controlling how much contextual fidelity influences the ranking.
+Where **alpha (α ≥ 0)** is a global parameter controlling how much relevance influences the ranking.
 
 ## Scoring Architecture
 
-The dialectical framework uses **dual aggregation paths** - one for contextual relevance, another for structural feasibility:
+The dialectical framework uses **dual aggregation paths** - one for relevance to context/reality, another for structural feasibility:
 
 ### Assessable Class Hierarchy
 
 The scoring system is built on the `Assessable` protocol with the following inheritance structure:
 
 **Abstract Protocols:**
-- `Assessable` - Base protocol with score calculation (`Score = P × CF^α`)
+- `Assessable` - Base protocol with score calculation (`Score = P × R^α`)
   - `Ratable` - Extends Assessable for leaf nodes with rating field
 
 **Concrete Implementations:**
@@ -37,42 +37,42 @@ The scoring system is built on the `Assessable` protocol with the following inhe
   - `Wheel` - Complete dialectical systems containing multiple WisdomUnits
 
 **Key Behavioral Differences:**
-- **Hard Veto Policy**: Components and transitions with zero values (CF=0 or P=0) indicate structural impossibility and return 0
+- **Hard Veto Policy**: Components and transitions with zero values (R=0 or P=0) indicate structural impossibility and return 0
 - **Soft Exclusion Policy**: Rationales with zero values are excluded from aggregation without vetoing parent elements
 - **Single Rating Application**: Each element's rating is applied exactly once to prevent double-counting
 
-### Content Hierarchy (Contextual Fidelity flows upward)
+### Content Hierarchy (Relevance flows upward)
 
-**CF tracks "Does this make sense in context?"**
+**R tracks "Does this make sense in context or reality?"**
 
 ```
 Level 4: Wheel
-         ├─ Aggregates all WisdomUnit CFs
-         ├─ Includes external Transition CFs (wheel-level connections)  
-         └─ Includes wheel-level Rationale CFs
+         ├─ Aggregates all WisdomUnit Rs
+         ├─ Includes external Transition Rs (wheel-level connections)
+         └─ Includes wheel-level Rationale Rs
 
-Level 3: WisdomUnit  
-         ├─ Aggregates both WheelSegment CFs (T-side + A-side)
-         ├─ Includes Transformation CF (internal spiral)
-         ├─ Includes Synthesis CF
-         └─ Includes unit-level Rationale CFs
+Level 3: WisdomUnit
+         ├─ Aggregates both WheelSegment Rs (T-side + A-side)
+         ├─ Includes Transformation R (internal spiral)
+         ├─ Includes Synthesis R
+         └─ Includes unit-level Rationale Rs
 
 Level 2: WheelSegment
-         ├─ Aggregates DialecticalComponent CFs (T, T+, T-)
-         └─ Includes segment-level Rationale CFs
+         ├─ Aggregates DialecticalComponent Rs (T, T+, T-)
+         └─ Includes segment-level Rationale Rs
 
 Level 1: DialecticalComponent (leaf)
-         ├─ Own CF × own rating
-         └─ Includes component-level Rationale CFs
+         ├─ Own R × own rating
+         └─ Includes component-level Rationale Rs
 
          Transition (leaf)
-         ├─ Own CF × own rating  
-         └─ Includes transition-level Rationale CFs
+         ├─ Own R × own rating
+         └─ Includes transition-level Rationale Rs
 
          Rationale (evidence, can attach to ANY assessable)
-         ├─ Own CF (unweighted by rationale.rating)
-         ├─ Child rationale CFs (critiques/counter-evidence)
-         ├─ Spawned wheel CFs (deeper dialectical analysis)
+         ├─ Own R (unweighted by rationale.rating)
+         ├─ Child rationale Rs (critiques/counter-evidence)
+         ├─ Spawned wheel Rs (deeper dialectical analysis)
          └─ Returns None if no real evidence (never invents neutral values)
 ```
 
@@ -103,11 +103,11 @@ Level 1: Transition (leaf for probability)
 
 ### Key Architectural Principles
 
-1. **Dual-Signal Design**: CF tracks contextual relevance (content), P tracks structural feasibility (relationships)
+1. **Dual-Signal Design**: R tracks contextual and factual relevance (content), P tracks structural feasibility (relationships)
 2. **Single Rating Application**: Each rating is applied exactly once to prevent double-counting
-3. **Hierarchical Evidence**: P and CF flow upward from specific elements to general containers
+3. **Hierarchical Evidence**: P and R flow upward from specific elements to general containers
 4. **Selective Veto Power**: Different element types have different veto behaviors for robustness
-5. **Local Score Computation**: P and CF aggregate hierarchically; the final Score is computed locally from that node's own P and CF
+5. **Local Score Computation**: P and R aggregate hierarchically; the final Score is computed locally from that node's own P and R
 
 ## Complete Example: How Wheel Score is Calculated
 
@@ -115,74 +115,74 @@ Level 1: Transition (leaf for probability)
 Wheel: "Work Environment Optimization" (single WisdomUnit)
 └── WisdomUnit: "Productivity vs Collaboration"
     ├── T-Segment (Thesis side):
-    │   ├── T: "Remote work increases productivity" (CF=0.8, rating=0.9)
-    │   ├── T+: "Eliminates commute time" (CF=0.9, rating=0.7)
-    │   │   └── Rationale: "Average 54min daily savings" (CF=0.9, rating=0.8, P=0.95, confidence=0.95)
-    │   └── T-: "Can cause isolation" (CF=0.6, rating=0.5)
-    │       └── Rationale: "Mental health studies" (CF=0.8, rating=0.7, P=0.75, confidence=0.8)
-    │           └── Critique: "Confounds with pandemic effects" (CF=0.5, rating=0.6)
+    │   ├── T: "Remote work increases productivity" (R=0.8, rating=0.9)
+    │   ├── T+: "Eliminates commute time" (R=0.9, rating=0.7)
+    │   │   └── Rationale: "Average 54min daily savings" (R=0.9, rating=0.8, P=0.95, confidence=0.95)
+    │   └── T-: "Can cause isolation" (R=0.6, rating=0.5)
+    │       └── Rationale: "Mental health studies" (R=0.8, rating=0.7, P=0.75, confidence=0.8)
+    │           └── Critique: "Confounds with pandemic effects" (R=0.5, rating=0.6)
     ├── A-Segment (Antithesis side):
-    │   ├── A: "Office work enables collaboration" (CF=0.7, rating=0.8)
-    │   ├── A+: "Face-to-face communication" (CF=0.8, rating=0.6)
-    │   └── A-: "Requires physical presence" (CF=0.5, rating=0.4)
+    │   ├── A: "Office work enables collaboration" (R=0.7, rating=0.8)
+    │   ├── A+: "Face-to-face communication" (R=0.8, rating=0.6)
+    │   └── A-: "Requires physical presence" (R=0.5, rating=0.4)
     ├── Synthesis:
-    │   ├── S+: "Hybrid model optimizes both" (CF=0.85, rating=0.8)
-    │   │   ├── Rationale: "Best of both worlds approach" (CF=0.9, rating=0.9, P=0.8, confidence=0.8)
-    │   │   └── Rationale: "Microsoft hybrid work data" (CF=0.8, rating=0.7, P=0.85, confidence=0.9)
-    │   │       └── Critique: "Corporate bias in reporting" (CF=0.6, rating=0.5)
-    │   └── S-: "Context switching overhead" (CF=0.4, rating=0.3)
+    │   ├── S+: "Hybrid model optimizes both" (R=0.85, rating=0.8)
+    │   │   ├── Rationale: "Best of both worlds approach" (R=0.9, rating=0.9, P=0.8, confidence=0.8)
+    │   │   └── Rationale: "Microsoft hybrid work data" (R=0.8, rating=0.7, P=0.85, confidence=0.9)
+    │   │       └── Critique: "Corporate bias in reporting" (R=0.6, rating=0.5)
+    │   └── S-: "Context switching overhead" (R=0.4, rating=0.3)
     └── Transformation (internal spiral: T- → A+ and A- → T+):
-        ├── T-→A+: "Isolation → face-to-face need" (P=0.7, CF=0.8)
-        └── A-→T+: "Physical limits → remote benefits" (P=0.6, CF=0.7)
+        ├── T-→A+: "Isolation → face-to-face need" (P=0.7, R=0.8)
+        └── A-→T+: "Physical limits → remote benefits" (P=0.6, R=0.7)
 
 External Transitions (wheel-level cycles):
 ├── T-Cycle: T → T (dummy cycle, single thesis)
-│   └── Transition: T→T (trivial self-loop, P=1.0, CF=1.0)
-├── TA-Cycle: T → A → T (full dialectical)  
-│   ├── T→A: "Productivity needs → collaboration tools" (P=0.7, CF=0.6)
-│   │   └── Rationale: "Digital transformation necessity" (CF=0.85, P=0.8, confidence=0.9)
-│   └── A→T: "Collaboration insights → productivity" (P=0.6, CF=0.5)
+│   └── Transition: T→T (trivial self-loop, P=1.0, R=1.0)
+├── TA-Cycle: T → A → T (full dialectical)
+│   ├── T→A: "Productivity needs → collaboration tools" (P=0.7, R=0.6)
+│   │   └── Rationale: "Digital transformation necessity" (R=0.85, P=0.8, confidence=0.9)
+│   └── A→T: "Collaboration insights → productivity" (P=0.6, R=0.5)
 └── Spiral: T- → A+ and A- → T+ (same as WisdomUnit transformation)
-    ├── T-→A+: "Isolation → face-to-face need" (P=0.7, CF=0.8)
-    └── A-→T+: "Physical limits → remote benefits" (P=0.6, CF=0.7)
+    ├── T-→A+: "Isolation → face-to-face need" (P=0.7, R=0.8)
+    └── A-→T+: "Physical limits → remote benefits" (P=0.6, R=0.7)
 ```
 
 **Complete Scoring Calculation:**
 
-**Step 1: Calculate Component CFs (including rationales)**
+**Step 1: Calculate Component Rs (including rationales)**
 
 **Components with rationales:**
 - **T**: 0.8 × 0.9 = 0.72
 - **T+**: GM(0.9×0.7, 0.9×0.8) = GM(0.63, 0.72) = 0.67
 - **T-**: GM(0.6×0.5, GM(0.8,0.5×0.6)×0.7) = GM(0.30, 0.34) = 0.32
 - **A**: 0.7 × 0.8 = 0.56
-- **A+**: 0.8 × 0.6 = 0.48  
+- **A+**: 0.8 × 0.6 = 0.48
 - **A-**: 0.5 × 0.4 = 0.20
 - **S+**: GM(0.85×0.8, 0.9×0.9, GM(0.8,0.6×0.5)×0.7) = GM(0.68, 0.81, 0.34) = 0.58
 - **S-**: 0.4 × 0.3 = 0.12
 
-**Step 2: WisdomUnit CF** (symmetric pairs + synthesis + transformation)
+**Step 2: WisdomUnit R** (symmetric pairs + synthesis + transformation)
 - **T ↔ A pair**: PowerMean(0.72, 0.56, p=4) = 0.66
 - **T+ ↔ A- pair**: PowerMean(0.67, 0.20, p=4) = 0.57
 - **T- ↔ A+ pair**: PowerMean(0.32, 0.48, p=4) = 0.43
 - **S+ ↔ S- pair**: PowerMean(0.58, 0.12, p=4) = 0.48
-- Transformation CF: GM(0.8, 0.7) = 0.75
-- **WisdomUnit CF** = GM(0.66, 0.57, 0.43, 0.48, 0.75) = 0.56
+- Transformation R: GM(0.8, 0.7) = 0.75
+- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.48, 0.75) = 0.56
 
 **Step 3: WisdomUnit P** (from Transformation)
 - **Transformation P** = Product(0.7, 0.6) = 0.42
 - **WisdomUnit P** = 0.42
 
 **Step 4: External Transitions (Wheel Cycles)**
-- **T-Cycle**: T→T transition P = 1.0, CF = 1.0 (trivial dummy cycle)
-- **TA-Cycle**: 
-  - T→A: CF = GM(0.6, 0.85) = 0.71, P = GM(0.7, 0.8×0.9) = 0.71
-  - A→T: CF = 0.5, P = 0.6
+- **T-Cycle**: T→T transition P = 1.0, R = 1.0 (trivial dummy cycle)
+- **TA-Cycle**:
+  - T→A: R = GM(0.6, 0.85) = 0.71, P = GM(0.7, 0.8×0.9) = 0.71
+  - A→T: R = 0.5, P = 0.6
   - **TA-Cycle P** = Product(0.71, 0.6) = 0.43
 - **Spiral**: Same transitions as transformation = Product(0.7, 0.6) = 0.42
 
 **Step 5: Wheel Aggregation**
-- **Wheel CF** = GM(WisdomUnit_cf, TA_transition_cfs)
+- **Wheel R** = GM(WisdomUnit_r, TA_transition_rs)
   = GM(0.56, 0.71, 0.5) = 0.58
 - **Wheel P** = GM(T_cycle_p, TA_cycle_p, Spiral_p, unit_transformations)
   = GM(1.0, 0.43, 0.42, 0.42) = 0.55
@@ -193,8 +193,8 @@ External Transitions (wheel-level cycles):
 **Note on Implementation Reality**: The actual implementation may produce values that vary from this worked example due to several factors:
 
 1. Leaves (DialecticalComponent, Transition, Rationale) never invent neutral values - they return None when there's no evidence.
-2. Empty rationales return None for both CF and P calculations.
-3. WisdomUnit axis CF aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
+2. Empty rationales return None for both R and P calculations.
+3. WisdomUnit axis R aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
 4. The final wheel score in actual implementation may be lower (around 0.15) due to differences in cycle probability calculations and transition probability contributions.
 
 These implementation differences are expected and the key behaviors (leaves not inventing values, power mean usage, axis veto) are correctly modeled in the system.
@@ -203,84 +203,84 @@ These implementation differences are expected and the key behaviors (leaves not 
 
 ## Implementation Details
 
-### Contextual Fidelity (CF) Implementation
+### Relevance (R) Implementation
 
-**What CF measures**: How well an element is grounded in the initial context (sources, constraints, goals). It is **not** likelihood; it's about contextual fit and relevance.
+**What R measures**: How well an element is grounded in the initial context (sources, constraints, goals) or aligned with reality. It is **not** likelihood; it's about contextual/factual fit and relevance.
 
-#### Global CF Policies
+#### Global R Policies
 
 * **Hierarchical aggregation:** Non-leaves take the **geometric mean** of their immediate children
-* **Neutral fallback:** Only non-leaf nodes apply neutral CF=1.0 when their entire child set contributes nothing; leaves never invent CF values
+* **Neutral fallback:** Only non-leaf nodes apply neutral R=1.0 when their entire child set contributes nothing; leaves never invent R values
 * **Single rating application:** Ratings are applied exactly once at the source:
-  * A leaf's **own CF** is multiplied by its **own rating** (only applies to DialecticalComponent and Transition)
-  * A **rationale's CF** is multiplied by **rationale.rating** by the consuming parent
+  * A leaf's **own R** is multiplied by its **own rating** (only applies to DialecticalComponent and Transition)
+  * A **rationale's R** is multiplied by **rationale.rating** by the consuming parent
   * Parents never multiply their own rating onto children
 * **Selective veto policy:**
-  * **DialecticalComponent/Transition**: Zero values (CF=0 or P=0) trigger **hard veto** (return 0)
-  * **Rationale**: Zero values (CF=0 or P=0) are treated as "no contribution" (excluded, not veto)
+  * **DialecticalComponent/Transition**: Zero values (R=0 or P=0) trigger **hard veto** (return 0)
+  * **Rationale**: Zero values (R=0 or P=0) are treated as "no contribution" (excluded, not veto)
 * **Zero handling:** Zeros from weighting (rating = 0) and `None` values are **ignored** in aggregation
 
-#### CF Calculation by Element Type
+#### R Calculation by Element Type
 
 **DialecticalComponent** *(leaf, `Ratable`)*
 
 * Combine:
 
-  * its **own CF × its rating** (if provided; zero values ⇒ hard veto), and
-  * each **rationale CF × rationale.rating**.
+  * its **own R × its rating** (if provided; zero values ⇒ hard veto), and
+  * each **rationale R × rationale.rating**.
 * If nothing contributes → returns None (default policy: DC.P defaults to 1.0 unless manually set)
 
 **Transition** *(leaf, `Ratable`)*
 
-* Same rule as components (combine own CF×rating with rated rationales).
+* Same rule as components (combine own R×rating with rated rationales).
 * If nothing contributes → returns None.
-* Do **not** inherit CF from source/target; CF(Transition) answers "is this step grounded here?"
+* Do **not** inherit R from source/target; R(Transition) answers "is this step grounded here?"
 
 **Rationale** *(special leaf-that-can-grow)*
 
-* **Evidence contribution**: When consumed by parent elements, combines its **own CF** with **children** (spawned wheels and critiques)
+* **Evidence contribution**: When consumed by parent elements, combines its **own R** with **children** (spawned wheels and critiques)
 * **No free lunch**: Returns nothing if no real evidence exists (prevents "empty rationale" inflation)
 * **Rating application**: Parent applies the rationale's rating when consuming its evidence
 * **Self-scoring**: When calculating its own score for ranking, uses same evidence without external rating
-* **Soft exclusion**: Zero-value rationales (CF=0 or P=0) are excluded from aggregation (no hard veto like components/transitions)
+* **Soft exclusion**: Zero-value rationales (R=0 or P=0) are excluded from aggregation (no hard veto like components/transitions)
 
 **WheelSegment** *(non-leaf)*
 
-* CF = GM of its three DialecticalComponents (+ rated segment-level rationales).
+* R = GM of its three DialecticalComponents (+ rated segment-level rationales).
 
 **WisdomUnit** *(non-leaf)*
 
-* CF = GM of:
+* R = GM of:
 
   * **Dialectically symmetric component pairs** using power mean (p=4, soft max):
-    * **T ↔ A**: Power mean of thesis and antithesis CFs
-    * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis CFs
-    * **T- ↔ A+**: Power mean of negative thesis and positive antithesis CFs
+    * **T ↔ A**: Power mean of thesis and antithesis Rs
+    * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis Rs
+    * **T- ↔ A+**: Power mean of negative thesis and positive antithesis Rs
     * **S+ ↔ S-**: Power mean of synthesis components (if present)
-  * **Transformation CF** (internal spiral transitions between segments),
+  * **Transformation R** (internal spiral transitions between segments),
   * **rated unit-level rationales**,
 
-*Note: WisdomUnit CF calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis CF to 0.0.*
+*Note: WisdomUnit R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis R to 0.0.*
 
 **Cycle** *(T, TA, Spiral, Transformation — diagnostic)*
 
-* CF = GM of member **Transition CFs** (+ rated cycle-level rationales).
-* **Do not** feed cycle CFs into the Wheel CF (prevents double-counting transitions).
+* R = GM of member **Transition Rs** (+ rated cycle-level rationales).
+* **Do not** feed cycle Rs into the Wheel R (prevents double-counting transitions).
 
 **Wheel**
 
-* CF = GM of:
+* R = GM of:
 
-  * **all WisdomUnit CFs** (they already include internal relations),
-  * **all external Transition CFs** (edges across units),
+  * **all WisdomUnit Rs** (they already include internal relations),
+  * **all external Transition Rs** (edges across units),
   * **rated wheel-level rationales**.
 
-### Using alpha with CF
+### Using alpha with R
 
-* **α = 0**: ignore CF in scoring (Score depends only on P).
-* **α = 1**: CF influences score at a neutral strength.
-* **α > 1**: emphasize CF more (good CF helps more; weak CF hurts more).
-  Pick one **global** α and keep it fixed; with α fixed, increasing either P or CF strictly increases the Score.
+* **α = 0**: ignore R in scoring (Score depends only on P).
+* **α = 1**: R influences score at a neutral strength.
+* **α > 1**: emphasize R more (good R helps more; weak R hurts more).
+  Pick one **global** α and keep it fixed; with α fixed, increasing either P or R strictly increases the Score.
 
 ---
 
@@ -293,7 +293,7 @@ These implementation differences are expected and the key behaviors (leaves not 
 * **Structure-only flow:** P aggregates only along transitions and cycles, not content elements
 * **Component default:** DialecticalComponent.P defaults to 1.0 (fact) unless manually set
 * **Confidence weighting:** Applied only when aggregating rationale probabilities at transitions
-* **No ratings in P:** Unlike CF, probability calculations ignore rating values
+* **No ratings in P:** Unlike R, probability calculations ignore rating values
 * **Sequence veto behavior:** In cycles (sequences), any transition with P = 0 → entire cycle P = 0
 * **Unknown propagation:** Any transition with P = None → cycle P = None
 * **Aggregation handling:** At geometric mean points, skip `None` values but keep zeros
@@ -329,13 +329,13 @@ These implementation differences are expected and the key behaviors (leaves not 
 
 ### Alpha Parameter Usage
 
-The **alpha (α)** parameter controls how much Contextual Fidelity influences the final score:
+The **alpha (α)** parameter controls how much Relevance influences the final score:
 
-* **α = 0**: Score = P only (ignore contextual grounding, pure structural feasibility)
-* **α = 1**: Score = P × CF (balanced weighting of structure and context)  
-* **α > 1**: Score = P × CF^α (emphasize contextual grounding - good context helps more, poor context hurts more)
+* **α = 0**: Score = P only (ignore relevance, pure structural feasibility)
+* **α = 1**: Score = P × R (balanced weighting of structure and relevance)
+* **α > 1**: Score = P × R^α (emphasize relevance - high relevance helps more, low relevance hurts more)
 
-**Recommendation**: Use α = 1 as default. Increase α when contextual expertise is highly reliable; decrease toward 0 when focusing purely on structural relationships.
+**Recommendation**: Use α = 1 as default. Increase α when contextual/factual expertise is highly reliable; decrease toward 0 when focusing purely on structural relationships.
 
 ---
 
@@ -343,13 +343,137 @@ The **alpha (α)** parameter controls how much Contextual Fidelity influences th
 
 The dialectical scoring system provides a robust, hierarchical approach to ranking dialectical elements by:
 
-1. **Separating concerns**: CF measures contextual fit, P measures structural feasibility
+1. **Separating concerns**: R measures contextual/factual relevance, P measures structural feasibility
 2. **Respecting hierarchy**: Information flows upward through appropriate aggregation paths
 3. **Preventing double-counting**: Single application of ratings and confidence weights
 4. **Handling uncertainty**: Selective veto policies for robustness and proper fallbacks
-5. **Local score computation**: Each element computes its own score using its aggregated P and CF with the global α parameter
+5. **Local score computation**: Each element computes its own score using its aggregated P and R with the global α parameter
 
-**Key Implementation Principle**: 
-* **CF** flows up the **content hierarchy** (components → segments → units → wheel)
-* **P** flows up the **structure hierarchy** (transitions → cycles → wheel)  
-* **Score** is computed **locally** at each element using Score = P × CF^α
+**Key Implementation Principle**:
+* **R** flows up the **content hierarchy** (components → segments → units → wheel)
+* **P** flows up the **structure hierarchy** (transitions → cycles → wheel)
+* **Score** is computed **locally** at each element using Score = P × R^α
+
+---
+
+## Relevance (R) by Assessable Type
+
+**DialecticalComponent**: *"How well does this statement/concept fit the specific situation or reality?"*
+- Domain expertise, situational relevance, stakeholder alignment, factual accuracy
+
+**Transition**: *"How contextually appropriate or realistic is this relationship/step?"*
+- Cultural fit, timing appropriateness, stakeholder readiness for this change, logical connection
+
+**Cycle**: *"How relevant is this pattern/sequence to the current context or reality?"*
+- Historical precedent, organizational maturity, environmental conditions, natural occurrence
+
+**Rationale**: *"How relevant is this evidence/reasoning to the context or facts?"*
+- Source credibility, recency, applicability to situation, factual alignment
+
+**Wheel**: *"How well does this entire dialectical framework fit the problem space or reality?"*
+- Comprehensive alignment across all dimensions, both contextual and factual
+
+## Probability (P) by Assessable Type
+
+**DialecticalComponent**: *"How likely is this statement to be valid/true?"*
+- Empirical support, logical consistency, expert consensus
+
+**Transition**: *"How likely is this relationship/change to actually occur?"*
+- Causal strength, prerequisite conditions, historical success rates
+
+**Cycle**: *"How likely is this cyclical pattern to complete/sustain?"*
+- Structural integrity, feedback loop strength, systemic stability
+
+**Rationale**: *"How credible/reliable is this evidence?"*
+- Source reliability, methodological rigor, reproducibility
+
+**Wheel**: *"How feasible is this entire system of relationships?"*
+- Structural coherence, resource requirements, implementation complexity
+
+## Practical Implications
+
+This means scoring interpretation should be context-sensitive:
+
+```
+Transition Score: 0.75 | R=0.90 | P=0.83
+↓
+"This change step is highly appropriate for your culture/context (R=0.90)
+and very likely to succeed structurally (P=0.83)"
+
+vs.
+
+Component Score: 0.75 | R=0.90 | P=0.83
+↓
+"This concept fits your situation or reality perfectly (R=0.90)
+and has strong empirical support (P=0.83)"
+```
+
+---
+
+## Score Discrimination and Decision Making
+
+### Challenge: Similar Composite Scores
+
+When comparing assessables with similar composite scores (difference <0.05), the standard **Score = P × R^α** formula may compress different risk/reward profiles into nearly identical values, making decisions difficult:
+
+```
+Option A: S=0.36 | R=0.90 | P=0.40  (High-relevance, high-risk)
+Option B: S=0.35 | R=0.50 | P=0.70  (Moderate-relevance, lower-risk)
+```
+
+### Decision Framework by Score Difference
+
+**Clear Winner** (difference >0.1): Trust the composite score
+```
+Wheel A: S=0.65 → Choose A (substantially better)
+Wheel B: S=0.32
+```
+
+**Probable Winner** (difference 0.05-0.1): Consider composite score + profile fit
+```
+Wheel A: S=0.45 → Likely choose A, but verify P/R profile matches needs
+Wheel B: S=0.38
+```
+
+**Strategic Choice** (difference <0.05): Ignore composite score, analyze P/R profiles
+```
+Wheel A: S=0.36 | R=0.90 | P=0.40 → Choose based on risk tolerance and strategic context
+Wheel B: S=0.35 | R=0.50 | P=0.70
+```
+
+### Alternative Scoring Approaches for Better Discrimination
+
+When standard scoring yields insufficient discrimination, consider:
+
+**1. Adjusted Alpha Values**
+- **α = 1.5-2.0**: Emphasizes relevance more heavily
+- **α = 0.5**: Emphasizes structural feasibility more heavily
+- Creates clearer numerical separation between options
+
+**2. Risk-Adjusted Scoring**
+```
+balance_penalty = 1 - abs(P - R)
+adjusted_score = P × R × balance_penalty
+```
+Penalizes highly imbalanced P/R profiles, favoring more balanced approaches.
+
+**3. Geometric Mean Approach**
+```
+geometric_score = √(P × R)
+```
+Treats P and R equally, naturally penalizes extreme values in either dimension.
+
+**4. Confidence-Weighted Scoring**
+```
+uncertainty = abs(P - R)
+confidence = 1 / (1 + uncertainty)
+confidence_score = (P × R) × confidence
+```
+Reduces scores when P and R diverge significantly, indicating higher uncertainty.
+
+### Recommendation
+
+For most applications, **adjusting α** provides the best balance of interpretability and discrimination:
+- **α = 1.0**: Balanced weighting (default)
+- **α = 1.5-2.0**: When contextual/factual expertise is highly reliable
+- **α = 0.5**: When focusing on structural relationships over relevance

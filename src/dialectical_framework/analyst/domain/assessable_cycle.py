@@ -27,13 +27,13 @@ class AssessableCycle(Assessable, Generic[T], ABC):
         result.extend(self.graph.get_all_transitions())
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
+    def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         """
-        Calculates the cycle fidelity (CF_S) as the geometric mean of:
-        1. All dialectical components' contextual fidelity scores within the cycle's transitions
+        Calculates the cycle relevance (R) as the geometric mean of:
+        1. All dialectical components' relevance scores within the cycle's transitions
         2. All cycle-level rationales/opinions (weighted by their rating)
 
-        Components/rationales with contextual_fidelity of 0.0 or None are excluded from the calculation.
+        Components/rationales with relevance of 0.0 or None are excluded from the calculation.
         """
         parts = []
 
@@ -41,9 +41,9 @@ class AssessableCycle(Assessable, Generic[T], ABC):
         transitions = self.graph.get_all_transitions()
         if transitions:
             for transition in transitions:
-                fidelity = transition.calculate_contextual_fidelity()
-                if fidelity is not None:
-                    parts.append(fidelity)
+                relevance = transition.calculate_relevance()
+                if relevance is not None:
+                    parts.append(relevance)
 
         return parts
 
@@ -71,7 +71,7 @@ class AssessableCycle(Assessable, Generic[T], ABC):
                 prob *= p
 
         # Save the calculation as this object is derivative composition
-        self.probability = prob
+        self.calculated_probability = prob
         return self.probability
 
 def decompose_probability_into_transitions(

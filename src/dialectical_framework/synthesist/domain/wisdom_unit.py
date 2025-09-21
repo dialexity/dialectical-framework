@@ -82,12 +82,12 @@ class WisdomUnit(WheelSegment, Assessable):
             result.append(self.transformation)
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
+    def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         """
-        Calculates the context fidelity score for this wisdom unit as the geometric mean
+        Calculates the relevance score for this wisdom unit as the geometric mean
         of its constituent DialecticalComponent's scores, including those from its synthesis,
         and weighted rationale opinions.
-        Components with a context_fidelity_score of 0.0 or None are excluded from the calculation.
+        Components with a relevance of 0.0 or None are excluded from the calculation.
         """
         parts = []
 
@@ -102,18 +102,18 @@ class WisdomUnit(WheelSegment, Assessable):
             pairs.append((self.synthesis.t_plus, self.synthesis.t_minus))
 
         for one, two in pairs:
-            one_cf = one.calculate_contextual_fidelity() if one else None
-            two_cf = two.calculate_contextual_fidelity() if two else None
+            one_cf = one.calculate_relevance() if one else None
+            two_cf = two.calculate_relevance() if two else None
             pm = pm_with_zeros_and_nones_handled((one_cf, two_cf))
             if pm is not None:
                 parts.append(pm)
 
-        # Collect fidelity from transformation
+        # Collect relevance from transformation
         if self.transformation is not None:
             # We don't take transitions, we take the aggregated thing on purpose
-            fidelity = self.transformation.calculate_contextual_fidelity()
-            if fidelity is not None:
-                parts.append(fidelity)
+            relevance = self.transformation.calculate_relevance()
+            if relevance is not None:
+                parts.append(relevance)
 
         return parts
 
@@ -121,7 +121,7 @@ class WisdomUnit(WheelSegment, Assessable):
         """
         Calculate probability from the transformation cycle.
         This represents the structural feasibility of the dialectical transformation,
-        not expert opinions about it (those influence contextual_fidelity).
+        not expert opinions about it (those influence relevance).
 
         IMPORTANT: we don't use rationale probabilities here, because only the structural relationship matters.
         """
@@ -131,8 +131,7 @@ class WisdomUnit(WheelSegment, Assessable):
             probability = self.transformation.calculate_probability()
 
         # Save the calculation as this object is derivative composition
-        self.probability = probability
-
+        self.calculated_probability = probability
         return self.probability
 
     def extract_segment_t(self) -> WheelSegment:

@@ -20,7 +20,8 @@ class DialecticalComponent(Ratable):
     def calculate_probability(self) -> float | None:
         f =  super().calculate_probability()
         # Fallback to 1.0 if no evidence is present. Assume it's a fact.
-        return f if f is not None else 1.0
+        self.calculated_probability = f if f is not None else 1.0
+        return self.probability
 
 
     def is_same(self, other: DialecticalComponent) -> bool:

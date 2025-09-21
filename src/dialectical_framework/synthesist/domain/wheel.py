@@ -54,13 +54,13 @@ class Wheel(Assessable):
         result.append(self._spiral)
         return result
 
-    def _calculate_contextual_fidelity_for_sub_elements_excl_rationales(self) -> list[float]:
+    def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         """
         Calculates the WheelFidelity as the geometric mean of:
-        1. All individual DialecticalComponent contextual fidelity scores across the entire wheel
+        1. All individual DialecticalComponent relevance scores across the entire wheel
         2. All wheel-level rationales/opinions (weighted by their rating)
         
-        Components with contextual_fidelity of 0.0 or None are excluded from the calculation.
+        Components with relevance of 0.0 or None are excluded from the calculation.
         """
         # Import at runtime to avoid circular imports
         from dialectical_framework.analyst.domain.transition import Transition
@@ -69,9 +69,9 @@ class Wheel(Assessable):
 
         # Collect from wisdom units
         for wu in self._wisdom_units:
-            fidelity = wu.calculate_contextual_fidelity()
-            if fidelity is not None and fidelity > 0.0:
-                parts.append(fidelity)
+            relevance = wu.calculate_relevance()
+            if relevance is not None and relevance > 0.0:
+                parts.append(relevance)
 
         # Collect transitions from cycles without overlaps
         unique_transitions: Dict[Any, Transition] = {}
@@ -86,7 +86,7 @@ class Wheel(Assessable):
             for transition in self.cycle.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
                     # calculate the one which is being overwritten
-                    unique_transitions[transition.get_key()].calculate_contextual_fidelity()
+                    unique_transitions[transition.get_key()].calculate_relevance()
                 # take the more specific one
                 unique_transitions[transition.get_key()] = transition
 
@@ -95,15 +95,15 @@ class Wheel(Assessable):
             for transition in self.spiral.graph.get_all_transitions():
                 if transition.get_key() in unique_transitions:
                     # calculate the one which is being overwritten
-                    unique_transitions[transition.get_key()].calculate_contextual_fidelity()
+                    unique_transitions[transition.get_key()].calculate_relevance()
                 # take the more specific one
                 unique_transitions[transition.get_key()] = transition
         
-        # Extract fidelity scores from unique transitions
+        # Extract relevance scores from unique transitions
         for transition in unique_transitions.values():
-            transition_fidelity = transition.calculate_contextual_fidelity()
-            if transition_fidelity is not None and transition_fidelity > 0.0:
-                parts.append(transition_fidelity)
+            transition_relevance = transition.calculate_relevance()
+            if transition_relevance is not None and transition_relevance > 0.0:
+                parts.append(transition_relevance)
 
 
         return parts
@@ -138,7 +138,7 @@ class Wheel(Assessable):
         if internal_summary is not None:
             all_terms.append(internal_summary)
 
-        self.probability = gm_with_zeros_and_nones_handled(all_terms)
+        self.calculated_probability = gm_with_zeros_and_nones_handled(all_terms)
         return self.probability
 
     @property
