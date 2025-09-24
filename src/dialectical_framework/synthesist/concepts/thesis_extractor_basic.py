@@ -102,9 +102,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
             },
         }
 
-    async def extract_multiple_theses(
-        self, *, count: int = 2
-    ) -> DialecticalComponentsDeck:
+    async def extract_multiple_theses(self, *, count: int = 2, not_like_these: list[str] | None = None) -> DialecticalComponentsDeck:
         if count > 4 or count < 1:
             raise ValueError(
                 f"Incorrect number of theses requested. Max 4 theses are supported."
@@ -125,7 +123,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
             raise ValueError(f"More than 4 theses are not supported yet.")
         return deck
 
-    async def extract_single_thesis(self) -> DialecticalComponent:
+    async def extract_single_thesis(self, *, not_like_these: list[str] | None = None) -> DialecticalComponent:
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=DialecticalComponentDto)
         async def _find_thesis():

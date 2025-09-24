@@ -91,20 +91,20 @@ class WheelBuilder(SettingsAware):
                     provided_thesis.set_human_friendly_index(i + 1)
                     final_theses.append(provided_thesis)
 
+            known_theses = [t.statement for t in final_theses if t is not None]
+
             # Generate all missing theses at once if needed
             if none_positions:
                 if len(none_positions) == 1:
                     # Single thesis case: place at the correct original position
                     pos = none_positions[0]
-                    generated_thesis = map_from_dto(await self.reasoner.find_thesis(), DialecticalComponent)
+                    generated_thesis = await self.extractor.extract_single_thesis(not_like_these=known_theses)
                     generated_thesis.alias = ALIAS_T
                     generated_thesis.set_human_friendly_index(pos + 1)
                     final_theses[pos] = generated_thesis
                 else:
                     # Multiple theses case - extract all missing ones at once
-                    t_deck = await self.extractor.extract_multiple_theses(
-                        count=len(none_positions)
-                    )
+                    t_deck = await self.extractor.extract_multiple_theses(count=len(none_positions), not_like_these=known_theses)
                     generated_theses = t_deck.dialectical_components
 
                     # Place generated theses in their correct positions
@@ -117,7 +117,7 @@ class WheelBuilder(SettingsAware):
                     # Backfill any remaining None (it's a precaution, in case fewer were generated than requested)
                     for pos in none_positions:
                         if final_theses[pos] is None:
-                            generated_thesis = map_from_dto(await self.reasoner.find_thesis(), DialecticalComponent)
+                            generated_thesis = await self.extractor.extract_single_thesis(not_like_these=known_theses)
                             generated_thesis.alias = ALIAS_T
                             generated_thesis.set_human_friendly_index(pos + 1)
                             final_theses[pos] = generated_thesis
