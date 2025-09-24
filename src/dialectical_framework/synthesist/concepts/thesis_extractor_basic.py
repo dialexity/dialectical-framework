@@ -42,13 +42,21 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         USER:
         Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
     
-        Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
+        Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation.
+        
+        {rule_out} 
         """
     )
-    def prompt_single_thesis(self) -> Messages.Type:
+    def prompt_single_thesis(self, *, not_like_these: list[str] | None = None) -> Messages.Type:
+        rule_out = ""
+
+        if not_like_these:
+            rule_out = "**Rules**\nIMPORTANT: The output should be different than these already known theses:\n" + "\n".join(not_like_these)
+
         return {
             "computed_fields": {
                 "text": self.text,
+                "rule_out": rule_out,
                 "component_length": self.settings.component_length,
             },
         }
@@ -91,13 +99,21 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         
         **Rules**
         Make sure to output {count} concepts, no more no less.
+        {rule_out}
         """
     )
-    def prompt_multiple_theses(self, count: int) -> Messages.Type:
+    def prompt_multiple_theses(self, *, count: int, not_like_these: list[str] | None = None) -> Messages.Type:
+        rule_out = ""
+
+        if not_like_these:
+            rule_out = "The output should have different than these already known theses:\n" + "\n".join(
+                not_like_these)
+
         return {
             "computed_fields": {
                 "text": self.text,
                 "count": count,
+                "rule_out": rule_out,
                 "component_length": self.settings.component_length,
             },
         }
@@ -111,7 +127,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=DialecticalComponentsDeckDto)
         async def _find_theses():
-            return self.prompt_multiple_theses(count=count)
+            return self.prompt_multiple_theses(count=count, not_like_these=not_like_these)
 
         if count <= 4:
             deck_dto = await _find_theses()
@@ -127,7 +143,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=DialecticalComponentDto)
         async def _find_thesis():
-            return self.prompt_single_thesis()
+            return self.prompt_single_thesis(not_like_these=not_like_these)
 
         dc_dto = await _find_thesis()
         return map_from_dto(dc_dto, DialecticalComponent)
