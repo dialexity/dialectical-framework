@@ -207,7 +207,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                             ordered_wisdom_units[0].t,
                             ordered_wisdom_units[0].a,
                         ],
-                        probability=1.0,
+                        calculated_probability=1.0,
                         causality_type=self.settings.causality_type,
                     )
                 ]
@@ -255,7 +255,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     return [
                         Cycle(
                             dialectical_components=thoughts,
-                            probability=1.0,
+                            calculated_probability=1.0,
                             causality_type=self.settings.causality_type,
                         )
                     ]
@@ -268,7 +268,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                                     statement=thoughts[0],
                                 )
                             ],
-                            probability=1.0,
+                            calculated_probability=1.0,
                             causality_type=self.settings.causality_type,
                         )
                     ]
