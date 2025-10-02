@@ -11,6 +11,7 @@ from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
 
 class Rationale(Ratable):
     headline: Optional[str] = Field(default=None)
+    haiku: Optional[str] = Field(default=None)
     summary: Optional[str] = Field(default=None)
     text: Optional[str] = Field(default=None)
     theses: list[str] = Field(default_factory=list, description="Theses of the rationale text.")

@@ -99,6 +99,13 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         Your task is to produce a super-compressed action phrase (max 5–8 words) that:
         - States the key shift or action.
         - Avoids background/context — just the transformation.
+        
+        # 3. Haiku:
+        Your task is to produce a haiku (max 3 lines) that:
+        - Captures the essence of the transformation.
+        - Uses active, simple language.
+        - Focuses on what to do, not the background.
+        - Easy to memorize.
  
         <examples_action_phrase>
             Exploitation → Cultural Transformation
@@ -114,6 +121,7 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         <formatting>
         One-liner: [one-liner text]
         Action phrase: [action phrase text]
+        Haiku: [haiku text]
         </formatting>
         """
     )
