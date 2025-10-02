@@ -357,8 +357,8 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 
                 # Create rationale from reasoning and argumentation
                 cycle_rationale = Rationale(
-                    summary=causal_cycle.reasoning_explanation,
-                    text=f"{causal_cycle.reasoning_explanation}\n\n{causal_cycle.argumentation}",
+                    summary=f"{causal_cycle.argumentation}",
+                    text=f"{causal_cycle.reasoning_explanation}",
                     # Now here's the trick, the normalized probability is assigned to the cycle
                     # because the initial "probability" is actually "feasibility"
                     relevance=causal_cycle.probability,
