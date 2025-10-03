@@ -100,13 +100,15 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
         translated_components: list[DialecticalComponent] = []
         alias_translations: dict[str, str] = {}
-        for sequence in sequences:
-            for i, dc in enumerate(sequence, 1):
+
+        for seq_idx, sequence in enumerate(sequences, 1):
+            for comp_idx, dc in enumerate(sequence, 1):
                 if dc in translated_components:
                     continue
                 translated_components.append(dc)
-                alias_translations[f"C{i}"] = dc.alias
-                dc.alias = f"C{i}"
+                new_alias = f"C{seq_idx}_{comp_idx}"
+                alias_translations[new_alias] = dc.alias
+                dc.alias = new_alias
                 # TODO: we should also do dc_replace for statement/rationales texts, and later translate these back (as alias got translated)
 
             deck = DialecticalComponentsDeck(dialectical_components=sequence)
