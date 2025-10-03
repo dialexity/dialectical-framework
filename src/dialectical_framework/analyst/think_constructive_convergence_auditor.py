@@ -77,7 +77,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         spiral_link = self._wheel.spiral.graph.get_transition([focus.t_minus.alias, focus.t.alias], [next_ws.t_plus.alias])
         if spiral_link is None:
             # Make sure we have the transition
-            spiral_link = super().think(focus=focus)
+            spiral_link = await super().think(focus=focus)
 
         transitions = [spiral_link]
 
