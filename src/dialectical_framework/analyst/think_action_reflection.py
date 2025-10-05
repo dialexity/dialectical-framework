@@ -167,6 +167,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         for dc in dialectical_components:
             alias = self._translate_to_canonical_alias(dc.alias)
             setattr(ac_re_wu, alias, dc)
+            dc.set_human_friendly_index(wu.t.get_human_friendly_index())
 
         graph = DirectedGraph[TransitionSegmentToSegment]()
         graph.add_transition(
