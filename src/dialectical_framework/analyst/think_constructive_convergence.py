@@ -38,20 +38,17 @@ class ThinkConstructiveConvergence(StrategicConsultant):
             - **Action**: What specific step to take (1-2 sentences)
             - **Mechanism**: How this step transforms the negative into positive (1 sentence)
             - **Timing**: When this transition is most effective (1 phrase)
-        3. Estimate the numeric probability (0 to 1) of this transition happening
         
         <examples>
             T1- (Tyranny) → T2+ (Balance):
             **Action**: Implement transparent priority matrices with employee input
             **Mechanism**: Converts rigid control into collaborative structure
             **Timing**: During planning cycles
-            Probability: 0.3
         </examples>
         </instructions>
     
         <formatting>
         Output the transition step as a fluent practical, implementable action plan (summarized but not mentioning derived Action, Mechanism, and Timing) that someone could take immediately to facilitate the transformation. Don't mention any special denotations such as "T", "T+", "A-", "Ac", "Re", etc.
-        Probability should be a number between 0 and 1.
         </formatting>
         """
     )
@@ -176,8 +173,6 @@ class ThinkConstructiveConvergence(StrategicConsultant):
         action_plan_dto = await self.constructive_convergence(focus=focus, next_ws=next_ws)
         rationale = Rationale(
             text=action_plan_dto.action_plan,
-            # TODO: is it ok to use self-assigned probability here? It somewhat contradicts the t-cycle probability, which overall should be the same for the spiral, no?
-            probability=action_plan_dto.probability,
         )
 
         transition = self._wheel.spiral.graph.get_transition(

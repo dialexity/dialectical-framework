@@ -599,7 +599,7 @@ class TestComplexScoringScenarios:
         assert abs(p2 - 0.6) < 0.01  # Should be around rationale P value
 
     def test_rationale_with_multiple_critiques(self):
-        """Test rationale CF calculation with multiple nested critiques."""
+        """Test auditor-wins with multiple critiques (audits)."""
         critique1 = Rationale(
             headline="First critique",
             relevance=0.6,
@@ -618,15 +618,12 @@ class TestComplexScoringScenarios:
             rationales=[critique1, critique2]
         )
 
-        # CF should include own CF and rated child critiques
+        # AUDITOR-WINS: Critiques override the original rationale
         cf = rationale.calculate_relevance()
 
-        # Calculate expected value based on implementation
-        # Child critiques' CF values are multiplied by their rating
-        critique1_contrib = 0.6 * 0.7  # CF * rating
-        critique2_contrib = 0.5 * 0.6  # CF * rating
-        # Main rationale's own CF is used directly (not multiplied by its own rating)
-        expected = (0.9 * critique1_contrib * critique2_contrib) ** (1/3)
+        # With auditor-wins semantics and explicit ratings, use weighted average:
+        # (0.6 * 0.7 + 0.5 * 0.6) / (0.7 + 0.6) = 0.72 / 1.3 ≈ 0.554
+        expected = (0.6 * 0.7 + 0.5 * 0.6) / (0.7 + 0.6)
         assert abs(cf - expected) < 0.01
 
     def test_component_with_zero_cf_hard_veto(self):
@@ -686,11 +683,11 @@ class TestComplexScoringScenarios:
         """Test that rationales with real evidence DO contribute to parent CF."""
         component = DialecticalComponent(
             alias="T",
-            statement="Test component", 
+            statement="Test component",
             relevance=0.8,
             rating=0.6
         )
-        
+
         # Rationale with actual CF evidence
         evidence_rationale = Rationale(
             text="Real evidence",
@@ -698,13 +695,99 @@ class TestComplexScoringScenarios:
             rating=0.7
         )
         component.rationales = [evidence_rationale]
-        
+
         cf = component.calculate_relevance()
-        
+
         # Should aggregate: GM(component_own, rationale_evidence * rationale_rating)
         # = GM(0.8*0.6, 0.9*0.7) = GM(0.48, 0.63) ≈ 0.55
         expected = (0.48 * 0.63) ** 0.5
         assert abs(cf - expected) < 0.01
+
+    def test_audit_wins_over_original_rationale(self):
+        """Test that audit/critique overrides original rationale values (not GM)."""
+        # Original rationale
+        rationale = Rationale(
+            text="Original assessment",
+            relevance=0.9,
+            probability=0.8,
+            rating=0.8
+        )
+
+        # Auditor disagrees - provides different values
+        audit = Rationale(
+            text="Audit findings",
+            relevance=0.5,  # Auditor says R is lower
+            probability=0.6,  # Auditor says P is lower
+            rating=0.9  # High rating = authoritative audit
+        )
+        rationale.rationales = [audit]
+
+        # Calculate relevance and probability
+        final_r = rationale.calculate_relevance()
+        final_p = rationale.calculate_probability()
+
+        # Audit should WIN, not average with GM
+        assert final_r == 0.5, f"Expected audit R=0.5 to win, got {final_r}"
+        assert final_p == 0.6, f"Expected audit P=0.6 to win, got {final_p}"
+
+    def test_recursive_audit_deepest_wins(self):
+        """Test that with multiple audit levels, the deepest audit wins."""
+        # Original rationale
+        rationale = Rationale(
+            text="Original",
+            relevance=0.9,
+            probability=0.8
+        )
+
+        # First audit
+        audit1 = Rationale(
+            text="First audit",
+            relevance=0.7,
+            probability=0.6,
+            rating=0.8
+        )
+
+        # Second audit (auditing the auditor)
+        audit2 = Rationale(
+            text="Second audit",
+            relevance=0.4,
+            probability=0.3,
+            rating=0.9
+        )
+
+        audit1.rationales = [audit2]
+        rationale.rationales = [audit1]
+
+        # Calculate - should use deepest audit (audit2)
+        final_r = rationale.calculate_relevance()
+        final_p = rationale.calculate_probability()
+
+        assert final_r == 0.4, f"Expected deepest audit R=0.4, got {final_r}"
+        assert final_p == 0.3, f"Expected deepest audit P=0.3, got {final_p}"
+
+    def test_audit_with_zero_rating_ignored(self):
+        """Test that audit with rating=0 is ignored (back to original)."""
+        rationale = Rationale(
+            text="Original",
+            relevance=0.9,
+            probability=0.8
+        )
+
+        # Audit with rating=0 should be ignored
+        ignored_audit = Rationale(
+            text="Ignored audit",
+            relevance=0.3,
+            probability=0.2,
+            rating=0.0  # rating=0 means "ignore this audit"
+        )
+        rationale.rationales = [ignored_audit]
+
+        final_r = rationale.calculate_relevance()
+        final_p = rationale.calculate_probability()
+
+        # Should use original values since audit is ignored
+        assert final_r == 0.9, f"Expected original R=0.9, got {final_r}"
+        assert final_p == 0.8, f"Expected original P=0.8, got {final_p}"
 
 
 import pytest

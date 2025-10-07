@@ -12,14 +12,6 @@ class ReciprocalSolutionDto(BaseModel):
     dialectical_reflection: str | None = Field(
         default=None, description="Complementary solution(s) that transforms A- into T+"
     )
-    linear_action_probability: float = Field(
-        default=0,
-        description="The probability 0 to 1 of the transition.",
-    )
-    dialectical_reflection_probability: float = Field(
-        default=0,
-        description="The probability 0 to 1 of the transition.",
-    )
 
     def __str__(self):
         str_pieces = []

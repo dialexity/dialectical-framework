@@ -32,13 +32,99 @@ class Rationale(Ratable):
     def _apply_own_rating_in_cf(self) -> bool:
         return False  # parent applies rationale.rating
 
+    def _get_deepest_critiques(self) -> list['Rationale']:
+        """
+        Get all critiques at the deepest recursion level.
+
+        Auditor-wins semantics:
+        - If critiques have their own critiques, those are deeper (recursive audits)
+        - Returns all critiques at the deepest level
+        - Filters out critiques with rating=0 (explicitly ignored)
+        """
+        if not self.rationales:
+            return []
+
+        # Filter out explicitly ignored critiques (rating=0)
+        valid_critiques = [r for r in self.rationales if r.rating != 0.0]
+        if not valid_critiques:
+            return []
+
+        # Check if any critique has been further audited (has its own critiques)
+        audited_critiques = [r for r in valid_critiques if r.rationales]
+
+        if audited_critiques:
+            # Use deepest level - recursively get critiques from audited critiques
+            all_deep_critiques = []
+            for critique in audited_critiques:
+                all_deep_critiques.extend(critique._get_deepest_critiques())
+            return all_deep_critiques if all_deep_critiques else valid_critiques
+        else:
+            # This is the deepest level (direct children)
+            return valid_critiques
+
+    def _aggregate_critique_values(self, critiques: list['Rationale'], value_getter) -> float | None:
+        """
+        Aggregate values from multiple critiques.
+
+        Rules:
+        - If all unrated (rating=None): GM of all critique values (equal weight)
+        - If some/all rated: weighted average by rating
+        """
+        if not critiques:
+            return None
+
+        values = []
+        weights = []
+        has_explicit_ratings = False
+
+        for critique in critiques:
+            val = value_getter(critique)
+            if val is None or val <= 0:
+                continue
+
+            values.append(val)
+            rating = critique.rating
+            if rating is not None:
+                has_explicit_ratings = True
+                weights.append(rating)
+            else:
+                weights.append(1.0)  # Default weight
+
+        if not values:
+            return None
+
+        if not has_explicit_ratings:
+            # All unrated → geometric mean (equal weight)
+            from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
+            return gm_with_zeros_and_nones_handled(values)
+        else:
+            # Some/all rated → weighted average
+            total_weight = sum(weights)
+            if total_weight == 0:
+                return None
+            weighted_sum = sum(v * w for v, w in zip(values, weights))
+            return weighted_sum / total_weight
+
     def calculate_probability(self) -> float | None:
-        # Prefer manual if present; else use evidence; else None
+        # AUDIT SEMANTICS: If this rationale has critiques, they override at deepest level
+        deepest_critiques = self._get_deepest_critiques()
+        if deepest_critiques:
+            # Aggregate deepest critique probabilities (weighted or GM)
+            critique_p = self._aggregate_critique_values(
+                deepest_critiques,
+                lambda c: c.calculate_probability()
+            )
+            if critique_p is not None:
+                self.calculated_probability = critique_p
+                return self.calculated_probability
+
+        # No critiques or critiques have no value → use own evidence
         parts: List[float] = []
 
         if self.probability is not None:
             if self._hard_veto_on_own_zero() and self.probability == 0:
-                return self.probability
+                self.calculated_probability = self.probability
+                return self.calculated_probability
             if self.probability > 0.0:
                 parts.append(self.probability)
 
@@ -48,17 +134,29 @@ class Rationale(Ratable):
             if p is not None:
                 parts.append(p)
 
-        # Child rationales (critiques) - aggregate their probabilities too
-        for child_rationale in (self.rationales or []):
-            p = child_rationale.calculate_probability()
-            if p is None:
-                continue
-            if p > 0.0:
-                parts.append(p)
-
         # Don't fall back to 1.0 to not improve scores for free
         self.calculated_probability = gm_with_zeros_and_nones_handled(parts) if parts else None
-        return self.probability
+        return self.calculated_probability
+
+    def calculate_relevance(self) -> float | None:
+        """
+        Override parent to implement audit-wins semantics for relevance.
+        If this rationale has critiques, they override at deepest level.
+        """
+        # AUDIT SEMANTICS: If this rationale has critiques, they override at deepest level
+        deepest_critiques = self._get_deepest_critiques()
+        if deepest_critiques:
+            # Aggregate deepest critique relevances (weighted or GM)
+            critique_r = self._aggregate_critique_values(
+                deepest_critiques,
+                lambda c: c.calculate_relevance()
+            )
+            if critique_r is not None:
+                self.calculated_relevance = critique_r
+                return self.calculated_relevance
+
+        # No critiques or critiques have no value → use parent's normal aggregation logic
+        return super().calculate_relevance()
 
     def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
         parts = []
