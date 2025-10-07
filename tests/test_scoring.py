@@ -282,14 +282,14 @@ class TestWisdomUnitScoring:
 
 class TestCycleScoring:
     """Test scoring for cycles (sequences of transitions)."""
-    
+
     def test_cycle_probability_product_of_transitions(self):
         """Cycle probability should be product of transition probabilities in sequence."""
         # Create components
         comp1 = DialecticalComponent(alias="T1", statement="Component 1")
-        comp2 = DialecticalComponent(alias="T2", statement="Component 2") 
+        comp2 = DialecticalComponent(alias="T2", statement="Component 2")
         comp3 = DialecticalComponent(alias="T3", statement="Component 3")
-        
+
         # Create transitions with known probabilities
         trans1 = Transition(
             source=comp1, target=comp2, predicate=Predicate.CAUSES,
@@ -299,19 +299,62 @@ class TestCycleScoring:
             source=comp2, target=comp3, predicate=Predicate.CAUSES,
             probability=0.7
         )
-        
+
         # Create cycle (this requires understanding the cycle implementation)
         # For now, test conceptually
         # Expected: P(cycle) = P(trans1) * P(trans2) = 0.8 * 0.7 = 0.56
         pass  # TODO: Complete when cycle construction is clearer
-        
+
     def test_cycle_zero_transition_makes_cycle_zero(self):
         """Any transition with P=0 should make entire cycle P=0."""
         pass  # TODO: Implement when cycle construction is clear
-        
+
     def test_cycle_unknown_transition_makes_cycle_unknown(self):
         """Any transition with P=None should make entire cycle P=None."""
         pass  # TODO: Implement when cycle construction is clear
+
+    def test_single_cycle_normalized_to_100_percent(self):
+        """When there's only one cycle, probability should be normalized to 1.0 (100%)."""
+        from dialectical_framework.synthesist.causality.causality_sequencer_balanced import CausalitySequencerBalanced
+        from dialectical_framework.ai_dto.causal_cycles_deck_dto import CausalCyclesDeckDto
+        from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
+        from dialectical_framework.synthesist.domain.dialectical_components_deck import DialecticalComponentsDeck
+
+        # Create simple components
+        comp1 = DialecticalComponent(alias="T1", statement="Component 1")
+        deck = DialecticalComponentsDeck(dialectical_components=[comp1])
+
+        # Create a single cycle with feasibility=0.6 from AI
+        cycles_deck = CausalCyclesDeckDto(
+            causal_cycles=[
+                CausalCycleDto(
+                    aliases=["T1"],
+                    probability=0.6,  # Feasibility score from AI
+                    reasoning_explanation="Test reasoning",
+                    argumentation="Test argumentation"
+                )
+            ]
+        )
+
+        # Test the _normalize method directly
+        sequencer = CausalitySequencerBalanced()
+        normalized_cycles = sequencer._normalize(deck, cycles_deck)
+
+        # Verify we got one cycle
+        assert len(normalized_cycles) == 1
+        cycle = normalized_cycles[0]
+
+        # Check the rationale attached to the cycle
+        assert len(cycle.rationales) > 0
+        rationale = cycle.rationales[0]
+
+        # The rationale.probability should be 1.0 (normalized for single cycle)
+        assert rationale.probability == 1.0, \
+            f"Expected single cycle to have probability=1.0, got {rationale.probability}"
+
+        # The rationale.relevance should preserve the original feasibility score
+        assert rationale.relevance == 0.6, \
+            f"Expected feasibility score to be preserved as relevance=0.6, got {rationale.relevance}"
 
 
 class TestWheelScoring:

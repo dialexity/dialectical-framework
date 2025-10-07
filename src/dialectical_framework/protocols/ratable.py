@@ -98,7 +98,7 @@ class Ratable(Assessable, ABC):
 
         # Don't fallback to 1.0 to not improve scores for free
         self.calculated_probability = gm_with_zeros_and_nones_handled(parts) if parts else None
-        return self.probability
+        return self.calculated_probability
 
     def calculate_relevance(self) -> float | None:
         parts: List[float] = []
@@ -127,7 +127,7 @@ class Ratable(Assessable, ABC):
 
         # Don't fallback to 1.0 to not improve scores for free
         self.calculated_relevance = gm_with_zeros_and_nones_handled(parts) if parts else None
-        return self.relevance
+        return self.calculated_relevance
 
     # Default: no extra sub-elements on generic leaves
     def _calculate_relevance_of_sub_elements_excl_rationales(self) -> list[float]:
