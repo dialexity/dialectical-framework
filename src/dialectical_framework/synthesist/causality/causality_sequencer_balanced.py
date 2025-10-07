@@ -321,10 +321,8 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     Decimal(c.probability) / Decimal(total_score) for c in causal_cycles_deck.causal_cycles
                 ]
             else:
-                # No normalization needed, just round to 3 decimals using Decimal
-                probs = [
-                    Decimal(c.probability) for c in causal_cycles_deck.causal_cycles
-                ]
+                # Single cycle: probability should be 1.0 (100%)
+                probs = [Decimal("1.000")]
 
             probs = [p.quantize(q, rounding=ROUND_HALF_UP) for p in probs]
 
