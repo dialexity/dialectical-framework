@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from typing import Tuple, Union
 
-from pydantic import ConfigDict, Field, field_validator
-
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.protocols.ratable import Ratable
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
-from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
+from pydantic import ConfigDict, Field, field_validator
 
 
 class Transition(Ratable):

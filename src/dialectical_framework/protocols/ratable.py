@@ -82,11 +82,13 @@ class Ratable(Assessable, ABC):
         # Prefer manual if present; else use evidence; else None
         parts: List[float] = []
 
-        if self.probability is not None:
-            if self._hard_veto_on_own_zero() and self.probability == 0:
-                return self.probability
-            if self.probability > 0.0:
-                parts.append(self.probability)
+        # Use manual_probability, not self.probability (to avoid feedback loop)
+        if self.manual_probability is not None:
+            if self._hard_veto_on_own_zero() and self.manual_probability == 0:
+                self.calculated_probability = self.manual_probability
+                return self.calculated_probability
+            if self.manual_probability > 0.0:
+                parts.append(self.manual_probability)
 
         # Child rationales (critiques) - aggregate their probabilities too
         for child_rationale in (self.rationales or []):

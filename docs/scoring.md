@@ -154,20 +154,26 @@ External Transitions (wheel-level cycles):
 **Components with rationales:**
 - **T**: 0.8 × 0.9 = 0.72
 - **T+**: GM(0.9×0.7, 0.9×0.8) = GM(0.63, 0.72) = 0.67
-- **T-**: GM(0.6×0.5, GM(0.8,0.5×0.6)×0.7) = GM(0.30, 0.34) = 0.32
+- **T-**: Component has rationale with critique (auditor-wins):
+  - Critique overrides rationale R → rationale returns R=0.5
+  - Element applies rationale.rating → 0.5 × 0.7 = 0.35
+  - Element aggregates: GM(0.6×0.5, 0.35) = GM(0.30, 0.35) = 0.32
 - **A**: 0.7 × 0.8 = 0.56
 - **A+**: 0.8 × 0.6 = 0.48
 - **A-**: 0.5 × 0.4 = 0.20
-- **S+**: GM(0.85×0.8, 0.9×0.9, GM(0.8,0.6×0.5)×0.7) = GM(0.68, 0.81, 0.34) = 0.58
+- **S+**: Component has 2 rationales, one with critique (auditor-wins):
+  - Rationale 1: R=0.9, rating=0.9 → contributes 0.9×0.9 = 0.81
+  - Rationale 2: Has critique R=0.6 (overrides R=0.8), rating=0.7 → contributes 0.6×0.7 = 0.42
+  - Element: GM(0.85×0.8, 0.81, 0.42) = GM(0.68, 0.81, 0.42) = 0.61
 - **S-**: 0.4 × 0.3 = 0.12
 
 **Step 2: WisdomUnit R** (symmetric pairs + synthesis + transformation)
 - **T ↔ A pair**: PowerMean(0.72, 0.56, p=4) = 0.66
 - **T+ ↔ A- pair**: PowerMean(0.67, 0.20, p=4) = 0.57
 - **T- ↔ A+ pair**: PowerMean(0.32, 0.48, p=4) = 0.43
-- **S+ ↔ S- pair**: PowerMean(0.58, 0.12, p=4) = 0.48
+- **S+ ↔ S- pair**: PowerMean(0.61, 0.12, p=4) = 0.51
 - Transformation R: GM(0.8, 0.7) = 0.75
-- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.48, 0.75) = 0.56
+- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.51, 0.75) = 0.57
 
 **Step 3: WisdomUnit P** (from Transformation)
 - **Transformation P** = Product(0.7, 0.6) = 0.42
@@ -183,25 +189,80 @@ External Transitions (wheel-level cycles):
 
 **Step 5: Wheel Aggregation**
 - **Wheel R** = GM(WisdomUnit_r, TA_transition_rs)
-  = GM(0.56, 0.71, 0.5) = 0.58
+  = GM(0.57, 0.71, 0.5) = 0.59
 - **Wheel P** = GM(T_cycle_p, TA_cycle_p, Spiral_p, unit_transformations)
   = GM(1.0, 0.43, 0.42, 0.42) = 0.55
 
 **Step 6: Final Score**
-- **Wheel Score** (α=1) = 0.55 × 0.58 = **0.32**
+- **Wheel Score** (α=1) = 0.55 × 0.59 = **0.32**
 
 **Note on Implementation Reality**: The actual implementation may produce values that vary from this worked example due to several factors:
 
 1. Leaves (DialecticalComponent, Transition, Rationale) never invent neutral values - they return None when there's no evidence.
 2. Empty rationales return None for both R and P calculations.
-3. WisdomUnit axis R aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
-4. The final wheel score in actual implementation may be lower (around 0.15) due to differences in cycle probability calculations and transition probability contributions.
+3. **Auditor-wins semantics**: When rationales have child rationales (critiques), the critiques override the parent rationale's values at the deepest level. Multiple critiques aggregate via weighted average (if rated) or GM (if unrated).
+4. WisdomUnit axis R aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
+5. The final wheel score in actual implementation may be lower (around 0.15) due to differences in cycle probability calculations and transition probability contributions.
 
-These implementation differences are expected and the key behaviors (leaves not inventing values, power mean usage, axis veto) are correctly modeled in the system.
+These implementation differences are expected and the key behaviors (leaves not inventing values, auditor-wins for critiques, power mean usage, axis veto) are correctly modeled in the system.
 
 ---
 
 ## Implementation Details
+
+### Rationale Semantics: Evidence vs Audits
+
+The framework uses rationales (the `rationales[]` array) with different semantics depending on the parent:
+
+**Element → rationales[] (Evidence Aggregation)**
+
+When an element (Component, Transition, etc.) has rationales, they are **independent evidence sources** that aggregate:
+
+- **Element's own R/P**: Direct evidence without explanation text (like a rationale without justification)
+- **Rationale R/P**: Evidence with explanation text and reasoning
+- **Both are equal evidence sources** - semantically the same role, just with/without explanation
+- All evidence aggregates via **Geometric Mean**: `GM(element_own × element_rating, rationale1 × rating1, rationale2 × rating2, ...)`
+- Example:
+  ```
+  Component(R=0.8, rating=0.9) ← "Direct assessment: 0.8"
+  ├─ Rationale1(R=0.7, rating=0.8) ← "Expert evidence: 0.7"
+  └─ Rationale2(R=0.6, rating=0.7) ← "Another source: 0.6"
+
+  Final R = GM(0.8×0.9, 0.7×0.8, 0.6×0.7) ≈ 0.52
+  # All evidence sources combined via GM
+  ```
+
+**Rationale → rationales[] (Audit Override)**
+
+When a rationale has child rationales, they are **critiques/audits** with more context that override:
+
+- Critiques **override** the parent rationale's values (auditor-wins semantics)
+- The deepest level critique(s) win, recursively
+- Multiple critiques at same level aggregate via:
+  - Weighted average (if ratings exist): `Σ(critique_i × rating_i) / Σ(rating_i)`
+  - Geometric mean (if no ratings): `GM(critique_1, critique_2, ...)`
+- rating=0 means "ignore this critique"
+- Example:
+  ```
+  Rationale(R=0.9, P=0.8) ← "Original assessment"
+  └─ Critique(R=0.5, P=0.6, rating=0.9) ← "Auditor correction"
+
+  Final R = 0.5, P = 0.6
+  # Audit overrides original
+  ```
+
+**Key Distinction:**
+
+| Parent → Child | Semantic Relationship | Aggregation Method | Rating Applied By |
+|---|---|---|---|
+| **Element → Rationale** | Independent evidence sources | Geometric Mean | Parent (element) |
+| **Rationale → Rationale** | Audit/critique override | Weighted avg or GM (deepest wins) | N/A (deepest critique wins) |
+
+**Why This Makes Sense:**
+- Element's manual R = "I claim this relevance" (evidence without justification)
+- Element's rationales = "Here's explained evidence" (evidence with justification)
+- Both are just different forms of **evidence** → combine via GM
+- Rationale's child rationales = "Actually, let me correct that assessment" → **override** via auditor-wins
 
 ### Relevance (R) Implementation
 
@@ -224,21 +285,32 @@ These implementation differences are expected and the key behaviors (leaves not 
 
 **DialecticalComponent** *(leaf, `Ratable`)*
 
-* Combine:
-
-  * its **own R × its rating** (if provided; zero values ⇒ hard veto), and
-  * each **rationale R × rationale.rating**.
+* Combine multiple **independent evidence sources** via Geometric Mean:
+  * Component's **own R × its rating** (direct evidence without explanation)
+  * Each **rationale R × rationale.rating** (evidence with explanation/reasoning)
+* All evidence sources have **equal semantic role** - just with/without justification text
+* If own R = 0 → hard veto (zero values ⇒ structural impossibility)
 * If nothing contributes → returns None (default policy: DC.P defaults to 1.0 unless manually set)
+* Example: `GM(component_R × component_rating, rationale1_R × rationale1_rating, ...)`
 
 **Transition** *(leaf, `Ratable`)*
 
-* Same rule as components (combine own R×rating with rated rationales).
-* If nothing contributes → returns None.
+* Same rule as components: combine multiple **independent evidence sources** via Geometric Mean
+  * Transition's **own R × its rating** (direct evidence)
+  * Each **rationale R × rationale.rating** (evidence with explanation)
 * Do **not** inherit R from source/target; R(Transition) answers "is this step grounded here?"
+* If nothing contributes → returns None
+* Example: `GM(transition_R × transition_rating, rationale1_R × rationale1_rating, ...)`
 
 **Rationale** *(special leaf-that-can-grow)*
 
-* **Evidence contribution**: When consumed by parent elements, combines its **own R** with **children** (spawned wheels and critiques)
+* **Auditor-wins semantics**: Rationale child rationales are **critiques/audits** that override:
+  * If rationale has child rationales (critiques), the deepest critiques override the parent's values
+  * Multiple critiques at same level aggregate via weighted average (if rated) or GM (if unrated)
+  * rating=0 means "ignore this critique"
+  * Recursive audits supported (deepest level wins)
+* **Spawned wheels**: Wheels attached to rationale augment (GM) with critiques or original values
+* **Evidence contribution**: When consumed by parent elements, returns critique consensus (if critiques exist) or own R/P with spawned wheels
 * **No free lunch**: Returns nothing if no real evidence exists (prevents "empty rationale" inflation)
 * **Rating application**: Parent applies the rationale's rating when consuming its evidence
 * **Self-scoring**: When calculating its own score for ranking, uses same evidence without external rating

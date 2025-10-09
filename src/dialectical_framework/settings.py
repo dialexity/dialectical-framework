@@ -18,6 +18,12 @@ class Settings(BaseModel):
     ai_provider: Optional[str] = Field(default=None, description="AI model provider to use.")
     component_length: int = Field(default=7, description="Approximate length in words of the dialectical component.")
     causality_type: CausalityType = Field(default=CausalityType.BALANCED, description="Type of causality in the wheel.")
+    default_transition_probability: Optional[float] = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Default probability for transitions without explicit probability. Set to 1.0 for feasibility-only scoring (transitions certain, so Score = P × R^α ≈ R^α). Default None requires explicit probability evidence on all transitions (no free lunch)."
+    )
 
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
@@ -67,6 +73,17 @@ class Settings(BaseModel):
                 f"Missing required environment variables: {', '.join(missing)}"
             )
 
+        # Handle default_transition_probability from environment
+        default_prob = None
+        default_prob_str = os.getenv("DIALEXITY_DEFAULT_TRANSITION_PROBABILITY")
+        if default_prob_str:
+            try:
+                prob_value = float(default_prob_str)
+                if 0.0 <= prob_value <= 1.0:
+                    default_prob = prob_value
+            except ValueError:
+                pass  # Invalid value, use default of the field
+
         return cls(
             ai_model=model,
             ai_provider=provider,
@@ -74,4 +91,5 @@ class Settings(BaseModel):
             causality_type=CausalityType(
                 os.getenv("DIALEXITY_DEFAULT_CAUSALITY_TYPE", CausalityType.BALANCED.value)
             ),
+            default_transition_probability=default_prob,
         )

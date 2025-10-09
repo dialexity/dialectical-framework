@@ -789,8 +789,308 @@ class TestComplexScoringScenarios:
         assert final_r == 0.9, f"Expected original R=0.9, got {final_r}"
         assert final_p == 0.8, f"Expected original P=0.8, got {final_p}"
 
+    def test_element_with_audited_rationale(self):
+        """
+        Comprehensive test: Element with multiple rationales demonstrating all auditor-wins scenarios.
+
+        Covers:
+        - Rationale without critiques (baseline)
+        - Rationale with single-level rated critiques (weighted average)
+        - Rationale with unrated critiques (geometric mean)
+        - Rationale with multi-level recursive critiques (deepest wins)
+        - Critique with rating=0 (excluded)
+        - Mix of rated and unrated critiques at same level
+        """
+
+        print("\n=== SCENARIO 1: Rationale without critiques (baseline) ===")
+        rationale1 = Rationale(
+            text="Direct evidence",
+            relevance=0.9,
+            probability=0.85,
+            rating=0.8
+        )
+        # No critiques - should use own values
+        r1_r = rationale1.calculate_relevance()
+        r1_p = rationale1.calculate_probability()
+        print(f"Rationale1 R={r1_r:.3f} (expected: 0.9), P={r1_p:.3f} (expected: 0.85)")
+        assert abs(r1_r - 0.9) < 0.01
+        assert abs(r1_p - 0.85) < 0.01
+
+        print("\n=== SCENARIO 2: Rationale with rated critiques (weighted average) ===")
+        critique2a = Rationale(text="Auditor A", relevance=0.5, probability=0.4, rating=0.8)
+        critique2b = Rationale(text="Auditor B", relevance=0.6, probability=0.5, rating=0.7)
+
+        rationale2 = Rationale(
+            text="Evidence with board review",
+            relevance=0.95,  # Original - will be overridden
+            probability=0.9,  # Original - will be overridden
+            rating=0.7,
+            rationales=[critique2a, critique2b]
+        )
+
+        r2_r = rationale2.calculate_relevance()
+        r2_p = rationale2.calculate_probability()
+        expected_r2_r = (0.5*0.8 + 0.6*0.7) / (0.8+0.7)  # weighted avg
+        expected_r2_p = (0.4*0.8 + 0.5*0.7) / (0.8+0.7)
+        print(f"Rationale2 R={r2_r:.3f} (expected: {expected_r2_r:.3f} via weighted avg)")
+        print(f"Rationale2 P={r2_p:.3f} (expected: {expected_r2_p:.3f} via weighted avg)")
+        assert abs(r2_r - expected_r2_r) < 0.01
+        assert abs(r2_p - expected_r2_p) < 0.01
+
+        print("\n=== SCENARIO 3: Rationale with unrated critiques (geometric mean) ===")
+        critique3a = Rationale(text="Expert 1", relevance=0.7, probability=0.65)  # No rating
+        critique3b = Rationale(text="Expert 2", relevance=0.6, probability=0.55)  # No rating
+
+        rationale3 = Rationale(
+            text="Evidence with expert consensus",
+            relevance=0.95,
+            probability=0.9,
+            rating=0.9,
+            rationales=[critique3a, critique3b]
+        )
+
+        r3_r = rationale3.calculate_relevance()
+        r3_p = rationale3.calculate_probability()
+        expected_r3_r = (0.7 * 0.6) ** 0.5  # GM (no ratings)
+        expected_r3_p = (0.65 * 0.55) ** 0.5
+        print(f"Rationale3 R={r3_r:.3f} (expected: {expected_r3_r:.3f} via GM)")
+        print(f"Rationale3 P={r3_p:.3f} (expected: {expected_r3_p:.3f} via GM)")
+        assert abs(r3_r - expected_r3_r) < 0.01
+        assert abs(r3_p - expected_r3_p) < 0.01
+
+        print("\n=== SCENARIO 4: Multi-level recursive critiques (deepest wins) ===")
+        # Level 3 (deepest)
+        deep_critique = Rationale(
+            text="Senior auditor final review",
+            relevance=0.4,
+            probability=0.3,
+            rating=1.0
+        )
+
+        # Level 2
+        mid_critique = Rationale(
+            text="Mid-level auditor",
+            relevance=0.6,  # Will be overridden by deep_critique
+            probability=0.5,
+            rating=0.8,
+            rationales=[deep_critique]
+        )
+
+        # Level 1
+        rationale4 = Rationale(
+            text="Original assessment",
+            relevance=0.95,  # Will be overridden
+            probability=0.9,
+            rating=0.6,
+            rationales=[mid_critique]
+        )
+
+        r4_r = rationale4.calculate_relevance()
+        r4_p = rationale4.calculate_probability()
+        print(f"Rationale4 R={r4_r:.3f} (expected: 0.4 from deepest)")
+        print(f"Rationale4 P={r4_p:.3f} (expected: 0.3 from deepest)")
+        assert abs(r4_r - 0.4) < 0.01
+        assert abs(r4_p - 0.3) < 0.01
+
+        print("\n=== SCENARIO 5: Critique with rating=0 (excluded) ===")
+        valid_critique = Rationale(text="Valid", relevance=0.65, probability=0.55, rating=0.8)
+        excluded_critique = Rationale(text="Excluded", relevance=0.2, probability=0.1, rating=0.0)  # Ignored
+
+        rationale5 = Rationale(
+            text="Evidence with one excluded critique",
+            relevance=0.95,
+            probability=0.9,
+            rating=0.75,
+            rationales=[valid_critique, excluded_critique]
+        )
+
+        r5_r = rationale5.calculate_relevance()
+        r5_p = rationale5.calculate_probability()
+        print(f"Rationale5 R={r5_r:.3f} (expected: 0.65, excluded critique ignored)")
+        print(f"Rationale5 P={r5_p:.3f} (expected: 0.55, excluded critique ignored)")
+        assert abs(r5_r - 0.65) < 0.01
+        assert abs(r5_p - 0.55) < 0.01
+
+        print("\n=== SCENARIO 6: Mix of rated and unrated at same level ===")
+        rated_crit = Rationale(text="Rated", relevance=0.7, probability=0.6, rating=0.9)
+        unrated_crit = Rationale(text="Unrated", relevance=0.5, probability=0.4)  # No rating
+
+        rationale6 = Rationale(
+            text="Mixed rating scenario",
+            relevance=0.95,
+            probability=0.9,
+            rating=0.85,
+            rationales=[rated_crit, unrated_crit]
+        )
+
+        r6_r = rationale6.calculate_relevance()
+        r6_p = rationale6.calculate_probability()
+        # Has explicit rating → weighted average (unrated gets default weight 1.0)
+        expected_r6_r = (0.7*0.9 + 0.5*1.0) / (0.9+1.0)
+        expected_r6_p = (0.6*0.9 + 0.4*1.0) / (0.9+1.0)
+        print(f"Rationale6 R={r6_r:.3f} (expected: {expected_r6_r:.3f} via weighted avg with default)")
+        print(f"Rationale6 P={r6_p:.3f} (expected: {expected_r6_p:.3f} via weighted avg with default)")
+        assert abs(r6_r - expected_r6_r) < 0.01
+        assert abs(r6_p - expected_r6_p) < 0.01
+
+        print("\n=== ELEMENT AGGREGATION: All rationales combined ===")
+        element = DialecticalComponent(
+            alias="T",
+            statement="Test with comprehensive rationales",
+            relevance=0.8,
+            probability=0.75,
+            rating=1.0,
+            rationales=[rationale1, rationale2, rationale3, rationale4, rationale5, rationale6]
+        )
+
+        element_r = element.calculate_relevance()
+        element_p = element.calculate_probability()
+
+        # Element aggregates via GM:
+        # - Own: 0.8 * 1.0 = 0.8
+        # - Rationale contributions (R × rating, P no rating)
+        element_own_r = 0.8
+        rat1_contrib_r = r1_r * 0.8
+        rat2_contrib_r = r2_r * 0.7
+        rat3_contrib_r = r3_r * 0.9
+        rat4_contrib_r = r4_r * 0.6
+        rat5_contrib_r = r5_r * 0.75
+        rat6_contrib_r = r6_r * 0.85
+
+        expected_element_r = (element_own_r * rat1_contrib_r * rat2_contrib_r *
+                             rat3_contrib_r * rat4_contrib_r * rat5_contrib_r * rat6_contrib_r) ** (1/7)
+
+        element_own_p = 0.75
+        expected_element_p = (element_own_p * r1_p * r2_p * r3_p * r4_p * r5_p * r6_p) ** (1/7)
+
+        print(f"Element R={element_r:.3f} (expected: {expected_element_r:.3f})")
+        print(f"Element P={element_p:.3f} (expected: {expected_element_p:.3f})")
+        assert abs(element_r - expected_element_r) < 0.01
+        assert abs(element_p - expected_element_p) < 0.01
+
+        print("\n=== SCORING (verify no feedback loop) ===")
+        element_score = element.calculate_score(alpha=1.0)
+
+        # Verify stability
+        element_r_after = element.calculate_relevance()
+        element_p_after = element.calculate_probability()
+
+        print(f"After scoring - R={element_r_after:.3f} (stable: {abs(element_r_after - element_r) < 0.001})")
+        print(f"After scoring - P={element_p_after:.3f} (stable: {abs(element_p_after - element_p) < 0.001})")
+        print(f"Score={element_score:.3f} (expected: {element_r * element_p:.3f})")
+
+        assert abs(element_r_after - element_r) < 0.001, "R should be stable after scoring"
+        assert abs(element_p_after - element_p) < 0.001, "P should be stable after scoring"
+        assert abs(element_score - element_r * element_p) < 0.01, "Score = P × R"
+
 
 import pytest
+
+
+class TestProbabilityNoneBehavior:
+    """Test how the framework handles P=None in different scenarios."""
+
+    def test_component_without_probability(self):
+        """Component without P should default to 1.0."""
+        comp = DialecticalComponent(
+            alias="T",
+            statement="Test",
+            relevance=0.8
+            # No probability set
+        )
+
+        p = comp.calculate_probability()
+        score = comp.calculate_score(alpha=1.0)
+
+        print(f"Component P: {p} (expected: 1.0)")
+        print(f"Component score: {score} (expected: 0.8)")
+
+        assert p == 1.0, "Component should default P to 1.0"
+        assert score == 0.8, "Score should be R × 1.0 = R"
+
+    def test_transition_without_probability(self):
+        """Transition without P returns None, blocking score calculation."""
+        source = DialecticalComponent(alias="A", statement="Source")
+        target = DialecticalComponent(alias="B", statement="Target")
+
+        trans = Transition(
+            source=source,
+            target=target,
+            predicate=Predicate.CAUSES,
+            relevance=0.7
+            # No probability set
+        )
+
+        p = trans.calculate_probability()
+        score = trans.calculate_score(alpha=1.0)
+
+        print(f"Transition P: {p} (expected: None)")
+        print(f"Transition score: {score} (expected: None)")
+
+        assert p is None, "Transition without P should return None"
+        assert score is None, "Score should be None when P is None"
+
+    def test_transition_with_explicit_probability(self):
+        """Transition with explicit P works normally."""
+        source = DialecticalComponent(alias="A", statement="Source")
+        target = DialecticalComponent(alias="B", statement="Target")
+
+        trans = Transition(
+            source=source,
+            target=target,
+            predicate=Predicate.CAUSES,
+            relevance=0.7,
+            probability=0.9
+        )
+
+        p = trans.calculate_probability()
+        score = trans.calculate_score(alpha=1.0)
+
+        print(f"Transition P: {p} (expected: 0.9)")
+        print(f"Transition score: {score} (expected: 0.63)")
+
+        assert p == 0.9, "Transition should use explicit P"
+        assert abs(score - 0.63) < 0.01, "Score should be P × R = 0.9 × 0.7"
+
+    def test_transition_with_probability_1(self):
+        """Transition with P=1.0 explicitly set works as 'certain'."""
+        source = DialecticalComponent(alias="A", statement="Source")
+        target = DialecticalComponent(alias="B", statement="Target")
+
+        trans = Transition(
+            source=source,
+            target=target,
+            predicate=Predicate.CAUSES,
+            relevance=0.7,
+            probability=1.0
+        )
+
+        p = trans.calculate_probability()
+        score = trans.calculate_score(alpha=1.0)
+
+        print(f"Transition P: {p} (expected: 1.0)")
+        print(f"Transition score: {score} (expected: 0.7)")
+
+        assert p == 1.0, "Transition should use P=1.0"
+        assert abs(score - 0.7) < 0.01, "Score should be 1.0 × R = R"
+
+    def test_problem_summary(self):
+        """Document the current P=None behavior and implications."""
+        print("\n" + "="*60)
+        print("CURRENT P=None BEHAVIOR:")
+        print("="*60)
+        print("✓ DialecticalComponent: P=None → defaults to 1.0 (works)")
+        print("✗ Transition: P=None → returns None → Score=None (broken)")
+        print("✗ User must set P=1.0 explicitly on all transitions")
+        print("")
+        print("IMPLICATIONS:")
+        print("- If user wants 'just feasibility' (use R only)")
+        print("- They MUST set probability=1.0 on every Transition")
+        print("- Otherwise cycle/wheel scores become None (unusable)")
+        print("="*60)
+
+        # This test just documents the behavior, no assertion needed
+        assert True
 
 class TestComprehensiveExampleFromDocs:
     """
@@ -1012,19 +1312,21 @@ class TestComprehensiveExampleFromDocs:
         print(f"T+ CF: {t_plus_cf:.3f} (expected: {expected_t_plus_cf:.3f})")
         assert abs(t_plus_cf - expected_t_plus_cf) < 0.02
         
-        # Test T- with rationale and critique (updated for evidence view)
+        # Test T- with rationale and critique (auditor-wins semantics)
         t_minus_cf = t_minus_comp.calculate_relevance()
-        # T- rationale evidence view: GM(rationale_own_cf, critique_cf) = GM(0.8, 0.5) = 0.632
-        # When consumed by T-: evidence_cf * rationale_rating = 0.632 * 0.7 = 0.443
-        # Then T- total: GM(own_cf * own_rating, rationale_contribution) = GM(0.6*0.5, 0.443) = GM(0.30, 0.443)
-        # T- calculation has some variation in implementation
+        # T- rationale has critique: critique R=0.5 OVERRIDES rationale R=0.8 (auditor-wins)
+        # When consumed by T-: critique_r * rationale_rating = 0.5 * 0.7 = 0.35
+        # Then T- total: GM(own_r * own_rating, rationale_contribution) = GM(0.6*0.5, 0.35) = GM(0.30, 0.35)
+        # Expected: (0.30 * 0.35)^0.5 ≈ 0.324
         print(f"T- CF: {t_minus_cf:.3f}")
         assert 0.30 < t_minus_cf < 0.35  # Using range validation instead of exact match
-        
-        # Test S+ with multiple rationales and critique (updated for evidence view)
+
+        # Test S+ with multiple rationales and critique (auditor-wins semantics)
         s_plus_cf = s_plus_comp.calculate_relevance()
         # S+ has: own (0.85*0.8=0.68), rationale1 (0.9*0.9=0.81), rationale2 with critique
-        # S+ calculation also has implementation differences
+        # Rationale2 has critique: critique R=0.6 OVERRIDES rationale R=0.8 (auditor-wins)
+        # Rationale2 contribution: 0.6 * 0.7 = 0.42
+        # S+ total: GM(0.68, 0.81, 0.42) ≈ 0.61
         print(f"S+ CF: {s_plus_cf:.3f}")
         assert 0.55 < s_plus_cf < 0.65  # Using range validation instead of exact match
         

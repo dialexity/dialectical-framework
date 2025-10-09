@@ -107,7 +107,6 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
                 audit = audits[audit_index]
                 r.rationales.append(Rationale(
                     relevance=audit.feasibility,
-                    probability=1, # This auditor isn't calculating the probability, so let's assume it's 1.0. This way feasibility = score
                     text=f"Key Factors: {audit.key_factors}\n\nArgumentation: {audit.argumentation}\n\nConditions for Success: {audit.success_conditions}"
                 ))
                 audit_index += 1
