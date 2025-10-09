@@ -38,6 +38,7 @@ class Cycle(AssessableCycle[TransitionCellToCell]):
         self,
         dialectical_components: list[DialecticalComponent],
         causality_type: CausalityType = CausalityType.REALISTIC,
+        default_transition_probability: float | None = None,
         **data,
     ):
         data["causality_type"] = causality_type
@@ -58,6 +59,7 @@ class Cycle(AssessableCycle[TransitionCellToCell]):
                         source=source,
                         predicate=Predicate.CAUSES,
                         target=target,
+                        default_transition_probability=default_transition_probability,
                         # TODO: how do we set the transition text?
                     )
                 )

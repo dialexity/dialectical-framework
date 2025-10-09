@@ -1009,7 +1009,7 @@ class TestProbabilityNoneBehavior:
         assert score == 0.8, "Score should be R × 1.0 = R"
 
     def test_transition_without_probability(self):
-        """Transition without P returns None, blocking score calculation."""
+        """Transition without P and no default returns None, blocking score calculation."""
         source = DialecticalComponent(alias="A", statement="Source")
         target = DialecticalComponent(alias="B", statement="Target")
 
@@ -1018,7 +1018,7 @@ class TestProbabilityNoneBehavior:
             target=target,
             predicate=Predicate.CAUSES,
             relevance=0.7
-            # No probability set
+            # No probability set, no default
         )
 
         p = trans.calculate_probability()
@@ -1027,8 +1027,31 @@ class TestProbabilityNoneBehavior:
         print(f"Transition P: {p} (expected: None)")
         print(f"Transition score: {score} (expected: None)")
 
-        assert p is None, "Transition without P should return None"
+        assert p is None, "Transition without P and no default should return None"
         assert score is None, "Score should be None when P is None"
+
+    def test_transition_with_default_probability(self):
+        """Transition with default_transition_probability should use it when no explicit P."""
+        source = DialecticalComponent(alias="A", statement="Source")
+        target = DialecticalComponent(alias="B", statement="Target")
+
+        trans = Transition(
+            source=source,
+            target=target,
+            predicate=Predicate.CAUSES,
+            relevance=0.7,
+            default_transition_probability=1.0
+            # No explicit probability, but has default
+        )
+
+        p = trans.calculate_probability()
+        score = trans.calculate_score(alpha=1.0)
+
+        print(f"Transition P: {p} (expected: 1.0 from default)")
+        print(f"Transition score: {score} (expected: 0.7)")
+
+        assert p == 1.0, "Transition should use default P=1.0"
+        assert abs(score - 0.7) < 0.01, "Score should be 1.0 × R = R"
 
     def test_transition_with_explicit_probability(self):
         """Transition with explicit P works normally."""
@@ -1073,24 +1096,6 @@ class TestProbabilityNoneBehavior:
 
         assert p == 1.0, "Transition should use P=1.0"
         assert abs(score - 0.7) < 0.01, "Score should be 1.0 × R = R"
-
-    def test_problem_summary(self):
-        """Document the current P=None behavior and implications."""
-        print("\n" + "="*60)
-        print("CURRENT P=None BEHAVIOR:")
-        print("="*60)
-        print("✓ DialecticalComponent: P=None → defaults to 1.0 (works)")
-        print("✗ Transition: P=None → returns None → Score=None (broken)")
-        print("✗ User must set P=1.0 explicitly on all transitions")
-        print("")
-        print("IMPLICATIONS:")
-        print("- If user wants 'just feasibility' (use R only)")
-        print("- They MUST set probability=1.0 on every Transition")
-        print("- Otherwise cycle/wheel scores become None (unusable)")
-        print("="*60)
-
-        # This test just documents the behavior, no assertion needed
-        assert True
 
 class TestComprehensiveExampleFromDocs:
     """

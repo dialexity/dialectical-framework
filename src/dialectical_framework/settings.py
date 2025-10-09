@@ -19,10 +19,10 @@ class Settings(BaseModel):
     component_length: int = Field(default=7, description="Approximate length in words of the dialectical component.")
     causality_type: CausalityType = Field(default=CausalityType.BALANCED, description="Type of causality in the wheel.")
     default_transition_probability: Optional[float] = Field(
-        default=1.0,
+        default=None,
         ge=0.0,
         le=1.0,
-        description="Default probability for transitions without explicit probability. Set to 1.0 for feasibility-only scoring (transitions certain, so Score = P × R^α ≈ R^α). Default None requires explicit probability evidence on all transitions (no free lunch)."
+        description="Default probability for transitions without explicit probability. Set to 1.0 for feasibility-only scoring (transitions certain, so Score = P × R^α ≈ R^α). None (default) requires explicit probability evidence on all transitions (no free lunch)."
     )
 
     @classmethod

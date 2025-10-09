@@ -10,6 +10,7 @@ from dialectical_framework.analyst.domain.transition_segment_to_segment import \
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.enums.predicate import Predicate
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.domain.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
@@ -17,7 +18,7 @@ from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
 
 
-class ThinkConstructiveConvergence(StrategicConsultant):
+class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
     @prompt_template(
         """
         MESSAGES:
@@ -186,6 +187,7 @@ class ThinkConstructiveConvergence(StrategicConsultant):
                 target_aliases=[next_ws.t_plus.alias],
                 source=focus,
                 target=next_ws,
+                default_transition_probability=self.settings.default_transition_probability,
                 rationales=[rationale],
             )
         else:

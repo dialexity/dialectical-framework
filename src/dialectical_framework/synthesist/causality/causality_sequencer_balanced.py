@@ -211,6 +211,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                         ],
                         calculated_probability=1.0,
                         causality_type=self.settings.causality_type,
+                        default_transition_probability=self.settings.default_transition_probability,
                     )
                 ]
             elif len(thoughts) == 2:
@@ -259,6 +260,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                             dialectical_components=thoughts,
                             calculated_probability=1.0,
                             causality_type=self.settings.causality_type,
+                            default_transition_probability=self.settings.default_transition_probability,
                         )
                     ]
                 else:
@@ -272,6 +274,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                             ],
                             calculated_probability=1.0,
                             causality_type=self.settings.causality_type,
+                            default_transition_probability=self.settings.default_transition_probability,
                         )
                     ]
             elif len(thoughts) <= 4:
@@ -349,6 +352,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 cycle = Cycle(
                     dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
                     causality_type=self.settings.causality_type,
+                    default_transition_probability=self.settings.default_transition_probability,
                 )
                 
                 # Create rationale from reasoning and argumentation

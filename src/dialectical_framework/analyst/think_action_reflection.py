@@ -172,6 +172,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
                 target_aliases=[wu.a_plus.alias],
                 source=wu.extract_segment_t(),
                 target=wu.extract_segment_a(),
+                default_transition_probability=self.settings.default_transition_probability,
                 rationales=[
                     Rationale(
                         text=reciprocal_sol_dto.linear_action,
@@ -186,6 +187,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
                 target_aliases=[wu.t_plus.alias],
                 source=wu.extract_segment_a(),
                 target=wu.extract_segment_t(),
+                default_transition_probability=self.settings.default_transition_probability,
                 rationales=[
                     Rationale(
                         text=reciprocal_sol_dto.dialectical_reflection,

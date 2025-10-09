@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.protocols.assessable import Assessable
@@ -33,6 +33,23 @@ class Transition(Ratable):
         ...,
         description="The type of relationship between the source and target, e.g. T1 => causes => T2.",
     )
+
+    default_transition_probability: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Default probability to use if no explicit evidence. None = no default (scoring might not be possible)."
+    )
+
+    def calculate_probability(self) -> float | None:
+        f = super().calculate_probability()
+        # If no evidence, use instance default if provided
+        if f is None and self.default_transition_probability is not None:
+            self.calculated_probability = self.default_transition_probability
+            return self.calculated_probability
+        else:
+            self.calculated_probability = f
+            return self.calculated_probability
 
     def _get_sub_assessables(self) -> list[Assessable]:
         """
