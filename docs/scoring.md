@@ -2,14 +2,55 @@
 
 ## Overview
 
-The Dialectical Framework uses a hierarchical scoring system to rank any element ("assessable") in the dialectical structure. Each element receives a **Score (S)** that combines two fundamental dimensions:
+The Dialectical Framework uses a hierarchical scoring system to rank any element ("assessable") in the dialectical structure. Each element receives a **Score (S)**.
+
+### Simple Mode (Recommended): Feasibility Scoring
+
+**For most users**: Set `default_transition_probability = 1.0`, and Score becomes equivalent to **Relevance (R)**, which represents overall feasibility:
+
+**Score = R** (contextual and factual feasibility)
+
+### Advanced Mode: Dual-Dimension Scoring
+
+**For advanced users** who want to separate structural from contextual feasibility, the score combines two dimensions:
 
 * **Probability (P)** — structural feasibility. *Could this arrangement actually work?*
 * **Relevance (R)** — contextual and factual alignment. *Does this make sense in this specific context or reality?*
 
-The final score formula is: **Score = P × R^α**
+**Score = P × R^α**
 
 Where **alpha (α ≥ 0)** is a global parameter controlling how much relevance influences the ranking.
+
+## Quick Start: Feasibility-Only Scoring (Recommended)
+
+**For most use cases, you want to assess "How feasible/good is this idea?" without separating probability from relevance.**
+
+The simplest way to use the framework is **feasibility-only mode**:
+- Set `default_transition_probability = 1.0` in Settings or environment (`DIALEXITY_DEFAULT_TRANSITION_PROBABILITY=1.0`)
+- Use **Relevance (R)** as your "feasibility" score
+- Set `α = 1.0` (default)
+
+**Result:** Score = 1.0 × R^1.0 = **R** (feasibility)
+
+### What to assess as "Relevance" (Feasibility):
+
+- **DialecticalComponent.relevance** = *"How feasible/valid is this statement in context?"*
+- **Transition.relevance** = *"How feasible is this relationship/step?"*
+- **Rationale.relevance** = *"How feasible is the parent element? Here's why..."*
+
+In this mode, you're assessing **one dimension**: contextual and factual feasibility. The framework still tracks P internally (defaulted to 1.0 for transitions), but you focus entirely on R for scoring.
+
+### When to use advanced P vs R separation:
+
+Only separate P from R when you need to distinguish:
+- **P** (structural feasibility): *"Could this arrangement work in principle?"*
+- **R** (contextual relevance): *"Does this fit our specific context?"*
+
+Example: A transition might be structurally sound (P=0.9) but not relevant to your context (R=0.3).
+
+For most users, feasibility-only mode (P=1, focus on R) is simpler and sufficient.
+
+---
 
 ## Scoring Architecture
 
@@ -398,10 +439,15 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 
 * **Structure-only flow:** P aggregates only along transitions and cycles, not content elements
 * **Component default:** DialecticalComponent.P defaults to 1.0 (fact) unless manually set
+* **Transition default (configurable):**
+  - **Settings.default_transition_probability** controls fallback behavior for transitions without explicit P
+  - **None** (default): Transitions without explicit P return None, requiring explicit probability assessments ("no free lunch")
+  - **1.0**: Transitions without explicit P default to 1.0, enabling **feasibility-only mode** (Score ≈ R)
+  - Set via environment: `DIALEXITY_DEFAULT_TRANSITION_PROBABILITY=1.0`
 * **Confidence weighting:** Applied only when aggregating rationale probabilities at transitions
 * **No ratings in P:** Unlike R, probability calculations ignore rating values
 * **Sequence veto behavior:** In cycles (sequences), any transition with P = 0 → entire cycle P = 0
-* **Unknown propagation:** Any transition with P = None → cycle P = None
+* **Unknown propagation:** Any transition with P = None → cycle P = None (blocks scoring)
 * **Aggregation handling:** At geometric mean points, skip `None` values but keep zeros
 
 #### P Calculation by Element Type
@@ -447,13 +493,30 @@ The **alpha (α)** parameter controls how much Relevance influences the final sc
 
 ## Summary
 
-The dialectical scoring system provides a robust, hierarchical approach to ranking dialectical elements by:
+The dialectical scoring system provides a robust, hierarchical approach to ranking dialectical elements.
 
-1. **Separating concerns**: R measures contextual/factual relevance, P measures structural feasibility
-2. **Respecting hierarchy**: Information flows upward through appropriate aggregation paths
-3. **Preventing double-counting**: Single application of ratings and confidence weights
-4. **Handling uncertainty**: Selective veto policies for robustness and proper fallbacks
-5. **Local score computation**: Each element computes its own score using its aggregated P and R with the global α parameter
+### Two Scoring Modes
+
+**1. Simple Mode (Recommended): Feasibility-Only Scoring**
+- Set `default_transition_probability = 1.0` (environment: `DIALEXITY_DEFAULT_TRANSITION_PROBABILITY=1.0`)
+- **Score = R** (feasibility)
+- Use **Relevance (R)** as a single "feasibility" measure combining context, facts, and viability
+- Simpler mental model: "How feasible is this?"
+- Recommended for most users
+
+**2. Advanced Mode: Dual-Dimension Scoring**
+- Keep `default_transition_probability = None` (default)
+- **Score = P × R^α**
+- Separate **Probability (P)** (structural feasibility) from **Relevance (R)** (contextual fit)
+- More complex but allows distinguishing "structurally sound but contextually irrelevant" cases
+- Recommended for experts who need the distinction
+
+### Core Principles (Both Modes)
+
+1. **Hierarchical aggregation**: Information flows upward through appropriate paths
+2. **Preventing double-counting**: Single application of ratings and confidence weights
+3. **Handling uncertainty**: Selective veto policies for robustness and proper fallbacks
+4. **Local score computation**: Each element computes its own score using its aggregated P and R with the global α parameter
 
 **Key Implementation Principle**:
 * **R** flows up the **content hierarchy** (components → segments → units → wheel)
@@ -464,22 +527,42 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 
 ## Relevance (R) by Assessable Type
 
-**DialecticalComponent**: *"How well does this statement/concept fit the specific situation or reality?"*
-- Domain expertise, situational relevance, stakeholder alignment, factual accuracy
+**In Feasibility-Only Mode (default_transition_probability=1.0)**, R represents overall feasibility/goodness.
+**In Advanced Mode (default_transition_probability=None)**, R represents contextual fit while P represents structural soundness.
 
-**Transition**: *"How contextually appropriate or realistic is this relationship/step?"*
-- Cultural fit, timing appropriateness, stakeholder readiness for this change, logical connection
+**DialecticalComponent**:
+- *Feasibility-Only*: "How feasible/valid is this statement?"
+- *Advanced*: "How well does this statement fit the specific situation or reality?"
+- Factors: Domain expertise, situational relevance, stakeholder alignment, factual accuracy
 
-**Cycle**: *"How relevant is this pattern/sequence to the current context or reality?"*
-- Historical precedent, organizational maturity, environmental conditions, natural occurrence
+**Transition**:
+- *Feasibility-Only*: "How feasible is this relationship/step?"
+- *Advanced*: "How contextually appropriate or realistic is this relationship/step?"
+- Factors: Cultural fit, timing appropriateness, stakeholder readiness, logical connection
 
-**Rationale**: *"How relevant is this evidence/reasoning to the context or facts?"*
-- Source credibility, recency, applicability to situation, factual alignment
+**Cycle**:
+- *Feasibility-Only*: "How feasible is this pattern/sequence?"
+- *Advanced*: "How relevant is this pattern/sequence to the current context?"
+- Factors: Historical precedent, organizational maturity, environmental conditions
 
-**Wheel**: *"How well does this entire dialectical framework fit the problem space or reality?"*
-- Comprehensive alignment across all dimensions, both contextual and factual
+**Rationale**:
+- *Feasibility-Only*: "How feasible is the parent element? Here's why..."
+- *Advanced*: "How relevant is this evidence/reasoning to the context?"
+- Factors: Source credibility, recency, applicability to situation, factual alignment
+
+**Wheel**:
+- *Feasibility-Only*: "How feasible is this entire dialectical system?"
+- *Advanced*: "How well does this entire dialectical framework fit the problem space?"
+- Factors: Comprehensive alignment across all dimensions
 
 ## Probability (P) by Assessable Type
+
+**Note**: In Feasibility-Only Mode (default_transition_probability=1.0), P is mostly hidden from users:
+- DialecticalComponent: P defaults to 1.0 (facts exist)
+- Transition: P defaults to 1.0 (relationships are certain)
+- You only focus on R for scoring
+
+**In Advanced Mode only**, P represents structural feasibility:
 
 **DialecticalComponent**: *"How likely is this statement to be valid/true?"*
 - Empirical support, logical consistency, expert consensus
@@ -498,19 +581,29 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 
 ## Practical Implications
 
-This means scoring interpretation should be context-sensitive:
+Scoring interpretation depends on the mode:
 
+**Feasibility-Only Mode (default_transition_probability=1.0):**
+```
+Transition Score: 0.75 | R=0.75 | P=1.0
+↓
+"This transition is 75% feasible overall"
+
+Component Score: 0.90 | R=0.90 | P=1.0
+↓
+"This concept is 90% feasible overall"
+```
+
+**Advanced Mode (default_transition_probability=None):**
 ```
 Transition Score: 0.75 | R=0.90 | P=0.83
 ↓
-"This change step is highly appropriate for your culture/context (R=0.90)
+"This change step is highly appropriate for your context (R=0.90)
 and very likely to succeed structurally (P=0.83)"
-
-vs.
 
 Component Score: 0.75 | R=0.90 | P=0.83
 ↓
-"This concept fits your situation or reality perfectly (R=0.90)
+"This concept fits your situation perfectly (R=0.90)
 and has strong empirical support (P=0.83)"
 ```
 
