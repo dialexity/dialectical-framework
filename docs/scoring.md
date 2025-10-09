@@ -212,24 +212,38 @@ These implementation differences are expected and the key behaviors (leaves not 
 
 ### Rationale Semantics: Evidence vs Audits
 
+**Core Principle: Rationale P/R values assess the parent element, not the rationale itself.**
+
+A `Rationale` object has three key fields: `relevance`, `probability`, and `rating`. Critically:
+- **Rationale.relevance** = *"How relevant is THE PARENT ELEMENT (Component/Transition) to context?"*
+- **Rationale.probability** = *"How feasible is THE PARENT ELEMENT's structural arrangement?"*
+- **Rationale.rating** = *"How much weight/authority does this assessment carry?"*
+
+These are **not** assessments of the rationale itself - they are assessments of the parent element, with the rationale providing the explanatory text/reasoning.
+
 The framework uses rationales (the `rationales[]` array) with different semantics depending on the parent:
 
 **Element → rationales[] (Evidence Aggregation)**
 
 When an element (Component, Transition, etc.) has rationales, they are **independent evidence sources** that aggregate:
 
-- **Element's own R/P**: Direct evidence without explanation text (like a rationale without justification)
-- **Rationale R/P**: Evidence with explanation text and reasoning
-- **Both are equal evidence sources** - semantically the same role, just with/without explanation
+- **Element's own R/P**: Direct assessment of itself without explanation
+- **Rationale R/P**: Assessment of the parent element with explanation text
+- **Both assess the same target** (the parent element) - just with/without justification text
 - All evidence aggregates via **Geometric Mean**: `GM(element_own × element_rating, rationale1 × rating1, rationale2 × rating2, ...)`
 - Example:
   ```
-  Component(R=0.8, rating=0.9) ← "Direct assessment: 0.8"
-  ├─ Rationale1(R=0.7, rating=0.8) ← "Expert evidence: 0.7"
-  └─ Rationale2(R=0.6, rating=0.7) ← "Another source: 0.6"
+  Component(R=0.8, rating=0.9)
+  ├─ Rationale1(R=0.7, rating=0.8, text="Expert A: this component is 70% relevant because...")
+  └─ Rationale2(R=0.6, rating=0.7, text="Expert B: this component is 60% relevant because...")
+
+  All three assess THE COMPONENT's relevance:
+  - Direct: Component says "I'm 80% relevant" (no justification)
+  - Expert A: "Component is 70% relevant because..." (with justification)
+  - Expert B: "Component is 60% relevant because..." (with justification)
 
   Final R = GM(0.8×0.9, 0.7×0.8, 0.6×0.7) ≈ 0.52
-  # All evidence sources combined via GM
+  # Geometric mean of all independent assessments OF THE COMPONENT
   ```
 
 **Rationale → rationales[] (Audit Override)**
@@ -244,11 +258,16 @@ When a rationale has child rationales, they are **critiques/audits** with more c
 - rating=0 means "ignore this critique"
 - Example:
   ```
-  Rationale(R=0.9, P=0.8) ← "Original assessment"
-  └─ Critique(R=0.5, P=0.6, rating=0.9) ← "Auditor correction"
+  Component(R=?, P=?) ← "What are this component's R and P?"
+  └─ Rationale(R=0.9, P=0.8, text="Initial assessment: R=0.9, P=0.8 because...")
+      └─ Critique(R=0.5, P=0.6, rating=0.9, text="Auditor: Actually R=0.5, P=0.6 because...")
+
+  Both Rationale and Critique assess THE COMPONENT's R and P:
+  - Rationale: "Component has R=0.9, P=0.8"
+  - Critique: "No, component has R=0.5, P=0.6" (auditor correction)
 
   Final R = 0.5, P = 0.6
-  # Audit overrides original
+  # Auditor's assessment wins (more context/authority)
   ```
 
 **Key Distinction:**
@@ -259,10 +278,25 @@ When a rationale has child rationales, they are **critiques/audits** with more c
 | **Rationale → Rationale** | Audit/critique override | Weighted avg or GM (deepest wins) | N/A (deepest critique wins) |
 
 **Why This Makes Sense:**
-- Element's manual R = "I claim this relevance" (evidence without justification)
-- Element's rationales = "Here's explained evidence" (evidence with justification)
-- Both are just different forms of **evidence** → combine via GM
-- Rationale's child rationales = "Actually, let me correct that assessment" → **override** via auditor-wins
+
+When assessing a DialecticalComponent or Transition, you have multiple ways to provide evidence:
+
+1. **Direct assessment** (Element's own R/P):
+   - `Component(relevance=0.8, probability=0.9)`
+   - Meaning: *"I assess this component's relevance as 0.8 and probability as 0.9"*
+   - No explanation provided - just the numbers
+
+2. **Rationalized assessment** (Element's rationales):
+   - `Rationale(relevance=0.7, probability=0.85, text="Because of X, Y, Z...")`
+   - Meaning: *"I assess THE COMPONENT's relevance as 0.7 and probability as 0.85, here's why..."*
+   - Explanation provided - justified assessment
+
+Both assess **the same target** (the parent element), so they aggregate as **independent evidence sources** via GM.
+
+3. **Audit/critique** (Rationale's child rationales):
+   - `Rationale(relevance=0.9) → Critique(relevance=0.5, rating=0.9)`
+   - Meaning: *"Original assessment was 0.9, but auditor says actually it's 0.5"*
+   - Critiques **override** the original assessment (auditor-wins), they don't aggregate with it
 
 ### Relevance (R) Implementation
 
