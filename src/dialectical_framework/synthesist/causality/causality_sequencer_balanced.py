@@ -202,18 +202,27 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         if thoughts and isinstance(thoughts[0], WisdomUnit):
             ordered_wisdom_units: list[WisdomUnit] = thoughts
             if len(thoughts) == 1:
-                # TODO: must we normalize anything here?
-                return [
-                    Cycle(
-                        dialectical_components=[
-                            ordered_wisdom_units[0].t,
-                            ordered_wisdom_units[0].a,
-                        ],
-                        calculated_probability=1.0,
-                        causality_type=self.settings.causality_type,
-                        default_transition_probability=self.settings.default_transition_probability,
-                    )
-                ]
+                # Single WisdomUnit: create synthetic cycle DTO and normalize
+                dialectical_components_deck = DialecticalComponentsDeck(
+                    dialectical_components=[
+                        ordered_wisdom_units[0].t,
+                        ordered_wisdom_units[0].a,
+                    ]
+                )
+
+                # Create synthetic cycle DTO with feasibility=1.0 (single cycle, certain)
+                causal_cycles_deck = CausalCyclesDeckDto(
+                    causal_cycles=[
+                        CausalCycleDto(
+                            aliases=[ordered_wisdom_units[0].t.alias, ordered_wisdom_units[0].a.alias],
+                            probability=1.0,
+                            reasoning_explanation="Single unit self-loop cycle",
+                            argumentation="Default unit cycle"
+                        )
+                    ]
+                )
+
+                return self._normalize(dialectical_components_deck, causal_cycles_deck)
             elif len(thoughts) == 2:
                 dialectical_components_deck = DialecticalComponentsDeck(
                     dialectical_components=[
@@ -254,29 +263,32 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             causal_cycles_deck = await self._estimate_cycles(sequences=sequences)
         else:
             if len(thoughts) == 1:
+                # Single DialecticalComponent: create synthetic cycle DTO and normalize
                 if thoughts and isinstance(thoughts[0], DialecticalComponent):
-                    return [
-                        Cycle(
-                            dialectical_components=thoughts,
-                            calculated_probability=1.0,
-                            causality_type=self.settings.causality_type,
-                            default_transition_probability=self.settings.default_transition_probability,
-                        )
-                    ]
+                    component = thoughts[0]
                 else:
-                    return [
-                        Cycle(
-                            dialectical_components=[
-                                DialecticalComponent(
-                                    alias="T",
-                                    statement=thoughts[0],
-                                )
-                            ],
-                            calculated_probability=1.0,
-                            causality_type=self.settings.causality_type,
-                            default_transition_probability=self.settings.default_transition_probability,
+                    component = DialecticalComponent(
+                        alias="T",
+                        statement=thoughts[0],
+                    )
+
+                dialectical_components_deck = DialecticalComponentsDeck(
+                    dialectical_components=[component]
+                )
+
+                # Create synthetic cycle DTO with feasibility=1.0 (single cycle, self-loop)
+                causal_cycles_deck = CausalCyclesDeckDto(
+                    causal_cycles=[
+                        CausalCycleDto(
+                            aliases=[component.alias],
+                            probability=1.0,
+                            reasoning_explanation="Single component self-loop cycle",
+                            argumentation="Default single-thought cycle"
                         )
                     ]
+                )
+
+                return self._normalize(dialectical_components_deck, causal_cycles_deck)
             elif len(thoughts) <= 4:
                 if thoughts and isinstance(thoughts[0], DialecticalComponent):
                     dialectical_components_deck = DialecticalComponentsDeck(
