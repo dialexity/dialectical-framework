@@ -107,7 +107,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
                 audit = audits[audit_index]
                 r.rationales.append(Rationale(
                     relevance=audit.feasibility,
-                    text=f"Key Factors: {audit.key_factors}\n\nArgumentation: {audit.argumentation}\n\nConditions for Success: {audit.success_conditions}"
+                    text=f"**Key Factors:** {audit.key_factors}\n\n**Argumentation:** {audit.argumentation}\n\n**Conditions for Success:** {audit.success_conditions}"
                 ))
                 audit_index += 1
 
