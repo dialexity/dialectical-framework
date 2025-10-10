@@ -26,7 +26,7 @@ Where **alpha (α ≥ 0)** is a global parameter controlling how much relevance 
 **For most use cases, you want to assess "How feasible/good is this idea?" without separating probability from relevance.**
 
 The simplest way to use the framework is **feasibility-only mode**:
-- Set `default_transition_probability = 1.0` in Settings or environment (`DIALEXITY_DEFAULT_TRANSITION_PROBABILITY=1.0`)
+- Configure transitions to default to P=1.0 (certain)
 - Use **Relevance (R)** as your "feasibility" score
 - Set `α = 1.0` (default)
 
@@ -440,10 +440,9 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 * **Structure-only flow:** P aggregates only along transitions and cycles, not content elements
 * **Component default:** DialecticalComponent.P defaults to 1.0 (fact) unless manually set
 * **Transition default (configurable):**
-  - **Settings.default_transition_probability** controls fallback behavior for transitions without explicit P
+  - Controls fallback behavior for transitions without explicit P
   - **None** (default): Transitions without explicit P return None, requiring explicit probability assessments ("no free lunch")
   - **1.0**: Transitions without explicit P default to 1.0, enabling **feasibility-only mode** (Score ≈ R)
-  - Set via environment: `DIALEXITY_DEFAULT_TRANSITION_PROBABILITY=1.0`
 * **Confidence weighting:** Applied only when aggregating rationale probabilities at transitions
 * **No ratings in P:** Unlike R, probability calculations ignore rating values
 * **Sequence veto behavior:** In cycles (sequences), any transition with P = 0 → entire cycle P = 0
@@ -498,14 +497,14 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 ### Two Scoring Modes
 
 **1. Simple Mode (Recommended): Feasibility-Only Scoring**
-- Set `default_transition_probability = 1.0` (environment: `DIALEXITY_DEFAULT_TRANSITION_PROBABILITY=1.0`)
+- Configure transitions to default to P=1.0
 - **Score = R** (feasibility)
 - Use **Relevance (R)** as a single "feasibility" measure combining context, facts, and viability
 - Simpler mental model: "How feasible is this?"
 - Recommended for most users
 
 **2. Advanced Mode: Dual-Dimension Scoring**
-- Keep `default_transition_probability = None` (default)
+- Require explicit probability values on transitions
 - **Score = P × R^α**
 - Separate **Probability (P)** (structural feasibility) from **Relevance (R)** (contextual fit)
 - More complex but allows distinguishing "structurally sound but contextually irrelevant" cases
@@ -527,8 +526,8 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 
 ## Relevance (R) by Assessable Type
 
-**In Feasibility-Only Mode (default_transition_probability=1.0)**, R represents overall feasibility/goodness.
-**In Advanced Mode (default_transition_probability=None)**, R represents contextual fit while P represents structural soundness.
+**In Feasibility-Only Mode (P=1.0 default)**, R represents overall feasibility/goodness.
+**In Advanced Mode (explicit P required)**, R represents contextual fit while P represents structural soundness.
 
 **DialecticalComponent**:
 - *Feasibility-Only*: "How feasible/valid is this statement?"
@@ -557,7 +556,7 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 
 ## Probability (P) by Assessable Type
 
-**Note**: In Feasibility-Only Mode (default_transition_probability=1.0), P is mostly hidden from users:
+**Note**: In Feasibility-Only Mode (P=1.0 default), P is mostly hidden from users:
 - DialecticalComponent: P defaults to 1.0 (facts exist)
 - Transition: P defaults to 1.0 (relationships are certain)
 - You only focus on R for scoring
@@ -583,7 +582,7 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 
 Scoring interpretation depends on the mode:
 
-**Feasibility-Only Mode (default_transition_probability=1.0):**
+**Feasibility-Only Mode (P=1.0 default):**
 ```
 Transition Score: 0.75 | R=0.75 | P=1.0
 ↓
@@ -594,7 +593,7 @@ Component Score: 0.90 | R=0.90 | P=1.0
 "This concept is 90% feasible overall"
 ```
 
-**Advanced Mode (default_transition_probability=None):**
+**Advanced Mode (explicit P required):**
 ```
 Transition Score: 0.75 | R=0.90 | P=0.83
 ↓
