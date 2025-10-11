@@ -216,7 +216,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                         CausalCycleDto(
                             aliases=[ordered_wisdom_units[0].t.alias, ordered_wisdom_units[0].a.alias],
                             probability=1.0,
-                            reasoning_explanation="Single unit self-loop cycle",
+                            reasoning_explanation="Single unit cycle",
                             argumentation="Default unit cycle"
                         )
                     ]

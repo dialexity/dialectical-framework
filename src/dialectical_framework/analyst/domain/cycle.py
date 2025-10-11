@@ -37,7 +37,7 @@ class Cycle(AssessableCycle[TransitionCellToCell]):
     def __init__(
         self,
         dialectical_components: list[DialecticalComponent],
-        causality_type: CausalityType = CausalityType.REALISTIC,
+        causality_type: CausalityType = CausalityType.BALANCED,
         default_transition_probability: float | None = None,
         **data,
     ):
