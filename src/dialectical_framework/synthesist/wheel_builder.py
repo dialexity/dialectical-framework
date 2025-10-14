@@ -143,7 +143,7 @@ class WheelBuilder(SettingsAware):
 
         wheel_wisdom_units = []
         for dc in t_cycle.dialectical_components:
-            wu = await self.reasoner.think(thesis=dc.statement)
+            wu = await self.reasoner.think(thesis=dc)
             if dc.rationales:
                 wu.t.rationales.extend(dc.rationales)
 

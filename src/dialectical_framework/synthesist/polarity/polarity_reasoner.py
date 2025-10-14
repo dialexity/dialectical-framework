@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import inspect
-from abc import abstractmethod
 from typing import Self
 
 from dependency_injector.wiring import Provide
@@ -15,16 +13,21 @@ from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
-from dialectical_framework.synthesist.domain.dialectical_analysis import DialecticalAnalysis
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.dialectical_components_deck import \
-    DialecticalComponentsDeck
 from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.protocols.has_brain import HasBrain
+from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.settings import Settings
+from dialectical_framework.synthesist.domain.dialectical_analysis import DialecticalAnalysis
+from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.synthesist.domain.dialectical_components_deck import \
+    DialecticalComponentsDeck
+from dialectical_framework.synthesist.domain.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
+                                                                   ALIAS_T_PLUS)
+from dialectical_framework.synthesist.domain.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
+                                                                 ALIAS_A_PLUS, WisdomUnit)
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
@@ -34,10 +37,6 @@ from dialectical_framework.validator.basic_checks import (check,
                                                           is_positive_side,
                                                           is_strict_opposition,
                                                           is_valid_opposition)
-from dialectical_framework.synthesist.domain.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
-                                                                   ALIAS_T_PLUS)
-from dialectical_framework.synthesist.domain.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                                                 ALIAS_A_PLUS, WisdomUnit)
 
 
 class PolarityReasoner(HasBrain, Reloadable):
@@ -45,6 +44,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         self,
         *,
         text: str = "",
+        polarity_extractor: PolarityExtractor = Provide[DI.polarity_extractor],
     ):
         self._text = text
         self._wisdom_unit = None
@@ -52,6 +52,9 @@ class PolarityReasoner(HasBrain, Reloadable):
         self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
 
         self._analysis = DialecticalAnalysis(corpus=self._text)
+
+        self._extractor = polarity_extractor
+        self._extractor.reload(text=text)
 
     @property
     def text(self) -> str:
@@ -61,6 +64,8 @@ class PolarityReasoner(HasBrain, Reloadable):
         self, *, text: str, perspectives: WisdomUnit | list[WisdomUnit] = None
     ) -> Self:
         self._text = text
+        self._extractor.reload(text=text)
+
         if not perspectives:
             perspectives = []
         if isinstance(perspectives, WisdomUnit):
@@ -77,53 +82,6 @@ class PolarityReasoner(HasBrain, Reloadable):
         else:
             self._wisdom_unit = None
         return self
-
-    @prompt_template(
-        """
-        USER:
-        {start}
-        
-        USER:
-        Extract the central idea or the primary thesis (denote it as T) of the context with minimal distortion. If already concise (single word/phrase/clear thesis), keep it intact; only condense verbose messages while preserving original meaning.
-    
-        Output the dialectical component T within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" in the explanation. 
-        """
-    )
-    def prompt_thesis(
-        self, text: str = None, config: Settings = Provide[DI.settings]
-    ) -> Messages.Type:
-        return {
-            "computed_fields": {
-                # Sometimes we don't want the whole user input again, as we're calculating the thesis within a longer analysis
-                "start": (
-                    "<context>" + inspect.cleandoc(text) + "</context>"
-                    if text
-                    else "Ok."
-                ),
-                "component_length": config.component_length,
-            },
-        }
-
-    @prompt_template(
-        """
-        A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
-        
-        Generate a dialectical opposition (A) of the thesis "{thesis}" (T). Be detailed enough to show deep understanding, yet concise enough to maintain clarity.
-    
-        Output the dialectical component A within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
-        """
-    )
-    def prompt_antithesis(
-        self, thesis: str | DialecticalComponent, config: Settings = Provide[DI.settings]
-    ) -> Messages.Type:
-        if isinstance(thesis, DialecticalComponent):
-            thesis = thesis.statement
-        return {
-            "computed_fields": {
-                "thesis": thesis,
-                "component_length": config.component_length,
-            },
-        }
 
     @prompt_template(
         """
@@ -268,21 +226,53 @@ class PolarityReasoner(HasBrain, Reloadable):
         }
 
     @prompt_template()
-    @abstractmethod
-    def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type: ...
+    def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type:
+        """
+        Raises:
+            ValueError: If the wisdom unit is incorrect.
+            StopIteration: If the wisdom unit is complete already.
+        """
+        if not wu_so_far.t:
+            raise ValueError("T - not present")
 
-    @with_langfuse()
-    @use_brain(response_model=DialecticalComponentDto)
-    async def find_thesis(self) -> DialecticalComponentDto:
-        return self.prompt_thesis(self._text)
+        prompt_messages = []
 
-    @with_langfuse()
-    @use_brain(response_model=DialecticalComponentDto)
-    async def find_antithesis(
-        self,
-        thesis: str,
-    ) -> DialecticalComponentDto:
-        return self.prompt_antithesis(thesis)
+        if not wu_so_far.t_minus:
+            prompt_messages.extend(
+                self.prompt_thesis_negative_side(
+                    wu_so_far.t, wu_so_far.a_minus if wu_so_far.a_minus else ""
+                )
+            )
+            return prompt_messages
+
+        if not wu_so_far.a:
+            raise ValueError("A - not present")
+
+        if not wu_so_far.a_minus:
+            prompt_messages.extend(
+                self.prompt_antithesis_negative_side(
+                    wu_so_far.a, wu_so_far.t_minus if wu_so_far.t_minus else ""
+                )
+            )
+            return prompt_messages
+
+        if not wu_so_far.a_minus:
+            raise ValueError("A- - not present")
+        if not wu_so_far.t_plus:
+            prompt_messages.extend(
+                self.prompt_thesis_positive_side(wu_so_far.t, wu_so_far.a_minus)
+            )
+            return prompt_messages
+
+        if not wu_so_far.t_minus:
+            raise ValueError("T- - not present")
+        if not wu_so_far.a_plus:
+            prompt_messages.extend(
+                self.prompt_antithesis_positive_side(wu_so_far.a, wu_so_far.t_minus)
+            )
+            return prompt_messages
+
+        raise StopIteration("The wisdom unit is complete, nothing to do.")
 
     @with_langfuse()
     @use_brain(response_model=DialecticalComponentDto)
@@ -348,24 +338,34 @@ class PolarityReasoner(HasBrain, Reloadable):
     ) -> DialecticalComponentsDeckDto:
         return self.prompt_synthesis(wu)
 
-    async def think(self, thesis: str | DialecticalComponent = None) -> WisdomUnit:
+    async def _find_polarity(self, *, thesis: str | DialecticalComponent = None, antithesis: str | DialecticalComponent = None) -> tuple[DialecticalComponent, DialecticalComponent]:
+        if not isinstance(thesis, DialecticalComponent) or not isinstance(antithesis, DialecticalComponent):
+            polarity = await self._extractor.extract_polarities(given = [(thesis.statement
+                        if isinstance(thesis, DialecticalComponent)
+                        else thesis,
+                        antithesis.statement
+                        if isinstance(antithesis, DialecticalComponent)
+                        else antithesis)])
+            t, a = polarity[0]
+            if isinstance(thesis, DialecticalComponent):
+                t = thesis
+                a.set_human_friendly_index(thesis.get_human_friendly_index())
+            elif isinstance(thesis, DialecticalComponent):
+                a = antithesis
+                t.set_human_friendly_index(antithesis.get_human_friendly_index())
+        else:
+            t = thesis
+            a = antithesis
+
+        return t, a
+
+    async def think(self, *, thesis: str | DialecticalComponent = None, antithesis: str | DialecticalComponent = None)\
+            -> WisdomUnit:
         # TODO: when thesis is a simple str, we need to actualize it with AI, where it comes from
         wu = WisdomUnit(reasoning_mode=self._mode)
-
-        if thesis is not None:
-            if isinstance(thesis, DialecticalComponent):
-                if thesis.alias != ALIAS_T:
-                    raise ValueError(
-                        f"The thesis cannot be a dialectical component with alias '{thesis.alias}'"
-                    )
-                wu.t = thesis
-            else:
-                wu.t = DialecticalComponent(
-                    alias=ALIAS_T, statement=thesis,
-                    # explanation="Provided as string"
-                )
-        else:
-            wu.t = map_from_dto(await self.find_thesis(), DialecticalComponent)
+        t, a = await self._find_polarity(thesis=thesis, antithesis=antithesis)
+        wu.t = t
+        wu.a = a
 
         self._wisdom_unit = await self._fill_with_reason(wu)
         self._analysis.perspectives.append(self._wisdom_unit)
@@ -470,7 +470,7 @@ class PolarityReasoner(HasBrain, Reloadable):
             if not check1.valid:
                 if changed.get(base) and not changed.get(other):
                     # base side changed
-                    o = map_from_dto(await self.find_antithesis(getattr(new_wu, base).statement), DialecticalComponent)
+                    o = await self._extractor.extract_single_antithesis(thesis=getattr(new_wu, base).statement)
                     assert isinstance(o, DialecticalComponent)
                     if o.best_rationale and o.best_rationale.text:
                         o.best_rationale.text = f"REGENERATED. {o.best_rationale.text}"
@@ -480,8 +480,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                     check1.explanation = "Regenerated, therefore must be valid."
                 elif changed.get(other) and not changed.get(base):
                     # other side changed
-                    bm = map_from_dto(await self.find_antithesis(getattr(new_wu, other).statement), DialecticalComponent)
-                    assert isinstance(bm, DialecticalComponent)
+                    bm = await self._extractor.extract_single_antithesis(thesis=getattr(new_wu, other).statement)
                     if bm.best_rationale and bm.best_rationale.text:
                         bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
                     setattr(new_wu, base, bm)

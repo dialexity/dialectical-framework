@@ -48,7 +48,10 @@ class WheelSegment(BaseModel):
         }
 
     def is_complete(self):
-        return all(v is not None for v in self.model_dump(exclude_none=False).values())
+        """
+        Check if all dialectical fields in the wheel segment are populated (not None).
+        """
+        return all(getattr(self, field) is not None for field in self.field_to_alias.keys())
 
     def is_same(self, other: WheelSegment) -> bool:
         if self == other:

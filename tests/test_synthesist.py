@@ -5,9 +5,7 @@ from pydantic import BaseModel
 
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.synthesist.polarity.reason_blind import ReasonBlind
-from dialectical_framework.synthesist.polarity.reason_conversational import \
-    ReasonConversational
+from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
 from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.polarity.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
@@ -49,63 +47,20 @@ async def test_bigger_wheel(number_of_thoughts):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("reasoner_cls", [
+    PolarityReasoner,
     ReasonFastAndSimple,
     ReasonFast,
-    ReasonBlind,
-    ReasonConversational,
-    ReasonFastPolarizedConflict,
-])
-async def test_reasoner_find_thesis(di_container, reasoner_cls):
-    with di_container.override_providers(
-            polarity_reasoner=providers.Singleton(
-                reasoner_cls,
-            )
-    ):
-        reasoner = di_container.polarity_reasoner()
-        reasoner.reload(text=user_message)
-        thesis = await reasoner.find_thesis()
-        assert thesis is not None
-        print("\n")
-        print(thesis)
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("reasoner_cls", [
-    ReasonFastAndSimple,
-    ReasonFast,
-    ReasonBlind,
-    ReasonConversational,
-    ReasonFastPolarizedConflict,
-])
-async def test_reasoner_find_antithesis(di_container, reasoner_cls):
-    with di_container.override_providers(
-            polarity_reasoner=providers.Singleton(
-                reasoner_cls,
-            )
-    ):
-        reasoner = di_container.polarity_reasoner()
-        reasoner.reload(text=user_message)
-        antithesis = await reasoner.find_antithesis("Putin starts war")
-        assert antithesis is not None
-        print("\n")
-        print(antithesis)
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("reasoner_cls", [
-    ReasonFastAndSimple,
-    ReasonFast,
-    ReasonBlind,
-    ReasonConversational,
     ReasonFastPolarizedConflict,
 ])
 async def test_reasoner(di_container, reasoner_cls):
     with di_container.override_providers(
             polarity_reasoner=providers.Singleton(
-                ReasonBlind,
+                reasoner_cls,
             )
     ):
         reasoner = di_container.polarity_reasoner()
         reasoner.reload(text=user_message)
-        wu: BaseModel = await reasoner.think()
+        wu = await reasoner.think()
         assert wu.is_complete()
         print("\n")
         print(wu)
