@@ -8,4 +8,4 @@ class DI(str, Enum):
     brain = "brain"
     polarity_reasoner = "polarity_reasoner"
     causality_sequencer = "causality_sequencer"
-    thesis_extractor = "thesis_extractor"
+    polarity_extractor = "polarity_extractor"

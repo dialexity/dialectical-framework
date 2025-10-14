@@ -106,7 +106,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         rule_out = ""
 
         if not_like_these:
-            rule_out = "IMPORTANT: The output concepts must have different than these already known theses:\n" + "\n".join(
+            rule_out = "IMPORTANT: The output concepts must be different than these already known theses:\n" + "\n".join(
                 not_like_these)
 
         return {
@@ -129,14 +129,15 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         async def _find_theses():
             return self.prompt_multiple_theses(count=count, not_like_these=not_like_these)
 
-        if count <= 4:
-            deck_dto = await _find_theses()
-            deck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(deck_dto.dialectical_components, DialecticalComponent))
-            if count == 1 and len(deck.dialectical_components) == 1:
-                dc: DialecticalComponent = deck.dialectical_components[0]
-                dc.set_human_friendly_index(0)
-        else:
-            raise ValueError(f"More than 4 theses are not supported yet.")
+        deck_dto = await _find_theses()
+        components = map_list_from_dto(deck_dto.dialectical_components, DialecticalComponent)
+        if len(components) < count:
+            raise ValueError(f"AI returned {len(components)} components but {count} were requested.")
+        # Take only the requested count if AI returned more
+        deck = DialecticalComponentsDeck(dialectical_components=components[:count])
+        if count == 1 and len(deck.dialectical_components) == 1:
+            dc: DialecticalComponent = deck.dialectical_components[0]
+            dc.set_human_friendly_index(0)
         return deck
 
     async def extract_single_thesis(self, *, not_like_these: list[str] | None = None) -> DialecticalComponent:

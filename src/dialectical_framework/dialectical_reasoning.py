@@ -7,6 +7,7 @@ from dialectical_framework.brain import Brain
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.protocols.causality_sequencer import \
     CausalitySequencer
+from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
@@ -17,6 +18,7 @@ from dialectical_framework.synthesist.causality.causality_sequencer_feasible imp
     CausalitySequencerFeasible
 from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
     CausalitySequencerRealistic
+from dialectical_framework.synthesist.concepts.polarity_extractor_basic import PolarityExtractorBasic
 from dialectical_framework.synthesist.concepts.thesis_extractor_basic import \
     ThesisExtractorBasic
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
@@ -76,8 +78,8 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         settings=settings,
     )
 
-    thesis_extractor: providers.Factory[ThesisExtractor] = providers.Factory(
-        ThesisExtractorBasic,
+    polarity_extractor: providers.Factory[PolarityExtractor] = providers.Factory(
+        PolarityExtractorBasic,
     )
 
     wheel_builder: providers.Factory[WheelBuilder] = providers.Factory(WheelBuilder)

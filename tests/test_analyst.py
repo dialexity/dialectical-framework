@@ -114,3 +114,50 @@ async def test_find_theses(number_of_thoughts):
     theses_deck = await factory.extractor.extract_multiple_theses(count=number_of_thoughts)
     theses = [dc.statement for dc in theses_deck.dialectical_components]
     print("\n".join(theses))
+
+
+@pytest.mark.asyncio
+@observe()
+@pytest.mark.parametrize("given,expected_count", [
+    # Single polarity - both empty
+    ([(None, None)], 1),
+    # Single polarity - thesis provided
+    ([("Love", None)], 1),
+    # # Single polarity - antithesis provided
+    ([(None, "Hate")], 1),
+    # # Single polarity - both provided
+    ([("Love", "Hate")], 1),
+    # # Multiple polarities - mixed
+    ([("Love", None), (None, "Home")], 2),
+    # # Multiple polarities - all empty
+    ([(None, None), (None, None)], 2),
+    # # Multiple polarities - various combinations
+    ([("Love", None), (None, "Home"), ("Peace", "War"), (None, None)], 4),
+])
+async def test_find_polarities(given, expected_count):
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
+    polarities = await factory.extractor.extract_polarities(given=given)
+
+    assert len(polarities) == expected_count
+
+    print("\n")
+    # Print results
+    for t, a in polarities:
+        print(t)
+        print(a)
+        print("\n")
+
+    # Verify all components exist and have correct aliases
+    for i, (t, a) in enumerate(polarities):
+        assert t is not None and a is not None
+        # Check aliases: T/A for single, T1/A1, T2/A2, etc. for multiple
+        if expected_count == 1:
+            assert t.alias == "T"
+            assert a.alias == "A"
+        else:
+            assert t.alias == f"T{i + 1}"
+            assert a.alias == f"A{i + 1}"
+        # Verify index: 0 for single, 1-based for multiple
+        expected_idx = 0 if expected_count == 1 else i + 1
+        assert t.get_human_friendly_index() == expected_idx
+        assert a.get_human_friendly_index() == expected_idx

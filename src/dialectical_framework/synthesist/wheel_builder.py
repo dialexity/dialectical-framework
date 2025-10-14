@@ -7,6 +7,7 @@ from dependency_injector.wiring import Provide
 from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
 from dialectical_framework.analyst.domain.cycle import Cycle
+from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
@@ -26,7 +27,7 @@ from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
 class WheelBuilder(SettingsAware):
     def __init__(
         self,
-        thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],
+        polarity_extractor: PolarityExtractor = Provide[DI.polarity_extractor],
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
         polarity_reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
         *,
@@ -38,7 +39,7 @@ class WheelBuilder(SettingsAware):
 
         # TODO: reloading singletons isn't very good design here, because we're guessing the parameters...
 
-        self.__extractor = thesis_extractor
+        self.__extractor = polarity_extractor
         self.__extractor.reload(text=text)
 
         self.__sequencer = causality_sequencer
@@ -56,7 +57,7 @@ class WheelBuilder(SettingsAware):
         return self.__text
 
     @property
-    def extractor(self) -> ThesisExtractor:
+    def extractor(self) -> PolarityExtractor:
         return self.__extractor
 
     @property
