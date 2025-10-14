@@ -1,4 +1,4 @@
-# Dialectical Framework
+# Dialectical Reasoning Framework
 Turn stories, strategies, or systems into insight. Auto-generate Dialectical Wheels (DWs) from any text to reveal blind spots, surface polarities, and trace dynamic paths toward synthesis.
  DWs are semantic maps that expose tension, transformation, and coherence within a system—whether narrative, ethical, organizational, or technological.
 
