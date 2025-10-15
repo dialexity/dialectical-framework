@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Self
+from typing import Self, final
 
 from dependency_injector.wiring import Provide
 from mirascope import BaseMessageParam, Messages, prompt_template
@@ -338,6 +338,7 @@ class PolarityReasoner(HasBrain, Reloadable):
     ) -> DialecticalComponentsDeckDto:
         return self.prompt_synthesis(wu)
 
+    @final
     async def _find_polarity(self, *, thesis: str | DialecticalComponent = None, antithesis: str | DialecticalComponent = None) -> tuple[DialecticalComponent, DialecticalComponent]:
         if not isinstance(thesis, DialecticalComponent) or not isinstance(antithesis, DialecticalComponent):
             polarity = await self._extractor.extract_polarities(given = [(thesis.statement
@@ -359,6 +360,7 @@ class PolarityReasoner(HasBrain, Reloadable):
 
         return t, a
 
+    @final
     async def think(self, *, thesis: str | DialecticalComponent = None, antithesis: str | DialecticalComponent = None)\
             -> WisdomUnit:
         # TODO: when thesis is a simple str, we need to actualize it with AI, where it comes from
