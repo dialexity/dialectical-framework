@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Union
 
+from dialectical_framework import DialecticalComponent
 from dialectical_framework.analyst.domain.cycle import Cycle
 from dialectical_framework.analyst.domain.transition import Transition
 from dialectical_framework.enums.predicate import Predicate
@@ -38,7 +39,7 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.__decorated_builder.settings
 
     async def build_wheel_permutations(
-        self, *, theses: list[Union[str, None]] = None, t_cycle: Cycle = None
+        self, *, theses: Union[list[str | DialecticalComponent | None], list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]] = None, t_cycle: Cycle = None
     ) -> list[Wheel]:
         return await self.__decorated_builder.build_wheel_permutations(
             theses=theses, t_cycle=t_cycle

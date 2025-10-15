@@ -392,7 +392,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
     @staticmethod
     def _get_sequences(
-        thoughts: Union[list[str], list[WisdomUnit], list[DialecticalComponent]],
+        thoughts: Union[list[str], list[tuple[str, str]], list[WisdomUnit], list[DialecticalComponent]],
     ) -> list[list[DialecticalComponent]]:
         if len(thoughts) == 0:
             raise ValueError("No thoughts provided.")

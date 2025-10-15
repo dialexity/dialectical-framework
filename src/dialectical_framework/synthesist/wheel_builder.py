@@ -68,14 +68,14 @@ class WheelBuilder(SettingsAware):
     def sequencer(self) -> CausalitySequencer:
         return self.__sequencer
 
-    async def t_cycles(self, *, theses: list[Union[str, None]] = None) -> list[Cycle]:
+    async def t_cycles(self, *, theses: list[Union[str, DialecticalComponent, None]] = None) -> list[Cycle]:
         if theses is None:
             # No theses provided, generate one automatically
             t = await self.extractor.extract_single_thesis()
             t.alias = ALIAS_T
             theses = [t]
         else:
-            # Handle mixed None and str values
+            # Handle mixed None, str, and DialecticalComponent values
             final_theses: list[DialecticalComponent | None] = []
             none_positions = []
 
@@ -85,10 +85,14 @@ class WheelBuilder(SettingsAware):
                     none_positions.append(i)
                     final_theses.append(None)  # Placeholder
                 else:
-                    provided_thesis = DialecticalComponent(
-                        alias=f"{ALIAS_T}",
-                        statement=thesis,
-                    )
+                    if isinstance(thesis, str):
+                        provided_thesis = DialecticalComponent(
+                            alias=f"{ALIAS_T}",
+                            statement=thesis,
+                        )
+                    else:  # thesis is DialecticalComponent
+                        provided_thesis = thesis
+                    # TODO: is it ok to change the index for a given DialecticalComponent?
                     provided_thesis.set_human_friendly_index(i + 1)
                     final_theses.append(provided_thesis)
 
@@ -105,7 +109,8 @@ class WheelBuilder(SettingsAware):
                     final_theses[pos] = generated_thesis
                 else:
                     # Multiple theses case - extract all missing ones at once
-                    t_deck = await self.extractor.extract_multiple_theses(count=len(none_positions), not_like_these=known_theses)
+                    t_deck = await self.extractor.extract_multiple_theses(count=len(none_positions),
+                                                                          not_like_these=known_theses)
                     generated_theses = t_deck.dialectical_components
 
                     # Place generated theses in their correct positions
@@ -122,30 +127,50 @@ class WheelBuilder(SettingsAware):
                             generated_thesis.alias = ALIAS_T
                             generated_thesis.set_human_friendly_index(pos + 1)
                             final_theses[pos] = generated_thesis
-
+    
             theses = final_theses
-
+    
         cycles: list[Cycle] = await self.__sequencer.arrange(theses)
         return cycles
 
     async def build_wheel_permutations(
-        self, *, theses: list[Union[str, None]] = None, t_cycle: Cycle = None
+        self, *, theses: Union[list[str | DialecticalComponent | None], list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]] = None, t_cycle: Cycle = None
     ) -> list[Wheel]:
         """
-        TODO: theses are used only when t_cycle is not provided. should be single param or so. Refactor
         IMPORTANT: t_cycle is the "path" we take for permutations. If not provided, we'll take the most likely path.
         Do not confuse it with building all wheels for all "paths"
+
+        The tuple in the thesis list is used to provide antithesis for the thesis, where the first element is the thesis, the second is the antithesis.
         """
         if t_cycle is None:
-            cycles: list[Cycle] = await self.t_cycles(theses=theses)
+            cycles: list[Cycle] = await self.t_cycles(theses=[t[0] if isinstance(t, tuple) else t for t in theses])
             # The first one is the highest probability
             t_cycle = cycles[0]
 
         wheel_wisdom_units = []
         for dc in t_cycle.dialectical_components:
-            wu = await self.reasoner.think(thesis=dc)
-            if dc.rationales:
+            # Find antithesis from tuples if provided
+            antithesis = None
+            if isinstance(theses, list):
+                # Handle special case: single tuple with (None, xxx)
+                if len(theses) == 1 and isinstance(theses[0], tuple) and theses[0][0] is None:
+                    antithesis = theses[0][1]
+                else:
+                    # Regular case: search for matching thesis in tuples
+                    for t in theses:
+                        if isinstance(t, tuple):
+                            if isinstance(t[0], DialecticalComponent) and dc.is_same(t[0]):
+                                antithesis = t[1]
+                                break
+                            elif isinstance(t[0], str) and dc.statement == t[0]:
+                                antithesis = t[1]
+                                break
+
+            wu = await self.reasoner.think(thesis=dc, antithesis=antithesis)
+            if not wu.t.is_same(dc) and dc.rationales:
                 wu.t.rationales.extend(dc.rationales)
+            if antithesis and not wu.a.is_same(antithesis) and antithesis.rationales:
+                wu.a.rationales.extend(antithesis.rationales)
 
             idx = dc.get_human_friendly_index()
             if idx:
