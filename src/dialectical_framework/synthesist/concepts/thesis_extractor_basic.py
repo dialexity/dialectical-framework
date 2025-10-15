@@ -51,7 +51,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         rule_out = ""
 
         if not_like_these:
-            rule_out = "**Rules**\nIMPORTANT: The output must be different than these already known theses:\n" + "\n".join(not_like_these)
+            rule_out = "**Rules**\nIMPORTANT: The output must be different than these already known theses:\n\n- " + "\n- ".join(not_like_these)
 
         return {
             "computed_fields": {
@@ -106,7 +106,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         rule_out = ""
 
         if not_like_these:
-            rule_out = "IMPORTANT: The output concepts must be different than these already known theses:\n" + "\n".join(
+            rule_out = "IMPORTANT: The output concepts must be different than these already known theses:\n\n- " + "\n- ".join(
                 not_like_these)
 
         return {

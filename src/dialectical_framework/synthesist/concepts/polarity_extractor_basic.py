@@ -1,3 +1,5 @@
+from typing import Union
+
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -25,6 +27,7 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         {thesis_extraction}
         
         ASSISTANT:
+        Thesis (it might look irrelevant, but this is what I got, so let's use it):
         T = {thesis}
         
         USER:
@@ -41,7 +44,7 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         rule_out = ""
 
         if not_like_these:
-            rule_out = "**Rules**\nIMPORTANT: The output must be different than these already known theses:\n" + "\n".join(not_like_these)
+            rule_out = "**Rules**\nIMPORTANT: The antithesis A must be different than these already known statements:\n\n- " + "\n- ".join(not_like_these)
 
         return {
             "computed_fields": {
@@ -58,6 +61,7 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         {theses_extraction}
         
         ASSISTANT:
+        Theses (they might look irrelevant, but this is what I got, so let's use them):
         {theses}
         
         USER:
@@ -86,7 +90,7 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         rule_out = ""
 
         if not_like_these:
-            rule_out = "IMPORTANT: The output antitheses must be different than these already known theses/antitheses:\n" + "\n".join(
+            rule_out = "IMPORTANT: The antitheses A1 ... Ax must be different than these statements:\n\n- " + "\n- ".join(
                 not_like_these)
 
         theses_str = "\n".join(f"T{i + 1} = {thesis}" for i, thesis in enumerate(theses))
@@ -101,13 +105,28 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
             },
         }
 
-    async def extract_polarities(self, *, given: list[tuple[str | None, str | None]]) \
+    async def extract_polarities(self, *,
+         given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None) \
             -> list[tuple[DialecticalComponent, DialecticalComponent]]:
-        count = len(given)
+
+        if not given or len(given) == 0:
+            given = None
+
+        count = len(given) if isinstance(given, list) else 1
         if count > 4 or count < 1:
             raise ValueError(
                 f"Incorrect number of polarities requested. Max 4 are supported."
             )
+
+        # Normalize given parameter into tuples
+        if given is None:
+            given = [(None, None)]
+        elif isinstance(given, str):
+            given = [(given, None)]
+        else:
+            if not isinstance(given[0], tuple):
+                given = [(t, None) for t in given]
+
 
         # Collect all provided statements to avoid duplicates
         not_like_these = []
@@ -145,8 +164,8 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
             return 0 if count == 1 else i + 1
 
         # Helper to get the correct alias
-        def get_alias(base_alias: str, i: int) -> str:
-            return base_alias if count == 1 else f"{base_alias}{i + 1}"
+        def get_alias(base_alias: str, j: int) -> str:
+            return base_alias if count == 1 else f"{base_alias}{j + 1}"
 
         # Fill in known statements and place found theses in correct positions
         thesis_counter = 0
@@ -231,7 +250,12 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         count = len(theses)
 
         @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeckDto)
+        @use_brain(
+            brain=self.brain,
+            response_model=DialecticalComponentsDeckDto,
+            # The prompt with "for each" makes some crap with parallel tools, I force-disable it to make it more robust
+            call_params={"parallel_tool_calls": False}
+        )
         async def _find_antitheses():
             return self.prompt_multiple_antitheses(theses=theses, not_like_these=not_like_these)
 

@@ -1,5 +1,7 @@
 # Todo:
 
+[] "toolify" services, so that LLM can be made an agent for thesis extraction, etc.
+
 [] the ability to use these transitions and/or argumentations as starting points for new wheels....
 
 [] Get rid of "reasoning mode", this seems to be connected to brain, which is a pluggable service. Old: DialecticalReasoningMode should be parametrized in config

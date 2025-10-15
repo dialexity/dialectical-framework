@@ -119,19 +119,21 @@ async def test_find_theses(number_of_thoughts):
 @pytest.mark.asyncio
 @observe()
 @pytest.mark.parametrize("given,expected_count", [
+    (None, 1),
+    ([], 1),
     # Single polarity - both empty
     ([(None, None)], 1),
     # Single polarity - thesis provided
     ([("Love", None)], 1),
-    # # Single polarity - antithesis provided
+    # Single polarity - antithesis provided
     ([(None, "Hate")], 1),
-    # # Single polarity - both provided
+    # Single polarity - both provided
     ([("Love", "Hate")], 1),
-    # # Multiple polarities - mixed
-    ([("Love", None), (None, "Home")], 2),
-    # # Multiple polarities - all empty
+    # Multiple polarities - mixed
+    ([("Russia started war", None), (None, "Ukraine started war")], 2),
+    # Multiple polarities - all empty
     ([(None, None), (None, None)], 2),
-    # # Multiple polarities - various combinations
+    # Multiple polarities - various combinations
     ([("Love", None), (None, "Home"), ("Peace", "War"), (None, None)], 4),
 ])
 async def test_find_polarities(given, expected_count):
