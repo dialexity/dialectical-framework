@@ -115,6 +115,14 @@ async def test_find_theses(number_of_thoughts):
     theses = [dc.statement for dc in theses_deck.dialectical_components]
     print("\n".join(theses))
 
+@pytest.mark.asyncio
+@observe()
+async def test_find_polarities_single():
+    """Quick test for a single parameter - click to run!"""
+    await _test_find_polarities_logic(
+        given=[(None, None)],
+        expected_count=1
+    )
 
 @pytest.mark.asyncio
 @observe()
@@ -137,6 +145,9 @@ async def test_find_theses(number_of_thoughts):
     ([("Love", None), (None, "Home"), ("Peace", "War"), (None, None)], 4),
 ])
 async def test_find_polarities(given, expected_count):
+    await _test_find_polarities_logic(given, expected_count)
+
+async def _test_find_polarities_logic(given, expected_count):
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     polarities = await factory.extractor.extract_polarities(given=given)
 
