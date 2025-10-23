@@ -52,17 +52,23 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
                     target_brain.modified_specification(ai_provider="litellm")
                 )
 
-            if overridden_ai_provider == "litellm":
-                # We use LiteLLM just for convenience, the real framework is Mirascope.
-                # So anything related to litellm can be suppressed
-                litellm.turn_off_message_logging = True
-
             # Merge brain specification with all parameters
             call_params = {
                 "provider": overridden_ai_provider,
                 "model": overridden_ai_model,
                 **llm_call_kwargs,  # All parameters including response_model
             }
+
+            if overridden_ai_provider == "litellm":
+                # We use LiteLLM just for convenience, the real framework is Mirascope.
+                # So anything related to litellm can be suppressed
+                litellm.turn_off_message_logging = True
+
+                # Parallel function calls create problems with litellm+claude, let's just forcefully disable it
+                if not litellm.supports_parallel_function_calling(overridden_ai_model):
+                    if "call_params" not in call_params:
+                        call_params["call_params"] = {}
+                    call_params["call_params"]["parallel_tool_calls"] = False
 
             # https://mirascope.com/docs/mirascope/learn/retries
             @retry(

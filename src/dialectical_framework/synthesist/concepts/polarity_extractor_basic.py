@@ -253,8 +253,6 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         @use_brain(
             brain=self.brain,
             response_model=DialecticalComponentsDeckDto,
-            # The prompt with "for each" makes some crap with parallel tools, I force-disable it to make it more robust
-            call_params={"parallel_tool_calls": False}
         )
         async def _find_antitheses():
             return self.prompt_multiple_antitheses(theses=theses, not_like_these=not_like_these)
