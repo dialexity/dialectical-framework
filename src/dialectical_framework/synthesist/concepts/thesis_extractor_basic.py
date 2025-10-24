@@ -19,7 +19,7 @@ from dialectical_framework.utils.use_brain import use_brain
 
 
 class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
-    def __init__(self, *, text: str = ""):
+    def __init__(self, *, text: str | None = ""):
         self.__text = text if text else ""
 
     @property
