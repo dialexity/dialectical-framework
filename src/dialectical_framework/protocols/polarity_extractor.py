@@ -36,7 +36,12 @@ class PolarityExtractor(ThesisExtractor):
                 are passed as not_like_these to avoid duplicates.
 
         Returns:
-            List of (thesis, antithesis) tuples
+            List of (thesis, antithesis) tuples.
+
+            When at=None (default): All tuples are complete (no None values).
+            When at is specified: Only indices in 'at' are complete; other indices may contain:
+                - (DialecticalComponent, DialecticalComponent(with statement="")) if only thesis was provided
+                - (DialecticalComponent(with statement=""), DialecticalComponent) if only antithesis was provided
 
         Raises:
             IndexError: If any index in 'at' is out of bounds

@@ -178,9 +178,6 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
             not_like_these.extend(t.statement for t in ts.dialectical_components)
             theses_to_find = ts.dialectical_components
 
-        # Initialize result list with placeholders
-        result: list[tuple[DialecticalComponent | None, DialecticalComponent | None]] = [(None, None) for _ in range(len(given))]
-
         # Determine the index to use: 0 if only one tuple, otherwise 1-based index
         def get_friendly_index(i: int) -> int:
             return 0 if count == 1 else i + 1
@@ -188,6 +185,15 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         # Helper to get the correct alias
         def get_alias(base_alias: str, j: int) -> str:
             return base_alias if count == 1 else f"{base_alias}{j + 1}"
+
+        # Initialize result list with empty components as placeholders
+        result: list[tuple[DialecticalComponent, DialecticalComponent]] = [
+            (
+                DialecticalComponent(alias=get_alias(ALIAS_T, i), statement=""),
+                DialecticalComponent(alias=get_alias(ALIAS_A, i), statement="")
+            )
+            for i in range(len(given))
+        ]
 
         # Fill in known statements and place found theses in correct positions
         # When indices_to_generate is specified, only process those indices
@@ -197,16 +203,15 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
 
             # If selective generation is enabled and this index is not in the list, skip processing
             if indices_to_generate is not None and i not in indices_to_generate:
-                # Keep existing values if any, otherwise leave as (None, None)
+                # Keep existing values if any, otherwise use empty strings
                 if thesis is not None or antithesis is not None:
-                    # Preserve existing known values
-                    t = DialecticalComponent(alias=get_alias(ALIAS_T, i), statement=thesis) if thesis else None
-                    if t:
-                        t.set_human_friendly_index(friendly_idx)
-                    a = DialecticalComponent(alias=get_alias(ALIAS_A, i), statement=antithesis) if antithesis else None
-                    if a:
-                        a.set_human_friendly_index(friendly_idx)
+                    # Preserve existing known values, use empty string for missing
+                    t = DialecticalComponent(alias=get_alias(ALIAS_T, i), statement=thesis if thesis else "")
+                    t.set_human_friendly_index(friendly_idx)
+                    a = DialecticalComponent(alias=get_alias(ALIAS_A, i), statement=antithesis if antithesis else "")
+                    a.set_human_friendly_index(friendly_idx)
                     result[i] = (t, a)
+                # Otherwise keep the empty placeholder components from initialization
                 continue
 
             if thesis is not None and antithesis is not None:
@@ -220,18 +225,27 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
                 # Thesis provided, need to find antithesis
                 t = DialecticalComponent(alias=get_alias(ALIAS_T, i), statement=thesis)
                 t.set_human_friendly_index(friendly_idx)
-                result[i] = (t, None)
+                # Use empty component for missing antithesis
+                a = DialecticalComponent(alias=get_alias(ALIAS_A, i), statement="")
+                a.set_human_friendly_index(friendly_idx)
+                result[i] = (t, a)
             elif antithesis is not None:
                 # Antithesis provided, need to find its opposite (which goes in thesis position)
+                # Use empty component for missing thesis
+                t = DialecticalComponent(alias=get_alias(ALIAS_T, i), statement="")
+                t.set_human_friendly_index(friendly_idx)
                 a = DialecticalComponent(alias=get_alias(ALIAS_A, i), statement=antithesis)
                 a.set_human_friendly_index(friendly_idx)
-                result[i] = (None, a)
+                result[i] = (t, a)
             elif i in theses_indices:
                 # Both empty - use found thesis
                 t = theses_to_find[thesis_counter]
                 t.alias = get_alias(ALIAS_T, i)
                 t.set_human_friendly_index(friendly_idx)
-                result[i] = (t, None)
+                # Use empty component for missing antithesis
+                a = DialecticalComponent(alias=get_alias(ALIAS_A, i), statement="")
+                a.set_human_friendly_index(friendly_idx)
+                result[i] = (t, a)
                 thesis_counter += 1
 
         # Collect all statements that need opposites
@@ -245,12 +259,13 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
             if indices_to_generate is not None and i not in indices_to_generate:
                 continue
 
-            if t is None and a is not None:
+            # Check for empty statements (not generated yet)
+            if t.statement == "" and a.statement != "":
                 # Need to find opposite for the provided antithesis
                 statements_needing_opposites.append(a.statement)
                 indices_needing_opposites.append(i)
                 is_thesis_position.append(True)  # Opposite goes to thesis position
-            elif a is None and t is not None:
+            elif a.statement == "" and t.statement != "":
                 # Need to find opposite for the provided thesis
                 statements_needing_opposites.append(t.statement)
                 indices_needing_opposites.append(i)
@@ -275,16 +290,17 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         # Place the opposites in the correct positions with correct aliases
         for idx, opposite, is_t_pos in zip(indices_needing_opposites, opposites, is_thesis_position):
             friendly_idx = get_friendly_index(idx)
+            current_t, current_a = result[idx]
             if is_t_pos:
                 # Opposite goes to thesis position
                 opposite.alias = get_alias(ALIAS_T, idx)
                 opposite.set_human_friendly_index(friendly_idx)
-                result[idx] = (opposite, result[idx][1])
+                result[idx] = (opposite, current_a)
             else:
                 # Opposite goes to antithesis position
                 opposite.alias = get_alias(ALIAS_A, idx)
                 opposite.set_human_friendly_index(friendly_idx)
-                result[idx] = (result[idx][0], opposite)
+                result[idx] = (current_t, opposite)
 
         return result
 

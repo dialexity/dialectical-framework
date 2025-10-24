@@ -55,7 +55,7 @@ async def _test_find_polarities_logic(given, expected_count):
 
     # Verify all components exist and have correct aliases
     for i, (t, a) in enumerate(polarities):
-        assert t is not None and a is not None
+        assert t.statement != "" and a.statement != ""
 
 
 @pytest.mark.asyncio
@@ -76,18 +76,17 @@ async def test_extract_polarities_selective_at_single_index():
 
     assert len(result) == 3
     # Index 0 should have both thesis and antithesis
-    assert result[0][0] is not None
-    assert result[0][1] is not None
     assert result[0][0].statement == "Love"
-    # Indices 1 and 2 should only have thesis, no antithesis
-    assert result[1][0] is not None
-    assert result[1][1] is None
-    assert result[2][0] is not None
-    assert result[2][1] is None
+    assert result[0][1].statement != ""  # Generated
+    # Indices 1 and 2 should only have thesis, empty antithesis
+    assert result[1][0].statement == "Peace"
+    assert result[1][1].statement == ""  # Not generated
+    assert result[2][0].statement == "Courage"
+    assert result[2][1].statement == ""  # Not generated
 
     print("\n=== Test: Single Index ===")
     for i, (t, a) in enumerate(result):
-        print(f"Index {i}: T={t.statement if t else 'None'}, A={a.statement if a else 'None'}")
+        print(f"Index {i}: T={t.statement}, A={a.statement}")
 
 
 @pytest.mark.asyncio
@@ -108,17 +107,17 @@ async def test_extract_polarities_selective_at_multiple_indices():
 
     assert len(result) == 3
     # Indices 0 and 2 should have both thesis and antithesis
-    assert result[0][0] is not None
-    assert result[0][1] is not None
-    assert result[2][0] is not None
-    assert result[2][1] is not None
-    # Index 1 should only have thesis
-    assert result[1][0] is not None
-    assert result[1][1] is None
+    assert result[0][0].statement == "Love"
+    assert result[0][1].statement != ""  # Generated
+    assert result[2][0].statement == "Courage"
+    assert result[2][1].statement != ""  # Generated
+    # Index 1 should only have thesis, empty antithesis
+    assert result[1][0].statement == "Peace"
+    assert result[1][1].statement == ""  # Not generated
 
     print("\n=== Test: Multiple Indices ===")
     for i, (t, a) in enumerate(result):
-        print(f"Index {i}: T={t.statement if t else 'None'}, A={a.statement if a else 'None'}")
+        print(f"Index {i}: T={t.statement}, A={a.statement}")
 
 
 @pytest.mark.asyncio
@@ -141,12 +140,12 @@ async def test_extract_polarities_selective_with_not_like_these():
     assert result[0][1].statement == "Hate"
     # Index 1 should have generated antithesis different from "Hate"
     assert result[1][0].statement == "Peace"
-    assert result[1][1] is not None
+    assert result[1][1].statement != ""  # Generated
     assert result[1][1].statement.lower() != "hate"
 
     print("\n=== Test: With not_like_these ===")
     for i, (t, a) in enumerate(result):
-        print(f"Index {i}: T={t.statement if t else 'None'}, A={a.statement if a else 'None'}")
+        print(f"Index {i}: T={t.statement}, A={a.statement}")
 
 
 @pytest.mark.asyncio
@@ -186,8 +185,8 @@ async def test_extract_polarities_default_behavior():
     result = await factory.extractor.extract_polarities(given=given)
 
     assert len(result) == 2
-    # Both should have thesis and antithesis
-    assert all(t is not None and a is not None for t, a in result)
+    # Both should have thesis and antithesis (non-empty)
+    assert all(t.statement != "" and a.statement != "" for t, a in result)
 
     print("\n=== Test: Default Behavior ===")
     for i, (t, a) in enumerate(result):
