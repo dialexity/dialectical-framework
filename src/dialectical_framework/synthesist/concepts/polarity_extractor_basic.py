@@ -105,9 +105,12 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
             },
         }
 
-    async def extract_polarities(self, *,
-         given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None) \
-            -> list[tuple[DialecticalComponent, DialecticalComponent]]:
+    async def extract_polarities(
+        self,
+        *,
+        given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None,
+        at: None | int | list[int] = None
+    ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
 
         if not given or len(given) == 0:
             given = None
@@ -127,6 +130,20 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
             if not isinstance(given[0], tuple):
                 given = [(t, None) for t in given]
 
+        # Normalize 'at' parameter into a list of indices
+        indices_to_generate: list[int] | None = None
+        if at is not None:
+            if isinstance(at, int):
+                indices_to_generate = [at]
+            else:
+                indices_to_generate = at
+
+            # Validate indices are within bounds
+            for idx in indices_to_generate:
+                if idx < 0 or idx >= len(given):
+                    raise IndexError(
+                        f"Index {idx} is out of bounds for given list of length {len(given)}"
+                    )
 
         # Collect all provided statements to avoid duplicates
         not_like_these = []
@@ -140,8 +157,13 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         theses_indices = []
 
         # For every tuple that has both None, we want to first find theses
+        # If indices_to_generate is specified, only process those indices
         empty_count = 0
         for i, (thesis, antithesis) in enumerate(given):
+            # Skip if not in indices_to_generate (when specified)
+            if indices_to_generate is not None and i not in indices_to_generate:
+                continue
+
             if thesis is None and antithesis is None:
                 empty_count += 1
                 theses_indices.append(i)
@@ -168,9 +190,25 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
             return base_alias if count == 1 else f"{base_alias}{j + 1}"
 
         # Fill in known statements and place found theses in correct positions
+        # When indices_to_generate is specified, only process those indices
         thesis_counter = 0
         for i, (thesis, antithesis) in enumerate(given):
             friendly_idx = get_friendly_index(i)
+
+            # If selective generation is enabled and this index is not in the list, skip processing
+            if indices_to_generate is not None and i not in indices_to_generate:
+                # Keep existing values if any, otherwise leave as (None, None)
+                if thesis is not None or antithesis is not None:
+                    # Preserve existing known values
+                    t = DialecticalComponent(alias=get_alias(ALIAS_T, i), statement=thesis) if thesis else None
+                    if t:
+                        t.set_human_friendly_index(friendly_idx)
+                    a = DialecticalComponent(alias=get_alias(ALIAS_A, i), statement=antithesis) if antithesis else None
+                    if a:
+                        a.set_human_friendly_index(friendly_idx)
+                    result[i] = (t, a)
+                continue
+
             if thesis is not None and antithesis is not None:
                 # Both provided - just create components with correct aliases
                 t = DialecticalComponent(alias=get_alias(ALIAS_T, i), statement=thesis)
@@ -197,17 +235,22 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
                 thesis_counter += 1
 
         # Collect all statements that need opposites
+        # Only process indices in indices_to_generate if specified
         statements_needing_opposites = []
         indices_needing_opposites = []
         is_thesis_position = []  # Track which position the opposite should go to
 
         for i, (t, a) in enumerate(result):
-            if t is None:
+            # Skip if not in indices_to_generate (when specified)
+            if indices_to_generate is not None and i not in indices_to_generate:
+                continue
+
+            if t is None and a is not None:
                 # Need to find opposite for the provided antithesis
                 statements_needing_opposites.append(a.statement)
                 indices_needing_opposites.append(i)
                 is_thesis_position.append(True)  # Opposite goes to thesis position
-            elif a is None:
+            elif a is None and t is not None:
                 # Need to find opposite for the provided thesis
                 statements_needing_opposites.append(t.statement)
                 indices_needing_opposites.append(i)

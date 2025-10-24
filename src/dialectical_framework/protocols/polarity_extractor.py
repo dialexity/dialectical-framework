@@ -8,15 +8,38 @@ from dialectical_framework.synthesist.domain.dialectical_components_deck import 
 
 class PolarityExtractor(ThesisExtractor):
     @abstractmethod
-    async def extract_polarities( self, *, given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
+    async def extract_polarities(
+        self,
+        *,
+        given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None,
+        at: None | int | list[int] = None
+    ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
         """
-        Given None, a single polarity will be extracted.
-        Given str, a single polarity will be extracted for that thesis.
-        Given [str], a single polarity will be extracted for that thesis.
-        Given [None, str], two polarities will be extracted for theses.
-        Given tuple of [(None, None)], a single polarity will be extracted.
-        Given tuple of [(None, some_thesis)] a theses will be extracted.
-        Given more tuples, all the given theses/antitheses will be taken into account.
+        Extract polarities (thesis-antithesis pairs) with optional selective generation.
+
+        Args:
+            given: Input specification for polarities:
+                - None: Extract a single polarity
+                - str: Extract a single polarity for that thesis
+                - [str]: Extract a single polarity for that thesis
+                - [None, str]: Extract two polarities for theses
+                - [(None, None)]: Extract a single polarity
+                - [(None, some_thesis)]: A thesis will be extracted
+                - More tuples: All given theses/antitheses will be taken into account
+
+            at: Selective generation control:
+                - None (default): Generate all missing components in the given matrix
+                - int: Generate only at that specific index (0-based)
+                - list[int]: Generate only at those specific indices (0-based)
+
+                When at is specified, all other known theses/antitheses from the given matrix
+                are passed as not_like_these to avoid duplicates.
+
+        Returns:
+            List of (thesis, antithesis) tuples
+
+        Raises:
+            IndexError: If any index in 'at' is out of bounds
         """
         ...
 

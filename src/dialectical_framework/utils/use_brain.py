@@ -64,11 +64,16 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
                 # So anything related to litellm can be suppressed
                 litellm.turn_off_message_logging = True
 
-                # Parallel function calls create problems with litellm+claude, let's just forcefully disable it
-                if not litellm.supports_parallel_function_calling(overridden_ai_model):
+                # Parallel function calls create problems with litellm, let's just forcefully disable it
+                if litellm.supports_parallel_function_calling(overridden_ai_model):
                     if "call_params" not in call_params:
                         call_params["call_params"] = {}
                     call_params["call_params"]["parallel_tool_calls"] = False
+                else:
+                    """
+                    The parallel function calls are not supported by the model, so no need to pass anything.
+                    """
+                    pass
 
             # https://mirascope.com/docs/mirascope/learn/retries
             @retry(
