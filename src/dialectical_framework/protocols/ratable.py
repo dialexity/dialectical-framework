@@ -12,15 +12,26 @@ if TYPE_CHECKING:
     pass
 
 class Ratable(Assessable, ABC):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        populate_by_name=True
+    )
 
     rating: float | None = Field(
         default=None, ge=0.0, le=1.0,
         description="Importance/quality rating."
     )
 
-    manual_relevance: float | None = Field(default=None, description="Manual override for relevance")
-    manual_probability: float | None = Field(default=None, description="Manual override for probability")
+    manual_relevance: float | None = Field(
+        default=None,
+        description="Manual override for relevance",
+        alias="relevance"
+    )
+    manual_probability: float | None = Field(
+        default=None,
+        description="Manual override for probability",
+        alias="probability"
+    )
 
     @computed_field
     @property
