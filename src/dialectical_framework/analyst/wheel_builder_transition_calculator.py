@@ -77,21 +77,24 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
                 self._take_transition(wheel=wheel, transition=tr)
         elif isinstance(at, list):
             # Calculate for some
+            if hasattr(self.decorated_builder, "calculate_transitions"):
+                await self.decorated_builder.calculate_transitions(
+                    wheel=wheel, at=at
+                )
             for ref in at:
-                if hasattr(self.decorated_builder, "calculate_transitions"):
-                    await self.decorated_builder.calculate_transitions(
-                        wheel=wheel, at=ref
-                    )
+                segment = wheel.wheel_segment_at(ref)
                 # This is for subclasses to implement
-                trs_i = await self._do_calculate_transitions(wheel=wheel, at=ref)
+                trs_i = await self._do_calculate_transitions(wheel=wheel, at=segment)
                 for tr in trs_i:
                     self._take_transition(wheel=wheel, transition=tr)
         else:
             # Calculate for one
             if hasattr(self.decorated_builder, "calculate_transitions"):
                 await self.decorated_builder.calculate_transitions(wheel=wheel, at=at)
+
+            segment = wheel.wheel_segment_at(at)
             # This is for subclasses to implement
-            trs = await self._do_calculate_transitions(wheel=wheel, at=at)
+            trs = await self._do_calculate_transitions(wheel=wheel, at=segment)
             for tr in trs:
                 self._take_transition(wheel=wheel, transition=tr)
 

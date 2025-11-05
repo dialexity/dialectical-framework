@@ -25,13 +25,9 @@ class Cycle(AssessableCycle[TransitionCellToCell]):
     causality_type: CausalityType = Field(
         ..., description="The type of causality in the cycle."
     )
+
     causality_direction: Literal["clockwise", "counterclockwise"] = Field(
         default="clockwise", description="The direction of causality in the ring."
-    )
-
-    argumentation: str = Field(
-        default="",
-        description="Circumstances or contexts where this cycle would be most applicable or useful.",
     )
 
     def __init__(

@@ -111,7 +111,25 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None,
         at: None | int | list[int] = None
     ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
+        """
+        Implementation Notes
+        -------------------
+        1. **Two-phase generation:** First generates missing theses for `(None, None)`
+           entries, then generates missing antitheses/opposites in batch.
 
+        2. **Batch optimization:** Multiple missing components are generated in a single
+           AI call when possible for efficiency.
+
+        3. **Alias assignment:** Components receive proper aliases:
+           - Single polarity: `T`, `A`
+           - Multiple polarities: `T1`, `A1`, `T2`, `A2`, etc.
+
+        4. **Index tracking:** Each component tracks its human-friendly index (1-based)
+           for display purposes.
+
+        5. **Safe with complete tuples:** Specifying an index in `at` with an already
+           complete tuple is harmless—it's preserved with no generation.
+        """
         if not given or len(given) == 0:
             given = None
 
