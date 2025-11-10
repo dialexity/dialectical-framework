@@ -109,7 +109,8 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         self,
         *,
         given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None,
-        at: None | int | list[int] = None
+        at: None | int | list[int] = None,
+        not_like_these: list[str] | None = None
     ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
         """
         Implementation Notes
@@ -164,7 +165,8 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
                     )
 
         # Collect all provided statements to avoid duplicates
-        not_like_these = []
+        if not_like_these is None:
+            not_like_these = []
         for thesis, antithesis in given:
             if thesis:
                 not_like_these.append(thesis)

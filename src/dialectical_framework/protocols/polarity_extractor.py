@@ -12,7 +12,8 @@ class PolarityExtractor(ThesisExtractor):
         self,
         *,
         given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None,
-        at: None | int | list[int] = None
+        at: None | int | list[int] = None,
+        not_like_these: list[str] | None = None
     ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
         """
         Extract polarities (thesis-antithesis pairs) with optional selective generation.
@@ -62,6 +63,9 @@ class PolarityExtractor(ThesisExtractor):
 
             **Complete tuples:** If an index in `at` has both thesis and antithesis
             already provided, no generation occurs—the tuple is simply preserved.
+
+        not_like_these: list[str] | None, optional
+            Some statements to hint that we don't need to generate them.
 
         Returns
         -------
