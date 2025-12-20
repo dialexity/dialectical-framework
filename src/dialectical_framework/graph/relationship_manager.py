@@ -159,7 +159,7 @@ class BoundRelationshipManager(Generic[T]):
         self,
         target_node: T,
         properties: Optional[dict] = None,
-        db: Optional["Memgraph"] = None,
+        db: "Memgraph" = None,
     ) -> GQLRelationship:
         """
         Create a relationship to the target node.
@@ -167,7 +167,7 @@ class BoundRelationshipManager(Generic[T]):
         Args:
             target_node: The target node to connect to
             properties: Optional properties for the relationship
-            db: Database connection (uses get_db() if not provided)
+            db: Database connection (required)
 
         Returns:
             The created relationship
@@ -175,14 +175,34 @@ class BoundRelationshipManager(Generic[T]):
         Raises:
             ValueError: If nodes haven't been saved or cardinality constraint violated
         """
-        if self.source_node._id is None:
-            raise ValueError("Source node must be saved before creating relationships")
-        if target_node._id is None:
-            raise ValueError("Target node must be saved before creating relationships")
-
         if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
+            raise ValueError("Database connection (db) is required")
+
+        # Helper function to get node ID
+        def get_node_id(node):
+            """Get node ID, querying by uid if _id not set."""
+            if node._id is not None:
+                return node._id
+
+            # Query by uid to get _id
+            if not hasattr(node, 'uid') or node.uid is None:
+                raise ValueError(f"Node must be saved before creating relationships (no uid found)")
+
+            labels = ':'.join(node.__class__.__name__.split())  # Get node label
+            query = f"MATCH (n:{labels} {{uid: $uid}}) RETURN id(n) as node_id"
+            result = list(db.execute_and_fetch(query, {"uid": node.uid}))
+
+            if not result:
+                raise ValueError(f"Node with uid={node.uid} not found in database")
+
+            node_id = result[0]["node_id"]
+            # Cache the ID on the node for future use
+            node._id = node_id
+            return node_id
+
+        # Get IDs for both nodes
+        source_id = get_node_id(self.source_node)
+        target_id = get_node_id(target_node)
 
         # Check max cardinality before adding
         if self.cardinality:
@@ -199,14 +219,14 @@ class BoundRelationshipManager(Generic[T]):
 
         # Determine start and end based on direction
         if self.direction == "outgoing":
-            start_id = self.source_node._id
-            end_id = target_node._id
+            start_id = source_id
+            end_id = target_id
         elif self.direction == "incoming":
-            start_id = target_node._id
-            end_id = self.source_node._id
+            start_id = target_id
+            end_id = source_id
         else:  # any
-            start_id = self.source_node._id
-            end_id = target_node._id
+            start_id = source_id
+            end_id = target_id
 
         # Create relationship
         if self.relationship_model:
@@ -227,23 +247,19 @@ class BoundRelationshipManager(Generic[T]):
         db.save_relationship(rel)
         return rel
 
-    def disconnect(self, target_node: T, db: Optional["Memgraph"] = None) -> bool:
+    def disconnect(self, target_node: T, db: "Memgraph") -> bool:
         """
         Remove relationship to the target node.
 
         Args:
             target_node: The target node to disconnect from
-            db: Database connection (uses get_db() if not provided)
+            db: Database connection (required)
 
         Returns:
             True if relationship was removed, False if it didn't exist
         """
         if self.source_node._id is None or target_node._id is None:
             return False
-
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
 
         # Determine direction
         if self.direction == "outgoing":
@@ -275,22 +291,18 @@ class BoundRelationshipManager(Generic[T]):
 
         return result[0]["deleted"] > 0 if result else False
 
-    def all(self, db: Optional["Memgraph"] = None) -> list[tuple[T, dict]]:
+    def all(self, db: "Memgraph") -> list[tuple[T, dict]]:
         """
         Get all connected nodes with their relationship properties.
 
         Args:
-            db: Database connection (uses get_db() if not provided)
+            db: Database connection (required)
 
         Returns:
             List of tuples: (target_node, relationship_properties)
         """
         if self.source_node._id is None:
             return []
-
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
 
         # Build query based on direction
         if self.direction == "outgoing":
@@ -311,6 +323,7 @@ class BoundRelationshipManager(Generic[T]):
 
     def get(
         self,
+        db: "Memgraph",
         target_node: Optional[T] = None,
         **filters
     ) -> Optional[tuple[T, dict]]:
@@ -318,13 +331,14 @@ class BoundRelationshipManager(Generic[T]):
         Get a specific connected node.
 
         Args:
+            db: Database connection (required)
             target_node: Specific target node to find
             **filters: Property filters for the target node
 
         Returns:
             Tuple of (target_node, relationship_properties) or None
         """
-        all_results = self.all()
+        all_results = self.all(db)
 
         if target_node is not None:
             for node, props in all_results:
@@ -345,22 +359,18 @@ class BoundRelationshipManager(Generic[T]):
         # Return first if no filters
         return all_results[0] if all_results else None
 
-    def count(self, db: Optional["Memgraph"] = None) -> int:
+    def count(self, db: "Memgraph") -> int:
         """
         Count connected nodes.
 
         Args:
-            db: Database connection (uses get_db() if not provided)
+            db: Database connection (required)
 
         Returns:
             Number of connected nodes
         """
         if self.source_node._id is None:
             return 0
-
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
 
         if self.direction == "outgoing":
             pattern = f"(source)-[:{self.relationship_type}]->(:{self.target_class_name})"
@@ -378,12 +388,12 @@ class BoundRelationshipManager(Generic[T]):
         result = list(db.execute_and_fetch(query, {"source_id": self.source_node._id}))
         return result[0]["cnt"] if result else 0
 
-    def validate_cardinality(self, db: Optional["Memgraph"] = None) -> tuple[bool, Optional[str]]:
+    def validate_cardinality(self, db: "Memgraph") -> tuple[bool, Optional[str]]:
         """
         Check if current count satisfies cardinality constraint.
 
         Args:
-            db: Database connection (uses get_db() if not provided)
+            db: Database connection (required)
 
         Returns:
             Tuple of (is_valid, error_message)

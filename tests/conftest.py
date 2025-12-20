@@ -2,6 +2,7 @@ import asyncio
 import gc
 
 import pytest
+from gqlalchemy import Memgraph
 
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.settings import Settings
@@ -75,3 +76,99 @@ async def cleanup_aiohttp_sessions():
     # Force garbage collection after closing sessions
     gc.collect()
     await asyncio.sleep(0.01)
+
+
+# ============================================================================
+# Memgraph fixtures for graph testing
+# ============================================================================
+
+def is_memgraph_available():
+    """Check if Memgraph is running."""
+    try:
+        db = Memgraph(host="127.0.0.1", port=7687)
+        db.execute("RETURN 1")
+        return True
+    except Exception:
+        return False
+
+
+TEST_LABEL = "___DIALEXITY_TEST___"
+
+
+class TestMemgraph(Memgraph):
+    """
+    Wrapper around Memgraph that automatically marks all saved nodes as test data.
+
+    This allows tests to coexist with production data safely by adding a special label.
+    """
+
+    def save_node(self, node):
+        """Save node and add test label."""
+        result = super().save_node(node)
+
+        # Add test label after saving (query by uid since _id isn't populated)
+        if hasattr(node, 'uid') and node.uid:
+            labels = ':'.join(node.__class__.__name__.split())
+            query = f"""
+            MATCH (n:{labels} {{uid: $uid}})
+            SET n:{TEST_LABEL}
+            """
+            self.execute(query, {"uid": node.uid})
+
+        return result
+
+    def save_relationship(self, relationship):
+        """Save relationship normally (edges are deleted when nodes are deleted)."""
+        return super().save_relationship(relationship)
+
+
+def cleanup_test_data(db):
+    """Delete only test data (nodes with TEST_LABEL)."""
+    query = f"""
+    MATCH (n:{TEST_LABEL})
+    DETACH DELETE n
+    """
+    db.execute(query)
+
+
+@pytest.fixture(scope="session")
+def memgraph_available():
+    """Check if Memgraph is available for tests."""
+    return is_memgraph_available()
+
+
+@pytest.fixture
+def db(memgraph_available):
+    """
+    Create a Memgraph connection for testing.
+
+    Automatically skips tests if Memgraph is not available.
+
+    SAFETY: Only deletes nodes labeled with :___DIALEXITY_TEST___
+    This allows tests to run safely alongside production data.
+
+    To start Memgraph for testing:
+        docker-compose -f docker-compose.test.yml up -d
+
+    To run tests:
+        poetry run pytest tests/test_graph.py
+    """
+    if not memgraph_available:
+        pytest.skip(
+            "Memgraph is not available. "
+            "Run: docker-compose -f docker-compose.test.yml up -d"
+        )
+
+    # Connect to Memgraph using test wrapper
+    db = TestMemgraph(host="127.0.0.1", port=7687)
+
+    # Clear only test data before each test
+    cleanup_test_data(db)
+
+    yield db
+
+    # Cleanup only test data after test
+    try:
+        cleanup_test_data(db)
+    except Exception:
+        pass  # Ignore cleanup errors

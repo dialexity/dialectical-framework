@@ -1,0 +1,25 @@
+services:
+  memgraph:
+    image: memgraph/memgraph:latest
+    ports:
+      - "7687:7687"
+    environment:
+      - MEMGRAPH_STORAGE_MODE=IN_MEMORY_TRANSACTIONAL
+    volumes:
+      - mg_lib:/var/lib/memgraph
+      - mg_log:/var/log/memgraph
+    command: ["--log-level=WARNING"]
+
+  memgraph-lab:
+    image: memgraph/lab:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - memgraph
+    environment:
+      - QUICK_CONNECT_MG_HOST=memgraph
+      - QUICK_CONNECT_MG_PORT=7687
+
+volumes:
+  mg_lib:
+  mg_log:
