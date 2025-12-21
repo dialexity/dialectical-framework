@@ -203,21 +203,26 @@ def is_graph_db_available(settings: Settings) -> bool:
     """Check if the configured graph database is running."""
     vendor = settings.graph_db_vendor.lower()
 
+    # Common parameters for both vendors
+    common_params = {
+        "host": settings.graph_db_host,
+        "port": settings.graph_db_port,
+        "username": settings.graph_db_username,
+        "password": settings.graph_db_password,
+        "encrypted": settings.graph_db_encrypted,
+        "client_name": settings.graph_db_client_name,
+    }
+
     try:
         if vendor == "memgraph":
-            db = Memgraph(
-                host=settings.graph_db_host,
-                port=settings.graph_db_port
-            )
+            db = Memgraph(**common_params)
         elif vendor == "neo4j":
-            username = settings.graph_db_username or "neo4j"
-            password = settings.graph_db_password or "neo4j"
-            db = Neo4j(
-                host=settings.graph_db_host,
-                port=settings.graph_db_port,
-                username=username,
-                password=password
-            )
+            # Neo4j requires username/password, provide defaults if not set
+            if not common_params["username"]:
+                common_params["username"] = "neo4j"
+            if not common_params["password"]:
+                common_params["password"] = "neo4j"
+            db = Neo4j(**common_params)
         else:
             return False
 
