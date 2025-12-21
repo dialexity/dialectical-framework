@@ -146,15 +146,12 @@ class WisdomUnit(AssessableEntity):
             else:  # "T+", "T-", etc.
                 return f"{base[0]}{self.index}{base[1:]}"
 
-    def validate_cardinality(self, db=None) -> tuple[bool, list[str]]:
+    def validate_cardinality(self) -> tuple[bool, list[str]]:
         """
         Validate all relationship cardinality constraints.
 
         This method checks that all relationships satisfy their declared
-        cardinality constraints.
-
-        Args:
-            db: Database connection (uses get_db() if not provided)
+        cardinality constraints using dependency injection.
 
         Returns:
             Tuple of (is_valid, list_of_errors)
@@ -174,52 +171,49 @@ class WisdomUnit(AssessableEntity):
         ]
 
         for name, rel_manager in relationships:
-            is_valid, error = rel_manager.validate_cardinality(db)
+            is_valid, error = rel_manager.validate_cardinality()  # No db parameter, uses DI
             if not is_valid:
                 errors.append(f"{name}: {error}")
 
         return (len(errors) == 0, errors)
 
-    def is_complete(self, db=None) -> bool:
+    def is_complete(self) -> bool:
         """
         Check if this wisdom unit has all required components.
 
-        Args:
-            db: Database connection (uses get_db() if not provided)
+        Uses dependency injection to get the database connection.
 
         Returns:
             True if all cardinality constraints are satisfied
         """
-        is_valid, _ = self.validate_cardinality(db)
+        is_valid, _ = self.validate_cardinality()  # No db parameter, uses DI
         return is_valid
 
-    def get_component_summary(self, db=None) -> dict:
+    def get_component_summary(self) -> dict:
         """
         Get a summary of all component counts.
 
-        Args:
-            db: Database connection (uses get_db() if not provided)
+        Uses dependency injection to get the database connection.
 
         Returns:
             Dict with component type as key and count as value
         """
         return {
-            't': self.t.count(db),
-            't_plus': self.t_plus.count(db),
-            't_minus': self.t_minus.count(db),
-            'a': self.a.count(db),
-            'a_plus': self.a_plus.count(db),
-            'a_minus': self.a_minus.count(db),
-            's_plus': self.s_plus.count(db),
-            's_minus': self.s_minus.count(db),
+            't': self.t.count(),
+            't_plus': self.t_plus.count(),
+            't_minus': self.t_minus.count(),
+            'a': self.a.count(),
+            'a_plus': self.a_plus.count(),
+            'a_minus': self.a_minus.count(),
+            's_plus': self.s_plus.count(),
+            's_minus': self.s_minus.count(),
         }
 
-    def get_all_components_with_aliases(self, db=None) -> list[tuple[Any, str]]:
+    def get_all_components_with_aliases(self) -> list[tuple[Any, str]]:
         """
         Get all components with their computed aliases.
 
-        Args:
-            db: Database connection (uses get_db() if not provided)
+        Uses dependency injection to get the database connection.
 
         Returns:
             List of tuples: (component_node, full_alias)
@@ -240,7 +234,7 @@ class WisdomUnit(AssessableEntity):
         ]
 
         for manager, rel_type in rel_managers:
-            components = manager.all(db)
+            components = manager.all()  # No db parameter, uses DI
             alias = self.get_component_alias(rel_type)
 
             for component, _props in components:

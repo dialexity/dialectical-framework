@@ -9,23 +9,22 @@ Usage:
         # Declarative relationship definition
         friends = RelationshipTo('Person', 'FRIENDS_WITH')
 
-    # Clean API
-    person1.friends.connect(person2, db=db)
-    all_friends = person1.friends.all(db=db)
+    # Clean API (uses dependency injection)
+    person1.friends.connect(person2)
+    all_friends = person1.friends.all()
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, get_args
+from typing import Generic, Optional, Type, TypeVar, Union, get_args
 
-if TYPE_CHECKING:
-    from gqlalchemy import Memgraph, Node
-    from gqlalchemy import Relationship as GQLRelationship
-else:
-    # At runtime, import for actual use
-    from gqlalchemy import Relationship as GQLRelationship
+from dependency_injector.wiring import Provide, inject
+from gqlalchemy import Memgraph, Neo4j, Node
+from gqlalchemy import Relationship as GQLRelationship
 
-T = TypeVar("T", bound="Node")
+from dialectical_framework.enums.di import DI
+
+T = TypeVar("T", bound=Node)
 
 
 class RelationshipManager(Generic[T]):
@@ -141,7 +140,7 @@ class BoundRelationshipManager(Generic[T]):
 
     def __init__(
         self,
-        source_node: "Node",
+        source_node: Node,
         target_class_name: str,
         relationship_type: str,
         relationship_model: Optional[Type[GQLRelationship]],
@@ -155,19 +154,22 @@ class BoundRelationshipManager(Generic[T]):
         self.direction = direction
         self.cardinality = cardinality
 
+    @inject
     def connect(
         self,
         target_node: T,
         properties: Optional[dict] = None,
-        db: "Memgraph" = None,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> GQLRelationship:
         """
         Create a relationship to the target node.
 
+        Uses dependency injection to get the database connection.
+        Tests can override the graph_db provider to use TestMemgraph/TestNeo4j.
+
         Args:
             target_node: The target node to connect to
             properties: Optional properties for the relationship
-            db: Database connection (required)
 
         Returns:
             The created relationship
@@ -175,8 +177,7 @@ class BoundRelationshipManager(Generic[T]):
         Raises:
             ValueError: If nodes haven't been saved or cardinality constraint violated
         """
-        if db is None:
-            raise ValueError("Database connection (db) is required")
+        db = graph_db  # Use injected db
 
         # Helper function to get node ID
         def get_node_id(node):
@@ -207,7 +208,7 @@ class BoundRelationshipManager(Generic[T]):
         # Check max cardinality before adding
         if self.cardinality:
             min_card, max_card = self.cardinality
-            current_count = self.count(db)
+            current_count = self.count()  # No db parameter needed, uses DI
 
             if max_card is not None and current_count >= max_card:
                 raise ValueError(
@@ -247,17 +248,24 @@ class BoundRelationshipManager(Generic[T]):
         db.save_relationship(rel)
         return rel
 
-    def disconnect(self, target_node: T, db: "Memgraph") -> bool:
+    @inject
+    def disconnect(
+        self,
+        target_node: T,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> bool:
         """
         Remove relationship to the target node.
 
+        Uses dependency injection to get the database connection.
+
         Args:
             target_node: The target node to disconnect from
-            db: Database connection (required)
 
         Returns:
             True if relationship was removed, False if it didn't exist
         """
+        db = graph_db  # Use injected db
         if self.source_node._id is None or target_node._id is None:
             return False
 
@@ -291,16 +299,20 @@ class BoundRelationshipManager(Generic[T]):
 
         return result[0]["deleted"] > 0 if result else False
 
-    def all(self, db: "Memgraph") -> list[tuple[T, dict]]:
+    @inject
+    def all(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> list[tuple[T, dict]]:
         """
         Get all connected nodes with their relationship properties.
 
-        Args:
-            db: Database connection (required)
+        Uses dependency injection to get the database connection.
 
         Returns:
             List of tuples: (target_node, relationship_properties)
         """
+        db = graph_db  # Use injected db
         if self.source_node._id is None:
             return []
 
@@ -323,22 +335,22 @@ class BoundRelationshipManager(Generic[T]):
 
     def get(
         self,
-        db: "Memgraph",
         target_node: Optional[T] = None,
         **filters
     ) -> Optional[tuple[T, dict]]:
         """
         Get a specific connected node.
 
+        Uses dependency injection to get the database connection.
+
         Args:
-            db: Database connection (required)
             target_node: Specific target node to find
             **filters: Property filters for the target node
 
         Returns:
             Tuple of (target_node, relationship_properties) or None
         """
-        all_results = self.all(db)
+        all_results = self.all()  # No db parameter needed, uses DI
 
         if target_node is not None:
             for node, props in all_results:
@@ -359,16 +371,20 @@ class BoundRelationshipManager(Generic[T]):
         # Return first if no filters
         return all_results[0] if all_results else None
 
-    def count(self, db: "Memgraph") -> int:
+    @inject
+    def count(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> int:
         """
         Count connected nodes.
 
-        Args:
-            db: Database connection (required)
+        Uses dependency injection to get the database connection.
 
         Returns:
             Number of connected nodes
         """
+        db = graph_db  # Use injected db
         if self.source_node._id is None:
             return 0
 
@@ -388,12 +404,11 @@ class BoundRelationshipManager(Generic[T]):
         result = list(db.execute_and_fetch(query, {"source_id": self.source_node._id}))
         return result[0]["cnt"] if result else 0
 
-    def validate_cardinality(self, db: "Memgraph") -> tuple[bool, Optional[str]]:
+    def validate_cardinality(self) -> tuple[bool, Optional[str]]:
         """
         Check if current count satisfies cardinality constraint.
 
-        Args:
-            db: Database connection (required)
+        Uses dependency injection to get the database connection.
 
         Returns:
             Tuple of (is_valid, error_message)
@@ -402,7 +417,7 @@ class BoundRelationshipManager(Generic[T]):
             return (True, None)
 
         min_card, max_card = self.cardinality
-        current_count = self.count(db)
+        current_count = self.count()  # No db parameter needed, uses DI
 
         if current_count < min_card:
             return (False, f"Requires at least {min_card}, found {current_count}")
