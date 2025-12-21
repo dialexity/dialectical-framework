@@ -25,6 +25,15 @@ class Settings(BaseModel):
         description="Default probability for transitions without explicit probability. Set to 1.0 for feasibility-only scoring (transitions certain, so Score = P × R^α ≈ R^α). None (default) requires explicit probability evidence on all transitions (no free lunch)."
     )
 
+    # Graph database configuration (Memgraph or Neo4j)
+    graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
+    graph_db_host: str = Field(default="127.0.0.1", description="Graph database host")
+    graph_db_port: int = Field(default=7687, description="Graph database port")
+    graph_db_username: Optional[str] = Field(default=None, description="Graph database username (required for Neo4j, optional for Memgraph)")
+    graph_db_password: Optional[str] = Field(default=None, description="Graph database password (required for Neo4j, optional for Memgraph)")
+    graph_db_encrypted: bool = Field(default=False, description="Use encrypted connection (SSL/TLS)")
+    graph_db_client_name: str = Field(default="dialectical_framework", description="Client name for connection identification")
+
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
         """
@@ -92,4 +101,11 @@ class Settings(BaseModel):
                 os.getenv("DIALEXITY_DEFAULT_CAUSALITY_TYPE", CausalityType.BALANCED.value)
             ),
             default_transition_probability=default_prob,
+            graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
+            graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
+            graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),
+            graph_db_username=os.getenv("DIALEXITY_GRAPH_DB_USERNAME"),
+            graph_db_password=os.getenv("DIALEXITY_GRAPH_DB_PASSWORD"),
+            graph_db_encrypted=os.getenv("DIALEXITY_GRAPH_DB_ENCRYPTED", "false").lower() == "true",
+            graph_db_client_name=os.getenv("DIALEXITY_GRAPH_DB_CLIENT_NAME", "dialectical_framework"),
         )

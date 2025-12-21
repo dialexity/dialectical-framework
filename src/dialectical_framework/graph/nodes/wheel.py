@@ -54,10 +54,10 @@ class Wheel(AssessableEntity):
         cardinality=(0, 1)  # Zero or one (can be analyzed later)
     )
 
-    spirals: ClassVar[RelationshipManager] = RelationshipFrom(
+    spiral: ClassVar[RelationshipManager] = RelationshipFrom(
         "Spiral",
         "IS_SPIRAL_OF",
-        cardinality=(0, None)  # Zero or more (includes Transformations)
+        cardinality=(0, 1)  # Zero or one wheel-level spiral (Transformations are internal to WisdomUnits)
     )
 
     def __repr__(self) -> str:

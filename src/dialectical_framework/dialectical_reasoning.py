@@ -2,6 +2,8 @@ import importlib
 import pkgutil
 
 from dependency_injector import containers, providers
+from gqlalchemy import Memgraph, Neo4j
+from typing import Union
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.enums.causality_type import CausalityType
@@ -48,6 +50,53 @@ class DialecticalReasoning(containers.DeclarativeContainer):
 
     # It will be the same settings for all services in the container
     settings = providers.Dependency(instance_of=Settings)
+
+    @staticmethod
+    def _create_graph_db(settings: Settings) -> Union[Memgraph, Neo4j]:
+        """
+        Factory method to create the appropriate graph database connection based on vendor.
+
+        Supports common GQLAlchemy connection parameters:
+        - host, port: Connection details
+        - username, password: Authentication (required for Neo4j, optional for Memgraph)
+        - encrypted: Use SSL/TLS connection
+        - client_name: Client identification for monitoring
+        """
+        vendor = settings.graph_db_vendor.lower()
+
+        # Common parameters for both vendors
+        common_params = {
+            "host": settings.graph_db_host,
+            "port": settings.graph_db_port,
+            "username": settings.graph_db_username,
+            "password": settings.graph_db_password,
+            "encrypted": settings.graph_db_encrypted,
+            "client_name": settings.graph_db_client_name,
+        }
+
+        if vendor == "neo4j":
+            # Neo4j requires username/password, provide defaults if not set
+            if not common_params["username"]:
+                common_params["username"] = "neo4j"
+            if not common_params["password"]:
+                common_params["password"] = "neo4j"
+
+            return Neo4j(**common_params)
+
+        elif vendor == "memgraph":
+            return Memgraph(**common_params)
+
+        else:
+            raise ValueError(
+                f"Unknown graph_db_vendor: {vendor}. "
+                f"Supported vendors: 'memgraph', 'neo4j'"
+            )
+
+    # Graph database (Memgraph or Neo4j) for graph-native dialectical structures
+    graph_db: providers.Singleton[Union[Memgraph, Neo4j]] = providers.Singleton(
+        _create_graph_db,
+        settings=settings
+    )
 
     brain: providers.Factory[Brain] = providers.Factory(
         lambda settings: Brain(ai_model=settings.ai_model, ai_provider=settings.ai_provider),

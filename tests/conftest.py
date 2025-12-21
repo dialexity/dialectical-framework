@@ -2,16 +2,133 @@ import asyncio
 import gc
 
 import pytest
-from gqlalchemy import Memgraph
+from gqlalchemy import Memgraph, Neo4j
+from dependency_injector import providers
 
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.settings import Settings
 
 
+# ============================================================================
+# Test database wrappers for safe test data isolation
+# ============================================================================
+
+TEST_LABEL = "___DIALEXITY_TEST___"
+
+
+class TestMemgraph(Memgraph):
+    """
+    Wrapper around Memgraph that automatically marks all saved nodes as test data.
+
+    This allows tests to coexist with production data safely by adding a special label.
+    """
+
+    def save_node(self, node):
+        """Save node and add test label."""
+        result = super().save_node(node)
+
+        # Add test label after saving (query by uid since _id isn't populated)
+        if hasattr(node, 'uid') and node.uid:
+            labels = ':'.join(node.__class__.__name__.split())
+            query = f"""
+            MATCH (n:{labels} {{uid: $uid}})
+            SET n:{TEST_LABEL}
+            """
+            self.execute(query, {"uid": node.uid})
+
+        return result
+
+    def save_relationship(self, relationship):
+        """Save relationship normally (edges are deleted when nodes are deleted)."""
+        return super().save_relationship(relationship)
+
+
+class TestNeo4j(Neo4j):
+    """
+    Wrapper around Neo4j that automatically marks all saved nodes as test data.
+
+    This allows tests to coexist with production data safely by adding a special label.
+    """
+
+    def save_node(self, node):
+        """Save node and add test label."""
+        result = super().save_node(node)
+
+        # Add test label after saving (query by uid since _id isn't populated)
+        if hasattr(node, 'uid') and node.uid:
+            labels = ':'.join(node.__class__.__name__.split())
+            query = f"""
+            MATCH (n:{labels} {{uid: $uid}})
+            SET n:{TEST_LABEL}
+            """
+            self.execute(query, {"uid": node.uid})
+
+        return result
+
+    def save_relationship(self, relationship):
+        """Save relationship normally (edges are deleted when nodes are deleted)."""
+        return super().save_relationship(relationship)
+
+
+def cleanup_test_data(db):
+    """Delete only test data (nodes with TEST_LABEL)."""
+    query = f"""
+    MATCH (n:{TEST_LABEL})
+    DETACH DELETE n
+    """
+    db.execute(query)
+
+
+def _create_test_graph_db(settings: Settings):
+    """
+    Factory method to create the appropriate test graph database wrapper.
+
+    Similar to the production factory but returns Test wrappers for safety.
+    """
+    vendor = settings.graph_db_vendor.lower()
+
+    # Common parameters for both vendors
+    common_params = {
+        "host": settings.graph_db_host,
+        "port": settings.graph_db_port,
+        "username": settings.graph_db_username,
+        "password": settings.graph_db_password,
+        "encrypted": settings.graph_db_encrypted,
+        "client_name": settings.graph_db_client_name,
+    }
+
+    if vendor == "neo4j":
+        # Neo4j requires username/password, provide defaults if not set
+        if not common_params["username"]:
+            common_params["username"] = "neo4j"
+        if not common_params["password"]:
+            common_params["password"] = "neo4j"
+
+        return TestNeo4j(**common_params)
+
+    elif vendor == "memgraph":
+        return TestMemgraph(**common_params)
+
+    else:
+        raise ValueError(
+            f"Unknown graph_db_vendor: {vendor}. "
+            f"Supported vendors: 'memgraph', 'neo4j'"
+        )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def di_container():
-    """Set up DI container context for all tests"""
+    """Set up DI container context for all tests with Test wrapper."""
     container = DialecticalReasoning.setup(Settings.from_env())
+
+    # Override graph_db factory to use Test wrapper (TestMemgraph or TestNeo4j)
+    container.graph_db.override(
+        providers.Singleton(
+            _create_test_graph_db,
+            settings=container.settings
+        )
+    )
+
     yield container
     container.unwire()
 
@@ -79,88 +196,70 @@ async def cleanup_aiohttp_sessions():
 
 
 # ============================================================================
-# Memgraph fixtures for graph testing
+# Graph database fixtures for testing
 # ============================================================================
 
-def is_memgraph_available():
-    """Check if Memgraph is running."""
+def is_graph_db_available(settings: Settings) -> bool:
+    """Check if the configured graph database is running."""
+    vendor = settings.graph_db_vendor.lower()
+
     try:
-        db = Memgraph(host="127.0.0.1", port=7687)
+        if vendor == "memgraph":
+            db = Memgraph(
+                host=settings.graph_db_host,
+                port=settings.graph_db_port
+            )
+        elif vendor == "neo4j":
+            username = settings.graph_db_username or "neo4j"
+            password = settings.graph_db_password or "neo4j"
+            db = Neo4j(
+                host=settings.graph_db_host,
+                port=settings.graph_db_port,
+                username=username,
+                password=password
+            )
+        else:
+            return False
+
         db.execute("RETURN 1")
         return True
     except Exception:
         return False
 
 
-TEST_LABEL = "___DIALEXITY_TEST___"
-
-
-class TestMemgraph(Memgraph):
-    """
-    Wrapper around Memgraph that automatically marks all saved nodes as test data.
-
-    This allows tests to coexist with production data safely by adding a special label.
-    """
-
-    def save_node(self, node):
-        """Save node and add test label."""
-        result = super().save_node(node)
-
-        # Add test label after saving (query by uid since _id isn't populated)
-        if hasattr(node, 'uid') and node.uid:
-            labels = ':'.join(node.__class__.__name__.split())
-            query = f"""
-            MATCH (n:{labels} {{uid: $uid}})
-            SET n:{TEST_LABEL}
-            """
-            self.execute(query, {"uid": node.uid})
-
-        return result
-
-    def save_relationship(self, relationship):
-        """Save relationship normally (edges are deleted when nodes are deleted)."""
-        return super().save_relationship(relationship)
-
-
-def cleanup_test_data(db):
-    """Delete only test data (nodes with TEST_LABEL)."""
-    query = f"""
-    MATCH (n:{TEST_LABEL})
-    DETACH DELETE n
-    """
-    db.execute(query)
-
-
 @pytest.fixture(scope="session")
-def memgraph_available():
-    """Check if Memgraph is available for tests."""
-    return is_memgraph_available()
+def graph_db_available(di_container):
+    """Check if the configured graph database is available for tests."""
+    settings = di_container.settings()
+    return is_graph_db_available(settings)
 
 
 @pytest.fixture
-def db(memgraph_available):
+def db(graph_db_available, di_container):
     """
-    Create a Memgraph connection for testing.
+    Get graph database from DI container (configured as TestMemgraph or TestNeo4j).
 
-    Automatically skips tests if Memgraph is not available.
+    Automatically skips tests if the configured graph database is not available.
 
     SAFETY: Only deletes nodes labeled with :___DIALEXITY_TEST___
     This allows tests to run safely alongside production data.
 
-    To start Memgraph for testing:
-        docker-compose -f docker-compose.test.yml up -d
+    To start a graph database for testing:
+        Memgraph: docker-compose -f docker-compose.test.yml up -d
+        Neo4j: docker run -p 7687:7687 neo4j:latest
 
     To run tests:
         poetry run pytest tests/test_graph.py
     """
-    if not memgraph_available:
+    settings = di_container.settings()
+    if not graph_db_available:
         pytest.skip(
-            "Memgraph is not available. "
-            "Run: docker-compose -f docker-compose.test.yml up -d"
+            f"{settings.graph_db_vendor} is not available. "
+            f"Please start the database and try again."
         )
 
-    # Connect to Memgraph using test wrapper
-    db = TestMemgraph(host="127.0.0.1", port=7687)
+    # Get graph_db from container (already overridden with Test wrapper)
+    db = di_container.graph_db()
 
     # Clear only test data before each test
     cleanup_test_data(db)

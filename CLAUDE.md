@@ -73,3 +73,8 @@ Tests are located in `tests/` directory. The project uses pytest with asyncio su
 - **AI Brain Abstraction**: The `Brain` class provides a unified interface for different LLM providers
 - **Contextual Fidelity**: The system tracks probability and confidence propagation through dialectical structures
 - Scoring architecture is described in scoring.md
+
+## Important Conventions
+
+- **DO NOT update `__init__.py` files**: These files handle critical import ordering and circular dependency resolution. Adding logic to `__init__.py` files can break imports. Put helper functions in separate modules instead.
+- **Graph Database**: The framework uses `graph_db` (via DI) for graph-native structures with Memgraph/Neo4j
