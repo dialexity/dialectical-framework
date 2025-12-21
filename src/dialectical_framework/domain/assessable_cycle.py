@@ -3,8 +3,8 @@ from typing import TypeVar, Generic
 
 from pydantic import ConfigDict, Field
 
-from dialectical_framework.analyst.domain.transition import Transition
-from dialectical_framework.synthesist.domain.directed_graph import DirectedGraph
+from dialectical_framework.domain.transition import Transition
+from dialectical_framework.domain.directed_graph import DirectedGraph
 from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.utils.decompose_probability_uniformly import decompose_probability_uniformly
 

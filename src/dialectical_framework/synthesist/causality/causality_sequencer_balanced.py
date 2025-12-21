@@ -9,19 +9,19 @@ from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
 from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
 from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
     CausalCyclesDeckDto
-from dialectical_framework.analyst.domain.assessable_cycle import decompose_probability_into_transitions
-from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.analyst.domain.rationale import Rationale
+from dialectical_framework.domain.assessable_cycle import decompose_probability_into_transitions
+from dialectical_framework.domain.cycle import Cycle
+from dialectical_framework.domain.rationale import Rationale
 from dialectical_framework.protocols.causality_sequencer import (
     CausalitySequencer, generate_compatible_sequences,
     generate_permutation_sequences)
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.dialectical_components_deck import \
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
-from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T
-from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
+from dialectical_framework.domain.wheel_segment import ALIAS_T
+from dialectical_framework.domain.wisdom_unit import WisdomUnit
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl

@@ -2,15 +2,15 @@ from abc import ABC, abstractmethod
 from typing import Dict, Union
 
 from dialectical_framework import DialecticalComponent
-from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.analyst.domain.transition import Transition
+from dialectical_framework.domain.cycle import Cycle
+from dialectical_framework.domain.transition import Transition
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
-from dialectical_framework.synthesist.domain.wheel import Wheel, WheelSegmentReference
-from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
+from dialectical_framework.domain.wheel import Wheel, WheelSegmentReference
+from dialectical_framework.domain.wheel_segment import WheelSegment
 
 
 class WheelBuilderTransitionCalculator(WheelBuilder, ABC):

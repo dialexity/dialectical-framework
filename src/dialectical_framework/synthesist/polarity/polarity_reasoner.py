@@ -20,14 +20,14 @@ from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.settings import Settings
-from dialectical_framework.synthesist.domain.dialectical_analysis import DialecticalAnalysis
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.dialectical_components_deck import \
+from dialectical_framework.domain.dialectical_analysis import DialecticalAnalysis
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
-from dialectical_framework.synthesist.domain.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
-                                                                   ALIAS_T_PLUS)
-from dialectical_framework.synthesist.domain.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                                                 ALIAS_A_PLUS, WisdomUnit)
+from dialectical_framework.domain.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
+                                          ALIAS_T_PLUS)
+from dialectical_framework.domain.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
+                                          ALIAS_A_PLUS, WisdomUnit)
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl

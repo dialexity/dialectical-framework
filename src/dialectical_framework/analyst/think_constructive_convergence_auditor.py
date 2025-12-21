@@ -6,11 +6,11 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.ai_dto.constructive_convergence_transition_audit_dto import \
     ConstructiveConvergenceTransitionAuditDto
-from dialectical_framework.analyst.domain.rationale import Rationale
-from dialectical_framework.analyst.domain.transition_segment_to_segment import \
+from dialectical_framework.domain.rationale import Rationale
+from dialectical_framework.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
 from dialectical_framework.analyst.think_constructive_convergence import ThinkConstructiveConvergence
-from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
+from dialectical_framework.domain.wheel_segment import WheelSegment
 from dialectical_framework.utils.use_brain import use_brain
 
 

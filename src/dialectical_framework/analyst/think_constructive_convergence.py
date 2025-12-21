@@ -4,18 +4,18 @@ from mirascope.integrations.langfuse import with_langfuse
 from dialectical_framework import Transition
 from dialectical_framework.ai_dto.action_plan_dto import ActionPlanDto
 from dialectical_framework.ai_dto.transition_summary_dto import TransitionSummaryDto
-from dialectical_framework.analyst.domain.rationale import Rationale
-from dialectical_framework.analyst.domain.transition_segment_to_segment import \
+from dialectical_framework.domain.rationale import Rationale
+from dialectical_framework.domain.transition_segment_to_segment import \
     TransitionSegmentToSegment
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.synthesist.domain.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.domain.dialectical_components_deck import DialecticalComponentsDeck
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.use_brain import use_brain
-from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
+from dialectical_framework.domain.wheel_segment import WheelSegment
 
 
 class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):

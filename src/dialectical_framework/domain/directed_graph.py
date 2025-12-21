@@ -1,11 +1,11 @@
 from typing import (Callable, Dict, Generic, Tuple, TypeVar, Union, overload)
 
-from dialectical_framework.analyst.domain.transition import Transition
-from dialectical_framework.analyst.domain.transition_cell_to_cell import \
+from dialectical_framework.domain.transition import Transition
+from dialectical_framework.domain.transition_cell_to_cell import \
     TransitionCellToCell
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.predicate import Predicate
-from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
+from dialectical_framework.domain.wheel_segment import WheelSegment
 
 T = TypeVar("T", bound=Transition)
 

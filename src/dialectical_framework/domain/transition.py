@@ -5,8 +5,8 @@ from typing import Optional, Tuple, Union
 from dialectical_framework.enums.predicate import Predicate
 from dialectical_framework.protocols.assessable import Assessable
 from dialectical_framework.protocols.ratable import Ratable
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.wheel_segment import WheelSegment
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.wheel_segment import WheelSegment
 from pydantic import ConfigDict, Field, field_validator
 
 

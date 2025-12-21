@@ -4,9 +4,9 @@ from langfuse.decorators import observe
 from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
 from dialectical_framework.analyst.decorator_discrete_spiral_audited import DecoratorDiscreteSpiralAudited
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
+from dialectical_framework.domain.wisdom_unit import WisdomUnit
 from dialectical_framework.utils.dw_report import dw_report
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"

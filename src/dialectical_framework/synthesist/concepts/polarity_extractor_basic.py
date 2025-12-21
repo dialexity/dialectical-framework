@@ -11,11 +11,11 @@ from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
                                                      map_list_from_dto)
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.synthesist.concepts.thesis_extractor_basic import ThesisExtractorBasic
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.dialectical_components_deck import \
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
-from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T
-from dialectical_framework.synthesist.domain.wisdom_unit import ALIAS_A
+from dialectical_framework.domain.wheel_segment import ALIAS_T
+from dialectical_framework.domain.wisdom_unit import ALIAS_A
 from dialectical_framework.utils.use_brain import use_brain
 
 

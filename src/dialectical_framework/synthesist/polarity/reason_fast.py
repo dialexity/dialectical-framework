@@ -1,15 +1,11 @@
-import inspect
-
 from dependency_injector.wiring import Provide
-from mirascope import BaseMessageParam, Messages, prompt_template
+from mirascope import Messages, prompt_template
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.settings import Settings
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
-from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T
-from dialectical_framework.synthesist.domain.wisdom_unit import WisdomUnit
+from dialectical_framework.domain.wisdom_unit import WisdomUnit
 
 
 class ReasonFast(PolarityReasoner):

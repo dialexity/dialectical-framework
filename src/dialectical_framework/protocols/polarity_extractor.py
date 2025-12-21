@@ -2,8 +2,8 @@ from abc import abstractmethod
 from typing import Union
 
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.dialectical_components_deck import DialecticalComponentsDeck
 
 
 class PolarityExtractor(ThesisExtractor):

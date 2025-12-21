@@ -30,20 +30,20 @@ This test suite validates the complete scoring architecture including:
 - Critique impact (balanced skepticism without vetoing)
 """
 
-from dialectical_framework.analyst.domain.cycle import Cycle
-from dialectical_framework.analyst.domain.rationale import Rationale
-from dialectical_framework.analyst.domain.spiral import Spiral
-from dialectical_framework.analyst.domain.transformation import Transformation
-from dialectical_framework.analyst.domain.transition import Transition
-from dialectical_framework.analyst.domain.transition_segment_to_segment import TransitionSegmentToSegment
-from dialectical_framework.synthesist.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.synthesist.domain.directed_graph import DirectedGraph
+from dialectical_framework.domain.cycle import Cycle
+from dialectical_framework.domain.rationale import Rationale
+from dialectical_framework.domain.spiral import Spiral
+from dialectical_framework.domain.transformation import Transformation
+from dialectical_framework.domain.transition import Transition
+from dialectical_framework.domain.transition_segment_to_segment import TransitionSegmentToSegment
+from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.domain.directed_graph import DirectedGraph
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.predicate import Predicate
-from dialectical_framework.synthesist.domain.synthesis import Synthesis
-from dialectical_framework.synthesist.domain.wheel import Wheel
-from dialectical_framework.synthesist.domain.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
-from dialectical_framework.synthesist.domain.wisdom_unit import ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, WisdomUnit
+from dialectical_framework.domain.synthesis import Synthesis
+from dialectical_framework.domain.wheel import Wheel
+from dialectical_framework.domain.wheel_segment import ALIAS_T, ALIAS_T_PLUS, ALIAS_T_MINUS, WheelSegment
+from dialectical_framework.domain.wisdom_unit import ALIAS_A, ALIAS_A_PLUS, ALIAS_A_MINUS, WisdomUnit
 
 
 class TestDialecticalComponentScoring:
@@ -318,7 +318,7 @@ class TestCycleScoring:
         from dialectical_framework.synthesist.causality.causality_sequencer_balanced import CausalitySequencerBalanced
         from dialectical_framework.ai_dto.causal_cycles_deck_dto import CausalCyclesDeckDto
         from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
-        from dialectical_framework.synthesist.domain.dialectical_components_deck import DialecticalComponentsDeck
+        from dialectical_framework.domain.dialectical_components_deck import DialecticalComponentsDeck
 
         # Create simple components
         comp1 = DialecticalComponent(alias="T1", statement="Component 1")
@@ -369,7 +369,7 @@ class TestWheelScoring:
         wisdom_unit = WisdomUnit(**{ALIAS_T: t, ALIAS_A: a})
         
         # Create empty cycles for now (TODO: populate with actual transitions)
-        from dialectical_framework.analyst.domain.cycle import Cycle
+        from dialectical_framework.domain.cycle import Cycle
         t_cycle = Cycle([])
         ta_cycle = Cycle([])
         
@@ -982,9 +982,6 @@ class TestComplexScoringScenarios:
         assert abs(element_r_after - element_r) < 0.001, "R should be stable after scoring"
         assert abs(element_p_after - element_p) < 0.001, "P should be stable after scoring"
         assert abs(element_score - element_r * element_p) < 0.01, "Score = P × R"
-
-
-import pytest
 
 
 class TestProbabilityNoneBehavior:
