@@ -23,6 +23,8 @@ from dialectical_framework.graph.nodes.dialectical_component import DialecticalC
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
+from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
+from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.utils.order_transitions import order_transitions
 
 
@@ -470,6 +472,118 @@ def test_cycle_is_same_structure():
     assert not cycle1.is_same_structure(cycle3), "Cycles with different components should not be equivalent"
 
     print("✓ is_same_structure() correctly detects rotational equivalence")
+
+
+def test_estimation_properties():
+    """Test probability and relevance properties on AssessableEntity."""
+    import math
+
+    # Create a component
+    comp = DialecticalComponent(statement="Test component")
+    comp.save()
+
+    # Test 1: No estimations - should return None
+    assert comp.probability is None
+    assert comp.relevance is None
+
+    # Test 2: Single probability estimation
+    prob_est = ProbabilityEstimation(value=0.75)
+    prob_est.save()
+    comp.estimations.connect(prob_est)
+
+    assert comp.probability == 0.75
+    assert comp.relevance is None  # Still no relevance
+
+    # Test 3: Single relevance estimation
+    rel_est = RelevanceEstimation(value=0.85)
+    rel_est.save()
+    comp.estimations.connect(rel_est)
+
+    assert comp.probability == 0.75
+    assert comp.relevance == 0.85
+
+    # Test 4: Multiple estimations - should return geometric mean
+    prob_est2 = ProbabilityEstimation(value=0.90)
+    prob_est2.save()
+    comp.estimations.connect(prob_est2)
+
+    rel_est2 = RelevanceEstimation(value=0.95)
+    rel_est2.save()
+    comp.estimations.connect(rel_est2)
+
+    # Geometric mean: GM(0.75, 0.90) = sqrt(0.75 * 0.90) ≈ 0.8216
+    expected_prob = math.sqrt(0.75 * 0.90)
+    assert abs(comp.probability - expected_prob) < 0.001
+
+    # Geometric mean: GM(0.85, 0.95) = sqrt(0.85 * 0.95) ≈ 0.8986
+    expected_rel = math.sqrt(0.85 * 0.95)
+    assert abs(comp.relevance - expected_rel) < 0.001
+
+    print(f"✓ Probability property works correctly (GM): {comp.probability:.4f}")
+    print(f"✓ Relevance property works correctly (GM): {comp.relevance:.4f}")
+
+    # Test 5: Zero estimation - should return 0 (veto semantics)
+    comp2 = DialecticalComponent(statement="Test component 2")
+    comp2.save()
+
+    prob_est3 = ProbabilityEstimation(value=0.8)
+    prob_est3.save()
+    comp2.estimations.connect(prob_est3)
+
+    prob_est4 = ProbabilityEstimation(value=0.0)  # Zero vetos
+    prob_est4.save()
+    comp2.estimations.connect(prob_est4)
+
+    assert comp2.probability == 0.0  # Zero vetos all other values
+
+    print(f"✓ Zero estimation veto works correctly: {comp2.probability}")
+
+
+def test_best_rationale_property():
+    """Test best_rationale property on AssessableEntity."""
+
+    # Create a component
+    comp = DialecticalComponent(statement="Test component")
+    comp.save()
+
+    # Test 1: No rationales - should return None
+    assert comp.best_rationale is None
+
+    # Test 2: Single rationale without score
+    r1 = Rationale(text="First rationale")
+    r1.save()
+    comp.rationales.connect(r1)
+
+    best = comp.best_rationale
+    assert best is not None
+    assert best.uid == r1.uid
+    assert best.text == "First rationale"
+
+    # Test 3: Multiple rationales with scores
+    r2 = Rationale(text="Second rationale", score=0.7)
+    r2.save()
+    comp.rationales.connect(r2)
+
+    r3 = Rationale(text="Third rationale", score=0.9)
+    r3.save()
+    comp.rationales.connect(r3)
+
+    # Should return r3 (highest score)
+    best = comp.best_rationale
+    assert best.uid == r3.uid
+    assert best.score == 0.9
+    assert best.text == "Third rationale"
+
+    # Test 4: Add even higher scored rationale
+    r4 = Rationale(text="Fourth rationale", score=0.95)
+    r4.save()
+    comp.rationales.connect(r4)
+
+    best = comp.best_rationale
+    assert best.uid == r4.uid
+    assert best.score == 0.95
+
+    print(f"✓ best_rationale property works correctly: score={best.score}")
 
 
 if __name__ == "__main__":
