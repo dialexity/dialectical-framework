@@ -16,7 +16,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Generic, Optional, Type, TypeVar, Union, get_args
+from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, get_args, overload
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j, Node
@@ -25,6 +25,9 @@ from gqlalchemy import Relationship as GQLRelationship
 from dialectical_framework.enums.di import DI
 
 T = TypeVar("T", bound=Node)
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
 class RelationshipManager(Generic[T]):
@@ -113,6 +116,14 @@ class RelationshipManager(Generic[T]):
     def __set_name__(self, owner, name):
         """Called when the descriptor is assigned to a class attribute."""
         self.name = name
+
+    @overload
+    def __get__(self, instance: None, owner: type) -> RelationshipManager[T]:
+        ...
+
+    @overload
+    def __get__(self, instance: Node, owner: type) -> BoundRelationshipManager[T]:
+        ...
 
     def __get__(self, instance, owner):
         """Return a bound relationship manager when accessed on an instance."""

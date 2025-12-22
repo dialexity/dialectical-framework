@@ -7,13 +7,25 @@ composed of transitions between dialectical components.
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, TYPE_CHECKING, Union
 
+from dependency_injector.wiring import inject, Provide
+
+from dialectical_framework.enums.di import DI
+from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.mixins.sequence_topology_mixin import SequenceTopologyMixin
+from dialectical_framework.graph.utils.order_transitions import order_transitions
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from gqlalchemy import Memgraph
+    from neo4j import Neo4j
 
 
-class Cycle(AssessableEntity):
+class Cycle(SequenceTopologyMixin, AssessableEntity):
     """
     Represents a causal cycle in the dialectical framework.
 
@@ -39,10 +51,10 @@ class Cycle(AssessableEntity):
     - Use get_wheel() to find which wheel this cycle analyzes
     """
 
-    causality_type: Optional[str] = None
+    causality_type: Optional[CausalityType] = None
 
-    # Declarative relationships
-    transitions: ClassVar[RelationshipManager] = RelationshipFrom(
+    # Declarative relationships - ClassVar required for GQLAlchemy metaclass
+    transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         "BELONGS_TO_CYCLE",
         cardinality=(2, None)  # At least two transitions to form a cycle
@@ -51,40 +63,47 @@ class Cycle(AssessableEntity):
     # Note: Wheel relationship is defined on Wheel side (t_cycle, ta_cycle)
     # Use get_wheel() method to query which wheel this cycle belongs to
 
-    def get_wheel(self, db=None):
+    @property
+    def transitions_ordered(self) -> list[Transition]:
         """
-        Get the wheel this cycle belongs to and its role (T or TA).
-
-        Args:
-            db: Database connection (uses get_db() if not provided)
+        Get transitions in cycle order by following source->target chain.
 
         Returns:
-            Tuple of (wheel, role) where role is "T" or "TA", or None if not assigned
+            List of Transition nodes in cycle order, or empty list if no transitions
+        """
+        all_transitions = [trans for trans, _ in self.transitions.all()]
+        return order_transitions(all_transitions)
+
+    @inject
+    def get_wheel(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> Wheel | None:
+        """
+        Get the wheel this cycle belongs to.
+
+        Args:
+            graph_db: Database connection (injected via DI)
+
+        Returns:
+            Wheel instance or None if not assigned to a wheel
 
         Example:
-            wheel, role = cycle.get_wheel(db)
-            if role == "T":
-                print("This is the T-cycle (thesis components only)")
-            elif role == "TA":
-                print("This is the TA-cycle (thesis + antithesis, includes blindspots)")
+            wheel = cycle.get_wheel()
+            if wheel:
+                print(f"Cycle belongs to wheel {wheel.uid}")
         """
         if self._id is None:
             return None
 
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
-
         query = """
         MATCH (c:Cycle)-[r:IS_T_CYCLE_OF|IS_TA_CYCLE_OF]->(w:Wheel)
         WHERE id(c) = $cycle_id
-        RETURN w, type(r) as role
+        RETURN w
         """
-        result = list(db.execute_and_fetch(query, {"cycle_id": self._id}))
+        result = list(graph_db.execute_and_fetch(query, {"cycle_id": self._id}))
         if result:
-            wheel = result[0]["w"]
-            role = "T" if result[0]["role"] == "IS_T_CYCLE_OF" else "TA"
-            return (wheel, role)
+            return result[0]["w"]
         return None
 
     def __repr__(self) -> str:

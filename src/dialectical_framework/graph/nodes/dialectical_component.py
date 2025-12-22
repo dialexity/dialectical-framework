@@ -6,13 +6,16 @@ This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.opposition_relationship import (
     OppositionRelationship,
 )
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
 class DialecticalComponent(AssessableEntity):
@@ -25,17 +28,14 @@ class DialecticalComponent(AssessableEntity):
     - A (neutral antithesis), A+ (positive antithesis), A- (negative antithesis)
     - S+ (positive synthesis), S- (negative synthesis)
 
-    Components are connected TO WisdomUnits from the WisdomUnit side using
-    typed relationships (T, T_PLUS, T_MINUS, A, A_PLUS, A_MINUS, S_PLUS, S_MINUS).
-
-    The full alias (e.g., "T1+", "A2-") is computed from:
-    - Relationship type (T_PLUS, A_MINUS, etc.)
-    - WisdomUnit.index property
+    Components are connected TO WisdomUnits via PolarityRelationship, which stores
+    the contextual alias (e.g., "T1+", "A2-") on the relationship edge.
+    This allows the same component to have different positions in different wheels.
     """
 
     statement: str
 
-    oppositions: ClassVar[RelationshipManager] = RelationshipTo(
+    oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
         model=OppositionRelationship,
         cardinality=(1, None)
@@ -103,3 +103,30 @@ class DialecticalComponent(AssessableEntity):
             result.append((wu, alias))
 
         return result
+
+    def get_alias(self, wisdom_unit: WisdomUnit) -> Optional[str]:
+        """
+        Get the alias of this component within a specific WisdomUnit's context.
+
+        This method finds the polarity relationship connecting this component
+        to the given WisdomUnit and returns the alias stored on that edge.
+
+        Args:
+            wisdom_unit: The WisdomUnit to look up the alias in
+
+        Returns:
+            The alias string (e.g., "T", "T+", "A-") or None if not connected
+
+        Example:
+            comp = DialecticalComponent(statement="Democracy")
+            wu = WisdomUnit(...)
+            wu.t.connect(comp, properties={'alias': 'T1'})
+
+            alias = comp.get_alias(wu)  # Returns "T1"
+
+        Note:
+            This delegates to WisdomUnit.get_component_alias() which searches
+            all polarity relationships (t, t_plus, t_minus, a, a_plus, a_minus,
+            s_plus, s_minus) for the relationship edge properties.
+        """
+        return wisdom_unit.get_component_alias(self)

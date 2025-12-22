@@ -7,10 +7,15 @@ between dialectical components (causal, convergence, transformation).
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.spiral import Spiral
 
 
 class Transition(AssessableEntity):
@@ -31,25 +36,25 @@ class Transition(AssessableEntity):
 
     default_transition_probability: Optional[float] = None
 
-    source: ClassVar[RelationshipManager] = RelationshipFrom(
+    source: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         "IS_SOURCE_OF",
         cardinality=(1, 1)
     )
 
-    target: ClassVar[RelationshipManager] = RelationshipTo(
+    target: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
         "IS_TARGET_OF",
         cardinality=(1, 1)
     )
 
-    cycle: ClassVar[RelationshipManager] = RelationshipTo(
+    cycle: ClassVar[RelationshipManager[Cycle | Spiral]] = RelationshipTo(
         ("Cycle", "Spiral"),
         "BELONGS_TO_CYCLE",
         cardinality=(0, 1)
     )
 
-    derived_statements: ClassVar[RelationshipManager] = RelationshipTo(
+    derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
         "HAS_STATEMENT",
         cardinality=(0, None)
