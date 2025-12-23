@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.wheel_segment import WheelSegment
 
 
 class WisdomUnit(AssessableEntity):
@@ -258,3 +259,37 @@ class WisdomUnit(AssessableEntity):
                 result.append((component, alias))
 
         return result
+
+    def segment_t(self) -> WheelSegment:
+        """
+        Get the T-side segment as a WheelSegment window.
+
+        Returns:
+            WheelSegment providing access to T, T+, T- relationships
+
+        Example:
+            wu = WisdomUnit(...)
+            t_seg = wu.segment_t()
+            t_comp = t_seg.t.get()  # Get T component
+            t_plus_comps = [c for c, _ in t_seg.t_plus.all()]  # Get T+ components
+            t_minus_comps = [c for c, _ in t_seg.t_minus.all()]  # Get T- components
+        """
+        from dialectical_framework.graph.wheel_segment import WheelSegment
+        return WheelSegment(self, 'T')
+
+    def segment_a(self) -> WheelSegment:
+        """
+        Get the A-side segment as a WheelSegment window.
+
+        Returns:
+            WheelSegment providing access to A, A+, A- relationships
+
+        Example:
+            wu = WisdomUnit(...)
+            a_seg = wu.segment_a()
+            a_comp = a_seg.t.get()  # Get A component (using 't' property)
+            a_plus_comps = [c for c, _ in a_seg.t_plus.all()]  # Get A+ components
+            a_minus_comps = [c for c, _ in a_seg.t_minus.all()]  # Get A- components
+        """
+        from dialectical_framework.graph.wheel_segment import WheelSegment
+        return WheelSegment(self, 'A')

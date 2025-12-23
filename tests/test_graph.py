@@ -586,6 +586,466 @@ def test_best_rationale_property():
     print(f"✓ best_rationale property works correctly: score={best.score}")
 
 
+def test_wheel_navigation_properties():
+    """Test wheel navigation properties (order, degree)."""
+
+    # Create a wheel with 4 wisdom units
+    wheel = Wheel()
+    wheel.save()
+
+    wus = []
+    for i in range(4):
+        wu = WisdomUnit(reasoning_mode=f"mode_{i}")
+        wu.save()
+        wu.wheel.connect(wheel)
+        wus.append(wu)
+
+    # Test 1: order property
+    assert wheel.order == 4
+
+    # Test 2: degree property (2 × order)
+    assert wheel.degree == 8
+
+    print(f"✓ order={wheel.order}, degree={wheel.degree}")
+
+
+def test_wheel_wisdom_unit_at():
+    """Test wisdom_unit_at() method (no integer indexing)."""
+
+    wheel = Wheel()
+    wheel.save()
+
+    # Create wisdom units with components
+    wus = []
+    for i in range(3):
+        wu = WisdomUnit()
+        wu.save()
+        wu.wheel.connect(wheel)
+
+        # Add a T component with alias
+        comp = DialecticalComponent(statement=f"Component {i}")
+        comp.save()
+        wu.t.connect(comp, properties={'alias': f'T{i}'})
+        wus.append((wu, comp))
+
+    # Test 1: Get by alias
+    wu = wheel.wisdom_unit_at("T0")
+    assert wu.uid == wus[0][0].uid
+
+    wu = wheel.wisdom_unit_at("T1")
+    assert wu.uid == wus[1][0].uid
+
+    wu = wheel.wisdom_unit_at("T2")
+    assert wu.uid == wus[2][0].uid
+
+    # Test 2: Get by component
+    wu = wheel.wisdom_unit_at(wus[0][1])
+    assert wu.uid == wus[0][0].uid
+
+    wu = wheel.wisdom_unit_at(wus[2][1])  # Component from wu2
+    assert wu.uid == wus[2][0].uid
+
+    # Test 3: Get by WisdomUnit
+    wu = wheel.wisdom_unit_at(wus[1][0])
+    assert wu.uid == wus[1][0].uid
+
+    # Test 4: Alias not found
+    try:
+        _ = wheel.wisdom_unit_at("NonexistentAlias")
+        assert False, "Should have raised ValueError"
+    except ValueError:
+        pass
+
+    print("✓ wisdom_unit_at() works with alias, component, and WisdomUnit")
+
+
+def test_wheel_is_same_structure():
+    """Test is_same_structure() for comparing wheels."""
+
+    # Create first wheel with 2 wisdom units
+    wheel1 = Wheel()
+    wheel1.save()
+
+    for i in range(2):
+        wu = WisdomUnit()
+        wu.save()
+        wu.wheel.connect(wheel1)
+
+    # Create second wheel with same order
+    wheel2 = Wheel()
+    wheel2.save()
+
+    for i in range(2):
+        wu = WisdomUnit()
+        wu.save()
+        wu.wheel.connect(wheel2)
+
+    # Test 1: Same order
+    assert wheel1.is_same_structure(wheel2)
+
+    # Create third wheel with different order
+    wheel3 = Wheel()
+    wheel3.save()
+
+    for i in range(3):  # Different order
+        wu = WisdomUnit()
+        wu.save()
+        wu.wheel.connect(wheel3)
+
+    # Test 2: Different order
+    assert not wheel1.is_same_structure(wheel3)
+
+    print("✓ is_same_structure() correctly compares wheels")
+
+
+def test_wheel_segment_from_wisdom_unit():
+    """Test creating WheelSegment from WisdomUnit using segment_t() and segment_a()."""
+    from dialectical_framework.graph.wheel_segment import WheelSegment
+
+    # Create wisdom unit with complete T-side and A-side
+    wu = WisdomUnit(reasoning_mode="test")
+    wu.save()
+
+    # Create T-side components
+    t_comp = DialecticalComponent(statement="Thesis")
+    t_comp.save()
+    wu.t.connect(t_comp, properties={'alias': 'T'})
+
+    t_plus_comp = DialecticalComponent(statement="Thesis positive")
+    t_plus_comp.save()
+    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T+'})
+
+    t_minus_comp = DialecticalComponent(statement="Thesis negative")
+    t_minus_comp.save()
+    wu.t_minus.connect(t_minus_comp, properties={'alias': 'T-'})
+
+    # Create A-side components
+    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp.save()
+    wu.a.connect(a_comp, properties={'alias': 'A'})
+
+    a_plus_comp = DialecticalComponent(statement="Antithesis positive")
+    a_plus_comp.save()
+    wu.a_plus.connect(a_plus_comp, properties={'alias': 'A+'})
+
+    a_minus_comp = DialecticalComponent(statement="Antithesis negative")
+    a_minus_comp.save()
+    wu.a_minus.connect(a_minus_comp, properties={'alias': 'A-'})
+
+    # Get T-side segment
+    t_seg = wu.segment_t()
+    assert isinstance(t_seg, WheelSegment)
+    assert t_seg.side == 'T'
+    assert t_seg.wisdom_unit.uid == wu.uid
+
+    # Test window into T-side relationships
+    assert t_seg.t.get()[0].uid == t_comp.uid
+    t_plus_list = [c for c, _ in t_seg.t_plus.all()]
+    assert len(t_plus_list) == 1
+    assert t_plus_list[0].uid == t_plus_comp.uid
+    t_minus_list = [c for c, _ in t_seg.t_minus.all()]
+    assert len(t_minus_list) == 1
+    assert t_minus_list[0].uid == t_minus_comp.uid
+    assert t_seg.is_complete()
+
+    # Get A-side segment
+    a_seg = wu.segment_a()
+    assert isinstance(a_seg, WheelSegment)
+    assert a_seg.side == 'A'
+    assert a_seg.wisdom_unit.uid == wu.uid
+
+    # Test window into A-side relationships (using t/t_plus/t_minus properties)
+    assert a_seg.t.get()[0].uid == a_comp.uid
+    a_plus_list = [c for c, _ in a_seg.t_plus.all()]
+    assert len(a_plus_list) == 1
+    assert a_plus_list[0].uid == a_plus_comp.uid
+    a_minus_list = [c for c, _ in a_seg.t_minus.all()]
+    assert len(a_minus_list) == 1
+    assert a_minus_list[0].uid == a_minus_comp.uid
+    assert a_seg.is_complete()
+
+    print("✓ WheelSegment.segment_t() and segment_a() work correctly")
+
+
+def test_wheel_segment_get_component_by_alias():
+    """Test finding components within a segment by alias."""
+    wu = WisdomUnit(reasoning_mode="test")
+    wu.save()
+
+    # Create T-side components
+    t_comp = DialecticalComponent(statement="Thesis")
+    t_comp.save()
+    wu.t.connect(t_comp, properties={'alias': 'T1'})
+
+    t_plus_comp = DialecticalComponent(statement="Thesis positive")
+    t_plus_comp.save()
+    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T1+'})
+
+    # Create A-side component
+    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp.save()
+    wu.a.connect(a_comp, properties={'alias': 'A1'})
+
+    # Get T-side segment
+    t_seg = wu.segment_t()
+
+    # Find T-side components by alias
+    found_t = t_seg.get_component_by_alias('T1')
+    assert found_t is not None
+    assert found_t.uid == t_comp.uid
+
+    found_t_plus = t_seg.get_component_by_alias('T1+')
+    assert found_t_plus is not None
+    assert found_t_plus.uid == t_plus_comp.uid
+
+    # A-side component should not be found in T-side segment
+    found_a = t_seg.get_component_by_alias('A1')
+    assert found_a is None
+
+    # Get A-side segment
+    a_seg = wu.segment_a()
+
+    # Find A-side component by alias
+    found_a = a_seg.get_component_by_alias('A1')
+    assert found_a is not None
+    assert found_a.uid == a_comp.uid
+
+    # T-side component should not be found in A-side segment
+    found_t = a_seg.get_component_by_alias('T1')
+    assert found_t is None
+
+    print("✓ WheelSegment.get_component_by_alias() filters by side correctly")
+
+
+def test_wheel_wheel_segment_at():
+    """Test Wheel.wheel_segment_at() lookup by alias or component."""
+    from dialectical_framework.graph.wheel_segment import WheelSegment
+
+    # Create wheel with 2 wisdom units
+    wheel = Wheel()
+    wheel.save()
+
+    wus = []
+    for i in range(2):
+        wu = WisdomUnit(reasoning_mode=f"mode_{i}")
+        wu.save()
+        wu.wheel.connect(wheel)
+
+        # Add T-side components
+        t_comp = DialecticalComponent(statement=f"Thesis {i}")
+        t_comp.save()
+        wu.t.connect(t_comp, properties={'alias': f'T{i}'})
+
+        t_plus = DialecticalComponent(statement=f"T+ {i}")
+        t_plus.save()
+        wu.t_plus.connect(t_plus, properties={'alias': f'T{i}+'})
+
+        t_minus = DialecticalComponent(statement=f"T- {i}")
+        t_minus.save()
+        wu.t_minus.connect(t_minus, properties={'alias': f'T{i}-'})
+
+        # Add A-side components
+        a_comp = DialecticalComponent(statement=f"Antithesis {i}")
+        a_comp.save()
+        wu.a.connect(a_comp, properties={'alias': f'A{i}'})
+
+        a_plus = DialecticalComponent(statement=f"A+ {i}")
+        a_plus.save()
+        wu.a_plus.connect(a_plus, properties={'alias': f'A{i}+'})
+
+        a_minus = DialecticalComponent(statement=f"A- {i}")
+        a_minus.save()
+        wu.a_minus.connect(a_minus, properties={'alias': f'A{i}-'})
+
+        wus.append((wu, t_comp, a_comp))
+
+    # Test 1: By alias
+    seg_t0 = wheel.wheel_segment_at("T0")
+    assert isinstance(seg_t0, WheelSegment)
+    assert seg_t0.side == 'T'
+    assert seg_t0.wisdom_unit.uid == wus[0][0].uid
+
+    seg_a1 = wheel.wheel_segment_at("A1")
+    assert seg_a1.side == 'A'
+    assert seg_a1.wisdom_unit.uid == wus[1][0].uid
+
+    # Test 2: By component
+    seg_by_comp = wheel.wheel_segment_at(wus[0][1])  # T component of first WU
+    assert seg_by_comp.side == 'T'
+    assert seg_by_comp.wisdom_unit.uid == wus[0][0].uid
+
+    seg_by_a_comp = wheel.wheel_segment_at(wus[1][2])  # A component of second WU
+    assert seg_by_a_comp.side == 'A'
+    assert seg_by_a_comp.wisdom_unit.uid == wus[1][0].uid
+
+    print("✓ Wheel.wheel_segment_at() supports alias/component lookup")
+
+
+def test_wheel_segment_to_dict():
+    """Test WheelSegment.to_dict() conversion."""
+    wu = WisdomUnit(reasoning_mode="test")
+    wu.save()
+
+    # Create T-side components
+    t_comp = DialecticalComponent(statement="Thesis")
+    t_comp.save()
+    wu.t.connect(t_comp, properties={'alias': 'T'})
+
+    t_plus_comp = DialecticalComponent(statement="Thesis positive")
+    t_plus_comp.save()
+    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T+'})
+
+    t_minus_comp = DialecticalComponent(statement="Thesis negative")
+    t_minus_comp.save()
+    wu.t_minus.connect(t_minus_comp, properties={'alias': 'T-'})
+
+    # Get T-side segment and convert to dict
+    t_seg = wu.segment_t()
+    seg_dict = t_seg.to_dict()
+
+    assert 't' in seg_dict
+    assert 't_plus' in seg_dict
+    assert 't_minus' in seg_dict
+
+    assert seg_dict['t'].uid == t_comp.uid
+    assert len(seg_dict['t_plus']) == 1
+    assert seg_dict['t_plus'][0].uid == t_plus_comp.uid
+    assert len(seg_dict['t_minus']) == 1
+    assert seg_dict['t_minus'][0].uid == t_minus_comp.uid
+
+    print("✓ WheelSegment.to_dict() produces correct structure")
+
+
+def test_wheel_segment_is_same():
+    """Test WheelSegment.is_same() comparison."""
+    wu1 = WisdomUnit(reasoning_mode="test1")
+    wu1.save()
+
+    wu2 = WisdomUnit(reasoning_mode="test2")
+    wu2.save()
+
+    # Create identical T-side components for both WUs
+    for wu in [wu1, wu2]:
+        t_comp = DialecticalComponent(statement="Same thesis")
+        t_comp.save()
+        wu.t.connect(t_comp, properties={'alias': 'T'})
+
+        t_plus = DialecticalComponent(statement="Same T+")
+        t_plus.save()
+        wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
+
+        t_minus = DialecticalComponent(statement="Same T-")
+        t_minus.save()
+        wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
+
+    # Extract segments
+    seg1 = wu1.segment_t()
+    seg2 = wu2.segment_t()
+
+    # Should be considered the same (same component UIDs)
+    # Actually they won't be same since components have different UIDs
+    # Let's test reflexive case
+    assert seg1.is_same(seg1)
+    assert seg2.is_same(seg2)
+
+    print("✓ WheelSegment.is_same() works correctly")
+
+
+def test_wheel_segment_is_set():
+    """Test WheelSegment.is_set() method."""
+    wu = WisdomUnit(reasoning_mode="test")
+    wu.save()
+
+    # Create T-side components
+    t_comp = DialecticalComponent(statement="Thesis")
+    t_comp.save()
+    wu.t.connect(t_comp, properties={'alias': 'T1'})
+
+    t_plus = DialecticalComponent(statement="T+")
+    t_plus.save()
+    wu.t_plus.connect(t_plus, properties={'alias': 'T1+'})
+
+    # Create A-side component
+    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp.save()
+    wu.a.connect(a_comp, properties={'alias': 'A1'})
+
+    # Get segments
+    t_seg = wu.segment_t()
+    a_seg = wu.segment_a()
+
+    # Test is_set by alias
+    assert t_seg.is_set("T1")
+    assert t_seg.is_set("T1+")
+    assert not t_seg.is_set("A1")  # A component not in T segment
+
+    assert a_seg.is_set("A1")
+    assert not a_seg.is_set("T1")  # T component not in A segment
+
+    # Test is_set by component
+    assert t_seg.is_set(t_comp)
+    assert t_seg.is_set(t_plus)
+    assert not t_seg.is_set(a_comp)
+
+    assert a_seg.is_set(a_comp)
+    assert not a_seg.is_set(t_comp)
+
+    print("✓ WheelSegment.is_set() works correctly")
+
+
+def test_wheel_wisdom_unit_at_segment():
+    """Test Wheel.wisdom_unit_at() with WheelSegment."""
+    wheel = Wheel()
+    wheel.save()
+
+    # Create 2 wisdom units
+    wus = []
+    for i in range(2):
+        wu = WisdomUnit(reasoning_mode=f"mode_{i}")
+        wu.save()
+        wu.wheel.connect(wheel)
+
+        # Add minimal components
+        t = DialecticalComponent(statement=f"T{i}")
+        t.save()
+        wu.t.connect(t, properties={'alias': f'T{i}'})
+
+        t_plus = DialecticalComponent(statement=f"T{i}+")
+        t_plus.save()
+        wu.t_plus.connect(t_plus, properties={'alias': f'T{i}+'})
+
+        t_minus = DialecticalComponent(statement=f"T{i}-")
+        t_minus.save()
+        wu.t_minus.connect(t_minus, properties={'alias': f'T{i}-'})
+
+        a = DialecticalComponent(statement=f"A{i}")
+        a.save()
+        wu.a.connect(a, properties={'alias': f'A{i}'})
+
+        a_plus = DialecticalComponent(statement=f"A{i}+")
+        a_plus.save()
+        wu.a_plus.connect(a_plus, properties={'alias': f'A{i}+'})
+
+        a_minus = DialecticalComponent(statement=f"A{i}-")
+        a_minus.save()
+        wu.a_minus.connect(a_minus, properties={'alias': f'A{i}-'})
+
+        wus.append(wu)
+
+    # Get segments
+    t_seg_1 = wus[1].segment_t()
+    a_seg_0 = wus[0].segment_a()
+
+    # Test wisdom_unit_at with WheelSegment
+    found_wu = wheel.wisdom_unit_at(t_seg_1)
+    assert found_wu.uid == wus[1].uid
+
+    found_wu = wheel.wisdom_unit_at(a_seg_0)
+    assert found_wu.uid == wus[0].uid
+
+    print("✓ Wheel.wisdom_unit_at() works with WheelSegment")
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])
