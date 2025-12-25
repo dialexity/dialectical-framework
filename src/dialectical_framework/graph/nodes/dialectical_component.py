@@ -6,13 +6,17 @@ This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional, TYPE_CHECKING
+from typing import Any, ClassVar, Optional, Union, TYPE_CHECKING
+
+from dependency_injector.wiring import inject, Provide
+from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.opposition_relationship import (
     OppositionRelationship,
 )
+from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -55,12 +59,16 @@ class DialecticalComponent(AssessableEntity):
         """Human-readable string representation."""
         return self.statement
 
-    def get_wisdom_units(self, db=None) -> list[tuple[Any, str]]:
+    @inject
+    def get_wisdom_units(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> list[tuple[Any, str]]:
         """
         Get all WisdomUnits this component belongs to with their relationship types.
 
         Args:
-            db: Database connection (uses get_db() if not provided)
+            graph_db: Database connection (injected via DI)
 
         Returns:
             List of tuples: (WisdomUnit, relationship_type)
@@ -68,10 +76,6 @@ class DialecticalComponent(AssessableEntity):
         """
         if self._id is None:
             return []
-
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
 
         # Query all typed relationships to WisdomUnits
         query = """
@@ -81,22 +85,19 @@ class DialecticalComponent(AssessableEntity):
         RETURN wu, type(r) as rel_type
         """
 
-        results = db.execute_and_fetch(query, {"component_id": self._id})
+        results = graph_db.execute_and_fetch(query, {"component_id": self._id})
         return [(result["wu"], result["rel_type"]) for result in results]
 
-    def get_wisdom_units_with_aliases(self, db=None) -> list[tuple[Any, str]]:
+    def get_wisdom_units_with_aliases(self) -> list[tuple[Any, str]]:
         """
         Get all WisdomUnits with computed full aliases.
-
-        Args:
-            db: Database connection (uses get_db() if not provided)
 
         Returns:
             List of tuples: (WisdomUnit, full_alias)
             Example: [(wu1, "T1"), (wu2, "T2+")]
         """
         result = []
-        wisdom_units = self.get_wisdom_units(db)
+        wisdom_units = self.get_wisdom_units()  # Uses injected graph_db internally
 
         for wu, rel_type in wisdom_units:
             alias = wu.get_component_alias(rel_type)

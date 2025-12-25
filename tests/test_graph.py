@@ -1046,6 +1046,48 @@ def test_wheel_wisdom_unit_at_segment():
     print("✓ Wheel.wisdom_unit_at() works with WheelSegment")
 
 
+def test_wheel_is_set():
+    """Test Wheel.is_set() method."""
+    wheel = Wheel()
+    wheel.save()
+
+    wu = WisdomUnit(reasoning_mode="test")
+    wu.save()
+    wu.wheel.connect(wheel)
+
+    # Add components
+    t = DialecticalComponent(statement="T")
+    t.save()
+    wu.t.connect(t, properties={'alias': 'T'})
+
+    t_plus = DialecticalComponent(statement="T+")
+    t_plus.save()
+    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
+
+    a = DialecticalComponent(statement="A")
+    a.save()
+    wu.a.connect(a, properties={'alias': 'A'})
+
+    # Test with alias
+    assert wheel.is_set('T') is True
+    assert wheel.is_set('T+') is True
+    assert wheel.is_set('A') is True
+    assert wheel.is_set('NonExistent') is False
+
+    # Test with component
+    assert wheel.is_set(t) is True
+    assert wheel.is_set(t_plus) is True
+    assert wheel.is_set(a) is True
+
+    # Test with segment
+    t_seg = wu.segment_t()
+    a_seg = wu.segment_a()
+    assert wheel.is_set(t_seg) is True
+    assert wheel.is_set(a_seg) is True
+
+    print("✓ Wheel.is_set() works correctly")
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])

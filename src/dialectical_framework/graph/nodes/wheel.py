@@ -208,6 +208,33 @@ class Wheel(AssessableEntity):
 
         raise ValueError(f"Cannot find wheel segment with key: {key}")
 
+    def is_set(self, key: Union[str, DialecticalComponent, WheelSegment]) -> bool:
+        """
+        Check if a component, alias, or segment exists in the wheel.
+
+        Args:
+            key: Can be:
+               - str: component alias (e.g., "T", "T+", "A1")
+               - DialecticalComponent: check if component exists in any WU
+               - WheelSegment: check if segment exists in the wheel
+
+        Returns:
+            True if the key exists in the wheel, False otherwise
+
+        Examples:
+            if wheel.is_set("T1"):
+                print("T1 exists")
+            if wheel.is_set(component):
+                print("Component exists")
+            if wheel.is_set(segment):
+                print("Segment exists")
+        """
+        try:
+            self.wisdom_unit_at(key)
+            return True
+        except ValueError:
+            return False
+
     def is_same_structure(self, other: Wheel) -> bool:
         """
         Check if two wheels have the same structure.

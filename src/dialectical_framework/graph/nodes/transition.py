@@ -69,7 +69,7 @@ class Transition(AssessableEntity):
         )
         return f"Transition(uid={self.uid}, probability={prob_str})"
 
-    def decompose_into_statements(self, statements: list, db=None):
+    def decompose_into_statements(self, statements: list):
         """
         Decompose this transition into atomic statements for meta-dialectical analysis.
 
@@ -78,7 +78,6 @@ class Transition(AssessableEntity):
 
         Args:
             statements: List of DialecticalComponent instances representing atomic statements
-            db: Database connection (uses get_db() if not provided)
 
         Example:
             # Wheel 1: T1, T2, T3
@@ -86,28 +85,20 @@ class Transition(AssessableEntity):
 
             # Decompose into statement for Wheel 2
             statement_4 = DialecticalComponent(statement="T2- causes T3+")
-            transition.decompose_into_statements([statement_4], db)
+            transition.decompose_into_statements([statement_4])
 
             # Wheel 2: T1, T2, T3, T4 (where T4 comes from transition)
             wu4 = WisdomUnit(index=4)
-            wu4.t_components.connect(statement_4, db)
+            wu4.t_components.connect(statement_4)
         """
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
-
         for statement in statements:
-            self.derived_statements.connect(statement, db=db)
+            self.derived_statements.connect(statement)  # Uses injected graph_db internally
 
-    def get_statements(self, db=None) -> list:
+    def get_statements(self) -> list:
         """
         Get all statements this transition has been decomposed into.
 
         Returns:
             List of DialecticalComponent nodes
         """
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
-
-        return [comp for comp, _ in self.derived_statements.all(db)]
+        return [comp for comp, _ in self.derived_statements.all()]  # Uses injected graph_db internally

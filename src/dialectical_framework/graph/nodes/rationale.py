@@ -74,7 +74,7 @@ class Rationale(AssessableEntity):
         """Human-readable string representation."""
         return self.headline if self.headline else self.text
 
-    def decompose_into_statements(self, statements: list, db=None):
+    def decompose_into_statements(self, statements: list):
         """
         Decompose this rationale into atomic statements for dialectical analysis.
 
@@ -83,7 +83,6 @@ class Rationale(AssessableEntity):
 
         Args:
             statements: List of DialecticalComponent instances representing atomic statements
-            db: Database connection (uses get_db() if not provided)
 
         Example:
             rationale = Rationale(
@@ -93,28 +92,20 @@ class Rationale(AssessableEntity):
             # Decompose into atomic statements
             statement1 = DialecticalComponent(statement="Democracy empowers citizens")
             statement2 = DialecticalComponent(statement="Democracy promotes equality")
-            rationale.decompose_into_statements([statement1, statement2], db)
+            rationale.decompose_into_statements([statement1, statement2])
 
             # Now these can participate in dialectical analysis
-            wu.t_plus_components.connect(statement1, db)
-            wu.t_plus_components.connect(statement2, db)
+            wu.t_plus_components.connect(statement1)
+            wu.t_plus_components.connect(statement2)
         """
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
-
         for statement in statements:
-            self.derived_statements.connect(statement, db=db)
+            self.derived_statements.connect(statement)  # Uses injected graph_db internally
 
-    def get_statements(self, db=None) -> list:
+    def get_statements(self) -> list:
         """
         Get all statements this rationale has been decomposed into.
 
         Returns:
             List of DialecticalComponent nodes
         """
-        if db is None:
-            from dialectical_framework.graph import get_db
-            db = get_db()
-
-        return [comp for comp, _ in self.derived_statements.all(db)]
+        return [comp for comp, _ in self.derived_statements.all()]  # Uses injected graph_db internally
