@@ -32,9 +32,11 @@ class Transition(AssessableEntity):
     2. Have their own rationales
     3. Can have estimations (probability of transition)
     4. Are organized into Cycles and Spirals
-    """
 
-    default_transition_probability: Optional[float] = None
+    Note: Probability defaults are now handled by TaroRank.default_transition_probability
+    parameter rather than per-transition fields. Per-transition manual probabilities
+    should use ProbabilityEstimation nodes.
+    """
 
     source: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
@@ -62,9 +64,4 @@ class Transition(AssessableEntity):
 
     def __repr__(self) -> str:
         """String representation of the transition."""
-        prob_str = (
-            f"{self.default_transition_probability:.3f}"
-            if self.default_transition_probability is not None
-            else "None"
-        )
-        return f"Transition(uid={self.uid}, probability={prob_str})"
+        return f"Transition(uid={self.uid})"
