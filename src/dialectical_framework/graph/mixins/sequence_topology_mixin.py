@@ -121,9 +121,8 @@ class SequenceTopologyMixin(ABC):
         else:
             # Fallback to statement preview (increased to 20 chars for readability)
             labels = [
-                comp.statement[:20] + "..." if hasattr(comp, 'statement') and len(comp.statement) > 20
-                else comp.statement if hasattr(comp, 'statement')
-                else f"C{i+1}"
+                comp.statement[:20] + "..." if len(comp.statement) > 20
+                else comp.statement
                 for i, comp in enumerate(components)
             ]
 
