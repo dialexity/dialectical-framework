@@ -10,6 +10,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+from dialectical_framework.graph.utils.order_transitions import order_transitions
+
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transition import Transition
@@ -24,22 +26,30 @@ class SequenceTopologyMixin(ABC):
     to get topology navigation methods.
 
     Requires:
-        - Subclass must implement `transitions_ordered` property
+        - Subclass must have a `transitions` RelationshipManager attribute
         - Subclass must implement `get_wheel()` method
     """
 
     @property
-    @abstractmethod
     def transitions_ordered(self) -> list[Transition]:
         """
         Get transitions in order by following source->target chain.
 
-        Subclasses must implement this to provide ordered transitions.
+        This implementation works for any class with a `transitions` RelationshipManager.
 
         Returns:
-            List of Transition nodes in order
+            List of Transition nodes in order, or empty list if no transitions
+
+        Raises:
+            AttributeError: If the subclass does not have a `transitions` attribute
         """
-        ...
+        if not hasattr(self, 'transitions'):
+            raise AttributeError(
+                f"{self.__class__.__name__} must have a 'transitions' RelationshipManager "
+                f"attribute to use SequenceTopologyMixin"
+            )
+        all_transitions = [trans for trans, _ in self.transitions.all()]  # type: ignore[attr-defined]
+        return order_transitions(all_transitions)
 
     @abstractmethod
     def get_wheel(self) -> Wheel | None:
@@ -143,8 +153,8 @@ class SequenceTopologyMixin(ABC):
             return False
 
         # Extract component identifiers (use statements for comparison)
-        self_statements = [comp.statement for comp in self_components if hasattr(comp, 'statement')]
-        other_statements = [comp.statement for comp in other_components if hasattr(comp, 'statement')]
+        self_statements = [comp.statement for comp in self_components]
+        other_statements = [comp.statement for comp in other_components]
 
         # Convert to sets for same elements check
         if set(self_statements) != set(other_statements):

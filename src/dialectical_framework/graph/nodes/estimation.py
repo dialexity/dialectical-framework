@@ -76,15 +76,3 @@ class FeasibilityEstimation(Estimation):
     """
 
     pass
-
-
-class CostEstimation(Estimation):
-    """
-    Cost estimation for resource requirements.
-
-    Represents the resource cost (time, money, effort) associated with
-    an action or outcome. Values can be absolute costs or normalized
-    from 0.0 (no cost) to 1.0 (maximum cost).
-    """
-
-    pass

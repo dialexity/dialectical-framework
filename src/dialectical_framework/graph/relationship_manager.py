@@ -16,7 +16,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, get_args, overload
+from typing import Generic, Optional, Type, TypeVar, Union, overload
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j, Node
@@ -25,10 +25,6 @@ from gqlalchemy import Relationship as GQLRelationship
 from dialectical_framework.enums.di import DI
 
 T = TypeVar("T", bound=Node)
-
-if TYPE_CHECKING:
-    from typing_extensions import Self
-
 
 class RelationshipManager(Generic[T]):
     """
@@ -197,15 +193,16 @@ class BoundRelationshipManager(Generic[T]):
                 return node._id
 
             # Query by uid to get _id
-            if not hasattr(node, 'uid') or node.uid is None:
+            uid = getattr(node, "uid", None)
+            if uid is None:
                 raise ValueError(f"Node must be saved before creating relationships (no uid found)")
 
             labels = ':'.join(node.__class__.__name__.split())  # Get node label
             query = f"MATCH (n:{labels} {{uid: $uid}}) RETURN id(n) as node_id"
-            result = list(db.execute_and_fetch(query, {"uid": node.uid}))
+            result = list(db.execute_and_fetch(query, {"uid": uid}))
 
             if not result:
-                raise ValueError(f"Node with uid={node.uid} not found in database")
+                raise ValueError(f"Node with uid={uid} not found in database")
 
             node_id = result[0]["node_id"]
             # Cache the ID on the node for future use
@@ -219,6 +216,7 @@ class BoundRelationshipManager(Generic[T]):
         # Check max cardinality before adding
         if self.cardinality:
             min_card, max_card = self.cardinality
+            # noinspection PyArgumentList
             current_count = self.count()  # No db parameter needed, uses DI
 
             if max_card is not None and current_count >= max_card:
@@ -361,6 +359,7 @@ class BoundRelationshipManager(Generic[T]):
         Returns:
             Tuple of (target_node, relationship_properties) or None
         """
+        # noinspection PyArgumentList
         all_results = self.all()  # No db parameter needed, uses DI
 
         if target_node is not None:
@@ -425,18 +424,19 @@ class BoundRelationshipManager(Generic[T]):
             Tuple of (is_valid, error_message)
         """
         if not self.cardinality:
-            return (True, None)
+            return True, None
 
         min_card, max_card = self.cardinality
+        # noinspection PyArgumentList
         current_count = self.count()  # No db parameter needed, uses DI
 
         if current_count < min_card:
-            return (False, f"Requires at least {min_card}, found {current_count}")
+            return False, f"Requires at least {min_card}, found {current_count}"
 
         if max_card is not None and current_count > max_card:
-            return (False, f"Maximum {max_card} allowed, found {current_count}")
+            return False, f"Maximum {max_card} allowed, found {current_count}"
 
-        return (True, None)
+        return True, None
 
 
 # Convenience functions for common patterns

@@ -66,9 +66,11 @@ class Wheel(AssessableEntity):
     )
 
     @property
-    def order(self) -> int:
+    def polarity_count(self) -> int:
         """
-        The order of the wheel (number of wisdom units).
+        The number of polarities (wisdom units) in the wheel.
+
+        Each wisdom unit represents one polarity - a thesis/antithesis pair.
 
         Returns:
             Number of wisdom units in the wheel
@@ -78,21 +80,21 @@ class Wheel(AssessableEntity):
         """
         count = self.wisdom_units.count()
         if count == 0:
-            raise ValueError("The wheel is empty, therefore order is undefined.")
+            raise ValueError("The wheel is empty, therefore polarity_count is undefined.")
         return count
 
     @property
-    def degree(self) -> int:
+    def segment_count(self) -> int:
         """
-        The degree of the wheel (total number of segments = 2 × order).
+        The total number of segments in the wheel.
 
         Each wisdom unit contains 2 segments (T-side and A-side), so
-        degree = order × 2.
+        segment_count = polarity_count × 2.
 
         Returns:
             Total number of segments (T and A sides)
         """
-        return self.order * 2
+        return self.polarity_count * 2
 
     def wisdom_unit_at(
         self,
@@ -149,10 +151,12 @@ class Wheel(AssessableEntity):
             raise ValueError(f"Cannot find wisdom unit containing segment")
 
         elif isinstance(key, str):
-            # Search by alias in all wisdom units
+            # Search by alias in all wisdom units using repository
+            from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+            repo = DialecticalComponentRepository()
+
             for wu in wus:
-                # Get all components with aliases
-                components_with_aliases = wu.get_all_components_with_aliases()
+                components_with_aliases = repo.find_by_wisdom_unit(wu)
                 for comp, alias in components_with_aliases:
                     if alias == key:
                         return wu
@@ -161,7 +165,7 @@ class Wheel(AssessableEntity):
         elif isinstance(key, DCClass):
             # Search by component
             for wu in wus:
-                alias = wu.get_component_alias(key)
+                alias = key.get_alias(wu)
                 if alias is not None:
                     return wu
             raise ValueError(f"Cannot find wisdom unit containing component: {key.uid}")
@@ -240,7 +244,7 @@ class Wheel(AssessableEntity):
         Check if two wheels have the same structure.
 
         Compares:
-        - Number of wisdom units (order)
+        - Number of wisdom units (polarity_count)
         - T-cycle structure (if both have one)
         - TA-cycle structure (if both have one)
 
@@ -250,8 +254,8 @@ class Wheel(AssessableEntity):
         Returns:
             True if wheels have same structure
         """
-        # Compare order
-        if self.order != other.order:
+        # Compare polarity_count
+        if self.polarity_count != other.polarity_count:
             return False
 
         # Compare T-cycles if both exist
@@ -274,4 +278,4 @@ class Wheel(AssessableEntity):
 
     def __repr__(self) -> str:
         """String representation of the wheel."""
-        return f"Wheel(uid={self.uid}, order={self.order if self.wisdom_units.count() > 0 else 0})"
+        return f"Wheel(uid={self.uid}, polarity_count={self.polarity_count if self.wisdom_units.count() > 0 else 0})"

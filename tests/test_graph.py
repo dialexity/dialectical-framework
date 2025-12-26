@@ -115,36 +115,49 @@ def test_create_simple_wisdom_unit():
     assert wu.a_plus.count() == 1
     assert wu.a_minus.count() == 1
 
-    # Verify summary
-    summary = wu.get_component_summary()
-    assert summary['t'] == 1
-    assert summary['t_plus'] == 1
-    assert summary['t_minus'] == 1
-    assert summary['a'] == 1
-    assert summary['a_plus'] == 1
-    assert summary['a_minus'] == 1
-
     print("✓ Successfully created WisdomUnit with all required components")
 
 
 def test_wisdom_unit_validation():
-    """Test WisdomUnit cardinality validation."""
+    """Test WisdomUnit completeness validation."""
 
     # Create incomplete wisdom unit
     wu = WisdomUnit()
     wu.save()
 
-    # Add only T component
+    # Add only T component - incomplete
     t = DialecticalComponent(statement="Test thesis")
     t.save()
     wu.t.connect(t, properties={'alias': 'T'})
 
-    # Validate - should fail (missing other required components)
-    is_valid, errors = wu.validate_cardinality()  # No db parameter
-    assert not is_valid
-    assert len(errors) > 0
+    # Should not be complete (missing t_plus, t_minus, a, a_plus, a_minus)
+    assert not wu.is_complete()
 
-    print(f"✓ Validation correctly detected missing components: {len(errors)} errors")
+    # Add remaining required components
+    t_plus = DialecticalComponent(statement="T+")
+    t_plus.save()
+    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
+
+    t_minus = DialecticalComponent(statement="T-")
+    t_minus.save()
+    wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
+
+    a = DialecticalComponent(statement="Antithesis")
+    a.save()
+    wu.a.connect(a, properties={'alias': 'A'})
+
+    a_plus = DialecticalComponent(statement="A+")
+    a_plus.save()
+    wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
+
+    a_minus = DialecticalComponent(statement="A-")
+    a_minus.save()
+    wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
+
+    # Now should be complete (s_plus and s_minus are optional)
+    assert wu.is_complete()
+
+    print("✓ WisdomUnit completeness validation works correctly")
 
 
 def test_component_aliases():
@@ -163,17 +176,19 @@ def test_component_aliases():
     wu.t.connect(t, properties={'alias': 'T3'})
     wu.a.connect(a, properties={'alias': 'A3'})
 
-    # Get all components with their aliases from relationships
-    components_with_aliases = wu.get_all_components_with_aliases()
+    # Get all components with their aliases using repository
+    from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+    repo = DialecticalComponentRepository()
+    components_with_aliases = repo.find_by_wisdom_unit(wu)
 
     assert len(components_with_aliases) == 2
     aliases = [alias for _, alias in components_with_aliases]
     assert 'T3' in aliases
     assert 'A3' in aliases
 
-    # Test get_component_alias convenience method
-    t_alias = wu.get_component_alias(t)
-    a_alias = wu.get_component_alias(a)
+    # Test component.get_alias() method
+    t_alias = t.get_alias(wu)
+    a_alias = a.get_alias(wu)
 
     assert t_alias == 'T3'
     assert a_alias == 'A3'
@@ -181,10 +196,10 @@ def test_component_aliases():
     # Test with component not in this wisdom unit
     other_comp = DialecticalComponent(statement="Not connected")
     other_comp.save()
-    assert wu.get_component_alias(other_comp) is None
+    assert other_comp.get_alias(wu) is None
 
     print(f"✓ Component aliases retrieved from relationships: {aliases}")
-    print(f"✓ get_component_alias() works correctly: T={t_alias}, A={a_alias}")
+    print(f"✓ component.get_alias() works correctly: T={t_alias}, A={a_alias}")
 
 
 def test_cycle_topology_ordered_transitions():
@@ -600,13 +615,13 @@ def test_wheel_navigation_properties():
         wu.wheel.connect(wheel)
         wus.append(wu)
 
-    # Test 1: order property
-    assert wheel.order == 4
+    # Test 1: polarity_count property
+    assert wheel.polarity_count == 4
 
-    # Test 2: degree property (2 × order)
-    assert wheel.degree == 8
+    # Test 2: segment_count property (2 × polarity_count)
+    assert wheel.segment_count == 8
 
-    print(f"✓ order={wheel.order}, degree={wheel.degree}")
+    print(f"✓ polarity_count={wheel.polarity_count}, segment_count={wheel.segment_count}")
 
 
 def test_wheel_wisdom_unit_at():
@@ -881,41 +896,6 @@ def test_wheel_wheel_segment_at():
     print("✓ Wheel.wheel_segment_at() supports alias/component lookup")
 
 
-def test_wheel_segment_to_dict():
-    """Test WheelSegment.to_dict() conversion."""
-    wu = WisdomUnit(reasoning_mode="test")
-    wu.save()
-
-    # Create T-side components
-    t_comp = DialecticalComponent(statement="Thesis")
-    t_comp.save()
-    wu.t.connect(t_comp, properties={'alias': 'T'})
-
-    t_plus_comp = DialecticalComponent(statement="Thesis positive")
-    t_plus_comp.save()
-    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T+'})
-
-    t_minus_comp = DialecticalComponent(statement="Thesis negative")
-    t_minus_comp.save()
-    wu.t_minus.connect(t_minus_comp, properties={'alias': 'T-'})
-
-    # Get T-side segment and convert to dict
-    t_seg = wu.segment_t()
-    seg_dict = t_seg.to_dict()
-
-    assert 't' in seg_dict
-    assert 't_plus' in seg_dict
-    assert 't_minus' in seg_dict
-
-    assert seg_dict['t'].uid == t_comp.uid
-    assert len(seg_dict['t_plus']) == 1
-    assert seg_dict['t_plus'][0].uid == t_plus_comp.uid
-    assert len(seg_dict['t_minus']) == 1
-    assert seg_dict['t_minus'][0].uid == t_minus_comp.uid
-
-    print("✓ WheelSegment.to_dict() produces correct structure")
-
-
 def test_wheel_segment_is_same():
     """Test WheelSegment.is_same() comparison."""
     wu1 = WisdomUnit(reasoning_mode="test1")
@@ -1086,6 +1066,74 @@ def test_wheel_is_set():
     assert wheel.is_set(a_seg) is True
 
     print("✓ Wheel.is_set() works correctly")
+
+
+def test_dialectical_component_repository_find_wisdom_units():
+    """Test DialecticalComponentRepository.find_wisdom_units()."""
+    from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+
+    # Create wisdom unit
+    wu = WisdomUnit(reasoning_mode="test")
+    wu.save()
+
+    # Create component and connect it to wisdom unit
+    component = DialecticalComponent(statement="Test statement")
+    component.save()
+    wu.t.connect(component, properties={'alias': 'T'})
+
+    # Use repository to find wisdom units
+    repo = DialecticalComponentRepository()
+    results = repo.find_wisdom_units(component)
+
+    # Verify results
+    assert len(results) == 1
+    assert results[0][0].uid == wu.uid
+    assert results[0][1] == "T"
+
+    print("✓ DialecticalComponentRepository.find_wisdom_units() works correctly")
+
+
+def test_dialectical_component_repository_find_by_wisdom_unit():
+    """Test DialecticalComponentRepository.find_by_wisdom_unit()."""
+    from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+
+    # Create wisdom unit
+    wu = WisdomUnit(reasoning_mode="test")
+    wu.save()
+
+    # Create and connect components
+    t_comp = DialecticalComponent(statement="Thesis")
+    t_comp.save()
+    wu.t.connect(t_comp, properties={'alias': 'T1'})
+
+    t_plus_comp = DialecticalComponent(statement="Thesis positive")
+    t_plus_comp.save()
+    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T1+'})
+
+    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp.save()
+    wu.a.connect(a_comp, properties={'alias': 'A1'})
+
+    # Use repository to find components
+    repo = DialecticalComponentRepository()
+    results = repo.find_by_wisdom_unit(wu)
+
+    # Verify results
+    assert len(results) == 3
+
+    # Check that all expected aliases are present
+    aliases = [alias for _, alias in results]
+    assert 'T1' in aliases
+    assert 'T1+' in aliases
+    assert 'A1' in aliases
+
+    # Verify component UIDs match
+    component_uids = {comp.uid for comp, _ in results}
+    assert t_comp.uid in component_uids
+    assert t_plus_comp.uid in component_uids
+    assert a_comp.uid in component_uids
+
+    print("✓ DialecticalComponentRepository.find_by_wisdom_unit() works correctly")
 
 
 if __name__ == "__main__":

@@ -73,39 +73,3 @@ class Rationale(AssessableEntity):
     def __str__(self) -> str:
         """Human-readable string representation."""
         return self.headline if self.headline else self.text
-
-    def decompose_into_statements(self, statements: list):
-        """
-        Decompose this rationale into atomic statements for dialectical analysis.
-
-        A single rationale often contains multiple claims that can be analyzed
-        separately. This method allows extracting those atomic statements.
-
-        Args:
-            statements: List of DialecticalComponent instances representing atomic statements
-
-        Example:
-            rationale = Rationale(
-                text="Democracy is important because it empowers citizens and promotes equality"
-            )
-
-            # Decompose into atomic statements
-            statement1 = DialecticalComponent(statement="Democracy empowers citizens")
-            statement2 = DialecticalComponent(statement="Democracy promotes equality")
-            rationale.decompose_into_statements([statement1, statement2])
-
-            # Now these can participate in dialectical analysis
-            wu.t_plus_components.connect(statement1)
-            wu.t_plus_components.connect(statement2)
-        """
-        for statement in statements:
-            self.derived_statements.connect(statement)  # Uses injected graph_db internally
-
-    def get_statements(self) -> list:
-        """
-        Get all statements this rationale has been decomposed into.
-
-        Returns:
-            List of DialecticalComponent nodes
-        """
-        return [comp for comp, _ in self.derived_statements.all()]  # Uses injected graph_db internally

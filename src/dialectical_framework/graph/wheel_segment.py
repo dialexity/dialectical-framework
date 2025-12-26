@@ -221,20 +221,6 @@ class WheelSegment:
             and self.t_minus.count() > 0
         )
 
-    def to_dict(self) -> dict[str, DialecticalComponent | list[DialecticalComponent] | None]:
-        """
-        Convert segment to dictionary representation.
-
-        Returns:
-            Dict with keys: 't', 't_plus', 't_minus'
-        """
-        t_result = self.t.get()
-        return {
-            't': t_result[0] if t_result else None,
-            't_plus': [comp for comp, _ in self.t_plus.all()],
-            't_minus': [comp for comp, _ in self.t_minus.all()],
-        }
-
     def __repr__(self) -> str:
         """String representation of the segment."""
         t_result = self.t.get()

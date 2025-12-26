@@ -12,7 +12,6 @@ from typing import ClassVar, TYPE_CHECKING
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.mixins.sequence_topology_mixin import SequenceTopologyMixin
-from dialectical_framework.graph.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
@@ -68,17 +67,6 @@ class Transformation(SequenceTopologyMixin, AssessableEntity):
 
     # Note: Transformation does not directly connect to Wheel
     # It's accessed via its containing WisdomUnit (wisdom_unit field)
-
-    @property
-    def transitions_ordered(self) -> list[Transition]:
-        """
-        Get transitions in transformation order by following source->target chain.
-
-        Returns:
-            List of Transition nodes in transformation order (should always be 2)
-        """
-        all_transitions = [trans for trans, _ in self.transitions.all()]
-        return order_transitions(all_transitions)
 
     def get_wheel(self) -> Wheel | None:
         """

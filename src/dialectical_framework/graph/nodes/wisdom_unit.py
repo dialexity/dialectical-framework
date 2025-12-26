@@ -125,140 +125,25 @@ class WisdomUnit(AssessableEntity):
         """String representation of the wisdom unit."""
         return f"WisdomUnit(uid={self.uid}, reasoning_mode={self.reasoning_mode})"
 
-    def validate_cardinality(self) -> tuple[bool, list[str]]:
-        """
-        Validate all relationship cardinality constraints.
-
-        This method checks that all relationships satisfy their declared
-        cardinality constraints using dependency injection.
-
-        Returns:
-            Tuple of (is_valid, list_of_errors)
-        """
-        errors = []
-
-        # List of all relationship managers to validate
-        relationships = [
-            ('T components', self.t),
-            ('T+ components', self.t_plus),
-            ('T- components', self.t_minus),
-            ('A components', self.a),
-            ('A+ components', self.a_plus),
-            ('A- components', self.a_minus),
-            ('S+ components', self.s_plus),
-            ('S- components', self.s_minus),
-        ]
-
-        for name, rel_manager in relationships:
-            is_valid, error = rel_manager.validate_cardinality()  # No db parameter, uses DI
-            if not is_valid:
-                errors.append(f"{name}: {error}")
-
-        return (len(errors) == 0, errors)
-
     def is_complete(self) -> bool:
         """
         Check if this wisdom unit has all required components.
 
-        Uses dependency injection to get the database connection.
+        A WisdomUnit is complete when it has:
+        - Required: t, a, t_plus, t_minus, a_plus, a_minus (at least one each)
+        - Optional: s_plus, s_minus (don't affect completeness)
 
         Returns:
-            True if all cardinality constraints are satisfied
+            True if all required components are present
         """
-        is_valid, _ = self.validate_cardinality()  # No db parameter, uses DI
-        return is_valid
-
-    def get_component_summary(self) -> dict:
-        """
-        Get a summary of all component counts.
-
-        Uses dependency injection to get the database connection.
-
-        Returns:
-            Dict with component type as key and count as value
-        """
-        return {
-            't': self.t.count(),
-            't_plus': self.t_plus.count(),
-            't_minus': self.t_minus.count(),
-            'a': self.a.count(),
-            'a_plus': self.a_plus.count(),
-            'a_minus': self.a_minus.count(),
-            's_plus': self.s_plus.count(),
-            's_minus': self.s_minus.count(),
-        }
-
-    def get_component_alias(self, component: DialecticalComponent) -> Optional[str]:
-        """
-        Get the alias of a specific component within this wisdom unit's context.
-
-        Args:
-            component: The DialecticalComponent to look up
-
-        Returns:
-            The alias string (e.g., "T", "T+", "A-") or None if component not found
-
-        Example:
-            wu = WisdomUnit(...)
-            comp = DialecticalComponent(statement="Democracy")
-            wu.t.connect(comp, properties={'alias': 'T1'})
-            alias = wu.get_component_alias(comp)  # Returns "T1"
-        """
-        # Search through all relationship managers
-        rel_managers = [
-            self.t,
-            self.t_plus,
-            self.t_minus,
-            self.a,
-            self.a_plus,
-            self.a_minus,
-            self.s_plus,
-            self.s_minus,
-        ]
-
-        for manager in rel_managers:
-            components = manager.all()  # Returns [(node, props)]
-
-            for comp, props in components:
-                # Check if this is the component we're looking for
-                if comp.uid == component.uid:
-                    return props.get('alias')
-
-        return None
-
-    def get_all_components_with_aliases(self) -> list[tuple[Any, str]]:
-        """
-        Get all components with their aliases from relationship properties.
-
-        Uses dependency injection to get the database connection.
-
-        Returns:
-            List of tuples: (component_node, alias_from_relationship)
-            Examples: [(comp1, "T1"), (comp2, "T1+"), (comp3, "A2-")]
-        """
-        result = []
-
-        # Map relationship managers
-        rel_managers = [
-            self.t,
-            self.t_plus,
-            self.t_minus,
-            self.a,
-            self.a_plus,
-            self.a_minus,
-            self.s_plus,
-            self.s_minus,
-        ]
-
-        for manager in rel_managers:
-            components = manager.all()  # Returns [(node, props)]
-
-            for component, props in components:
-                # Alias is stored in the relationship properties
-                alias = props.get('alias', '?')
-                result.append((component, alias))
-
-        return result
+        return (
+            self.t.count() >= 1
+            and self.t_plus.count() >= 1
+            and self.t_minus.count() >= 1
+            and self.a.count() >= 1
+            and self.a_plus.count() >= 1
+            and self.a_minus.count() >= 1
+        )
 
     def segment_t(self) -> WheelSegment:
         """

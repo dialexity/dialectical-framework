@@ -68,37 +68,3 @@ class Transition(AssessableEntity):
             else "None"
         )
         return f"Transition(uid={self.uid}, probability={prob_str})"
-
-    def decompose_into_statements(self, statements: list):
-        """
-        Decompose this transition into atomic statements for meta-dialectical analysis.
-
-        This enables recursive dialectics: a transition from one wheel can become
-        a statement in a meta-wheel.
-
-        Args:
-            statements: List of DialecticalComponent instances representing atomic statements
-
-        Example:
-            # Wheel 1: T1, T2, T3
-            transition = Transition()  # T2- → T3+
-
-            # Decompose into statement for Wheel 2
-            statement_4 = DialecticalComponent(statement="T2- causes T3+")
-            transition.decompose_into_statements([statement_4])
-
-            # Wheel 2: T1, T2, T3, T4 (where T4 comes from transition)
-            wu4 = WisdomUnit(index=4)
-            wu4.t_components.connect(statement_4)
-        """
-        for statement in statements:
-            self.derived_statements.connect(statement)  # Uses injected graph_db internally
-
-    def get_statements(self) -> list:
-        """
-        Get all statements this transition has been decomposed into.
-
-        Returns:
-            List of DialecticalComponent nodes
-        """
-        return [comp for comp, _ in self.derived_statements.all()]  # Uses injected graph_db internally

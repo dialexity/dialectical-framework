@@ -6,17 +6,13 @@ This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional, Union, TYPE_CHECKING
-
-from dependency_injector.wiring import inject, Provide
-from gqlalchemy import Memgraph, Neo4j
+from typing import Any, ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.opposition_relationship import (
     OppositionRelationship,
 )
-from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -59,58 +55,12 @@ class DialecticalComponent(AssessableEntity):
         """Human-readable string representation."""
         return self.statement
 
-    @inject
-    def get_wisdom_units(
-        self,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> list[tuple[Any, str]]:
-        """
-        Get all WisdomUnits this component belongs to with their relationship types.
-
-        Args:
-            graph_db: Database connection (injected via DI)
-
-        Returns:
-            List of tuples: (WisdomUnit, relationship_type)
-            Example: [(wu1, "T"), (wu2, "T_PLUS")]
-        """
-        if self._id is None:
-            return []
-
-        # Query all typed relationships to WisdomUnits
-        query = """
-        MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
-        WHERE id(c) = $component_id
-        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS', 'S_PLUS', 'S_MINUS']
-        RETURN wu, type(r) as rel_type
-        """
-
-        results = graph_db.execute_and_fetch(query, {"component_id": self._id})
-        return [(result["wu"], result["rel_type"]) for result in results]
-
-    def get_wisdom_units_with_aliases(self) -> list[tuple[Any, str]]:
-        """
-        Get all WisdomUnits with computed full aliases.
-
-        Returns:
-            List of tuples: (WisdomUnit, full_alias)
-            Example: [(wu1, "T1"), (wu2, "T2+")]
-        """
-        result = []
-        wisdom_units = self.get_wisdom_units()  # Uses injected graph_db internally
-
-        for wu, rel_type in wisdom_units:
-            alias = wu.get_component_alias(rel_type)
-            result.append((wu, alias))
-
-        return result
-
     def get_alias(self, wisdom_unit: WisdomUnit) -> Optional[str]:
         """
         Get the alias of this component within a specific WisdomUnit's context.
 
-        This method finds the polarity relationship connecting this component
-        to the given WisdomUnit and returns the alias stored on that edge.
+        This method searches all relationship managers on the WisdomUnit to find
+        where this component is connected and returns the alias from the edge properties.
 
         Args:
             wisdom_unit: The WisdomUnit to look up the alias in
@@ -124,10 +74,25 @@ class DialecticalComponent(AssessableEntity):
             wu.t.connect(comp, properties={'alias': 'T1'})
 
             alias = comp.get_alias(wu)  # Returns "T1"
-
-        Note:
-            This delegates to WisdomUnit.get_component_alias() which searches
-            all polarity relationships (t, t_plus, t_minus, a, a_plus, a_minus,
-            s_plus, s_minus) for the relationship edge properties.
         """
-        return wisdom_unit.get_component_alias(self)
+        # Search through all relationship managers on the wisdom unit
+        rel_managers = [
+            wisdom_unit.t,
+            wisdom_unit.t_plus,
+            wisdom_unit.t_minus,
+            wisdom_unit.a,
+            wisdom_unit.a_plus,
+            wisdom_unit.a_minus,
+            wisdom_unit.s_plus,
+            wisdom_unit.s_minus,
+        ]
+
+        for manager in rel_managers:
+            components = manager.all()  # Returns [(node, props)]
+
+            for comp, props in components:
+                # Check if this is the component we're looking for
+                if comp.uid == self.uid:
+                    return props.get('alias')
+
+        return None

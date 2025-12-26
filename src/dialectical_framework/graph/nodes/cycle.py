@@ -7,22 +7,16 @@ composed of transitions between dialectical components.
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional, TYPE_CHECKING, Union
+from typing import ClassVar, Optional, TYPE_CHECKING
 
-from dependency_injector.wiring import inject, Provide
-
-from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.mixins.sequence_topology_mixin import SequenceTopologyMixin
-from dialectical_framework.graph.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
-    from gqlalchemy import Memgraph
-    from neo4j import Neo4j
 
 
 class Cycle(SequenceTopologyMixin, AssessableEntity):
@@ -60,30 +54,23 @@ class Cycle(SequenceTopologyMixin, AssessableEntity):
         cardinality=(2, None)  # At least two transitions to form a cycle
     )
 
-    # Note: Wheel relationship is defined on Wheel side (t_cycle, ta_cycle)
-    # Use get_wheel() method to query which wheel this cycle belongs to
+    # Reverse relationships to Wheel (private - use get_wheel() instead)
+    # Cycle can be either t_cycle or ta_cycle of a wheel
+    _wheel_as_t: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
+        "Wheel",
+        "IS_T_CYCLE_OF",
+        cardinality=(0, 1)
+    )
 
-    @property
-    def transitions_ordered(self) -> list[Transition]:
-        """
-        Get transitions in cycle order by following source->target chain.
+    _wheel_as_ta: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
+        "Wheel",
+        "IS_TA_CYCLE_OF",
+        cardinality=(0, 1)
+    )
 
-        Returns:
-            List of Transition nodes in cycle order, or empty list if no transitions
-        """
-        all_transitions = [trans for trans, _ in self.transitions.all()]
-        return order_transitions(all_transitions)
-
-    @inject
-    def get_wheel(
-        self,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Wheel | None:
+    def get_wheel(self) -> Wheel | None:
         """
         Get the wheel this cycle belongs to.
-
-        Args:
-            graph_db: Database connection (injected via DI)
 
         Returns:
             Wheel instance or None if not assigned to a wheel
@@ -93,17 +80,16 @@ class Cycle(SequenceTopologyMixin, AssessableEntity):
             if wheel:
                 print(f"Cycle belongs to wheel {wheel.uid}")
         """
-        if self._id is None:
-            return None
+        # Check if this is a t_cycle
+        t_result = self._wheel_as_t.get()
+        if t_result:
+            return t_result[0]
 
-        query = """
-        MATCH (c:Cycle)-[r:IS_T_CYCLE_OF|IS_TA_CYCLE_OF]->(w:Wheel)
-        WHERE id(c) = $cycle_id
-        RETURN w
-        """
-        result = list(graph_db.execute_and_fetch(query, {"cycle_id": self._id}))
-        if result:
-            return result[0]["w"]
+        # Check if this is a ta_cycle
+        ta_result = self._wheel_as_ta.get()
+        if ta_result:
+            return ta_result[0]
+
         return None
 
     def __repr__(self) -> str:
