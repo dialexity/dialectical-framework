@@ -18,11 +18,16 @@ class Settings(BaseModel):
     ai_provider: Optional[str] = Field(default=None, description="AI model provider to use.")
     component_length: int = Field(default=7, description="Approximate length in words of the dialectical component.")
     causality_type: CausalityType = Field(default=CausalityType.BALANCED, description="Type of causality in the wheel.")
-    default_transition_probability: Optional[float] = Field(
+    tarorank_default_transition_probability: Optional[float] = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="Default probability for transitions without explicit probability. Set to 1.0 for feasibility-only scoring (transitions certain, so Score = P × R^α ≈ R^α). None (default) requires explicit probability evidence on all transitions (no free lunch)."
+        description="Default probability for transitions without explicit probability in TaroRank scoring. Set to 1.0 for feasibility-only scoring (transitions certain, so Score = P × R^α ≈ R^α). None (default) requires explicit probability evidence on all transitions (no free lunch)."
+    )
+    tarorank_alpha: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="TaroRank relevance exponent (α) in Score = P × R^α formula. 0 = ignore relevance (Score = P only), 1 = balanced (recommended), >1 = emphasize relevance more."
     )
 
     # Graph database configuration (Memgraph or Neo4j)
@@ -82,9 +87,9 @@ class Settings(BaseModel):
                 f"Missing required environment variables: {', '.join(missing)}"
             )
 
-        # Handle default_transition_probability from environment
+        # Handle tarorank_default_transition_probability from environment
         default_prob = None
-        default_prob_str = os.getenv("DIALEXITY_DEFAULT_TRANSITION_PROBABILITY")
+        default_prob_str = os.getenv("DIALEXITY_TARORANK_DEFAULT_TRANSITION_PROBABILITY")
         if default_prob_str:
             try:
                 prob_value = float(default_prob_str)
@@ -93,6 +98,17 @@ class Settings(BaseModel):
             except ValueError:
                 pass  # Invalid value, use default of the field
 
+        # Handle tarorank_alpha from environment
+        tarorank_alpha = 1.0  # Default
+        alpha_str = os.getenv("DIALEXITY_TARORANK_ALPHA")
+        if alpha_str:
+            try:
+                alpha_value = float(alpha_str)
+                if 0.0 <= alpha_value <= 1.0:
+                    tarorank_alpha = alpha_value
+            except ValueError:
+                pass  # Invalid value, use default
+
         return cls(
             ai_model=model,
             ai_provider=provider,
@@ -100,7 +116,8 @@ class Settings(BaseModel):
             causality_type=CausalityType(
                 os.getenv("DIALEXITY_DEFAULT_CAUSALITY_TYPE", CausalityType.BALANCED.value)
             ),
-            default_transition_probability=default_prob,
+            tarorank_default_transition_probability=default_prob,
+            tarorank_alpha=tarorank_alpha,
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

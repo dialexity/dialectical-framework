@@ -1,16 +1,16 @@
 import importlib
 import pkgutil
+from typing import Union
 
 from dependency_injector import containers, providers
 from gqlalchemy import Memgraph, Neo4j
-from typing import Union
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.enums.causality_type import CausalityType
+from dialectical_framework.graph.scoring.tarorank import TaroRank
 from dialectical_framework.protocols.causality_sequencer import \
     CausalitySequencer
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
-from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
     CausalitySequencerBalanced
@@ -21,8 +21,6 @@ from dialectical_framework.synthesist.causality.causality_sequencer_feasible imp
 from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
     CausalitySequencerRealistic
 from dialectical_framework.synthesist.concepts.polarity_extractor_basic import PolarityExtractorBasic
-from dialectical_framework.synthesist.concepts.thesis_extractor_basic import \
-    ThesisExtractorBasic
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import \
@@ -132,6 +130,19 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     )
 
     wheel_builder: providers.Factory[WheelBuilder] = providers.Factory(WheelBuilder)
+
+    @staticmethod
+    def _create_tarorank(settings: Settings) -> TaroRank:
+        """Factory method to create TaroRank scorer with settings-based configuration."""
+        return TaroRank(
+            alpha=settings.tarorank_alpha,
+            default_transition_probability=settings.tarorank_default_transition_probability
+        )
+
+    tarorank: providers.Factory[TaroRank] = providers.Factory(
+        _create_tarorank,
+        settings=settings,
+    )
 
     # -- Wiring --
 

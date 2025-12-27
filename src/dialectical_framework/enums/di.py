@@ -10,3 +10,4 @@ class DI(str, Enum):
     polarity_reasoner = "polarity_reasoner"
     causality_sequencer = "causality_sequencer"
     polarity_extractor = "polarity_extractor"
+    tarorank = "tarorank"

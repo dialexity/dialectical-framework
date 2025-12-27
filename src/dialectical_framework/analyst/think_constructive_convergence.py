@@ -187,7 +187,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
                 target_aliases=[next_ws.t_plus.alias],
                 source=focus,
                 target=next_ws,
-                default_transition_probability=self.settings.default_transition_probability,
+                default_transition_probability=self.settings.tarorank_default_transition_probability,
                 rationales=[rationale],
             )
         else:

@@ -364,7 +364,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 cycle = Cycle(
                     dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
                     causality_type=self.settings.causality_type,
-                    default_transition_probability=self.settings.default_transition_probability,
+                    default_transition_probability=self.settings.tarorank_default_transition_probability,
                 )
                 
                 # Create rationale from reasoning and argumentation
