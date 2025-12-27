@@ -6,7 +6,7 @@ from pydantic import Field
 
 from dialectical_framework.protocols.ratable import Ratable
 from dialectical_framework.domain.wheel import Wheel
-from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
+from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
 
 class Rationale(Ratable):
@@ -95,7 +95,7 @@ class Rationale(Ratable):
 
         if not has_explicit_ratings:
             # All unrated → geometric mean (equal weight)
-            from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
+            from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
             return gm_with_zeros_and_nones_handled(values)
         else:
             # Some/all rated → weighted average

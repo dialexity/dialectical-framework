@@ -10,7 +10,7 @@ from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.domain.synthesis import Synthesis
 from dialectical_framework.domain.wheel_segment import WheelSegment
-from dialectical_framework.utils.pm import pm_with_zeros_and_nones_handled
+from dialectical_framework.graph.scoring.pm import pm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING:
     from dialectical_framework.domain.transformation import \

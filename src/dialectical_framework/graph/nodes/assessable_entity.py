@@ -76,7 +76,7 @@ class AssessableEntity(BaseNode):
             prob = component.probability  # Returns ~0.693 (GM of 0.8 and 0.6)
         """
         from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation
-        from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
+        from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
         estimations = self.estimations.all()
         prob_estimations = [
@@ -111,7 +111,7 @@ class AssessableEntity(BaseNode):
             rel = component.relevance  # Returns ~0.789 (GM of 0.9 and 0.7)
         """
         from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
-        from dialectical_framework.utils.gm import gm_with_zeros_and_nones_handled
+        from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
         estimations = self.estimations.all()
         rel_estimations = [

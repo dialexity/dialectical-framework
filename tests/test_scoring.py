@@ -1345,7 +1345,7 @@ class TestComprehensiveExampleFromDocs:
         print(f"WisdomUnit P: {wu_p}")
         
         # Debug: Calculate individual pair CFs to see what's happening
-        from dialectical_framework.utils.pm import pm_with_zeros_and_nones_handled
+        from dialectical_framework.graph.scoring.pm import pm_with_zeros_and_nones_handled
         
         # Individual component CFs (already calculated above)
         t_cf = t_comp.calculate_relevance()  # 0.72
