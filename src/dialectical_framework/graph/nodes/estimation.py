@@ -53,6 +53,8 @@ class ProbabilityEstimation(Estimation):
 
     Represents the likelihood that a component/assessment is true or
     will occur. Values typically range from 0.0 (impossible) to 1.0 (certain).
+
+    This is a MANUAL estimation - set by users or agents.
     """
 
     pass
@@ -64,6 +66,34 @@ class RelevanceEstimation(Estimation):
 
     Represents the importance or significance of a component/assessment.
     Values typically range from 0.0 (irrelevant) to 1.0 (highly relevant).
+
+    This is a MANUAL estimation - set by users or agents.
+    """
+
+    pass
+
+
+class CalculatedProbabilityEstimation(Estimation):
+    """
+    Calculated probability from TaroRank aggregation.
+
+    This is TaroRank's output, representing the aggregated probability
+    from all manual estimations and rationales.
+
+    Typically there is at most one calculated estimation per node.
+    """
+
+    pass
+
+
+class CalculatedRelevanceEstimation(Estimation):
+    """
+    Calculated relevance from TaroRank aggregation.
+
+    This is TaroRank's output, representing the aggregated relevance
+    from all manual estimations and rationales.
+
+    Typically there is at most one calculated estimation per node.
     """
 
     pass

@@ -12,6 +12,11 @@ from typing import Optional, TYPE_CHECKING, Union
 from dependency_injector.wiring import inject, Provide
 from gqlalchemy import Memgraph, Neo4j
 
+from dialectical_framework.graph.nodes.estimation import (
+    CalculatedProbabilityEstimation,
+    CalculatedRelevanceEstimation
+)
+
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 
@@ -166,9 +171,10 @@ class TaroRank:
         p = calculator.calculate_probability(node)
         r = calculator.calculate_relevance(node)
 
-        # Store P and R as Estimation nodes (don't invalidate during scoring)
-        self.estimation_manager.update_probability(node, p, invalidate=False)
-        self.estimation_manager.update_relevance(node, r, invalidate=False)
+        # Store P and R as CALCULATED estimation nodes (don't invalidate during scoring)
+        # This preserves manual estimations - calculated types are separate from manual types
+        self.estimation_manager.upsert_estimation(node, CalculatedProbabilityEstimation, p, invalidate=False)
+        self.estimation_manager.upsert_estimation(node, CalculatedRelevanceEstimation, r, invalidate=False)
 
         # Calculate final score
         if p is None or r is None:
@@ -187,24 +193,34 @@ class TaroRank:
 
     def clear_scores(self, node: AssessableEntity, recursive: bool = True) -> None:
         """
-        Clear scores and estimations for a node (useful for re-scoring).
+        Clear computed scores for a node.
+
+        This clears:
+        - Score fields (score, score_computed_at, score_invalidated_at)
+        - Calculated estimation nodes (CalculatedProbabilityEstimation, CalculatedRelevanceEstimation)
+
+        Manual estimations are PRESERVED (they're user/agent input, not algorithm output).
 
         Args:
-            node: Node to clear
-            recursive: If True, clears children too
+            node: Node to clear scores for
+            recursive: If True, clears children scores too
 
         Example:
             scorer = TaroRank()
             scorer.clear_scores(wheel, recursive=True)
-            scorer.score_node(wheel, recursive=True)  # Re-score
+            scorer.score_node(wheel, recursive=True)  # Re-score using existing manual estimations
         """
-        # Delete estimation nodes
-        self.estimation_manager.clear_estimations(node)
-
         # Clear score fields
         node.score = None
         node.score_computed_at = None
+        node.score_invalidated_at = None
         node.save()
+
+        # Clear CALCULATED estimations (algorithm output), preserve manual estimations
+        self.estimation_manager.clear_estimations(
+            node,
+            estimation_types=[CalculatedProbabilityEstimation, CalculatedRelevanceEstimation]
+        )
 
         if recursive:
             calculator = self._get_calculator(node.__class__.__name__)

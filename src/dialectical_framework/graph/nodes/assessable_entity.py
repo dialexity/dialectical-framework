@@ -14,7 +14,13 @@ from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.estimation import Estimation, ProbabilityEstimation, RelevanceEstimation
+    from dialectical_framework.graph.nodes.estimation import (
+        Estimation,
+        ProbabilityEstimation,
+        RelevanceEstimation,
+        CalculatedProbabilityEstimation,
+        CalculatedRelevanceEstimation
+    )
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
@@ -58,71 +64,119 @@ class AssessableEntity(BaseNode):
     @property
     def probability(self) -> Optional[float]:
         """
-        Get probability from connected ProbabilityEstimation nodes.
-
-        If multiple probability estimations exist, returns the geometric mean.
-        This reflects the multiplicative nature of independent probabilities.
-        If any estimation is 0, returns 0 (veto semantics).
+        Get probability following legacy semantics.
 
         Returns:
-            Geometric mean of probability values (0.0-1.0) or None if no estimations exist
+        - CalculatedProbabilityEstimation value if exists
+        - OTHERWISE: GM of all ProbabilityEstimation nodes (manual)
+        - NOT mixed together!
+
+        This matches legacy behavior:
+            return calculated_probability if calculated_probability is not None else manual_probability
+
+        If any manual estimation is 0, returns 0 (veto semantics).
+
+        Returns:
+            Probability value (0.0-1.0) or None if no estimations exist
 
         Example:
+            # Manual only
             component.estimations.connect(ProbabilityEstimation(value=0.8))
             prob = component.probability  # Returns 0.8
 
-            # Multiple estimations: returns geometric mean
+            # Multiple manual: returns geometric mean
             component.estimations.connect(ProbabilityEstimation(value=0.6))
             prob = component.probability  # Returns ~0.693 (GM of 0.8 and 0.6)
+
+            # Calculated exists: returns calculated (ignores manual)
+            component.estimations.connect(CalculatedProbabilityEstimation(value=0.75))
+            prob = component.probability  # Returns 0.75 (calculated takes precedence)
         """
-        from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            CalculatedProbabilityEstimation
+        )
         from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
         estimations = self.estimations.all()
-        prob_estimations = [
+
+        # 1. Check for calculated (TaroRank output) first
+        calculated = [
+            est for est, _ in estimations
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        if calculated:
+            # Should be at most one calculated estimation per node
+            return calculated[0].value
+
+        # 2. Otherwise, aggregate manual estimations
+        manual = [
             est for est, _ in estimations
             if isinstance(est, ProbabilityEstimation)
         ]
-
-        if not prob_estimations:
+        if not manual:
             return None
 
-        values = [est.value for est in prob_estimations]
+        values = [est.value for est in manual]
         return gm_with_zeros_and_nones_handled(values)
 
     @property
     def relevance(self) -> Optional[float]:
         """
-        Get relevance from connected RelevanceEstimation nodes.
-
-        If multiple relevance estimations exist, returns the geometric mean.
-        This reflects the multiplicative nature of relevance factors.
-        If any estimation is 0, returns 0 (veto semantics).
+        Get relevance following legacy semantics.
 
         Returns:
-            Geometric mean of relevance values (0.0-1.0) or None if no estimations exist
+        - CalculatedRelevanceEstimation value if exists
+        - OTHERWISE: GM of all RelevanceEstimation nodes (manual)
+        - NOT mixed together!
+
+        This matches legacy behavior:
+            return calculated_relevance if calculated_relevance is not None else manual_relevance
+
+        If any manual estimation is 0, returns 0 (veto semantics).
+
+        Returns:
+            Relevance value (0.0-1.0) or None if no estimations exist
 
         Example:
+            # Manual only
             component.estimations.connect(RelevanceEstimation(value=0.9))
             rel = component.relevance  # Returns 0.9
 
-            # Multiple estimations: returns geometric mean
+            # Multiple manual: returns geometric mean
             component.estimations.connect(RelevanceEstimation(value=0.7))
             rel = component.relevance  # Returns ~0.789 (GM of 0.9 and 0.7)
+
+            # Calculated exists: returns calculated (ignores manual)
+            component.estimations.connect(CalculatedRelevanceEstimation(value=0.85))
+            rel = component.relevance  # Returns 0.85 (calculated takes precedence)
         """
-        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
+        from dialectical_framework.graph.nodes.estimation import (
+            RelevanceEstimation,
+            CalculatedRelevanceEstimation
+        )
         from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
         estimations = self.estimations.all()
-        rel_estimations = [
+
+        # 1. Check for calculated (TaroRank output) first
+        calculated = [
+            est for est, _ in estimations
+            if isinstance(est, CalculatedRelevanceEstimation)
+        ]
+        if calculated:
+            # Should be at most one calculated estimation per node
+            return calculated[0].value
+
+        # 2. Otherwise, aggregate manual estimations
+        manual = [
             est for est, _ in estimations
             if isinstance(est, RelevanceEstimation)
         ]
-
-        if not rel_estimations:
+        if not manual:
             return None
 
-        values = [est.value for est in rel_estimations]
+        values = [est.value for est in manual]
         return gm_with_zeros_and_nones_handled(values)
 
     @property

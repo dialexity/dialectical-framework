@@ -74,6 +74,8 @@ class RationaleAuditor:
         """
         Get P or R value from rationale hierarchy.
 
+        Uses MANUAL estimations only (not calculated) to avoid circular dependencies.
+
         Args:
             rationale: Rationale node to evaluate
             attribute: 'probability' or 'relevance'
@@ -85,21 +87,15 @@ class RationaleAuditor:
         critiques = [crit for crit, _ in rationale.rationales.all()]
 
         if not critiques:
-            # No critiques: return own value
-            if attribute == 'probability':
-                return rationale.probability
-            else:
-                return rationale.relevance
+            # No critiques: return own MANUAL value
+            return self._get_manual_value(rationale, attribute)
 
         # Has critiques: recursively get deepest values
         deepest_values = self._get_deepest_critiques(rationale, attribute)
 
         if not deepest_values:
-            # Critiques exist but provide no values: return own value
-            if attribute == 'probability':
-                return rationale.probability
-            else:
-                return rationale.relevance
+            # Critiques exist but provide no values: return own MANUAL value
+            return self._get_manual_value(rationale, attribute)
 
         # Aggregate deepest critique values via GM
         return self._aggregate_critiques(deepest_values)
@@ -111,6 +107,8 @@ class RationaleAuditor:
     ) -> list[float]:
         """
         Recursively find deepest critique values.
+
+        Uses MANUAL estimations only (not calculated) to avoid circular dependencies.
 
         Args:
             rationale: Rationale to search
@@ -138,18 +136,55 @@ class RationaleAuditor:
             # Return values from deeper level
             return all_deeper_values
 
-        # This is the deepest level: return critique values
+        # This is the deepest level: return MANUAL critique values
         result = []
         for critique in critiques:
-            if attribute == 'probability':
-                value = critique.probability
-            else:
-                value = critique.relevance
-
+            value = self._get_manual_value(critique, attribute)
             if value is not None:
                 result.append(value)
 
         return result
+
+    def _get_manual_value(self, rationale: Rationale, attribute: str) -> Optional[float]:
+        """
+        Get MANUAL estimation value from rationale (not calculated).
+
+        This matches legacy behavior where calculators read manual_* fields
+        (not self.* properties which include calculated values).
+
+        Args:
+            rationale: Rationale to get value from
+            attribute: 'probability' or 'relevance'
+
+        Returns:
+            GM of manual estimations or None
+        """
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            RelevanceEstimation
+        )
+
+        if attribute == 'probability':
+            estimation_type = ProbabilityEstimation
+        else:
+            estimation_type = RelevanceEstimation
+
+        # Get only manual estimations (not calculated)
+        estimations = rationale.estimations.all()
+        manual_estimations = [
+            est for est, _ in estimations
+            if isinstance(est, estimation_type)
+        ]
+
+        if not manual_estimations:
+            return None
+
+        # If multiple manual estimations, aggregate via GM
+        if len(manual_estimations) == 1:
+            return manual_estimations[0].value
+
+        values = [est.value for est in manual_estimations]
+        return gm_with_zeros_and_nones_handled(values)
 
     def _aggregate_critiques(self, values: list[float]) -> Optional[float]:
         """

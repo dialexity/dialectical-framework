@@ -250,6 +250,8 @@ class TestInvalidationTracking:
 
     def test_score_invalidated_when_estimation_changes(self, graph_db_available):
         """Score should be invalidated when estimations are modified."""
+        from dialectical_framework.graph.estimation_manager import EstimationManager
+
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
@@ -269,9 +271,8 @@ class TestInvalidationTracking:
         assert component.score_invalidated_at is None
 
         # Modify estimation (this should invalidate)
-        from dialectical_framework.graph.estimation_manager import EstimationManager
         manager = EstimationManager()
-        manager.update_relevance(component, 0.9, invalidate=True)
+        manager.upsert_estimation(component, RelevanceEstimation, 0.9, invalidate=True)
 
         # Score should now be invalid
         assert not component.is_score_valid()
@@ -957,3 +958,330 @@ class TestProbabilityNoneBehavior:
 
 # Note: WisdomUnit, Cycle, Wheel, and comprehensive example tests require more complex setup
 # These should be added after the graph node relationships are fully understood
+
+
+class TestManualVsCalculatedSeparation:
+    """
+    Test manual vs calculated estimation separation.
+
+    This test class verifies the critical behavior of keeping manual and calculated
+    estimations separate, matching legacy domain/* semantics.
+    """
+
+    def test_manual_estimations_preserved_after_scoring(self, graph_db_available):
+        """Manual estimations should not be overwritten by TaroRank calculated values."""
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            CalculatedProbabilityEstimation
+        )
+        from dialectical_framework.graph.estimation_manager import EstimationManager
+
+        comp = DialecticalComponent(statement="test")
+        comp.save()
+
+        manager = EstimationManager()
+
+        # User sets manual probability
+        manager.upsert_estimation(comp, ProbabilityEstimation, 0.8, invalidate=True)
+
+        # Verify manual estimation exists
+        manual_estimations = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, ProbabilityEstimation)
+        ]
+        assert len(manual_estimations) == 1
+        assert manual_estimations[0].value == 0.8
+
+        # TaroRank runs scoring
+        scorer = TaroRank(alpha=1.0)
+        scorer.score_node(comp, recursive=False)
+
+        # Verify manual estimation is STILL present
+        manual_estimations_after = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, ProbabilityEstimation)
+        ]
+        assert len(manual_estimations_after) == 1
+        assert manual_estimations_after[0].value == 0.8  # NOT overwritten!
+
+        # Verify calculated estimation was created
+        calculated_estimations = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        assert len(calculated_estimations) == 1
+        # Calculated should be close to manual (since only manual exists)
+        assert abs(calculated_estimations[0].value - 0.8) < 0.01
+
+    def test_multiple_manual_estimations_collective(self, graph_db_available):
+        """Multiple agents can each contribute manual estimations (collective)."""
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            CalculatedProbabilityEstimation
+        )
+        from dialectical_framework.graph.estimation_manager import EstimationManager
+
+        comp = DialecticalComponent(statement="test")
+        comp.save()
+
+        # Agent 1 creates first estimation node
+        prob1 = ProbabilityEstimation(value=0.8)
+        prob1.save()
+        comp.estimations.connect(prob1)
+
+        # Agent 2 creates second estimation node
+        prob2 = ProbabilityEstimation(value=0.9)
+        prob2.save()
+        comp.estimations.connect(prob2)
+
+        # Both manual estimations exist
+        manual_estimations = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, ProbabilityEstimation)
+        ]
+        assert len(manual_estimations) == 2
+
+        # TaroRank scoring
+        scorer = TaroRank(alpha=1.0)
+        scorer.score_node(comp, recursive=False)
+
+        # Both manual estimations STILL exist
+        manual_after = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, ProbabilityEstimation)
+        ]
+        assert len(manual_after) == 2
+
+        # Calculated estimation created
+        calculated = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        assert len(calculated) == 1
+        # Calculated should be GM(0.8, 0.9) ≈ 0.849
+        import math
+        expected = math.exp((math.log(0.8) + math.log(0.9)) / 2)
+        assert abs(calculated[0].value - expected) < 0.01
+
+    def test_property_returns_calculated_if_exists_else_manual(self, graph_db_available):
+        """Properties should return calculated if exists, otherwise manual (legacy semantics)."""
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            CalculatedProbabilityEstimation
+        )
+
+        comp = DialecticalComponent(statement="test")
+        comp.save()
+
+        # No estimations: property returns None
+        assert comp.probability is None
+
+        # Manual only: property returns manual
+        prob_manual = ProbabilityEstimation(value=0.8)
+        prob_manual.save()
+        comp.estimations.connect(prob_manual)
+        assert abs(comp.probability - 0.8) < 0.01
+
+        # Add calculated: property returns calculated (ignores manual)
+        prob_calc = CalculatedProbabilityEstimation(value=0.6)
+        prob_calc.save()
+        comp.estimations.connect(prob_calc)
+        assert abs(comp.probability - 0.6) < 0.01  # Returns calculated, NOT GM!
+
+    def test_calculators_read_only_manual_not_calculated(self, graph_db_available):
+        """Calculators should read ONLY manual estimations as input (not calculated)."""
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            RelevanceEstimation,
+            CalculatedProbabilityEstimation,
+            CalculatedRelevanceEstimation
+        )
+
+        comp = DialecticalComponent(statement="test")
+        comp.save()
+
+        # Set manual estimations
+        prob_manual = ProbabilityEstimation(value=0.8)
+        prob_manual.save()
+        comp.estimations.connect(prob_manual)
+
+        rel_manual = RelevanceEstimation(value=0.9)
+        rel_manual.save()
+        comp.estimations.connect(rel_manual)
+
+        # First scoring run
+        scorer = TaroRank(alpha=1.0)
+        scorer.score_node(comp, recursive=False)
+
+        # Verify calculated estimations created
+        calc_probs = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        calc_rels = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedRelevanceEstimation)
+        ]
+        assert len(calc_probs) == 1
+        assert len(calc_rels) == 1
+
+        # Second scoring run: should read ONLY manual (not calculated)
+        scorer.score_node(comp, recursive=False, skip_valid=False)
+
+        # Calculated values should be same as first run (not compounded)
+        calc_probs_after = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        assert abs(calc_probs_after[0].value - calc_probs[0].value) < 0.001
+
+    def test_manual_update_invalidates_and_recalculates(self, graph_db_available):
+        """Updating manual estimation should invalidate score and trigger recalculation."""
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            RelevanceEstimation
+        )
+        from dialectical_framework.graph.estimation_manager import EstimationManager
+
+        comp = DialecticalComponent(statement="test")
+        comp.save()
+
+        manager = EstimationManager()
+
+        # Initial estimations
+        manager.upsert_estimation(comp, ProbabilityEstimation, 0.8, invalidate=False)
+        manager.upsert_estimation(comp, RelevanceEstimation, 0.9, invalidate=False)
+
+        # Score
+        scorer = TaroRank(alpha=1.0)
+        scorer.score_node(comp, recursive=False)
+
+        initial_score = comp.score
+        assert initial_score is not None
+        assert comp.is_score_valid()
+
+        # User updates manual probability
+        manager.upsert_estimation(comp, ProbabilityEstimation, 0.5, invalidate=True)
+
+        # Score should be invalidated
+        assert not comp.is_score_valid()
+
+        # Re-score
+        scorer.score_node(comp, recursive=False, skip_valid=False)
+
+        # New score should reflect updated manual value
+        new_score = comp.score
+        assert new_score is not None
+        assert new_score < initial_score  # Lower probability → lower score
+
+    def test_multiple_scoring_runs_preserve_manual(self, graph_db_available):
+        """Multiple scoring runs should preserve all manual estimations."""
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            CalculatedProbabilityEstimation
+        )
+
+        comp = DialecticalComponent(statement="test")
+        comp.save()
+
+        # Manual estimation
+        prob = ProbabilityEstimation(value=0.8)
+        prob.save()
+        comp.estimations.connect(prob)
+
+        scorer = TaroRank(alpha=1.0)
+
+        # Run scoring 3 times
+        for _ in range(3):
+            scorer.score_node(comp, recursive=False, skip_valid=False)
+
+        # Manual estimation should still exist (only one)
+        manual = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, ProbabilityEstimation)
+        ]
+        assert len(manual) == 1
+        assert manual[0].value == 0.8
+
+        # Only one calculated estimation (updated each time, not created new)
+        calculated = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        assert len(calculated) == 1
+
+    def test_clear_scores_removes_calculated_preserves_manual(self, graph_db_available):
+        """clear_scores should remove calculated estimations but preserve manual ones."""
+        from dialectical_framework.graph.nodes.estimation import (
+            ProbabilityEstimation,
+            RelevanceEstimation,
+            CalculatedProbabilityEstimation,
+            CalculatedRelevanceEstimation
+        )
+
+        comp = DialecticalComponent(statement="test")
+        comp.save()
+
+        # Add manual estimations
+        prob_manual = ProbabilityEstimation(value=0.8)
+        prob_manual.save()
+        comp.estimations.connect(prob_manual)
+
+        rel_manual = RelevanceEstimation(value=0.9)
+        rel_manual.save()
+        comp.estimations.connect(rel_manual)
+
+        # Score (creates calculated estimations)
+        scorer = TaroRank(alpha=1.0)
+        scorer.score_node(comp, recursive=False)
+
+        # Verify calculated estimations exist
+        calc_probs = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        calc_rels = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedRelevanceEstimation)
+        ]
+        assert len(calc_probs) == 1
+        assert len(calc_rels) == 1
+        assert comp.score is not None
+
+        # Clear scores
+        scorer.clear_scores(comp, recursive=False)
+
+        # Score should be cleared
+        assert comp.score is None
+
+        # Calculated estimations should be REMOVED
+        calc_probs_after = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedProbabilityEstimation)
+        ]
+        calc_rels_after = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, CalculatedRelevanceEstimation)
+        ]
+        assert len(calc_probs_after) == 0  # Cleared!
+        assert len(calc_rels_after) == 0  # Cleared!
+
+        # Manual estimations should be PRESERVED
+        manual_probs = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, ProbabilityEstimation)
+        ]
+        manual_rels = [
+            est for est, _ in comp.estimations.all()
+            if isinstance(est, RelevanceEstimation)
+        ]
+        assert len(manual_probs) == 1  # Still there!
+        assert manual_probs[0].value == 0.8
+        assert len(manual_rels) == 1  # Still there!
+        assert manual_rels[0].value == 0.9
+
+
+# Additional integration tests could be added here for:
+# - WisdomUnit, Cycle, Wheel hierarchies
+# - Complex rationale audit-wins scenarios
+# - Estimation clearing and score invalidation workflows
