@@ -233,7 +233,7 @@ def is_graph_db_available(settings: Settings) -> bool:
 
 
 @pytest.fixture(scope="session")
-def graph_db_available(di_container):
+def graph_db_available(di_container)-> bool:
     """Check if the configured graph database is available for tests."""
     settings = di_container.settings()
     return is_graph_db_available(settings)

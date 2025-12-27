@@ -7,10 +7,13 @@ and evidence for assessments in the dialectical system.
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
 
 class Rationale(AssessableEntity):
@@ -46,20 +49,20 @@ class Rationale(AssessableEntity):
 
     # Declarative relationships
     # What this rationale explains
-    explanation: ClassVar[RelationshipManager] = RelationshipTo(
+    explanation: ClassVar[RelationshipManager[AssessableEntity]] = RelationshipTo(
         "AssessableEntity",
         "EXPLAINS",
         cardinality=(0, 1)  # Zero or one (rationale explains one entity)
     )
 
     # Rationales can critique other rationales (recursive critique)
-    critiques: ClassVar[RelationshipManager] = RelationshipTo(
+    critiques: ClassVar[RelationshipManager[Rationale]] = RelationshipTo(
         "Rationale",
         "CRITIQUES",
         cardinality=(0, 1)  # Zero or one (rationale may critique another rationale)
     )
 
-    derived_statements: ClassVar[RelationshipManager] = RelationshipTo(
+    derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
         "HAS_STATEMENT",
         cardinality=(0, None)

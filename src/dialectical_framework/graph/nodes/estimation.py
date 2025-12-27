@@ -7,11 +7,13 @@ quantitative measurements associated with assessable entities.
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
 
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 
 class Estimation(BaseNode):
     """
@@ -34,7 +36,7 @@ class Estimation(BaseNode):
     value: float
 
     # Declarative relationships
-    assessed_entity: ClassVar[RelationshipManager] = RelationshipFrom(
+    assessed_entity: ClassVar[RelationshipManager[AssessableEntity]] = RelationshipFrom(
         "AssessableEntity",
         "HAS_ESTIMATION",
         cardinality=(1, 1)  # Exactly one assessable entity

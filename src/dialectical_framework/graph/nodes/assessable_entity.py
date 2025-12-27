@@ -7,13 +7,14 @@ nodes that can be assessed/scored (Components, WisdomUnits, Wheels, Cycles, etc.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
+    from dialectical_framework.graph.nodes.estimation import Estimation, ProbabilityEstimation, RelevanceEstimation
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
@@ -28,20 +29,27 @@ class AssessableEntity(BaseNode):
 
     The scoring architecture follows the formula: Score = P × R^α
     where P is probability and R is relevance.
+
+    Score Provenance:
+    Scores are analytical artifacts (like BI dashboard metrics or materialized views)
+    computed at a point in time. They don't auto-update when knowledge graph changes.
+    Users explicitly refresh scores when needed (snapshot model, not reactive cache).
     """
 
     score: Optional[float] = None
+    score_computed_at: Optional[datetime] = None
+    score_invalidated_at: Optional[datetime] = None
 
     # Declarative relationships
     # Rationales explain this assessable entity
-    rationales: ClassVar[RelationshipManager] = RelationshipFrom(
+    rationales: ClassVar[RelationshipManager[Rationale]] = RelationshipFrom(
         "Rationale",
         "EXPLAINS",
         cardinality=(0, None)  # Zero or more rationales
     )
 
     # Estimations for this assessable entity
-    estimations: ClassVar[RelationshipManager] = RelationshipTo(
+    estimations: ClassVar[RelationshipManager[Estimation]] = RelationshipTo(
         "Estimation",
         "HAS_ESTIMATION",
         cardinality=(0, None)  # Zero or more estimations
@@ -153,6 +161,38 @@ class AssessableEntity(BaseNode):
 
         # Fallback: return first rationale if none have scores
         return rationales[0] if rationales else None
+
+    def is_score_valid(self) -> bool:
+        """
+        Check if the score is still valid (data hasn't changed since computation).
+
+        A score is valid if:
+        - Score exists
+        - Score was computed (has timestamp)
+        - Either never invalidated OR computed after last invalidation
+
+        This allows skipping recalculation when data hasn't changed,
+        regardless of how old the score is.
+
+        Returns:
+            True if score is valid and doesn't need recalculation
+
+        Example:
+            # Only recalculate if data changed
+            if not wheel.is_score_valid():
+                scorer.score_node(wheel)
+        """
+        if self.score is None:
+            return False
+
+        if self.score_computed_at is None:
+            return False
+
+        if self.score_invalidated_at is None:
+            return True  # Never invalidated
+
+        # Valid if computed AFTER invalidation
+        return self.score_computed_at > self.score_invalidated_at
 
     def __repr__(self) -> str:
         """String representation of the assessable entity."""

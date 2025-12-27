@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.wheel_segment import WheelSegment
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.spiral import Spiral
 
 
 class Wheel(AssessableEntity):
@@ -39,7 +41,7 @@ class Wheel(AssessableEntity):
     """
 
     # Declarative relationships
-    wisdom_units: ClassVar[RelationshipManager] = RelationshipFrom(
+    wisdom_units: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
         "WisdomUnit",
         "BELONGS_TO_WHEEL",
         cardinality=(1, None)  # One or more wisdom units
@@ -47,19 +49,19 @@ class Wheel(AssessableEntity):
 
     # Canonical/primary analytical structures (optional)
     # These represent the "authoritative" interpretation when one exists
-    t_cycle: ClassVar[RelationshipManager] = RelationshipFrom(
+    t_cycle: ClassVar[RelationshipManager[Cycle]] = RelationshipFrom(
         "Cycle",
         "IS_T_CYCLE_OF",
         cardinality=(0, 1)  # Zero or one (can be analyzed later)
     )
 
-    ta_cycle: ClassVar[RelationshipManager] = RelationshipFrom(
+    ta_cycle: ClassVar[RelationshipManager[Cycle]] = RelationshipFrom(
         "Cycle",
         "IS_TA_CYCLE_OF",
         cardinality=(0, 1)  # Zero or one (can be analyzed later)
     )
 
-    spiral: ClassVar[RelationshipManager] = RelationshipFrom(
+    spiral: ClassVar[RelationshipManager[Spiral]] = RelationshipFrom(
         "Spiral",
         "IS_SPIRAL_OF",
         cardinality=(0, 1)  # Zero or one wheel-level spiral (Transformations are internal to WisdomUnits)

@@ -16,6 +16,7 @@ from dialectical_framework.graph.relationships.opposition_relationship import (
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.transition import Transition
 
 
 class DialecticalComponent(AssessableEntity):
@@ -41,8 +42,8 @@ class DialecticalComponent(AssessableEntity):
         cardinality=(1, None)
     )
 
-    source_of: ClassVar[RelationshipManager] = RelationshipTo("Transition", "IS_SOURCE_OF")
-    target_of: ClassVar[RelationshipManager] = RelationshipFrom("Transition", "IS_TARGET_OF")
+    source_of: ClassVar[RelationshipManager[Transition]] = RelationshipTo("Transition", "IS_SOURCE_OF")
+    target_of: ClassVar[RelationshipManager[Transition]] = RelationshipFrom("Transition", "IS_TARGET_OF")
 
     def __repr__(self) -> str:
         """String representation of the component."""
