@@ -33,17 +33,16 @@ class SpiralCalculator(BaseCalculator):
     - Includes spiral-level rationale Rs (via GM, no rating)
     """
 
-    def score_children(self, spiral: Spiral, skip_valid: bool = True) -> None:
+    def score_children(self, spiral: Spiral) -> None:
         """
         Score all transitions in this spiral.
 
         Args:
             spiral: Spiral whose transitions should be scored
-            skip_valid: If True, skip scoring transitions with valid scores
         """
         transitions = spiral.transitions_ordered  # Uses SequenceTopologyMixin
         for trans in transitions:
-            self.scorer.score_node(trans, recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(trans)
 
     def calculate_probability(self, spiral: Spiral) -> Optional[float]:
         """
@@ -117,4 +116,4 @@ class SpiralCalculator(BaseCalculator):
         """
         transitions = spiral.transitions_ordered
         for trans in transitions:
-            self.scorer.clear_scores(trans, recursive=True)
+            self.scorer.clear_scores(trans)

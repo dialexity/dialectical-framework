@@ -46,31 +46,35 @@ class EstimationManager:
         node: AssessableEntity,
         estimation_type: Type[T],
         value: Optional[float],
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        invalidate: bool = True
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> None:
         """
         Create or update (upsert) an Estimation of specified type for a node.
 
+        Automatically determines whether to invalidate based on estimation type:
+        - Manual estimations (ProbabilityEstimation, RelevanceEstimation) → invalidate parents
+        - Calculated estimations (Calculated*) → don't invalidate (these are TaroRank outputs)
+
         Args:
             node: AssessableEntity to upsert estimation for
-            estimation_type: Type of estimation (ProbabilityEstimation or RelevanceEstimation)
+            estimation_type: Type of estimation (any Estimation subclass)
             value: Estimation value (0.0-1.0) or None (None deletes the estimation)
             graph_db: Database connection (injected)
-            invalidate: If True, invalidate node score (default: True)
-                       Set to False when called from TaroRank during scoring
 
         Example:
-            manager.upsert_estimation(node, ProbabilityEstimation, 0.8)
-            manager.upsert_estimation(node, RelevanceEstimation, 0.9)
-            manager.upsert_estimation(node, ProbabilityEstimation, None)  # Deletes
+            manager.upsert_estimation(node, ProbabilityEstimation, 0.8)  # Invalidates
+            manager.upsert_estimation(node, CalculatedProbabilityEstimation, 0.75)  # No invalidation
+            manager.upsert_estimation(node, ProbabilityEstimation, None)  # Deletes and invalidates
         """
+        # Determine if we should invalidate based on estimation type
+        # Calculated estimations are TaroRank outputs, not inputs, so don't invalidate
+        should_invalidate = not estimation_type.__name__.startswith('Calculated')
+
         if value is None:
             # Delete existing estimations of this type
             self._delete_estimations(node, estimation_type, graph_db)
-            if invalidate:
-                node.score_invalidated_at = datetime.now()
-                node.save()
+            if should_invalidate:
+                self._invalidate_node_and_parents(node, graph_db)
             return
 
         # Check for existing estimation of this type
@@ -81,18 +85,16 @@ class EstimationManager:
             old_value = existing.value
             existing.value = value
             existing.save()
-            # Only invalidate if value actually changed
-            if invalidate and old_value != value:
-                node.score_invalidated_at = datetime.now()
-                node.save()
+            # Only invalidate if value actually changed AND it's a manual estimation
+            if should_invalidate and old_value != value:
+                self._invalidate_node_and_parents(node, graph_db)
         else:
             # Create new
             estimation = estimation_type(value=value)
             estimation.save()
             node.estimations.connect(estimation)
-            if invalidate:
-                node.score_invalidated_at = datetime.now()
-                node.save()
+            if should_invalidate:
+                self._invalidate_node_and_parents(node, graph_db)
 
     @inject
     def clear_estimations(
@@ -103,6 +105,10 @@ class EstimationManager:
     ) -> None:
         """
         Delete Estimation nodes for this AssessableEntity.
+
+        Automatically determines whether to invalidate based on estimation types:
+        - If clearing manual estimations (ProbabilityEstimation, RelevanceEstimation) → invalidate parents
+        - If clearing calculated estimations (Calculated*) → don't invalidate
 
         Args:
             node: AssessableEntity to clear
@@ -124,13 +130,27 @@ class EstimationManager:
             # Clear both probability and relevance (explicit)
             manager.clear_estimations(node, [ProbabilityEstimation, RelevanceEstimation])
         """
+        should_invalidate = False
+
         if not estimation_types:
-            # Delete ALL estimations if None or empty list
+            # Clearing ALL estimations - check if any manual ones exist
+            all_estimations = node.estimations.all()
+            for est, _ in all_estimations:
+                if not est.__class__.__name__.startswith('Calculated'):
+                    should_invalidate = True
+                    break
+            # Delete ALL estimations
             self._delete_all_estimations(node, graph_db)
         else:
-            # Delete only specified types
+            # Clearing specific types - check if any are manual
             for estimation_type in estimation_types:
+                if not estimation_type.__name__.startswith('Calculated'):
+                    should_invalidate = True
                 self._delete_estimations(node, estimation_type, graph_db)
+
+        # Invalidate if we cleared any manual estimations
+        if should_invalidate:
+            self._invalidate_node_and_parents(node, graph_db)
 
     def _delete_all_estimations(
         self,
@@ -207,3 +227,72 @@ class EstimationManager:
             DETACH DELETE e
         """
         graph_db.execute(query, {"node_id": node._id})
+
+    def _invalidate_node_and_parents(
+        self,
+        node: AssessableEntity,
+        graph_db: Union[Memgraph, Neo4j],
+        visited: set[int] | None = None
+    ) -> None:
+        """
+        Invalidate this node and recursively propagate to all parent nodes.
+
+        This ensures that when a child's estimation changes, all ancestors
+        are marked invalid so they get rescored on the next scoring pass.
+
+        Args:
+            node: AssessableEntity to invalidate
+            graph_db: Database connection
+            visited: Set of node IDs already visited (for cycle detection)
+        """
+        if node._id is None:
+            return
+
+        # Initialize visited set on first call
+        if visited is None:
+            visited = set()
+
+        # Avoid cycles
+        if node._id in visited:
+            return
+        visited.add(node._id)
+
+        now = datetime.now()
+
+        # Invalidate this node
+        node.score_invalidated_at = now
+        node.save()
+
+        # Find immediate parents using simple query
+        # Use undirected relationship matching since relationships can go either direction
+        # (Component->Rationale uses RelationshipFrom, so edge goes Rationale->Component in graph)
+        #
+        # IMPORTANT: Exclude HAS_STATEMENT to prevent crossing wheel boundaries
+        # - HAS_STATEMENT is a text reference/derivation relationship (not structural ownership)
+        # - Structural relationships (T, A, IS_SOURCE_OF, etc.) handle within-wheel propagation
+        # - Excluding HAS_STATEMENT prevents invalidating external wheels that reference statements
+        query = """
+            MATCH (child)-[rel]-(parent:AssessableEntity)
+            WHERE id(child) = $child_id
+            AND type(rel) <> 'HAS_STATEMENT'
+            RETURN DISTINCT id(parent) as parent_id
+        """
+
+        try:
+            results = list(graph_db.execute_and_fetch(query, {"child_id": node._id}))
+
+            # Recursively invalidate each parent
+            from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+            for record in results:
+                parent_id = record["parent_id"]
+                if parent_id not in visited:
+                    # Load parent and recursively invalidate
+                    parent = AssessableEntity(_id=parent_id)
+                    parent.load(db=graph_db)
+                    if parent:
+                        # Recursive call to invalidate grandparents too
+                        self._invalidate_node_and_parents(parent, graph_db, visited)
+        except Exception as e:
+            # Log error but don't fail the whole operation
+            # Silent failure to avoid breaking the estimation update flow
+            pass

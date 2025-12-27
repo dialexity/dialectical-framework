@@ -38,7 +38,7 @@ class TransitionCalculator(BaseCalculator):
         Calculate P for a Transition.
 
         Algorithm:
-        1. Check MANUAL ProbabilityEstimation nodes (NOT calculated!)
+        1. Get transition's own P (from property, which returns manual since calculated was cleared)
         2. Collect rationale probabilities
         3. Aggregate via GM
         4. Fallback to scorer.default_transition_probability if no values
@@ -49,16 +49,13 @@ class TransitionCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or None if no evidence and no default
         """
-        from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
 
         values = []
 
-        # Manual probability from ProbabilityEstimation nodes ONLY (not calculated)
-        # This matches legacy: reads manual_probability (not self.probability)
-        manual_estimations = self._get_manual_estimations(transition, ProbabilityEstimation)
-        for est in manual_estimations:
-            values.append(est.value)
+        # Transition's own probability (manual, since calculated was cleared before this)
+        if transition.probability is not None:
+            values.append(transition.probability)
 
         # Rationale probabilities
         auditor = RationaleAuditor(self.scorer)
@@ -80,9 +77,9 @@ class TransitionCalculator(BaseCalculator):
         Calculate R for a Transition.
 
         Algorithm:
-        1. Collect MANUAL R values from RelevanceEstimation nodes (NOT calculated!)
-        2. Collect rationale R values (using audit-wins)
-        3. Hard veto: if R=0, return 0
+        1. Get transition's own R (from property, which returns manual since calculated was cleared)
+        2. Hard veto: if transition R=0, return 0
+        3. Collect rationale R values (using audit-wins)
         4. Aggregate via GM
         5. Return None if no evidence
 
@@ -92,18 +89,16 @@ class TransitionCalculator(BaseCalculator):
         Returns:
             R value (0.0-1.0) or None if no evidence
         """
-        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
 
         values = []
 
-        # Manual relevance estimations ONLY (not calculated)
-        # This matches legacy: reads manual_relevance (not self.relevance)
-        manual_estimations = self._get_manual_estimations(transition, RelevanceEstimation)
-        for est in manual_estimations:
-            if est.value == 0:
+        # Transition's own relevance (manual, since calculated was cleared before this)
+        # Hard veto: if transition R=0, return 0 immediately
+        if transition.relevance is not None:
+            if transition.relevance == 0:
                 return 0.0
-            values.append(est.value)
+            values.append(transition.relevance)
 
         # Rationale relevances
         auditor = RationaleAuditor(self.scorer)

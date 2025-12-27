@@ -32,31 +32,30 @@ class WheelCalculator(BaseCalculator):
     - Skip None values (unknown), keep zeros (hard constraints)
     """
 
-    def score_children(self, wheel: Wheel, skip_valid: bool = True) -> None:
+    def score_children(self, wheel: Wheel) -> None:
         """
         Score all WUs, cycles, and spiral.
 
         Args:
             wheel: Wheel whose children should be scored
-            skip_valid: If True, skip scoring children with valid scores
         """
         # Score all wisdom units
         wus = [wu for wu, _ in wheel.wisdom_units.all()]
         for wu in wus:
-            self.scorer.score_node(wu, recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(wu)
 
         # Score canonical cycles
         t_cycle_result = wheel.t_cycle.get()
         if t_cycle_result:
-            self.scorer.score_node(t_cycle_result[0], recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(t_cycle_result[0])
 
         ta_cycle_result = wheel.ta_cycle.get()
         if ta_cycle_result:
-            self.scorer.score_node(ta_cycle_result[0], recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(ta_cycle_result[0])
 
         spiral_result = wheel.spiral.get()
         if spiral_result:
-            self.scorer.score_node(spiral_result[0], recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(spiral_result[0])
 
     def calculate_relevance(self, wheel: Wheel) -> Optional[float]:
         """
@@ -156,17 +155,17 @@ class WheelCalculator(BaseCalculator):
         # Clear all wisdom units
         wus = [wu for wu, _ in wheel.wisdom_units.all()]
         for wu in wus:
-            self.scorer.clear_scores(wu, recursive=True)
+            self.scorer.clear_scores(wu)
 
         # Clear canonical cycles
         t_cycle_result = wheel.t_cycle.get()
         if t_cycle_result:
-            self.scorer.clear_scores(t_cycle_result[0], recursive=True)
+            self.scorer.clear_scores(t_cycle_result[0])
 
         ta_cycle_result = wheel.ta_cycle.get()
         if ta_cycle_result:
-            self.scorer.clear_scores(ta_cycle_result[0], recursive=True)
+            self.scorer.clear_scores(ta_cycle_result[0])
 
         spiral_result = wheel.spiral.get()
         if spiral_result:
-            self.scorer.clear_scores(spiral_result[0], recursive=True)
+            self.scorer.clear_scores(spiral_result[0])

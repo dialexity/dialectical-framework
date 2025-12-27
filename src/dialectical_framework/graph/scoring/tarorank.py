@@ -16,6 +16,7 @@ from dialectical_framework.graph.nodes.estimation import (
     CalculatedProbabilityEstimation,
     CalculatedRelevanceEstimation
 )
+from dialectical_framework.graph.scoring.tarorank_calculators.base_calculator import BaseCalculator
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
@@ -82,7 +83,7 @@ class TaroRank:
         # Initialize calculators (lazy loading to avoid circular imports)
         self._calculators = {}
 
-    def _get_calculator(self, node_type: str):
+    def _get_calculator(self, node_type: str) -> BaseCalculator:
         """
         Get calculator for a node type (lazy loading).
 
@@ -125,56 +126,60 @@ class TaroRank:
 
         return self._calculators[node_type]
 
-    def score_node(
+    def calculate_score(
         self,
-        node: AssessableEntity,
-        recursive: bool = True,
-        skip_valid: bool = True
+        node: AssessableEntity
     ) -> Optional[float]:
         """
         Calculate and store score for a node.
 
         This method:
-        1. Checks if score is valid (if skip_valid=True)
-        2. Recursively scores children (if recursive=True)
-        3. Calculates node's P and R
-        4. Creates/updates Estimation nodes for P and R
-        5. Computes final Score = P × R^α
-        6. Stores score in node.score field
-        7. Returns the score
+        1. Checks if score is valid (always skips if valid)
+        2. Clears old calculated estimations (so properties return manual/child values)
+        3. Recursively scores children
+        4. Calculates node's P and R (using properties, which now reflect current state)
+        5. Stores new calculated P and R
+        6. Computes final Score = P × R^α
+        7. Stores score in node.score field
+        8. Returns the score
+
+        With hierarchical invalidation propagation, we always skip valid nodes.
+        If something needs rescoring, it will be marked invalid automatically.
 
         Args:
             node: AssessableEntity to score
-            recursive: If True, scores all children first (default)
-            skip_valid: If True, skip scoring if node.is_score_valid() (default)
-                       Set to False to force recalculation
 
         Returns:
             Computed score or None if insufficient data
 
         Example:
             scorer = TaroRank(alpha=1.0)
-            score = scorer.score_node(wheel, recursive=True)  # Skips if valid
-            score = scorer.score_node(wheel, skip_valid=False)  # Forces recalc
+            score = scorer.score_node(wheel)
         """
-        # Check validity first
-        if skip_valid and node.is_score_valid():
+        # Always skip valid nodes - invalidation propagation ensures correctness
+        if node.is_score_valid():
             return node.score
+
+        # Clear old calculated estimations BEFORE calculating
+        # This ensures properties return manual values (or None) for this node
+        # After scoring children, their properties will return fresh calculated values
+        self.estimation_manager.clear_estimations(
+            node,
+            estimation_types=[CalculatedProbabilityEstimation, CalculatedRelevanceEstimation]
+        )
 
         calculator = self._get_calculator(node.__class__.__name__)
 
-        # Recursive scoring of children
-        if recursive:
-            calculator.score_children(node, skip_valid=skip_valid)
+        # Always score children recursively (they get fresh calculated values)
+        calculator.score_children(node)
 
-        # Calculate P and R
+        # Calculate P and R (properties now return correct values)
         p = calculator.calculate_probability(node)
         r = calculator.calculate_relevance(node)
 
-        # Store P and R as CALCULATED estimation nodes (don't invalidate during scoring)
-        # This preserves manual estimations - calculated types are separate from manual types
-        self.estimation_manager.upsert_estimation(node, CalculatedProbabilityEstimation, p, invalidate=False)
-        self.estimation_manager.upsert_estimation(node, CalculatedRelevanceEstimation, r, invalidate=False)
+        # Store new calculated P and R (won't invalidate)
+        self.estimation_manager.upsert_estimation(node, CalculatedProbabilityEstimation, p)
+        self.estimation_manager.upsert_estimation(node, CalculatedRelevanceEstimation, r)
 
         # Calculate final score
         if p is None or r is None:
@@ -191,9 +196,9 @@ class TaroRank:
 
         return score
 
-    def clear_scores(self, node: AssessableEntity, recursive: bool = True) -> None:
+    def clear_scores(self, node: AssessableEntity) -> None:
         """
-        Clear computed scores for a node.
+        Clear computed scores for a node and all its children.
 
         This clears:
         - Score fields (score, score_computed_at, score_invalidated_at)
@@ -203,12 +208,11 @@ class TaroRank:
 
         Args:
             node: Node to clear scores for
-            recursive: If True, clears children scores too
 
         Example:
             scorer = TaroRank()
-            scorer.clear_scores(wheel, recursive=True)
-            scorer.score_node(wheel, recursive=True)  # Re-score using existing manual estimations
+            scorer.clear_scores(wheel)
+            scorer.score_node(wheel)  # Re-score using existing manual estimations
         """
         # Clear score fields
         node.score = None
@@ -222,81 +226,6 @@ class TaroRank:
             estimation_types=[CalculatedProbabilityEstimation, CalculatedRelevanceEstimation]
         )
 
-        if recursive:
-            calculator = self._get_calculator(node.__class__.__name__)
-            calculator.clear_children(node)
-
-    @inject
-    def score_all_wheels(
-        self,
-        recursive: bool = True,
-        skip_valid: bool = True,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> dict[str, float | int]:
-        """
-        Score all Wheel nodes in the graph (batch processing).
-
-        This is useful for scheduled/maintenance operations where you want to
-        refresh scores for all wheels in the system. Follows the materialized
-        view model: scores are snapshots computed at a point in time.
-
-        Args:
-            recursive: If True, scores all children first (default)
-            skip_valid: If True, skip wheels with valid scores (default)
-            graph_db: Graph database instance (injected)
-
-        Returns:
-            Statistics dict with keys:
-            - total: Number of wheels found
-            - scored: Number successfully scored (or already valid)
-            - failed: Number that failed to score (None result)
-            - skipped: Number skipped due to valid scores
-            - avg_score: Average score of successfully scored wheels
-
-        Example:
-            scorer = TaroRank(alpha=1.0)
-            # Only score invalid wheels
-            stats = scorer.score_all_wheels(recursive=True, skip_valid=True)
-            print(f"Scored {stats['scored']}/{stats['total']} wheels")
-            print(f"Skipped {stats['skipped']} valid wheels")
-            # Force recalculation of all wheels
-            stats = scorer.score_all_wheels(recursive=True, skip_valid=False)
-        """
-        from dialectical_framework.graph.nodes.wheel import Wheel
-
-        # Query all Wheel nodes
-        query = "MATCH (w:Wheel) RETURN w"
-        results = graph_db.execute_and_fetch(query)
-
-        wheels = [Wheel(**result["w"]._properties) for result in results]
-
-        total = len(wheels)
-        scored = 0
-        failed = 0
-        skipped = 0
-        scores = []
-
-        for wheel in wheels:
-            # Check if already valid
-            if skip_valid and wheel.is_score_valid():
-                skipped += 1
-                if wheel.score is not None:
-                    scores.append(wheel.score)
-                continue
-
-            score = self.score_node(wheel, recursive=recursive, skip_valid=skip_valid)
-            if score is not None:
-                scored += 1
-                scores.append(score)
-            else:
-                failed += 1
-
-        avg_score = sum(scores) / len(scores) if scores else 0.0
-
-        return {
-            "total": total,
-            "scored": scored,
-            "failed": failed,
-            "skipped": skipped,
-            "avg_score": avg_score
-        }
+        # Always clear children recursively
+        calculator = self._get_calculator(node.__class__.__name__)
+        calculator.clear_children(node)

@@ -33,17 +33,16 @@ class CycleCalculator(BaseCalculator):
     - Includes cycle-level rationale Rs (via GM, no rating)
     """
 
-    def score_children(self, cycle: Cycle, skip_valid: bool = True) -> None:
+    def score_children(self, cycle: Cycle) -> None:
         """
         Score all transitions in this cycle.
 
         Args:
             cycle: Cycle whose transitions should be scored
-            skip_valid: If True, skip scoring transitions with valid scores
         """
         transitions = cycle.transitions_ordered  # Uses SequenceTopologyMixin
         for trans in transitions:
-            self.scorer.score_node(trans, recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(trans)
 
     def calculate_probability(self, cycle: Cycle) -> Optional[float]:
         """
@@ -117,4 +116,4 @@ class CycleCalculator(BaseCalculator):
         """
         transitions = cycle.transitions_ordered
         for trans in transitions:
-            self.scorer.clear_scores(trans, recursive=True)
+            self.scorer.clear_scores(trans)

@@ -61,7 +61,7 @@ class TestDialecticalComponentScoring:
 
         # TaroRank should return None (insufficient data)
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
         assert score is None
 
     def test_component_with_manual_estimations(self, graph_db_available):
@@ -87,7 +87,7 @@ class TestDialecticalComponentScoring:
 
         # Score it
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         # Score = P × R^α = 0.9 × 0.8^1.0 = 0.72
         assert abs(score - 0.72) < 0.01
@@ -112,7 +112,7 @@ class TestDialecticalComponentScoring:
         assert component.relevance == 0.0
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         # Score = 0.8 × 0.0 = 0.0
         assert score == 0.0
@@ -147,7 +147,7 @@ class TestDialecticalComponentScoring:
 
         # Score component
         scorer = TaroRank(alpha=1.0, default_transition_probability=None)
-        score = scorer.score_node(component, recursive=True)
+        score = scorer.calculate_score(component)
 
         # Component calculator should aggregate: GM(own_r, rat1_r, rat2_r) = GM(0.8, 0.9, 0.7)
         # P defaults to 1.0 for components
@@ -213,7 +213,7 @@ class TestTransitionScoring:
 
         # Score transition
         scorer = TaroRank(alpha=1.0, default_transition_probability=None)
-        scorer.score_node(transition, recursive=True)
+        scorer.calculate_score(transition)
 
         # Should aggregate via GM: (0.8 * 0.9)^0.5 ≈ 0.848
         expected_p = (0.8 * 0.9) ** 0.5
@@ -239,7 +239,7 @@ class TestTransitionScoring:
 
         # Score with default
         scorer = TaroRank(alpha=1.0, default_transition_probability=1.0)
-        scorer.score_node(transition, recursive=False)
+        scorer.calculate_score(transition)
 
         # Should use default P=1.0
         assert transition.probability == 1.0
@@ -247,6 +247,53 @@ class TestTransitionScoring:
 
 class TestInvalidationTracking:
     """Test score invalidation and validity checking."""
+
+    def test_invalidation_propagates_to_parents(self, graph_db_available, di_container):
+        """When child estimation changes, parent scores should be invalidated."""
+        from dialectical_framework.graph.estimation_manager import EstimationManager
+
+        if not graph_db_available:
+            pytest.skip("Graph database not available")
+
+        graph_db = di_container.graph_db()
+
+        # Create a hierarchy: Component has Rationale
+        component = DialecticalComponent(statement="Component")
+        component.save()
+
+        # Create rationale for component
+        rationale = Rationale(text="Supporting rationale")
+        rationale.save()
+        component.rationales.connect(rationale)
+
+        # Add some estimations first so we get valid scores
+        rat_est = RelevanceEstimation(value=0.8)
+        rat_est.save()
+        rationale.estimations.connect(rat_est)
+
+        # Score everything
+        scorer = TaroRank(alpha=1.0, default_transition_probability=None)
+        scorer.calculate_score(component)
+
+        # Store original invalidated_at timestamps (before modification)
+
+        query = "MATCH (n) WHERE id(n) = $node_id RETURN n.score_invalidated_at as ts"
+        component_ts_before = list(graph_db.execute_and_fetch(query, {"node_id": component._id}))[0]["ts"]
+        rationale_ts_before = list(graph_db.execute_and_fetch(query, {"node_id": rationale._id}))[0]["ts"]
+
+        # Modify child rationale estimation
+        manager = EstimationManager()
+        manager.upsert_estimation(rationale, RelevanceEstimation, 0.9)
+
+        # Check timestamps changed (both child and parent)
+        component_ts_after = list(graph_db.execute_and_fetch(query, {"node_id": component._id}))[0]["ts"]
+        rationale_ts_after = list(graph_db.execute_and_fetch(query, {"node_id": rationale._id}))[0]["ts"]
+
+        # Child (rationale) should be invalidated
+        assert rationale_ts_after != rationale_ts_before, "Rationale should be invalidated"
+
+        # Parent should ALSO be invalidated (propagation!)
+        assert component_ts_after != component_ts_before, "Parent component should be invalidated"
 
     def test_score_invalidated_when_estimation_changes(self, graph_db_available):
         """Score should be invalidated when estimations are modified."""
@@ -264,7 +311,7 @@ class TestInvalidationTracking:
         component.estimations.connect(rel_est)
 
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(component, recursive=False)
+        scorer.calculate_score(component)
 
         # Score should be valid
         assert component.is_score_valid()
@@ -272,7 +319,7 @@ class TestInvalidationTracking:
 
         # Modify estimation (this should invalidate)
         manager = EstimationManager()
-        manager.upsert_estimation(component, RelevanceEstimation, 0.9, invalidate=True)
+        manager.upsert_estimation(component, RelevanceEstimation, 0.9)
 
         # Score should now be invalid
         assert not component.is_score_valid()
@@ -293,22 +340,22 @@ class TestInvalidationTracking:
         scorer = TaroRank(alpha=1.0)
 
         # First scoring
-        score1 = scorer.score_node(component, skip_valid=True)
+        score1 = scorer.calculate_score(component)
         computed_at1 = component.score_computed_at
 
-        # Second scoring with skip_valid should return cached score
-        score2 = scorer.score_node(component, skip_valid=True)
+        # Second scoring should return cached score (always skips valid)
+        score2 = scorer.calculate_score(component)
         computed_at2 = component.score_computed_at
 
         assert score1 == score2
         assert computed_at1 == computed_at2  # Not recomputed
 
-        # Third scoring with skip_valid=False should recompute
-        score3 = scorer.score_node(component, skip_valid=False)
+        # Third scoring should also return cached score (always skips valid)
+        score3 = scorer.calculate_score(component)
         computed_at3 = component.score_computed_at
 
         assert score1 == score3  # Same value
-        assert computed_at3 > computed_at2  # But recomputed
+        assert computed_at3 == computed_at2  # Not recomputed (valid)
 
 
 class TestScoringAlphaParameter:
@@ -331,7 +378,7 @@ class TestScoringAlphaParameter:
         component.estimations.connect(rel_est)
 
         scorer = TaroRank(alpha=0.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         # Score = P × R^0 = 0.6 × 1 = 0.6
         assert abs(score - 0.6) < 0.01
@@ -353,7 +400,7 @@ class TestScoringAlphaParameter:
         component.estimations.connect(rel_est)
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         # Score = P × R^1 = 0.6 × 0.8 = 0.48
         assert abs(score - 0.48) < 0.01
@@ -375,7 +422,7 @@ class TestScoringAlphaParameter:
         component.estimations.connect(rel_est)
 
         scorer = TaroRank(alpha=2.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         # Score = P × R^2 = 0.6 × 0.64 = 0.384
         assert abs(score - 0.384) < 0.01
@@ -473,7 +520,7 @@ class TestFallbackBehavior:
         assert component.relevance is None
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         assert score is None
 
@@ -491,7 +538,7 @@ class TestFallbackBehavior:
         component.estimations.connect(rel_est)
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         # Component calculator defaults P=1.0, so score = 1.0 × 0.8 = 0.8
         assert abs(score - 0.8) < 0.01
@@ -529,7 +576,7 @@ class TestDialecticalComponentScoringAdditional:
         component.rationales.connect(rationale2)
 
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(component, recursive=True)
+        scorer.calculate_score(component)
 
         # Graph implementation: Rationales with R=0 are excluded via soft exclusion
         # Only component.r and rationale1.r aggregate
@@ -550,7 +597,7 @@ class TestDialecticalComponentScoringAdditional:
         component_alone.estimations.connect(rel1)
 
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(component_alone, recursive=False)
+        scorer.calculate_score(component_alone)
         cf_alone = component_alone.relevance
 
         # Component with empty rationale (text only)
@@ -564,7 +611,7 @@ class TestDialecticalComponentScoringAdditional:
         empty_rationale.save()
         component_with_empty.rationales.connect(empty_rationale)
 
-        scorer.score_node(component_with_empty, recursive=True)
+        scorer.calculate_score(component_with_empty)
         cf_with_empty = component_with_empty.relevance
 
         # Should be the same! Empty rationale contributes None
@@ -591,7 +638,7 @@ class TestDialecticalComponentScoringAdditional:
         component.rationales.connect(evidence_rationale)
 
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(component, recursive=True)
+        scorer.calculate_score(component)
 
         # Should aggregate: GM(component_own, rationale_r) = GM(0.8, 0.9)
         expected = (0.8 * 0.9) ** 0.5
@@ -628,7 +675,7 @@ class TestTransitionScoringAdditional:
         transition.estimations.connect(trans_rel)
 
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(transition, recursive=False)
+        scorer.calculate_score(transition)
 
         # Only own R, not from source/target
         assert abs(transition.relevance - 0.6) < 0.01
@@ -654,7 +701,7 @@ class TestScoringFallbackBehaviorAdditional:
         component.estimations.connect(prob_est)
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         assert score == 0.0
 
@@ -672,7 +719,7 @@ class TestScoringFallbackBehaviorAdditional:
         component.estimations.connect(prob_est)
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(component, recursive=False)
+        score = scorer.calculate_score(component)
 
         # With R=None, Score=None
         assert score is None
@@ -754,7 +801,7 @@ class TestRationaleFallbacks:
         component.rationales.connect(rationale_good)
 
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(component, recursive=True)
+        scorer.calculate_score(component)
 
         # Graph implementation: Rationales follow soft exclusion semantics
         # R=0 rationale is excluded from aggregation (not a hard veto)
@@ -794,8 +841,8 @@ class TestComplexScoringScenarios:
         comp_without_rationale.estimations.connect(comp2_rel)
 
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(comp_with_rationale, recursive=True)
-        scorer.score_node(comp_without_rationale, recursive=True)
+        scorer.calculate_score(comp_with_rationale)
+        scorer.calculate_score(comp_without_rationale)
 
         cf1 = comp_with_rationale.relevance
         cf2 = comp_without_rationale.relevance
@@ -867,7 +914,7 @@ class TestProbabilityNoneBehavior:
         assert trans.probability is None
 
         scorer = TaroRank(alpha=1.0, default_transition_probability=None)
-        score = scorer.score_node(trans, recursive=False)
+        score = scorer.calculate_score(trans)
 
         assert score is None
 
@@ -891,7 +938,7 @@ class TestProbabilityNoneBehavior:
         trans.estimations.connect(trans_rel)
 
         scorer = TaroRank(alpha=1.0, default_transition_probability=1.0)
-        score = scorer.score_node(trans, recursive=False)
+        score = scorer.calculate_score(trans)
 
         # Should use default P=1.0
         # Score = 1.0 × 0.7 = 0.7
@@ -921,7 +968,7 @@ class TestProbabilityNoneBehavior:
         trans.estimations.connect(trans_prob)
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(trans, recursive=False)
+        score = scorer.calculate_score(trans)
 
         # Score = 0.9 × 0.7 = 0.63
         assert abs(score - 0.63) < 0.01
@@ -950,7 +997,7 @@ class TestProbabilityNoneBehavior:
         trans.estimations.connect(trans_prob)
 
         scorer = TaroRank(alpha=1.0)
-        score = scorer.score_node(trans, recursive=False)
+        score = scorer.calculate_score(trans)
 
         # Score = 1.0 × 0.7 = 0.7
         assert abs(score - 0.7) < 0.01
@@ -982,7 +1029,7 @@ class TestManualVsCalculatedSeparation:
         manager = EstimationManager()
 
         # User sets manual probability
-        manager.upsert_estimation(comp, ProbabilityEstimation, 0.8, invalidate=True)
+        manager.upsert_estimation(comp, ProbabilityEstimation, 0.8)
 
         # Verify manual estimation exists
         manual_estimations = [
@@ -994,7 +1041,7 @@ class TestManualVsCalculatedSeparation:
 
         # TaroRank runs scoring
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(comp, recursive=False)
+        scorer.calculate_score(comp)
 
         # Verify manual estimation is STILL present
         manual_estimations_after = [
@@ -1043,7 +1090,7 @@ class TestManualVsCalculatedSeparation:
 
         # TaroRank scoring
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(comp, recursive=False)
+        scorer.calculate_score(comp)
 
         # Both manual estimations STILL exist
         manual_after = [
@@ -1111,7 +1158,7 @@ class TestManualVsCalculatedSeparation:
 
         # First scoring run
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(comp, recursive=False)
+        scorer.calculate_score(comp)
 
         # Verify calculated estimations created
         calc_probs = [
@@ -1126,7 +1173,7 @@ class TestManualVsCalculatedSeparation:
         assert len(calc_rels) == 1
 
         # Second scoring run: should read ONLY manual (not calculated)
-        scorer.score_node(comp, recursive=False, skip_valid=False)
+        scorer.calculate_score(comp)
 
         # Calculated values should be same as first run (not compounded)
         calc_probs_after = [
@@ -1149,25 +1196,25 @@ class TestManualVsCalculatedSeparation:
         manager = EstimationManager()
 
         # Initial estimations
-        manager.upsert_estimation(comp, ProbabilityEstimation, 0.8, invalidate=False)
-        manager.upsert_estimation(comp, RelevanceEstimation, 0.9, invalidate=False)
+        manager.upsert_estimation(comp, ProbabilityEstimation, 0.8)
+        manager.upsert_estimation(comp, RelevanceEstimation, 0.9)
 
         # Score
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(comp, recursive=False)
+        scorer.calculate_score(comp)
 
         initial_score = comp.score
         assert initial_score is not None
         assert comp.is_score_valid()
 
         # User updates manual probability
-        manager.upsert_estimation(comp, ProbabilityEstimation, 0.5, invalidate=True)
+        manager.upsert_estimation(comp, ProbabilityEstimation, 0.5)
 
         # Score should be invalidated
         assert not comp.is_score_valid()
 
         # Re-score
-        scorer.score_node(comp, recursive=False, skip_valid=False)
+        scorer.calculate_score(comp)
 
         # New score should reflect updated manual value
         new_score = comp.score
@@ -1193,7 +1240,7 @@ class TestManualVsCalculatedSeparation:
 
         # Run scoring 3 times
         for _ in range(3):
-            scorer.score_node(comp, recursive=False, skip_valid=False)
+            scorer.calculate_score(comp)
 
         # Manual estimation should still exist (only one)
         manual = [
@@ -1233,7 +1280,7 @@ class TestManualVsCalculatedSeparation:
 
         # Score (creates calculated estimations)
         scorer = TaroRank(alpha=1.0)
-        scorer.score_node(comp, recursive=False)
+        scorer.calculate_score(comp)
 
         # Verify calculated estimations exist
         calc_probs = [
@@ -1249,7 +1296,7 @@ class TestManualVsCalculatedSeparation:
         assert comp.score is not None
 
         # Clear scores
-        scorer.clear_scores(comp, recursive=False)
+        scorer.clear_scores(comp)
 
         # Score should be cleared
         assert comp.score is None

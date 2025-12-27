@@ -32,17 +32,16 @@ class TransformationCalculator(BaseCalculator):
     - Includes transformation-level rationale Rs (via GM, no rating)
     """
 
-    def score_children(self, transformation: Transformation, skip_valid: bool = True) -> None:
+    def score_children(self, transformation: Transformation) -> None:
         """
         Score all transitions in this transformation.
 
         Args:
             transformation: Transformation whose transitions should be scored
-            skip_valid: If True, skip scoring transitions with valid scores
         """
         transitions = transformation.transitions_ordered  # Uses SequenceTopologyMixin
         for trans in transitions:
-            self.scorer.score_node(trans, recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(trans)
 
     def calculate_probability(self, transformation: Transformation) -> Optional[float]:
         """
@@ -113,4 +112,4 @@ class TransformationCalculator(BaseCalculator):
         """
         transitions = transformation.transitions_ordered
         for trans in transitions:
-            self.scorer.clear_scores(trans, recursive=True)
+            self.scorer.clear_scores(trans)

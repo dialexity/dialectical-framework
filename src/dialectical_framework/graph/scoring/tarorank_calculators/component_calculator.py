@@ -39,7 +39,7 @@ class ComponentCalculator(BaseCalculator):
         Calculate P for a DialecticalComponent.
 
         Algorithm:
-        1. Collect MANUAL P values from ProbabilityEstimation nodes (NOT calculated!)
+        1. Get component's own P (from property, which returns manual since calculated was cleared)
         2. Collect rationale P values (using audit-wins for critiques)
         3. If no values: return 1.0 (default for components = facts)
         4. Aggregate via GM
@@ -50,16 +50,13 @@ class ComponentCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or 1.0 if no evidence (fact default)
         """
-        from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
 
         values = []
 
-        # Manual probability estimations ONLY (not CalculatedProbabilityEstimation)
-        # This matches legacy: calculate_probability() reads manual_probability (not self.probability)
-        manual_estimations = self._get_manual_estimations(component, ProbabilityEstimation)
-        for est in manual_estimations:
-            values.append(est.value)
+        # Component's own probability (manual, since calculated was cleared before this)
+        if component.probability is not None:
+            values.append(component.probability)
 
         # Rationale probabilities (with audit-wins)
         auditor = RationaleAuditor(self.scorer)
@@ -81,9 +78,9 @@ class ComponentCalculator(BaseCalculator):
         Calculate R for a DialecticalComponent.
 
         Algorithm:
-        1. Collect MANUAL R values from RelevanceEstimation nodes (NOT calculated!)
-        2. Collect rationale R values (using audit-wins)
-        3. Hard veto: if any R=0, return 0
+        1. Get component's own R (from property, which returns manual since calculated was cleared)
+        2. Hard veto: if component R=0, return 0
+        3. Collect rationale R values (using audit-wins)
         4. Aggregate via GM
         5. Return None if no evidence
 
@@ -93,19 +90,16 @@ class ComponentCalculator(BaseCalculator):
         Returns:
             R value (0.0-1.0) or None if no evidence
         """
-        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
 
         values = []
 
-        # Manual relevance estimations ONLY (not CalculatedRelevanceEstimation)
-        # This matches legacy: calculate_relevance() reads manual_relevance (not self.relevance)
-        manual_estimations = self._get_manual_estimations(component, RelevanceEstimation)
-        for est in manual_estimations:
-            # Hard veto check
-            if est.value == 0:
+        # Component's own relevance (manual, since calculated was cleared before this)
+        # Hard veto: if component R=0, return 0 immediately
+        if component.relevance is not None:
+            if component.relevance == 0:
                 return 0.0
-            values.append(est.value)
+            values.append(component.relevance)
 
         # Rationale relevances (with audit-wins, no rating weighting)
         auditor = RationaleAuditor(self.scorer)

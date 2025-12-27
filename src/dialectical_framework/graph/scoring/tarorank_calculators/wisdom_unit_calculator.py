@@ -37,25 +37,24 @@ class WisdomUnitCalculator(BaseCalculator):
     - If no transformation: P = 1.0 (no structural constraint)
     """
 
-    def score_children(self, wu: WisdomUnit, skip_valid: bool = True) -> None:
+    def score_children(self, wu: WisdomUnit) -> None:
         """
         Score all components and transformation in this WU.
 
         Args:
             wu: WisdomUnit whose children should be scored
-            skip_valid: If True, skip scoring children with valid scores
         """
         # Score all components
         for rel_manager in [wu.t, wu.t_plus, wu.t_minus, wu.a, wu.a_plus, wu.a_minus, wu.s_plus, wu.s_minus]:
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
-                self.scorer.score_node(comp, recursive=True, skip_valid=skip_valid)
+                self.scorer.calculate_score(comp)
 
         # Score transformation if present
         trans_result = wu.transformation.get()
         if trans_result:
             transformation = trans_result[0]
-            self.scorer.score_node(transformation, recursive=True, skip_valid=skip_valid)
+            self.scorer.calculate_score(transformation)
 
     def calculate_relevance(self, wu: WisdomUnit) -> Optional[float]:
         """
@@ -164,10 +163,10 @@ class WisdomUnitCalculator(BaseCalculator):
         for rel_manager in [wu.t, wu.t_plus, wu.t_minus, wu.a, wu.a_plus, wu.a_minus, wu.s_plus, wu.s_minus]:
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
-                self.scorer.clear_scores(comp, recursive=True)
+                self.scorer.clear_scores(comp)
 
         # Clear transformation if present
         trans_result = wu.transformation.get()
         if trans_result:
             transformation = trans_result[0]
-            self.scorer.clear_scores(transformation, recursive=True)
+            self.scorer.clear_scores(transformation)
