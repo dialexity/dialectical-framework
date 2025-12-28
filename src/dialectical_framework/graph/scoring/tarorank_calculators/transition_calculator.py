@@ -55,19 +55,27 @@ class TransitionCalculator(BaseCalculator):
 
         # Transition's own probability (manual, since calculated was cleared before this)
         if transition.probability is not None:
+            # Hard veto: if transition P=0, return 0 immediately (matches legacy _hard_veto_on_own_zero)
+            if transition.probability == 0:
+                return 0.0
+            # If we're here, probability is not None and not 0, so must be positive
             values.append(transition.probability)
 
         # Rationale probabilities
+        # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
         rationales = [rat for rat, _ in transition.rationales.all()]
 
         for rationale in rationales:
             rat_p = auditor.get_probability(rationale)
-            if rat_p is not None:
-                values.append(rat_p)
+            if rat_p is not None and rat_p > 0.0:
+                rating = rationale.rating if rationale.rating is not None else 1.0
+                weighted_p = rat_p * rating
+                if weighted_p > 0.0:  # Filter after rating application
+                    values.append(weighted_p)
 
         if not values:
-            # Fallback to global default
+            # Fallback to global default (intentionally global, not instance-level)
             return self.scorer.default_transition_probability
 
         return gm_with_zeros_and_nones_handled(values)
@@ -94,23 +102,27 @@ class TransitionCalculator(BaseCalculator):
         values = []
 
         # Transition's own relevance (manual, since calculated was cleared before this)
-        # Hard veto: if transition R=0, return 0 immediately
         if transition.relevance is not None:
+            # Hard veto: if transition R=0, return 0 immediately
             if transition.relevance == 0:
                 return 0.0
+            # If we're here, relevance is not None and not 0, so must be positive
+            # (relevance is constrained to [0, 1])
+            # Note: Transition's own value has no rating (only Rationale.rating exists)
             values.append(transition.relevance)
 
         # Rationale relevances
+        # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
         rationales = [rat for rat, _ in transition.rationales.all()]
 
         for rationale in rationales:
             rat_r = auditor.get_relevance(rationale)
-            if rat_r is not None:
-                if rat_r == 0:
-                    continue
-
-                values.append(rat_r)
+            if rat_r is not None and rat_r > 0.0:
+                rating = rationale.rating if rationale.rating is not None else 1.0
+                weighted_r = rat_r * rating
+                if weighted_r > 0.0:  # Filter after rating application
+                    values.append(weighted_r)
 
         if not values:
             return None

@@ -56,16 +56,24 @@ class ComponentCalculator(BaseCalculator):
 
         # Component's own probability (manual, since calculated was cleared before this)
         if component.probability is not None:
+            # Hard veto: if component P=0, return 0 immediately (matches legacy _hard_veto_on_own_zero)
+            if component.probability == 0:
+                return 0.0
+            # If we're here, probability is not None and not 0, so must be positive
             values.append(component.probability)
 
         # Rationale probabilities (with audit-wins)
+        # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
         rationales = [rat for rat, _ in component.rationales.all()]
 
         for rationale in rationales:
             rat_p = auditor.get_probability(rationale)
-            if rat_p is not None:
-                values.append(rat_p)
+            if rat_p is not None and rat_p > 0.0:
+                rating = rationale.rating if rationale.rating is not None else 1.0
+                weighted_p = rat_p * rating
+                if weighted_p > 0.0:  # Filter after rating application
+                    values.append(weighted_p)
 
         # Default: 1.0 for components (facts)
         if not values:
@@ -95,24 +103,27 @@ class ComponentCalculator(BaseCalculator):
         values = []
 
         # Component's own relevance (manual, since calculated was cleared before this)
-        # Hard veto: if component R=0, return 0 immediately
         if component.relevance is not None:
+            # Hard veto: if component R=0, return 0 immediately
             if component.relevance == 0:
                 return 0.0
+            # If we're here, relevance is not None and not 0, so must be positive
+            # (relevance is constrained to [0, 1])
+            # Note: Component's own value has no rating (only Rationale.rating exists)
             values.append(component.relevance)
 
-        # Rationale relevances (with audit-wins, no rating weighting)
+        # Rationale relevances (with audit-wins)
+        # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
         rationales = [rat for rat, _ in component.rationales.all()]
 
         for rationale in rationales:
             rat_r = auditor.get_relevance(rationale)
-            if rat_r is not None:
-                # Soft exclusion: rationales with R=0 don't veto (already handled by auditor returning None)
-                if rat_r == 0:
-                    continue
-
-                values.append(rat_r)
+            if rat_r is not None and rat_r > 0.0:
+                rating = rationale.rating if rationale.rating is not None else 1.0
+                weighted_r = rat_r * rating
+                if weighted_r > 0.0:  # Filter after rating application
+                    values.append(weighted_r)
 
         # No free lunch: return None if no evidence
         if not values:

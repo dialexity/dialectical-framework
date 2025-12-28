@@ -39,6 +39,9 @@ class RationaleCalculator(BaseCalculator):
 
         Uses audit-wins semantics: deepest critiques override parent values.
 
+        Matches legacy: No hard veto on P=0 (_hard_veto_on_own_zero = False).
+        Rationales with P=0 are handled via filtering in parent aggregation.
+
         Args:
             rationale: Rationale to calculate P for
 
@@ -48,19 +51,16 @@ class RationaleCalculator(BaseCalculator):
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
 
         auditor = RationaleAuditor(self.scorer)
-        p = auditor.get_probability(rationale)
-
-        # Soft exclusion: rationales with P=0 return None
-        if p == 0:
-            return None
-
-        return p
+        return auditor.get_probability(rationale)
 
     def calculate_relevance(self, rationale: Rationale) -> Optional[float]:
         """
         Calculate R for a Rationale.
 
         Uses audit-wins semantics: deepest critiques override parent values.
+
+        Matches legacy: No hard veto on R=0 (_hard_veto_on_own_zero = False).
+        Rationales with R=0 are handled via filtering in parent aggregation.
 
         Args:
             rationale: Rationale to calculate R for
@@ -71,10 +71,4 @@ class RationaleCalculator(BaseCalculator):
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
 
         auditor = RationaleAuditor(self.scorer)
-        r = auditor.get_relevance(rationale)
-
-        # Soft exclusion: rationales with R=0 return None
-        if r == 0:
-            return None
-
-        return r
+        return auditor.get_relevance(rationale)

@@ -46,6 +46,7 @@ class Rationale(AssessableEntity):
     headline: Optional[str] = None
     haiku: Optional[str] = None
     summary: Optional[str] = None
+    rating: Optional[float] = None  # Importance/quality rating (0.0-1.0), used for weighting critiques
 
     # Declarative relationships
     # What this rationale explains

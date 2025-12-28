@@ -98,7 +98,7 @@ class TaroRank:
         """
         if node_type not in self._calculators:
             # Import calculators lazily to avoid circular imports
-            from dialectical_framework.graph.scoring.tarorank_calculators.component_calculator import ComponentCalculator
+            from dialectical_framework.graph.scoring.tarorank_calculators.dialectical_component_calculator import ComponentCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.transition_calculator import TransitionCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.rationale_calculator import RationaleCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.wisdom_unit_calculator import WisdomUnitCalculator

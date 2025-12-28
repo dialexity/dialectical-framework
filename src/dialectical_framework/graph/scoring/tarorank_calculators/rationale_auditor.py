@@ -5,36 +5,33 @@ Audit-wins logic:
 - Rationales can have child rationales (critiques)
 - Critiques override parent rationale values
 - Deepest level critiques win (recursive)
-- Multiple critiques at same level aggregate via GM (simplified, no rating)
+- Critiques with rating=0 are ignored (explicit exclusion)
+- Multiple critiques aggregate via GM (if unrated) or weighted average (if rated)
 """
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Type, TypeVar, TYPE_CHECKING
 
 from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.rationale import Rationale
+    from dialectical_framework.graph.nodes.estimation import Estimation
     from dialectical_framework.graph.scoring.tarorank import TaroRank
+
+T = TypeVar('T', bound='Estimation')
 
 
 class RationaleAuditor:
     """
     Implements audit-wins semantics for rationale hierarchies.
 
-    Audit-wins logic:
-    - Rationales can have child rationales (critiques)
-    - Critiques override parent rationale values
-    - Deepest level critiques win (recursive)
-    - Multiple critiques at same level aggregate via GM
-
-    Example:
-        Rationale(R=0.9, P=0.8)
-        └─ Critique(R=0.5, P=0.6)
-            └─ Deeper Critique(R=0.3, P=0.4)
-
-        Result: Use deepest critique (R=0.3, P=0.4)
+    Matches legacy domain/rationale.py implementation exactly:
+    - Filter critiques with rating=0
+    - Use deepest level critiques (recursive)
+    - Aggregate via GM if unrated, weighted average if rated
+    - Filter values <= 0
     """
 
     def __init__(self, scorer: TaroRank):
@@ -50,17 +47,44 @@ class RationaleAuditor:
         """
         Get probability from rationale using audit-wins semantics.
 
+        Matches legacy Rationale.calculate_probability() exactly:
+        1. Get deepest critiques (filter rating=0)
+        2. If critiques exist, aggregate them (GM or weighted avg)
+        3. Otherwise use own manual probability
+        4. No hard veto on P=0 (soft exclusion)
+
         Args:
             rationale: Rationale node to evaluate
 
         Returns:
             P value or None if no probability evidence
         """
-        return self._get_value(rationale, 'probability')
+        from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation
+
+        # Get deepest critiques (matching legacy _get_deepest_critiques)
+        deepest_critiques = self._get_deepest_critiques(rationale)
+
+        if deepest_critiques:
+            # Aggregate deepest critique probabilities
+            critique_p = self._aggregate_critique_values(
+                deepest_critiques,
+                lambda c: self._get_manual_value(c, ProbabilityEstimation)
+            )
+            if critique_p is not None:
+                return critique_p
+
+        # No critiques or critiques have no value → use own manual probability
+        return self._get_manual_value(rationale, ProbabilityEstimation)
 
     def get_relevance(self, rationale: Rationale) -> Optional[float]:
         """
         Get relevance from rationale using audit-wins semantics.
+
+        Matches legacy Rationale.calculate_relevance() exactly:
+        1. Get deepest critiques (filter rating=0)
+        2. If critiques exist, aggregate them (GM or weighted avg)
+        3. Otherwise use parent's normal aggregation logic
+        4. No hard veto on R=0 (soft exclusion)
 
         Args:
             rationale: Rationale node to evaluate
@@ -68,112 +92,136 @@ class RationaleAuditor:
         Returns:
             R value or None if no relevance evidence
         """
-        return self._get_value(rationale, 'relevance')
+        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
 
-    def _get_value(self, rationale: Rationale, attribute: str) -> Optional[float]:
+        # Get deepest critiques (matching legacy _get_deepest_critiques)
+        deepest_critiques = self._get_deepest_critiques(rationale)
+
+        if deepest_critiques:
+            # Aggregate deepest critique relevances
+            critique_r = self._aggregate_critique_values(
+                deepest_critiques,
+                lambda c: self._get_manual_value(c, RelevanceEstimation)
+            )
+            if critique_r is not None:
+                return critique_r
+
+        # No critiques or critiques have no value → use own manual relevance
+        # (Simplified: no wheels support, just own value)
+        return self._get_manual_value(rationale, RelevanceEstimation)
+
+    def _get_deepest_critiques(self, rationale: Rationale) -> list[Rationale]:
         """
-        Get P or R value from rationale hierarchy.
+        Get all critiques at the deepest recursion level.
 
-        Uses MANUAL estimations only (not calculated) to avoid circular dependencies.
-
-        Args:
-            rationale: Rationale node to evaluate
-            attribute: 'probability' or 'relevance'
-
-        Returns:
-            Value from deepest critiques or rationale itself
-        """
-        # Get child rationales (critiques)
-        critiques = [crit for crit, _ in rationale.rationales.all()]
-
-        if not critiques:
-            # No critiques: return own MANUAL value
-            return self._get_manual_value(rationale, attribute)
-
-        # Has critiques: recursively get deepest values
-        deepest_values = self._get_deepest_critiques(rationale, attribute)
-
-        if not deepest_values:
-            # Critiques exist but provide no values: return own MANUAL value
-            return self._get_manual_value(rationale, attribute)
-
-        # Aggregate deepest critique values via GM
-        return self._aggregate_critiques(deepest_values)
-
-    def _get_deepest_critiques(
-        self,
-        rationale: Rationale,
-        attribute: str
-    ) -> list[float]:
-        """
-        Recursively find deepest critique values.
-
-        Uses MANUAL estimations only (not calculated) to avoid circular dependencies.
+        Matches legacy Rationale._get_deepest_critiques() exactly:
+        - Filter out critiques with rating=0 (explicitly ignored)
+        - If critiques have their own critiques, recurse
+        - Return all critiques at deepest level
 
         Args:
             rationale: Rationale to search
-            attribute: 'probability' or 'relevance'
 
         Returns:
-            List of values from deepest level
+            List of critique nodes at deepest level
         """
-        critiques = [crit for crit, _ in rationale.rationales.all()]
+        critiques_list = [crit for crit, _ in rationale.rationales.all()]
 
-        if not critiques:
+        if not critiques_list:
             return []
 
-        # Check if any critique has its own critiques (go deeper)
-        has_deeper = False
-        all_deeper_values = []
+        # Filter out explicitly ignored critiques (rating=0)
+        valid_critiques = [r for r in critiques_list if r.rating != 0.0]
+        if not valid_critiques:
+            return []
+
+        # Check if any critique has been further audited (has its own critiques)
+        audited_critiques = [r for r in valid_critiques if list(r.rationales.all())]
+
+        if audited_critiques:
+            # Use deepest level - recursively get critiques from audited critiques
+            all_deep_critiques = []
+            for critique in audited_critiques:
+                all_deep_critiques.extend(self._get_deepest_critiques(critique))
+            return all_deep_critiques if all_deep_critiques else valid_critiques
+        else:
+            # This is the deepest level (direct children)
+            return valid_critiques
+
+    def _aggregate_critique_values(
+        self,
+        critiques: list[Rationale],
+        value_getter
+    ) -> Optional[float]:
+        """
+        Aggregate values from multiple critiques.
+
+        Matches legacy Rationale._aggregate_critique_values() exactly:
+        - If all unrated (rating=None): GM of all critique values (equal weight)
+        - If some/all rated: weighted average by rating
+        - Filter out values <= 0
+
+        Args:
+            critiques: List of critique rationales
+            value_getter: Function to extract value from critique
+
+        Returns:
+            Aggregated value or None
+        """
+        if not critiques:
+            return None
+
+        values = []
+        weights = []
+        has_explicit_ratings = False
 
         for critique in critiques:
-            deeper = self._get_deepest_critiques(critique, attribute)
-            if deeper:
-                has_deeper = True
-                all_deeper_values.extend(deeper)
+            val = value_getter(critique)
+            # Filter out None and <= 0 values (matches legacy line 82)
+            if val is None or val <= 0:
+                continue
 
-        if has_deeper:
-            # Return values from deeper level
-            return all_deeper_values
+            values.append(val)
+            rating = critique.rating
+            if rating is not None:
+                has_explicit_ratings = True
+                weights.append(rating)
+            else:
+                weights.append(1.0)  # Default weight
 
-        # This is the deepest level: return MANUAL critique values
-        result = []
-        for critique in critiques:
-            value = self._get_manual_value(critique, attribute)
-            if value is not None:
-                result.append(value)
+        if not values:
+            return None
 
-        return result
+        if not has_explicit_ratings:
+            # All unrated → geometric mean (equal weight)
+            return gm_with_zeros_and_nones_handled(values)
+        else:
+            # Some/all rated → weighted average
+            total_weight = sum(weights)
+            if total_weight == 0:
+                return None
+            weighted_sum = sum(v * w for v, w in zip(values, weights))
+            return weighted_sum / total_weight
 
-    def _get_manual_value(self, rationale: Rationale, attribute: str) -> Optional[float]:
+    def _get_manual_value(self, rationale: Rationale, estimation_type: Type[T]) -> Optional[float]:
         """
         Get MANUAL estimation value from rationale (not calculated).
 
-        This matches legacy behavior where calculators read manual_* fields
-        (not self.* properties which include calculated values).
+        This matches legacy behavior where calculators read manual_* fields.
 
         Args:
             rationale: Rationale to get value from
-            attribute: 'probability' or 'relevance'
+            estimation_type: Type of estimation (ProbabilityEstimation or RelevanceEstimation)
 
         Returns:
             GM of manual estimations or None
         """
-        from dialectical_framework.graph.nodes.estimation import (
-            ProbabilityEstimation,
-            RelevanceEstimation
-        )
-
-        if attribute == 'probability':
-            estimation_type = ProbabilityEstimation
-        else:
-            estimation_type = RelevanceEstimation
-
         # Get only manual estimations (not calculated)
         estimations = rationale.estimations.all()
         manual_estimations = [
             est for est, _ in estimations
             if isinstance(est, estimation_type)
+            and not est.__class__.__name__.startswith('Calculated')
         ]
 
         if not manual_estimations:
@@ -184,22 +232,4 @@ class RationaleAuditor:
             return manual_estimations[0].value
 
         values = [est.value for est in manual_estimations]
-        return gm_with_zeros_and_nones_handled(values)
-
-    def _aggregate_critiques(self, values: list[float]) -> Optional[float]:
-        """
-        Aggregate critique values using geometric mean.
-
-        Simplified implementation: no rating/confidence weighting.
-
-        Args:
-            values: List of values to aggregate
-
-        Returns:
-            Aggregated value or None
-        """
-        if not values:
-            return None
-
-        # Use geometric mean for critique aggregation
         return gm_with_zeros_and_nones_handled(values)
