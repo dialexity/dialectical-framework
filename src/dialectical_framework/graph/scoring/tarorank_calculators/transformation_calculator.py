@@ -7,8 +7,6 @@ Transformations are internal spirals within WisdomUnits.
 from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
-from functools import reduce
-import operator
 
 from dialectical_framework.graph.scoring.tarorank_calculators.base_calculator import BaseCalculator
 from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
@@ -24,54 +22,66 @@ class TransformationCalculator(BaseCalculator):
     Transformations are internal spirals within WisdomUnits (T- → A+, A- → T+).
 
     P calculation:
-    - Product of all transition Ps (exactly 2 transitions)
-    - Sequence semantics: Any P=0 or P=None breaks the chain
+    - Product of transition Ps (exactly 2 transitions)
+    - Softer policy like Spiral: skips None and 0.0 values
+    - Transformational semantics (not strict causal sequence)
 
     R calculation:
     - GM of all transition Rs
-    - Includes transformation-level rationale Rs (via GM, no rating)
+    - GM of ac_re WisdomUnit R (action-reflection context)
+    - Includes transformation-level rationale Rs (with rating)
     """
 
     def score_children(self, transformation: Transformation) -> None:
         """
-        Score all transitions in this transformation.
+        Score all transitions and ac_re WisdomUnit in this transformation.
 
         Args:
-            transformation: Transformation whose transitions should be scored
+            transformation: Transformation whose children should be scored
         """
+        # Score all transitions
         transitions = transformation.transitions_ordered  # Uses SequenceTopologyMixin
         for trans in transitions:
             self.scorer.calculate_score(trans)
+
+        # Score ac_re WisdomUnit (action-reflection context)
+        ac_re_result = transformation.ac_re.get()
+        if ac_re_result:
+            ac_re_wu = ac_re_result[0]
+            self.scorer.calculate_score(ac_re_wu)
 
     def calculate_probability(self, transformation: Transformation) -> Optional[float]:
         """
         Calculate P for Transformation as product of transition Ps.
 
+        Softer policy than Cycle: skips None and 0.0 values.
+        This makes sense for transformations which represent transformational
+        paths rather than strict causal sequences.
+
         Args:
             transformation: Transformation to calculate P for
 
         Returns:
-            P value (0.0-1.0) or None if any transition has no P
+            P value (0.0-1.0) or None if no valid transitions
         """
         transitions = transformation.transitions_ordered
 
         if not transitions:
             return None
 
-        p_values = []
+        prob = None
         for trans in transitions:
-            trans_p = trans.probability
-            if trans_p is None:
-                # Missing data: transformation P is unknown
-                return None
-            p_values.append(trans_p)
+            p = trans.probability
+            if p is not None and p > 0:
+                if prob is None:
+                    prob = 1.0
+                prob *= p
 
-        # Product of all probabilities (sequence semantics)
-        return reduce(operator.mul, p_values, 1.0)
+        return prob
 
     def calculate_relevance(self, transformation: Transformation) -> Optional[float]:
         """
-        Calculate R for Transformation as GM of transition Rs.
+        Calculate R for Transformation as GM of transition Rs and ac_re R.
 
         Args:
             transformation: Transformation to calculate R for
@@ -90,13 +100,25 @@ class TransformationCalculator(BaseCalculator):
             if trans_r is not None:
                 values.append(trans_r)
 
-        # Transformation-level rationales (no rating weighting)
+        # ac_re WisdomUnit relevance (action-reflection context)
+        ac_re_result = transformation.ac_re.get()
+        if ac_re_result:
+            ac_re_wu = ac_re_result[0]
+            ac_re_r = ac_re_wu.relevance
+            if ac_re_r is not None:
+                values.append(ac_re_r)
+
+        # Transformation-level rationales
+        # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
         rationales = [rat for rat, _ in transformation.rationales.all()]
         for rationale in rationales:
             rat_r = auditor.get_relevance(rationale)
-            if rat_r is not None and rat_r > 0:
-                values.append(rat_r)
+            if rat_r is not None and rat_r > 0.0:
+                rating = rationale.rating if rationale.rating is not None else 1.0
+                weighted_r = rat_r * rating
+                if weighted_r > 0.0:  # Filter after rating application
+                    values.append(weighted_r)
 
         if not values:
             return None
@@ -105,11 +127,18 @@ class TransformationCalculator(BaseCalculator):
 
     def clear_children(self, transformation: Transformation) -> None:
         """
-        Clear scores from all transitions.
+        Clear scores from all transitions and ac_re WisdomUnit.
 
         Args:
-            transformation: Transformation whose transitions should be cleared
+            transformation: Transformation whose children should be cleared
         """
+        # Clear all transitions
         transitions = transformation.transitions_ordered
         for trans in transitions:
             self.scorer.clear_scores(trans)
+
+        # Clear ac_re WisdomUnit (action-reflection context)
+        ac_re_result = transformation.ac_re.get()
+        if ac_re_result:
+            ac_re_wu = ac_re_result[0]
+            self.scorer.clear_scores(ac_re_wu)
