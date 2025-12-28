@@ -83,6 +83,9 @@ class TaroRank:
         # Initialize calculators (lazy loading to avoid circular imports)
         self._calculators = {}
 
+        # Track nodes currently being scored to detect cycles
+        self._scoring_stack: set[str] = set()
+
     def _get_calculator(self, node_type: str) -> BaseCalculator:
         """
         Get calculator for a node type (lazy loading).
@@ -135,13 +138,19 @@ class TaroRank:
 
         This method:
         1. Checks if score is valid (always skips if valid)
-        2. Clears old calculated estimations (so properties return manual/child values)
-        3. Recursively scores children
-        4. Calculates node's P and R (using properties, which now reflect current state)
-        5. Stores new calculated P and R
-        6. Computes final Score = P × R^α
-        7. Stores score in node.score field
-        8. Returns the score
+        2. Detects circular dependencies (returns None if cycle found)
+        3. Clears old calculated estimations (so properties return manual/child values)
+        4. Recursively scores children
+        5. Calculates node's P and R (using properties, which now reflect current state)
+        6. Stores new calculated P and R
+        7. Computes final Score = P × R^α
+        8. Stores score in node.score field
+        9. Returns the score
+
+        Cycle Detection:
+        If a circular dependency is detected (e.g., WU_A → Trans_A → ac_re: WU_B →
+        Trans_B → ac_re: WU_A), the method returns None to break the cycle gracefully.
+        This prevents infinite recursion in large databases where cycles may exist.
 
         With hierarchical invalidation propagation, we always skip valid nodes.
         If something needs rescoring, it will be marked invalid automatically.
@@ -150,7 +159,7 @@ class TaroRank:
             node: AssessableEntity to score
 
         Returns:
-            Computed score or None if insufficient data
+            Computed score or None if insufficient data or cycle detected
 
         Example:
             scorer = TaroRank(alpha=1.0)
@@ -160,41 +169,55 @@ class TaroRank:
         if node.is_score_valid():
             return node.score
 
-        # Clear old calculated estimations BEFORE calculating
-        # This ensures properties return manual values (or None) for this node
-        # After scoring children, their properties will return fresh calculated values
-        self.estimation_manager.clear_estimations(
-            node,
-            estimation_types=[CalculatedProbabilityEstimation, CalculatedRelevanceEstimation]
-        )
-
-        calculator = self._get_calculator(node.__class__.__name__)
-
-        # Always score children recursively (they get fresh calculated values)
-        calculator.score_children(node)
-
-        # Calculate P and R (properties now return correct values)
-        p = calculator.calculate_probability(node)
-        r = calculator.calculate_relevance(node)
-
-        # Store new calculated P and R (won't invalidate)
-        self.estimation_manager.upsert_estimation(node, CalculatedProbabilityEstimation, p)
-        self.estimation_manager.upsert_estimation(node, CalculatedRelevanceEstimation, r)
-
-        # Calculate final score
-        if p is None or r is None:
-            node.score = None
-            node.score_computed_at = None
-            node.save()
+        # Detect cycles: if this node is already being scored up the call stack,
+        # we've found a circular dependency (e.g., WU_A → Trans_A → ac_re: WU_B → Trans_B → ac_re: WU_A)
+        if node.uid in self._scoring_stack:
+            # Circular dependency detected - cannot compute score
+            # Return None to break the cycle gracefully
             return None
 
-        score = p * (r ** self.alpha)
-        node.score = score
-        node.score_computed_at = datetime.now()
-        node.score_invalidated_at = None  # Clear invalidation flag
-        node.save()
+        # Add to scoring stack to track that we're currently scoring this node
+        self._scoring_stack.add(node.uid)
 
-        return score
+        try:
+            # Clear old calculated estimations BEFORE calculating
+            # This ensures properties return manual values (or None) for this node
+            # After scoring children, their properties will return fresh calculated values
+            self.estimation_manager.clear_estimations(
+                node,
+                estimation_types=[CalculatedProbabilityEstimation, CalculatedRelevanceEstimation]
+            )
+
+            calculator = self._get_calculator(node.__class__.__name__)
+
+            # Always score children recursively (they get fresh calculated values)
+            calculator.score_children(node)
+
+            # Calculate P and R (properties now return correct values)
+            p = calculator.calculate_probability(node)
+            r = calculator.calculate_relevance(node)
+
+            # Store new calculated P and R (won't invalidate)
+            self.estimation_manager.upsert_estimation(node, CalculatedProbabilityEstimation, p)
+            self.estimation_manager.upsert_estimation(node, CalculatedRelevanceEstimation, r)
+
+            # Calculate final score
+            if p is None or r is None:
+                node.score = None
+                node.score_computed_at = None
+                node.save()
+                return None
+
+            score = p * (r ** self.alpha)
+            node.score = score
+            node.score_computed_at = datetime.now()
+            node.score_invalidated_at = None  # Clear invalidation flag
+            node.save()
+
+            return score
+        finally:
+            # Always remove from scoring stack when done (even if exception occurs)
+            self._scoring_stack.discard(node.uid)
 
     def clear_scores(self, node: AssessableEntity) -> None:
         """
