@@ -87,13 +87,17 @@ class WheelCalculator(BaseCalculator):
                 if trans_r is not None:
                     values.append(trans_r)
 
-        # Wheel-level rationales (no rating weighting)
+        # Wheel-level rationales
+        # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
         rationales = [rat for rat, _ in wheel.rationales.all()]
         for rationale in rationales:
             rat_r = auditor.get_relevance(rationale)
-            if rat_r is not None and rat_r > 0:
-                values.append(rat_r)
+            if rat_r is not None and rat_r > 0.0:
+                rating = rationale.rating if rationale.rating is not None else 1.0
+                weighted_r = rat_r * rating
+                if weighted_r > 0.0:  # Filter after rating application
+                    values.append(weighted_r)
 
         if not values:
             return None
