@@ -23,12 +23,13 @@ class WheelCalculator(BaseCalculator):
 
     R calculation:
     - GM of all WisdomUnit Rs
-    - GM of all external Transition Rs (wheel-level connections)
-    - Includes wheel-level rationale Rs (via GM, no rating)
+    - GM of deduplicated external Transition Rs (Spiral > TA-cycle > T-cycle)
+    - Includes wheel-level rationale Rs (with rating)
 
     P calculation:
     - GM of canonical cycle Ps (T-cycle, TA-cycle, Spiral)
-    - GM of all WisdomUnit transformation Ps
+    - GM summarizes WU transformation Ps first, then included as single term
+    - This prevents over-weighting internal transformations
     - Skip None values (unknown), keep zeros (hard constraints)
     """
 
@@ -61,6 +62,12 @@ class WheelCalculator(BaseCalculator):
         """
         Calculate R for Wheel as GM of WUs and external transitions.
 
+        Deduplicates transitions across cycles with specificity preference:
+        Spiral > TA-cycle > T-cycle (most specific wins).
+
+        This prevents double-counting if the same transition appears in
+        multiple cycles while preferring the most specific version.
+
         Args:
             wheel: Wheel to calculate R for
 
@@ -78,14 +85,46 @@ class WheelCalculator(BaseCalculator):
             if wu_r is not None:
                 values.append(wu_r)
 
-        # External transitions (from TA-cycle, not internal to WUs)
+        # Collect transitions from cycles with deduplication
+        # Key: transition.uid, Value: transition node
+        unique_transitions = {}
+
+        # Get transitions from t_cycle (most generic)
+        t_cycle_result = wheel.t_cycle.get()
+        if t_cycle_result:
+            t_cycle = t_cycle_result[0]
+            for trans in t_cycle.transitions_ordered:
+                unique_transitions[trans.uid] = trans
+
+        # Get transitions from ta_cycle (more specific, prefer over t_cycle)
         ta_cycle_result = wheel.ta_cycle.get()
         if ta_cycle_result:
             ta_cycle = ta_cycle_result[0]
             for trans in ta_cycle.transitions_ordered:
-                trans_r = trans.relevance
-                if trans_r is not None:
-                    values.append(trans_r)
+                if trans.uid in unique_transitions:
+                    # Calculate the one being overwritten (legacy behavior)
+                    old_trans = unique_transitions[trans.uid]
+                    _ = old_trans.relevance  # Trigger calculation
+                # Prefer ta_cycle version
+                unique_transitions[trans.uid] = trans
+
+        # Get transitions from spiral (most specific, prefer over all)
+        spiral_result = wheel.spiral.get()
+        if spiral_result:
+            spiral = spiral_result[0]
+            for trans in spiral.transitions_ordered:
+                if trans.uid in unique_transitions:
+                    # Calculate the one being overwritten (legacy behavior)
+                    old_trans = unique_transitions[trans.uid]
+                    _ = old_trans.relevance  # Trigger calculation
+                # Prefer spiral version
+                unique_transitions[trans.uid] = trans
+
+        # Extract relevance scores from unique transitions
+        for transition in unique_transitions.values():
+            trans_r = transition.relevance
+            if trans_r is not None and trans_r > 0.0:
+                values.append(trans_r)
 
         # Wheel-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
@@ -108,46 +147,62 @@ class WheelCalculator(BaseCalculator):
         """
         Calculate P for Wheel as GM of canonical cycles and WU transformations.
 
+        Wheel P = GM(T-cycle P, TA-cycle P, Spiral P, summarized WU transformation Ps)
+
+        The WU transformation probabilities are first summarized via GM, then
+        included as a single term in the final wheel GM. This prevents
+        over-weighting of internal transformations relative to canonical cycles.
+
         Args:
             wheel: Wheel to calculate P for
 
         Returns:
             P value (0.0-1.0) or None if no evidence
         """
-        values = []
+        canonical_vals = []
 
         # T-cycle P
         t_cycle_result = wheel.t_cycle.get()
         if t_cycle_result:
             t_p = t_cycle_result[0].probability
             if t_p is not None:
-                values.append(t_p)
+                canonical_vals.append(t_p)
 
         # TA-cycle P
         ta_cycle_result = wheel.ta_cycle.get()
         if ta_cycle_result:
             ta_p = ta_cycle_result[0].probability
             if ta_p is not None:
-                values.append(ta_p)
+                canonical_vals.append(ta_p)
 
         # Spiral P
         spiral_result = wheel.spiral.get()
         if spiral_result:
             spiral_p = spiral_result[0].probability
             if spiral_p is not None:
-                values.append(spiral_p)
+                canonical_vals.append(spiral_p)
 
-        # WisdomUnit transformation Ps
+        # WisdomUnit transformation Ps - summarize first via GM
+        internal_summary = None
+        unit_vals = []
         wus = [wu for wu, _ in wheel.wisdom_units.all()]
         for wu in wus:
             wu_p = wu.probability
             if wu_p is not None:
-                values.append(wu_p)
+                unit_vals.append(wu_p)
 
-        if not values:
+        if unit_vals:
+            internal_summary = gm_with_zeros_and_nones_handled(unit_vals)
+
+        # Build final list: canonical cycles + single summarized WU transformation term
+        all_terms = list(canonical_vals)
+        if internal_summary is not None:
+            all_terms.append(internal_summary)
+
+        if not all_terms:
             return None
 
-        return gm_with_zeros_and_nones_handled(values)
+        return gm_with_zeros_and_nones_handled(all_terms)
 
     def clear_children(self, wheel: Wheel) -> None:
         """
