@@ -23,13 +23,15 @@ class WisdomUnitCalculator(BaseCalculator):
     WisdomUnit is a composite node containing dialectical pairs.
 
     R calculation:
+    - For each polarity position, aggregates multiple components via GM
+      (e.g., if t_plus has 3 components, GM(c1.R, c2.R, c3.R))
     - Uses power mean (p=4) for symmetric thesis-antithesis pairs:
       * T ↔ A (neutral pair)
       * T+ ↔ A- (positive thesis ↔ negative antithesis)
       * T- ↔ A+ (negative thesis ↔ positive antithesis)
       * S+ ↔ S- (synthesis pair)
     - Includes transformation R (internal spiral)
-    - Includes unit-level rationale Rs (via GM, no rating)
+    - Includes unit-level rationale Rs (with rating)
     - Aggregates all via GM
 
     P calculation:
@@ -73,13 +75,27 @@ class WisdomUnitCalculator(BaseCalculator):
 
         values = []
 
-        # Helper to get component R
+        # Helper to get component R (aggregates multiple components via GM)
         def get_comp_r(rel_manager) -> Optional[float]:
             comps = [c for c, _ in rel_manager.all()]
             if not comps:
                 return None
-            # Use first component's relevance (already computed)
-            return comps[0].relevance
+
+            # Collect relevances from all components
+            comp_rs = []
+            for comp in comps:
+                if comp.relevance is not None:
+                    comp_rs.append(comp.relevance)
+
+            if not comp_rs:
+                return None
+
+            # If single component, return directly
+            if len(comp_rs) == 1:
+                return comp_rs[0]
+
+            # Multiple components: aggregate via GM
+            return gm_with_zeros_and_nones_handled(comp_rs)
 
         # T ↔ A pair (neutral)
         t_r = get_comp_r(wu.t)
