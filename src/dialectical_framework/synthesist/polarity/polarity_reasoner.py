@@ -6,28 +6,21 @@ from dependency_injector.wiring import Provide
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework import Rationale
 from dialectical_framework.ai_dto.dialectical_component_dto import \
     DialecticalComponentDto
 from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
-from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
-                                                     map_list_from_dto)
+from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.settings import Settings
-from dialectical_framework.domain.dialectical_analysis import DialecticalAnalysis
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.domain.dialectical_components_deck import \
-    DialecticalComponentsDeck
-from dialectical_framework.domain.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
-                                          ALIAS_T_PLUS)
-from dialectical_framework.domain.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                          ALIAS_A_PLUS, WisdomUnit)
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
@@ -51,7 +44,8 @@ class PolarityReasoner(HasBrain, Reloadable):
 
         self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
 
-        self._analysis = DialecticalAnalysis(corpus=self._text)
+        # Store perspectives (list of graph-native WisdomUnits)
+        self._perspectives: list[WisdomUnit] = []
 
         self._extractor = polarity_extractor
         self._extractor.reload(text=text)
@@ -71,13 +65,10 @@ class PolarityReasoner(HasBrain, Reloadable):
         if isinstance(perspectives, WisdomUnit):
             perspectives = [perspectives]
 
-        self._analysis = DialecticalAnalysis(
-            corpus=text,
-            perspectives=perspectives,
-        )
+        self._perspectives = perspectives
 
         if perspectives:
-            # Take first perspective as active
+            # Take last perspective as active
             self._wisdom_unit = perspectives[-1]
         else:
             self._wisdom_unit = None
@@ -127,9 +118,9 @@ class PolarityReasoner(HasBrain, Reloadable):
                 tpl[i].content = dc_safe_replace(
                     tpl[i].content,
                     {
-                        ALIAS_T: ALIAS_A,
-                        ALIAS_T_MINUS: ALIAS_A_MINUS,
-                        ALIAS_A_MINUS: ALIAS_T_MINUS,
+                        WisdomUnit.POSITION_T: WisdomUnit.POSITION_A,
+                        WisdomUnit.POSITION_T_MINUS: WisdomUnit.POSITION_A_MINUS,
+                        WisdomUnit.POSITION_A_MINUS: WisdomUnit.POSITION_T_MINUS,
                     },
                 )
         return tpl
@@ -180,9 +171,9 @@ class PolarityReasoner(HasBrain, Reloadable):
                 tpl[i].content = dc_safe_replace(
                     tpl[i].content,
                     {
-                        ALIAS_T: ALIAS_A,
-                        ALIAS_T_PLUS: ALIAS_A_PLUS,
-                        ALIAS_A_MINUS: ALIAS_T_MINUS,
+                        WisdomUnit.POSITION_T: WisdomUnit.POSITION_A,
+                        WisdomUnit.POSITION_T_PLUS: WisdomUnit.POSITION_A_PLUS,
+                        WisdomUnit.POSITION_A_MINUS: WisdomUnit.POSITION_T_MINUS,
                     },
                 )
         return tpl
@@ -210,13 +201,17 @@ class PolarityReasoner(HasBrain, Reloadable):
     )
     def prompt_synthesis(self, wisdom_unit: WisdomUnit) -> Messages.Type:
         tpl = ReverseEngineer.till_wisdom_units(
-            wisdom_units=[wisdom_unit], text=self._analysis.corpus
+            wisdom_units=[wisdom_unit], text=self._text
         )
         wu_dcs = []
-        for field, alias in wisdom_unit.field_to_alias.items():
-            dc = wisdom_unit.get(alias)
-            if not dc:
+        # Iterate through all 6 core positions
+        for position in wisdom_unit.core_positions:
+            manager = wisdom_unit.get_relationship_manager_by_position(position)
+            result = manager.get()
+            if not result:
                 continue
+            dc, props = result
+            alias = props.get('alias', position)
             wu_dcs.append(f"{alias} = {dc.statement}")
         return {
             "computed_fields": {
@@ -232,45 +227,56 @@ class PolarityReasoner(HasBrain, Reloadable):
             ValueError: If the wisdom unit is incorrect.
             StopIteration: If the wisdom unit is complete already.
         """
-        if not wu_so_far.t:
+        # Get component at T position
+        t_result = wu_so_far.t.get()
+        if not t_result:
             raise ValueError("T - not present")
+        t = t_result[0]
 
         prompt_messages = []
 
-        if not wu_so_far.t_minus:
+        t_minus_result = wu_so_far.t_minus.get()
+        if not t_minus_result:
+            a_minus_result = wu_so_far.a_minus.get()
+            a_minus = a_minus_result[0] if a_minus_result else None
             prompt_messages.extend(
                 self.prompt_thesis_negative_side(
-                    wu_so_far.t, wu_so_far.a_minus if wu_so_far.a_minus else ""
+                    t, a_minus if a_minus else ""
                 )
             )
             return prompt_messages
+        t_minus = t_minus_result[0]
 
-        if not wu_so_far.a:
+        a_result = wu_so_far.a.get()
+        if not a_result:
             raise ValueError("A - not present")
+        a = a_result[0]
 
-        if not wu_so_far.a_minus:
+        a_minus_result = wu_so_far.a_minus.get()
+        if not a_minus_result:
             prompt_messages.extend(
                 self.prompt_antithesis_negative_side(
-                    wu_so_far.a, wu_so_far.t_minus if wu_so_far.t_minus else ""
+                    a, t_minus if t_minus else ""
                 )
             )
             return prompt_messages
+        a_minus = a_minus_result[0]
 
-        if not wu_so_far.a_minus:
-            raise ValueError("A- - not present")
-        if not wu_so_far.t_plus:
+        t_plus_result = wu_so_far.t_plus.get()
+        if not t_plus_result:
             prompt_messages.extend(
-                self.prompt_thesis_positive_side(wu_so_far.t, wu_so_far.a_minus)
+                self.prompt_thesis_positive_side(t, a_minus)
             )
             return prompt_messages
+        t_plus = t_plus_result[0]
 
-        if not wu_so_far.t_minus:
-            raise ValueError("T- - not present")
-        if not wu_so_far.a_plus:
+        a_plus_result = wu_so_far.a_plus.get()
+        if not a_plus_result:
             prompt_messages.extend(
-                self.prompt_antithesis_positive_side(wu_so_far.a, wu_so_far.t_minus)
+                self.prompt_antithesis_positive_side(a, t_minus)
             )
             return prompt_messages
+        a_plus = a_plus_result[0]
 
         raise StopIteration("The wisdom unit is complete, nothing to do.")
 
@@ -321,9 +327,9 @@ class PolarityReasoner(HasBrain, Reloadable):
             StopIteration: if nothing needs to be found anymore
         """
         prompt = self.prompt_next(wu_so_far)
-        if self._analysis.perspectives:
+        if self._perspectives:
             tpl = ReverseEngineer.till_wisdom_units(
-                wisdom_units=self._analysis.perspectives, text=self._analysis.corpus
+                wisdom_units=self._perspectives, text=self._text
             )
         else:
             tpl = ReverseEngineer().prompt_input_text(text=self.text)
@@ -339,44 +345,91 @@ class PolarityReasoner(HasBrain, Reloadable):
         return self.prompt_synthesis(wu)
 
     @final
-    async def _find_polarity(self, *, thesis: str | DialecticalComponent = None, antithesis: str | DialecticalComponent = None) -> tuple[DialecticalComponent, DialecticalComponent]:
-        if not isinstance(thesis, DialecticalComponent) or not isinstance(antithesis, DialecticalComponent):
+    async def _find_polarity(self, *, thesis: str | DialecticalComponentDto = None, antithesis: str | DialecticalComponentDto = None) -> tuple[DialecticalComponentDto, DialecticalComponentDto]:
+        """
+        Find polarity pair (thesis, antithesis) as DTOs.
+
+        Returns DTOs - conversion to graph happens in the calling method.
+        """
+        if not isinstance(thesis, DialecticalComponentDto) or not isinstance(antithesis, DialecticalComponentDto):
+            # Extract polarities using extractor (returns DTOs)
             polarity = await self._extractor.extract_polarities(given = [(thesis.statement
-                        if isinstance(thesis, DialecticalComponent)
+                        if isinstance(thesis, DialecticalComponentDto)
                         else thesis,
                         antithesis.statement
-                        if isinstance(antithesis, DialecticalComponent)
+                        if isinstance(antithesis, DialecticalComponentDto)
                         else antithesis)])
-            t, a = polarity[0]
-            if isinstance(thesis, DialecticalComponent):
-                t = thesis
-                a.set_human_friendly_index(thesis.get_human_friendly_index())
-            elif isinstance(thesis, DialecticalComponent):
-                a = antithesis
-                t.set_human_friendly_index(antithesis.get_human_friendly_index())
+            t_dto, a_dto = polarity[0]
+            if isinstance(thesis, DialecticalComponentDto):
+                t_dto = thesis
+                a_dto.set_human_friendly_index(thesis.get_human_friendly_index())
+            elif isinstance(antithesis, DialecticalComponentDto):
+                a_dto = antithesis
+                t_dto.set_human_friendly_index(antithesis.get_human_friendly_index())
         else:
-            t = thesis
-            a = antithesis
+            t_dto = thesis
+            a_dto = antithesis
 
-        return t, a
+        return t_dto, a_dto
 
     @final
-    async def think(self, *, thesis: str | DialecticalComponent = None, antithesis: str | DialecticalComponent = None)\
+    async def think(self, *, thesis: str | DialecticalComponentDto = None, antithesis: str | DialecticalComponentDto = None)\
             -> WisdomUnit:
-        # TODO: when thesis is a simple str, we need to actualize it with AI, where it comes from
+        """
+        Core reasoning method that generates a WisdomUnit from thesis and antithesis.
+
+        Args:
+            thesis: Either a string or DialecticalComponentDto
+            antithesis: Either a string or DialecticalComponentDto
+
+        Returns:
+            Graph-native WisdomUnit persisted to the database
+        """
+        # Get DTOs from extraction
+        t_dto, a_dto = await self._find_polarity(thesis=thesis, antithesis=antithesis)
+
+        # Convert DTOs to graph components
+        t = component_from_dto(t_dto)
+        a = component_from_dto(a_dto)
+
+        # Create graph WisdomUnit
         wu = WisdomUnit(reasoning_mode=self._mode)
-        t, a = await self._find_polarity(thesis=thesis, antithesis=antithesis)
-        wu.t = t
-        wu.a = a
+        wu.save()  # Save the WU node first
+
+        # Connect components with simple aliases (single WU context - no numbers)
+        # If DTO has numbered alias (e.g., 'T1'), preserve it; otherwise use position name
+        t_alias = t_dto.alias if t_dto.alias else WisdomUnit.POSITION_T
+        a_alias = a_dto.alias if a_dto.alias else WisdomUnit.POSITION_A
+        wu.t.connect(t, properties={'alias': t_alias})
+        wu.a.connect(a, properties={'alias': a_alias})
 
         self._wisdom_unit = await self._fill_with_reason(wu)
-        self._analysis.perspectives.append(self._wisdom_unit)
+        self._perspectives.append(self._wisdom_unit)
         return self._wisdom_unit
 
+    def _field_to_alias(self, field: str) -> str:
+        """
+        Map relationship manager field names to component aliases (6 core positions only).
+
+        TODO: Refactor to use WisdomUnit.POSITION_* constants directly throughout
+        instead of lowercase field names. This legacy mapping is only needed for
+        compatibility with existing redefine() logic that uses field names like
+        't', 'a', 't_plus', etc. Should be removed once redefine() is refactored.
+        """
+        field_to_alias_map = {
+            't': 'T',
+            'a': 'A',
+            't_plus': 'T+',
+            't_minus': 'T-',
+            'a_plus': 'A+',
+            'a_minus': 'A-',
+        }
+        return field_to_alias_map.get(field, field.upper())
+
     async def _fill_with_reason(self, wu: WisdomUnit) -> WisdomUnit:
-        empty_count = len(wu.alias_to_field)
-        for alias in wu.alias_to_field:
-            if wu.is_set(alias):
+        empty_count = len(wu.core_positions)
+        for position in wu.core_positions:
+            if wu.is_set(position):
                 empty_count -= 1
 
         try:
@@ -389,14 +442,21 @@ class PolarityReasoner(HasBrain, Reloadable):
                 If we keep finding the same ones (or not find at all), we will still avoid the infinite loop - that's good.
                 """
                 dc_deck_dto = await self.find_next(wu)
-                dc_deck: DialecticalComponentsDeck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent))
-                for dc in dc_deck.dialectical_components:
-                    alias = dc.alias
-                    if wu.get(alias):
-                        # Don't override if we already have it
+                # Convert DTOs to graph components
+                for dc_dto in dc_deck_dto.dialectical_components:
+                    dto_alias = dc_dto.alias
+                    # Extract position name from alias (strip numbers: 'T1' → 'T', 'A+2' → 'A+')
+                    position_name = ''.join(c for c in dto_alias if not c.isdigit())
+
+                    if wu.is_set(position_name):
+                        # Don't override if we already have component at this position
                         continue
                     else:
-                        setattr(wu, alias, dc)
+                        # Convert DTO to graph component and connect
+                        dc = component_from_dto(dc_dto)
+                        # Connect at position with DTO alias preserved
+                        manager = wu.get_relationship_manager_by_position(position_name)
+                        manager.connect(dc, properties={'alias': dto_alias})
                         ci += 1
         except StopIteration:
             pass
@@ -411,6 +471,13 @@ class PolarityReasoner(HasBrain, Reloadable):
     ) -> WisdomUnit:
         """
         This method doesn't mutate the original WisdomUnit. It returns a fresh instance.
+
+        Args:
+            original: The original WisdomUnit to base modifications on
+            **modified_dialectical_components: Field names (t, a, t_plus, etc.) mapped to new statement strings
+
+        Returns:
+            A new graph-native WisdomUnit with modifications applied
         """
 
         warnings: dict[str, list[str]] = {}
@@ -424,82 +491,97 @@ class PolarityReasoner(HasBrain, Reloadable):
         # Replace it in case the parameter "original" was given
         self._wisdom_unit = original
 
+        # Valid field names for WisdomUnit (6 core positions only)
+        valid_fields = {'t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus'}
+
         changed: dict[str, str] = {
             k: str(v)
             for k, v in modified_dialectical_components.items()
-            if k in WisdomUnit.__pydantic_fields__
+            if k in valid_fields
         }
 
         new_wu: WisdomUnit = WisdomUnit(reasoning_mode=original.reasoning_mode)
+        new_wu.save()  # Save the new WU node first
 
         # ==
         # Redefine opposition
         # ==
-        base = "t"
-        other = "a" if base == "t" else "t"
+        base_pos = WisdomUnit.POSITION_T
+        other_pos = WisdomUnit.POSITION_A
 
-        for dialectical_component in [base, other]:
-            if changed.get(dialectical_component):
-                setattr(
-                    new_wu,
-                    dialectical_component,
-                    DialecticalComponent(
-                        alias=new_wu.__pydantic_fields__.get(
-                            dialectical_component
-                        ).alias,
-                        statement=changed.get(dialectical_component),
-                        rationales=[
-                            Rationale(
-                                text=f"{new_wu.__pydantic_fields__.get(dialectical_component).alias} redefined."
-                            )
-                        ]
-                    ),
+        for position in [base_pos, other_pos]:
+            if changed.get(position):
+                # Create new component with modified statement
+                component = DialecticalComponent(
+                    statement=changed.get(position)
                 )
+                component.save()
+
+                # Add rationale
+                rationale = Rationale(text=f"{position} redefined.")
+                rationale.save()
+                component.rationales.connect(rationale)
+
+                # Connect to new WU
+                manager = new_wu.get_relationship_manager_by_position(position)
+                manager.connect(component, properties={'alias': position})
             else:
-                new_wu.set_dialectical_component_as_copy_from_another_segment(original, dialectical_component)
+                # Copy from original
+                orig_component = original.get_component(position)
+                if orig_component:
+                    manager = new_wu.get_relationship_manager_by_position(position)
+                    manager.connect(orig_component, properties={'alias': position})
 
-        alias_base = "T" if base == "t" else "A"
-        alias_other = "A" if base == "t" else "T"
+        if changed.get(base_pos) or changed.get(other_pos):
+            base_alias = base_pos
+            other_alias = other_pos
+            base_comp = new_wu.get_component(base_alias)
+            other_comp = new_wu.get_component(other_alias)
 
-        if changed.get(base) or changed.get(other):
             check1 = check(
                 is_valid_opposition,
                 self,
-                getattr(new_wu, base).statement,
-                getattr(new_wu, other).statement,
+                base_comp.statement,
+                other_comp.statement,
             )
 
             if not check1.valid:
-                if changed.get(base) and not changed.get(other):
-                    # base side changed
-                    o = await self._extractor.extract_single_antithesis(thesis=getattr(new_wu, base).statement)
-                    assert isinstance(o, DialecticalComponent)
+                if changed.get(base_pos) and not changed.get(other_pos):
+                    # base side changed - regenerate other
+                    o_dto = await self._extractor.extract_single_antithesis(thesis=base_comp.statement)
+                    o = component_from_dto(o_dto)
                     if o.best_rationale and o.best_rationale.text:
                         o.best_rationale.text = f"REGENERATED. {o.best_rationale.text}"
-                    setattr(new_wu, other, o)
-                    changed[other] = o.statement
+                    manager = new_wu.get_relationship_manager_by_position(other_alias)
+                    manager.connect(o, properties={'alias': other_alias})
+                    changed[other_pos] = o.statement
                     check1.valid = 1
                     check1.explanation = "Regenerated, therefore must be valid."
-                elif changed.get(other) and not changed.get(base):
-                    # other side changed
-                    bm = await self._extractor.extract_single_antithesis(thesis=getattr(new_wu, other).statement)
+                elif changed.get(other_pos) and not changed.get(base_pos):
+                    # other side changed - regenerate base
+                    bm_dto = await self._extractor.extract_single_antithesis(thesis=other_comp.statement)
+                    bm = component_from_dto(bm_dto)
                     if bm.best_rationale and bm.best_rationale.text:
                         bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
-                    setattr(new_wu, base, bm)
-                    changed[base] = bm.statement
+                    manager = new_wu.get_relationship_manager_by_position(base_alias)
+                    manager.connect(bm, properties={'alias': base_alias})
+                    changed[base_pos] = bm.statement
                     check1.valid = 1
                     check1.explanation = "Regenerated, therefore must be valid."
 
             if not check1.valid:
-                getattr(new_wu, base).statement = (
-                    f"ERROR: {getattr(new_wu, base).statement}"
-                )
-                getattr(new_wu, other).statement = (
-                    f"ERROR: {getattr(new_wu, other).statement}"
-                )
-                warnings.setdefault(alias_base, []).append(check1.explanation)
-                warnings.setdefault(alias_other, []).append(check1.explanation)
-                raise AssertionError(f"{alias_base}, {alias_other}", warnings, new_wu)
+                # Mark components with ERROR prefix
+                base_comp = new_wu.get_component(base_alias)
+                other_comp = new_wu.get_component(other_alias)
+                if base_comp:
+                    base_comp.statement = f"ERROR: {base_comp.statement}"
+                    base_comp.save()
+                if other_comp:
+                    other_comp.statement = f"ERROR: {other_comp.statement}"
+                    other_comp.save()
+                warnings.setdefault(base_alias, []).append(check1.explanation)
+                warnings.setdefault(other_alias, []).append(check1.explanation)
+                raise AssertionError(f"{base_alias}, {other_alias}", warnings, new_wu)
 
         else:
             # Keep originals
@@ -533,62 +615,72 @@ class PolarityReasoner(HasBrain, Reloadable):
             alias_base_minus = "T-" if side == "t" else "A-"
             alias_other_plus = "A+" if side == "t" else "T+"
 
-            for dialectical_component in [base_minus, other_plus]:
-                if changed.get(dialectical_component):
-                    setattr(
-                        new_wu,
-                        dialectical_component,
-                        DialecticalComponent(
-                            alias=new_wu.__pydantic_fields__.get(
-                                dialectical_component
-                            ).alias,
-                            statement=changed.get(dialectical_component),
-                            rationales=[
-                                Rationale(
-                                    text=f"{new_wu.__pydantic_fields__.get(dialectical_component).alias} redefined."
-                                )
-                            ]
-                        ),
+            for field in [base_minus, other_plus]:
+                alias = self._field_to_alias(field)
+                if changed.get(field):
+                    # Create new component with modified statement
+                    component = DialecticalComponent(
+                        statement=changed.get(field)
                     )
+                    component.save()
+
+                    # Add rationale
+                    rationale = Rationale(text=f"{alias} redefined.")
+                    rationale.save()
+                    component.rationales.connect(rationale)
+
+                    # Connect to new WU
+                    manager = new_wu.get_relationship_manager_by_position(alias)
+                    manager.connect(component, properties={'alias': alias})
                 else:
-                    new_wu.set_dialectical_component_as_copy_from_another_segment(
-                        original, dialectical_component
-                    )
+                    # Copy from original
+                    orig_component = original.get_component(alias)
+                    if orig_component:
+                        manager = new_wu.get_relationship_manager_by_position(alias)
+                        manager.connect(orig_component, properties={'alias': alias})
 
             if (changed.get(base) or changed.get(base_minus)) or (
                 changed.get(other) or changed.get(other_plus)
             ):
                 if changed.get(base_minus) or changed.get(base):
+                    base_alias = self._field_to_alias(base)
+                    base_minus_alias = self._field_to_alias(base_minus)
+                    base_comp = new_wu.get_component(base_alias)
+                    base_minus_comp = new_wu.get_component(base_minus_alias)
+
                     check2 = check(
                         is_negative_side,
                         self,
-                        getattr(new_wu, base_minus).statement,
-                        getattr(new_wu, base).statement,
+                        base_minus_comp.statement,
+                        base_comp.statement,
                     )
 
                     if not check2.valid:
                         if changed.get(base) and not changed.get(base_minus):
                             not_like_other_minus = ""
-                            if hasattr(new_wu, other_minus):
-                                if getattr(new_wu, other_minus):
-                                    not_like_other_minus = getattr(
-                                        new_wu, other_minus
-                                    ).statement
-                            bm = map_from_dto(await base_negative_side_fn(
-                                getattr(new_wu, base).statement, not_like_other_minus
-                            ), DialecticalComponent)
+                            other_minus_alias = self._field_to_alias(other_minus)
+                            other_minus_comp = new_wu.get_component(other_minus_alias)
+                            if other_minus_comp:
+                                not_like_other_minus = other_minus_comp.statement
+
+                            bm_dto = await base_negative_side_fn(
+                                base_comp.statement, not_like_other_minus
+                            )
+                            bm = component_from_dto(bm_dto)
                             assert isinstance(bm, DialecticalComponent)
                             if bm.best_rationale and bm.best_rationale.text:
                                 bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
-                            setattr(new_wu, base_minus, bm)
+                            manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
+                            manager.connect(bm, properties={'alias': base_minus_alias})
                             changed[base_minus] = bm.statement
                             check2.valid = True
                             check2.explanation = "Regenerated, therefore must be valid."
 
                     if not check2.valid:
-                        getattr(new_wu, base_minus).statement = (
-                            f"ERROR: {getattr(new_wu, base_minus).statement}"
-                        )
+                        base_minus_comp = new_wu.get_component(base_minus_alias)
+                        if base_minus_comp:
+                            base_minus_comp.statement = f"ERROR: {base_minus_comp.statement}"
+                            base_minus_comp.save()
                         warnings.setdefault(alias_base_minus, []).append(
                             check2.explanation
                         )
@@ -598,32 +690,43 @@ class PolarityReasoner(HasBrain, Reloadable):
 
                 other_plus_regenerated = False
                 if changed.get(other_plus) or changed.get(other):
+                    other_alias = self._field_to_alias(other)
+                    other_plus_alias = self._field_to_alias(other_plus)
+                    other_comp = new_wu.get_component(other_alias)
+                    other_plus_comp = new_wu.get_component(other_plus_alias)
+
                     check3 = check(
                         is_positive_side,
                         self,
-                        getattr(new_wu, other_plus).statement,
-                        getattr(new_wu, other).statement,
+                        other_plus_comp.statement,
+                        other_comp.statement,
                     )
 
                     if not check3.valid:
                         if changed.get(other) and not changed.get(other_plus):
-                            op = map_from_dto(await other_positive_side_fn(
-                                getattr(new_wu, other).statement,
-                                getattr(new_wu, base_minus).statement,
-                            ), DialecticalComponent)
+                            base_minus_alias = self._field_to_alias(base_minus)
+                            base_minus_comp = new_wu.get_component(base_minus_alias)
+
+                            op_dto = await other_positive_side_fn(
+                                other_comp.statement,
+                                base_minus_comp.statement,
+                            )
+                            op = component_from_dto(op_dto)
                             assert isinstance(op, DialecticalComponent)
                             if op.best_rationale and op.best_rationale.text:
                                 op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
-                            setattr(new_wu, other_plus, op)
+                            manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
+                            manager.connect(op, properties={'alias': other_plus_alias})
                             changed[other_plus] = op.statement
                             check3.valid = True
                             check3.explanation = "Regenerated, therefore must be valid."
                             other_plus_regenerated = True
 
                     if not check3.valid:
-                        getattr(new_wu, other_plus).statement = (
-                            f"ERROR: {getattr(new_wu, other_plus).statement}"
-                        )
+                        other_plus_comp = new_wu.get_component(other_plus_alias)
+                        if other_plus_comp:
+                            other_plus_comp.statement = f"ERROR: {other_plus_comp.statement}"
+                            other_plus_comp.save()
                         warnings.setdefault(alias_other_plus, []).append(
                             check3.explanation
                         )
@@ -636,52 +739,69 @@ class PolarityReasoner(HasBrain, Reloadable):
                 )
 
                 if not additional_diagonal_check_skip:
+                    base_minus_alias = self._field_to_alias(base_minus)
+                    other_plus_alias = self._field_to_alias(other_plus)
+                    base_minus_comp = new_wu.get_component(base_minus_alias)
+                    other_plus_comp = new_wu.get_component(other_plus_alias)
+
                     check4 = check(
                         is_strict_opposition,
                         self,
-                        getattr(new_wu, base_minus).statement,
-                        getattr(new_wu, other_plus).statement,
+                        base_minus_comp.statement,
+                        other_plus_comp.statement,
                     )
                     if not check4.valid:
                         if changed.get(base_minus) and not changed.get(other_plus):
                             # base side changed
-                            op = map_from_dto(await other_positive_side_fn(
-                                getattr(new_wu, other).statement,
-                                getattr(new_wu, base_minus).statement,
-                            ), DialecticalComponent)
+                            other_alias = self._field_to_alias(other)
+                            other_comp = new_wu.get_component(other_alias)
+                            base_minus_comp = new_wu.get_component(base_minus_alias)
+
+                            op_dto = await other_positive_side_fn(
+                                other_comp.statement,
+                                base_minus_comp.statement,
+                            )
+                            op = component_from_dto(op_dto)
                             assert isinstance(op, DialecticalComponent)
                             if op.best_rationale and op.best_rationale.text:
                                 op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
-                            setattr(new_wu, other_plus, op)
+                            manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
+                            manager.connect(op, properties={'alias': other_plus_alias})
                             changed[other_plus] = op.statement
                             check4.valid = True
                             check4.explanation = "Regenerated, therefore must be valid."
                         elif changed.get(other_plus) and not changed.get(base_minus):
                             # other side changed
                             not_like_other_minus = ""
-                            if hasattr(new_wu, other_minus):
-                                if getattr(new_wu, other_minus):
-                                    not_like_other_minus = getattr(
-                                        new_wu, other_minus
-                                    ).statement
-                            bm = map_from_dto(await base_negative_side_fn(
-                                getattr(new_wu, base).statement, not_like_other_minus
-                            ), DialecticalComponent)
+                            other_minus_alias = self._field_to_alias(other_minus)
+                            other_minus_comp = new_wu.get_component(other_minus_alias)
+                            if other_minus_comp:
+                                not_like_other_minus = other_minus_comp.statement
+
+                            base_alias = self._field_to_alias(base)
+                            base_comp = new_wu.get_component(base_alias)
+                            bm_dto = await base_negative_side_fn(
+                                base_comp.statement, not_like_other_minus
+                            )
+                            bm = component_from_dto(bm_dto)
                             assert isinstance(bm, DialecticalComponent)
                             if bm.best_rationale and bm.best_rationale.text:
                                 bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
-                            setattr(new_wu, base_minus, bm)
+                            manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
+                            manager.connect(bm, properties={'alias': base_minus_alias})
                             changed[base_minus] = bm.statement
                             check4.valid = True
                             check4.explanation = "Regenerated, therefore must be valid."
 
                     if not check4.valid:
-                        getattr(new_wu, base_minus).statement = (
-                            f"ERROR: {getattr(new_wu, base_minus).statement}"
-                        )
-                        getattr(new_wu, other_plus).statement = (
-                            f"ERROR: {getattr(new_wu, other_plus).statement}"
-                        )
+                        base_minus_comp = new_wu.get_component(base_minus_alias)
+                        other_plus_comp = new_wu.get_component(other_plus_alias)
+                        if base_minus_comp:
+                            base_minus_comp.statement = f"ERROR: {base_minus_comp.statement}"
+                            base_minus_comp.save()
+                        if other_plus_comp:
+                            other_plus_comp.statement = f"ERROR: {other_plus_comp.statement}"
+                            other_plus_comp.save()
                         warnings.setdefault(alias_base_minus, []).append(
                             check4.explanation
                         )

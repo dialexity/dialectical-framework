@@ -105,6 +105,7 @@ class TaroRank:
             from dialectical_framework.graph.scoring.tarorank_calculators.transition_calculator import TransitionCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.rationale_calculator import RationaleCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.wisdom_unit_calculator import WisdomUnitCalculator
+            from dialectical_framework.graph.scoring.tarorank_calculators.synthesis_calculator import SynthesisCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.cycle_calculator import CycleCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.spiral_calculator import SpiralCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.transformation_calculator import TransformationCalculator
@@ -115,6 +116,7 @@ class TaroRank:
                 'Transition': TransitionCalculator,
                 'Rationale': RationaleCalculator,
                 'WisdomUnit': WisdomUnitCalculator,
+                'Synthesis': SynthesisCalculator,
                 'Cycle': CycleCalculator,
                 'Spiral': SpiralCalculator,
                 'Transformation': TransformationCalculator,

@@ -20,16 +20,15 @@ class WisdomUnitCalculator(BaseCalculator):
     """
     Calculator for WisdomUnit nodes.
 
-    WisdomUnit is a composite node containing dialectical pairs.
+    WisdomUnit contains 6 core dialectical positions (exactly one component each).
 
     R calculation:
-    - For each polarity position, aggregates multiple components via GM
-      (e.g., if t_plus has 3 components, GM(c1.R, c2.R, c3.R))
+    - For each polarity position, gets the single component's R
     - Uses power mean (p=4) for symmetric thesis-antithesis pairs:
       * T ↔ A (neutral pair)
       * T+ ↔ A- (positive thesis ↔ negative antithesis)
       * T- ↔ A+ (negative thesis ↔ positive antithesis)
-      * S+ ↔ S- (synthesis pair)
+    - Includes synthesis alternatives R (0-N Synthesis nodes, aggregated via GM)
     - Includes transformation R (internal spiral)
     - Includes unit-level rationale Rs (with rating)
     - Aggregates all via GM
@@ -41,13 +40,13 @@ class WisdomUnitCalculator(BaseCalculator):
 
     def score_children(self, wu: WisdomUnit) -> None:
         """
-        Score all components and transformation in this WU.
+        Score all components, transformation, and synthesis alternatives in this WU.
 
         Args:
             wu: WisdomUnit whose children should be scored
         """
-        # Score all components
-        for rel_manager in [wu.t, wu.t_plus, wu.t_minus, wu.a, wu.a_plus, wu.a_minus, wu.s_plus, wu.s_minus]:
+        # Score all 6 core components
+        for rel_manager in [wu.t, wu.t_plus, wu.t_minus, wu.a, wu.a_plus, wu.a_minus]:
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
                 self.scorer.calculate_score(comp)
@@ -57,6 +56,10 @@ class WisdomUnitCalculator(BaseCalculator):
         if trans_result:
             transformation = trans_result[0]
             self.scorer.calculate_score(transformation)
+
+        # Score all synthesis alternatives if present
+        for synthesis, _ in wu.synthesis.all():
+            self.scorer.calculate_score(synthesis)
 
     def calculate_relevance(self, wu: WisdomUnit) -> Optional[float]:
         """
@@ -121,13 +124,21 @@ class WisdomUnitCalculator(BaseCalculator):
             if pair_r is not None:
                 values.append(pair_r)
 
-        # S+ ↔ S- pair (if synthesis exists)
-        sp_r = get_comp_r(wu.s_plus)
-        sm_r = get_comp_r(wu.s_minus)
-        if sp_r is not None or sm_r is not None:
-            pair_r = pm_with_zeros_and_nones_handled((sp_r, sm_r), p=4)
-            if pair_r is not None:
-                values.append(pair_r)
+        # Synthesis alternatives R (aggregate if multiple exist)
+        synthesis_rs = []
+        for synthesis, _ in wu.synthesis.all():
+            synth_r = synthesis.relevance
+            if synth_r is not None:
+                synthesis_rs.append(synth_r)
+
+        if synthesis_rs:
+            # If single synthesis, use directly; if multiple, aggregate via GM
+            if len(synthesis_rs) == 1:
+                values.append(synthesis_rs[0])
+            else:
+                aggregated_synth_r = gm_with_zeros_and_nones_handled(synthesis_rs)
+                if aggregated_synth_r is not None:
+                    values.append(aggregated_synth_r)
 
         # Transformation R (internal spiral)
         trans_result = wu.transformation.get()
@@ -174,13 +185,13 @@ class WisdomUnitCalculator(BaseCalculator):
 
     def clear_children(self, wu: WisdomUnit) -> None:
         """
-        Clear scores from all components and transformation.
+        Clear scores from all components, transformation, and synthesis alternatives.
 
         Args:
             wu: WisdomUnit whose children should be cleared
         """
-        # Clear all components
-        for rel_manager in [wu.t, wu.t_plus, wu.t_minus, wu.a, wu.a_plus, wu.a_minus, wu.s_plus, wu.s_minus]:
+        # Clear all 6 core components
+        for rel_manager in [wu.t, wu.t_plus, wu.t_minus, wu.a, wu.a_plus, wu.a_minus]:
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
                 self.scorer.clear_scores(comp)
@@ -190,3 +201,7 @@ class WisdomUnitCalculator(BaseCalculator):
         if trans_result:
             transformation = trans_result[0]
             self.scorer.clear_scores(transformation)
+
+        # Clear all synthesis alternatives if present
+        for synthesis, _ in wu.synthesis.all():
+            self.scorer.clear_scores(synthesis)

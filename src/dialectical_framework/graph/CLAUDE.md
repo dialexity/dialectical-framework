@@ -124,11 +124,11 @@ Cardinality is expressed as `(min, max)` where `None` = unbounded:
 | Pattern | Meaning | Example |
 |---------|---------|---------|
 | `(1, 1)` | Exactly one | `WisdomUnit.t` (exactly 1 T component) |
-| `(1, None)` | One or more | `WisdomUnit.t_plus` (1+ T+ components) |
+| `(1, 1)` | Exactly one | `WisdomUnit.t_plus` (exactly 1 T+ component) |
 | `(0, 1)` | Zero or one | `WisdomUnit.transformation` (optional) |
 | `(0, None)` | Zero or more | `WisdomUnit.s_plus` (0+ S+ components) |
 
-**Important for scoring**: Multiple components at same polarity position are aggregated via GM.
+**Important**: Each polarity position (T, A, T+, T-, A+, A-) holds exactly ONE component. Multiple explorations of the same thesis require multiple WisdomUnits (alternatives).
 
 ## Scoring Architecture (TaroRank)
 
@@ -291,19 +291,25 @@ visited.add(node._id)
 
 **Relevance**: Computed from component pairs only (no transformation.R)
 
-### Multiple Components per Polarity Position
+### Single Component per Polarity Position
 
-Graph-native allows multiple components at same position (e.g., 3 T+ components):
+Each polarity position holds exactly ONE component:
 
 ```python
-# t_plus has cardinality (1, None) - one or more
-wu.t_plus = [Comp1(R=0.8), Comp2(R=0.9), Comp3(R=0.7)]
+# t_plus has cardinality (1, 1) - exactly one
+wu.t_plus.connect(Comp1(R=0.8))
 
-# Calculator aggregates via GM first
-t_plus_r = GM(0.8, 0.9, 0.7) = 0.80
+# To explore alternative T+ consequences, create separate WisdomUnits
+wu2.t_plus.connect(Comp2(R=0.9))  # Different WU, same T, different T+
+wu3.t_plus.connect(Comp3(R=0.7))  # Another alternative
 
-# Then uses in power mean with A-
-pair_r = PM(t_plus_r, a_minus_r, p=4)
+# Alternatives can share the same T component node (component reuse)
+t = get_or_create_component("Remote work")
+wu1.t.connect(t)
+wu2.t.connect(t)  # Same T node, different exploration
+wu3.t.connect(t)
+
+# Find alternatives via query: "Find all WUs sharing this T component"
 ```
 
 ### Wheel Transition Deduplication
@@ -507,11 +513,13 @@ scorer.calculate_score(wheel)
 
 2. **Neutral S**: Legacy had `synthesis.t` (neutral S) that was scored but never used. Graph-native correctly omits it.
 
-3. **Multiple Components**: Legacy restricted to 1 component per position. Graph-native allows multiple (1+) for T+, T-, A+, A-, S+, S-.
+3. **Cardinality**: Both legacy and graph-native enforce exactly ONE component per polarity position (T, A, T+, T-, A+, A-). To explore alternative consequences, create multiple WisdomUnits that share the same T/A component nodes (component reuse pattern).
 
 4. **Transformation Optional**: Both allow optional transformation, but graph-native returns `P=1.0` (no constraint) vs legacy `P=None` (unknown). Graph-native semantics preferred.
 
 5. **Rationale Rating**: Both support `rationale.rating`, but graph-native properly applies it during aggregation (parent applies rating).
+
+6. **Component Reuse**: Graph-native supports reusing the same component node across multiple WisdomUnits. This enables implicit "alternative" relationships discoverable via queries (e.g., "find all WUs exploring this thesis").
 
 ## Further Reading
 
