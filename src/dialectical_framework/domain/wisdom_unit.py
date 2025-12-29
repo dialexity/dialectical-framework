@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import Field
 
-from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.domain.assessable import Assessable
 from dialectical_framework.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode

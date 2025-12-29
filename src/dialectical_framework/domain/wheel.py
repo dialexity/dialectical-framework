@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from dialectical_framework.domain.spiral import Spiral
     from dialectical_framework.domain.transition import Transition
 from dialectical_framework.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.domain.assessable import Assessable
 from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 from dialectical_framework.domain.wheel_segment import WheelSegment
 from dialectical_framework.domain.wisdom_unit import WisdomUnit

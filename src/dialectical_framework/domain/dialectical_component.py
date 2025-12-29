@@ -4,7 +4,7 @@ import re
 
 from pydantic import Field
 
-from dialectical_framework.protocols.ratable import Ratable
+from dialectical_framework.domain.ratable import Ratable
 
 
 class DialecticalComponent(Ratable):

@@ -12,8 +12,8 @@ from dialectical_framework.domain.transition import Transition
 from dialectical_framework.domain.transition_cell_to_cell import TransitionCellToCell
 from dialectical_framework.domain.transition_segment_to_segment import TransitionSegmentToSegment
 from dialectical_framework.domain.dialectical_component import DialecticalComponent
-from .protocols.assessable import Assessable
-from .protocols.ratable import Ratable
+from dialectical_framework.domain.assessable import Assessable
+from dialectical_framework.domain.ratable import Ratable
 from dialectical_framework.domain.synthesis import Synthesis
 from dialectical_framework.domain.wheel import Wheel
 from dialectical_framework.domain.wheel_segment import WheelSegment

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING, final, List
+from typing import TYPE_CHECKING, List
 
 from pydantic import ConfigDict, Field, model_validator, computed_field
 
-from dialectical_framework.protocols.assessable import Assessable
+from dialectical_framework.domain.assessable import Assessable
 from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING:
