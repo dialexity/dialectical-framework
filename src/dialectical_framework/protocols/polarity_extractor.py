@@ -1,12 +1,21 @@
+from __future__ import annotations
+
 from abc import abstractmethod
 from typing import Union
 
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.domain.dialectical_components_deck import DialecticalComponentsDeck
+from dialectical_framework.ai_dto.dialectical_component_dto import \
+    DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
 
 
 class PolarityExtractor(ThesisExtractor):
+    """
+    Protocol for extracting polarities (thesis-antithesis pairs).
+
+    All methods return DTOs - conversion to graph nodes happens in the reasoning layer.
+    """
+
     @abstractmethod
     async def extract_polarities(
         self,
@@ -14,7 +23,7 @@ class PolarityExtractor(ThesisExtractor):
         given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None,
         at: None | int | list[int] = None,
         not_like_these: list[str] | None = None
-    ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
+    ) -> list[tuple[DialecticalComponentDto, DialecticalComponentDto]]:
         """
         Extract polarities (thesis-antithesis pairs) with optional selective generation.
 
@@ -69,8 +78,8 @@ class PolarityExtractor(ThesisExtractor):
 
         Returns
         -------
-        list[tuple[DialecticalComponent, DialecticalComponent]]
-            List of (thesis, antithesis) tuples with proper aliases and indices.
+        list[tuple[DialecticalComponentDto, DialecticalComponentDto]]
+            List of (thesis, antithesis) DTO tuples with proper aliases and indices.
 
             **When `at=None` (default):**
             All tuples are complete (no empty statements).
@@ -78,11 +87,11 @@ class PolarityExtractor(ThesisExtractor):
             **When `at` is specified:**
             - Indices in `at`: Complete tuples (both components have statements)
             - Indices NOT in `at`: May contain empty components:
-                - `(DialecticalComponent(statement="thesis"), DialecticalComponent(statement=""))`
+                - `(DialecticalComponentDto(statement="thesis"), DialecticalComponentDto(statement=""))`
                   if only thesis was provided
-                - `(DialecticalComponent(statement=""), DialecticalComponent(statement="antithesis"))`
+                - `(DialecticalComponentDto(statement=""), DialecticalComponentDto(statement="antithesis"))`
                   if only antithesis was provided
-                - `(DialecticalComponent(statement=""), DialecticalComponent(statement=""))`
+                - `(DialecticalComponentDto(statement=""), DialecticalComponentDto(statement=""))`
                   if neither was provided
 
         Raises
@@ -95,7 +104,7 @@ class PolarityExtractor(ThesisExtractor):
         ...
 
     @abstractmethod
-    async def extract_multiple_antitheses( self, *, theses: list[str], not_like_these: list[str] | None = None) -> DialecticalComponentsDeck: ...
+    async def extract_multiple_antitheses( self, *, theses: list[str], not_like_these: list[str] | None = None) -> DialecticalComponentsDeckDto: ...
 
     @abstractmethod
-    async def extract_single_antithesis(self, *, thesis: str, not_like_these: list[str] | None = None) -> DialecticalComponent: ...
+    async def extract_single_antithesis(self, *, thesis: str, not_like_these: list[str] | None = None) -> DialecticalComponentDto: ...

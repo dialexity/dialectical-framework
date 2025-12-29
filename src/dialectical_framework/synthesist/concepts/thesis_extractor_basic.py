@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Self
 
 from mirascope import Messages, prompt_template
@@ -7,11 +9,6 @@ from dialectical_framework.ai_dto.dialectical_component_dto import \
     DialecticalComponentDto
 from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
-from dialectical_framework.ai_dto.dto_mapper import (map_from_dto,
-                                                     map_list_from_dto)
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.domain.dialectical_components_deck import \
-    DialecticalComponentsDeck
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
@@ -118,7 +115,10 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
             },
         }
 
-    async def extract_multiple_theses(self, *, count: int = 2, not_like_these: list[str] | None = None) -> DialecticalComponentsDeck:
+    async def extract_multiple_theses(self, *, count: int = 2, not_like_these: list[str] | None = None) -> DialecticalComponentsDeckDto:
+        """
+        Protocol method: Extracts multiple theses and returns them as DTO deck.
+        """
         if count > 4 or count < 1:
             raise ValueError(
                 f"Incorrect number of theses requested. Max 4 theses are supported."
@@ -129,22 +129,31 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         async def _find_theses():
             return self.prompt_multiple_theses(count=count, not_like_these=not_like_these)
 
+        # AI returns DTO
         deck_dto = await _find_theses()
-        components = map_list_from_dto(deck_dto.dialectical_components, DialecticalComponent)
-        if len(components) < count:
-            raise ValueError(f"AI returned {len(components)} components but {count} were requested.")
-        # Take only the requested count if AI returned more
-        deck = DialecticalComponentsDeck(dialectical_components=components[:count])
-        if count == 1 and len(deck.dialectical_components) == 1:
-            dc: DialecticalComponent = deck.dialectical_components[0]
-            dc.set_human_friendly_index(0)
-        return deck
 
-    async def extract_single_thesis(self, *, not_like_these: list[str] | None = None) -> DialecticalComponent:
+        if len(deck_dto.dialectical_components) < count:
+            raise ValueError(f"AI returned {len(deck_dto.dialectical_components)} components but {count} were requested.")
+
+        # Take only the requested count if AI returned more
+        if len(deck_dto.dialectical_components) > count:
+            deck_dto = DialecticalComponentsDeckDto(dialectical_components=deck_dto.dialectical_components[:count])
+
+        # For single component, set human_friendly_index to 0 (no numeric suffix)
+        if count == 1 and len(deck_dto.dialectical_components) == 1:
+            dc_dto: DialecticalComponentDto = deck_dto.dialectical_components[0]
+            dc_dto.set_human_friendly_index(0)
+
+        return deck_dto
+
+    async def extract_single_thesis(self, *, not_like_these: list[str] | None = None) -> DialecticalComponentDto:
+        """
+        Protocol method: Extracts single thesis and returns it as DTO.
+        """
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=DialecticalComponentDto)
         async def _find_thesis():
             return self.prompt_single_thesis(not_like_these=not_like_these)
 
-        dc_dto = await _find_thesis()
-        return map_from_dto(dc_dto, DialecticalComponent)
+        # AI returns DTO, return it directly
+        return await _find_thesis()
