@@ -263,16 +263,21 @@ class EstimationManager:
         node.score_invalidated_at = now
         node.save()
 
-        # Find immediate parents using simple query
-        # Use undirected relationship matching since relationships can go either direction
-        # (Component->Rationale uses RelationshipFrom, so edge goes Rationale->Component in graph)
+        # Find immediate parents using directed relationship pattern
+        # All parent relationships use RelationshipTo() which creates outgoing edges (child→parent):
+        # - WisdomUnit.wheel → WU→Wheel
+        # - Transformation.wisdom_unit → Transformation→WU
+        # - Transformation.ac_re → Transformation→WU(ac_re)
+        # - Cycle/Spiral._wheel_as_* → Cycle/Spiral→Wheel
+        # - Rationale.explanation → Rationale→Entity
+        # - Rationale.critiques → RationaleA→RationaleB (critique→critiqued)
         #
         # IMPORTANT: Exclude HAS_STATEMENT to prevent crossing wheel boundaries
         # - HAS_STATEMENT is a text reference/derivation relationship (not structural ownership)
-        # - Structural relationships (T, A, IS_SOURCE_OF, etc.) handle within-wheel propagation
+        # - Structural relationships handle within-wheel propagation
         # - Excluding HAS_STATEMENT prevents invalidating external wheels that reference statements
         query = """
-            MATCH (child)-[rel]-(parent:AssessableEntity)
+            MATCH (child)-[rel]->(parent:AssessableEntity)
             WHERE id(child) = $child_id
             AND type(rel) <> 'HAS_STATEMENT'
             RETURN DISTINCT id(parent) as parent_id
