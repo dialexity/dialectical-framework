@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import Union
 
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.domain.dialectical_components_deck import DialecticalComponentsDeck
 
 

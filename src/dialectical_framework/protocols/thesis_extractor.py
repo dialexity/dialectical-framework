@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.domain.dialectical_components_deck import \
     DialecticalComponentsDeck
 from dialectical_framework.protocols.reloadable import Reloadable
