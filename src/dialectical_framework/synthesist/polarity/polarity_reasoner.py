@@ -16,7 +16,15 @@ from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.wisdom_unit import (
+    WisdomUnit,
+    POSITION_T,
+    POSITION_T_PLUS,
+    POSITION_T_MINUS,
+    POSITION_A,
+    POSITION_A_PLUS,
+    POSITION_A_MINUS,
+)
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.protocols.reloadable import Reloadable
@@ -118,9 +126,9 @@ class PolarityReasoner(HasBrain, Reloadable):
                 tpl[i].content = dc_safe_replace(
                     tpl[i].content,
                     {
-                        WisdomUnit.POSITION_T: WisdomUnit.POSITION_A,
-                        WisdomUnit.POSITION_T_MINUS: WisdomUnit.POSITION_A_MINUS,
-                        WisdomUnit.POSITION_A_MINUS: WisdomUnit.POSITION_T_MINUS,
+                        POSITION_T: POSITION_A,
+                        POSITION_T_MINUS: POSITION_A_MINUS,
+                        POSITION_A_MINUS: POSITION_T_MINUS,
                     },
                 )
         return tpl
@@ -171,9 +179,9 @@ class PolarityReasoner(HasBrain, Reloadable):
                 tpl[i].content = dc_safe_replace(
                     tpl[i].content,
                     {
-                        WisdomUnit.POSITION_T: WisdomUnit.POSITION_A,
-                        WisdomUnit.POSITION_T_PLUS: WisdomUnit.POSITION_A_PLUS,
-                        WisdomUnit.POSITION_A_MINUS: WisdomUnit.POSITION_T_MINUS,
+                        POSITION_T: POSITION_A,
+                        POSITION_T_PLUS: POSITION_A_PLUS,
+                        POSITION_A_MINUS: POSITION_T_MINUS,
                     },
                 )
         return tpl
@@ -398,8 +406,8 @@ class PolarityReasoner(HasBrain, Reloadable):
 
         # Connect components with simple aliases (single WU context - no numbers)
         # If DTO has numbered alias (e.g., 'T1'), preserve it; otherwise use position name
-        t_alias = t_dto.alias if t_dto.alias else WisdomUnit.POSITION_T
-        a_alias = a_dto.alias if a_dto.alias else WisdomUnit.POSITION_A
+        t_alias = t_dto.alias if t_dto.alias else POSITION_T
+        a_alias = a_dto.alias if a_dto.alias else POSITION_A
         wu.t.connect(t, properties={'alias': t_alias})
         wu.a.connect(a, properties={'alias': a_alias})
 
@@ -411,7 +419,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         """
         Map relationship manager field names to component aliases (6 core positions only).
 
-        TODO: Refactor to use WisdomUnit.POSITION_* constants directly throughout
+        TODO: Refactor to use POSITION_* constants (from wisdom_unit module) directly throughout
         instead of lowercase field names. This legacy mapping is only needed for
         compatibility with existing redefine() logic that uses field names like
         't', 'a', 't_plus', etc. Should be removed once redefine() is refactored.
@@ -506,8 +514,8 @@ class PolarityReasoner(HasBrain, Reloadable):
         # ==
         # Redefine opposition
         # ==
-        base_pos = WisdomUnit.POSITION_T
-        other_pos = WisdomUnit.POSITION_A
+        base_pos = POSITION_T
+        other_pos = POSITION_A
 
         for position in [base_pos, other_pos]:
             if changed.get(position):

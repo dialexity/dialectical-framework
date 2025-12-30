@@ -184,3 +184,41 @@ class Synthesis(AssessableEntity):
             return False
 
         return True
+
+    def pretty(self) -> str:
+        """
+        Format this Synthesis for human-readable display.
+
+        Formats both S+ and S- components with their aliases.
+
+        Returns:
+            Multi-line formatted string with S+ and S- components
+
+        Example:
+            S+ = Balance
+            Explanation: Complementary harmony
+
+            S- = Stagnation
+            Explanation: Reinforcing uniformity
+        """
+        formatted_components = []
+
+        # Format S+
+        sp_result = self.s_plus.get()
+        if sp_result:
+            component, props = sp_result
+            alias = props.get('alias', 'S+')
+            formatted_components.append(component.pretty(alias))
+
+        # Format S-
+        sm_result = self.s_minus.get()
+        if sm_result:
+            component, props = sm_result
+            alias = props.get('alias', 'S-')
+            formatted_components.append(component.pretty(alias))
+
+        return "\n\n".join(formatted_components)
+
+    def __str__(self) -> str:
+        """String representation using pretty format."""
+        return self.pretty()

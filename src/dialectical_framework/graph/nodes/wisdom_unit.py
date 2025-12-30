@@ -27,6 +27,14 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
+# Position constants - module level to avoid GQLAlchemy metaclass interference
+POSITION_T = "T"
+POSITION_T_PLUS = "T+"
+POSITION_T_MINUS = "T-"
+POSITION_A = "A"
+POSITION_A_PLUS = "A+"
+POSITION_A_MINUS = "A-"
+
 
 class WisdomUnit(AssessableEntity):
     """
@@ -49,14 +57,6 @@ class WisdomUnit(AssessableEntity):
     The cardinality constraints are enforced at the RelationshipManager level,
     providing automatic validation and runtime checks.
     """
-
-    # Position constants - use these instead of string literals
-    POSITION_T = "T"
-    POSITION_T_PLUS = "T+"
-    POSITION_T_MINUS = "T-"
-    POSITION_A = "A"
-    POSITION_A_PLUS = "A+"
-    POSITION_A_MINUS = "A-"
 
     reasoning_mode: Optional[str] = None
 
@@ -209,12 +209,12 @@ class WisdomUnit(AssessableEntity):
         """
         position_map = {
             # Position constants
-            self.POSITION_T: self.t,
-            self.POSITION_A: self.a,
-            self.POSITION_T_PLUS: self.t_plus,
-            self.POSITION_T_MINUS: self.t_minus,
-            self.POSITION_A_PLUS: self.a_plus,
-            self.POSITION_A_MINUS: self.a_minus,
+            POSITION_T: self.t,
+            POSITION_A: self.a,
+            POSITION_T_PLUS: self.t_plus,
+            POSITION_T_MINUS: self.t_minus,
+            POSITION_A_PLUS: self.a_plus,
+            POSITION_A_MINUS: self.a_minus,
             # Attribute format (lowercase, underscore) for backward compatibility
             't': self.t,
             'a': self.a,
@@ -279,12 +279,12 @@ class WisdomUnit(AssessableEntity):
         Note: S+/S- are NOT included - they are on the Synthesis node
         """
         return [
-            self.POSITION_T,
-            self.POSITION_A,
-            self.POSITION_T_PLUS,
-            self.POSITION_T_MINUS,
-            self.POSITION_A_PLUS,
-            self.POSITION_A_MINUS,
+            POSITION_T,
+            POSITION_A,
+            POSITION_T_PLUS,
+            POSITION_T_MINUS,
+            POSITION_A_PLUS,
+            POSITION_A_MINUS,
         ]
 
     def get_human_friendly_index(self) -> int:
@@ -366,3 +366,50 @@ class WisdomUnit(AssessableEntity):
                 if new_alias != old_alias:
                     manager.disconnect(component)
                     manager.connect(component, properties={'alias': new_alias})
+
+    def pretty(self) -> str:
+        """
+        Format this WisdomUnit for human-readable display.
+
+        Formats all 6 core positions (T, T+, T-, A, A+, A-) with their aliases
+        and optionally appends synthesis (S+, S-) if present.
+
+        Returns:
+            Multi-line formatted string with all components
+
+        Example:
+            T = Democracy
+            Explanation: Representative system
+
+            T+ = Participation
+            Explanation: Citizen engagement
+
+            ...
+
+            Synthesis: S+ = Balance
+        """
+        # Format all 6 core positions
+        formatted_components = []
+        for position in self.core_positions:
+            manager = self.get_relationship_manager_by_position(position)
+            result = manager.get()
+            if result:
+                component, props = result
+                alias = props.get('alias', position)
+                formatted_components.append(component.pretty(alias))
+
+        ws_formatted = "\n\n".join(formatted_components)
+
+        # Add synthesis if present
+        synth_result = self.synthesis.get()
+        if synth_result:
+            synthesis, _ = synth_result
+            synth_formatted = synthesis.pretty()
+            if synth_formatted:
+                ws_formatted = f"{ws_formatted}\n\nSynthesis: {synth_formatted}"
+
+        return ws_formatted
+
+    def __str__(self) -> str:
+        """String representation using pretty format."""
+        return self.pretty()

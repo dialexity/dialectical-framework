@@ -11,6 +11,10 @@ from dialectical_framework.synthesist.polarity.reason_fast_polarized_conflict im
 from dialectical_framework.domain.wisdom_unit import WisdomUnit
 from tests.test_analyst import user_message
 
+# Graph-native imports
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as GraphDialecticalComponent
+from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as GraphWisdomUnit
+
 
 @pytest.mark.asyncio
 @observe()
@@ -66,27 +70,64 @@ async def test_reasoner(di_container, reasoner_cls):
 
 @pytest.mark.asyncio
 async def test_redefine(di_container):
-    # Precalculated
-    wu = WisdomUnit(
-        t_minus=DialecticalComponent(alias="T-", statement="Mental Preoccupation"),
-        t=DialecticalComponent(alias="T", statement="Love"),
-        t_plus=DialecticalComponent(alias="T+", statement="Compassionate Connection"),
-        a_minus=DialecticalComponent(alias="A-", statement="Nihilistic Detachment"),
-        a=DialecticalComponent(alias="A", statement="Indifference"),
-        a_plus=DialecticalComponent(alias="A+", statement="Mindful Detachment"),
-    )
+    """Test redefine with graph-native models - simple modification test."""
+    # Create graph-native components with simple, clear dialectical opposites
+    t_minus = GraphDialecticalComponent(statement="Recklessness")
+    t_minus.save()
 
-    # Redefine every component of the wisdom unit to make it an extreme test
+    t = GraphDialecticalComponent(statement="Courage")
+    t.save()
+
+    t_plus = GraphDialecticalComponent(statement="Wisdom")
+    t_plus.save()
+
+    a_minus = GraphDialecticalComponent(statement="Paralysis")
+    a_minus.save()
+
+    a = GraphDialecticalComponent(statement="Fear")
+    a.save()
+
+    a_plus = GraphDialecticalComponent(statement="Prudence")
+    a_plus.save()
+
+    # Create graph-native WisdomUnit
+    wu = GraphWisdomUnit(reasoning_mode="general_concepts")
+    wu.save()
+
+    # Connect components with aliases
+    wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
+    wu.t.connect(t, properties={'alias': 'T'})
+    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
+    wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
+    wu.a.connect(a, properties={'alias': 'A'})
+    wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
+
+    # Test redefine - pass same values to test reconstruction without modification
+    # This verifies the redefine mechanism works with graph-native models
     reasoner = di_container.polarity_reasoner()
     redefined_wu = await reasoner.redefine(
         original=wu,
-        t_minus="Mental Preoccupation",
-        t="Love",
-        t_plus="Compassionate Connection",
-        a_minus="Nihilistic Detachment",
-        a="Indifference",
-        a_plus="Mindful Detachment",
+        t="Courage",  # Same as original - tests reconstruction
+        a="Fear",  # Same as original
     )
-    assert wu.is_complete()
+
+    # Basic assertions
+    assert redefined_wu.is_complete()
+
+    # redefine creates a new WU, doesn't mutate original
+    assert wu.uid != redefined_wu.uid
+
+    # Verify all positions are set
+    assert redefined_wu.t.count() == 1
+    assert redefined_wu.t_plus.count() == 1
+    assert redefined_wu.t_minus.count() == 1
+    assert redefined_wu.a.count() == 1
+    assert redefined_wu.a_plus.count() == 1
+    assert redefined_wu.a_minus.count() == 1
+
     print("\n")
-    print(redefined_wu)
+    print("=== Original Graph-Native WisdomUnit ===")
+    print(wu.pretty())
+    print("\n")
+    print("=== Redefined Graph-Native WisdomUnit ===")
+    print(redefined_wu.pretty())

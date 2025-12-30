@@ -60,6 +60,43 @@ class DialecticalComponent(AssessableEntity):
         """Human-readable string representation."""
         return self.statement
 
+    def pretty(
+        self, dialectical_component_label: Optional[str] = None, *, skip_explanation: bool = False
+    ) -> str:
+        """
+        Format this component for human-readable display.
+
+        Args:
+            dialectical_component_label: Optional label to use instead of searching for alias.
+                                         If not provided, will show just the statement.
+            skip_explanation: If True, omit the rationale explanation even if present
+
+        Returns:
+            Formatted string like "T = Democracy\nExplanation: Representative system"
+
+        Example:
+            comp = DialecticalComponent(statement="Democracy")
+            # Within WisdomUnit context
+            print(comp.pretty("T1"))  # "T1 = Democracy\nExplanation: ..."
+            # Standalone
+            print(comp.pretty())  # "Democracy"
+        """
+        if dialectical_component_label:
+            result = f"{dialectical_component_label} = {self.statement}"
+        else:
+            result = self.statement
+
+        # Add explanation from best rationale if present and not skipped
+        if not skip_explanation:
+            rationales = list(self.rationales.all())
+            if rationales:
+                # Get first rationale (could be enhanced to select "best" by rating)
+                rationale, _ = rationales[0]
+                if rationale.text:
+                    result = f"{result}\nExplanation: {rationale.text}"
+
+        return result
+
     def get_alias(self, wisdom_unit: WisdomUnit) -> Optional[str]:
         """
         Get the alias of this component within a specific WisdomUnit's context.
