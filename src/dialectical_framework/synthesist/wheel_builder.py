@@ -4,22 +4,21 @@ from typing import Dict, Union
 
 from dependency_injector.wiring import Provide
 
-from dialectical_framework.ai_dto.dto_mapper import (map_list_from_dto)
-from dialectical_framework.domain.cycle import Cycle
+from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto
+from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
 from dialectical_framework.enums.di import DI
-from dialectical_framework.protocols.causality_sequencer import \
-    CausalitySequencer
+from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.domain.dialectical_components_deck import \
-    DialecticalComponentsDeck
-from dialectical_framework.domain.synthesis import (ALIAS_S_MINUS, ALIAS_S_PLUS, Synthesis)
-from dialectical_framework.domain.wheel import Wheel, WheelSegmentReference
-from dialectical_framework.domain.wheel_segment import ALIAS_T
-from dialectical_framework.domain.wisdom_unit import WisdomUnit
-from dialectical_framework.synthesist.polarity.polarity_reasoner import \
-    PolarityReasoner
+
+# Graph-native models
+from dialectical_framework.graph.nodes.cycle import Cycle
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.synthesis import Synthesis
+from dialectical_framework.graph.nodes.wheel import Wheel
+from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit, POSITION_T
+
+from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
 
 
 class WheelBuilder(SettingsAware):

@@ -46,7 +46,8 @@ def component_from_dto(
         component_dto = await extract_thesis()  # Returns DialecticalComponentDto
         component = component_from_dto(component_dto)  # Convert to graph model
         # Now work with graph model
-        wu.t.connect(component, properties={'alias': 'T'})
+        from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
+        wu.t.connect(component, relationship=TRelationship(alias='T'))
     """
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.rationale import Rationale

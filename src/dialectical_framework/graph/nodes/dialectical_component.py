@@ -115,9 +115,10 @@ class DialecticalComponent(AssessableEntity):
             The alias string (e.g., "T", "T+", "A-", "S+", "S-") or None if not connected
 
         Example:
+            from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
             comp = DialecticalComponent(statement="Democracy")
             wu = WisdomUnit(...)
-            wu.t.connect(comp, properties={'alias': 'T1'})
+            wu.t.connect(comp, relationship=TRelationship(alias='T1'))
 
             alias = comp.get_alias(wu)  # Returns "T1"
         """

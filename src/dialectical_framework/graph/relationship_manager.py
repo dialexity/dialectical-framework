@@ -166,17 +166,40 @@ class BoundRelationshipManager(Generic[T]):
         self,
         target_node: T,
         properties: Optional[dict] = None,
+        relationship: Optional[GQLRelationship] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> GQLRelationship:
         """
         Create a relationship to the target node.
+
+        Two calling patterns supported:
+
+        1. Pass typed relationship instance (recommended - type-safe and validated):
+            wu.t.connect(component, relationship=TRelationship(alias='T1'))
+
+            Benefits:
+            - Type-safe: IDE autocomplete for relationship properties
+            - Validated: alias validation happens at creation
+            - Refactor-safe: renaming .alias updates all usages
+
+        2. Pass properties dict (legacy - for backward compatibility):
+            wu.t.connect(component, properties={'alias': 'T1'})
+
+            Drawbacks:
+            - Hardcoded strings (not refactor-safe)
+            - No validation until save
+            - No IDE autocomplete
+
+        Note: connect() automatically sets _start_node_id and _end_node_id based on
+        the relationship direction, so you don't need to specify them.
 
         Uses dependency injection to get the database connection.
         Tests can override the graph_db provider to use TestMemgraph/TestNeo4j.
 
         Args:
             target_node: The target node to connect to
-            properties: Optional properties for the relationship
+            properties: Optional properties dict (legacy pattern)
+            relationship: Optional typed relationship instance (recommended)
 
         Returns:
             The created relationship
@@ -225,8 +248,6 @@ class BoundRelationshipManager(Generic[T]):
                     f"{max_card} already reached (current: {current_count})"
                 )
 
-        properties = properties or {}
-
         # Determine start and end based on direction
         if self.direction == "outgoing":
             start_id = source_id
@@ -238,21 +259,31 @@ class BoundRelationshipManager(Generic[T]):
             start_id = source_id
             end_id = target_id
 
-        # Create relationship
-        if self.relationship_model:
-            rel = self.relationship_model(
-                _start_node_id=start_id,
-                _end_node_id=end_id,
-                **properties
-            )
+        # Two patterns: typed relationship instance or properties dict
+        if relationship is not None:
+            # Pattern 1: Typed relationship instance (recommended - type-safe)
+            # Automatically set IDs based on connect() direction
+            relationship._start_node_id = start_id
+            relationship._end_node_id = end_id
+            rel = relationship
+
         else:
-            # Use generic Relationship (dynamically created)
-            rel = type(
-                f"{self.relationship_type}_Rel",
-                (GQLRelationship,),
-                {"__module__": __name__},
-                type=self.relationship_type
-            )(_start_node_id=start_id, _end_node_id=end_id, **properties)
+            # Pattern 2: Legacy properties dict (for backward compatibility)
+            properties = properties or {}
+            if self.relationship_model:
+                rel = self.relationship_model(
+                    _start_node_id=start_id,
+                    _end_node_id=end_id,
+                    **properties
+                )
+            else:
+                # Use generic Relationship (dynamically created)
+                rel = type(
+                    f"{self.relationship_type}_Rel",
+                    (GQLRelationship,),
+                    {"__module__": __name__},
+                    type=self.relationship_type
+                )(_start_node_id=start_id, _end_node_id=end_id, **properties)
 
         db.save_relationship(rel)
         return rel

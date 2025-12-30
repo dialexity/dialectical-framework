@@ -106,7 +106,13 @@ class Synthesis(AssessableEntity):
         """
         import re
 
-        for manager in [self.s_plus, self.s_minus]:
+        # Map managers to their relationship types
+        manager_to_rel_type = {
+            id(self.s_plus): (self.s_plus, SPlusRelationship),
+            id(self.s_minus): (self.s_minus, SMinusRelationship),
+        }
+
+        for manager_id, (manager, rel_class) in manager_to_rel_type.items():
             for component, rel in manager.all():
                 # Skip non-polarity relationships
                 if not isinstance(rel, PolarityRelationship):
@@ -140,7 +146,9 @@ class Synthesis(AssessableEntity):
                 # Update the edge property if changed
                 if new_alias != old_alias:
                     manager.disconnect(component)
-                    manager.connect(component, properties={'alias': new_alias})
+                    # Use typed relationship - manager creates correct relationship type (S+/S-)
+                    typed_rel = rel_class(alias=new_alias)
+                    manager.connect(component, relationship=typed_rel)
 
     def is_same(self, other: Synthesis) -> bool:
         """

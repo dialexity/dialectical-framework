@@ -338,7 +338,17 @@ class WisdomUnit(AssessableEntity):
         """
         import re
 
-        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+        # Map managers to their relationship types
+        manager_to_rel_type = {
+            id(self.t): (self.t, TRelationship),
+            id(self.t_plus): (self.t_plus, TPlusRelationship),
+            id(self.t_minus): (self.t_minus, TMinusRelationship),
+            id(self.a): (self.a, ARelationship),
+            id(self.a_plus): (self.a_plus, APlusRelationship),
+            id(self.a_minus): (self.a_minus, AMinusRelationship),
+        }
+
+        for manager_id, (manager, rel_class) in manager_to_rel_type.items():
             for component, rel in manager.all():
                 # Skip non-polarity relationships
                 if not isinstance(rel, PolarityRelationship):
@@ -373,7 +383,9 @@ class WisdomUnit(AssessableEntity):
                 # Update the edge property if changed
                 if new_alias != old_alias:
                     manager.disconnect(component)
-                    manager.connect(component, properties={'alias': new_alias})
+                    # Use typed relationship - manager creates correct relationship type (T/A/T+/etc)
+                    typed_rel = rel_class(alias=new_alias)
+                    manager.connect(component, relationship=typed_rel)
 
     def pretty(self) -> str:
         """
