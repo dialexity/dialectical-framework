@@ -312,14 +312,16 @@ class BoundRelationshipManager(Generic[T]):
     def all(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-    ) -> list[tuple[T, dict]]:
+    ) -> list[tuple[T, GQLRelationship]]:
         """
-        Get all connected nodes with their relationship properties.
+        Get all connected nodes with their relationship objects.
 
         Uses dependency injection to get the database connection.
 
         Returns:
-            List of tuples: (target_node, relationship_properties)
+            List of tuples: (target_node, relationship)
+            - target_node: The connected node (type T)
+            - relationship: Typed GQLAlchemy Relationship object (e.g., TRelationship with .alias)
         """
         db = graph_db  # Use injected db
         if self.source_node._id is None:
@@ -336,17 +338,17 @@ class BoundRelationshipManager(Generic[T]):
         query = f"""
         MATCH {pattern}
         WHERE id(source) = $source_id
-        RETURN target, properties(r) as rel_props
+        RETURN target, r as relationship
         """
 
         results = db.execute_and_fetch(query, {"source_id": self.source_node._id})
-        return [(result["target"], result["rel_props"]) for result in results]
+        return [(result["target"], result["relationship"]) for result in results]
 
     def get(
         self,
         target_node: Optional[T] = None,
         **filters
-    ) -> Optional[tuple[T, dict]]:
+    ) -> Optional[tuple[T, GQLRelationship]]:
         """
         Get a specific connected node.
 
@@ -357,25 +359,27 @@ class BoundRelationshipManager(Generic[T]):
             **filters: Property filters for the target node
 
         Returns:
-            Tuple of (target_node, relationship_properties) or None
+            Tuple of (target_node, relationship) or None
+            - target_node: The connected node (type T)
+            - relationship: Typed GQLAlchemy Relationship object (e.g., TRelationship with .alias)
         """
         # noinspection PyArgumentList
         all_results = self.all()  # No db parameter needed, uses DI
 
         if target_node is not None:
-            for node, props in all_results:
+            for node, rel in all_results:
                 if node._id == target_node._id:
-                    return (node, props)
+                    return (node, rel)
             return None
 
         if filters:
-            for node, props in all_results:
+            for node, rel in all_results:
                 match = all(
                     getattr(node, key, None) == value
                     for key, value in filters.items()
                 )
                 if match:
-                    return (node, props)
+                    return (node, rel)
             return None
 
         # Return first if no filters

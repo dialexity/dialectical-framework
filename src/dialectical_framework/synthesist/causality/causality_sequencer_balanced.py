@@ -1,5 +1,5 @@
 import asyncio
-from typing import Self, Union, cast
+from typing import Any, Self, Union
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -9,21 +9,26 @@ from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
 from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
 from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
     CausalCyclesDeckDto
-from dialectical_framework.domain.assessable_cycle import decompose_probability_into_transitions
-from dialectical_framework.domain.cycle import Cycle
-from dialectical_framework.domain.rationale import Rationale
+from dialectical_framework.ai_dto.dialectical_component_dto import \
+    DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
+    DialecticalComponentsDeckDto
+from dialectical_framework.graph.estimation_manager import EstimationManager
+from dialectical_framework.graph.nodes.cycle import Cycle
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
+from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
+from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.graph.nodes.transition import Transition
+from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 from dialectical_framework.protocols.causality_sequencer import (
     CausalitySequencer, generate_compatible_sequences,
     generate_permutation_sequences)
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.domain.dialectical_components_deck import \
-    DialecticalComponentsDeck
-from dialectical_framework.domain.wheel_segment import ALIAS_T
-from dialectical_framework.domain.wisdom_unit import WisdomUnit
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
-from dialectical_framework.utils.dc_replace import dc_replace
+from dialectical_framework.utils.decompose_probability_uniformly import decompose_probability_uniformly
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
 
@@ -68,7 +73,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
     )
     def prompt_assess_multiple_sequences(
         self, *, sequences: list[str]
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -90,44 +95,69 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         </formatting>
         """
     )
-    def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
+    def prompt_assess_single_sequence(self, *, sequence: str) -> "Messages.Type": ...
 
     async def _estimate_cycles(
         self, *, sequences: list[list[DialecticalComponent]]
     ) -> CausalCyclesDeckDto:
+        """
+        Estimate cycles from graph-native component sequences.
+
+        Args:
+            sequences: List of sequences, where each sequence is a list of graph-native components
+
+        Returns:
+            CausalCyclesDeckDto with assessments for each sequence
+        """
         sequences_str: dict[str, list[str]] = {}
 
-        # To avoid hallucinations, make all alias uniform so that AI doesn't try to guess where's a thesis or antithesis
-        translated_components: list[DialecticalComponent] = []
-        alias_translations: dict[str, str] = {}
+        # Track graph-native components for later mapping back
+        component_map: dict[str, DialecticalComponent] = {}  # uid -> graph-native component
+
+        # Build DTOs for AI boundary
+        component_dtos: dict[str, DialecticalComponentDto] = {}  # uid -> DTO
 
         for seq_idx, sequence in enumerate(sequences, 1):
-            for comp_idx, dc in enumerate(sequence, 1):
-                if dc in translated_components:
-                    continue
-                translated_components.append(dc)
-                new_alias = f"C{seq_idx}_{comp_idx}"
-                alias_translations[new_alias] = dc.alias
-                dc.alias = new_alias
-                # TODO: we should also do dc_replace for statement/rationales texts, and later translate these back (as alias got translated)
+            sequence_aliases: list[str] = []
 
-            deck = DialecticalComponentsDeck(dialectical_components=sequence)
-            cycle = deck.get_aliases_as_cycle_str()
+            for comp_idx, component in enumerate(sequence, 1):
+                # Generate uniform technical alias to avoid AI bias
+                technical_alias = f"C{seq_idx}_{comp_idx}"
 
-            # Add statements to sequences, for more clarity
-            as_is_seq = cycle
-            for a in alias_translations:
-                as_is_seq = dc_replace(as_is_seq, a, deck.get_by_alias(a).statement)
-            cycle = f"{cycle} ({as_is_seq})"
-            sequences_str[cycle] = deck.get_aliases()
+                # Store graph-native component by UID for later mapping
+                if component.uid not in component_map:
+                    component_map[component.uid] = component
 
-        dialectical_components = []
-        for dc in translated_components:
-            # Check if this component is already in our deduplicated list
-            if not any(
-                existing_dc.is_same(dc) for existing_dc in dialectical_components
-            ):
-                dialectical_components.append(dc)
+                    # Convert graph-native component → DTO for AI
+                    # Get first rationale as explanation if available
+                    explanation = ""
+                    rationales = list(component.rationales.all())
+                    if rationales:
+                        rationale, _ = rationales[0]
+                        explanation = rationale.text if rationale.text else ""
+
+                    component_dtos[component.uid] = DialecticalComponentDto(
+                        alias=technical_alias,
+                        statement=component.statement,
+                        explanation=explanation
+                    )
+
+                sequence_aliases.append(technical_alias)
+
+            # Build cycle string: "C1_1 → C1_2 → C1_3 → C1_1..."
+            cycle_str = " → ".join(sequence_aliases + [sequence_aliases[0]]) + "..."
+
+            # Add human-readable statements for clarity
+            readable_parts = [comp.statement for comp in sequence]
+            readable_cycle = " → ".join(readable_parts + [readable_parts[0]]) + "..."
+
+            full_cycle_str = f"{cycle_str} ({readable_cycle})"
+            sequences_str[full_cycle_str] = sequence_aliases
+
+        # Create DTO deck for AI boundary
+        dialectical_components_deck_dto = DialecticalComponentsDeckDto(
+            dialectical_components=list(component_dtos.values())
+        )
 
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=CausalCyclesDeckDto)
@@ -136,7 +166,8 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 sequences=list(sequences_str.keys())
             )
             tpl = ReverseEngineer.till_theses(
-                theses=dialectical_components, text=self.text
+                theses=dialectical_components_deck_dto.dialectical_components,
+                text=self.text
             )
             return extend_tpl(tpl, prompt)
 
@@ -148,7 +179,8 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             async def _estimate_single_call() -> CausalCycleAssessmentDto:
                 prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
                 tpl = ReverseEngineer.till_theses(
-                    theses=dialectical_components, text=self.text
+                    theses=dialectical_components_deck_dto.dialectical_components,
+                    text=self.text
                 )
                 return extend_tpl(tpl, prompt)
 
@@ -162,9 +194,9 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
         # result = await _estimate_all()
         async_estimators = []
-        for sequence, aliases in sequences_str.items():
+        for sequence, als in sequences_str.items():
             async_estimators.append(
-                _estimate_single(sequence_str=sequence, aliases=aliases)
+                _estimate_single(sequence_str=sequence, aliases=als)
             )
 
         # Execute all async estimators concurrently and collect results
@@ -172,30 +204,14 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         # Create the result deck from collected cycles
         result = CausalCyclesDeckDto(causal_cycles=causal_cycles)
 
-        # Translate aliases back in the parameter
-        for sequence in sequences:
-            for dc in sequence:
-                if dc.alias in alias_translations:
-                    dc.alias = alias_translations[dc.alias]
-
-        # Translate back the aliases in the result
-        for causal_cycle in result.causal_cycles:
-            for a in causal_cycle.aliases:
-                # Normally technical aliases aren't mentioned in the texts, but who knows... let's blindly translate back
-                causal_cycle.reasoning_explanation = dc_replace(
-                    causal_cycle.reasoning_explanation, a, alias_translations[a]
-                )
-                causal_cycle.argumentation = dc_replace(
-                    causal_cycle.argumentation, a, alias_translations[a]
-                )
-            causal_cycle.aliases = [
-                alias_translations[alias] for alias in causal_cycle.aliases
-            ]
+        # Note: Result contains technical aliases (C1_1, C1_2, etc.) which will be
+        # mapped back to graph-native components in _normalize() using the sequences parameter
+        # Technical aliases were used to avoid AI bias during assessment
 
         return result
 
     async def arrange(
-        self, thoughts: Union[list[str], list[WisdomUnit], list[DialecticalComponent]]
+        self, thoughts: Union[list[WisdomUnit], list[DialecticalComponent]]
     ) -> list[Cycle]:
         sequences = self._get_sequences(thoughts)
 
@@ -203,18 +219,39 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             ordered_wisdom_units: list[WisdomUnit] = thoughts
             if len(thoughts) == 1:
                 # Single WisdomUnit: create synthetic cycle DTO and normalize
-                dialectical_components_deck = DialecticalComponentsDeck(
-                    dialectical_components=[
-                        ordered_wisdom_units[0].t,
-                        ordered_wisdom_units[0].a,
-                    ]
-                )
+                wu = ordered_wisdom_units[0]
+                t_result = wu.t.get()
+                a_result = wu.a.get()
+
+                if not t_result or not a_result:
+                    raise ValueError("WisdomUnit missing T or A component")
+
+                # Unpack with type annotations for IDE support
+                t_comp: DialecticalComponent
+                t_comp, t_rel = t_result
+
+                a_comp: DialecticalComponent
+                a_comp, a_rel = a_result
+
+                # Extract aliases from typed polarity relationships (refactor-safe!)
+                # WisdomUnit relationships are always PolarityRelationship, so no fallback needed
+                assert isinstance(t_rel, PolarityRelationship), f"Expected PolarityRelationship for T, got {type(t_rel)}"
+                assert isinstance(a_rel, PolarityRelationship), f"Expected PolarityRelationship for A, got {type(a_rel)}"
+
+                t_alias = t_rel.alias  # Direct property access, fully typed and validated
+                a_alias = a_rel.alias  # Direct property access, fully typed and validated
+
+                # Graph-native components with alias mapping
+                components_with_aliases = [
+                    (t_comp, t_alias),
+                    (a_comp, a_alias)
+                ]
 
                 # Create synthetic cycle DTO with feasibility=1.0 (single cycle, certain)
                 causal_cycles_deck = CausalCyclesDeckDto(
                     causal_cycles=[
                         CausalCycleDto(
-                            aliases=[ordered_wisdom_units[0].t.alias, ordered_wisdom_units[0].a.alias],
+                            aliases=[t_alias, a_alias],
                             probability=1.0,
                             reasoning_explanation="Single unit cycle",
                             argumentation="Default unit cycle"
@@ -222,65 +259,59 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     ]
                 )
 
-                return self._normalize(dialectical_components_deck, causal_cycles_deck)
-            elif len(thoughts) == 2:
-                dialectical_components_deck = DialecticalComponentsDeck(
-                    dialectical_components=[
-                        ordered_wisdom_units[0].t,
-                        ordered_wisdom_units[1].t,
-                        ordered_wisdom_units[0].a,
-                        ordered_wisdom_units[1].a,
-                    ]
-                )
-            elif len(thoughts) == 3:
-                dialectical_components_deck = DialecticalComponentsDeck(
-                    dialectical_components=[
-                        ordered_wisdom_units[0].t,
-                        ordered_wisdom_units[1].t,
-                        ordered_wisdom_units[2].t,
-                        ordered_wisdom_units[0].a,
-                        ordered_wisdom_units[1].a,
-                        ordered_wisdom_units[2].a,
-                    ]
-                )
-            elif len(thoughts) == 4:
-                dialectical_components_deck = DialecticalComponentsDeck(
-                    dialectical_components=[
-                        ordered_wisdom_units[0].t,
-                        ordered_wisdom_units[1].t,
-                        ordered_wisdom_units[2].t,
-                        ordered_wisdom_units[3].t,
-                        ordered_wisdom_units[0].a,
-                        ordered_wisdom_units[1].a,
-                        ordered_wisdom_units[2].a,
-                        ordered_wisdom_units[3].a,
-                    ]
-                )
+                return self._normalize(components_with_aliases, causal_cycles_deck, sequences)
+            elif len(thoughts) in [2, 3, 4]:
+                # Extract all T components, then all A components
+                # Graph-native components with aliases from edges
+                components_with_aliases: list[tuple[DialecticalComponent, str]] = []
+
+                # First, add all T components
+                for wu in ordered_wisdom_units:
+                    t_result = wu.t.get()
+                    if not t_result:
+                        raise ValueError(f"WisdomUnit {wu.uid} missing T component")
+                    t_comp, t_rel = t_result
+
+                    # Extract alias from typed polarity relationship (refactor-safe!)
+                    # WisdomUnit relationships are always PolarityRelationship
+                    assert isinstance(t_rel, PolarityRelationship), f"Expected PolarityRelationship for T, got {type(t_rel)}"
+                    t_alias = t_rel.alias  # Direct property access, fully typed and validated
+
+                    components_with_aliases.append((t_comp, t_alias))
+
+                # Then, add all A components
+                for wu in ordered_wisdom_units:
+                    a_result = wu.a.get()
+                    if not a_result:
+                        raise ValueError(f"WisdomUnit {wu.uid} missing A component")
+                    a_comp, a_rel = a_result
+
+                    # Extract alias from typed polarity relationship (refactor-safe!)
+                    # WisdomUnit relationships are always PolarityRelationship
+                    assert isinstance(a_rel, PolarityRelationship), f"Expected PolarityRelationship for A, got {type(a_rel)}"
+                    a_alias = a_rel.alias  # Direct property access, fully typed and validated
+
+                    components_with_aliases.append((a_comp, a_alias))
             else:
                 raise ValueError(
                     f"{len(ordered_wisdom_units)} thoughts are not supported yet."
                 )
             causal_cycles_deck = await self._estimate_cycles(sequences=sequences)
         else:
-            if len(thoughts) == 1:
-                # Single DialecticalComponent: create synthetic cycle DTO and normalize
-                if thoughts and isinstance(thoughts[0], DialecticalComponent):
-                    component = thoughts[0]
-                else:
-                    component = DialecticalComponent(
-                        alias="T",
-                        statement=thoughts[0],
-                    )
+            # Handle list[DialecticalComponent]
+            dialectical_components: list[DialecticalComponent] = thoughts
 
-                dialectical_components_deck = DialecticalComponentsDeck(
-                    dialectical_components=[component]
-                )
+            if len(dialectical_components) == 1:
+                # Single component: create synthetic cycle DTO with self-loop
+                component = dialectical_components[0]
+                alias = "T"  # Default alias for single component
+                components_with_aliases = [(component, alias)]
 
-                # Create synthetic cycle DTO with feasibility=1.0 (single cycle, self-loop)
+                # Create synthetic cycle DTO with probability=1.0 (single cycle, self-loop)
                 causal_cycles_deck = CausalCyclesDeckDto(
                     causal_cycles=[
                         CausalCycleDto(
-                            aliases=[component.alias],
+                            aliases=[alias],
                             probability=1.0,
                             reasoning_explanation="Single component self-loop cycle",
                             argumentation="Default single-thought cycle"
@@ -288,37 +319,41 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     ]
                 )
 
-                return self._normalize(dialectical_components_deck, causal_cycles_deck)
-            elif len(thoughts) <= 4:
-                if thoughts and isinstance(thoughts[0], DialecticalComponent):
-                    dialectical_components_deck = DialecticalComponentsDeck(
-                        dialectical_components=thoughts
-                    )
-                else:
-                    # TODO: We need to actualize the thesis using AI, so that we don't need to write 'Provided as string'
-                    dialectical_components_deck = DialecticalComponentsDeck(
-                        dialectical_components=[
-                            DialecticalComponent(
-                                alias=f"T{i + 1}",
-                                statement=t,
-                                # explanation="Provided as string.",
-                            )
-                            for i, t in enumerate(thoughts)
-                        ]
-                    )
+                return self._normalize(components_with_aliases, causal_cycles_deck, sequences)
+
+            elif len(dialectical_components) <= 4:
+                # Multiple components: assign default aliases
+                components_with_aliases = [
+                    (comp, f"T{i+1}") for i, comp in enumerate(dialectical_components)
+                ]
             else:
                 raise ValueError(f"More than 4 thoughts are not supported yet.")
 
             causal_cycles_deck = await self._estimate_cycles(sequences=sequences)
 
-        return self._normalize(dialectical_components_deck, causal_cycles_deck)
+        return self._normalize(components_with_aliases, causal_cycles_deck, sequences)
 
     def _normalize(
         self,
-        dialectical_components_deck: DialecticalComponentsDeck,
+        components_with_aliases: list[tuple[DialecticalComponent, str]],
         causal_cycles_deck: CausalCyclesDeckDto,
+        sequences: list[list[DialecticalComponent]],
     ) -> list[Cycle]:
+        """
+        Normalize cycle DTOs from AI into graph-native Cycle objects.
+
+        Args:
+            components_with_aliases: List of (component, alias) tuples from WisdomUnit edges
+            causal_cycles_deck: DTO from AI with cycle assessments
+            sequences: Original sequences of graph-native components
+
+        Returns:
+            List of graph-native Cycle objects sorted by score
+        """
         from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+        # Create estimation manager for setting probabilities/relevance
+        estimation_manager = EstimationManager()
 
         cycles: list[Cycle] = []
         total_score = 0
@@ -360,40 +395,97 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             probs = [p.quantize(q, rounding=ROUND_HALF_UP) for p in probs]
 
             for causal_cycle, p in zip(causal_cycles_deck.causal_cycles, probs):
-                # Create cycle first to get transition count
-                cycle = Cycle(
-                    dialectical_components=dialectical_components_deck.rearrange_by_aliases(causal_cycle.aliases),
-                    causality_type=self.settings.causality_type,
-                    default_transition_probability=self.settings.tarorank_default_transition_probability,
-                )
-                
+                # Map technical aliases back to graph-native components
+                # Technical aliases format: "C{seq_idx}_{comp_idx}" (e.g., "C1_2")
+                ordered_components: list[DialecticalComponent] = []
+                for technical_alias in causal_cycle.aliases:
+                    # Parse technical alias to find component in sequences
+                    parts = technical_alias.split('_')
+                    if len(parts) == 2:
+                        seq_idx = int(parts[0][1:]) - 1  # C1 -> index 0
+                        comp_idx = int(parts[1]) - 1      # 2 -> index 1
+                        if seq_idx < len(sequences) and comp_idx < len(sequences[seq_idx]):
+                            ordered_components.append(sequences[seq_idx][comp_idx])
+                    else:
+                        # Fallback: try to find by alias in components_with_aliases
+                        for comp, alias in components_with_aliases:
+                            if alias == technical_alias:
+                                ordered_components.append(comp)
+                                break
+
+                # Create graph-native cycle
+                cycle = Cycle(causality_type=self.settings.causality_type)
+                cycle.save()
+
+                # Create transitions for the component chain
+                if ordered_components:
+                    for i in range(len(ordered_components)):
+                        source_comp = ordered_components[i]
+                        target_comp = ordered_components[(i + 1) % len(ordered_components)]  # Wrap to first
+
+                        # Create transition node
+                        transition = Transition()
+                        transition.save()
+
+                        # Connect transition to source and target components
+                        transition.source.connect(source_comp)
+                        transition.target.connect(target_comp)
+
+                        # Connect transition to cycle
+                        transition.cycle.connect(cycle)
+
                 # Create rationale from reasoning and argumentation
                 cycle_rationale = Rationale(
                     summary=f"{causal_cycle.argumentation}",
                     text=f"{causal_cycle.reasoning_explanation}",
-                    # Now here's the trick, the normalized probability is assigned to the cycle
-                    # because the initial "probability" is actually "feasibility"
-                    relevance=causal_cycle.probability,
-                    probability=float(p),
+                )
+                cycle_rationale.save()  # Save before connecting
+
+                # Set probability and relevance via estimation manager
+                # The normalized probability is the cycle's competitive strength
+                estimation_manager.upsert_estimation(
+                    cycle_rationale, ProbabilityEstimation, float(p)
+                )
+                # The initial "probability" from AI is actually "feasibility" (relevance)
+                estimation_manager.upsert_estimation(
+                    cycle_rationale, RelevanceEstimation, causal_cycle.probability
                 )
 
                 # Add the rationale to the cycle
-                cycle.rationales.append(cycle_rationale)
-                # Decompose probabilities to transitions (because cycle probability is multiplication of transition probabilities)
-                decompose_probability_into_transitions(
-                    probability=cycle_rationale.probability,
-                    transitions=cycle.graph.get_all_transitions(),
-                    overwrite_existing_transition_probabilities=True)
+                cycle.rationales.connect(cycle_rationale)
+
+                # Decompose cycle probability into transition probabilities
+                # This ensures transitions have proper P values for TaroRank scoring
+                self._decompose_probability_into_transitions(
+                    probability=float(p),  # Use normalized probability
+                    cycle=cycle,
+                    overwrite_existing=True
+                )
 
                 cycles.append(cycle)
 
-        cycles.sort(key=lambda c: cast(Cycle, c).calculate_score(), reverse=True)
+        # Sort by score (TaroRank computed property)
+        # Note: This triggers scoring calculation if needed
+        cycles.sort(key=lambda c: c.score or 0.0, reverse=True)
         return cycles
 
     @staticmethod
     def _get_sequences(
-        thoughts: Union[list[str], list[tuple[str, str]], list[WisdomUnit], list[DialecticalComponent]],
+        thoughts: Union[list[WisdomUnit], list[DialecticalComponent]],
     ) -> list[list[DialecticalComponent]]:
+        """
+        Generate sequences from graph-native thoughts.
+
+        Args:
+            thoughts: Either WisdomUnits (generates compatible sequences) or
+                     DialecticalComponents (generates permutations)
+
+        Returns:
+            List of component sequences for cycle generation
+
+        Note:
+            Caller must convert strings/DTOs to DialecticalComponents before calling
+        """
         if len(thoughts) == 0:
             raise ValueError("No thoughts provided.")
 
@@ -401,16 +493,96 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             ordered_wisdom_units: list[WisdomUnit] = thoughts
             return generate_compatible_sequences(ordered_wisdom_units)
         else:
-            if isinstance(thoughts[0], DialecticalComponent):
-                dialectical_components = thoughts
-            else:
-                # TODO: We need to actualize the thesis using AI, so that we don't need to write 'Provided as string'
-                dialectical_components = [
-                    DialecticalComponent(
-                        alias=f"{ALIAS_T}{i + 1}",
-                        statement=t,
-                        # explanation="Provided as string.",
-                    )
-                    for i, t in enumerate(thoughts)
-                ]
+            # Handle list[DialecticalComponent]
+            dialectical_components: list[DialecticalComponent] = thoughts
             return generate_permutation_sequences(dialectical_components)
+
+    @staticmethod
+    def _decompose_probability_into_transitions(
+        probability: float,
+        cycle: Cycle,
+        overwrite_existing: bool = False
+    ) -> None:
+        """
+        Decompose cycle probability into individual transition probabilities.
+
+        Uses the same logic as legacy domain implementation:
+        - Case 1 (no existing): uniform decomposition (nth root)
+        - Case 2 (all existing): do nothing
+        - Case 3 (mixed): distribute remaining probability uniformly
+
+        Args:
+            probability: Overall cycle probability (0.0 to 1.0)
+            cycle: Graph-native Cycle node with transitions
+            overwrite_existing: If True, clear all existing transition probabilities first
+
+        Note:
+            Sets ProbabilityEstimation on Transition nodes via EstimationManager.
+            Probabilities multiply: P_cycle = P_t1 × P_t2 × ... × P_tn
+        """
+        estimation_manager = EstimationManager()
+
+        # Get all transitions
+        all_transitions = [trans for trans, _ in cycle.transitions.all()]
+        if not all_transitions:
+            return
+
+        # Optionally clear existing probabilities
+        if overwrite_existing:
+            for trans in all_transitions:
+                # Remove existing ProbabilityEstimation if present
+                existing_estimations = list(trans.estimations.all())
+                for est, _ in existing_estimations:
+                    if isinstance(est, ProbabilityEstimation):
+                        trans.estimations.disconnect(est)
+
+        # Check which transitions already have probabilities
+        transitions_with_probs = []
+        transitions_without_probs = []
+
+        for trans in all_transitions:
+            # Check if transition has ProbabilityEstimation
+            has_prob = False
+            for est, _ in trans.estimations.all():
+                if isinstance(est, ProbabilityEstimation):
+                    transitions_with_probs.append((trans, est.value))
+                    has_prob = True
+                    break
+
+            if not has_prob:
+                transitions_without_probs.append(trans)
+
+        # Case 2: All transitions already have probabilities - don't override
+        if not transitions_without_probs:
+            return
+
+        # Case 1: No transitions have probabilities - use uniform decomposition
+        if not transitions_with_probs:
+            individual_prob = decompose_probability_uniformly(
+                probability,
+                len(all_transitions)
+            )
+            for trans in all_transitions:
+                estimation_manager.upsert_estimation(
+                    trans, ProbabilityEstimation, individual_prob
+                )
+        else:
+            # Case 3: Mixed - some have probabilities, some don't
+            # Calculate what's "left over" for the unassigned transitions
+            assigned_prob_product = 1.0
+            for _, prob_value in transitions_with_probs:
+                assigned_prob_product *= prob_value
+
+            # Remaining probability to distribute
+            remaining_prob = probability / assigned_prob_product if assigned_prob_product > 0 else probability
+
+            # Distribute remaining probability uniformly among unassigned transitions
+            if transitions_without_probs and remaining_prob > 0:
+                individual_prob = decompose_probability_uniformly(
+                    remaining_prob,
+                    len(transitions_without_probs)
+                )
+                for trans in transitions_without_probs:
+                    estimation_manager.upsert_estimation(
+                        trans, ProbabilityEstimation, individual_prob
+                    )

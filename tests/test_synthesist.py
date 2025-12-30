@@ -131,3 +131,77 @@ async def test_redefine(di_container):
     print("\n")
     print("=== Redefined Graph-Native WisdomUnit ===")
     print(redefined_wu.pretty())
+
+@pytest.mark.asyncio
+async def test_causality_sequencer(di_container):
+    """Test causality sequencer with graph-native WisdomUnits."""
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
+        CausalitySequencerBalanced
+
+    # Create graph-native components
+    t1 = GraphDialecticalComponent(statement="Remote work increases flexibility")
+    t1.save()
+    a1 = GraphDialecticalComponent(statement="Remote work reduces collaboration")
+    a1.save()
+
+    t2 = GraphDialecticalComponent(statement="Async communication enables focus")
+    t2.save()
+    a2 = GraphDialecticalComponent(statement="Async communication creates delays")
+    a2.save()
+
+    # Create two graph-native WisdomUnits
+    wu1 = GraphWisdomUnit(reasoning_mode="work_context")
+    wu1.save()
+    wu1.t.connect(t1, properties={'alias': 'T1'})
+    wu1.a.connect(a1, properties={'alias': 'A1'})
+
+    wu2 = GraphWisdomUnit(reasoning_mode="communication_context")
+    wu2.save()
+    wu2.t.connect(t2, properties={'alias': 'T2'})
+    wu2.a.connect(a2, properties={'alias': 'A2'})
+
+    # Test causality sequencer (DI will inject brain and settings automatically)
+    sequencer = CausalitySequencerBalanced(text="Remote work and async communication")
+
+    # Arrange WisdomUnits into cycles
+    cycles = await sequencer.arrange([wu1, wu2])
+
+    # Assertions
+    assert len(cycles) > 0, "Should generate at least one cycle"
+    assert all(isinstance(cycle, Cycle) for cycle in cycles), "All should be Cycle objects"
+
+    # Verify each cycle has rationale with normalized probability
+    rationale_probs = []
+    for cycle in cycles:
+        rationales = list(cycle.rationales.all())
+        assert len(rationales) > 0, "Each cycle should have at least one rationale"
+        rat, _ = rationales[0]
+        rationale_probs.append(rat.probability or 0.0)
+
+    # Verify probability normalization on rationales (not cycle.probability which is TaroRank-computed)
+    total_prob = sum(rationale_probs)
+    assert abs(total_prob - 1.0) < 0.01, f"Total rationale probability should be ~1.0, got {total_prob}"
+
+    print("\n=== Generated Cycles ===")
+    for i, cycle in enumerate(cycles, 1):
+        print(f"\nCycle {i}:")
+        rationales = list(cycle.rationales.all())
+        if rationales:
+            rat, _ = rationales[0]
+            print(f"  Rationale Probability: {rat.probability}")
+            print(f"  Rationale Relevance: {rat.relevance}")
+            # Note: cycle.dialectical_components is already a list
+            print(f"  Components: {len(cycle.dialectical_components) if cycle.dialectical_components else 0}")
+            print(f"  Reasoning: {rat.text[:100] if rat.text else 'N/A'}...")
+
+            # Verify transition probabilities were set
+            transitions = [trans for trans, _ in cycle.transitions.all()]
+            if transitions:
+                trans_probs = [t.probability for t in transitions if t.probability is not None]
+                if trans_probs:
+                    product = 1.0
+                    for p in trans_probs:
+                        product *= p
+                    print(f"  Transition probabilities: {trans_probs}")
+                    print(f"  Product: {product:.6f}, Cycle P: {rat.probability}")

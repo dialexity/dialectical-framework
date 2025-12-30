@@ -11,55 +11,70 @@ from gqlalchemy import Relationship
 
 
 # Base class for all polarity relationships
-class BasePolarityRelationship(Relationship):
+class PolarityRelationship(Relationship):
     """
     Base for all polarity relationships with alias property.
 
     The alias stores the component's contextual position (e.g., "T1", "A2+").
     Same component can have different aliases in different WisdomUnits.
+
+    Use isinstance checks to safely access .alias:
+        if isinstance(rel, PolarityRelationship):
+            alias = rel.alias  # Direct access, fully typed
+
+    The alias property is validated to ensure it's always a non-empty,
+    non-whitespace string.
     """
 
     alias: str
 
+    def __init__(self, **data):
+        """Initialize and validate alias property."""
+        # Validate alias before calling parent __init__
+        alias_value = data.get('alias')
+        if not alias_value or not str(alias_value).strip():
+            raise ValueError("alias must be a non-empty, non-whitespace string")
+        super().__init__(**data)
+
 
 # T-side relationships
-class TRelationship(BasePolarityRelationship, type="T"):
+class TRelationship(PolarityRelationship, type="T"):
     """Neutral thesis relationship."""
     pass
 
 
-class TPlusRelationship(BasePolarityRelationship, type="T_PLUS"):
+class TPlusRelationship(PolarityRelationship, type="T_PLUS"):
     """Positive thesis relationship."""
     pass
 
 
-class TMinusRelationship(BasePolarityRelationship, type="T_MINUS"):
+class TMinusRelationship(PolarityRelationship, type="T_MINUS"):
     """Negative thesis relationship."""
     pass
 
 
 # A-side relationships
-class ARelationship(BasePolarityRelationship, type="A"):
+class ARelationship(PolarityRelationship, type="A"):
     """Neutral antithesis relationship."""
     pass
 
 
-class APlusRelationship(BasePolarityRelationship, type="A_PLUS"):
+class APlusRelationship(PolarityRelationship, type="A_PLUS"):
     """Positive antithesis relationship."""
     pass
 
 
-class AMinusRelationship(BasePolarityRelationship, type="A_MINUS"):
+class AMinusRelationship(PolarityRelationship, type="A_MINUS"):
     """Negative antithesis relationship."""
     pass
 
 
 # S-side relationships
-class SPlusRelationship(BasePolarityRelationship, type="S_PLUS"):
+class SPlusRelationship(PolarityRelationship, type="S_PLUS"):
     """Positive synthesis relationship."""
     pass
 
 
-class SMinusRelationship(BasePolarityRelationship, type="S_MINUS"):
+class SMinusRelationship(PolarityRelationship, type="S_MINUS"):
     """Negative synthesis relationship."""
     pass

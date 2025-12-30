@@ -1,15 +1,21 @@
-from typing import Dict, List
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Dict, List
 
 from mirascope import BaseMessageParam, Messages, prompt_template
 
-from dialectical_framework.domain.cycle import Cycle
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
+from dialectical_framework.ai_dto.dialectical_component_dto import \
+    DialecticalComponentDto
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.utils.extend_tpl import extend_tpl
-from dialectical_framework.domain.wheel import Wheel
-from dialectical_framework.domain.wisdom_unit import WisdomUnit
+
+# Legacy domain imports - TODO: migrate to graph-native when refactoring wheel_builder
+if TYPE_CHECKING:
+    from dialectical_framework.domain.cycle import Cycle
+    from dialectical_framework.domain.wheel import Wheel
+    from dialectical_framework.domain.wisdom_unit import WisdomUnit
 
 
 # TODO: reuse the prompts from the reasoners?
@@ -25,7 +31,7 @@ class ReverseEngineer:
         OK, let's start.
         """
     )
-    def prompt_input_text(self, *, text: str) -> Messages.Type: ...
+    def prompt_input_text(self, *, text: str) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -39,8 +45,8 @@ class ReverseEngineer:
         """
     )
     def prompt_input_theses(
-        self, *, dialectical_components: list[List:str]
-    ) -> Messages.Type: ...
+        self, *, dialectical_components: list[list[str]]
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -60,7 +66,7 @@ class ReverseEngineer:
     )
     def prompt_dialectical_reasoner_find_thesis(
         self, *, thesis: str, explanation: str, denotation: str = "T"
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -93,9 +99,9 @@ class ReverseEngineer:
         self,
         *,
         reasoning_mode: str,
-        theses: list[List:str],
+        theses: list[list[str]],
         wisdom_units: list[list[str]],
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -133,7 +139,7 @@ class ReverseEngineer:
         reasoning_mode: str,
         theses: list[list[str]],
         wisdom_units: list[list[str]],
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -159,7 +165,7 @@ class ReverseEngineer:
     )
     def prompt_cycle__realistic(
         self, sequences: list[str], estimations: list[list[str]]
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -185,7 +191,7 @@ class ReverseEngineer:
     )
     def prompt_cycle__desirable(
         self, sequences: list[str], estimations: list[list[str]]
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -211,7 +217,7 @@ class ReverseEngineer:
     )
     def prompt_cycle__feasible(
         self, sequences: list[str], estimations: list[list[str]]
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -237,17 +243,34 @@ class ReverseEngineer:
     )
     def prompt_cycle__balanced(
         self, sequences: list[str], estimations: list[list[str]]
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @staticmethod
     def till_theses(
-        theses: list[DialecticalComponent], text: str = None
+        theses: list[DialecticalComponentDto], text: str = None
     ) -> list[BaseMessageParam]:
+        """
+        Build prompt template up to thesis introduction.
+
+        Args:
+            theses: List of DialecticalComponentDto objects (DTOs used because this
+                   builds prompts for AI boundary - DTOs have exact structure needed)
+            text: Optional context text
+
+        Returns:
+            List of message parameters for prompt template
+
+        Note:
+            Uses DTOs (not graph-native) because:
+            - This method builds prompts for AI calls (at AI boundary)
+            - DTOs have exact structure needed: alias, statement, explanation
+            - Graph-native components don't have .alias as direct property
+        """
         reverse_engineer = ReverseEngineer()
         tpl: list[BaseMessageParam] = []
 
         if text:
-            # Convert Messages.Type to list and extend instead of append
+            # Convert "Messages.Type" to list and extend instead of append
             input_messages = reverse_engineer.prompt_input_text(text=text)
             extend_tpl(tpl, input_messages)
 
@@ -277,7 +300,7 @@ class ReverseEngineer:
         tpl: list[BaseMessageParam] = []
 
         if text:
-            # Convert Messages.Type to list and extend instead of append
+            # Convert "Messages.Type" to list and extend instead of append
             input_messages = reverse_engineer.prompt_input_text(text=text)
             extend_tpl(tpl, input_messages)
 

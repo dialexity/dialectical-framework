@@ -13,6 +13,9 @@ from dialectical_framework.graph.relationship_manager import RelationshipFrom, R
 from dialectical_framework.graph.relationships.opposition_relationship import (
     OppositionRelationship,
 )
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    PolarityRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -129,12 +132,15 @@ class DialecticalComponent(AssessableEntity):
         ]
 
         for manager in rel_managers:
-            components = manager.all()  # Returns [(node, props)]
+            components = manager.all()  # Returns [(node, rel)]
 
-            for comp, props in components:
+            for comp, rel in components:
                 # Check if this is the component we're looking for
                 if comp.uid == self.uid:
-                    return props.get('alias')
+                    # Use isinstance for type-safe property access
+                    if isinstance(rel, PolarityRelationship):
+                        return rel.alias  # Direct access, fully typed
+                    return None  # Non-polarity relationship
 
         # Also check synthesis if present
         synth_result = wisdom_unit.synthesis.get()
@@ -143,8 +149,11 @@ class DialecticalComponent(AssessableEntity):
             # Check S+ and S- on the Synthesis node
             for manager in [synthesis.s_plus, synthesis.s_minus]:
                 components = manager.all()
-                for comp, props in components:
+                for comp, rel in components:
                     if comp.uid == self.uid:
-                        return props.get('alias')
+                        # Use isinstance for type-safe property access
+                        if isinstance(rel, PolarityRelationship):
+                            return rel.alias  # Direct access, fully typed
+                        return None  # Non-polarity relationship
 
         return None

@@ -12,6 +12,7 @@ from typing import Any, ClassVar, Optional, TYPE_CHECKING
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager, BoundRelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
+    PolarityRelationship,
     TRelationship,
     TPlusRelationship,
     TMinusRelationship,
@@ -263,8 +264,9 @@ class WisdomUnit(AssessableEntity):
         """
         # Search all 6 core positions
         for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
-            for component, props in manager.all():
-                if props.get('alias') == alias:
+            for component, rel in manager.all():
+                # Use isinstance for type-safe property access
+                if isinstance(rel, PolarityRelationship) and rel.alias == alias:
                     return component
         return None
 
@@ -308,8 +310,11 @@ class WisdomUnit(AssessableEntity):
         if not t_result:
             return 0
 
-        _, props = t_result
-        alias = props.get('alias', '')
+        _, rel = t_result
+
+        # WisdomUnit.t relationship is always PolarityRelationship
+        assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for T, got {type(rel)}"
+        alias = rel.alias  # Direct access, fully typed and validated
 
         # Find the last sequence of digits in the alias
         match = re.search(r"(\d+)(?!.*\d)", alias)
@@ -334,10 +339,13 @@ class WisdomUnit(AssessableEntity):
         import re
 
         for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
-            for component, props in manager.all():
-                old_alias = props.get('alias', '')
-                if not old_alias:
+            for component, rel in manager.all():
+                # Skip non-polarity relationships
+                if not isinstance(rel, PolarityRelationship):
                     continue
+
+                # alias is guaranteed to be non-empty by PolarityRelationship validation
+                old_alias = rel.alias  # Direct access, fully typed
 
                 # Apply same logic as legacy DialecticalComponent.set_human_friendly_index
                 if human_friendly_index == 0:
@@ -394,8 +402,10 @@ class WisdomUnit(AssessableEntity):
             manager = self.get_relationship_manager_by_position(position)
             result = manager.get()
             if result:
-                component, props = result
-                alias = props.get('alias', position)
+                component, rel = result
+                # Core position relationships are always PolarityRelationship
+                assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for {position}, got {type(rel)}"
+                alias = rel.alias  # Direct access, fully typed and validated
                 formatted_components.append(component.pretty(alias))
 
         ws_formatted = "\n\n".join(formatted_components)

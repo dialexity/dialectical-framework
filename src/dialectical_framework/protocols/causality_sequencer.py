@@ -11,12 +11,22 @@ from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 class CausalitySequencer(Reloadable):
     @abstractmethod
     async def arrange(
-        self, thoughts: Union[list[str], list[WisdomUnit], list[DialecticalComponent]]
+        self, thoughts: Union[list[WisdomUnit], list[DialecticalComponent]]
     ) -> list[Cycle]:
         """
-        Arranges items in multiple sequences and arranges them as cycles.
-        IMPORTANT: we don't do single sequence estimation isolated, because they all depend on each other.
-        Isolated estimation would lead to some sort of unnormalized probabilities, which is not good.
+        Arranges graph-native components/units into cycles with normalized probabilities.
+
+        Args:
+            thoughts: Either WisdomUnits (extracts T/A for diagonal symmetry) or
+                     DialecticalComponents (generates permutations)
+
+        Returns:
+            List of graph-native Cycle objects with normalized probabilities
+
+        Note:
+            - Caller must convert strings/DTOs to DialecticalComponents before calling
+            - All cycles are estimated together (not isolated) for probability normalization
+            - Returns graph-native Cycles with proper Transition nodes
         """
         ...
 
@@ -63,8 +73,25 @@ def generate_compatible_sequences(
     """
 
     n = len(ordered_wisdom_units)
-    ts = [u.t for u in ordered_wisdom_units]
-    as_ = [u.a for u in ordered_wisdom_units]
+
+    # Extract T and A components from graph-native WisdomUnits
+    ts: list[DialecticalComponent] = []
+    as_: list[DialecticalComponent] = []
+    for u in ordered_wisdom_units:
+        # Get T component (returns tuple of (component, relationship) or None)
+        t_result = u.t.get()
+        if t_result:
+            ts.append(t_result[0])  # Extract component from tuple
+        else:
+            raise ValueError(f"WisdomUnit {u.uid} missing T component")
+
+        # Get A component (returns tuple of (component, relationship) or None)
+        a_result = u.a.get()
+        if a_result:
+            as_.append(a_result[0])  # Extract component from tuple
+        else:
+            raise ValueError(f"WisdomUnit {u.uid} missing A component")
+
     size = 2 * n
 
     results = []
@@ -73,7 +100,7 @@ def generate_compatible_sequences(
     def backtrack(t_positions, next_t_idx):
         if next_t_idx == n:
             # Fill arrangement based on t_positions
-            arrangement = [None] * size
+            arrangement: list[DialecticalComponent | None] = [None] * size
             occupied = set()
             for t_idx, pos in enumerate(t_positions):
                 arrangement[pos] = ts[t_idx]

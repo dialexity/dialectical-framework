@@ -13,6 +13,7 @@ from typing import ClassVar, TYPE_CHECKING
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
+    PolarityRelationship,
     SPlusRelationship,
     SMinusRelationship,
 )
@@ -80,8 +81,11 @@ class Synthesis(AssessableEntity):
         if not sp_result:
             return 0
 
-        _, props = sp_result
-        alias = props.get('alias', '')
+        _, rel = sp_result
+
+        # Synthesis.s_plus relationship is always PolarityRelationship
+        assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for S+, got {type(rel)}"
+        alias = rel.alias  # Direct access, fully typed and validated
 
         # Find the last sequence of digits in the alias
         match = re.search(r"(\d+)(?!.*\d)", alias)
@@ -103,10 +107,13 @@ class Synthesis(AssessableEntity):
         import re
 
         for manager in [self.s_plus, self.s_minus]:
-            for component, props in manager.all():
-                old_alias = props.get('alias', '')
-                if not old_alias:
+            for component, rel in manager.all():
+                # Skip non-polarity relationships
+                if not isinstance(rel, PolarityRelationship):
                     continue
+
+                # alias is guaranteed to be non-empty by PolarityRelationship validation
+                old_alias = rel.alias  # Direct access, fully typed
 
                 # Apply same logic as WisdomUnit.set_human_friendly_index
                 if human_friendly_index == 0:
@@ -206,15 +213,19 @@ class Synthesis(AssessableEntity):
         # Format S+
         sp_result = self.s_plus.get()
         if sp_result:
-            component, props = sp_result
-            alias = props.get('alias', 'S+')
+            component, rel = sp_result
+            # Synthesis relationships are always PolarityRelationship
+            assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for S+, got {type(rel)}"
+            alias = rel.alias  # Direct access, fully typed and validated
             formatted_components.append(component.pretty(alias))
 
         # Format S-
         sm_result = self.s_minus.get()
         if sm_result:
-            component, props = sm_result
-            alias = props.get('alias', 'S-')
+            component, rel = sm_result
+            # Synthesis relationships are always PolarityRelationship
+            assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for S-, got {type(rel)}"
+            alias = rel.alias  # Direct access, fully typed and validated
             formatted_components.append(component.pretty(alias))
 
         return "\n\n".join(formatted_components)
