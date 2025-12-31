@@ -18,6 +18,7 @@ from dialectical_framework.graph.nodes.dialectical_component import DialecticalC
 from dialectical_framework.graph.nodes.synthesis import Synthesis
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit, POSITION_T
+from dialectical_framework.graph.scoring.tarorank import TaroRank
 
 from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
 
@@ -28,6 +29,7 @@ class WheelBuilder(SettingsAware):
         polarity_extractor: PolarityExtractor = Provide[DI.polarity_extractor],
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
         polarity_reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
+        tarorank: TaroRank = Provide[DI.tarorank],
         *,
         text: str = "",
         wheels: list[Wheel] = None,
@@ -45,6 +47,8 @@ class WheelBuilder(SettingsAware):
 
         self.__reasoner = polarity_reasoner
         self.__reasoner.reload(text=text)
+
+        self.__tarorank = tarorank
 
     @property
     def wheel_permutations(self) -> list[Wheel]:
@@ -65,6 +69,10 @@ class WheelBuilder(SettingsAware):
     @property
     def sequencer(self) -> CausalitySequencer:
         return self.__sequencer
+
+    @property
+    def scorer(self) -> TaroRank:
+        return self.__tarorank
 
     async def t_cycles(self, *, theses: list[Union[str, DialecticalComponent, None]] = None) -> list[Cycle]:
         """
@@ -200,6 +208,10 @@ class WheelBuilder(SettingsAware):
 
             wheels.append(w)
 
+        # Score all wheels
+        for wheel in wheels:
+            self.scorer.calculate_score(wheel)
+
         # Save results for reference
         self.__wheels = wheels
         return self.wheel_permutations
@@ -208,11 +220,12 @@ class WheelBuilder(SettingsAware):
         self,
         *,
         wheel: Wheel,
+        at: Union[WisdomUnit, list[WisdomUnit], None] = None,
     ) -> list[Synthesis]:
         """
-        Calculate synthesis for all wisdom units in the wheel.
+        Calculate synthesis for wisdom units in the wheel.
 
-        For each WisdomUnit in the wheel:
+        For each WisdomUnit:
         1. Calls reasoner.find_synthesis() to get S+ and S- components
         2. Creates Synthesis node
         3. Connects S+ and S- components to Synthesis
@@ -220,18 +233,47 @@ class WheelBuilder(SettingsAware):
 
         Args:
             wheel: The Wheel containing wisdom units to synthesize
+            at: Optional selector for specific WUs:
+                - None: Synthesize ALL WUs (default)
+                - WisdomUnit: Synthesize only this WU
+                - list[WisdomUnit]: Synthesize only these WUs
 
         Returns:
             List of created Synthesis nodes
 
+        Raises:
+            ValueError: If wheel not built by this WheelBuilder
+
         Example:
+            # Synthesize all WUs
             syntheses = await wheel_builder.calculate_syntheses(wheel=wheel)
-            # Each WU now has synthesis connected
+
+            # Synthesize specific WU
+            wus = [wu for wu, _ in wheel.wisdom_units.all()]
+            syntheses = await wheel_builder.calculate_syntheses(wheel=wheel, at=wus[0])
+
+            # Synthesize multiple WUs
+            syntheses = await wheel_builder.calculate_syntheses(wheel=wheel, at=[wus[0], wus[1]])
         """
+        # Validation: ensure wheel belongs to this builder
+        if wheel not in self.__wheels:
+            raise ValueError(f"Wheel not found in this WheelBuilder's wheels. Build the wheel first.")
+
+        # Determine which WUs to synthesize
+        if at is None:
+            # Synthesize all WUs in the wheel
+            wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
+        elif isinstance(at, list):
+            # Synthesize specific WUs (list)
+            wisdom_units = at
+        else:
+            # Synthesize single WU
+            wisdom_units = [at]
+
         syntheses: list[Synthesis] = []
 
-        # Iterate through all wisdom units
-        for wu, _ in wheel.wisdom_units.all():
+        # Iterate through selected wisdom units
+        for wu in wisdom_units:
             # Call reasoner to find synthesis components (returns DTO)
             synthesis_deck_dto = await self.reasoner.find_synthesis(wu)
 
@@ -273,6 +315,9 @@ class WheelBuilder(SettingsAware):
 
             syntheses.append(synthesis)
 
+        # Rescore wheel after synthesis
+        self.scorer.calculate_score(wheel)
+
         return syntheses
 
 
@@ -284,6 +329,9 @@ class WheelBuilder(SettingsAware):
 
         Creates new wheels with redefined wisdom units. The original wheels
         and wisdom units are not modified.
+
+        Optimization: If no WUs in a wheel need modification, the original
+        wheel is preserved (no cycle recalculation).
 
         Args:
             modified_statement_per_alias: Map from alias to new statement.
@@ -304,6 +352,10 @@ class WheelBuilder(SettingsAware):
             )
         """
         import re
+
+        if not modified_statement_per_alias:
+            # No modifications requested - return originals (is_dirty optimization)
+            return self.__wheels
 
         if not self.__wheels:
             raise ValueError("No wheels available to redefine. Call build_wheel_permutations() first.")
@@ -346,6 +398,9 @@ class WheelBuilder(SettingsAware):
         # Create new wheels with redefined WUs
         new_wheels: list[Wheel] = []
 
+        # Cache for recalculated cycles (calculated once per unique WU set)
+        recalculated_cycles_cache: dict[tuple[str, ...], tuple[list[Cycle], list[Cycle]]] = {}
+
         for wheel in self.__wheels:
             # Get wisdom units from this wheel (ordered by their indices)
             wus = sorted(
@@ -353,8 +408,22 @@ class WheelBuilder(SettingsAware):
                 key=lambda wu: wu.get_human_friendly_index()
             )
 
+            # Check if ANY WU in this wheel needs modification (is_dirty optimization)
+            needs_modification = False
+            for wu in wus:
+                wu_index = wu.get_human_friendly_index()
+                if wu_index in modifications_by_wu:
+                    needs_modification = True
+                    break
+
+            if not needs_modification:
+                # No modifications for this wheel - preserve original (is_dirty optimization)
+                new_wheels.append(wheel)
+                continue
+
             # Redefine affected WUs
             new_wus: list[WisdomUnit] = []
+
             for wu in wus:
                 wu_index = wu.get_human_friendly_index()
 
@@ -367,19 +436,100 @@ class WheelBuilder(SettingsAware):
                     # Keep original WU (no changes)
                     new_wus.append(wu)
 
+            # Second-level optimization: If no WUs actually changed after redefine,
+            # preserve the original wheel (avoid expensive cycle recalculation).
+            # reasoner.redefine() returns original WU (same UID) if nothing changed.
+            original_wu_uids = [wu.uid for wu in wus]
+            new_wu_uids = [wu.uid for wu in new_wus]
+
+            if original_wu_uids == new_wu_uids:
+                # Nothing changed - preserve original wheel
+                new_wheels.append(wheel)
+                continue
+
             # Recalculate cycles since components have changed
-            # Extract thesis components from redefined WUs
-            thesis_components = [wu.get_component(POSITION_T) for wu in new_wus if wu.get_component(POSITION_T)]
+            # Use cache to avoid redundant LLM calls (multiple wheels may share same WUs)
+            wu_cache_key = tuple(wu.uid for wu in new_wus)
 
-            # Recalculate T-cycle (thesis-only causal chain)
-            new_t_cycles = await self.sequencer.arrange(thesis_components)
-            new_t_cycle = new_t_cycles[0] if new_t_cycles else None  # Use highest probability
+            if wu_cache_key not in recalculated_cycles_cache:
+                # Calculate cycles for this WU set
+                thesis_components = [wu.get_component(POSITION_T) for wu in new_wus if wu.get_component(POSITION_T)]
+                recalculated_t_cycles = await self.sequencer.arrange(thesis_components)
+                recalculated_ta_cycles = await self.sequencer.arrange(new_wus)
+                recalculated_cycles_cache[wu_cache_key] = (recalculated_t_cycles, recalculated_ta_cycles)
+            else:
+                # Reuse cached cycles
+                recalculated_t_cycles, recalculated_ta_cycles = recalculated_cycles_cache[wu_cache_key]
 
-            # Recalculate TA-cycle (full dialectical cycle)
-            new_ta_cycles = await self.sequencer.arrange(new_wus)
-            new_ta_cycle = new_ta_cycles[0] if new_ta_cycles else None  # Use highest probability
+            # Find matching T-cycle and TA-cycle for this original wheel
+            # Match by structure (alias ordering) to maintain 1-to-1 correspondence
+            original_t_cycle_result = wheel.t_cycle.get()
+            original_ta_cycle_result = wheel.ta_cycle.get()
 
-            # Create new wheel with redefined WUs and recalculated cycles
+            if not original_t_cycle_result or not original_ta_cycle_result:
+                raise ValueError(f"Original wheel {wheel.uid} missing cycles")
+
+            original_t_cycle, _ = original_t_cycle_result
+            original_ta_cycle, _ = original_ta_cycle_result
+
+            # Helper function to extract alias sequence from a cycle
+            def get_alias_sequence(cycle: Cycle, wisdom_units: list[WisdomUnit]) -> list[str]:
+                """Extract ordered list of aliases from cycle components."""
+                aliases = []
+                for comp in cycle.dialectical_components:
+                    alias = None
+                    for wu in wisdom_units:
+                        alias = comp.get_alias(wu)
+                        if alias:
+                            break
+                    if alias:
+                        aliases.append(alias)
+                return aliases
+
+            # Get alias sequences for original cycles
+            original_wus = [wu for wu, _ in wheel.wisdom_units.all()]
+            original_t_aliases = get_alias_sequence(original_t_cycle, original_wus)
+            original_ta_aliases = get_alias_sequence(original_ta_cycle, original_wus)
+
+            # Helper function to check if two alias sequences represent the same structure (allowing rotation)
+            def is_same_alias_structure(seq1: list[str], seq2: list[str]) -> bool:
+                """Check if sequences are the same allowing rotation."""
+                if len(seq1) != len(seq2):
+                    return False
+                if set(seq1) != set(seq2):
+                    return False
+                if len(seq1) <= 1:
+                    return True
+                return any(
+                    seq1 == seq2[i:] + seq2[:i]
+                    for i in range(len(seq2))
+                )
+
+            # Find matching new T-cycle
+            matching_t_cycle = None
+            for new_t_cycle in recalculated_t_cycles:
+                new_t_aliases = get_alias_sequence(new_t_cycle, new_wus)
+                if is_same_alias_structure(original_t_aliases, new_t_aliases):
+                    matching_t_cycle = new_t_cycle
+                    break
+
+            if not matching_t_cycle:
+                # If no match found, use first one (highest probability)
+                matching_t_cycle = recalculated_t_cycles[0] if recalculated_t_cycles else None
+
+            # Find matching new TA-cycle
+            matching_ta_cycle = None
+            for new_ta_cycle in recalculated_ta_cycles:
+                new_ta_aliases = get_alias_sequence(new_ta_cycle, new_wus)
+                if is_same_alias_structure(original_ta_aliases, new_ta_aliases):
+                    matching_ta_cycle = new_ta_cycle
+                    break
+
+            if not matching_ta_cycle:
+                # If no match found, use first one (highest probability)
+                matching_ta_cycle = recalculated_ta_cycles[0] if recalculated_ta_cycles else None
+
+            # Create exactly one new wheel that corresponds to this original wheel
             new_wheel = Wheel()
             new_wheel.save()
 
@@ -387,13 +537,17 @@ class WheelBuilder(SettingsAware):
             for wu in new_wus:
                 new_wheel.wisdom_units.connect(wu)
 
-            # Connect recalculated cycles
-            if new_t_cycle:
-                new_wheel.t_cycle.connect(new_t_cycle)
-            if new_ta_cycle:
-                new_wheel.ta_cycle.connect(new_ta_cycle)
+            # Connect matched cycles
+            if matching_t_cycle:
+                new_wheel.t_cycle.connect(matching_t_cycle)
+            if matching_ta_cycle:
+                new_wheel.ta_cycle.connect(matching_ta_cycle)
 
             new_wheels.append(new_wheel)
+
+        # Score all new wheels
+        for wheel in new_wheels:
+            self.scorer.calculate_score(wheel)
 
         # Update internal wheels list
         self.__wheels = new_wheels

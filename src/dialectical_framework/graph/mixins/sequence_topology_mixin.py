@@ -8,7 +8,7 @@ to provide common topology navigation methods.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.utils.order_transitions import order_transitions
 
@@ -131,15 +131,21 @@ class SequenceTopologyMixin(ABC):
 
         return " → ".join(labels) + f" → {labels[0]}..."
 
-    def is_same_structure(self, other: SequenceTopologyMixin) -> bool:
+    def is_same_structure(self, other: SequenceTopologyMixin, compare: Literal['alias', 'statement'] = 'alias') -> bool:
         """
         Check if sequences represent the same structure regardless of starting point.
 
         Args:
             other: Another node with SequenceTopologyMixin to compare with
+            compare: What to compare - 'alias' (default) or 'statement'
+                    - 'alias': Compare by component aliases (requires wheel context)
+                    - 'statement': Compare by component statement text
 
         Returns:
             True if both have same components in same order (allowing rotation)
+
+        Raises:
+            ValueError: If compare='alias' but wheel context not available
         """
         if not isinstance(other, SequenceTopologyMixin):
             return False
@@ -151,19 +157,73 @@ class SequenceTopologyMixin(ABC):
         if len(self_components) != len(other_components):
             return False
 
-        # Extract component identifiers (use statements for comparison)
-        self_statements = [comp.statement for comp in self_components]
-        other_statements = [comp.statement for comp in other_components]
+        if compare == 'alias':
+            # Compare by aliases - requires wheel context
+            self_wheel = self.get_wheel()
+            other_wheel = other.get_wheel()
 
-        # Convert to sets for same elements check
-        if set(self_statements) != set(other_statements):
-            return False
+            if not self_wheel or not other_wheel:
+                raise ValueError(
+                    "Cannot compare by alias: wheel context not available. "
+                    "Use compare='statement' or ensure cycles are connected to wheels."
+                )
 
-        # Check rotations only if sets are equal
-        if len(self_statements) <= 1:
-            return True
+            # Extract aliases from wheel context
+            self_wisdom_units = [wu for wu, _ in self_wheel.wisdom_units.all()]
+            other_wisdom_units = [wu for wu, _ in other_wheel.wisdom_units.all()]
 
-        return any(
-            self_statements == other_statements[i:] + other_statements[:i]
-            for i in range(len(other_statements))
-        )
+            self_aliases = []
+            for comp in self_components:
+                alias = None
+                for wu in self_wisdom_units:
+                    alias = comp.get_alias(wu)
+                    if alias:
+                        break
+                if not alias:
+                    raise ValueError(f"Component {comp.uid} has no alias in wheel context")
+                self_aliases.append(alias)
+
+            other_aliases = []
+            for comp in other_components:
+                alias = None
+                for wu in other_wisdom_units:
+                    alias = comp.get_alias(wu)
+                    if alias:
+                        break
+                if not alias:
+                    raise ValueError(f"Component {comp.uid} has no alias in wheel context")
+                other_aliases.append(alias)
+
+            # Convert to sets for same elements check
+            if set(self_aliases) != set(other_aliases):
+                return False
+
+            # Check rotations only if sets are equal
+            if len(self_aliases) <= 1:
+                return True
+
+            return any(
+                self_aliases == other_aliases[i:] + other_aliases[:i]
+                for i in range(len(other_aliases))
+            )
+
+        elif compare == 'statement':
+            # Compare by statements (legacy behavior)
+            self_statements = [comp.statement for comp in self_components]
+            other_statements = [comp.statement for comp in other_components]
+
+            # Convert to sets for same elements check
+            if set(self_statements) != set(other_statements):
+                return False
+
+            # Check rotations only if sets are equal
+            if len(self_statements) <= 1:
+                return True
+
+            return any(
+                self_statements == other_statements[i:] + other_statements[:i]
+                for i in range(len(other_statements))
+            )
+
+        else:
+            raise ValueError(f"Invalid compare parameter: {compare}. Must be 'alias' or 'statement'")

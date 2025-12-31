@@ -107,7 +107,9 @@ class CycleCalculator(BaseCalculator):
                     values.append(weighted_r)
 
         if not values:
-            return None
+            # Neutral fallback: non-leaf nodes return R=1.0 when no evidence
+            # (leaves return None, but Cycle is a non-leaf composite)
+            return 1.0
 
         return gm_with_zeros_and_nones_handled(values)
 

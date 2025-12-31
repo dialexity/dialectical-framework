@@ -19,6 +19,10 @@ async def test_simple_wheel():
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     wheels = await factory.build_wheel_permutations(theses=[None])
     assert wheels[0].polarity_count == 1  # Graph-native uses polarity_count instead of order
+
+    # Verify eager scoring (Feature #1)
+    assert wheels[0].score is not None, "Wheel should be scored after build"
+
     print("\n")
     print(wheels[0])
 
@@ -117,35 +121,47 @@ async def test_redefine(di_container):
     wu.a.connect(a, properties={'alias': 'A'})
     wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
 
-    # Test redefine - pass same values to test reconstruction without modification
-    # This verifies the redefine mechanism works with graph-native models
+    # Test redefine with same values - should return original (optimization)
     reasoner = di_container.polarity_reasoner()
     redefined_wu = await reasoner.redefine(
         original=wu,
-        t="Courage",  # Same as original - tests reconstruction
+        t="Courage",  # Same as original - tests optimization
         a="Fear",  # Same as original
     )
 
     # Basic assertions
     assert redefined_wu.is_complete()
 
-    # redefine creates a new WU, doesn't mutate original
-    assert wu.uid != redefined_wu.uid
+    # Optimization: redefine with same values returns original WU (same UID)
+    assert wu.uid == redefined_wu.uid, "Should return original WU when nothing changes"
 
-    # Verify all positions are set
-    assert redefined_wu.t.count() == 1
-    assert redefined_wu.t_plus.count() == 1
-    assert redefined_wu.t_minus.count() == 1
-    assert redefined_wu.a.count() == 1
-    assert redefined_wu.a_plus.count() == 1
-    assert redefined_wu.a_minus.count() == 1
+    # Test redefine with different value - should create new WU
+    redefined_wu2 = await reasoner.redefine(
+        original=wu,
+        t="Bravery",  # Different from original - should create new WU
+        a="Fear",
+    )
+
+    assert redefined_wu2.is_complete()
+    assert wu.uid != redefined_wu2.uid, "Should create new WU when components change"
+
+    # Verify all positions are set in the new WU
+    assert redefined_wu2.t.count() == 1
+    assert redefined_wu2.t_plus.count() == 1
+    assert redefined_wu2.t_minus.count() == 1
+    assert redefined_wu2.a.count() == 1
+    assert redefined_wu2.a_plus.count() == 1
+    assert redefined_wu2.a_minus.count() == 1
 
     print("\n")
     print("=== Original Graph-Native WisdomUnit ===")
     print(wu.pretty())
     print("\n")
-    print("=== Redefined Graph-Native WisdomUnit ===")
+    print("=== Redefined with Same Values (Same UID) ===")
     print(redefined_wu.pretty())
+    print("\n")
+    print("=== Redefined with Different Values (New UID) ===")
+    print(redefined_wu2.pretty())
 
 @pytest.mark.asyncio
 async def test_causality_sequencer(di_container):
@@ -220,3 +236,74 @@ async def test_causality_sequencer(di_container):
                         product *= p
                     print(f"  Transition probabilities: {trans_probs}")
                     print(f"  Product: {product:.6f}, Cycle P: {rat.probability}")
+
+@pytest.mark.asyncio
+async def test_redefine_is_dirty_optimization():
+    """Test that redefine preserves wheels when no modifications made (Feature #2)."""
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
+    wheels = await factory.build_wheel_permutations(theses=[None, None])
+
+    original_wheel_uid = wheels[0].uid
+    original_wu_uids = [wu.uid for wu, _ in wheels[0].wisdom_units.all()]
+
+    # Test 1: Empty dict - should preserve originals (first-level optimization)
+    new_wheels = await factory.redefine(modified_statement_per_alias={})
+
+    assert new_wheels[0].uid == original_wheel_uid, "Empty redefine should preserve original wheel"
+    assert len(new_wheels) == len(wheels), "Should return same number of wheels"
+
+    print("\n=== First-level is_dirty optimization test passed ===")
+    print(f"Original wheel UID: {original_wheel_uid}")
+    print(f"Returned wheel UID: {new_wheels[0].uid}")
+    print("Wheels were preserved without calling redefine()")
+
+    # Test 2: Redefine with same statements - should preserve originals (second-level optimization)
+    # Get original statements
+    wus = sorted([wu for wu, _ in wheels[0].wisdom_units.all()], key=lambda wu: wu.get_human_friendly_index())
+    original_t1_statement = wus[0].get_component("T").statement if wus[0].get_component("T") else None
+
+    if original_t1_statement:
+        # Pass the same statement - reasoner should return original WU
+        new_wheels2 = await factory.redefine(modified_statement_per_alias={"T1": original_t1_statement})
+
+        # Wheel should be preserved (second-level optimization)
+        assert new_wheels2[0].uid == original_wheel_uid, "Redefine with same statement should preserve original wheel"
+
+        # WU should be the same (reasoner returned original)
+        new_wu_uids = [wu.uid for wu, _ in new_wheels2[0].wisdom_units.all()]
+        assert new_wu_uids == original_wu_uids, "WUs should be unchanged when statement is identical"
+
+        print("\n=== Second-level is_dirty optimization test passed ===")
+        print(f"Redefined with same statement: {original_t1_statement[:50]}...")
+        print(f"WU UIDs unchanged: {new_wu_uids[0] == original_wu_uids[0]}")
+        print("Wheel and WUs were preserved without recalculating cycles")
+
+@pytest.mark.asyncio
+async def test_selective_synthesis():
+    """Test synthesizing specific WUs only (Feature #3)."""
+    factory = DialecticalReasoning.wheel_builder(text=user_message)
+    wheels = await factory.build_wheel_permutations(theses=[None, None])
+    wheel = wheels[0]
+
+    wus = [wu for wu, _ in wheel.wisdom_units.all()]
+    assert len(wus) == 2, "Should have 2 WUs"
+
+    # Synthesize only first WU
+    syntheses = await factory.calculate_syntheses(wheel=wheel, at=wus[0])
+
+    assert len(syntheses) == 1, "Should create synthesis for 1 WU only"
+
+    # Verify synthesis is connected to the correct WU
+    synthesis = syntheses[0]
+    wu_result = synthesis.wisdom_unit.get()
+    assert wu_result is not None, "Synthesis should be connected to WU"
+    connected_wu, _ = wu_result
+    assert connected_wu.uid == wus[0].uid, "Synthesis should be connected to first WU"
+
+    # Verify wheel was rescored after synthesis
+    assert wheel.score is not None, "Wheel should be rescored after synthesis"
+
+    print("\n=== Selective synthesis test passed ===")
+    print(f"Created {len(syntheses)} synthesis for 1 WU")
+    print(f"Synthesis connected to WU: {connected_wu.uid}")
+    print(f"Wheel score after synthesis: {wheel.score}")

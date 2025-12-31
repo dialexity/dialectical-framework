@@ -48,6 +48,11 @@ from dialectical_framework.validator.basic_checks import (check,
                                                           is_strict_opposition,
                                                           is_valid_opposition)
 
+# Import for type hints
+from typing import TYPE_CHECKING, Union
+if TYPE_CHECKING:
+    from gqlalchemy import Memgraph, Neo4j
+
 
 def _create_polarity_relationship(position: str, alias: str) -> PolarityRelationship:
     """
@@ -86,6 +91,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         *,
         text: str = "",
         polarity_extractor: PolarityExtractor = Provide[DI.polarity_extractor],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ):
         self._text = text
         self._wisdom_unit = None
@@ -97,6 +103,8 @@ class PolarityReasoner(HasBrain, Reloadable):
 
         self._extractor = polarity_extractor
         self._extractor.reload(text=text)
+
+        self._graph_db = graph_db
 
     @property
     def text(self) -> str:
@@ -258,8 +266,10 @@ class PolarityReasoner(HasBrain, Reloadable):
             result = manager.get()
             if not result:
                 continue
-            dc, props = result
-            alias = props.get('alias', position)
+            dc, rel = result
+            # Access alias attribute from PolarityRelationship object
+            from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
+            alias = rel.alias if isinstance(rel, PolarityRelationship) else position
             wu_dcs.append(f"{alias} = {dc.statement}")
         return {
             "computed_fields": {
@@ -581,8 +591,19 @@ class PolarityReasoner(HasBrain, Reloadable):
         # Valid field names for WisdomUnit (6 core positions only)
         valid_fields = {'t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus'}
 
+        # Map field names to POSITION constants
+        field_to_position = {
+            't': POSITION_T,
+            'a': POSITION_A,
+            't_plus': POSITION_T_PLUS,
+            't_minus': POSITION_T_MINUS,
+            'a_plus': POSITION_A_PLUS,
+            'a_minus': POSITION_A_MINUS,
+        }
+
+        # Convert keys to match POSITION_* constants
         changed: dict[str, str] = {
-            k: str(v)
+            field_to_position[k]: str(v)
             for k, v in modified_dialectical_components.items()
             if k in valid_fields
         }
@@ -978,5 +999,20 @@ class PolarityReasoner(HasBrain, Reloadable):
             else:
                 # Keep originals
                 pass
+
+        # Optimization: If ALL components have the same UIDs (nothing changed),
+        # return the original WisdomUnit instead of creating a new one.
+        # This allows wheel_builder to detect unchanged WUs by UID comparison.
+        # Compare using WheelSegment.is_same() for both T and A sides.
+        t_side_unchanged = original.segment_t().is_same(new_wu.segment_t())
+        a_side_unchanged = original.segment_a().is_same(new_wu.segment_a())
+
+        if t_side_unchanged and a_side_unchanged:
+            # Nothing changed - return original WU (same UID)
+            # Delete the new_wu we created to avoid orphaned nodes in the graph
+            if new_wu._id:
+                query = "MATCH (n) WHERE id(n) = $node_id DETACH DELETE n"
+                self._graph_db.execute(query, {"node_id": new_wu._id})
+            return original
 
         return new_wu

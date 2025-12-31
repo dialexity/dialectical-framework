@@ -90,7 +90,8 @@ class SynthesisCalculator(BaseCalculator):
                     values.append(weighted_r)
 
         if not values:
-            return None
+            # Neutral fallback: non-leaf nodes return R=1.0 when no evidence
+            return 1.0
 
         return gm_with_zeros_and_nones_handled(values)
 
