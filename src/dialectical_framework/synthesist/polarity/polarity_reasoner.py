@@ -393,20 +393,36 @@ class PolarityReasoner(HasBrain, Reloadable):
         return self.prompt_synthesis(wu)
 
     @final
-    async def _find_polarity(self, *, thesis: str | DialecticalComponentDto = None, antithesis: str | DialecticalComponentDto = None) -> tuple[DialecticalComponentDto, DialecticalComponentDto]:
+    async def _find_polarity(
+        self,
+        *,
+        thesis: str | DialecticalComponent | DialecticalComponentDto = None,
+        antithesis: str | DialecticalComponent | DialecticalComponentDto = None
+    ) -> tuple[DialecticalComponentDto, DialecticalComponentDto]:
         """
         Find polarity pair (thesis, antithesis) as DTOs.
 
+        Accepts:
+        - str: statement text
+        - DialecticalComponent: graph-native node (converts to DTO)
+        - DialecticalComponentDto: already a DTO
+
         Returns DTOs - conversion to graph happens in the calling method.
         """
+        # Helper to extract statement string from any input type
+        def get_statement(input_val):
+            if isinstance(input_val, DialecticalComponentDto):
+                return input_val.statement
+            elif isinstance(input_val, DialecticalComponent):
+                return input_val.statement  # Graph-native node
+            else:
+                return input_val  # Already a string or None
+
         if not isinstance(thesis, DialecticalComponentDto) or not isinstance(antithesis, DialecticalComponentDto):
             # Extract polarities using extractor (returns DTOs)
-            polarity = await self._extractor.extract_polarities(given = [(thesis.statement
-                        if isinstance(thesis, DialecticalComponentDto)
-                        else thesis,
-                        antithesis.statement
-                        if isinstance(antithesis, DialecticalComponentDto)
-                        else antithesis)])
+            polarity = await self._extractor.extract_polarities(
+                given=[(get_statement(thesis), get_statement(antithesis))]
+            )
             t_dto, a_dto = polarity[0]
             if isinstance(thesis, DialecticalComponentDto):
                 t_dto = thesis
@@ -421,33 +437,55 @@ class PolarityReasoner(HasBrain, Reloadable):
         return t_dto, a_dto
 
     @final
-    async def think(self, *, thesis: str | DialecticalComponentDto = None, antithesis: str | DialecticalComponentDto = None)\
-            -> WisdomUnit:
+    async def think(
+        self,
+        *,
+        thesis: str | DialecticalComponent | DialecticalComponentDto = None,
+        antithesis: str | DialecticalComponent | DialecticalComponentDto = None
+    ) -> WisdomUnit:
         """
         Core reasoning method that generates a WisdomUnit from thesis and antithesis.
 
         Args:
-            thesis: Either a string or DialecticalComponentDto
-            antithesis: Either a string or DialecticalComponentDto
+            thesis: String statement, graph-native DialecticalComponent, or DialecticalComponentDto
+            antithesis: String statement, graph-native DialecticalComponent, or DialecticalComponentDto
 
         Returns:
             Graph-native WisdomUnit persisted to the database
         """
-        # Get DTOs from extraction
-        t_dto, a_dto = await self._find_polarity(thesis=thesis, antithesis=antithesis)
+        # Handle graph-native components separately (reuse existing nodes)
+        if isinstance(thesis, DialecticalComponent) or isinstance(antithesis, DialecticalComponent):
+            # At least one input is already a graph node - handle each separately
+            if isinstance(thesis, DialecticalComponent):
+                t = thesis  # Reuse existing component node
+                t_alias = POSITION_T
+            else:
+                # Extract thesis as DTO and create new component
+                t_dto, _ = await self._find_polarity(thesis=thesis, antithesis=None)
+                t = component_from_dto(t_dto)
+                t_alias = t_dto.alias if t_dto.alias else POSITION_T
 
-        # Convert DTOs to graph components
-        t = component_from_dto(t_dto)
-        a = component_from_dto(a_dto)
+            if isinstance(antithesis, DialecticalComponent):
+                a = antithesis  # Reuse existing component node
+                a_alias = POSITION_A
+            else:
+                # Extract antithesis as DTO and create new component
+                _, a_dto = await self._find_polarity(thesis=None, antithesis=antithesis)
+                a = component_from_dto(a_dto)
+                a_alias = a_dto.alias if a_dto.alias else POSITION_A
+        else:
+            # Both are strings/DTOs - extract as pair (more efficient)
+            t_dto, a_dto = await self._find_polarity(thesis=thesis, antithesis=antithesis)
+            t = component_from_dto(t_dto)
+            a = component_from_dto(a_dto)
+            t_alias = t_dto.alias if t_dto.alias else POSITION_T
+            a_alias = a_dto.alias if a_dto.alias else POSITION_A
 
         # Create graph WisdomUnit
         wu = WisdomUnit(reasoning_mode=self._mode)
         wu.save()  # Save the WU node first
 
         # Connect components with typed relationships (validates alias at creation)
-        # If DTO has numbered alias (e.g., 'T1'), preserve it; otherwise use position name
-        t_alias = t_dto.alias if t_dto.alias else POSITION_T
-        a_alias = a_dto.alias if a_dto.alias else POSITION_A
         wu.t.connect(t, relationship=TRelationship(alias=t_alias))
         wu.a.connect(a, relationship=ARelationship(alias=a_alias))
 
@@ -560,21 +598,31 @@ class PolarityReasoner(HasBrain, Reloadable):
 
         for position in [base_pos, other_pos]:
             if changed.get(position):
-                # Create new component with modified statement
-                component = DialecticalComponent(
-                    statement=changed.get(position)
-                )
-                component.save()
+                # Check if statement actually changed
+                orig_component = original.get_component(position)
+                new_statement = changed.get(position)
 
-                # Add rationale
-                rationale = Rationale(text=f"{position} redefined.")
-                rationale.save()
-                component.rationales.connect(rationale)
+                if orig_component and orig_component.statement == new_statement:
+                    # Statement unchanged - reuse original component (keep same UID)
+                    manager = new_wu.get_relationship_manager_by_position(position)
+                    rel = _create_polarity_relationship(position, position)
+                    manager.connect(orig_component, relationship=rel)
+                else:
+                    # Statement changed - create new component with new UID
+                    component = DialecticalComponent(
+                        statement=new_statement
+                    )
+                    component.save()
 
-                # Connect to new WU with typed relationship
-                manager = new_wu.get_relationship_manager_by_position(position)
-                rel = _create_polarity_relationship(position, position)
-                manager.connect(component, relationship=rel)
+                    # Add rationale
+                    rationale = Rationale(text=f"{position} redefined.")
+                    rationale.save()
+                    component.rationales.connect(rationale)
+
+                    # Connect to new WU with typed relationship
+                    manager = new_wu.get_relationship_manager_by_position(position)
+                    rel = _create_polarity_relationship(position, position)
+                    manager.connect(component, relationship=rel)
             else:
                 # Copy from original
                 orig_component = original.get_component(position)
@@ -599,26 +647,48 @@ class PolarityReasoner(HasBrain, Reloadable):
             if not check1.valid:
                 if changed.get(base_pos) and not changed.get(other_pos):
                     # base side changed - regenerate other
+                    orig_other = original.get_component(other_pos)
                     o_dto = await self._extractor.extract_single_antithesis(thesis=base_comp.statement)
-                    o = component_from_dto(o_dto)
-                    if o.best_rationale and o.best_rationale.text:
-                        o.best_rationale.text = f"REGENERATED. {o.best_rationale.text}"
-                    manager = new_wu.get_relationship_manager_by_position(other_alias)
-                    rel = _create_polarity_relationship(other_alias, other_alias)
-                    manager.connect(o, relationship=rel)
-                    changed[other_pos] = o.statement
+
+                    # Check if regenerated statement matches original
+                    if orig_other and orig_other.statement == o_dto.statement:
+                        # Statement unchanged - reuse original component (keep same UID)
+                        manager = new_wu.get_relationship_manager_by_position(other_alias)
+                        rel = _create_polarity_relationship(other_alias, other_alias)
+                        manager.connect(orig_other, relationship=rel)
+                        changed[other_pos] = orig_other.statement
+                    else:
+                        # Statement changed - create new component
+                        o = component_from_dto(o_dto)
+                        if o.best_rationale and o.best_rationale.text:
+                            o.best_rationale.text = f"REGENERATED. {o.best_rationale.text}"
+                        manager = new_wu.get_relationship_manager_by_position(other_alias)
+                        rel = _create_polarity_relationship(other_alias, other_alias)
+                        manager.connect(o, relationship=rel)
+                        changed[other_pos] = o.statement
                     check1.valid = 1
                     check1.explanation = "Regenerated, therefore must be valid."
                 elif changed.get(other_pos) and not changed.get(base_pos):
                     # other side changed - regenerate base
+                    orig_base = original.get_component(base_pos)
                     bm_dto = await self._extractor.extract_single_antithesis(thesis=other_comp.statement)
-                    bm = component_from_dto(bm_dto)
-                    if bm.best_rationale and bm.best_rationale.text:
-                        bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
-                    manager = new_wu.get_relationship_manager_by_position(base_alias)
-                    rel = _create_polarity_relationship(base_alias, base_alias)
-                    manager.connect(bm, relationship=rel)
-                    changed[base_pos] = bm.statement
+
+                    # Check if regenerated statement matches original
+                    if orig_base and orig_base.statement == bm_dto.statement:
+                        # Statement unchanged - reuse original component (keep same UID)
+                        manager = new_wu.get_relationship_manager_by_position(base_alias)
+                        rel = _create_polarity_relationship(base_alias, base_alias)
+                        manager.connect(orig_base, relationship=rel)
+                        changed[base_pos] = orig_base.statement
+                    else:
+                        # Statement changed - create new component
+                        bm = component_from_dto(bm_dto)
+                        if bm.best_rationale and bm.best_rationale.text:
+                            bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
+                        manager = new_wu.get_relationship_manager_by_position(base_alias)
+                        rel = _create_polarity_relationship(base_alias, base_alias)
+                        manager.connect(bm, relationship=rel)
+                        changed[base_pos] = bm.statement
                     check1.valid = 1
                     check1.explanation = "Regenerated, therefore must be valid."
 
@@ -671,21 +741,31 @@ class PolarityReasoner(HasBrain, Reloadable):
             for field in [base_minus, other_plus]:
                 alias = self._field_to_alias(field)
                 if changed.get(field):
-                    # Create new component with modified statement
-                    component = DialecticalComponent(
-                        statement=changed.get(field)
-                    )
-                    component.save()
+                    # Check if statement actually changed
+                    orig_component = original.get_component(alias)
+                    new_statement = changed.get(field)
 
-                    # Add rationale
-                    rationale = Rationale(text=f"{alias} redefined.")
-                    rationale.save()
-                    component.rationales.connect(rationale)
+                    if orig_component and orig_component.statement == new_statement:
+                        # Statement unchanged - reuse original component (keep same UID)
+                        manager = new_wu.get_relationship_manager_by_position(alias)
+                        rel = _create_polarity_relationship(alias, alias)
+                        manager.connect(orig_component, relationship=rel)
+                    else:
+                        # Statement changed - create new component with new UID
+                        component = DialecticalComponent(
+                            statement=new_statement
+                        )
+                        component.save()
 
-                    # Connect to new WU with typed relationship
-                    manager = new_wu.get_relationship_manager_by_position(alias)
-                    rel = _create_polarity_relationship(alias, alias)
-                    manager.connect(component, relationship=rel)
+                        # Add rationale
+                        rationale = Rationale(text=f"{alias} redefined.")
+                        rationale.save()
+                        component.rationales.connect(rationale)
+
+                        # Connect to new WU with typed relationship
+                        manager = new_wu.get_relationship_manager_by_position(alias)
+                        rel = _create_polarity_relationship(alias, alias)
+                        manager.connect(component, relationship=rel)
                 else:
                     # Copy from original
                     orig_component = original.get_component(alias)
@@ -718,17 +798,28 @@ class PolarityReasoner(HasBrain, Reloadable):
                             if other_minus_comp:
                                 not_like_other_minus = other_minus_comp.statement
 
+                            orig_base_minus = original.get_component(base_minus_alias)
                             bm_dto = await base_negative_side_fn(
                                 base_comp.statement, not_like_other_minus
                             )
-                            bm = component_from_dto(bm_dto)
-                            assert isinstance(bm, DialecticalComponent)
-                            if bm.best_rationale and bm.best_rationale.text:
-                                bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
-                            manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
-                            rel = _create_polarity_relationship(base_minus_alias, base_minus_alias)
-                            manager.connect(bm, relationship=rel)
-                            changed[base_minus] = bm.statement
+
+                            # Check if regenerated statement matches original
+                            if orig_base_minus and orig_base_minus.statement == bm_dto.statement:
+                                # Statement unchanged - reuse original component (keep same UID)
+                                manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
+                                rel = _create_polarity_relationship(base_minus_alias, base_minus_alias)
+                                manager.connect(orig_base_minus, relationship=rel)
+                                changed[base_minus] = orig_base_minus.statement
+                            else:
+                                # Statement changed - create new component
+                                bm = component_from_dto(bm_dto)
+                                assert isinstance(bm, DialecticalComponent)
+                                if bm.best_rationale and bm.best_rationale.text:
+                                    bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
+                                manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
+                                rel = _create_polarity_relationship(base_minus_alias, base_minus_alias)
+                                manager.connect(bm, relationship=rel)
+                                changed[base_minus] = bm.statement
                             check2.valid = True
                             check2.explanation = "Regenerated, therefore must be valid."
 
@@ -763,18 +854,29 @@ class PolarityReasoner(HasBrain, Reloadable):
                             base_minus_alias = self._field_to_alias(base_minus)
                             base_minus_comp = new_wu.get_component(base_minus_alias)
 
+                            orig_other_plus = original.get_component(other_plus_alias)
                             op_dto = await other_positive_side_fn(
                                 other_comp.statement,
                                 base_minus_comp.statement,
                             )
-                            op = component_from_dto(op_dto)
-                            assert isinstance(op, DialecticalComponent)
-                            if op.best_rationale and op.best_rationale.text:
-                                op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
-                            manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
-                            rel = _create_polarity_relationship(other_plus_alias, other_plus_alias)
-                            manager.connect(op, relationship=rel)
-                            changed[other_plus] = op.statement
+
+                            # Check if regenerated statement matches original
+                            if orig_other_plus and orig_other_plus.statement == op_dto.statement:
+                                # Statement unchanged - reuse original component (keep same UID)
+                                manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
+                                rel = _create_polarity_relationship(other_plus_alias, other_plus_alias)
+                                manager.connect(orig_other_plus, relationship=rel)
+                                changed[other_plus] = orig_other_plus.statement
+                            else:
+                                # Statement changed - create new component
+                                op = component_from_dto(op_dto)
+                                assert isinstance(op, DialecticalComponent)
+                                if op.best_rationale and op.best_rationale.text:
+                                    op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
+                                manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
+                                rel = _create_polarity_relationship(other_plus_alias, other_plus_alias)
+                                manager.connect(op, relationship=rel)
+                                changed[other_plus] = op.statement
                             check3.valid = True
                             check3.explanation = "Regenerated, therefore must be valid."
                             other_plus_regenerated = True

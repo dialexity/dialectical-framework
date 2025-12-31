@@ -281,3 +281,94 @@ class Wheel(AssessableEntity):
     def __repr__(self) -> str:
         """String representation of the wheel."""
         return f"Wheel(uid={self.uid}, polarity_count={self.polarity_count if self.wisdom_units.count() > 0 else 0})"
+
+    def _print_wheel_tabular(self) -> str:
+        """
+        Print wisdom units in tabular format showing all 6 positions.
+
+        Returns:
+            Formatted string with tabular view of all wisdom units
+        """
+        try:
+            from tabulate import tabulate
+        except ImportError:
+            return "[tabulate not installed]"
+
+        positions = [
+            ("t_minus", "T-"),
+            ("t", "T"),
+            ("t_plus", "T+"),
+            ("a_plus", "A+"),
+            ("a", "A"),
+            ("a_minus", "A-"),
+        ]
+
+        # Get all wisdom units
+        wus = [wu for wu, _ in self.wisdom_units.all()]
+        if not wus:
+            return "[No wisdom units]"
+
+        # Build table: each row is a position, each column pair is (alias, statement) for a WU
+        from dialectical_framework.synthesist.reverse_engineer import _get_component_info
+
+        table = []
+        for position_attr, position_label in positions:
+            row = []
+            for wu in wus:
+                manager = getattr(wu, position_attr)
+                alias, statement, _ = _get_component_info(manager, position_label)
+                row.append(alias)
+                row.append(statement[:50] + "..." if len(statement) > 50 else statement)
+            table.append(row)
+
+        return tabulate(table, tablefmt="plain")
+
+    def pretty(self) -> str:
+        """
+        Format this Wheel for human-readable display.
+
+        Shows:
+        - T-cycle (causal chain through theses)
+        - TA-cycle (full dialectical cycle)
+        - Tabular view of all wisdom units
+        - Spiral (if present)
+
+        Returns:
+            Multi-line formatted string
+        """
+        output = []
+
+        # T-Cycle
+        t_cycle_result = self.t_cycle.get()
+        if t_cycle_result:
+            t_cycle_obj, _ = t_cycle_result
+            output.append("--- T-Cycle ---")
+            output.append(t_cycle_obj.as_str())
+            output.append("")
+
+        # TA-Cycle
+        ta_cycle_result = self.ta_cycle.get()
+        if ta_cycle_result:
+            ta_cycle_obj, _ = ta_cycle_result
+            output.append("--- TA-Cycle ---")
+            output.append(ta_cycle_obj.as_str())
+            output.append("")
+
+        # Wisdom Units (tabular)
+        output.append("--- Wisdom Units ---")
+        output.append(self._print_wheel_tabular())
+        output.append("")
+
+        # Spiral (if present)
+        spiral_result = self.spiral.get()
+        if spiral_result:
+            spiral_obj, _ = spiral_result
+            output.append("--- Spiral ---")
+            output.append(spiral_obj.as_str())
+            output.append("")
+
+        return "\n".join(output)
+
+    def __str__(self) -> str:
+        """String representation using pretty format."""
+        return self.pretty()

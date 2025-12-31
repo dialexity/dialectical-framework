@@ -6,6 +6,7 @@ from dependency_injector.wiring import Provide
 
 from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto
 from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
@@ -66,10 +67,19 @@ class WheelBuilder(SettingsAware):
         return self.__sequencer
 
     async def t_cycles(self, *, theses: list[Union[str, DialecticalComponent, None]] = None) -> list[Cycle]:
+        """
+        Generate T-cycles from provided or auto-generated theses.
+
+        Args:
+            theses: List of thesis inputs (strings, graph components, or None for auto-generation)
+
+        Returns:
+            List of Cycle objects arranged by causality sequencer
+        """
         if theses is None:
             # No theses provided, generate one automatically
-            t = await self.extractor.extract_single_thesis()
-            t.alias = ALIAS_T
+            t_dto = await self.extractor.extract_single_thesis()
+            t = component_from_dto(t_dto)  # Convert DTO → graph node
             theses = [t]
         else:
             # Handle mixed None, str, and DialecticalComponent values
@@ -83,14 +93,11 @@ class WheelBuilder(SettingsAware):
                     final_theses.append(None)  # Placeholder
                 else:
                     if isinstance(thesis, str):
-                        provided_thesis = DialecticalComponent(
-                            alias=f"{ALIAS_T}",
-                            statement=thesis,
-                        )
-                    else:  # thesis is DialecticalComponent
+                        # Create graph node from string
+                        provided_thesis = DialecticalComponent(statement=thesis)
+                        provided_thesis.save()
+                    else:  # thesis is already DialecticalComponent (graph node)
                         provided_thesis = thesis
-                    # TODO: is it ok to change the index for a given DialecticalComponent?
-                    provided_thesis.set_human_friendly_index(i + 1)
                     final_theses.append(provided_thesis)
 
             known_theses = [t.statement for t in final_theses if t is not None]
@@ -100,33 +107,32 @@ class WheelBuilder(SettingsAware):
                 if len(none_positions) == 1:
                     # Single thesis case: place at the correct original position
                     pos = none_positions[0]
-                    generated_thesis = await self.extractor.extract_single_thesis(not_like_these=known_theses)
-                    generated_thesis.alias = ALIAS_T
-                    generated_thesis.set_human_friendly_index(pos + 1)
+                    generated_thesis_dto = await self.extractor.extract_single_thesis(not_like_these=known_theses)
+                    generated_thesis = component_from_dto(generated_thesis_dto)  # Convert DTO → graph node
                     final_theses[pos] = generated_thesis
                 else:
                     # Multiple theses case - extract all missing ones at once
-                    t_deck = await self.extractor.extract_multiple_theses(count=len(none_positions),
-                                                                          not_like_these=known_theses)
-                    generated_theses = t_deck.dialectical_components
+                    t_deck_dto = await self.extractor.extract_multiple_theses(
+                        count=len(none_positions),
+                        not_like_these=known_theses
+                    )
+                    generated_thesis_dtos = t_deck_dto.dialectical_components
 
                     # Place generated theses in their correct positions
                     for i, pos in enumerate(none_positions):
-                        if i < len(generated_theses):
-                            generated_theses[i].alias = ALIAS_T
-                            generated_theses[i].set_human_friendly_index(pos + 1)
-                            final_theses[pos] = generated_theses[i]
+                        if i < len(generated_thesis_dtos):
+                            generated_thesis = component_from_dto(generated_thesis_dtos[i])  # Convert DTO → graph node
+                            final_theses[pos] = generated_thesis
 
-                    # Backfill any remaining None (it's a precaution, in case fewer were generated than requested)
+                    # Backfill any remaining None (precaution in case fewer were generated than requested)
                     for pos in none_positions:
                         if final_theses[pos] is None:
-                            generated_thesis = await self.extractor.extract_single_thesis(not_like_these=known_theses)
-                            generated_thesis.alias = ALIAS_T
-                            generated_thesis.set_human_friendly_index(pos + 1)
+                            generated_thesis_dto = await self.extractor.extract_single_thesis(not_like_these=known_theses)
+                            generated_thesis = component_from_dto(generated_thesis_dto)  # Convert DTO → graph node
                             final_theses[pos] = generated_thesis
-    
+
             theses = final_theses
-    
+
         cycles: list[Cycle] = await self.__sequencer.arrange(theses)
         return cycles
 
@@ -156,36 +162,42 @@ class WheelBuilder(SettingsAware):
                     # Regular case: search for matching thesis in tuples
                     for t in theses:
                         if isinstance(t, tuple):
-                            if isinstance(t[0], DialecticalComponent) and dc.is_same(t[0]):
-                                antithesis = t[1]
-                                break
+                            if isinstance(t[0], DialecticalComponent):
+                                # Compare by UID (graph-native components are same if UIDs match)
+                                if dc.uid == t[0].uid:
+                                    antithesis = t[1]
+                                    break
                             elif isinstance(t[0], str) and dc.statement == t[0]:
                                 antithesis = t[1]
                                 break
 
             wu = await self.reasoner.think(thesis=dc, antithesis=antithesis)
-            if not wu.t.is_same(dc) and dc.rationales:
-                wu.t.rationales.extend(dc.rationales)
-            if antithesis and not wu.a.is_same(antithesis) and antithesis.rationales:
-                wu.a.rationales.extend(antithesis.rationales)
-
-            idx = dc.get_human_friendly_index()
-            if idx:
-                wu.add_indexes_to_aliases(idx)
-
             wheel_wisdom_units.append(wu)
 
         cycles: list[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units)
 
+        # Create wheels for each TA-cycle permutation
+        # In graph-native, multiple wheels can share the same WisdomUnit nodes
+        # The different TA-cycles represent different analytical interpretations
         wheels = []
         for cycle in cycles:
-            w = Wheel(
-                # copy entities that are shared across the wheels, they should be independent
-                [wu.model_copy(deep=True) for wu in _rearrange_by_causal_sequence(wheel_wisdom_units, cycle, mutate=False)],
-                t_cycle=t_cycle.model_copy(deep=True),
-                ta_cycle=cycle,
-            )
-            w.calculate_score()
+            # Create wheel node
+            w = Wheel()
+            w.save()
+
+            # Connect wisdom units (all cycles use same WUs, different interpretations)
+            for wu in wheel_wisdom_units:
+                w.wisdom_units.connect(wu)
+
+            # Connect cycles (T-cycle is the primary path, TA-cycle is the permutation)
+            w.t_cycle.connect(t_cycle)
+            w.ta_cycle.connect(cycle)
+
+            # Set human-friendly indices on wisdom units if multiple WUs
+            if len(wheel_wisdom_units) > 1:
+                for idx, wu in enumerate(wheel_wisdom_units, start=1):
+                    wu.set_human_friendly_index(idx)
+
             wheels.append(w)
 
         # Save results for reference
@@ -196,166 +208,193 @@ class WheelBuilder(SettingsAware):
         self,
         *,
         wheel: Wheel,
-        at: WheelSegmentReference | list[WheelSegmentReference] = None,
-    ):
-        if wheel not in self.wheel_permutations:
-            raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
+    ) -> list[Synthesis]:
+        """
+        Calculate synthesis for all wisdom units in the wheel.
 
-        wisdom_units = []
+        For each WisdomUnit in the wheel:
+        1. Calls reasoner.find_synthesis() to get S+ and S- components
+        2. Creates Synthesis node
+        3. Connects S+ and S- components to Synthesis
+        4. Connects Synthesis to WisdomUnit
 
-        if at is None:
-            # Calculate for each
-            wisdom_units = wheel.wisdom_units
-        elif isinstance(at, list):
-            # Calculate for some
-            for ref in at:
-                wisdom_units.append(wheel.wisdom_unit_at(ref))
-        else:
-            # Calculate for one
-            wisdom_units.append(wheel.wisdom_unit_at(at))
+        Args:
+            wheel: The Wheel containing wisdom units to synthesize
 
-        for wu in wisdom_units:
-            ss_deck_dto = await self.reasoner.find_synthesis(wu)
-            ss_deck = DialecticalComponentsDeck(dialectical_components=map_list_from_dto(ss_deck_dto.dialectical_components, DialecticalComponent))
-            wu.synthesis = Synthesis(
-                t_plus=ss_deck.get_by_alias(ALIAS_S_PLUS),
-                t_minus=ss_deck.get_by_alias(ALIAS_S_MINUS),
+        Returns:
+            List of created Synthesis nodes
+
+        Example:
+            syntheses = await wheel_builder.calculate_syntheses(wheel=wheel)
+            # Each WU now has synthesis connected
+        """
+        syntheses: list[Synthesis] = []
+
+        # Iterate through all wisdom units
+        for wu, _ in wheel.wisdom_units.all():
+            # Call reasoner to find synthesis components (returns DTO)
+            synthesis_deck_dto = await self.reasoner.find_synthesis(wu)
+
+            # Convert DTOs to graph components
+            if len(synthesis_deck_dto.dialectical_components) < 2:
+                # Skip if we don't have both S+ and S-
+                continue
+
+            # Extract S+ and S- from the deck (should have exactly 2 components)
+            synthesis_components = [component_from_dto(dto) for dto in synthesis_deck_dto.dialectical_components]
+
+            # Identify S+ and S- by alias
+            s_plus_dto = synthesis_deck_dto.get_by_alias("S+")
+            s_minus_dto = synthesis_deck_dto.get_by_alias("S-")
+
+            s_plus_comp = component_from_dto(s_plus_dto)
+            s_minus_comp = component_from_dto(s_minus_dto)
+
+            # Create Synthesis node
+            synthesis = Synthesis()
+            synthesis.save()
+
+            # Connect S+ and S- to Synthesis with appropriate relationship types
+            from dialectical_framework.graph.relationships.polarity_relationship import (
+                SPlusRelationship,
+                SMinusRelationship,
             )
-            idx = wu.t.get_human_friendly_index()
-            if idx:
-                wu.synthesis.add_indexes_to_aliases(idx)
 
-        wheel.calculate_score()
+            synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias="S+"))
+            synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias="S-"))
+
+            # Connect Synthesis to WisdomUnit
+            synthesis.wisdom_unit.connect(wu)
+
+            # Set human-friendly index if WU has one
+            wu_index = wu.get_human_friendly_index()
+            if wu_index > 0:
+                synthesis.set_human_friendly_index(wu_index)
+
+            syntheses.append(synthesis)
+
+        return syntheses
 
 
     async def redefine(
         self, *, modified_statement_per_alias: Dict[str, str]
     ) -> list[Wheel]:
         """
-        We can give component statements by alias, e.g., T1 = "New thesis 1", A2+ = "New positive side of antithesis 2"
+        Redefine component statements by alias.
 
-        Returns a list of wheels with modified statements (updating the internal state)
+        Creates new wheels with redefined wisdom units. The original wheels
+        and wisdom units are not modified.
+
+        Args:
+            modified_statement_per_alias: Map from alias to new statement.
+                Examples:
+                - "T1": "New thesis 1"
+                - "A2+": "New positive side of antithesis 2"
+                - "T": "New thesis" (for single WU wheels)
+
+        Returns:
+            List of new wheels with redefined wisdom units
+
+        Example:
+            new_wheels = await wheel_builder.redefine(
+                modified_statement_per_alias={
+                    "T1": "Remote work increases autonomy",
+                    "A2+": "Async communication enables deep work"
+                }
+            )
         """
-        if not self.wheel_permutations:
-            raise ValueError("No wheels have been built yet")
-        if modified_statement_per_alias:
-            wheels: list[Wheel] = []
-            for wheel in self.wheel_permutations:
-                new_wisdom_units: list[WisdomUnit] = []
-                is_dirty = False
-                for wu in wheel.wisdom_units:
-                    modifications = {}
-                    for field, alias in wu.field_to_alias.items():
-                        dc = wu.get(alias)
-                        if not dc:
-                            continue
-                        if dc.alias in modified_statement_per_alias:
-                            modifications[field] = modified_statement_per_alias[
-                                dc.alias
-                            ]
-                    if modifications:
-                        is_dirty = True
-                        wu_redefined = await self.reasoner.redefine(
-                            original=wu, **modifications
-                        )
-                        idx = wu.t.get_human_friendly_index()
-                        if idx:
-                            wu_redefined.add_indexes_to_aliases(idx)
-                    else:
-                        wu_redefined = wu
-                    new_wisdom_units.append(wu_redefined)
-                if not is_dirty:
-                    # No modifications were made, so preserve the original wheel
-                    wheels.append(wheel)
+        import re
+
+        if not self.__wheels:
+            raise ValueError("No wheels available to redefine. Call build_wheel_permutations() first.")
+
+        # Parse aliases to extract position and index
+        # Examples: "T1" → (1, "t"), "A2+" → (2, "a_plus"), "T" → (0, "t")
+        def parse_alias(alias: str) -> tuple[int, str]:
+            """Parse alias to extract WU index and position name."""
+            # Extract numeric index if present
+            match = re.search(r"(\d+)", alias)
+            wu_index = int(match.group(1)) if match else 0
+
+            # Extract base position (strip numbers)
+            base_alias = re.sub(r"\d+", "", alias)
+
+            # Map alias to position name
+            alias_to_position = {
+                "T": "t",
+                "T+": "t_plus",
+                "T-": "t_minus",
+                "A": "a",
+                "A+": "a_plus",
+                "A-": "a_minus",
+            }
+
+            position = alias_to_position.get(base_alias)
+            if not position:
+                raise ValueError(f"Invalid alias: {alias}. Expected format: T, T+, T-, A, A+, A-, or with numbers (T1, A2+, etc.)")
+
+            return wu_index, position
+
+        # Group modifications by WU index
+        modifications_by_wu: Dict[int, Dict[str, str]] = {}
+        for alias, statement in modified_statement_per_alias.items():
+            wu_index, position = parse_alias(alias)
+            if wu_index not in modifications_by_wu:
+                modifications_by_wu[wu_index] = {}
+            modifications_by_wu[wu_index][position] = statement
+
+        # Create new wheels with redefined WUs
+        new_wheels: list[Wheel] = []
+
+        for wheel in self.__wheels:
+            # Get wisdom units from this wheel (ordered by their indices)
+            wus = sorted(
+                [wu for wu, _ in wheel.wisdom_units.all()],
+                key=lambda wu: wu.get_human_friendly_index()
+            )
+
+            # Redefine affected WUs
+            new_wus: list[WisdomUnit] = []
+            for wu in wus:
+                wu_index = wu.get_human_friendly_index()
+
+                if wu_index in modifications_by_wu:
+                    # Redefine this WU with new statements
+                    kwargs = modifications_by_wu[wu_index]
+                    new_wu = await self.reasoner.redefine(original=wu, **kwargs)
+                    new_wus.append(new_wu)
                 else:
-                    # Recalculate cycles
-                    analyst = self.__sequencer
+                    # Keep original WU (no changes)
+                    new_wus.append(wu)
 
-                    theses: list[str] = []
-                    for nwu in new_wisdom_units:
-                        if nwu.t.alias.startswith("T"):
-                            theses.append(nwu.t.statement)
-                        else:
-                            theses.append(nwu.a.statement)
+            # Recalculate cycles since components have changed
+            # Extract thesis components from redefined WUs
+            thesis_components = [wu.get_component(POSITION_T) for wu in new_wus if wu.get_component(POSITION_T)]
 
-                    t_cycles: list[Cycle] = await analyst.arrange(theses)
-                    # TODO: we should do this for each t_cycle, not the first one only. Refactor
-                    t_cycle = t_cycles[0]
+            # Recalculate T-cycle (thesis-only causal chain)
+            new_t_cycles = await self.sequencer.arrange(thesis_components)
+            new_t_cycle = new_t_cycles[0] if new_t_cycles else None  # Use highest probability
 
-                    wheel_wisdom_units = []
-                    for dc in t_cycle.dialectical_components:
-                        for nwu in new_wisdom_units:
-                            if dc.alias in nwu.t.alias:
-                                wheel_wisdom_units.append(nwu)
-                            elif dc.alias in nwu.a.alias:
-                                wheel_wisdom_units.append(
-                                    nwu.swap_segments(mutate=True)
-                                )
+            # Recalculate TA-cycle (full dialectical cycle)
+            new_ta_cycles = await self.sequencer.arrange(new_wus)
+            new_ta_cycle = new_ta_cycles[0] if new_ta_cycles else None  # Use highest probability
 
-                    cycles: list[Cycle] = await analyst.arrange(wheel_wisdom_units)
+            # Create new wheel with redefined WUs and recalculated cycles
+            new_wheel = Wheel()
+            new_wheel.save()
 
-                    for cycle in cycles:
-                        w = Wheel(
-                            _rearrange_by_causal_sequence(
-                                wheel_wisdom_units, cycle, mutate=False
-                            ),
-                            t_cycle=t_cycle,
-                            ta_cycle=cycle,
-                        )
-                        wheels.append(w)
-            self.__wheels = wheels
+            # Connect wisdom units
+            for wu in new_wus:
+                new_wheel.wisdom_units.connect(wu)
 
-        for wheel in self.wheel_permutations:
-            wheel.calculate_score()
+            # Connect recalculated cycles
+            if new_t_cycle:
+                new_wheel.t_cycle.connect(new_t_cycle)
+            if new_ta_cycle:
+                new_wheel.ta_cycle.connect(new_ta_cycle)
 
-        return self.wheel_permutations
+            new_wheels.append(new_wheel)
 
-
-def _rearrange_by_causal_sequence(
-    wisdom_units: list[WisdomUnit], cycle: Cycle, mutate: bool = True
-) -> list[WisdomUnit]:
-    """
-    We expect the cycle to be on the middle ring where theses and antitheses reside.
-    This way we can swap the wisdom unit oppositions if necessary.
-    """
-    all_aliases = []
-    if cycle.causality_direction == "clockwise":
-        for dc in cycle.dialectical_components:
-            all_aliases.append(dc.alias)
-    else:
-        for dc in reversed(cycle.dialectical_components):
-            all_aliases.append(dc.alias)
-
-    unique_aliases = dict.fromkeys(all_aliases)
-
-    if len(unique_aliases) != 2 * len(wisdom_units):
-        wu_aliases = [wu.t.alias for wu in wisdom_units] + [
-            wu.a.alias for wu in wisdom_units
-        ]
-        raise ValueError(
-            f"Not all aliases are present in the causal sequence. wisdom_unit_aliases={wu_aliases}, cycle_aliases={all_aliases}"
-        )
-
-    wu_sorted = []
-    wu_processed = []
-    for alias in unique_aliases:
-        for wu in wisdom_units:
-            if any(item is wu for item in wu_processed):
-                continue
-            if wu.t.alias == alias:
-                wu_sorted.append(wu)
-                wu_processed.append(wu)
-                break
-            if wu.a.alias == alias:
-                wu_sorted.append(wu.swap_segments(mutate=mutate))
-                wu_processed.append(wu)
-                break
-
-    if len(wu_sorted) != len(wisdom_units):
-        raise ValueError("Not all wisdom units were mapped in the causal sequence")
-
-    if mutate:
-        wisdom_units[:] = wu_sorted
-        return wisdom_units
-    else:
-        return wu_sorted
+        # Update internal wheels list
+        self.__wheels = new_wheels
+        return new_wheels

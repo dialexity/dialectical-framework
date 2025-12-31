@@ -11,11 +11,43 @@ from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.utils.extend_tpl import extend_tpl
 
-# Legacy domain imports - TODO: migrate to graph-native when refactoring wheel_builder
+# Graph-native imports
 if TYPE_CHECKING:
-    from dialectical_framework.domain.cycle import Cycle
-    from dialectical_framework.domain.wheel import Wheel
-    from dialectical_framework.domain.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.relationship_manager import BoundRelationshipManager
+
+from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
+
+
+def _get_component_info(manager: BoundRelationshipManager, position_name: str) -> tuple[str, str, str]:
+    """
+    Extract component information from a relationship manager.
+
+    Returns:
+        (alias, statement, rationale_text) tuple
+    """
+    result = manager.get()
+    if not result:
+        return (position_name, "N/A", "N/A")
+
+    component, rel = result
+
+    # Get alias from relationship edge
+    alias = position_name  # Default
+    if isinstance(rel, PolarityRelationship):
+        alias = rel.alias
+
+    # Get statement from component
+    statement = component.statement
+
+    # Get rationale from component
+    rationale_result = component.rationales.get()
+    rationale_text = rationale_result[0].text if rationale_result else "N/A"
+
+    return (alias, statement, rationale_text)
 
 
 # TODO: reuse the prompts from the reasoners?
@@ -308,32 +340,42 @@ class ReverseEngineer:
             _wisdom_units_grouped_by_reasoning_mode(wisdom_units)
         )
         for mode, wisdom_units in wus.items():
-            theses = [
-                [
-                    f"### Thesis {index + 1} ({wu.t.alias})",
-                    f"Alias: {wu.t.alias}",
-                    f"Statement: {wu.t.statement}",
-                    f"Explanation: {wu.t.best_rationale.text if wu.t.best_rationale else 'N/A'}",
-                ]
-                for index, wu in enumerate(wisdom_units)
-            ]
-            wu_lists = [
-                [
-                    f"### Wisdom Unit for {wu.t.alias}",
-                    f"{wu.t.alias} = {wu.t.statement}",
-                    f"{wu.a.alias} = {wu.a.statement}",
-                    f"{wu.a.alias} explanation: {wu.a.best_rationale.text if wu.a.best_rationale else 'N/A'}",
-                    f"{wu.t_minus.alias} = {wu.t_minus.statement}",
-                    f"{wu.t_minus.alias} explanation: {wu.t_minus.best_rationale.text if wu.t_minus.best_rationale else 'N/A'}",
-                    f"{wu.t_plus.alias} = {wu.t_plus.statement}",
-                    f"{wu.t_plus.alias} explanation: {wu.t_plus.best_rationale.text if wu.t_plus.best_rationale else 'N/A'}",
-                    f"{wu.a_plus.alias} = {wu.a_plus.statement}",
-                    f"{wu.a_plus.alias} explanation: {wu.a_plus.best_rationale.text if wu.a_plus.best_rationale else 'N/A'}",
-                    f"{wu.a_minus.alias} = {wu.a_minus.statement}",
-                    f"{wu.a_minus.alias} explanation: {wu.a_minus.best_rationale.text if wu.a_minus.best_rationale else 'N/A'}",
-                ]
-                for wu in wisdom_units
-            ]
+            # Extract component info for all WUs using graph-native helper
+            theses = []
+            wu_lists = []
+
+            for index, wu in enumerate(wisdom_units):
+                # Get T component info
+                t_alias, t_statement, t_rationale = _get_component_info(wu.t, 'T')
+
+                theses.append([
+                    f"### Thesis {index + 1} ({t_alias})",
+                    f"Alias: {t_alias}",
+                    f"Statement: {t_statement}",
+                    f"Explanation: {t_rationale}",
+                ])
+
+                # Get all component info for this WU
+                a_alias, a_statement, a_rationale = _get_component_info(wu.a, 'A')
+                tm_alias, tm_statement, tm_rationale = _get_component_info(wu.t_minus, 'T-')
+                tp_alias, tp_statement, tp_rationale = _get_component_info(wu.t_plus, 'T+')
+                ap_alias, ap_statement, ap_rationale = _get_component_info(wu.a_plus, 'A+')
+                am_alias, am_statement, am_rationale = _get_component_info(wu.a_minus, 'A-')
+
+                wu_lists.append([
+                    f"### Wisdom Unit for {t_alias}",
+                    f"{t_alias} = {t_statement}",
+                    f"{a_alias} = {a_statement}",
+                    f"{a_alias} explanation: {a_rationale}",
+                    f"{tm_alias} = {tm_statement}",
+                    f"{tm_alias} explanation: {tm_rationale}",
+                    f"{tp_alias} = {tp_statement}",
+                    f"{tp_alias} explanation: {tp_rationale}",
+                    f"{ap_alias} = {ap_statement}",
+                    f"{ap_alias} explanation: {ap_rationale}",
+                    f"{am_alias} = {am_statement}",
+                    f"{am_alias} explanation: {am_rationale}",
+                ])
 
             if mode == DialecticalReasoningMode.MAJOR_TENSION:
                 wu_messages = reverse_engineer.prompt_find_wisdom_units__major_tension(

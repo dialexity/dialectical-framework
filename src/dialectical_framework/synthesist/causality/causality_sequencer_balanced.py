@@ -464,9 +464,17 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
                 cycles.append(cycle)
 
-        # Sort by score (TaroRank computed property)
-        # Note: This triggers scoring calculation if needed
-        cycles.sort(key=lambda c: c.score or 0.0, reverse=True)
+        # Sort by rationale probability (competitive strength)
+        # The normalized probability represents how likely this cycle is relative to alternatives
+        def get_cycle_priority(cycle: Cycle) -> float:
+            """Get cycle's competitive probability from its rationale."""
+            rationales = list(cycle.rationales.all())
+            if rationales:
+                rat, _ = rationales[0]
+                return rat.probability or 0.0
+            return 0.0
+
+        cycles.sort(key=get_cycle_priority, reverse=True)
         return cycles
 
     @staticmethod
