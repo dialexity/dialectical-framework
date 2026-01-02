@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from dependency_injector.wiring import Provide
 from mirascope import Messages, prompt_template
 
@@ -5,7 +9,9 @@ from dialectical_framework.enums.di import DI
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
-from dialectical_framework.domain.wisdom_unit import WisdomUnit
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
 class ReasonFast(PolarityReasoner):
