@@ -99,18 +99,3 @@ async def test_wheel_acre_reciprocal():
 
     print("\n")
     print(wheels[0])
-
-
-@pytest.mark.asyncio
-@observe()
-@pytest.mark.parametrize("number_of_thoughts", [
-    1,
-    2,
-    3,
-    4,
-])
-async def test_find_theses(number_of_thoughts):
-    factory = DialecticalReasoning.wheel_builder(text=user_message)
-    theses_deck = await factory.extractor.extract_multiple_theses(count=number_of_thoughts)
-    theses = [dc.statement for dc in theses_deck.dialectical_components]
-    print("\n".join(theses))

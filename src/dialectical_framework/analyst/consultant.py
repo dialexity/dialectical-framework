@@ -1,10 +1,14 @@
-from abc import ABC, abstractmethod
-from typing import Optional
+from __future__ import annotations
 
-from dialectical_framework.domain.transition import Transition
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.nodes.wheel import Wheel
+
 from dialectical_framework.brain import Brain
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.domain.wheel import Wheel
 
 
 class Consultant(ABC, HasBrain):
