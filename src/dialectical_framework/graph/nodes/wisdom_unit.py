@@ -59,6 +59,12 @@ class WisdomUnit(AssessableEntity):
     providing automatic validation and runtime checks.
     """
 
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+        self._cached_segment_t: Optional[WheelSegment] = None
+        self._cached_segment_a: Optional[WheelSegment] = None
+
+
     reasoning_mode: Optional[str] = None
 
     # Declarative relationships with specific polarity relationship types
@@ -159,36 +165,20 @@ class WisdomUnit(AssessableEntity):
     def segment_t(self) -> WheelSegment:
         """
         Get the T-side segment as a WheelSegment window.
-
-        Returns:
-            WheelSegment providing access to T, T+, T- relationships
-
-        Example:
-            wu = WisdomUnit(...)
-            t_seg = wu.segment_t()
-            t_comp = t_seg.t.get()  # Get T component
-            t_plus_comps = [c for c, _ in t_seg.t_plus.all()]  # Get T+ components
-            t_minus_comps = [c for c, _ in t_seg.t_minus.all()]  # Get T- components
         """
-        from dialectical_framework.graph.wheel_segment import WheelSegment
-        return WheelSegment(self, 'T')
+        if self._cached_segment_t is None:
+            from dialectical_framework.graph.wheel_segment import WheelSegment
+            self._cached_segment_t = WheelSegment(self, 'T')
+        return self._cached_segment_t
 
     def segment_a(self) -> WheelSegment:
         """
         Get the A-side segment as a WheelSegment window.
-
-        Returns:
-            WheelSegment providing access to A, A+, A- relationships
-
-        Example:
-            wu = WisdomUnit(...)
-            a_seg = wu.segment_a()
-            a_comp = a_seg.t.get()  # Get A component (using 't' property)
-            a_plus_comps = [c for c, _ in a_seg.t_plus.all()]  # Get A+ components
-            a_minus_comps = [c for c, _ in a_seg.t_minus.all()]  # Get A- components
         """
-        from dialectical_framework.graph.wheel_segment import WheelSegment
-        return WheelSegment(self, 'A')
+        if self._cached_segment_a is None:
+            from dialectical_framework.graph.wheel_segment import WheelSegment
+            self._cached_segment_a = WheelSegment(self, 'A')
+        return self._cached_segment_a
 
     def get_relationship_manager_by_position(self, position: str) -> BoundRelationshipManager[DialecticalComponent]:
         """

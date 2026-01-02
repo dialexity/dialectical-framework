@@ -805,28 +805,28 @@ def test_wheel_segment_get_component_by_alias():
     t_seg = wu.segment_t()
 
     # Find T-side components by alias
-    found_t = t_seg.get_component_by_alias('T1')
+    found_t = t_seg.get_component('T1')
     assert found_t is not None
     assert found_t.uid == t_comp.uid
 
-    found_t_plus = t_seg.get_component_by_alias('T1+')
+    found_t_plus = t_seg.get_component('T1+')
     assert found_t_plus is not None
     assert found_t_plus.uid == t_plus_comp.uid
 
     # A-side component should not be found in T-side segment
-    found_a = t_seg.get_component_by_alias('A1')
+    found_a = t_seg.get_component('A1')
     assert found_a is None
 
     # Get A-side segment
     a_seg = wu.segment_a()
 
     # Find A-side component by alias
-    found_a = a_seg.get_component_by_alias('A1')
+    found_a = a_seg.get_component('A1')
     assert found_a is not None
     assert found_a.uid == a_comp.uid
 
     # T-side component should not be found in A-side segment
-    found_t = a_seg.get_component_by_alias('T1')
+    found_t = a_seg.get_component('T1')
     assert found_t is None
 
     print("✓ WheelSegment.get_component_by_alias() filters by side correctly")

@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.relationship_manager import BoundRelationshipManager
+    from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
+
+from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 
 
 class WheelSegment:
@@ -40,11 +43,84 @@ class WheelSegment:
 
         self._wisdom_unit = wisdom_unit
         self._side = side
+        self._opposite: Optional[WheelSegment] = None
+        self._polar_pair: Optional[WheelSegmentPolarPair] = None
 
     @property
     def wisdom_unit(self) -> WisdomUnit:
         """Get the WisdomUnit containing this segment."""
         return self._wisdom_unit
+
+    @property
+    def opposite(self) -> WheelSegment:
+        """
+        Get the opposite WheelSegment (the other side of the same wisdom_unit).
+
+        For T-side segments, returns the A-side segment.
+        For A-side segments, returns the T-side segment.
+
+        The opposite segment is constructed lazily and cached for reuse.
+
+        Example:
+            t_seg = wu.extract_segment_t()
+            a_seg = t_seg.opposite  # Get the A-side segment
+            assert a_seg.opposite is t_seg  # Returns the same T-side instance
+        """
+        if self._opposite is None:
+            opposite_side: Literal["T", "A"] = "A" if self._side == "T" else "T"
+            self._opposite = WheelSegment(self._wisdom_unit, opposite_side)
+            # Link back to ensure both sides share the same instances
+            self._opposite._opposite = self
+        return self._opposite
+
+    @property
+    def polar_pair(self) -> WheelSegmentPolarPair:
+        """
+        Get a WheelSegmentPolarPair view of this segment's wisdom unit.
+
+        The pair is lazily created and cached. The same instance is shared
+        between this segment and its opposite. Calling swap() on the returned
+        pair will mutate it, affecting all subsequent accesses from both sides.
+
+        The pair is always created in "normal" polarity initially and reuses
+        the existing WheelSegment instances.
+
+        Example:
+            t_seg = wu.extract_segment_t()
+            a_seg = wu.extract_segment_a()
+
+            pair1 = t_seg.as_pair
+            pair2 = a_seg.as_pair
+            assert pair1 is pair2  # Same instance!
+
+            pair1.swap()  # Mutates the shared instance
+            assert t_seg.as_pair.polarity == "swapped"
+            assert a_seg.as_pair.polarity == "swapped"
+        """
+        if self._polar_pair is None:
+            # Check if opposite segment already has a pair
+            opposite_seg = self.opposite
+            if opposite_seg._polar_pair is not None:
+                # Reuse the existing pair from opposite
+                self._polar_pair = opposite_seg._polar_pair
+            else:
+                # Import here to avoid circular dependency
+                from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
+
+                # Create pair with existing segments
+                if self._side == "T":
+                    self._polar_pair = WheelSegmentPolarPair(
+                        self._wisdom_unit, "normal", t_segment=self, a_segment=opposite_seg
+                    )
+                else:
+                    self._polar_pair = WheelSegmentPolarPair(
+                        self._wisdom_unit, "normal", t_segment=opposite_seg, a_segment=self
+                    )
+
+                # Cache on opposite segment too
+                opposite_seg._polar_pair = self._polar_pair
+
+        return self._polar_pair
 
     @property
     def side(self) -> Literal["T", "A"]:
@@ -96,7 +172,7 @@ class WheelSegment:
         """
         return self._wisdom_unit.t_minus if self._side == 'T' else self._wisdom_unit.a_minus
 
-    def get_component_by_alias(self, alias: str) -> Optional[DialecticalComponent]:
+    def get_component(self, alias: str) -> Optional[DialecticalComponent]:
         """
         Find a component within this segment by its alias.
 
@@ -111,24 +187,24 @@ class WheelSegment:
 
         Example:
             t_seg = wu.extract_segment_t()
-            t_seg.get_component_by_alias("T1")   # Returns T component if found
-            t_seg.get_component_by_alias("A1")   # Returns None (not in this segment)
+            t_seg.get_component("T1")   # Returns T component if found
+            t_seg.get_component("A1")   # Returns None (not in this segment)
         """
-        # Collect all components in this segment using relationship managers
-        segment_components = []
-
-        # Add t component
+        # Check t component (base position)
         t_result = self.t.get()
         if t_result:
-            segment_components.append(t_result[0])
+            comp, rel = t_result
+            if isinstance(rel, PolarityRelationship) and rel.alias == alias:
+                return comp
 
-        # Add t_plus and t_minus components
-        segment_components.extend([comp for comp, _ in self.t_plus.all()])
-        segment_components.extend([comp for comp, _ in self.t_minus.all()])
+        # Check t_plus components
+        for comp, rel in self.t_plus.get():
+            if isinstance(rel, PolarityRelationship) and rel.alias == alias:
+                return comp
 
-        # Search for matching alias
-        for comp in segment_components:
-            if comp.get_alias(self._wisdom_unit) == alias:
+        # Check t_minus components
+        for comp, rel in self.t_minus.get():
+            if isinstance(rel, PolarityRelationship) and rel.alias == alias:
                 return comp
 
         return None
@@ -190,7 +266,7 @@ class WheelSegment:
         """
         if isinstance(key, str):
             # Check by alias
-            return self.get_component_by_alias(key) is not None
+            return self.get_component(key) is not None
         else:
             # Check by component (DialecticalComponent)
             # Search all components in this segment
