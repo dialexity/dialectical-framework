@@ -31,7 +31,7 @@ class CausalitySequencerRealistic(CausalitySequencerBalanced):
     )
     def prompt_assess_multiple_sequences(
         self, *, sequences: list[str]
-    ) -> Messages.Type: ...
+    ) -> "Messages.Type": ...
 
     @prompt_template(
         """
@@ -53,4 +53,4 @@ class CausalitySequencerRealistic(CausalitySequencerBalanced):
         </formatting>
         """
     )
-    def prompt_assess_single_sequence(self, *, sequence: str) -> Messages.Type: ...
+    def prompt_assess_single_sequence(self, *, sequence: str) -> "Messages.Type": ...

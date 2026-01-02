@@ -121,7 +121,7 @@ class ReasonFast(PolarityReasoner):
         Output the dialectical components. Compose the explanations how they were derived in the passive voice, but don't mention any special denotations such as "T", "T+", "A-", etc. in them.
         """
     )
-    def prompt_next(self, wu_so_far: WisdomUnit, config: Settings = Provide[DI.settings]) -> Messages.Type:
+    def prompt_next(self, wu_so_far: WisdomUnit, config: Settings = Provide[DI.settings]) -> "Messages.Type":
         assistant_msg = "Ok, will do, any additional instructions?"
         t_result = wu_so_far.t.get()
         a_result = wu_so_far.a.get()

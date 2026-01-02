@@ -37,7 +37,7 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         {rule_out}
         """
     )
-    def prompt_single_antithesis(self, *, thesis: str, not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_single_antithesis(self, *, thesis: str, not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:
@@ -83,7 +83,7 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         {rule_out}
         """
     )
-    def prompt_multiple_antitheses(self, *, theses: list[str], not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_multiple_antitheses(self, *, theses: list[str], not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:

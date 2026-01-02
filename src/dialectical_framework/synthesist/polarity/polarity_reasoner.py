@@ -146,7 +146,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         thesis: str | DialecticalComponent,
         not_like_this: str | DialecticalComponent = "",
         config: Settings = Provide[DI.settings],
-    ) -> Messages.Type:
+    ) -> "Messages.Type":
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         if isinstance(not_like_this, DialecticalComponent):
@@ -164,7 +164,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         self,
         antithesis: str | DialecticalComponent,
         not_like_this: str | DialecticalComponent = "",
-    ) -> Messages.Type:
+    ) -> "Messages.Type":
         tpl: list[BaseMessageParam] = self.prompt_thesis_negative_side(
             antithesis, not_like_this
         )
@@ -199,7 +199,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         thesis: str | DialecticalComponent,
         antithesis_negative: str | DialecticalComponent,
         config: Settings = Provide[DI.settings],
-    ) -> Messages.Type:
+    ) -> "Messages.Type":
         if isinstance(thesis, DialecticalComponent):
             thesis = thesis.statement
         if isinstance(antithesis_negative, DialecticalComponent):
@@ -217,7 +217,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         self,
         antithesis: str | DialecticalComponent,
         thesis_negative: str | DialecticalComponent,
-    ) -> Messages.Type:
+    ) -> "Messages.Type":
         tpl: list[BaseMessageParam] = self.prompt_thesis_positive_side(
             antithesis, thesis_negative
         )
@@ -255,7 +255,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         Output the dialectical components S+ and S-. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation. To the explanation add a concrete real life example.
         """
     )
-    def prompt_synthesis(self, wisdom_unit: WisdomUnit) -> Messages.Type:
+    def prompt_synthesis(self, wisdom_unit: WisdomUnit) -> "Messages.Type":
         tpl = ReverseEngineer.till_wisdom_units(
             wisdom_units=[wisdom_unit], text=self._text
         )
@@ -279,7 +279,7 @@ class PolarityReasoner(HasBrain, Reloadable):
         }
 
     @prompt_template()
-    def prompt_next(self, wu_so_far: WisdomUnit) -> Messages.Type:
+    def prompt_next(self, wu_so_far: WisdomUnit) -> "Messages.Type":
         """
         Raises:
             ValueError: If the wisdom unit is incorrect.

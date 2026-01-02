@@ -22,7 +22,7 @@ def is_yes_parser(resp: CallResponse) -> bool:
     Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
     """
 )
-def is_valid_opposition(antithesis: str, thesis: str) -> Messages.Type: ...
+def is_valid_opposition(antithesis: str, thesis: str) -> "Messages.Type": ...
 
 
 @prompt_template(
@@ -36,7 +36,7 @@ def is_valid_opposition(antithesis: str, thesis: str) -> Messages.Type: ...
     Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
     """
 )
-def is_strict_opposition(opposition: str, statement: str) -> Messages.Type: ...
+def is_strict_opposition(opposition: str, statement: str) -> "Messages.Type": ...
 
 
 @prompt_template(
@@ -46,7 +46,7 @@ def is_strict_opposition(opposition: str, statement: str) -> Messages.Type: ...
     Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
     """
 )
-def is_negative_side(negative_side: str, statement: str) -> Messages.Type: ...
+def is_negative_side(negative_side: str, statement: str) -> "Messages.Type": ...
 
 
 @prompt_template(
@@ -56,12 +56,12 @@ def is_negative_side(negative_side: str, statement: str) -> Messages.Type: ...
     Start answering with YES or NO. If NO, then provide a correct example. Explain your answer.
     """
 )
-def is_positive_side(positive_side: str, statement: str) -> Messages.Type: ...
+def is_positive_side(positive_side: str, statement: str) -> "Messages.Type": ...
 
 
 @with_langfuse()
 def check(
-    func: Callable[[str, str], Messages.Type],
+    func: Callable[[str, str], "Messages.Type"],
     reasoner,
     statement1: str,
     statement2: str,

@@ -51,7 +51,7 @@ class ReasonFastPolarizedConflict(ReasonFastAndSimple):
         </formatting>
         """
     )
-    def prompt_next(self, wu_so_far: WisdomUnit, config: Settings = Provide[DI.settings]) -> Messages.Type:
+    def prompt_next(self, wu_so_far: WisdomUnit, config: Settings = Provide[DI.settings]) -> "Messages.Type":
         assistant_msg = "Ok, will do, any additional instructions?"
         t_result = wu_so_far.t.get()
         a_result = wu_so_far.a.get()

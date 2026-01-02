@@ -44,7 +44,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         {rule_out} 
         """
     )
-    def prompt_single_thesis(self, *, not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_single_thesis(self, *, not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:
@@ -99,7 +99,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         {rule_out}
         """
     )
-    def prompt_multiple_theses(self, *, count: int, not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_multiple_theses(self, *, count: int, not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:

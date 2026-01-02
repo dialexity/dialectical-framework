@@ -59,7 +59,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         </formatting>
         """
     )
-    def ac_re_prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
+    def ac_re_prompt(self, text: str, focus: WisdomUnit) -> "Messages.Type":
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
         wu = focus.model_copy(deep=True)
         wu.add_indexes_to_aliases(0)
@@ -118,7 +118,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         </formatting>
         """
     )
-    def reciprocal_solution_prompt(self, text: str, focus: WisdomUnit) -> Messages.Type:
+    def reciprocal_solution_prompt(self, text: str, focus: WisdomUnit) -> "Messages.Type":
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
         wu = focus.model_copy(deep=True)
         wu.add_indexes_to_aliases(0)

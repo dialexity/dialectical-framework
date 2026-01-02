@@ -55,7 +55,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
     )
     def prompt_constructive_convergence(
         self, text: str, focus: WheelSegment, next_ws: WheelSegment
-    ) -> Messages.Type:
+    ) -> "Messages.Type":
         return {
             "computed_fields": {
                 "wheel_construction": ReverseEngineer.till_wheel_without_convergent_transitions(
@@ -123,7 +123,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         </formatting>
         """
     )
-    def prompt_summarize(self, text: str, *, transition: TransitionSegmentToSegment) -> Messages.Type:
+    def prompt_summarize(self, text: str, *, transition: TransitionSegmentToSegment) -> "Messages.Type":
         return {
             "computed_fields": {
                 "think_constructive_convergence": self.prompt_constructive_convergence(text, focus=transition.source, next_ws=transition.target),

@@ -54,7 +54,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         Conditions for Success = Clear implementation timeline, staff training programs, and measurable equity metrics.
         """
     )
-    def prompt_constructive_convergence_audit(self, text: str, transition: TransitionSegmentToSegment, rationale: Rationale) -> Messages.Type:
+    def prompt_constructive_convergence_audit(self, text: str, transition: TransitionSegmentToSegment, rationale: Rationale) -> "Messages.Type":
         return {
             "computed_fields": {
                 "think_constructive_convergence": self.prompt_constructive_convergence(text, focus=transition.source, next_ws=transition.target),
