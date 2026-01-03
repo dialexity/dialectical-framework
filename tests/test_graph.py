@@ -350,7 +350,7 @@ def test_cycle_str_formatting():
     wu.a.connect(components[3], properties={'alias': 'A'})
 
     # Test 1: Automatic Wheel resolution (no parameters needed!)
-    cycle_string = cycle.as_str()
+    cycle_string = str(cycle)  # Use __str__ instead of as_str()
     assert "T" in cycle_string
     assert "T+" in cycle_string
     assert "T-" in cycle_string
@@ -377,7 +377,7 @@ def test_cycle_str_formatting():
     orphan_trans.target.connect(orphan_comp)
     orphan_cycle.transitions.connect(orphan_trans)
 
-    fallback_string = orphan_cycle.as_str()
+    fallback_string = str(orphan_cycle)  # Use __str__ instead of as_str()
     assert "Orphan component" in fallback_string
 
     print(f"✓ Cycle string fallback to statement preview: {fallback_string}")

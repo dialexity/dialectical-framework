@@ -409,15 +409,15 @@ class ReverseEngineer:
         )
 
         cycles = {
-            t_cycle.cycle_str(): [
-                f"### {t_cycle.causality_type.value.capitalize()} Causality Estimation for {t_cycle.cycle_str()}",
+            str(t_cycle): [
+                f"### {t_cycle.causality_type.value.capitalize()} Causality Estimation for {t_cycle}",
                 f"Probability: {t_cycle.relevance}",  # Note that it's the initial assessment that we take, not normalized
                 f"Rationale: {t_cycle.best_rationale.text if t_cycle.best_rationale and t_cycle.best_rationale.text else 'N/A'}",
             ],
         }
         if ta_cycle:
-            cycles[ta_cycle.cycle_str()] = [
-                f"### {ta_cycle.causality_type.value.capitalize()} Causality Estimation for {ta_cycle.cycle_str()}",
+            cycles[str(ta_cycle)] = [
+                f"### {ta_cycle.causality_type.value.capitalize()} Causality Estimation for {ta_cycle}",
                 f"Probability: {ta_cycle.relevance}", # Note that it's the initial assessment that we take, not normalized
                 f"Rationale: {ta_cycle.best_rationale.text if ta_cycle.best_rationale and ta_cycle.best_rationale.text else 'N/A'}",
             ]
@@ -449,8 +449,18 @@ class ReverseEngineer:
 
     @staticmethod
     def till_wheel_without_convergent_transitions(wheel: Wheel, text: str = None) -> list[BaseMessageParam]:
+        # Get cycles from wheel (graph-native returns tuples from .get())
+        t_cycle_result = wheel.t_cycle.get()
+        ta_cycle_result = wheel.ta_cycle.get()
+
+        t_cycle = t_cycle_result[0] if t_cycle_result else None
+        ta_cycle = ta_cycle_result[0] if ta_cycle_result else None
+
+        # Get wisdom units list
+        wisdom_units_list = [wu for wu, _ in wheel.wisdom_units.all()]
+
         return ReverseEngineer.till_cycle(
-            wheel.wisdom_units, wheel.t_cycle, wheel.cycle, text
+            wisdom_units_list, t_cycle, ta_cycle, text
         )
 
 

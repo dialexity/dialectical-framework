@@ -80,56 +80,81 @@ class SequenceTopologyMixin(ABC):
 
         return components
 
-    def as_str(self) -> str:
+    def __format__(self, format_spec: str) -> str:
         """
-        Returns a string representation of the transition sequence.
+        Format this sequence using Python's format string protocol.
 
-        Automatically resolves aliases from the Wheel this sequence belongs to.
-        If not assigned to a wheel, falls back to statement preview.
-
-        Returns:
-            String like "T → T+ → A- → T..." or empty string if no components
+        Format Specifications:
+        ----------------------
+        "" or "aliases" - Chains aliases like "T1 → T2 → T3 → T1..." (default)
+        "statements"    - Uses component statements instead of aliases
+        "verbose"       - Combines both: "T1 (statement) → T2 (statement) → T3 (statement) → T1..."
 
         Examples:
-            # Automatic alias resolution from wheel
-            cycle.as_str()  # Uses wheel context, returns "T → T+ → A- → T..."
+        ---------
+        f"{cycle}"              - Default aliases: "T1 → A1 → T2 → T1..."
+        f"{cycle:aliases}"      - Same as default
+        f"{cycle:statements}"   - Statements: "Democracy → Fear → Courage → Democracy..."
+        f"{cycle:verbose}"      - Verbose: "T1 (Democracy) → A1 (Fear) → T2 (Courage) → T1..."
 
-            # If not assigned to wheel
-            cycle.as_str()  # Falls back to statement preview
+        Returns:
+            Formatted string representing the sequence, or empty string if no components
         """
         components = self.dialectical_components
         if not components:
             return ""
 
+        # Determine mode
+        mode = format_spec if format_spec else "aliases"
+
         # Try to get wheel context for alias resolution
         wheel = self.get_wheel()
 
-        if wheel:
-            # Extract aliases from Wheel's WisdomUnits
-            labels = []
-            # Get all WisdomUnits from the wheel
-            wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
+        # Get aliases if needed for this mode
+        aliases = []
+        if mode in ("", "aliases", "verbose"):
+            # Need aliases - try to get from wheel context
+            if wheel:
+                wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
+                for i, comp in enumerate(components):
+                    alias = None
+                    for wu in wisdom_units:
+                        alias = comp.get_alias(wu)
+                        if alias:
+                            break
+                    aliases.append(alias if alias else f"C{i+1}")
+            else:
+                # Fallback to generic labels
+                aliases = [f"C{i+1}" for i in range(len(components))]
 
-            for i, comp in enumerate(components):
-                # Find which WisdomUnit this component belongs to
-                alias = None
-                for wu in wisdom_units:
-                    alias = comp.get_alias(wu)
-                    if alias:
-                        break
-                labels.append(alias if alias else f"C{i+1}")
-        else:
-            # Fallback to statement preview (increased to 20 chars for readability)
+        # Build labels based on mode
+        if mode in ("", "aliases"):
+            # Just aliases
+            labels = aliases
+        elif mode == "statements":
+            # Just statements
+            labels = [comp.statement for comp in components]
+        elif mode == "verbose":
+            # Aliases with statements in parentheses
             labels = [
-                comp.statement[:20] + "..." if len(comp.statement) > 20
-                else comp.statement
-                for i, comp in enumerate(components)
+                f"{alias} ({comp.statement})"
+                for alias, comp in zip(aliases, components)
             ]
+        else:
+            raise ValueError(
+                f"Invalid format_spec: {format_spec}. "
+                f"Must be '', 'aliases', 'statements', or 'verbose'"
+            )
 
+        # Build sequence string
         if len(labels) == 1:
             return f"{labels[0]} → {labels[0]}..."
 
         return " → ".join(labels) + f" → {labels[0]}..."
+
+    def __str__(self) -> str:
+        """String representation using default format."""
+        return self.__format__("")
 
     def is_same_structure(self, other: SequenceTopologyMixin, compare: Literal['alias', 'statement'] = 'alias') -> bool:
         """

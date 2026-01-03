@@ -641,7 +641,7 @@ class Wheel(AssessableEntity):
         if t_cycle_result:
             t_cycle_obj, _ = t_cycle_result
             output.append("--- T-Cycle ---")
-            output.append(t_cycle_obj.as_str())
+            output.append(str(t_cycle_obj))  # Use __str__ instead of as_str()
             output.append("")
 
         # TA-Cycle
@@ -649,7 +649,7 @@ class Wheel(AssessableEntity):
         if ta_cycle_result:
             ta_cycle_obj, _ = ta_cycle_result
             output.append("--- TA-Cycle ---")
-            output.append(ta_cycle_obj.as_str())
+            output.append(str(ta_cycle_obj))  # Use __str__ instead of as_str()
             output.append("")
 
         # Wisdom Units (tabular)
@@ -662,7 +662,7 @@ class Wheel(AssessableEntity):
         if spiral_result:
             spiral_obj, _ = spiral_result
             output.append("--- Spiral ---")
-            output.append(spiral_obj.as_str())
+            output.append(str(spiral_obj))  # Use __str__ instead of as_str()
             output.append("")
 
         return "\n".join(output)

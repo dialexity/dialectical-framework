@@ -63,7 +63,7 @@ async def test_wheel_spiral():
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory1 = DecoratorDiscreteSpiral(builder=factory)
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
-    assert wheels[0].order == 2
+    assert wheels[0].polarity_count == 2  # Graph-native uses polarity_count instead of order
 
     await factory1.calculate_transitions(wheels[0])
     await factory1.calculate_syntheses(wheels[0], 1)
