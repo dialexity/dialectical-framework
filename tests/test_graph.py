@@ -748,7 +748,7 @@ def test_wheel_segment_from_wisdom_unit():
     wu.a_minus.connect(a_minus_comp, properties={'alias': 'A-'})
 
     # Get T-side segment
-    t_seg = wu.segment_t()
+    t_seg = wu.segment_t
     assert isinstance(t_seg, WheelSegment)
     assert t_seg.side == 'T'
     assert t_seg.wisdom_unit.uid == wu.uid
@@ -764,7 +764,7 @@ def test_wheel_segment_from_wisdom_unit():
     assert t_seg.is_complete()
 
     # Get A-side segment
-    a_seg = wu.segment_a()
+    a_seg = wu.segment_a
     assert isinstance(a_seg, WheelSegment)
     assert a_seg.side == 'A'
     assert a_seg.wisdom_unit.uid == wu.uid
@@ -779,7 +779,7 @@ def test_wheel_segment_from_wisdom_unit():
     assert a_minus_list[0].uid == a_minus_comp.uid
     assert a_seg.is_complete()
 
-    print("✓ WheelSegment.segment_t() and segment_a() work correctly")
+    print("✓ WheelSegment.segment_t and segment_a work correctly")
 
 
 def test_wheel_segment_get_component_by_alias():
@@ -802,7 +802,7 @@ def test_wheel_segment_get_component_by_alias():
     wu.a.connect(a_comp, properties={'alias': 'A1'})
 
     # Get T-side segment
-    t_seg = wu.segment_t()
+    t_seg = wu.segment_t
 
     # Find T-side components by alias
     found_t = t_seg.get_component('T1')
@@ -818,7 +818,7 @@ def test_wheel_segment_get_component_by_alias():
     assert found_a is None
 
     # Get A-side segment
-    a_seg = wu.segment_a()
+    a_seg = wu.segment_a
 
     # Find A-side component by alias
     found_a = a_seg.get_component('A1')
@@ -832,8 +832,8 @@ def test_wheel_segment_get_component_by_alias():
     print("✓ WheelSegment.get_component_by_alias() filters by side correctly")
 
 
-def test_wheel_wheel_segment_at():
-    """Test Wheel.wheel_segment_at() lookup by alias or component."""
+def test_wheel_segment_at():
+    """Test Wheel.segment_at() lookup by alias or component."""
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
     # Create wheel with 2 wisdom units
@@ -875,25 +875,25 @@ def test_wheel_wheel_segment_at():
         wus.append((wu, t_comp, a_comp))
 
     # Test 1: By alias
-    seg_t0 = wheel.wheel_segment_at("T0")
+    seg_t0 = wheel.segment_at("T0")
     assert isinstance(seg_t0, WheelSegment)
     assert seg_t0.side == 'T'
     assert seg_t0.wisdom_unit.uid == wus[0][0].uid
 
-    seg_a1 = wheel.wheel_segment_at("A1")
+    seg_a1 = wheel.segment_at("A1")
     assert seg_a1.side == 'A'
     assert seg_a1.wisdom_unit.uid == wus[1][0].uid
 
     # Test 2: By component
-    seg_by_comp = wheel.wheel_segment_at(wus[0][1])  # T component of first WU
+    seg_by_comp = wheel.segment_at(wus[0][1])  # T component of first WU
     assert seg_by_comp.side == 'T'
     assert seg_by_comp.wisdom_unit.uid == wus[0][0].uid
 
-    seg_by_a_comp = wheel.wheel_segment_at(wus[1][2])  # A component of second WU
+    seg_by_a_comp = wheel.segment_at(wus[1][2])  # A component of second WU
     assert seg_by_a_comp.side == 'A'
     assert seg_by_a_comp.wisdom_unit.uid == wus[1][0].uid
 
-    print("✓ Wheel.wheel_segment_at() supports alias/component lookup")
+    print("✓ Wheel.segment_at() supports alias/component lookup")
 
 
 def test_wheel_segment_is_same():
@@ -919,8 +919,8 @@ def test_wheel_segment_is_same():
         wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
 
     # Extract segments
-    seg1 = wu1.segment_t()
-    seg2 = wu2.segment_t()
+    seg1 = wu1.segment_t
+    seg2 = wu2.segment_t
 
     # Should be considered the same (same component UIDs)
     # Actually they won't be same since components have different UIDs
@@ -951,8 +951,8 @@ def test_wheel_segment_is_set():
     wu.a.connect(a_comp, properties={'alias': 'A1'})
 
     # Get segments
-    t_seg = wu.segment_t()
-    a_seg = wu.segment_a()
+    t_seg = wu.segment_t
+    a_seg = wu.segment_a
 
     # Test is_set by alias
     assert t_seg.is_set("T1")
@@ -1013,8 +1013,8 @@ def test_wheel_wisdom_unit_at_segment():
         wus.append(wu)
 
     # Get segments
-    t_seg_1 = wus[1].segment_t()
-    a_seg_0 = wus[0].segment_a()
+    t_seg_1 = wus[1].segment_t
+    a_seg_0 = wus[0].segment_a
 
     # Test wisdom_unit_at with WheelSegment
     found_wu = wheel.wisdom_unit_at(t_seg_1)
@@ -1060,8 +1060,8 @@ def test_wheel_is_set():
     assert wheel.is_set(a) is True
 
     # Test with segment
-    t_seg = wu.segment_t()
-    a_seg = wu.segment_a()
+    t_seg = wu.segment_t
+    a_seg = wu.segment_a
     assert wheel.is_set(t_seg) is True
     assert wheel.is_set(a_seg) is True
 

@@ -17,7 +17,12 @@ from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.synthesis import Synthesis
 from dialectical_framework.graph.nodes.wheel import Wheel
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit, POSITION_T
+from dialectical_framework.graph.nodes.wisdom_unit import (
+    WisdomUnit,
+    POSITION_T,
+    POSITION_S_PLUS,
+    POSITION_S_MINUS,
+)
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
 from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
@@ -286,8 +291,8 @@ class WheelBuilder(SettingsAware):
             synthesis_components = [component_from_dto(dto) for dto in synthesis_deck_dto.dialectical_components]
 
             # Identify S+ and S- by alias
-            s_plus_dto = synthesis_deck_dto.get_by_alias("S+")
-            s_minus_dto = synthesis_deck_dto.get_by_alias("S-")
+            s_plus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_PLUS)
+            s_minus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_MINUS)
 
             s_plus_comp = component_from_dto(s_plus_dto)
             s_minus_comp = component_from_dto(s_minus_dto)
@@ -302,8 +307,8 @@ class WheelBuilder(SettingsAware):
                 SMinusRelationship,
             )
 
-            synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias="S+"))
-            synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias="S-"))
+            synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias=POSITION_S_PLUS))
+            synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias=POSITION_S_MINUS))
 
             # Connect Synthesis to WisdomUnit
             synthesis.wisdom_unit.connect(wu)

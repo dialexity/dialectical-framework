@@ -158,3 +158,70 @@ class DialecticalComponent(AssessableEntity):
                         return None  # Non-polarity relationship
 
         return None
+
+    def get_position(self, wisdom_unit: WisdomUnit) -> Optional[str]:
+        """
+        Get the position name of this component within a specific WisdomUnit's context.
+
+        This method searches all relationship managers on the WisdomUnit (6 core positions)
+        and the optional Synthesis node (S+, S-) to find where this component is connected
+        and returns the position constant.
+
+        Args:
+            wisdom_unit: The WisdomUnit to look up the position in
+
+        Returns:
+            The position constant (e.g., "T", "T+", "A-", "S+", "S-") or None if not connected
+
+        Example:
+            from dialectical_framework.graph.nodes.wisdom_unit import POSITION_T, POSITION_T_PLUS
+            comp = DialecticalComponent(statement="Democracy")
+            wu = WisdomUnit(...)
+            wu.t.connect(comp, relationship=TRelationship(alias='T1'))
+
+            position = comp.get_position(wu)  # Returns "T" (POSITION_T)
+
+            comp2 = DialecticalComponent(statement="Trust")
+            wu.t_plus.connect(comp2, relationship=TPlusRelationship(alias='T1+'))
+            position2 = comp2.get_position(wu)  # Returns "T+" (POSITION_T_PLUS)
+        """
+        from dialectical_framework.graph.nodes.wisdom_unit import (
+            POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
+            POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS,
+            POSITION_S_PLUS, POSITION_S_MINUS
+        )
+
+        # Search through all 6 core position relationship managers on the wisdom unit
+        positions = [
+            (POSITION_T, wisdom_unit.t),
+            (POSITION_T_PLUS, wisdom_unit.t_plus),
+            (POSITION_T_MINUS, wisdom_unit.t_minus),
+            (POSITION_A, wisdom_unit.a),
+            (POSITION_A_PLUS, wisdom_unit.a_plus),
+            (POSITION_A_MINUS, wisdom_unit.a_minus),
+        ]
+
+        for position_name, manager in positions:
+            components = manager.all()  # Returns [(node, rel)]
+
+            for comp, rel in components:
+                # Check if this is the component we're looking for
+                if comp.uid == self.uid:
+                    return position_name
+
+        # Also check synthesis if present
+        synth_result = wisdom_unit.synthesis.get()
+        if synth_result:
+            synthesis = synth_result[0]
+            # Check S+ and S- on the Synthesis node
+            synth_positions = [
+                (POSITION_S_PLUS, synthesis.s_plus),
+                (POSITION_S_MINUS, synthesis.s_minus),
+            ]
+            for position_name, manager in synth_positions:
+                components = manager.all()
+                for comp, rel in components:
+                    if comp.uid == self.uid:
+                        return position_name
+
+        return None

@@ -1004,8 +1004,8 @@ class PolarityReasoner(HasBrain, Reloadable):
         # return the original WisdomUnit instead of creating a new one.
         # This allows wheel_builder to detect unchanged WUs by UID comparison.
         # Compare using WheelSegment.is_same() for both T and A sides.
-        t_side_unchanged = original.segment_t().is_same(new_wu.segment_t())
-        a_side_unchanged = original.segment_a().is_same(new_wu.segment_a())
+        t_side_unchanged = original.segment_t.is_same(new_wu.segment_t)
+        a_side_unchanged = original.segment_a.is_same(new_wu.segment_a)
 
         if t_side_unchanged and a_side_unchanged:
             # Nothing changed - return original WU (same UID)

@@ -22,9 +22,10 @@ class WheelSegmentPolarPair:
     """
     A "window" into a WisdomUnit with swappable polarity.
 
-    Provides two sides (t_side and a_side) where the polarity can be:
-    - "normal": T-side has theses, A-side has antitheses (standard view)
-    - "swapped": T-side has antitheses, A-side has theses (inverted view)
+    Provides two sides (segment_left and segment_right) where the polarity determines
+    which components appear on which side:
+    - "normal": Left has theses (T, T+, T-), right has antitheses (A, A+, A-)
+    - "swapped": Left has antitheses (A, A+, A-), right has theses (T, T+, T-)
 
     This allows viewing the same dialectical structure from different perspectives,
     which can be useful for:
@@ -35,13 +36,13 @@ class WheelSegmentPolarPair:
     Example:
         # Normal polarity view
         pair = WheelSegmentPolarPair(wu, "normal")
-        thesis = pair.t_side.t.get()  # Gets T component
-        antithesis = pair.a_side.t.get()  # Gets A component
+        thesis = pair.segment_left.t.get()  # Gets T component
+        antithesis = pair.segment_right.t.get()  # Gets A component
 
         # Swapped polarity view
         pair = WheelSegmentPolarPair(wu, "swapped")
-        thesis = pair.t_side.t.get()  # Gets A component (swapped!)
-        antithesis = pair.a_side.t.get()  # Gets T component (swapped!)
+        antithesis = pair.segment_left.t.get()  # Gets A component (swapped!)
+        thesis = pair.segment_right.t.get()  # Gets T component (swapped!)
     """
 
     def __init__(
@@ -74,13 +75,13 @@ class WheelSegmentPolarPair:
             a_segment = WheelSegment(wisdom_unit, "A")
 
         # Configure sides based on polarity
-        # _left and _right are positional, t_side/a_side are semantic (can swap)
+        # _left and _right are positional properties that map to T/A segments based on polarity
         if polarity == "normal":
-            # T-side shows T components, A-side shows A components
+            # Normal: Left shows T components, right shows A components
             self._left = t_segment
             self._right = a_segment
         else:
-            # Swapped: T-side shows A components, A-side shows T components
+            # Swapped: Left shows A components, right shows T components
             self._left = a_segment
             self._right = t_segment
 
@@ -95,66 +96,24 @@ class WheelSegmentPolarPair:
         return self._polarity
 
     @property
-    def segment_west(self) -> WheelSegment:
+    def segment_left(self) -> WheelSegment:
         """
-        Get the T-side view.
+        Get the left side segment.
 
-        In normal polarity: Contains T, T+, T- components
-        In swapped polarity: Contains A, A+, A- components
+        In normal polarity: Contains T, T+, T- components (thesis side)
+        In swapped polarity: Contains A, A+, A- components (antithesis side)
         """
         return self._left
 
     @property
-    def segment_north(self) -> WheelSegment:
-        """
-        Helper, same as left.
-        """
-        return self.segment_west
-
-    @property
-    def segment_east(self) -> WheelSegment:
-        """
-        Get the A-side view.
-
-        In normal polarity: Contains A, A+, A- components
-        In swapped polarity: Contains T, T+, T- components
-        """
-        return self._right
-
-    @property
-    def segment_south(self) -> WheelSegment:
-        """
-        Helper, same as right.
-        """
-        return self.segment_east
-
-    @property
-    def segment_top(self) -> WheelSegment:
-        """
-        Helper, same as north.
-        """
-        return self.segment_north
-
-    @property
-    def segment_bottom(self) -> WheelSegment:
-        """
-        Helper, same as south.
-        """
-        return self.segment_south
-
-    @property
-    def segment_left(self) -> WheelSegment:
-        """
-        Helper, same as west.
-        """
-        return self.segment_west
-
-    @property
     def segment_right(self) -> WheelSegment:
         """
-        Helper, same as east.
+        Get the right side segment.
+
+        In normal polarity: Contains A, A+, A- components (antithesis side)
+        In swapped polarity: Contains T, T+, T- components (thesis side)
         """
-        return self.segment_east
+        return self._right
 
     def swap(self) -> None:
         """
@@ -193,7 +152,7 @@ class WheelSegmentPolarPair:
         Check if both sides are complete.
 
         Returns:
-            True if both t_side and a_side have all components populated
+            True if both segment_left and segment_right have all components populated
         """
         return self._left.is_complete() and self._right.is_complete()
 
@@ -203,6 +162,6 @@ class WheelSegmentPolarPair:
             f"WheelSegmentPolarPair("
             f"polarity={self._polarity}, "
             f"wisdom_unit={self._wisdom_unit.uid}, "
-            f"t_side={self._left.side}, "
-            f"a_side={self._right.side})"
+            f"left={self._left.side}, "
+            f"right={self._right.side})"
         )

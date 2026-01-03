@@ -18,6 +18,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     SMinusRelationship,
 )
 
+# Import position constants from wisdom_unit for consistency
+
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit

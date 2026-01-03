@@ -1,35 +1,33 @@
-import asyncio
-from typing import List
+from __future__ import annotations
 
+import asyncio
+from typing import List, Tuple
+
+from gqlalchemy import Relationship
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework import TransitionSegmentToSegment, Transformation, Rationale
 from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
-from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto
 from dialectical_framework.ai_dto.reciprocal_solution_dto import ReciprocalSolutionDto
 from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
-from dialectical_framework.domain.directed_graph import DirectedGraph
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
-from dialectical_framework.enums.predicate import Predicate
+from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.use_brain import use_brain
-from dialectical_framework.domain.wheel_segment import (ALIAS_T, ALIAS_T_MINUS,
-                                          ALIAS_T_PLUS, WheelSegment)
-from dialectical_framework.domain.wisdom_unit import (ALIAS_A, ALIAS_A_MINUS,
-                                          ALIAS_A_PLUS, WisdomUnit)
 
+from dialectical_framework.graph.wheel_segment import WheelSegment
+from dialectical_framework.graph.nodes.wisdom_unit import (
+    POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
+    POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS,
+    WisdomUnit
+)
+from dialectical_framework.graph.nodes.transition import Transition
+from dialectical_framework.graph.nodes.transformation import Transformation
+from dialectical_framework.graph.nodes.rationale import Rationale
 
-ALIAS_AC = "Ac"
-ALIAS_AC_PLUS = "Ac+"
-ALIAS_AC_MINUS = "Ac-"
-ALIAS_RE = "Re"
-ALIAS_RE_PLUS = "Re+"
-ALIAS_RE_MINUS = "Re-"
 
 class ThinkActionReflection(StrategicConsultant, SettingsAware):
     @prompt_template(
@@ -61,12 +59,11 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
     )
     def ac_re_prompt(self, text: str, focus: WisdomUnit) -> "Messages.Type":
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
-        wu = focus.model_copy(deep=True)
-        wu.add_indexes_to_aliases(0)
+        # Strip indexes from aliases to avoid LLM responding with indexed aliases (Ac1, Re2+)
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": wu.pretty(),
+                "dialectical_analysis": focus.pretty(strip_index=True),
                 "component_length": self.settings.component_length,
             }
         }
@@ -120,12 +117,11 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
     )
     def reciprocal_solution_prompt(self, text: str, focus: WisdomUnit) -> "Messages.Type":
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
-        wu = focus.model_copy(deep=True)
-        wu.add_indexes_to_aliases(0)
+        # Strip indexes from aliases to avoid LLM responding with indexed aliases (Ac1, Re2+)
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": wu.pretty(),
+                "dialectical_analysis": focus.pretty(strip_index=True),
                 "component_length": self.settings.component_length,
             }
         }
@@ -142,7 +138,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
     async def action_reflection(self, focus: WisdomUnit):
         return self.ac_re_prompt(self._text, focus=focus)
 
-    async def think(self, focus: WheelSegment) -> List[TransitionSegmentToSegment]:
+    async def think(self, focus: WheelSegment) -> list[Transition]:
         wu = self._wheel.wisdom_unit_at(focus)
 
         async_reasoning_threads = [
@@ -154,75 +150,163 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         reciprocal_sol_dto: ReciprocalSolutionDto
         dc_deck_dto, reciprocal_sol_dto  = await asyncio.gather(*async_reasoning_threads)
 
+        # Create rationale for the AC/RE wisdom unit
+        problem_rationale = Rationale(text=reciprocal_sol_dto.problem)
+        problem_rationale.save()
+
+        # Create AC/RE wisdom unit
         ac_re_wu = WisdomUnit(
             reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION,
-            rationales=[Rationale(text=reciprocal_sol_dto.problem)]
         )
-        dialectical_components: list[DialecticalComponent] = map_list_from_dto(dc_deck_dto.dialectical_components, DialecticalComponent)
-        for dc in dialectical_components:
-            alias = self._translate_to_canonical_alias(dc.alias)
-            setattr(ac_re_wu, alias, dc)
-            dc.set_human_friendly_index(wu.t.get_human_friendly_index())
+        ac_re_wu.save()
 
-        graph = DirectedGraph[TransitionSegmentToSegment]()
-        graph.add_transition(
-            TransitionSegmentToSegment(
-                predicate=Predicate.TRANSFORMS_TO,
-                source_aliases=[wu.t_minus.alias, wu.t.alias],
-                target_aliases=[wu.a_plus.alias],
-                source=wu.extract_segment_t(),
-                target=wu.extract_segment_a(),
-                default_transition_probability=self.settings.tarorank_default_transition_probability,
-                rationales=[
-                    Rationale(
-                        text=reciprocal_sol_dto.linear_action,
-                    )
-                ],
+        # Connect rationale to wisdom unit
+        ac_re_wu.rationales.connect(problem_rationale)
+
+        # Get the current wu's human friendly index
+        human_friendly_index = wu.get_human_friendly_index()
+
+        # Convert DTOs to graph-native components and connect to ac_re wisdom unit
+        # We iterate over DTOs (which have alias) and convert each one
+        for dto in dc_deck_dto.dialectical_components:
+            # Normalize to base alias (strip any index from LLM response)
+            dto.set_human_friendly_index(0)  # "Ac1" → "Ac", "Re2+" → "Re+"
+
+            # Translate AC/RE alias to canonical T/A position
+            position = self._translate_alias_to_position(dto.alias)
+
+            if human_friendly_index is not None:
+                dto.set_human_friendly_index(human_friendly_index)  # Apply correct index
+
+            # Convert DTO to graph-native component
+            from dialectical_framework.ai_dto.graph_mapper import component_from_dto
+            component = component_from_dto(dto)
+
+            # Get the relationship manager for this position and connect component
+            ac_re_wu.get_relationship_manager_by_position(position).connect(component, relationship=PolarityRelationship(alias=dto.alias))
+
+        # Get components for transitions
+        wu_t_minus_result = wu.t_minus.get()
+        wu_a_plus_result = wu.a_plus.get()
+        wu_a_minus_result = wu.a_minus.get()
+        wu_t_plus_result = wu.t_plus.get()
+
+        if not (wu_t_minus_result and wu_a_plus_result and wu_a_minus_result and wu_t_plus_result):
+            # Missing required components - this shouldn't happen for a complete WU
+            raise ValueError(
+                f"WisdomUnit {wu.uid} is missing required components for transformation. "
+                f"Has T-: {wu_t_minus_result is not None}, A+: {wu_a_plus_result is not None}, "
+                f"A-: {wu_a_minus_result is not None}, T+: {wu_t_plus_result is not None}"
             )
-        )
-        graph.add_transition(
-            TransitionSegmentToSegment(
-                predicate=Predicate.TRANSFORMS_TO,
-                source_aliases=[wu.a_minus.alias, wu.a.alias],
-                target_aliases=[wu.t_plus.alias],
-                source=wu.extract_segment_a(),
-                target=wu.extract_segment_t(),
-                default_transition_probability=self.settings.tarorank_default_transition_probability,
-                rationales=[
-                    Rationale(
-                        text=reciprocal_sol_dto.dialectical_reflection,
-                    )
-                ],
-            )
-        )
 
-        # TODO: maybe we should rather merge if there was a transformation already (e.g. as a separate rationale?)
-        wu.transformation = Transformation(
-            ac_re=ac_re_wu,
-            graph=graph
-        )
+        t_minus_comp, _ = wu_t_minus_result
+        a_plus_comp, _ = wu_a_plus_result
+        a_minus_comp, _ = wu_a_minus_result
+        t_plus_comp, _ = wu_t_plus_result
 
-        # We return empty, because we're not merging anything, and we're sure there will be nothing to do with the result
-        return []
+        # Check if transformation already exists
+        transformation_result: Tuple[Transformation, Relationship] = wu.transformation.get()
+
+        if transformation_result:
+            # Transformation exists - check for duplicates before creating new rationales
+            transformation = transformation_result[0]
+            existing_transitions = [t for t, _ in transformation.transitions.all()]
+
+            transitions_updated = []
+
+            # Transition 1: T- → A+
+            duplicate1 = self.find_duplicate_transition(existing_transitions, t_minus_comp, a_plus_comp)
+            if duplicate1:
+                # Create and add rationale to existing transition
+                rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
+                rationale1.save()
+                duplicate1.rationales.connect(rationale1)
+                transitions_updated.append(duplicate1)
+            # If no duplicate, transformation already has 2 transitions (cardinality 2,2), skip
+
+            # Transition 2: A- → T+
+            duplicate2 = self.find_duplicate_transition(existing_transitions, a_minus_comp, t_plus_comp)
+            if duplicate2:
+                # Create and add rationale to existing transition
+                rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
+                rationale2.save()
+                duplicate2.rationales.connect(rationale2)
+                transitions_updated.append(duplicate2)
+            # If no duplicate, transformation already has 2 transitions (cardinality 2,2), skip
+
+            # Return the transitions we updated with new rationales
+            return transitions_updated
+        else:
+            # No transformation exists - create new transformation with transitions
+            # Transition 1: T- → A+
+            rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
+            rationale1.save()
+
+            transition1 = Transition()
+            transition1.save()
+            transition1.source.connect(t_minus_comp)
+            transition1.target.connect(a_plus_comp)
+            transition1.rationales.connect(rationale1)
+
+            # Transition 2: A- → T+
+            rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
+            rationale2.save()
+
+            transition2 = Transition()
+            transition2.save()
+            transition2.source.connect(a_minus_comp)
+            transition2.target.connect(t_plus_comp)
+            transition2.rationales.connect(rationale2)
+
+            # Create transformation
+            transformation = Transformation()
+            transformation.save()
+
+            # Connect ac_re wisdom unit to transformation
+            transformation.ac_re.connect(ac_re_wu)
+
+            # Connect transformation to wisdom unit
+            wu.transformation.connect(transformation)
+
+            # Connect transitions to transformation
+            transformation.transitions.connect(transition1)
+            transformation.transitions.connect(transition2)
+
+            # Return newly created transitions
+            return [transition1, transition2]
 
     @staticmethod
-    def _translate_to_canonical_alias(alias: str) -> str:
-        if alias == ALIAS_AC:
-            return ALIAS_T
+    def _translate_alias_to_position(alias: str) -> str:
+        """
+        Translate Action-Reflection aliases to canonical WisdomUnit position strings.
 
-        if alias == ALIAS_AC_PLUS:
-            return ALIAS_T_PLUS
+        Maps AC/RE aliases to position constants:
+        - Ac → T, Ac+ → T+, Ac- → T-
+        - Re → A, Re+ → A+, Re- → A-
 
-        if alias == ALIAS_AC_MINUS:
-            return ALIAS_T_MINUS
+        Args:
+            alias: Action-Reflection alias (Ac, Ac+, Ac-, Re, Re+, Re-)
+                  Should be normalized (no numeric index) before calling
 
-        if alias == ALIAS_RE:
-            return ALIAS_A
+        Returns:
+            WisdomUnit position string (T, T+, T-, A, A+, A-) for use with get_relationship_manager_by_position()
+        """
+        if alias == "Ac":
+            return POSITION_T
 
-        if alias == ALIAS_RE_PLUS:
-            return ALIAS_A_PLUS
+        if alias == "Ac+":
+            return POSITION_T_PLUS
 
-        if alias == ALIAS_RE_MINUS:
-            return ALIAS_A_MINUS
+        if alias == "Ac-":
+            return POSITION_T_MINUS
+
+        if alias == "Re":
+            return POSITION_A
+
+        if alias == "Re+":
+            return POSITION_A_PLUS
+
+        if alias == "Re-":
+            return POSITION_A_MINUS
 
         return alias

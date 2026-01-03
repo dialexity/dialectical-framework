@@ -35,6 +35,8 @@ POSITION_T_MINUS = "T-"
 POSITION_A = "A"
 POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
+POSITION_S_PLUS = "S+"
+POSITION_S_MINUS = "S-"
 
 
 class WisdomUnit(AssessableEntity):
@@ -162,6 +164,7 @@ class WisdomUnit(AssessableEntity):
             and self.a_minus.count() >= 1
         )
 
+    @property
     def segment_t(self) -> WheelSegment:
         """
         Get the T-side segment as a WheelSegment window.
@@ -171,6 +174,7 @@ class WisdomUnit(AssessableEntity):
             self._cached_segment_t = WheelSegment(self, 'T')
         return self._cached_segment_t
 
+    @property
     def segment_a(self) -> WheelSegment:
         """
         Get the A-side segment as a WheelSegment window.
@@ -377,12 +381,16 @@ class WisdomUnit(AssessableEntity):
                     typed_rel = rel_class(alias=new_alias)
                     manager.connect(component, relationship=typed_rel)
 
-    def pretty(self) -> str:
+    def pretty(self, strip_index: bool = False) -> str:
         """
         Format this WisdomUnit for human-readable display.
 
         Formats all 6 core positions (T, T+, T-, A, A+, A-) with their aliases
         and optionally appends synthesis (S+, S-) if present.
+
+        Args:
+            strip_index: If True, uses canonical position names (T, A+) instead of custom aliases
+                        Useful for LLM prompts to avoid indexed responses (T1 → T, A2+ → A+)
 
         Returns:
             Multi-line formatted string with all components
@@ -408,6 +416,11 @@ class WisdomUnit(AssessableEntity):
                 # Core position relationships are always PolarityRelationship
                 assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for {position}, got {type(rel)}"
                 alias = rel.alias  # Direct access, fully typed and validated
+
+                # Strip numeric index if requested (for LLM prompts)
+                if strip_index:
+                    alias = component.get_position(self)
+
                 formatted_components.append(component.pretty(alias))
 
         ws_formatted = "\n\n".join(formatted_components)

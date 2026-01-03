@@ -7,7 +7,7 @@ for a complete dialectical system.
 
 from __future__ import annotations
 
-from typing import ClassVar, Union, Optional, TYPE_CHECKING
+from typing import ClassVar, Union, Optional, TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
@@ -16,8 +16,12 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.wheel_segment import WheelSegment
+    from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.spiral import Spiral
+
+    # Type alias for flexible wheel segment references (no integer indexing in graph-native)
+    WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
 
 
 class Wheel(AssessableEntity):
@@ -39,6 +43,12 @@ class Wheel(AssessableEntity):
     - order: Number of wisdom units (computed from relationships)
     - degree: Total segments = order × 2 (computed)
     """
+
+    def __init__(self, **data):
+        """Initialize wheel with polar pair cache."""
+        super().__init__(**data)
+        # Cache for polar pairs: wu_uid -> WheelSegmentPolarPair
+        self._polar_pair_cache: dict[str, WheelSegmentPolarPair] = {}
 
     # Declarative relationships
     wisdom_units: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
@@ -103,13 +113,16 @@ class Wheel(AssessableEntity):
         key: Union[str, WisdomUnit, DialecticalComponent, WheelSegment]
     ) -> WisdomUnit:
         """
-        Get wisdom unit by alias, UID, component, or segment.
+        Get wisdom unit by various identifiers.
 
         Note: No integer indexing - use cycles to determine ordering.
 
         Args:
             key: Can be:
-               - str: component alias (searches all WU relationships)
+               - str: Tries in order:
+                 1. WisdomUnit UID (e.g., "wu_12345")
+                 2. Component UID (e.g., "comp_67890")
+                 3. Component alias (e.g., "T1", "A2+")
                - WisdomUnit: match by uid
                - DialecticalComponent: find WU containing this component
                - WheelSegment: find WU containing this segment
@@ -121,9 +134,11 @@ class Wheel(AssessableEntity):
             ValueError: If no matching wisdom unit is found
 
         Examples:
-            wu = wheel.wisdom_unit_at("T1")  # By alias
-            wu = wheel.wisdom_unit_at(component)  # By component
-            wu = wheel.wisdom_unit_at(segment)  # By segment
+            wu = wheel.wisdom_unit_at("wu_123")  # By WU UID
+            wu = wheel.wisdom_unit_at("comp_456")  # By component UID
+            wu = wheel.wisdom_unit_at("T1")  # By component alias
+            wu = wheel.wisdom_unit_at(component)  # By component instance
+            wu = wheel.wisdom_unit_at(segment)  # By segment instance
             wu = wheel.wisdom_unit_at(wisdom_unit)  # By WU instance
         """
         from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as WUClass
@@ -142,27 +157,42 @@ class Wheel(AssessableEntity):
         elif isinstance(key, WheelSegment):
             # Match by segment
             for wu in wus:
-                t_seg = wu.segment_t()
+                t_seg = wu.segment_t
                 if t_seg.is_same(key):
                     return wu
 
-                a_seg = wu.segment_a()
+                a_seg = wu.segment_a
                 if a_seg.is_same(key):
                     return wu
 
             raise ValueError(f"Cannot find wisdom unit containing segment")
 
         elif isinstance(key, str):
-            # Search by alias in all wisdom units using repository
+            # Try string as three possibilities: WU UID, component UID, or component alias
+
+            # 1. Try as WisdomUnit UID (fast, direct lookup)
+            for wu in wus:
+                if wu.uid == key:
+                    return wu
+
+            # 2. Try as component UID (iterate through all components in all WUs)
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
             for wu in wus:
                 components_with_aliases = repo.find_by_wisdom_unit(wu)
                 for comp, alias in components_with_aliases:
+                    if comp.uid == key:
+                        return wu
+
+            # 3. Finally try as component alias
+            for wu in wus:
+                components_with_aliases = repo.find_by_wisdom_unit(wu)
+                for comp, alias in components_with_aliases:
                     if alias == key:
                         return wu
-            raise ValueError(f"Cannot find wisdom unit with alias: {key}")
+
+            raise ValueError(f"Cannot find wisdom unit with key: {key} (tried as WU UID, component UID, and component alias)")
 
         elif isinstance(key, DCClass):
             # Search by component
@@ -174,19 +204,22 @@ class Wheel(AssessableEntity):
 
         raise ValueError(f"Cannot find wisdom unit with key: {key}")
 
-    def wheel_segment_at(
+    def segment_at(
         self,
-        key: Union[str, DialecticalComponent]
+        key: WheelSegmentReference
     ) -> WheelSegment:
         """
-        Get wheel segment (T-side or A-side) by alias or component.
+        Get wheel segment (T-side or A-side) by various identifiers.
 
         Note: No integer indexing - use cycles to determine ordering.
 
         Args:
             key: Can be:
-               - str: component alias (e.g., "T", "T+", "A1", "A2-")
+               - str: Tries in order:
+                 1. Component UID (e.g., "comp_12345")
+                 2. Component alias (e.g., "T", "T+", "A1", "A2-")
                - DialecticalComponent: find segment containing this component
+               - WheelSegment: validates it exists in wheel and returns it
 
         Returns:
             WheelSegment instance representing the T-side or A-side
@@ -195,22 +228,71 @@ class Wheel(AssessableEntity):
             ValueError: If no matching segment is found
 
         Examples:
-            seg = wheel.wheel_segment_at("T1")  # By alias
-            seg = wheel.wheel_segment_at(component)  # By component
+            seg = wheel.segment_at("comp_123")  # By component UID
+            seg = wheel.segment_at("T1")  # By component alias
+            seg = wheel.segment_at(component)  # By component instance
+            seg = wheel.segment_at(existing_seg)  # Validates and returns
         """
+        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as DCClass
+        from dialectical_framework.graph.wheel_segment import WheelSegment as WSClass
 
-        # Search through wisdom units
-        wus = [wu for wu, _ in self.wisdom_units.all()]
-        for wu in wus:
-            # Check T-side segment
-            t_seg = wu.segment_t()
-            if t_seg.is_set(key):
-                return t_seg
+        # If key is a WheelSegment, validate it exists in this wheel and return it
+        if isinstance(key, WSClass):
+            wus = [wu for wu, _ in self.wisdom_units.all()]
+            for wu in wus:
+                if wu.segment_t.is_same(key) or wu.segment_a.is_same(key):
+                    return key
+            raise ValueError(f"WheelSegment not found in this wheel")
 
-            # Check A-side segment
-            a_seg = wu.segment_a()
-            if a_seg.is_set(key):
-                return a_seg
+        # If key is a DialecticalComponent instance, use it directly
+        elif isinstance(key, DCClass):
+            wus = [wu for wu, _ in self.wisdom_units.all()]
+            for wu in wus:
+                # Check T-side segment
+                t_seg = wu.segment_t
+                if t_seg.is_set(key):
+                    return t_seg
+
+                # Check A-side segment
+                a_seg = wu.segment_a
+                if a_seg.is_set(key):
+                    return a_seg
+
+            raise ValueError(f"Cannot find wheel segment containing component: {key.uid}")
+
+        # If key is a string, try as component UID first, then alias
+        elif isinstance(key, str):
+            from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+            repo = DialecticalComponentRepository()
+
+            wus = [wu for wu, _ in self.wisdom_units.all()]
+
+            # 1. Try as component UID
+            for wu in wus:
+                components_with_aliases = repo.find_by_wisdom_unit(wu)
+                for comp, alias in components_with_aliases:
+                    if comp.uid == key:
+                        # Found component by UID, now find which segment it's in
+                        t_seg = wu.segment_t
+                        if t_seg.is_set(comp):
+                            return t_seg
+                        a_seg = wu.segment_a
+                        if a_seg.is_set(comp):
+                            return a_seg
+
+            # 2. Try as component alias
+            for wu in wus:
+                # Check T-side segment
+                t_seg = wu.segment_t
+                if t_seg.is_set(key):
+                    return t_seg
+
+                # Check A-side segment
+                a_seg = wu.segment_a
+                if a_seg.is_set(key):
+                    return a_seg
+
+            raise ValueError(f"Cannot find wheel segment with key: {key} (tried as component UID and alias)")
 
         raise ValueError(f"Cannot find wheel segment with key: {key}")
 
@@ -277,6 +359,222 @@ class Wheel(AssessableEntity):
                 return False
 
         return True
+
+    @property
+    def _wisdom_units_ordered(self) -> list[WisdomUnit]:
+        """
+        Internal helper: Get all wisdom units in ta_cycle order.
+
+        Traverses the ta_cycle to determine the canonical ordering of wisdom units.
+        This is used internally by polar_pairs_ordered. External code should use
+        polar_pairs_ordered instead.
+
+        Returns:
+            List of WisdomUnit nodes in ta_cycle order
+
+        Raises:
+            ValueError: If ta_cycle is not set on this wheel
+        """
+        # Get ta_cycle
+        ta_cycle_result = self.ta_cycle.get()
+        if not ta_cycle_result:
+            raise ValueError("ta_cycle is not set on this wheel")
+
+        ta_cycle_obj, _ = ta_cycle_result
+
+        # Get ordered transitions from ta_cycle
+        ordered_transitions = ta_cycle_obj.transitions_ordered
+
+        # Track which wisdom units we've seen to avoid duplicates
+        seen_wisdom_units = set()
+        wisdom_units = []
+
+        # Traverse transitions and extract wisdom units
+        for transition in ordered_transitions:
+            # Get source component from transition (cardinality 1,1)
+            source_result = transition.source.get()
+            if not source_result:
+                continue
+
+            source_component, _ = source_result
+
+            # Find which wisdom unit this component belongs to
+            for wu, _ in self.wisdom_units.all():
+                # Check if this component belongs to this wisdom unit
+                alias = source_component.get_alias(wu)
+                if alias and wu.uid not in seen_wisdom_units:
+                    wisdom_units.append(wu)
+                    seen_wisdom_units.add(wu.uid)
+                    break
+
+        return wisdom_units
+
+    @property
+    def polar_pairs_ordered(self) -> list[WheelSegmentPolarPair]:
+        """
+        Get all wisdom units as WheelSegmentPolarPair objects in ta_cycle order.
+
+        The ta_cycle determines which side of each WU appears on the left/west.
+        For example, if ta_cycle is T1 → A2 → A1 → T2, the pairs are:
+        - Pair 1: (T1 on left, A1 on right) - T1 appears first
+        - Pair 2: (A2 on left, T2 on right) - A2 appears first
+
+        Polar pairs are cached per wisdom unit to ensure the same instances are reused.
+
+        Returns:
+            List of WheelSegmentPolarPair objects in ta_cycle order with correct orientation
+
+        Raises:
+            ValueError: If ta_cycle is not set on this wheel
+
+        Example:
+            pairs = wheel.polar_pairs_ordered
+            for pair in pairs:
+                print(f"Left: {pair.segment_left.t.get()[0].statement}")
+                print(f"Right: {pair.segment_right.t.get()[0].statement}")
+        """
+        from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
+        from dialectical_framework.graph.nodes.wisdom_unit import (
+            POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
+            POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
+        )
+
+        # Get ta_cycle
+        ta_cycle_result = self.ta_cycle.get()
+        if not ta_cycle_result:
+            raise ValueError("ta_cycle is not set on this wheel")
+
+        ta_cycle_obj, _ = ta_cycle_result
+
+        # Get ordered transitions from ta_cycle
+        ordered_transitions = ta_cycle_obj.transitions_ordered
+
+        # Build a lookup map: component_uid -> (wisdom_unit, position)
+        # This avoids repeated searches through all WUs for each transition
+        component_to_wu_map = {}
+        for wu, _ in self.wisdom_units.all():
+            # Check all positions in this WU
+            positions = [
+                (POSITION_T, wu.t),
+                (POSITION_T_PLUS, wu.t_plus),
+                (POSITION_T_MINUS, wu.t_minus),
+                (POSITION_A, wu.a),
+                (POSITION_A_PLUS, wu.a_plus),
+                (POSITION_A_MINUS, wu.a_minus),
+            ]
+            for position, manager in positions:
+                for comp, _ in manager.all():
+                    component_to_wu_map[comp.uid] = (wu, position)
+
+        # Track which wisdom units we've seen
+        seen_wisdom_units = set()
+        pairs = []
+
+        # Traverse transitions to determine which side appears first for each WU
+        for transition in ordered_transitions:
+            # Get source component from transition (cardinality 1,1)
+            source_result = transition.source.get()
+            if not source_result:
+                continue
+
+            source_component, _ = source_result
+
+            # Look up wisdom unit and position from map
+            wu_info = component_to_wu_map.get(source_component.uid)
+            if wu_info is None:
+                continue
+
+            wu, position = wu_info
+
+            if wu.uid in seen_wisdom_units:
+                continue
+
+            # Determine polarity based on which side appears first
+            polarity: Literal["normal", "swapped"]
+            if position in [POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS]:
+                polarity = "normal"  # T-side appears first
+            elif position in [POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS]:
+                polarity = "swapped"  # A-side appears first
+            else:
+                # Skip synthesis positions
+                continue
+
+            # Get or create cached pair
+            cache_key = f"{wu.uid}:{polarity}"
+            if cache_key not in self._polar_pair_cache:
+                self._polar_pair_cache[cache_key] = WheelSegmentPolarPair(wu, polarity)
+
+            pair = self._polar_pair_cache[cache_key]
+            pairs.append(pair)
+            seen_wisdom_units.add(wu.uid)
+
+        return pairs
+
+    @property
+    def segments_ordered(self) -> list[WheelSegment]:
+        """
+        Get all wheel segments (T and A sides) following the ta_cycle symmetry.
+
+        Returns segments by exploiting the ta_cycle's symmetrical structure:
+        - First: All left/west sides (top parts) of pairs in order
+        - Then: All right/east sides (bottom parts) of pairs in REVERSE order
+
+        This creates the proper circular arrangement where the cycle goes around
+        the top half and returns via the bottom half.
+
+        Returns:
+            List of WheelSegment objects in symmetric wheel order
+
+        Raises:
+            ValueError: If ta_cycle is not set on this wheel
+
+        Example:
+            # If ta_cycle is T1 → A2 → A1 → T2, with pairs:
+            # Pair 1: (T1 left, A1 right)
+            # Pair 2: (A2 left, T2 right)
+            # Returns: [T1, A2, T2, A1] (top half forward, bottom half reversed)
+
+            segments = wheel.segments_ordered
+            for seg in segments:
+                comp = seg.t.get()
+                if comp:
+                    print(f"{seg.side}: {comp[0].statement}")
+        """
+        # Get polar pairs (these cache the WheelSegment instances)
+        pairs = self.polar_pairs_ordered
+
+        # Extract top parts (left sides) in forward order
+        top_segments = [pair.segment_left for pair in pairs]
+
+        # Extract bottom parts (right sides) in REVERSE order
+        bottom_segments = [pair.segment_right for pair in reversed(pairs)]
+
+        # Combine: top half forward, bottom half reversed
+        return top_segments + bottom_segments
+
+    def get_next_segment(self, current: WheelSegment) -> WheelSegment:
+        """
+        Get the next segment in ta_cycle order.
+
+        Args:
+            current: The current segment
+
+        Returns:
+            The next segment in ta_cycle circular order
+
+        Raises:
+            ValueError: If current segment is not found in this wheel
+        """
+        segments = self.segments_ordered
+
+        # Find current segment
+        for i, seg in enumerate(segments):
+            if seg.is_same(current):
+                # Return next segment (wrap around if at end)
+                next_index = (i + 1) % len(segments)
+                return segments[next_index]
+
+        raise ValueError(f"Segment not found in wheel's ta_cycle order")
 
     def __repr__(self) -> str:
         """String representation of the wheel."""
