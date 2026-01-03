@@ -202,22 +202,81 @@ class Synthesis(AssessableEntity):
 
         return True
 
-    def pretty(self) -> str:
+    def __format__(self, format_spec: str) -> str:
         """
-        Format this Synthesis for human-readable display.
+        Format this Synthesis using Python's format string protocol.
 
-        Formats both S+ and S- components with their aliases.
+        Format Specifications:
+        ----------------------
+
+        Format: [mode][:newlines]
+
+        Mode (optional):
+            (empty) - Uses custom aliases as stored (e.g., "S1+", "S2-")
+            "positions" - Uses canonical positions (S+, S-)
+            "strip_index" - Strips numeric indexes: "S1+" → "S+", "Foo2-" → "Foo-"
+
+        Newlines (optional):
+            Default: 2 newlines between components (if not specified)
+            :0 - Comma separation (compact single line)
+            :1 - Single newline between components (compact)
+            :2 - Double newline between components (spacious, default)
+
+        Examples:
+        ---------
+        ""              - Default aliases, 2 newlines
+        "positions"     - Canonical positions, 2 newlines
+        "strip_index"   - Strip indexes, 2 newlines
+        ":0"            - Default aliases, comma separated (single line)
+        ":1"            - Default aliases, 1 newline (compact)
+        "positions:0"   - Canonical positions, comma separated
+        "positions:1"   - Canonical positions, 1 newline
+        "strip_index:0" - Strip indexes, comma separated
+        "strip_index:1" - Strip indexes, 1 newline
+
+        Usage Examples:
+        ---------------
+        ```python
+        # Default - aliases as stored, spacious (2 newlines)
+        print(f"{synth}")
+        # Output:
+        #   S+ = Balance
+        #   Explanation: ...
+        #
+        #   S- = Stagnation
+        #   Explanation: ...
+
+        # Compact - aliases as stored, single newline
+        print(f"{synth::1}")
+
+        # Comma separated - single line for compact display
+        print(f"{synth::0}")
+        # Output:
+        #   S+ = Balance\nExplanation: ..., S- = Stagnation\nExplanation: ...
+        ```
 
         Returns:
-            Multi-line formatted string with S+ and S- components
-
-        Example:
-            S+ = Balance
-            Explanation: Complementary harmony
-
-            S- = Stagnation
-            Explanation: Reinforcing uniformity
+            Formatted string with S+ and S- components
         """
+        import re
+
+        # Parse format spec: [mode][:newlines]
+        if ":" in format_spec:
+            mode, newlines_str = format_spec.split(":", 1)
+            try:
+                newlines = int(newlines_str)
+            except ValueError:
+                newlines = 2  # Default on parse error
+        else:
+            mode = format_spec
+            newlines = 2  # Default: double newline
+
+        # Validate newlines (allow 0 for comma separation, treat negative as 0)
+        if newlines < 0:
+            newlines = 0
+
+        from dialectical_framework.graph.nodes.wisdom_unit import POSITION_S_PLUS, POSITION_S_MINUS
+
         formatted_components = []
 
         # Format S+
@@ -227,7 +286,18 @@ class Synthesis(AssessableEntity):
             # Synthesis relationships are always PolarityRelationship
             assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for S+, got {type(rel)}"
             alias = rel.alias  # Direct access, fully typed and validated
-            formatted_components.append(component.pretty(alias))
+
+            # Apply mode formatting
+            if mode == "positions":
+                # Use canonical position name - we know it's S+ because we got it from s_plus
+                alias = POSITION_S_PLUS
+            elif mode == "strip_index":
+                # Strip numeric index from alias using regex
+                # Handles: "S1+" → "S+", "Foo2-" → "Foo-"
+                alias = re.sub(r"(\d+)(?!.*\d)", "", alias)
+            # else: empty mode - use alias as-is
+
+            formatted_components.append(f"{alias} = {component}")
 
         # Format S-
         sm_result = self.s_minus.get()
@@ -236,10 +306,25 @@ class Synthesis(AssessableEntity):
             # Synthesis relationships are always PolarityRelationship
             assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for S-, got {type(rel)}"
             alias = rel.alias  # Direct access, fully typed and validated
-            formatted_components.append(component.pretty(alias))
 
-        return "\n\n".join(formatted_components)
+            # Apply mode formatting
+            if mode == "positions":
+                # Use canonical position name - we know it's S- because we got it from s_minus
+                alias = POSITION_S_MINUS
+            elif mode == "strip_index":
+                # Strip numeric index from alias using regex
+                alias = re.sub(r"(\d+)(?!.*\d)", "", alias)
+            # else: empty mode - use alias as-is
+
+            formatted_components.append(f"{alias} = {component}")
+
+        # Join with specified separator
+        if newlines < 1:
+            separator = ", "  # Comma separation for compact single-line format
+        else:
+            separator = "\n" * newlines  # Newline separation for multi-line format
+        return separator.join(formatted_components)
 
     def __str__(self) -> str:
-        """String representation using pretty format."""
-        return self.pretty()
+        """String representation using default format."""
+        return self.__format__("")

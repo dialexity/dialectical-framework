@@ -59,46 +59,62 @@ class DialecticalComponent(AssessableEntity):
         )
         return f"DialecticalComponent(uid={self.uid}, statement='{statement_preview}')"
 
-    def __str__(self) -> str:
-        """Human-readable string representation."""
-        return self.statement
-
-    def pretty(
-        self, dialectical_component_label: Optional[str] = None, *, skip_explanation: bool = False
-    ) -> str:
+    def __format__(self, format_spec: str) -> str:
         """
-        Format this component for human-readable display.
+        Format this component using Python's format string protocol.
 
-        Args:
-            dialectical_component_label: Optional label to use instead of searching for alias.
-                                         If not provided, will show just the statement.
-            skip_explanation: If True, omit the rationale explanation even if present
+        Format Specifications:
+        ----------------------
+        "short" - Just the statement (no explanation)
+        "long"  - Statement + explanation from best rationale (default)
+        ""      - Empty spec defaults to "long"
+
+        Examples:
+        ---------
+        f"{comp}"        - Long format (statement + explanation)
+        f"{comp:long}"   - Long format (explicit)
+        f"{comp:short}"  - Short format (statement only)
+
+        Usage with label:
+        -----------------
+        f"{label} = {comp:long}"   - "T = Democracy\nExplanation: Representative system"
+        f"{label} = {comp:short}"  - "T = Democracy"
 
         Returns:
-            Formatted string like "T = Democracy\nExplanation: Representative system"
-
-        Example:
-            comp = DialecticalComponent(statement="Democracy")
-            # Within WisdomUnit context
-            print(comp.pretty("T1"))  # "T1 = Democracy\nExplanation: ..."
-            # Standalone
-            print(comp.pretty())  # "Democracy"
+            Formatted string
         """
-        if dialectical_component_label:
-            result = f"{dialectical_component_label} = {self.statement}"
-        else:
-            result = self.statement
+        # Default to "long" if no spec provided
+        mode = format_spec if format_spec else "long"
 
-        # Add explanation from best rationale if present and not skipped
-        if not skip_explanation:
+        # Start with statement
+        result = self.statement
+
+        # Add explanation if in long mode
+        if mode == "long":
             rationales = list(self.rationales.all())
             if rationales:
-                # Get first rationale (could be enhanced to select "best" by rating)
-                rationale, _ = rationales[0]
-                if rationale.text:
-                    result = f"{result}\nExplanation: {rationale.text}"
+                # Multiple rationales - number them
+                if len(rationales) > 1:
+                    explanations = []
+                    for idx, (rationale, _) in enumerate(rationales, 1):
+                        if rationale.text:
+                            explanations.append(f"Explanation {idx}: {rationale.text}")
+                    if explanations:
+                        result = f"{result}\n" + "\n".join(explanations)
+                # Single rationale - no number
+                else:
+                    rationale, _ = rationales[0]
+                    if rationale.text:
+                        result = f"{result}\nExplanation: {rationale.text}"
+            else:
+                # No rationales
+                result = f"{result}\nExplanation: N/A"
 
         return result
+
+    def __str__(self) -> str:
+        """Human-readable string representation (defaults to long format)."""
+        return self.__format__("")
 
     def get_alias(self, wisdom_unit: WisdomUnit) -> Optional[str]:
         """

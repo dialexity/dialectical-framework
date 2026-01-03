@@ -59,11 +59,11 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
     )
     def ac_re_prompt(self, text: str, focus: WisdomUnit) -> "Messages.Type":
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
-        # Strip indexes from aliases to avoid LLM responding with indexed aliases (Ac1, Re2+)
+        # Use strip_index mode to avoid LLM responding with indexed aliases (Ac1, Re2+)
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": focus.pretty(strip_index=True),
+                "dialectical_analysis": f"{focus:strip_index}",
                 "component_length": self.settings.component_length,
             }
         }
@@ -117,11 +117,11 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
     )
     def reciprocal_solution_prompt(self, text: str, focus: WisdomUnit) -> "Messages.Type":
         # TODO: do we want to include the whole wheel reengineered? Also transitions so far?
-        # Strip indexes from aliases to avoid LLM responding with indexed aliases (Ac1, Re2+)
+        # Use strip_index mode to avoid LLM responding with indexed aliases (Ac1, Re2+)
         return {
             "computed_fields": {
                 "text": text,
-                "dialectical_analysis": focus.pretty(strip_index=True),
+                "dialectical_analysis": f"{focus:strip_index}",
                 "component_length": self.settings.component_length,
             }
         }

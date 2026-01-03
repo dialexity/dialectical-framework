@@ -155,13 +155,13 @@ async def test_redefine(di_container):
 
     print("\n")
     print("=== Original Graph-Native WisdomUnit ===")
-    print(wu.pretty())
+    print(wu)  # Uses __str__ which calls __format__ with empty spec
     print("\n")
     print("=== Redefined with Same Values (Same UID) ===")
-    print(redefined_wu.pretty())
+    print(redefined_wu)
     print("\n")
     print("=== Redefined with Different Values (New UID) ===")
-    print(redefined_wu2.pretty())
+    print(redefined_wu2)
 
 @pytest.mark.asyncio
 async def test_causality_sequencer(di_container):

@@ -381,31 +381,104 @@ class WisdomUnit(AssessableEntity):
                     typed_rel = rel_class(alias=new_alias)
                     manager.connect(component, relationship=typed_rel)
 
-    def pretty(self, strip_index: bool = False) -> str:
+    def __format__(self, format_spec: str) -> str:
         """
-        Format this WisdomUnit for human-readable display.
+        Format this WisdomUnit using Python's format string protocol.
 
-        Formats all 6 core positions (T, T+, T-, A, A+, A-) with their aliases
-        and optionally appends synthesis (S+, S-) if present.
+        Formats all 6 core positions (T, T+, T-, A, A+, A-) with their statements
+        and explanations. Does not include synthesis.
 
-        Args:
-            strip_index: If True, uses canonical position names (T, A+) instead of custom aliases
-                        Useful for LLM prompts to avoid indexed responses (T1 → T, A2+ → A+)
+        Format Specifications:
+        ----------------------
+
+        Format: [mode][:newlines]
+
+        Mode (optional):
+            (empty) - Uses custom aliases as stored (e.g., "T1", "Democracy", "Foo2+")
+            "positions" - Uses canonical positions (T, T+, T-, A, A+, A-)
+            "strip_index" - Strips numeric indexes: "T1" → "T", "Foo2+" → "Foo+"
+
+        Newlines (optional):
+            Default: 2 newlines between components (if not specified)
+            :0 - Comma separation (compact single line)
+            :1 - Single newline between components (compact)
+            :2 - Double newline between components (spacious, default)
+
+        Examples:
+        ---------
+        ""              - Default aliases, 2 newlines
+        "positions"     - Canonical positions, 2 newlines
+        "strip_index"   - Strip indexes, 2 newlines
+        ":0"            - Default aliases, comma separated (single line)
+        ":1"            - Default aliases, 1 newline (compact)
+        "positions:0"   - Canonical positions, comma separated
+        "positions:1"   - Canonical positions, 1 newline
+        "strip_index:0" - Strip indexes, comma separated
+        "strip_index:1" - Strip indexes, 1 newline
+        "positions:2"   - Canonical positions, 2 newlines (explicit)
+
+        Usage Examples:
+        ---------------
+        ```python
+        # Default - aliases as stored, spacious (2 newlines)
+        print(f"{wu}")
+        # Output:
+        #   T1 = Democracy
+        #   Explanation: ...
+        #
+        #   T1+ = Participation
+        #   Explanation: ...
+
+        # Compact - aliases as stored, single newline
+        print(f"{wu::1}")
+        # Output:
+        #   T1 = Democracy
+        #   Explanation: ...
+        #   T1+ = Participation
+        #   Explanation: ...
+
+        # Positions with compact spacing
+        print(f"{wu:positions:1}")
+        # Output:
+        #   T = Democracy
+        #   Explanation: ...
+        #   T+ = Participation
+        #   Explanation: ...
+
+        # Strip index for LLM prompts (spacious)
+        print(f"{wu:strip_index}")
+
+        # Comma separated - single line for compact display
+        print(f"{wu::0}")
+        # Output:
+        #   T1 = Democracy\nExplanation: ..., T1+ = Participation\nExplanation: ..., ...
+
+        # Comma separated with positions
+        print(f"{wu:positions:0}")
+        # Output:
+        #   T = Democracy\nExplanation: ..., T+ = Participation\nExplanation: ..., ...
+        ```
 
         Returns:
-            Multi-line formatted string with all components
-
-        Example:
-            T = Democracy
-            Explanation: Representative system
-
-            T+ = Participation
-            Explanation: Citizen engagement
-
-            ...
-
-            Synthesis: S+ = Balance
+            Formatted string with all 6 core components (multi-line or single-line depending on newlines parameter)
         """
+        import re
+
+        # Parse format spec: [mode][:newlines]
+        if ":" in format_spec:
+            mode, newlines_str = format_spec.split(":", 1)
+            try:
+                newlines = int(newlines_str)
+            except ValueError:
+                newlines = 2  # Default on parse error
+        else:
+            mode = format_spec
+            newlines = 2  # Default: double newline
+
+        # Validate newlines (allow 0 for comma separation, treat negative as 0)
+        if newlines < 0:
+            newlines = 0
+
         # Format all 6 core positions
         formatted_components = []
         for position in self.core_positions:
@@ -417,24 +490,25 @@ class WisdomUnit(AssessableEntity):
                 assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for {position}, got {type(rel)}"
                 alias = rel.alias  # Direct access, fully typed and validated
 
-                # Strip numeric index if requested (for LLM prompts)
-                if strip_index:
+                # Apply mode formatting
+                if mode == "positions":
+                    # Use canonical position name
                     alias = component.get_position(self)
+                elif mode == "strip_index":
+                    # Strip numeric index from alias using regex
+                    # Handles: "T1" → "T", "Foo2+" → "Foo+", "Bla1-" → "Bla-"
+                    alias = re.sub(r"(\d+)(?!.*\d)", "", alias)
+                # else: empty mode - use alias as-is
 
-                formatted_components.append(component.pretty(alias))
+                formatted_components.append(f"{alias} = {component}")
 
-        ws_formatted = "\n\n".join(formatted_components)
-
-        # Add synthesis if present
-        synth_result = self.synthesis.get()
-        if synth_result:
-            synthesis, _ = synth_result
-            synth_formatted = synthesis.pretty()
-            if synth_formatted:
-                ws_formatted = f"{ws_formatted}\n\nSynthesis: {synth_formatted}"
-
-        return ws_formatted
+        # Join with specified separator
+        if newlines < 1:
+            separator = ", "  # Comma separation for compact single-line format
+        else:
+            separator = "\n" * newlines  # Newline separation for multi-line format
+        return separator.join(formatted_components)
 
     def __str__(self) -> str:
-        """String representation using pretty format."""
-        return self.pretty()
+        """String representation using default format."""
+        return self.__format__("")
