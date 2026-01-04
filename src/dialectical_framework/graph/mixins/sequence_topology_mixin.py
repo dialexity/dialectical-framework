@@ -119,9 +119,11 @@ class SequenceTopologyMixin(ABC):
                 for i, comp in enumerate(components):
                     alias = None
                     for wu in wisdom_units:
-                        alias = comp.get_alias(wu)
-                        if alias:
-                            break
+                        try:
+                            alias = comp.get_alias(wu)
+                            break  # Found it
+                        except ValueError:
+                            continue  # Not in this WU
                     aliases.append(alias if alias else f"C{i+1}")
             else:
                 # Fallback to generic labels
@@ -201,9 +203,11 @@ class SequenceTopologyMixin(ABC):
             for comp in self_components:
                 alias = None
                 for wu in self_wisdom_units:
-                    alias = comp.get_alias(wu)
-                    if alias:
-                        break
+                    try:
+                        alias = comp.get_alias(wu)
+                        break  # Found it
+                    except ValueError:
+                        continue  # Not in this WU
                 if not alias:
                     raise ValueError(f"Component {comp.uid} has no alias in wheel context")
                 self_aliases.append(alias)
@@ -212,9 +216,11 @@ class SequenceTopologyMixin(ABC):
             for comp in other_components:
                 alias = None
                 for wu in other_wisdom_units:
-                    alias = comp.get_alias(wu)
-                    if alias:
-                        break
+                    try:
+                        alias = comp.get_alias(wu)
+                        break  # Found it
+                    except ValueError:
+                        continue  # Not in this WU
                 if not alias:
                     raise ValueError(f"Component {comp.uid} has no alias in wheel context")
                 other_aliases.append(alias)

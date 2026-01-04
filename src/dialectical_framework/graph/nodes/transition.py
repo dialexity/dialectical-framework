@@ -7,7 +7,7 @@ between dialectical components (causal, convergence, transformation).
 
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING
+from typing import ClassVar, TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.spiral import Spiral
     from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.wheel_segment import WheelSegment
 
 
 class Transition(AssessableEntity):
@@ -71,6 +73,92 @@ class Transition(AssessableEntity):
         "HAS_STATEMENT",
         cardinality=(0, None)
     )
+
+    def get_wheel(self) -> Wheel | None:
+        """
+        Get the wheel this transition belongs to via its cycle/spiral.
+
+        Returns:
+            The wheel containing this transition's cycle, or None if not found
+        """
+        cycle_result = self.cycle.get()
+        if not cycle_result:
+            return None
+
+        container, _ = cycle_result
+        return container.get_wheel()
+
+    def get_source_wheel_segment(self, wheel: Wheel = None) -> WheelSegment | None:
+        """
+        Get the wheel segment containing the source component.
+
+        Args:
+            wheel: Optional wheel to use. If not provided, gets wheel from transition's cycle.
+
+        Returns:
+            WheelSegment containing the source component, or None if not found
+        """
+        if wheel is None:
+            wheel = self.get_wheel()
+        if not wheel:
+            return None
+
+        source_result = self.source.get()
+        if not source_result:
+            return None
+
+        source_comp, _ = source_result
+        wu = wheel.wisdom_unit_at(source_comp)
+        if not wu:
+            return None
+
+        # Determine which side (T or A) based on component's position
+        position = source_comp.get_position(wu)
+        if not position:
+            return None
+
+        # Positions starting with 'T' are T-side, starting with 'A' are A-side
+        side: Literal["T", "A"] = "T" if position.startswith("T") else "A"
+
+        # Import here to avoid circular dependency at module level
+        from dialectical_framework.graph.wheel_segment import WheelSegment
+        return WheelSegment(wu, side)
+
+    def get_target_wheel_segment(self, wheel: Wheel = None) -> WheelSegment | None:
+        """
+        Get the wheel segment containing the target component.
+
+        Args:
+            wheel: Optional wheel to use. If not provided, gets wheel from transition's cycle.
+
+        Returns:
+            WheelSegment containing the target component, or None if not found
+        """
+        if wheel is None:
+            wheel = self.get_wheel()
+        if not wheel:
+            return None
+
+        target_result = self.target.get()
+        if not target_result:
+            return None
+
+        target_comp, _ = target_result
+        wu = wheel.wisdom_unit_at(target_comp)
+        if not wu:
+            return None
+
+        # Determine which side (T or A) based on component's position
+        position = target_comp.get_position(wu)
+        if not position:
+            return None
+
+        # Positions starting with 'T' are T-side, starting with 'A' are A-side
+        side: Literal["T", "A"] = "T" if position.startswith("T") else "A"
+
+        # Import here to avoid circular dependency at module level
+        from dialectical_framework.graph.wheel_segment import WheelSegment
+        return WheelSegment(wu, side)
 
     def __repr__(self) -> str:
         """String representation of the transition."""

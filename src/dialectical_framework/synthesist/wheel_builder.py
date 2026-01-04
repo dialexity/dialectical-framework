@@ -482,13 +482,14 @@ class WheelBuilder(SettingsAware):
                 """Extract ordered list of aliases from cycle components."""
                 aliases = []
                 for comp in cycle.dialectical_components:
-                    alias = None
+                    # Try each WU until we find the one containing this component
                     for wu in wisdom_units:
-                        alias = comp.get_alias(wu)
-                        if alias:
-                            break
-                    if alias:
-                        aliases.append(alias)
+                        try:
+                            alias = comp.get_alias(wu)
+                            aliases.append(alias)
+                            break  # Found it, move to next component
+                        except ValueError:
+                            continue  # Not in this WU, try next
                 return aliases
 
             # Get alias sequences for original cycles

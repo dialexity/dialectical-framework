@@ -65,10 +65,14 @@ async def test_wheel_spiral():
     wheels = await factory1.build_wheel_permutations(theses=[None, None])
     assert wheels[0].polarity_count == 2  # Graph-native uses polarity_count instead of order
 
-    await factory1.calculate_transitions(wheels[0])
-    await factory1.calculate_syntheses(wheels[0], 1)
+    await factory1.calculate_transitions(wheel=wheels[0])
 
-    print(dw_report(wheels))
+    # Get first wisdom unit for synthesis
+    wu_list = [wu for wu, _ in wheels[0].wisdom_units.all()]
+    await factory1.calculate_syntheses(wheel=wheels[0], at=wu_list[0] if wu_list else None)
+
+    # print(dw_report(wheels))
+    print(wheels[0].pretty())
 
 @pytest.mark.asyncio
 @observe()

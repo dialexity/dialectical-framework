@@ -116,19 +116,23 @@ class DialecticalComponent(AssessableEntity):
         """Human-readable string representation (defaults to long format)."""
         return self.__format__("")
 
-    def get_alias(self, wisdom_unit: WisdomUnit) -> Optional[str]:
+    def get_alias(self, wisdom_unit: WisdomUnit) -> str:
         """
         Get the alias of this component within a specific WisdomUnit's context.
 
         This method searches all relationship managers on the WisdomUnit (6 core positions)
         and the optional Synthesis node (S+, S-) to find where this component is connected
-        and returns the alias from the edge properties.
+        and returns the alias from the edge properties. If no custom alias is set, returns
+        the position constant as the default alias.
 
         Args:
             wisdom_unit: The WisdomUnit to look up the alias in
 
         Returns:
-            The alias string (e.g., "T", "T+", "A-", "S+", "S-") or None if not connected
+            The alias string (e.g., "T1", "A2+") or position constant (e.g., "T", "T+", "A-")
+
+        Raises:
+            ValueError: If component is not connected to the wisdom unit
 
         Example:
             from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
@@ -137,7 +141,16 @@ class DialecticalComponent(AssessableEntity):
             wu.t.connect(comp, relationship=TRelationship(alias='T1'))
 
             alias = comp.get_alias(wu)  # Returns "T1"
+
+            # If alias not set on relationship:
+            wu2.t.connect(comp2, relationship=TRelationship(alias=None))
+            alias2 = comp2.get_alias(wu2)  # Returns "T" (position constant)
         """
+        # Get position first to use as fallback
+        position = self.get_position(wisdom_unit)
+        if not position:
+            raise ValueError(f"Component {self.uid} is not connected to WisdomUnit {wisdom_unit.uid}")
+
         # Search through all 6 core position relationship managers on the wisdom unit
         rel_managers = [
             wisdom_unit.t,
@@ -156,8 +169,9 @@ class DialecticalComponent(AssessableEntity):
                 if comp.uid == self.uid:
                     # Use isinstance for type-safe property access
                     if isinstance(rel, PolarityRelationship):
-                        return rel.alias  # Direct access, fully typed
-                    return None  # Non-polarity relationship
+                        # Return custom alias if set, otherwise position constant
+                        return rel.alias if rel.alias else position
+                    return position  # Non-polarity relationship, use position
 
         # Also check synthesis if present
         synth_result = wisdom_unit.synthesis.get()
@@ -170,10 +184,12 @@ class DialecticalComponent(AssessableEntity):
                     if comp.uid == self.uid:
                         # Use isinstance for type-safe property access
                         if isinstance(rel, PolarityRelationship):
-                            return rel.alias  # Direct access, fully typed
-                        return None  # Non-polarity relationship
+                            # Return custom alias if set, otherwise position constant
+                            return rel.alias if rel.alias else position
+                        return position  # Non-polarity relationship, use position
 
-        return None
+        # Should not reach here since get_position() already validated connection
+        return position
 
     def get_position(self, wisdom_unit: WisdomUnit) -> Optional[str]:
         """

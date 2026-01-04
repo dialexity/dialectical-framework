@@ -197,9 +197,11 @@ class Wheel(AssessableEntity):
         elif isinstance(key, DCClass):
             # Search by component
             for wu in wus:
-                alias = key.get_alias(wu)
-                if alias is not None:
-                    return wu
+                try:
+                    key.get_alias(wu)
+                    return wu  # Found it
+                except ValueError:
+                    continue  # Not in this WU
             raise ValueError(f"Cannot find wisdom unit containing component: {key.uid}")
 
         raise ValueError(f"Cannot find wisdom unit with key: {key}")
@@ -401,11 +403,15 @@ class Wheel(AssessableEntity):
             # Find which wisdom unit this component belongs to
             for wu, _ in self.wisdom_units.all():
                 # Check if this component belongs to this wisdom unit
-                alias = source_component.get_alias(wu)
-                if alias and wu.uid not in seen_wisdom_units:
-                    wisdom_units.append(wu)
-                    seen_wisdom_units.add(wu.uid)
+                try:
+                    source_component.get_alias(wu)
+                    # Found it - add if not already seen
+                    if wu.uid not in seen_wisdom_units:
+                        wisdom_units.append(wu)
+                        seen_wisdom_units.add(wu.uid)
                     break
+                except ValueError:
+                    continue  # Not in this WU
 
         return wisdom_units
 
