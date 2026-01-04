@@ -162,9 +162,10 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         """
     )
     def prompt_summarize(self, text: str, *, transition: Transition) -> "Messages.Type":
-        # Extract segments from transition
-        focus = transition.get_source_wheel_segment()
-        next_ws = transition.get_target_wheel_segment()
+        # Extract segments from transition using wheel context
+        wheel = self._wheel
+        focus = transition.get_source_wheel_segment(wheel=wheel)
+        next_ws = transition.get_target_wheel_segment(wheel=wheel)
 
         if not focus or not next_ws:
             raise ValueError(f"Cannot extract wheel segments from transition {transition.uid}")
