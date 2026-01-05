@@ -527,26 +527,21 @@ class Wheel(AssessableEntity):
     @property
     def segments_ordered(self) -> list[WheelSegment]:
         """
-        Get all wheel segments (T and A sides) following the ta_cycle symmetry.
+        Get all wheel segments (T and A sides) following the actual ta_cycle traversal order.
 
-        Returns segments by exploiting the ta_cycle's symmetrical structure:
-        - First: All left/west sides (top parts) of pairs in order
-        - Then: All right/east sides (bottom parts) of pairs in REVERSE order
-
-        This creates the proper circular arrangement where the cycle goes around
-        the top half and returns via the bottom half.
+        Returns segments in the exact order they appear in the ta_cycle, which is the
+        correct order for creating spiral transitions (each segment's minus connects to
+        the next segment's plus).
 
         Returns:
-            List of WheelSegment objects in symmetric wheel order
+            List of WheelSegment objects in ta_cycle traversal order
 
         Raises:
             ValueError: If ta_cycle is not set on this wheel
 
         Example:
-            # If ta_cycle is T1 → A2 → A1 → T2, with pairs:
-            # Pair 1: (T1 left, A1 right)
-            # Pair 2: (A2 left, T2 right)
-            # Returns: [T1, A2, T2, A1] (top half forward, bottom half reversed)
+            # If ta_cycle is T1 → A2 → A1 → T2:
+            # Returns: [T1, A2, A1, T2] (exact ta_cycle order)
 
             segments = wheel.segments_ordered
             for seg in segments:
@@ -554,17 +549,48 @@ class Wheel(AssessableEntity):
                 if comp:
                     print(f"{seg.side}: {comp[0].statement}")
         """
-        # Get polar pairs (these cache the WheelSegment instances)
-        pairs = self.polar_pairs_ordered
+        # Get ta_cycle
+        ta_cycle_result = self.ta_cycle.get()
+        if not ta_cycle_result:
+            raise ValueError("ta_cycle is not set on this wheel")
 
-        # Extract top parts (left sides) in forward order
-        top_segments = [pair.segment_left for pair in pairs]
+        ta_cycle_obj, _ = ta_cycle_result
 
-        # Extract bottom parts (right sides) in REVERSE order
-        bottom_segments = [pair.segment_right for pair in reversed(pairs)]
+        # Get ordered transitions from ta_cycle
+        ordered_transitions = ta_cycle_obj.transitions_ordered
 
-        # Combine: top half forward, bottom half reversed
-        return top_segments + bottom_segments
+        # Extract segments by following the ta_cycle transitions
+        segments = []
+        seen_segments = set()
+
+        for transition in ordered_transitions:
+            # Get source component
+            source_result = transition.source.get()
+            if not source_result:
+                continue
+
+            source_component, _ = source_result
+
+            # Find which segment this component belongs to
+            for wu, _ in self.wisdom_units.all():
+                # Try to get segment containing this component
+                t_seg = wu.segment_t
+                if t_seg.is_set(source_component):
+                    seg_key = (wu.uid, t_seg.side)
+                    if seg_key not in seen_segments:
+                        segments.append(t_seg)
+                        seen_segments.add(seg_key)
+                    break
+
+                a_seg = wu.segment_a
+                if a_seg.is_set(source_component):
+                    seg_key = (wu.uid, a_seg.side)
+                    if seg_key not in seen_segments:
+                        segments.append(a_seg)
+                        seen_segments.add(seg_key)
+                    break
+
+        return segments
 
     def get_next_segment(self, current: WheelSegment) -> WheelSegment:
         """
@@ -648,10 +674,18 @@ class Wheel(AssessableEntity):
             output.extend(_format_cycle(ta_cycle_obj, "TA-Cycle"))
             output.append("")
 
-        # Wisdom Units (tabular)
-        output.append("=== Wisdom Units ===")
-        wus = [wu for wu, _ in self.wisdom_units.all()]
-        if wus:
+        # Wisdom Units (tabular with transformations)
+        # Use polar_pairs_ordered to get wisdom units in ta_cycle order with correct polarity
+        output.append("=== Wisdom Units / Transformations ===")
+
+        try:
+            polar_pairs = self.polar_pairs_ordered
+        except ValueError:
+            # ta_cycle not set, fall back to unordered wisdom units
+            from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
+            polar_pairs = [WheelSegmentPolarPair(wu, "normal") for wu, _ in self.wisdom_units.all()]
+
+        if polar_pairs:
             from tabulate import tabulate
             from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 
@@ -664,11 +698,14 @@ class Wheel(AssessableEntity):
                 ("a_minus", POSITION_A_MINUS),
             ]
 
-            # Build table: each row is a position, columns are (alias, statement) for each WU
+            # Build table: each row is a position, columns are (alias, statement) pairs for WU and then for Transformation
             table = []
             for position_attr, position_label in positions:
                 row = []
-                for wu in wus:
+                for pair in polar_pairs:
+                    wu = pair.wisdom_unit
+
+                    # WisdomUnit columns
                     manager = getattr(wu, position_attr)
                     result = manager.get()
                     if result:
@@ -679,6 +716,31 @@ class Wheel(AssessableEntity):
                     else:
                         row.append("")
                         row.append("")
+
+                    # Transformation (AC/RE) columns
+                    transformation_result = wu.transformation.get()
+                    if transformation_result:
+                        transformation, _ = transformation_result
+                        ac_re_result = transformation.ac_re.get()
+                        if ac_re_result:
+                            ac_re_wu, _ = ac_re_result
+                            trans_manager = ac_re_wu.get_relationship_manager_by_position(position_label)
+                            trans_result = trans_manager.get()
+                            if trans_result:
+                                trans_comp, trans_rel = trans_result
+                                assert isinstance(trans_rel, PolarityRelationship)
+                                row.append(trans_rel.alias)
+                                row.append(trans_comp.statement)
+                            else:
+                                row.append("")
+                                row.append("")
+                        else:
+                            row.append("")
+                            row.append("")
+                    else:
+                        row.append("")
+                        row.append("")
+
                 table.append(row)
 
             output.append(tabulate(table, tablefmt="plain"))

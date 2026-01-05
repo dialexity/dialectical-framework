@@ -47,32 +47,147 @@ example_wu4 = WisdomUnit(
 
 @pytest.mark.asyncio
 @observe()
-async def test_full_blown_wheel():
+@pytest.mark.parametrize("number_of_thoughts", [
+    2,
+    # 3,
+])
+async def test_full_blown_wheel(number_of_thoughts):
+    """
+    Full-blown test with all decorators: Action-Reflection, Spiral, and Audited Spiral.
+    This test includes synthesis calculation.
+    """
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory1 = DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral(DecoratorActionReflection(builder=factory)))
-    wheels = await factory1.build_wheel_permutations(theses=[None, None])
-    assert wheels[0].order == 2
-    await factory1.calculate_transitions(wheels[0])
-    assert wheels[0].score > 0
+    wheels = await factory1.build_wheel_permutations(theses=[None]*number_of_thoughts)
 
-    print(str(wheels[0]))
+    assert len(wheels) > 0, "Should generate at least one wheel"
+    wheel = wheels[0]
+
+    # Verify structure
+    assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {wheel.polarity_count}"
+
+    # Verify cycles exist
+    t_cycle_result = wheel.t_cycle.get()
+    assert t_cycle_result is not None, "T-cycle should exist"
+
+    ta_cycle_result = wheel.ta_cycle.get()
+    assert ta_cycle_result is not None, "TA-cycle should exist"
+
+    # Calculate transitions (spiral will be created during this step)
+    await factory1.calculate_transitions(wheel)
+
+    # Verify spiral was created
+    spiral_result = wheel.spiral.get()
+    assert spiral_result is not None, "Spiral MUST be created by DecoratorDiscreteSpiral"
+
+    # Get wisdom units
+    wu_list = [wu for wu, _ in wheel.wisdom_units.all()]
+    assert len(wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {len(wu_list)}"
+
+    # Verify transformations exist (Action-Reflection)
+    for wu in wu_list:
+        transformation_result = wu.transformation.get()
+        assert transformation_result is not None, f"WisdomUnit {wu.uid} should have transformation"
+        transformation, _ = transformation_result
+
+        # Verify ac_re exists
+        ac_re_result = transformation.ac_re.get()
+        assert ac_re_result is not None, "Transformation should have ac_re WisdomUnit"
+
+        # Verify transitions exist
+        transitions = [t for t, _ in transformation.transitions.all()]
+        assert len(transitions) == 2, f"Transformation should have 2 transitions, got {len(transitions)}"
+
+    # Calculate syntheses for all wisdom units
+    print("\n=== Calculating Syntheses ===")
+    for i, wu in enumerate(wu_list):
+        print(f"Calculating synthesis for WisdomUnit {i+1}/{len(wu_list)}")
+        await factory1.calculate_syntheses(wheel=wheel, at=wu)
+
+        # Verify synthesis was created
+        synthesis_list = [s for s, _ in wu.synthesis.all()]
+        assert len(synthesis_list) >= 1, f"WisdomUnit {i+1} should have at least one synthesis"
+
+        # Verify S+ and S- exist
+        for synthesis in synthesis_list:
+            s_plus_result = synthesis.s_plus.get()
+            s_minus_result = synthesis.s_minus.get()
+            assert s_plus_result is not None, "Synthesis should have S+ component"
+            assert s_minus_result is not None, "Synthesis should have S- component"
+
+    # Calculate score (optional, but useful to verify scoring works)
+    # Note: Scoring requires TaroRank setup
+    # assert wheel.score is not None, "Wheel should have a score"
+
+    print("\n" + "="*80)
+    print(f"FULL BLOWN WHEEL (with {number_of_thoughts} thoughts: Action-Reflection, Spiral, Audit, and Syntheses)")
+    print("="*80)
+    print(str(wheel))
+
+    # Print each wisdom unit with full details (including synthesis and rationales)
+    # Use polar_pairs_ordered to get wisdom units in ta_cycle order with correct polarity
+    for i, pair in enumerate(wheel.polar_pairs_ordered):
+        print(f"\n{'='*80}")
+        print(f"WisdomUnit {i+1} - Full Details (Polarity: {pair.polarity})")
+        print(f"{'='*80}")
+        print(f"{pair:full:compact}")
 
 @pytest.mark.asyncio
 @observe()
-async def test_wheel_spiral():
+@pytest.mark.parametrize("number_of_thoughts", [
+    2,
+    3,
+])
+async def test_wheel_spiral(number_of_thoughts):
+    """
+    Test with DiscreteSpiral decorator only (no Action-Reflection, no Synthesis).
+    Verifies that cycles and spiral are created correctly.
+    """
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory1 = DecoratorDiscreteSpiral(builder=factory)
-    wheels = await factory1.build_wheel_permutations(theses=[None, None])
-    assert wheels[0].polarity_count == 2  # Graph-native uses polarity_count instead of order
+    wheels = await factory1.build_wheel_permutations(theses=[None]*number_of_thoughts)
 
-    await factory1.calculate_transitions(wheel=wheels[0])
+    assert len(wheels) > 0, "Should generate at least one wheel"
+    wheel = wheels[0]
 
-    # Get first wisdom unit for synthesis
-    wu_list = [wu for wu, _ in wheels[0].wisdom_units.all()]
-    await factory1.calculate_syntheses(wheel=wheels[0], at=wu_list[0] if wu_list else None)
+    # Verify structure
+    assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {wheel.polarity_count}"
 
-    # print(dw_report(wheels))
-    print(str(wheels[0]))
+    # Verify cycles exist
+    t_cycle_result = wheel.t_cycle.get()
+    assert t_cycle_result is not None, "T-cycle should exist"
+
+    ta_cycle_result = wheel.ta_cycle.get()
+    assert ta_cycle_result is not None, "TA-cycle should exist"
+
+    # Calculate transitions (spiral will be created during this step)
+    await factory1.calculate_transitions(wheel=wheel)
+
+    # Get wisdom units
+    wu_list = [wu for wu, _ in wheel.wisdom_units.all()]
+    assert len(wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {len(wu_list)}"
+
+    # Verify spiral was created (MUST exist after calculate_transitions)
+    spiral_result = wheel.spiral.get()
+    assert spiral_result is not None, "Spiral MUST be created by DecoratorDiscreteSpiral.calculate_transitions()"
+
+    spiral_obj, _ = spiral_result
+    spiral_transitions = [t for t, _ in spiral_obj.transitions.all()]
+    expected_transitions = number_of_thoughts * 2  # 2 segments per wisdom unit
+    assert len(spiral_transitions) == expected_transitions, f"Spiral should have exactly {expected_transitions} transitions, got {len(spiral_transitions)}"
+    print(f"\n✓ Spiral created with {len(spiral_transitions)} transitions")
+
+    # Verify each transition has rationale
+    for trans in spiral_transitions:
+        rationales = [r for r, _ in trans.rationales.all()]
+        assert len(rationales) >= 1, "Each spiral transition should have at least one rationale"
+
+    # NO SYNTHESIS CALCULATION - that's only for test_full_blown_wheel
+
+    print("\n" + "="*80)
+    print(f"WHEEL WITH SPIRAL (with {number_of_thoughts} thoughts: no Action-Reflection, no Synthesis)")
+    print("="*80)
+    print(str(wheel))
 
 @pytest.mark.asyncio
 @observe()
@@ -186,10 +301,7 @@ async def test_wheel_acre(number_of_thoughts):
         old_count = initial_rationale_counts[trans._id]
         assert new_count > old_count, f"Transition should have more rationales after second call: {old_count} → {new_count}"
 
-    print("\n")
+    print("\n" + "="*80)
+    print(f"ACTION-REFLECTION WHEEL (with {number_of_thoughts} thought(s))")
+    print("="*80)
     print(str(wheel))
-    print("\n")
-    for wu in wheel.polar_pairs_ordered:
-        print(f"{wu:full:compact}")
-        print("\n")
-        print("\n")

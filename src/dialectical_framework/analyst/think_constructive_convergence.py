@@ -260,15 +260,25 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         source_comp, _ = focus_t_minus_result
         target_comp, _ = next_ws_t_plus_result
 
-        # Query spiral for existing transition with same source/target components
+        # Get or create spiral
         spiral_result = self._wheel.spiral.get()
-        transition = None
-        if spiral_result:
-            spiral = spiral_result[0]
-            spiral_transitions = [t for t, _ in spiral.transitions.all()]
+        if not spiral_result:
+            # Create new Spiral node
+            from dialectical_framework.graph.nodes.spiral import Spiral
+            spiral = Spiral()
+            spiral.save()
 
-            # Check for duplicate using shared helper
-            transition = self.find_duplicate_transition(spiral_transitions, source_comp, target_comp)
+            # Connect spiral to wheel
+            self._wheel.spiral.connect(spiral)
+        else:
+            spiral = spiral_result[0]
+
+        # Query spiral for existing transition with same source/target components
+        spiral_transitions = [t for t, _ in spiral.transitions.all()]
+        transition = None
+
+        # Check for duplicate using shared helper
+        transition = self.find_duplicate_transition(spiral_transitions, source_comp, target_comp)
 
         # Create rationale
         rationale = GraphRationale(
@@ -289,9 +299,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
             transition.rationales.connect(rationale)
 
             # Connect transition to spiral
-            if spiral_result:
-                spiral = spiral_result[0]
-                spiral.transitions.connect(transition)
+            spiral.transitions.connect(transition)
         else:
             # Add rationale to existing transition
             transition.rationales.connect(rationale)

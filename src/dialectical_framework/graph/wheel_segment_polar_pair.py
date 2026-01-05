@@ -225,11 +225,12 @@ class WheelSegmentPolarPair:
 
     def _format_full(self) -> str:
         """
-        Format in full mode: Synthesis, both segments, Transformation (vertical).
+        Format in full mode: Synthesis, both segments, Transformation, Rationales (vertical).
 
         Returns:
             Formatted string with all sections separated vertically
         """
+        from tabulate import tabulate
         sections = []
 
         # Section 1: Synthesis (if exists)
@@ -253,6 +254,42 @@ class WheelSegmentPolarPair:
             transformation, _ = transformation_result
             sections.append("=== Transformation ===")
             sections.append(f"{transformation}")
+
+        # Section 4: Rationales (3-column table)
+        sections.append("=== Rationales ===")
+
+        # Collect rationales from each source
+        wu_rationales = [r.text for r, _ in self._wisdom_unit.rationales.all() if r.text]
+
+        trans_rationales = []
+        ac_re_rationales = []
+        if transformation_result:
+            transformation, _ = transformation_result
+            trans_rationales = [r.text for r, _ in transformation.rationales.all() if r.text]
+
+            ac_re_result = transformation.ac_re.get()
+            if ac_re_result:
+                ac_re_wu, _ = ac_re_result
+                ac_re_rationales = [r.text for r, _ in ac_re_wu.rationales.all() if r.text]
+
+        # Build rationale table (3 columns: WU | Transformation | AC/RE)
+        max_rows = max(len(wu_rationales), len(trans_rationales), len(ac_re_rationales), 0)
+
+        if max_rows > 0:
+            rationale_table = []
+            for i in range(max_rows):
+                row = [
+                    wu_rationales[i] if i < len(wu_rationales) else "",
+                    trans_rationales[i] if i < len(trans_rationales) else "",
+                    ac_re_rationales[i] if i < len(ac_re_rationales) else ""
+                ]
+                rationale_table.append(row)
+
+            # Add headers
+            headers = ["WisdomUnit", "Transformation", "AC/RE WisdomUnit"]
+            sections.append(tabulate(rationale_table, headers=headers, tablefmt="plain"))
+        else:
+            sections.append("[No rationales]")
 
         return "\n\n".join(sections)
 
@@ -347,6 +384,43 @@ class WheelSegmentPolarPair:
             table.append(row)
 
         lines.append(tabulate(table, tablefmt="plain"))
+
+        # Section 3: Rationales (3-column table: WU, Transformation, AC/RE)
+        lines.append("")
+        lines.append("=== Rationales ===")
+
+        # Collect rationales from each source
+        wu_rationales = [r.text for r, _ in self._wisdom_unit.rationales.all() if r.text]
+
+        trans_rationales = []
+        ac_re_rationales = []
+        if transformation_result:
+            transformation, _ = transformation_result
+            trans_rationales = [r.text for r, _ in transformation.rationales.all() if r.text]
+
+            ac_re_result = transformation.ac_re.get()
+            if ac_re_result:
+                ac_re_wu, _ = ac_re_result
+                ac_re_rationales = [r.text for r, _ in ac_re_wu.rationales.all() if r.text]
+
+        # Build rationale table (3 columns: WU | Transformation | AC/RE)
+        max_rows = max(len(wu_rationales), len(trans_rationales), len(ac_re_rationales))
+
+        if max_rows > 0:
+            rationale_table = []
+            for i in range(max_rows):
+                row = [
+                    wu_rationales[i] if i < len(wu_rationales) else "",
+                    trans_rationales[i] if i < len(trans_rationales) else "",
+                    ac_re_rationales[i] if i < len(ac_re_rationales) else ""
+                ]
+                rationale_table.append(row)
+
+            # Add headers
+            headers = ["WisdomUnit", "Transformation", "AC/RE WisdomUnit"]
+            lines.append(tabulate(rationale_table, headers=headers, tablefmt="plain"))
+        else:
+            lines.append("[No rationales]")
 
         return "\n".join(lines)
 
