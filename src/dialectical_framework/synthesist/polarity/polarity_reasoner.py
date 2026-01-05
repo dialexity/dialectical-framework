@@ -28,11 +28,7 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
     TRelationship,
-    TPlusRelationship,
-    TMinusRelationship,
     ARelationship,
-    APlusRelationship,
-    AMinusRelationship,
 )
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
@@ -54,35 +50,6 @@ if TYPE_CHECKING:
     from gqlalchemy import Memgraph, Neo4j
 
 
-def _create_polarity_relationship(position: str, alias: str) -> PolarityRelationship:
-    """
-    Create typed polarity relationship based on position.
-
-    Args:
-        position: Position name ('T', 'A', 'T+', 'T-', 'A+', 'A-')
-        alias: Alias value (validated by relationship __init__)
-
-    Returns:
-        Typed PolarityRelationship instance
-
-    Example:
-        rel = _create_polarity_relationship('T', 'T1')  # Returns TRelationship
-        rel = _create_polarity_relationship('A+', 'A1+')  # Returns APlusRelationship
-    """
-    position_to_relationship = {
-        POSITION_T: TRelationship,
-        POSITION_A: ARelationship,
-        POSITION_T_PLUS: TPlusRelationship,
-        POSITION_T_MINUS: TMinusRelationship,
-        POSITION_A_PLUS: APlusRelationship,
-        POSITION_A_MINUS: AMinusRelationship,
-    }
-
-    rel_class = position_to_relationship.get(position)
-    if not rel_class:
-        raise ValueError(f"Unknown position: {position}")
-
-    return rel_class(alias=alias)
 
 
 class PolarityReasoner(HasBrain, Reloadable):
@@ -552,7 +519,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                         dc = component_from_dto(dc_dto)
                         manager = wu.get_relationship_manager_by_position(position_name)
                         # Create typed relationship for validation and type safety
-                        rel = _create_polarity_relationship(position_name, dto_alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(position_name)(alias=dto_alias)
                         manager.connect(dc, relationship=rel)
                         ci += 1
         except StopIteration:
@@ -626,7 +593,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                 if orig_component and orig_component.statement == new_statement:
                     # Statement unchanged - reuse original component (keep same UID)
                     manager = new_wu.get_relationship_manager_by_position(position)
-                    rel = _create_polarity_relationship(position, position)
+                    rel = WisdomUnit.get_relationship_class_for_position(position)(alias=position)
                     manager.connect(orig_component, relationship=rel)
                 else:
                     # Statement changed - create new component with new UID
@@ -642,14 +609,14 @@ class PolarityReasoner(HasBrain, Reloadable):
 
                     # Connect to new WU with typed relationship
                     manager = new_wu.get_relationship_manager_by_position(position)
-                    rel = _create_polarity_relationship(position, position)
+                    rel = WisdomUnit.get_relationship_class_for_position(position)(alias=position)
                     manager.connect(component, relationship=rel)
             else:
                 # Copy from original
                 orig_component = original.get_component(position)
                 if orig_component:
                     manager = new_wu.get_relationship_manager_by_position(position)
-                    rel = _create_polarity_relationship(position, position)
+                    rel = WisdomUnit.get_relationship_class_for_position(position)(alias=position)
                     manager.connect(orig_component, relationship=rel)
 
         if changed.get(base_pos) or changed.get(other_pos):
@@ -769,7 +736,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                     if orig_component and orig_component.statement == new_statement:
                         # Statement unchanged - reuse original component (keep same UID)
                         manager = new_wu.get_relationship_manager_by_position(alias)
-                        rel = _create_polarity_relationship(alias, alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(alias)(alias=alias)
                         manager.connect(orig_component, relationship=rel)
                     else:
                         # Statement changed - create new component with new UID
@@ -785,14 +752,14 @@ class PolarityReasoner(HasBrain, Reloadable):
 
                         # Connect to new WU with typed relationship
                         manager = new_wu.get_relationship_manager_by_position(alias)
-                        rel = _create_polarity_relationship(alias, alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(alias)(alias=alias)
                         manager.connect(component, relationship=rel)
                 else:
                     # Copy from original
                     orig_component = original.get_component(alias)
                     if orig_component:
                         manager = new_wu.get_relationship_manager_by_position(alias)
-                        rel = _create_polarity_relationship(alias, alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(alias)(alias=alias)
                         manager.connect(orig_component, relationship=rel)
 
             if (changed.get(base) or changed.get(base_minus)) or (
@@ -828,7 +795,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                             if orig_base_minus and orig_base_minus.statement == bm_dto.statement:
                                 # Statement unchanged - reuse original component (keep same UID)
                                 manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
-                                rel = _create_polarity_relationship(base_minus_alias, base_minus_alias)
+                                rel = WisdomUnit.get_relationship_class_for_position(base_minus_alias)(alias=base_minus_alias)
                                 manager.connect(orig_base_minus, relationship=rel)
                                 changed[base_minus] = orig_base_minus.statement
                             else:
@@ -838,7 +805,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                                 if bm.best_rationale and bm.best_rationale.text:
                                     bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
                                 manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
-                                rel = _create_polarity_relationship(base_minus_alias, base_minus_alias)
+                                rel = WisdomUnit.get_relationship_class_for_position(base_minus_alias)(alias=base_minus_alias)
                                 manager.connect(bm, relationship=rel)
                                 changed[base_minus] = bm.statement
                             check2.valid = True
@@ -885,7 +852,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                             if orig_other_plus and orig_other_plus.statement == op_dto.statement:
                                 # Statement unchanged - reuse original component (keep same UID)
                                 manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
-                                rel = _create_polarity_relationship(other_plus_alias, other_plus_alias)
+                                rel = WisdomUnit.get_relationship_class_for_position(other_plus_alias)(alias=other_plus_alias)
                                 manager.connect(orig_other_plus, relationship=rel)
                                 changed[other_plus] = orig_other_plus.statement
                             else:
@@ -895,7 +862,7 @@ class PolarityReasoner(HasBrain, Reloadable):
                                 if op.best_rationale and op.best_rationale.text:
                                     op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
                                 manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
-                                rel = _create_polarity_relationship(other_plus_alias, other_plus_alias)
+                                rel = WisdomUnit.get_relationship_class_for_position(other_plus_alias)(alias=other_plus_alias)
                                 manager.connect(op, relationship=rel)
                                 changed[other_plus] = op.statement
                             check3.valid = True

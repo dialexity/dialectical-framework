@@ -183,7 +183,10 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             component = component_from_dto(dto)
 
             # Get the relationship manager for this position and connect component
-            ac_re_wu.get_relationship_manager_by_position(position).connect(component, relationship=PolarityRelationship(alias=dto.alias))
+            manager = ac_re_wu.get_relationship_manager_by_position(position)
+            # Use the correct relationship class for this position
+            rel_class = WisdomUnit.get_relationship_class_for_position(position)
+            manager.connect(component, relationship=rel_class(alias=dto.alias))
 
         # Get components for transitions
         wu_t_minus_result = wu.t_minus.get()
@@ -274,6 +277,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
 
             # Return newly created transitions
             return [transition1, transition2]
+
 
     @staticmethod
     def _translate_alias_to_position(alias: str) -> str:

@@ -184,6 +184,45 @@ class WisdomUnit(AssessableEntity):
             self._cached_segment_a = WheelSegment(self, 'A')
         return self._cached_segment_a
 
+    @staticmethod
+    def get_relationship_class_for_position(position: str) -> type[PolarityRelationship]:
+        """
+        Get the correct PolarityRelationship subclass for a given position.
+
+        This mapping is used when creating relationships to ensure the correct
+        relationship type is used for querying (e.g., TRelationship for position T).
+
+        Args:
+            position: Position name (e.g., 'T', 'A', 'T+', 'T-', 'A+', 'A-')
+
+        Returns:
+            The relationship class for that position
+
+        Raises:
+            ValueError: If position is not recognized
+
+        Example:
+            rel_class = WisdomUnit.get_relationship_class_for_position(POSITION_T)
+            # rel_class is TRelationship
+            wu.t.connect(component, relationship=rel_class(alias='T1'))
+        """
+        position_to_rel_class = {
+            POSITION_T: TRelationship,
+            POSITION_T_PLUS: TPlusRelationship,
+            POSITION_T_MINUS: TMinusRelationship,
+            POSITION_A: ARelationship,
+            POSITION_A_PLUS: APlusRelationship,
+            POSITION_A_MINUS: AMinusRelationship,
+        }
+
+        rel_class = position_to_rel_class.get(position)
+        if rel_class is None:
+            raise ValueError(
+                f"Unknown position: {position}. "
+                f"Valid positions: T, A, T+, T-, A+, A-"
+            )
+        return rel_class
+
     def get_relationship_manager_by_position(self, position: str) -> BoundRelationshipManager[DialecticalComponent]:
         """
         Get the bound relationship manager for a given position name.

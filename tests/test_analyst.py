@@ -78,7 +78,7 @@ async def test_wheel_spiral():
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
     1,
-    # 2,
+    2,
 ])
 async def test_wheel_acre(number_of_thoughts):
     factory = DialecticalReasoning.wheel_builder(text=user_message)
@@ -99,13 +99,32 @@ async def test_wheel_acre(number_of_thoughts):
 
     # Get first wisdom unit
     wu_list = [wu for wu, _ in wheel.wisdom_units.all()]
-    assert len(wu_list) > 0, "Should have at least one wisdom unit"
+    assert len(
+        wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom unit(s), got {len(wu_list)}"
     first_wu = wu_list[0]
 
     # Check transformation was created (Action-Reflection)
     transformation_result = first_wu.transformation.get()
     assert transformation_result is not None, "Transformation should be created by DecoratorActionReflection"
     transformation, _ = transformation_result
+
+    # Verify ac_re wisdom unit exists
+    ac_re_result = transformation.ac_re.get()
+    assert ac_re_result is not None, "Transformation should have ac_re WisdomUnit attached"
+    ac_re_wu, _ = ac_re_result
+
+    # Verify all 6 components exist in ac_re
+    from dialectical_framework.graph.nodes.wisdom_unit import (
+        POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
+        POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
+    )
+    for pos_name, pos in [("T/Ac", POSITION_T), ("T+/Ac+", POSITION_T_PLUS), ("T-/Ac-", POSITION_T_MINUS),
+                           ("A/Re", POSITION_A), ("A+/Re+", POSITION_A_PLUS), ("A-/Re-", POSITION_A_MINUS)]:
+        manager = ac_re_wu.get_relationship_manager_by_position(pos)
+        result = manager.get()
+        assert result is not None, f"AC/RE WisdomUnit missing component at position {pos_name}"
+
+    print(f"\n✓ AC/RE WisdomUnit has all 6 components attached")
 
     # Verify exactly 2 transitions (T- → A+, A- → T+)
     transitions = [t for t, _ in transformation.transitions.all()]
@@ -170,6 +189,7 @@ async def test_wheel_acre(number_of_thoughts):
     print("\n")
     print(str(wheel))
     print("\n")
-    print("\n")
     for wu in wheel.polar_pairs_ordered:
-        print(f"{wu:verbse}")
+        print(f"{wu:full:compact}")
+        print("\n")
+        print("\n")

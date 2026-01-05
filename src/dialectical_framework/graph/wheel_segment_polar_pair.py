@@ -318,11 +318,11 @@ class WheelSegmentPolarPair:
         )
 
         positions = [
+            (POSITION_T_MINUS, "t_minus"),
             (POSITION_T, "t"),
             (POSITION_T_PLUS, "t_plus"),
-            (POSITION_T_MINUS, "t_minus"),
-            (POSITION_A, "t"),
             (POSITION_A_PLUS, "t_plus"),
+            (POSITION_A, "t"),
             (POSITION_A_MINUS, "t_minus"),
         ]
 

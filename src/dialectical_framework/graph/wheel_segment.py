@@ -357,15 +357,15 @@ class WheelSegment:
         # Map positions based on side
         if self._side == "T":
             positions = [
+                (POSITION_T_MINUS, self.t_minus),
                 (POSITION_T, self.t),
                 (POSITION_T_PLUS, self.t_plus),
-                (POSITION_T_MINUS, self.t_minus),
             ]
         else:
             positions = [
+                (POSITION_A_MINUS, self.t_minus),
                 (POSITION_A, self.t),
                 (POSITION_A_PLUS, self.t_plus),
-                (POSITION_A_MINUS, self.t_minus),
             ]
 
         formatted_components = []
