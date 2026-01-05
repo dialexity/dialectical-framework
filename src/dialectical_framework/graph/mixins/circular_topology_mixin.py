@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
 
 
-class SequenceTopologyMixin(ABC):
+class CircularTopologyMixin(ABC):
     """
     Abstract mixin providing topology methods for nodes with transitions.
 
@@ -46,10 +46,18 @@ class SequenceTopologyMixin(ABC):
         if not hasattr(self, 'transitions'):
             raise AttributeError(
                 f"{self.__class__.__name__} must have a 'transitions' RelationshipManager "
-                f"attribute to use SequenceTopologyMixin"
+                f"attribute to use CircularTopologyMixin"
             )
         all_transitions = [trans for trans, _ in self.transitions.all()]  # type: ignore[attr-defined]
-        return order_transitions(all_transitions)
+
+        from dialectical_framework.graph.nodes.cycle import Cycle
+        if isinstance(self, Cycle):
+            # Avoid infinite recursion for Cycle, so pass wheel=None
+            return order_transitions(all_transitions, wheel=None)
+
+        # Get wheel context for segment-based ordering (used by Spirals)
+        wheel = self.get_wheel()
+        return order_transitions(all_transitions, wheel=wheel)
 
     @abstractmethod
     def get_wheel(self) -> Wheel | None:
@@ -69,14 +77,53 @@ class SequenceTopologyMixin(ABC):
         """
         Returns list of dialectical components from the ordered transitions.
 
+        Includes both source and target from each transition, but avoids duplicates
+        where a transition's target matches the next transition's source (continuous chain).
+
+        For Cycles (continuous): T1 → A1 → T2 → A2 returns [T1, A1, T2, A2]
+        For Spirals (discrete): T1- → A1+, A1- → T2+ returns [T1-, A1+, A1-, T2+, T2-, A2+]
+
         Returns:
-            List of DialecticalComponent nodes (source components from each transition)
+            List of DialecticalComponent nodes from the sequence
         """
         components = []
-        for trans in self.transitions_ordered:
-            source_nodes = [src for src, _ in trans.source.all()]
-            if source_nodes:
-                components.append(source_nodes[0])
+        transitions = self.transitions_ordered
+
+        if not transitions:
+            return []
+
+        for i, trans in enumerate(transitions):
+            source_result = trans.source.get()
+            target_result = trans.target.get()
+
+            if not source_result or not target_result:
+                continue
+
+            source_comp, _ = source_result
+            target_comp, _ = target_result
+
+            # Always add source
+            components.append(source_comp)
+
+            # Check if target matches next transition's source
+            is_last = i == len(transitions) - 1
+            if is_last:
+                # Last transition: always add target
+                components.append(target_comp)
+            else:
+                # Check if target matches next source
+                next_trans = transitions[i + 1]
+                next_source_result = next_trans.source.get()
+
+                if next_source_result:
+                    next_source_comp, _ = next_source_result
+                    if target_comp._id != next_source_comp._id:
+                        # Discrete transition (target doesn't match next source)
+                        components.append(target_comp)
+                    # Otherwise skip target (continuous chain, will be added as next source)
+                else:
+                    # Can't check next source, add target to be safe
+                    components.append(target_comp)
 
         return components
 
@@ -88,14 +135,14 @@ class SequenceTopologyMixin(ABC):
         ----------------------
         "" or "aliases" - Chains aliases like "T1 → T2 → T3 → T1..." (default)
         "statements"    - Uses component statements instead of aliases
-        "verbose"       - Combines both: "T1 (statement) → T2 (statement) → T3 (statement) → T1..."
+        "explicit"      - Combines both: "T1 (statement) → T2 (statement) → T3 (statement) → T1..."
 
         Examples:
         ---------
         f"{cycle}"              - Default aliases: "T1 → A1 → T2 → T1..."
         f"{cycle:aliases}"      - Same as default
         f"{cycle:statements}"   - Statements: "Democracy → Fear → Courage → Democracy..."
-        f"{cycle:verbose}"      - Verbose: "T1 (Democracy) → A1 (Fear) → T2 (Courage) → T1..."
+        f"{cycle:explicit}"     - Explicit: "T1 (Democracy) → A1 (Fear) → T2 (Courage) → T1..."
 
         Returns:
             Formatted string representing the sequence, or empty string if no components
@@ -112,7 +159,7 @@ class SequenceTopologyMixin(ABC):
 
         # Get aliases if needed for this mode
         aliases = []
-        if mode in ("", "aliases", "verbose"):
+        if mode in ("", "aliases", "explicit"):
             # Need aliases - try to get from wheel context
             if wheel:
                 wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
@@ -136,7 +183,7 @@ class SequenceTopologyMixin(ABC):
         elif mode == "statements":
             # Just statements
             labels = [comp.statement for comp in components]
-        elif mode == "verbose":
+        elif mode == "explicit":
             # Aliases with statements in parentheses
             labels = [
                 f"{alias} ({comp.statement})"
@@ -145,7 +192,7 @@ class SequenceTopologyMixin(ABC):
         else:
             raise ValueError(
                 f"Invalid format_spec: {format_spec}. "
-                f"Must be '', 'aliases', 'statements', or 'verbose'"
+                f"Must be '', 'aliases', 'statements', or 'explicit'"
             )
 
         # Build sequence string
@@ -158,7 +205,7 @@ class SequenceTopologyMixin(ABC):
         """String representation using default format."""
         return self.__format__("")
 
-    def is_same_structure(self, other: SequenceTopologyMixin, compare: Literal['alias', 'statement'] = 'alias') -> bool:
+    def is_same_structure(self, other: CircularTopologyMixin, compare: Literal['alias', 'statement'] = 'alias') -> bool:
         """
         Check if sequences represent the same structure regardless of starting point.
 
@@ -174,7 +221,7 @@ class SequenceTopologyMixin(ABC):
         Raises:
             ValueError: If compare='alias' but wheel context not available
         """
-        if not isinstance(other, SequenceTopologyMixin):
+        if not isinstance(other, CircularTopologyMixin):
             return False
 
         self_components = self.dialectical_components

@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 
 
-def _get_component_info(manager: BoundRelationshipManager, position_name: str) -> tuple[str, str, str]:
+def _get_component_info(manager: BoundRelationshipManager[DialecticalComponent], position_name: str) -> tuple[str, str, str]:
     """
     Extract component information from a relationship manager.
 
@@ -31,7 +31,7 @@ def _get_component_info(manager: BoundRelationshipManager, position_name: str) -
     """
     result = manager.get()
     if not result:
-        return (position_name, "N/A", "N/A")
+        return position_name, "N/A", "N/A"
 
     component, rel = result
 
@@ -40,14 +40,14 @@ def _get_component_info(manager: BoundRelationshipManager, position_name: str) -
     if isinstance(rel, PolarityRelationship):
         alias = rel.alias
 
-    # Get statement from component
+    # Get statement from a component
     statement = component.statement
 
-    # Get rationale from component
-    rationale_result = component.rationales.get()
-    rationale_text = rationale_result[0].text if rationale_result else "N/A"
+    # Get rationale from a component
+    rationale = component.best_rationale
+    rationale_text = rationale.text if rationale else "N/A"
 
-    return (alias, statement, rationale_text)
+    return alias, statement, rationale_text
 
 
 # TODO: reuse the prompts from the reasoners?

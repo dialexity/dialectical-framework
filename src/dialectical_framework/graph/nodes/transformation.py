@@ -11,7 +11,7 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
-from dialectical_framework.graph.mixins.sequence_topology_mixin import SequenceTopologyMixin
+from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
 
 
-class Transformation(SequenceTopologyMixin, AssessableEntity):
+class Transformation(CircularTopologyMixin, AssessableEntity):
     """
     Internal transformation within a WisdomUnit.
 
@@ -97,6 +97,48 @@ class Transformation(SequenceTopologyMixin, AssessableEntity):
             return wheel_result[0]
 
         return None
+
+    def __format__(self, format_spec: str) -> str:
+        """
+        Format this Transformation by displaying its ac_re WisdomUnit.
+
+        Format specifications are passed through to the ac_re WisdomUnit's __format__ method.
+        See WisdomUnit.__format__ for available format specifications.
+
+        Format Specifications:
+        ----------------------
+        [mode][:newlines]
+
+        Mode (optional):
+            (empty) - Uses custom aliases as stored
+            "positions" - Uses canonical positions (T, T+, T-, A, A+, A-)
+            "strip_index" - Strips numeric indexes
+
+        Newlines (optional):
+            :0 - Comma separation (compact single line)
+            :1 - Single newline between components (compact)
+            :2 - Double newline between components (spacious, default)
+
+        Examples:
+        ---------
+        f"{transformation}"           - Default format
+        f"{transformation:positions}" - Canonical positions
+        f"{transformation::1}"        - Compact (1 newline)
+        f"{transformation:positions:0}" - Canonical positions, comma separated
+
+        Returns:
+            Formatted string of the ac_re WisdomUnit, or empty string if ac_re not set
+        """
+        ac_re_result = self.ac_re.get()
+        if not ac_re_result:
+            return ""
+
+        ac_re_wu, _ = ac_re_result
+        return f"{ac_re_wu:{format_spec}}"
+
+    def __str__(self) -> str:
+        """Human-readable string representation (defaults to ac_re WisdomUnit format)."""
+        return self.__format__("")
 
     def __repr__(self) -> str:
         """String representation of the transformation."""

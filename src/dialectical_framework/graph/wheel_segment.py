@@ -297,8 +297,102 @@ class WheelSegment:
             and self.t_minus.count() > 0
         )
 
+    def __format__(self, format_spec: str) -> str:
+        """
+        Format this WheelSegment using Python's format string protocol.
+
+        Formats the 3 core components (t, t_plus, t_minus) of this segment.
+
+        Format Specifications:
+        ----------------------
+        [mode][:newlines]
+
+        Mode (optional):
+            (empty) - Uses custom aliases as stored
+            "positions" - Uses canonical positions (T, T+, T- or A, A+, A-)
+            "strip_index" - Strips numeric indexes
+
+        Newlines (optional):
+            :0 - Comma separation (compact single line, NO explanations)
+            :1 - Single newline between components (compact)
+            :2 - Double newline between components (spacious, default)
+
+        Examples:
+        ---------
+        f"{segment}"           - Default format
+        f"{segment:positions}" - Canonical positions
+        f"{segment::0}"        - Compact (comma separated, no explanations)
+        f"{segment:positions:1}" - Canonical positions, single newline
+
+        Returns:
+            Formatted string with t, t_plus, t_minus components
+        """
+        import re
+        from dialectical_framework.graph.nodes.wisdom_unit import (
+            POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
+            POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
+        )
+
+        # Parse format spec: [mode][:newlines]
+        if ":" in format_spec:
+            mode, newlines_str = format_spec.split(":", 1)
+            try:
+                newlines = int(newlines_str)
+            except ValueError:
+                newlines = 2
+        else:
+            mode = format_spec
+            newlines = 2
+
+        if newlines < 0:
+            newlines = 0
+
+        # Determine component format: "short" for :0 (no explanations), "long" otherwise
+        component_format = "short" if newlines < 1 else "long"
+
+        # Map positions based on side
+        if self._side == "T":
+            positions = [
+                (POSITION_T, self.t),
+                (POSITION_T_PLUS, self.t_plus),
+                (POSITION_T_MINUS, self.t_minus),
+            ]
+        else:
+            positions = [
+                (POSITION_A, self.t),
+                (POSITION_A_PLUS, self.t_plus),
+                (POSITION_A_MINUS, self.t_minus),
+            ]
+
+        formatted_components = []
+        for position_name, manager in positions:
+            result = manager.get()
+            if result:
+                component, rel = result
+                assert isinstance(rel, PolarityRelationship)
+                alias = rel.alias
+
+                # Apply mode formatting
+                if mode == "positions":
+                    alias = position_name
+                elif mode == "strip_index":
+                    alias = re.sub(r"(\d+)(?!.*\d)", "", alias)
+
+                formatted_components.append(f"{alias} = {component:{component_format}}")
+
+        # Join with specified separator
+        if newlines < 1:
+            separator = ", "
+        else:
+            separator = "\n" * newlines
+        return separator.join(formatted_components)
+
+    def __str__(self) -> str:
+        """String representation using default format."""
+        return self.__format__("")
+
     def __repr__(self) -> str:
-        """String representation of the segment."""
+        """Debug representation of the segment."""
         t_result = self.t.get()
         t_uid = t_result[0].uid if t_result else "None"
         return f"WheelSegment(side={self._side}, wisdom_unit={self._wisdom_unit.uid}, t={t_uid})"

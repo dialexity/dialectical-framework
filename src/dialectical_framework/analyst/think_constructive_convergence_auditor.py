@@ -1,17 +1,21 @@
-import asyncio
+from __future__ import annotations
+
 from asyncio import gather
+from typing import TYPE_CHECKING
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.nodes.rationale import Rationale
+    from dialectical_framework.graph.wheel_segment import WheelSegment
+
 from dialectical_framework.ai_dto.constructive_convergence_transition_audit_dto import \
     ConstructiveConvergenceTransitionAuditDto
-from dialectical_framework.domain.rationale import Rationale
-from dialectical_framework.domain.transition_segment_to_segment import \
-    TransitionSegmentToSegment
 from dialectical_framework.analyst.think_constructive_convergence import ThinkConstructiveConvergence
-from dialectical_framework.domain.wheel_segment import WheelSegment
 from dialectical_framework.utils.use_brain import use_brain
+from dialectical_framework.graph.nodes.rationale import Rationale as GraphRationale
 
 
 class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
@@ -19,13 +23,13 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         """
         MESSAGES:
         {think_constructive_convergence}
-        
+
         ASSISTANT:
         {transition_info}
 
         USER:
         Evaluate the **practical feasibility** of implementing this transition in real-world conditions.
-        
+
         **Assessment Criteria:**
         - **Resource requirements** (time, money, skills, infrastructure)
         - **Political/social resistance** or support factors
@@ -33,20 +37,20 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         - **Timeline realism** for achieving the transition
         - **Precedent cases** where similar transitions succeeded or failed
         - **Contextual constraints** specific to the situation described
-        
+
         **Feasibility Scale:**
         - **0.0-0.2:** Practically impossible under current conditions
         - **0.3-0.4:** Extremely difficult, would require major systemic changes
         - **0.5-0.6:** Challenging but achievable with significant effort and favorable conditions
         - **0.7-0.8:** Moderately feasible with proper planning and resources
         - **0.9-1.0:** Highly achievable under current or near-term conditions
-        
+
         **Output Format:**
         Feasibility = [evaluated practical feasibility, number between 0 and 1]
         Key Factors = [2-3 most critical factors affecting feasibility]
         Argumentation = [concise explanation referencing context and evidence]
         Conditions for Success = [what would need to change to improve feasibility]
-        
+
         **Example:**
         Feasibility = 0.6
         Key Factors = Leadership commitment, resource allocation, change management
@@ -54,61 +58,146 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         Conditions for Success = Clear implementation timeline, staff training programs, and measurable equity metrics.
         """
     )
-    def prompt_constructive_convergence_audit(self, text: str, transition: TransitionSegmentToSegment, rationale: Rationale) -> "Messages.Type":
+    def prompt_constructive_convergence_audit(self, text: str, transition: Transition, rationale: Rationale) -> "Messages.Type":
+        # Extract segments from transition using wheel context
+        wheel = self._wheel
+        focus = transition.get_source_wheel_segment(wheel=wheel)
+        next_ws = transition.get_target_wheel_segment(wheel=wheel)
+
+        if not focus or not next_ws:
+            raise ValueError(f"Cannot extract wheel segments from transition {transition.uid}")
+
         return {
             "computed_fields": {
-                "think_constructive_convergence": self.prompt_constructive_convergence(text, focus=transition.source, next_ws=transition.target),
-                "transition_info": self._transition_info(transition, rationale),
+                "think_constructive_convergence": self.prompt_constructive_convergence(text, focus=focus, next_ws=next_ws),
+                "transition_info": self._transition_info(transition, r=rationale),
             }
         }
 
     @with_langfuse()
     @use_brain(response_model=ConstructiveConvergenceTransitionAuditDto)
     async def constructive_convergence_audit(
-        self, transition: TransitionSegmentToSegment, rationale: Rationale
+        self, transition: Transition, rationale: Rationale
     ):
         return self.prompt_constructive_convergence_audit(self._text, transition=transition, rationale=rationale)
 
-    async def think(self, focus: WheelSegment) -> list[TransitionSegmentToSegment]:
-        current_index = self._wheel.index_of(focus)
-        next_index = (current_index + 1) % self._wheel.degree
-        next_ws = self._wheel.wheel_segment_at(next_index)
+    async def think(self, focus: WheelSegment) -> list[Transition]:
+        """
+        Audit existing transitions for the given wheel segment.
 
-        spiral_link = self._wheel.spiral.graph.get_transition([focus.t_minus.alias, focus.t.alias], [next_ws.t_plus.alias])
+        This method performs feasibility audits on transitions related to the focus segment:
+        1. **Spiral transitions** (constructive convergence): T- → next segment's T+
+           - Ensures the spiral transition exists by calling parent's think() if not found
+        2. **Transformation transitions** (action-reflection): T- → A+ or A- → T+ within same WU
+           - Only audits if transformation exists (doesn't create if missing)
+
+        For each transition found, creates audit rationales that critique the original
+        rationales based on practical feasibility assessment.
+
+        Args:
+            focus: The wheel segment to audit transitions from
+
+        Returns:
+            List of transitions that were audited (may have new critique rationales added)
+
+        Note:
+            This creates a mix of behaviors:
+            - Spiral: Creates if missing (via super().think())
+            - Transformation: Only audits if exists (assumes created by ThinkActionReflection)
+        """
+        # Get representative components for spiral transition (T- → next segment's T+)
+        focus_t_minus_result = focus.t_minus.get()
+
+        # For spiral: get next segment in ta_cycle order
+        next_ws = self._wheel.get_next_segment(focus)
+        next_ws_t_plus_result = next_ws.t_plus.get()
+
+        # === SPIRAL TRANSITIONS (Constructive Convergence) ===
+        # Try to find existing spiral transition with same source/target
+        spiral_result = self._wheel.spiral.get()
+        spiral_link = None
+
+        if focus_t_minus_result and next_ws_t_plus_result and spiral_result:
+            source_comp, _ = focus_t_minus_result
+            target_comp, _ = next_ws_t_plus_result
+
+            spiral = spiral_result[0]
+            spiral_transitions = [t for t, _ in spiral.transitions.all()]
+
+            # Check for duplicate using shared helper
+            spiral_link = self.find_duplicate_transition(spiral_transitions, source_comp, target_comp)
+
         if spiral_link is None:
-            # Make sure we have the transition
-            spiral_link = await super().think(focus=focus)
+            # Spiral transition doesn't exist - create it via parent's think()
+            # This ensures we always have a spiral transition to audit
+            result_list = await super().think(focus=focus)
+            if result_list:
+                spiral_link = result_list[0]
 
-        transitions = [spiral_link]
+        # Start with spiral transition (if found/created)
+        transitions = [spiral_link] if spiral_link else []
 
+        # === TRANSFORMATION TRANSITIONS (Action-Reflection) ===
+        # Only audit if transformation exists (doesn't create if missing)
+        # This assumes ThinkActionReflection was already called to create transformations
         wu = self._wheel.wisdom_unit_at(focus)
-        if wu.transformation is not None and not wu.transformation.graph.is_empty():
-            # Add transformation transition going out from the focused segment
-            sources: list[list[str]] = wu.transformation.graph.find_outbound_source_aliases(focus)
-            for source in sources:
-                transitions.extend(wu.transformation.graph.get_transitions_from_source(source))
+        transformation_result = wu.transformation.get()
+        if transformation_result:
+            transformation = transformation_result[0]
+            # Get all transformation transitions
+            trans_list = [t for t, _ in transformation.transitions.all()]
 
-        async_tasks = []
+            # Transformation has exactly 2 fixed transitions within the same WU:
+            # - T- → A+ (linear action)
+            # - A- → T+ (dialectical reflection)
+            # Find the transition that originates from the focus segment
+            opposite = focus.opposite
+
+            # Get source (focus minus) and target (opposite plus)
+            # WheelSegment properties are polymorphic - t_minus returns T- or A- based on side
+            source_minus_result = focus.t_minus.get()
+            target_plus_result = opposite.t_plus.get()
+
+            if source_minus_result and target_plus_result:
+                source_comp, _ = source_minus_result
+                target_comp, _ = target_plus_result
+                trans = self.find_duplicate_transition(trans_list, source_comp, target_comp)
+                if trans:
+                    transitions.append(trans)
+
+        # Build list of (transition, rationale) pairs to audit
+        audit_pairs = []
         for transition in transitions:
-            async_tasks.extend([asyncio.create_task(
+            rationale_list = [r for r, _ in transition.rationales.all()]
+            for r in rationale_list:
+                audit_pairs.append((transition, r))
+
+        # Process audits in batches of 3 to avoid hitting API rate limits
+        audits: list[ConstructiveConvergenceTransitionAuditDto] = []
+        batch_size = 3
+        for i in range(0, len(audit_pairs), batch_size):
+            batch = audit_pairs[i:i + batch_size]
+            # noinspection PyArgumentList
+            batch_tasks = [
                 self.constructive_convergence_audit(
                     transition=transition,
                     rationale=r
                 )
-            )
-            for r in transition.rationales])
-
-        audits: list[ConstructiveConvergenceTransitionAuditDto] = await gather(*async_tasks)
+                for transition, r in batch
+            ]
+            batch_results = await gather(*batch_tasks)
+            audits.extend(batch_results)
 
         # Process all audits and update corresponding transition rationales
-        audit_index = 0
-        for transition in transitions:
-            for r in transition.rationales:
-                audit = audits[audit_index]
-                r.rationales.append(Rationale(
-                    relevance=audit.feasibility,
-                    text=f"**Key Factors:** {audit.key_factors}\n\n**Argumentation:** {audit.argumentation}\n\n**Conditions for Success:** {audit.success_conditions}"
-                ))
-                audit_index += 1
+        # Zip audit_pairs with audits to ensure correct pairing
+        for (transition, rationale), audit in zip(audit_pairs, audits):
+            # Create new rationale node as critique
+            audit_rationale = GraphRationale(
+                relevance=audit.feasibility,
+                text=f"**Key Factors:** {audit.key_factors}\n\n**Argumentation:** {audit.argumentation}\n\n**Conditions for Success:** {audit.success_conditions}"
+            )
+            audit_rationale.save()
+            # Connect as critique of the original rationale
+            rationale.rationales.connect(audit_rationale)
 
         return transitions

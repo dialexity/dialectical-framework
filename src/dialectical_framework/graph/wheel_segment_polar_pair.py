@@ -156,8 +156,206 @@ class WheelSegmentPolarPair:
         """
         return self._left.is_complete() and self._right.is_complete()
 
+    def __format__(self, format_spec: str) -> str:
+        """
+        Format this WheelSegmentPolarPair using Python's format string protocol.
+
+        Formats both segments (left and right) in the order determined by polarity.
+
+        Format Specifications:
+        ----------------------
+        [mode][:newlines]
+
+        Mode (optional):
+            (empty) - Uses custom aliases as stored
+            "positions" - Uses canonical positions
+            "strip_index" - Strips numeric indexes
+            "full" - Vertical layout with synthesis + segments + transformation
+            "full:compact" - Tabular layout with synthesis + segments side-by-side
+
+        Newlines (optional, for non-"full" modes):
+            :0 - Comma separation (compact single line, NO explanations)
+            :1 - Single newline between components (compact)
+            :2 - Double newline between components (spacious, default)
+
+        Examples:
+        ---------
+        f"{pair}"              - Default format (6 components vertically)
+        f"{pair:positions}"    - Canonical positions
+        f"{pair::0}"           - Compact (comma separated, no explanations)
+        f"{pair:full}"         - Full vertical layout
+        f"{pair:full:compact}" - Full tabular layout
+
+        Returns:
+            Formatted string with both segments
+        """
+        # Handle "full" modes specially
+        if format_spec.startswith("full"):
+            if format_spec == "full:compact":
+                return self._format_full_compact()
+            else:
+                return self._format_full()
+
+        # For regular modes, format both segments and join
+        left_formatted = self._left.__format__(format_spec)
+        right_formatted = self._right.__format__(format_spec)
+
+        # Determine separator based on newlines parameter
+        if ":0" in format_spec:
+            # Comma separated - join both segments
+            return f"{left_formatted}, {right_formatted}"
+        else:
+            # Newline separated - join with one extra newline between segments
+            # Parse newlines from format_spec
+            if ":" in format_spec:
+                _, newlines_str = format_spec.split(":", 1)
+                try:
+                    newlines = int(newlines_str)
+                except ValueError:
+                    newlines = 2
+            else:
+                newlines = 2
+
+            if newlines < 1:
+                segment_separator = "\n"
+            else:
+                segment_separator = "\n" * newlines
+
+            return f"{left_formatted}{segment_separator}{right_formatted}"
+
+    def _format_full(self) -> str:
+        """
+        Format in full mode: Synthesis, both segments, Transformation (vertical).
+
+        Returns:
+            Formatted string with all sections separated vertically
+        """
+        sections = []
+
+        # Section 1: Synthesis (if exists)
+        synthesis_list = list(self._wisdom_unit.synthesis.all())
+
+        if synthesis_list:
+            synthesis_parts = ["=== Synthesis ==="]
+
+            for synthesis, _ in synthesis_list:
+                synthesis_parts.append(f"{synthesis}")
+
+            sections.append("\n\n".join(synthesis_parts))
+
+        # Section 2: Both segments (6 core positions total)
+        sections.append("=== WisdomUnit ===")
+        sections.append(self.__format__(""))  # Default format with explanations
+
+        # Section 3: Transformation (if exists)
+        transformation_result = self._wisdom_unit.transformation.get()
+        if transformation_result:
+            transformation, _ = transformation_result
+            sections.append("=== Transformation ===")
+            sections.append(f"{transformation}")
+
+        return "\n\n".join(sections)
+
+    def _format_full_compact(self) -> str:
+        """
+        Format in full compact mode: Synthesis first, then segments side-by-side.
+
+        Returns:
+            Formatted string with synthesis vertical, then segments tabular without explanations
+        """
+        from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
+        from tabulate import tabulate
+
+        lines = []
+
+        # Section 1: Synthesis (if exists)
+        synthesis_list = list(self._wisdom_unit.synthesis.all())
+
+        if synthesis_list:
+            lines.append("=== Synthesis ===")
+
+            for synthesis, _ in synthesis_list:
+                s_plus_result = synthesis.s_plus.get()
+                s_minus_result = synthesis.s_minus.get()
+
+                if s_plus_result:
+                    s_plus_comp, s_plus_rel = s_plus_result
+                    assert isinstance(s_plus_rel, PolarityRelationship)
+                    lines.append(f"{s_plus_rel.alias} = {s_plus_comp:short}")
+
+                if s_minus_result:
+                    s_minus_comp, s_minus_rel = s_minus_result
+                    assert isinstance(s_minus_rel, PolarityRelationship)
+                    lines.append(f"{s_minus_rel.alias} = {s_minus_comp:short}")
+
+            lines.append("")  # Blank line separator
+
+        # Section 2: WisdomUnit and Transformation side-by-side (tabular)
+        lines.append("=== WisdomUnit / Transformation ===")
+
+        # Helper to get component info
+        def _get_component_info(manager):
+            result = manager.get()
+            if result:
+                component, rel = result
+                assert isinstance(rel, PolarityRelationship)
+                return rel.alias, component.statement
+            return "", ""
+
+        # Get Transformation ac_re WisdomUnit (if exists)
+        transformation_result = self._wisdom_unit.transformation.get()
+        ac_re_wu = None
+        if transformation_result:
+            transformation, _ = transformation_result
+            ac_re_result = transformation.ac_re.get()
+            if ac_re_result:
+                ac_re_wu, _ = ac_re_result
+
+        # Build table rows: one row per position
+        from dialectical_framework.graph.nodes.wisdom_unit import (
+            POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
+            POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
+        )
+
+        positions = [
+            (POSITION_T, "t"),
+            (POSITION_T_PLUS, "t_plus"),
+            (POSITION_T_MINUS, "t_minus"),
+            (POSITION_A, "t"),
+            (POSITION_A_PLUS, "t_plus"),
+            (POSITION_A_MINUS, "t_minus"),
+        ]
+
+        table = []
+        for i, (position_label, attr_name) in enumerate(positions):
+            row = []
+
+            # Determine which segment to use (left 3 = left segment, right 3 = right segment)
+            segment = self._left if i < 3 else self._right
+            wu_manager = getattr(segment, attr_name)
+            wu_alias, wu_statement = _get_component_info(wu_manager)
+            row.append(wu_alias)
+            row.append(wu_statement)
+
+            # Transformation ac_re column (if exists)
+            if ac_re_wu:
+                trans_manager = ac_re_wu.get_relationship_manager_by_position(position_label)
+                trans_alias, trans_statement = _get_component_info(trans_manager)
+                row.append(trans_alias)
+                row.append(trans_statement)
+
+            table.append(row)
+
+        lines.append(tabulate(table, tablefmt="plain"))
+
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        """String representation using default format."""
+        return self.__format__("")
+
     def __repr__(self) -> str:
-        """String representation of the pair."""
+        """Debug representation of the pair."""
         return (
             f"WheelSegmentPolarPair("
             f"polarity={self._polarity}, "

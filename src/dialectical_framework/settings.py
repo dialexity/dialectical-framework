@@ -88,7 +88,7 @@ class Settings(BaseModel):
             )
 
         # Handle tarorank_default_transition_probability from environment
-        default_prob = None
+        default_prob = 1.0 # Default
         default_prob_str = os.getenv("DIALEXITY_TARORANK_DEFAULT_TRANSITION_PROBABILITY")
         if default_prob_str:
             try:

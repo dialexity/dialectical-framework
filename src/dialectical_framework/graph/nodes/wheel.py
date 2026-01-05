@@ -11,6 +11,14 @@ from typing import ClassVar, Union, Optional, TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.nodes.wisdom_unit import (
+    POSITION_T,
+    POSITION_T_PLUS,
+    POSITION_T_MINUS,
+    POSITION_A,
+    POSITION_A_PLUS,
+    POSITION_A_MINUS,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -586,93 +594,107 @@ class Wheel(AssessableEntity):
         """String representation of the wheel."""
         return f"Wheel(uid={self.uid}, polarity_count={self.polarity_count if self.wisdom_units.count() > 0 else 0})"
 
-    def _print_wheel_tabular(self) -> str:
+    def __format__(self, format_spec: str) -> str:
         """
-        Print wisdom units in tabular format showing all 6 positions.
+        Format this Wheel using Python's format string protocol.
 
-        Returns:
-            Formatted string with tabular view of all wisdom units
-        """
-        try:
-            from tabulate import tabulate
-        except ImportError:
-            return "[tabulate not installed]"
-
-        positions = [
-            ("t_minus", "T-"),
-            ("t", "T"),
-            ("t_plus", "T+"),
-            ("a_plus", "A+"),
-            ("a", "A"),
-            ("a_minus", "A-"),
-        ]
-
-        # Get all wisdom units
-        wus = [wu for wu, _ in self.wisdom_units.all()]
-        if not wus:
-            return "[No wisdom units]"
-
-        # Build table: each row is a position, each column pair is (alias, statement) for a WU
-        from dialectical_framework.synthesist.reverse_engineer import _get_component_info
-
-        table = []
-        for position_attr, position_label in positions:
-            row = []
-            for wu in wus:
-                manager = getattr(wu, position_attr)
-                alias, statement, _ = _get_component_info(manager, position_label)
-                row.append(alias)
-                row.append(statement[:50] + "..." if len(statement) > 50 else statement)
-            table.append(row)
-
-        return tabulate(table, tablefmt="plain")
-
-    def pretty(self) -> str:
-        """
-        Format this Wheel for human-readable display.
+        Format Specifications:
+        ----------------------
+        (empty) - Default format showing cycles, wisdom units, and spiral
+        "compact" - Compact format with abbreviated components
 
         Shows:
-        - T-cycle (causal chain through theses)
-        - TA-cycle (full dialectical cycle)
-        - Tabular view of all wisdom units
-        - Spiral (if present)
+        - T-cycle with rationale
+        - TA-cycle with rationale
+        - Tabular view of all wisdom units using WheelSegmentPolarPair
+        - Spiral with rationale (if present)
+
+        Examples:
+        ---------
+        f"{wheel}"         - Default format
+        f"{wheel:compact}" - Compact format
 
         Returns:
             Multi-line formatted string
         """
         output = []
 
+        # Helper to format cycle with rationale
+        def _format_cycle(cycle_obj, cycle_name: str) -> list[str]:
+            lines = []
+            lines.append(f"=== {cycle_name} ===")
+            from dialectical_framework.graph.nodes.cycle import Cycle
+            prefix = f"{cycle_obj.causality_type} : " if isinstance(cycle_obj, Cycle) else ""
+            lines.append(f"{prefix}{cycle_obj:aliases}")
+
+            # Add the best rationale if it exists
+            rationale = cycle_obj.best_rationale
+            if rationale and rationale.text:
+                lines.append(f"Rationale: {rationale.text}")
+
+            return lines
+
         # T-Cycle
         t_cycle_result = self.t_cycle.get()
         if t_cycle_result:
             t_cycle_obj, _ = t_cycle_result
-            output.append("--- T-Cycle ---")
-            output.append(str(t_cycle_obj))  # Use __str__ instead of as_str()
+            output.extend(_format_cycle(t_cycle_obj, "T-Cycle"))
             output.append("")
 
         # TA-Cycle
         ta_cycle_result = self.ta_cycle.get()
         if ta_cycle_result:
             ta_cycle_obj, _ = ta_cycle_result
-            output.append("--- TA-Cycle ---")
-            output.append(str(ta_cycle_obj))  # Use __str__ instead of as_str()
+            output.extend(_format_cycle(ta_cycle_obj, "TA-Cycle"))
             output.append("")
 
         # Wisdom Units (tabular)
-        output.append("--- Wisdom Units ---")
-        output.append(self._print_wheel_tabular())
+        output.append("=== Wisdom Units ===")
+        wus = [wu for wu, _ in self.wisdom_units.all()]
+        if wus:
+            from tabulate import tabulate
+            from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
+
+            positions = [
+                ("t_minus", POSITION_T_MINUS),
+                ("t", POSITION_T),
+                ("t_plus", POSITION_T_PLUS),
+                ("a_plus", POSITION_A_PLUS),
+                ("a", POSITION_A),
+                ("a_minus", POSITION_A_MINUS),
+            ]
+
+            # Build table: each row is a position, columns are (alias, statement) for each WU
+            table = []
+            for position_attr, position_label in positions:
+                row = []
+                for wu in wus:
+                    manager = getattr(wu, position_attr)
+                    result = manager.get()
+                    if result:
+                        component, rel = result
+                        assert isinstance(rel, PolarityRelationship)
+                        row.append(rel.alias)
+                        row.append(component.statement)
+                    else:
+                        row.append("")
+                        row.append("")
+                table.append(row)
+
+            output.append(tabulate(table, tablefmt="plain"))
+        else:
+            output.append("[No wisdom units]")
         output.append("")
 
         # Spiral (if present)
         spiral_result = self.spiral.get()
         if spiral_result:
             spiral_obj, _ = spiral_result
-            output.append("--- Spiral ---")
-            output.append(str(spiral_obj))  # Use __str__ instead of as_str()
+            output.extend(_format_cycle(spiral_obj, "Spiral"))
             output.append("")
 
         return "\n".join(output)
 
     def __str__(self) -> str:
-        """String representation using pretty format."""
-        return self.pretty()
+        """String representation using default format."""
+        return self.__format__("")

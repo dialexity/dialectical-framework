@@ -65,29 +65,55 @@ class DialecticalComponent(AssessableEntity):
 
         Format Specifications:
         ----------------------
-        "short" - Just the statement (no explanation)
-        "long"  - Statement + explanation from best rationale (default)
-        ""      - Empty spec defaults to "long"
+        [mode][:width]
+
+        Mode (optional):
+            "short" - Just the statement (no explanation)
+            "long"  - Statement + explanation from the best rationale (default)
+            ""      - Empty spec defaults to "long"
+
+        Width (optional, only for "short" mode):
+            :N - Truncate statement to N characters and add "..." if truncated
+            Example: "short:30" - Statement truncated to 30 chars
 
         Examples:
         ---------
-        f"{comp}"        - Long format (statement + explanation)
-        f"{comp:long}"   - Long format (explicit)
-        f"{comp:short}"  - Short format (statement only)
+        f"{comp}"          - Long format (statement + explanation)
+        f"{comp:long}"     - Long format (explicit)
+        f"{comp:short}"    - Short format (statement only)
+        f"{comp:short:30}" - Short format, truncated to 30 chars with "..."
 
         Usage with label:
         -----------------
-        f"{label} = {comp:long}"   - "T = Democracy\nExplanation: Representative system"
-        f"{label} = {comp:short}"  - "T = Democracy"
+        f"{label} = {comp:long}"     - "T = Democracy\nExplanation: Representative system"
+        f"{label} = {comp:short}"    - "T = Democracy"
+        f"{label} = {comp:short:30}" - "T = Democracy"
 
         Returns:
             Formatted string
         """
-        # Default to "long" if no spec provided
-        mode = format_spec if format_spec else "long"
+        # Parse format spec: [mode][:width]
+        if ":" in format_spec:
+            mode, width_str = format_spec.split(":", 1)
+            try:
+                width = int(width_str)
+            except ValueError:
+                width = None
+        else:
+            mode = format_spec
+            width = None
+
+        # Default to "long" if no mode provided
+        if not mode:
+            mode = "long"
 
         # Start with statement
         result = self.statement
+
+        # Apply width truncation for short mode
+        if mode == "short" and width is not None:
+            if len(result) > width:
+                result = result[:width] + "..."
 
         # Add explanation if in long mode
         if mode == "long":

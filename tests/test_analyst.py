@@ -55,7 +55,7 @@ async def test_full_blown_wheel():
     await factory1.calculate_transitions(wheels[0])
     assert wheels[0].score > 0
 
-    print(dw_report(wheels))
+    print(str(wheels[0]))
 
 @pytest.mark.asyncio
 @observe()
@@ -72,13 +72,13 @@ async def test_wheel_spiral():
     await factory1.calculate_syntheses(wheel=wheels[0], at=wu_list[0] if wu_list else None)
 
     # print(dw_report(wheels))
-    print(wheels[0].pretty())
+    print(str(wheels[0]))
 
 @pytest.mark.asyncio
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
     1,
-    2,
+    # 2,
 ])
 async def test_wheel_acre(number_of_thoughts):
     factory = DialecticalReasoning.wheel_builder(text=user_message)
@@ -168,4 +168,8 @@ async def test_wheel_acre(number_of_thoughts):
         assert new_count > old_count, f"Transition should have more rationales after second call: {old_count} → {new_count}"
 
     print("\n")
-    print(wheel.pretty())
+    print(str(wheel))
+    print("\n")
+    print("\n")
+    for wu in wheel.polar_pairs_ordered:
+        print(f"{wu:verbse}")

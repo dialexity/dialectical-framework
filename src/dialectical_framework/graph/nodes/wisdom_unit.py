@@ -385,129 +385,41 @@ class WisdomUnit(AssessableEntity):
         """
         Format this WisdomUnit using Python's format string protocol.
 
-        Formats all 6 core positions (T, T+, T-, A, A+, A-) with their statements
-        and explanations. Does not include synthesis.
-
         Format Specifications:
         ----------------------
 
         Format: [mode][:newlines]
 
         Mode (optional):
-            (empty) - Uses custom aliases as stored (e.g., "T1", "Democracy", "Foo2+")
+            (empty) - Uses custom aliases as stored, core positions only
             "positions" - Uses canonical positions (T, T+, T-, A, A+, A-)
             "strip_index" - Strips numeric indexes: "T1" → "T", "Foo2+" → "Foo+"
+            "full" - Synthesis + WisdomUnit + Transformation (vertical)
+            "full:compact" - Synthesis + WisdomUnit/Transformation side-by-side (tabular, no explanations)
 
         Newlines (optional):
             Default: 2 newlines between components (if not specified)
-            :0 - Comma separation (compact single line)
+            :0 - Comma separation (compact single line, NO explanations)
             :1 - Single newline between components (compact)
             :2 - Double newline between components (spacious, default)
 
         Examples:
         ---------
-        ""              - Default aliases, 2 newlines
-        "positions"     - Canonical positions, 2 newlines
-        "strip_index"   - Strip indexes, 2 newlines
-        ":0"            - Default aliases, comma separated (single line)
-        ":1"            - Default aliases, 1 newline (compact)
-        "positions:0"   - Canonical positions, comma separated
-        "positions:1"   - Canonical positions, 1 newline
-        "strip_index:0" - Strip indexes, comma separated
-        "strip_index:1" - Strip indexes, 1 newline
-        "positions:2"   - Canonical positions, 2 newlines (explicit)
-
-        Usage Examples:
-        ---------------
-        ```python
-        # Default - aliases as stored, spacious (2 newlines)
-        print(f"{wu}")
-        # Output:
-        #   T1 = Democracy
-        #   Explanation: ...
-        #
-        #   T1+ = Participation
-        #   Explanation: ...
-
-        # Compact - aliases as stored, single newline
-        print(f"{wu::1}")
-        # Output:
-        #   T1 = Democracy
-        #   Explanation: ...
-        #   T1+ = Participation
-        #   Explanation: ...
-
-        # Positions with compact spacing
-        print(f"{wu:positions:1}")
-        # Output:
-        #   T = Democracy
-        #   Explanation: ...
-        #   T+ = Participation
-        #   Explanation: ...
-
-        # Strip index for LLM prompts (spacious)
-        print(f"{wu:strip_index}")
-
-        # Comma separated - single line for compact display
-        print(f"{wu::0}")
-        # Output:
-        #   T1 = Democracy\nExplanation: ..., T1+ = Participation\nExplanation: ..., ...
-
-        # Comma separated with positions
-        print(f"{wu:positions:0}")
-        # Output:
-        #   T = Democracy\nExplanation: ..., T+ = Participation\nExplanation: ..., ...
-        ```
+        ""              - Core positions, 2 newlines, with explanations
+        "positions"     - Canonical positions, 2 newlines, with explanations
+        ":0"            - Core positions, comma separated, NO explanations
+        "positions:0"   - Canonical positions, comma separated, NO explanations
+        "full"          - Synthesis, WisdomUnit, Transformation (vertical)
+        "full:compact"  - Synthesis, WisdomUnit/Transformation tabular (no explanations)
 
         Returns:
-            Formatted string with all 6 core components (multi-line or single-line depending on newlines parameter)
+            Formatted string
         """
-        import re
+        from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
 
-        # Parse format spec: [mode][:newlines]
-        if ":" in format_spec:
-            mode, newlines_str = format_spec.split(":", 1)
-            try:
-                newlines = int(newlines_str)
-            except ValueError:
-                newlines = 2  # Default on parse error
-        else:
-            mode = format_spec
-            newlines = 2  # Default: double newline
-
-        # Validate newlines (allow 0 for comma separation, treat negative as 0)
-        if newlines < 0:
-            newlines = 0
-
-        # Format all 6 core positions
-        formatted_components = []
-        for position in self.core_positions:
-            manager = self.get_relationship_manager_by_position(position)
-            result = manager.get()
-            if result:
-                component, rel = result
-                # Core position relationships are always PolarityRelationship
-                assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for {position}, got {type(rel)}"
-                alias = rel.alias  # Direct access, fully typed and validated
-
-                # Apply mode formatting
-                if mode == "positions":
-                    # Use canonical position name
-                    alias = component.get_position(self)
-                elif mode == "strip_index":
-                    # Strip numeric index from alias using regex
-                    # Handles: "T1" → "T", "Foo2+" → "Foo+", "Bla1-" → "Bla-"
-                    alias = re.sub(r"(\d+)(?!.*\d)", "", alias)
-                # else: empty mode - use alias as-is
-
-                formatted_components.append(f"{alias} = {component}")
-
-        # Join with specified separator
-        if newlines < 1:
-            separator = ", "  # Comma separation for compact single-line format
-        else:
-            separator = "\n" * newlines  # Newline separation for multi-line format
-        return separator.join(formatted_components)
+        # Create a normal polarity pair and delegate formatting to it
+        pair = WheelSegmentPolarPair(self, "normal")
+        return pair.__format__(format_spec)
 
     def __str__(self) -> str:
         """String representation using default format."""
