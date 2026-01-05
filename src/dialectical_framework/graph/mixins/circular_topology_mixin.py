@@ -108,8 +108,11 @@ class CircularTopologyMixin(ABC):
             # Check if target matches next transition's source
             is_last = i == len(transitions) - 1
             if is_last:
-                # Last transition: always add target
-                components.append(target_comp)
+                # Last transition: check if target is already in components (avoid duplicates)
+                existing_ids = {comp._id for comp in components}
+                if target_comp._id not in existing_ids:
+                    components.append(target_comp)
+                # Otherwise skip duplicate (common in closed cycles)
             else:
                 # Check if target matches next source
                 next_trans = transitions[i + 1]
@@ -173,22 +176,26 @@ class CircularTopologyMixin(ABC):
                             continue  # Not in this WU
                     aliases.append(alias if alias else f"C{i+1}")
             else:
-                # Fallback to generic labels
-                aliases = [f"C{i+1}" for i in range(len(components))]
+                # No wheel context - fallback to statements for readability
+                aliases = [comp.statement for comp in components]
 
         # Build labels based on mode
         if mode in ("", "aliases"):
-            # Just aliases
+            # Just aliases (or statements if no wheel context)
             labels = aliases
         elif mode == "statements":
             # Just statements
             labels = [comp.statement for comp in components]
         elif mode == "explicit":
             # Aliases with statements in parentheses
-            labels = [
-                f"{alias} ({comp.statement})"
-                for alias, comp in zip(aliases, components)
-            ]
+            if wheel:
+                labels = [
+                    f"{alias} ({comp.statement})"
+                    for alias, comp in zip(aliases, components)
+                ]
+            else:
+                # No wheel, aliases are already statements, so just use them
+                labels = aliases
         else:
             raise ValueError(
                 f"Invalid format_spec: {format_spec}. "

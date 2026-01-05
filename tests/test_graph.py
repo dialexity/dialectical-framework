@@ -196,7 +196,11 @@ def test_component_aliases():
     # Test with component not in this wisdom unit
     other_comp = DialecticalComponent(statement="Not connected")
     other_comp.save()
-    assert other_comp.get_alias(wu) is None
+
+    # Should raise ValueError when component not connected to WU
+    import pytest
+    with pytest.raises(ValueError, match="not connected to WisdomUnit"):
+        other_comp.get_alias(wu)
 
     print(f"✓ Component aliases retrieved from relationships: {aliases}")
     print(f"✓ component.get_alias() works correctly: T={t_alias}, A={a_alias}")
@@ -449,7 +453,8 @@ def test_cycle_is_same_structure():
     cycle2.transitions.connect(trans3b)
 
     # Test is_same_structure (should be True - rotational equivalence)
-    assert cycle1.is_same_structure(cycle2), "Cycles should be structurally equivalent"
+    # Use compare='statement' since cycles aren't connected to wheels
+    assert cycle1.is_same_structure(cycle2, compare='statement'), "Cycles should be structurally equivalent"
 
     # Create third cycle with different components: T1 → T2 → T4 → T1
     t4 = DialecticalComponent(statement="Component 4")
@@ -484,7 +489,7 @@ def test_cycle_is_same_structure():
     cycle3.transitions.connect(trans3c)
 
     # Test is_same_structure (should be False - different components)
-    assert not cycle1.is_same_structure(cycle3), "Cycles with different components should not be equivalent"
+    assert not cycle1.is_same_structure(cycle3, compare='statement'), "Cycles with different components should not be equivalent"
 
     print("✓ is_same_structure() correctly detects rotational equivalence")
 

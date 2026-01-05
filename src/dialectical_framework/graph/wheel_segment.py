@@ -197,13 +197,17 @@ class WheelSegment:
             if isinstance(rel, PolarityRelationship) and rel.alias == alias:
                 return comp
 
-        # Check t_plus components
-        for comp, rel in self.t_plus.get():
+        # Check t_plus component
+        t_plus_result = self.t_plus.get()
+        if t_plus_result:
+            comp, rel = t_plus_result
             if isinstance(rel, PolarityRelationship) and rel.alias == alias:
                 return comp
 
-        # Check t_minus components
-        for comp, rel in self.t_minus.get():
+        # Check t_minus component
+        t_minus_result = self.t_minus.get()
+        if t_minus_result:
+            comp, rel = t_minus_result
             if isinstance(rel, PolarityRelationship) and rel.alias == alias:
                 return comp
 
