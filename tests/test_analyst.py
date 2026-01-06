@@ -196,6 +196,10 @@ async def test_wheel_spiral(number_of_thoughts):
     2,
 ])
 async def test_wheel_acre(number_of_thoughts):
+    # Access container directly (can't use fixture with @observe decorator)
+    from dialectical_framework.settings import Settings
+    container = DialecticalReasoning.setup(Settings.from_env())
+
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory2 = DecoratorActionReflection(builder=factory)
     wheels = await factory2.build_wheel_permutations(theses=[None]*number_of_thoughts)
@@ -288,7 +292,10 @@ async def test_wheel_acre(number_of_thoughts):
     # Store initial rationale counts
     initial_rationale_counts = {trans._id: len([r for r, _ in trans.rationales.all()]) for trans in transitions}
 
-    # Call calculate_transitions AGAIN to test duplicate detection
+    # Store old ac_re ID before calling calculate_transitions again
+    old_ac_re_id = ac_re_wu._id
+
+    # Call calculate_transitions AGAIN to test duplicate detection AND ac_re replacement
     await factory2.calculate_transitions(wheel)
 
     # Verify still exactly 2 transitions (no duplicates created)
@@ -300,6 +307,22 @@ async def test_wheel_acre(number_of_thoughts):
         new_count = len([r for r, _ in trans.rationales.all()])
         old_count = initial_rationale_counts[trans._id]
         assert new_count > old_count, f"Transition should have more rationales after second call: {old_count} → {new_count}"
+
+    # Verify NEW ac_re was created and connected (replace logic)
+    new_ac_re_result = transformation.ac_re.get()
+    assert new_ac_re_result is not None, "Transformation should have new ac_re after second call"
+    new_ac_re_wu, _ = new_ac_re_result
+    assert new_ac_re_wu._id != old_ac_re_id, "Should have NEW ac_re (different ID)"
+
+    # Verify old ac_re was DELETED (not orphaned)
+    db = container.graph_db()
+    old_ac_re_check = list(db.execute_and_fetch(
+        "MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": old_ac_re_id}
+    ))
+    assert len(old_ac_re_check) == 0, f"Old ac_re should be DELETED (not orphaned), but still exists: {old_ac_re_id}"
+
+    print("\n✓ Old ac_re was properly deleted (not orphaned) when calculate_transitions called twice")
 
     print("\n" + "="*80)
     print(f"ACTION-REFLECTION WHEEL (with {number_of_thoughts} thought(s))")

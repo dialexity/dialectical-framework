@@ -27,46 +27,16 @@ class DialecticalComponentRepository:
     separating data access logic from domain models following the Repository pattern.
 
     Example usage:
-        from dialectical_framework.graph.repositories import DialecticalComponentRepository
+        from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
 
-        component = DialecticalComponent(statement="Democracy")
-        component.save()
+        wu = WisdomUnit()
+        wu.save()
 
         repo = DialecticalComponentRepository()
-        wisdom_units = repo.find_wisdom_units(component)
-        for wu, rel_type in wisdom_units:
-            print(f"Component belongs to {wu.uid} as {rel_type}")
+        components = repo.find_by_wisdom_unit(wu)
+        for comp, alias in components:
+            print(f"Component {comp.statement} has alias {alias}")
     """
-
-    @inject
-    def find_wisdom_units(
-        self,
-        component: DialecticalComponent,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> list[tuple[Any, str]]:
-        """
-        Find all WisdomUnits that this component belongs to.
-
-        Args:
-            component: The DialecticalComponent to query for
-            graph_db: Database connection (injected via DI)
-
-        Returns:
-            List of tuples: (WisdomUnit, relationship_type)
-            Example: [(wu1, "T"), (wu2, "T_PLUS")]
-        """
-        if component._id is None:
-            return []
-
-        query = """
-        MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
-        WHERE id(c) = $component_id
-        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS', 'S_PLUS', 'S_MINUS']
-        RETURN wu, type(r) as rel_type
-        """
-
-        results = graph_db.execute_and_fetch(query, {"component_id": component._id})
-        return [(result["wu"], result["rel_type"]) for result in results]
 
     @inject
     def find_by_wisdom_unit(

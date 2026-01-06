@@ -15,6 +15,7 @@ from dialectical_framework.analyst.strategic_consultant import \
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode
 from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
+from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.use_brain import use_brain
 
@@ -211,8 +212,22 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         transformation_result: Tuple[Transformation, Relationship] = wu.transformation.get()
 
         if transformation_result:
-            # Transformation exists - check for duplicates before creating new rationales
+            # Transformation exists - replace ac_re and append rationales to existing transitions
             transformation = transformation_result[0]
+
+            # Replace old ac_re with new one (fresh reasoning from LLM)
+            old_ac_re_result = transformation.ac_re.get()
+            if old_ac_re_result:
+                old_ac_re_wu = old_ac_re_result[0]
+                transformation.ac_re.disconnect(old_ac_re_wu)
+
+                # Try to delete old ac_re subgraph if it's isolated (not shared)
+                wu_repo = WisdomUnitRepository()
+                wu_repo.safe_delete(old_ac_re_wu)
+
+            # Connect new ac_re
+            transformation.ac_re.connect(ac_re_wu)
+
             existing_transitions = [t for t, _ in transformation.transitions.all()]
 
             transitions_updated = []
@@ -277,7 +292,6 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
 
             # Return newly created transitions
             return [transition1, transition2]
-
 
     @staticmethod
     def _translate_alias_to_position(alias: str) -> str:

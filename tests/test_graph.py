@@ -1141,6 +1141,458 @@ def test_dialectical_component_repository_find_by_wisdom_unit():
     print("✓ DialecticalComponentRepository.find_by_wisdom_unit() works correctly")
 
 
+def test_wisdom_unit_repository_safe_delete(di_container):
+    """Test WisdomUnitRepository.safe_delete() with isolation checks."""
+    from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+
+    repo = WisdomUnitRepository()
+    db = di_container.graph_db()
+
+    # ========== Test 1: Isolated WU deletion (should delete) ==========
+    wu_isolated = WisdomUnit(reasoning_mode="test_isolated")
+    wu_isolated.save()
+
+    # Create components
+    t = DialecticalComponent(statement="Isolated thesis")
+    t.save()
+    wu_isolated.t.connect(t, properties={'alias': 'T'})
+
+    t_plus = DialecticalComponent(statement="Isolated T+")
+    t_plus.save()
+    wu_isolated.t_plus.connect(t_plus, properties={'alias': 'T+'})
+
+    t_minus = DialecticalComponent(statement="Isolated T-")
+    t_minus.save()
+    wu_isolated.t_minus.connect(t_minus, properties={'alias': 'T-'})
+
+    a = DialecticalComponent(statement="Isolated antithesis")
+    a.save()
+    wu_isolated.a.connect(a, properties={'alias': 'A'})
+
+    a_plus = DialecticalComponent(statement="Isolated A+")
+    a_plus.save()
+    wu_isolated.a_plus.connect(a_plus, properties={'alias': 'A+'})
+
+    a_minus = DialecticalComponent(statement="Isolated A-")
+    a_minus.save()
+    wu_isolated.a_minus.connect(a_minus, properties={'alias': 'A-'})
+
+    # Add rationale (attribute of WU)
+    rat = Rationale(text="Test rationale")
+    rat.save()
+    wu_isolated.rationales.connect(rat)
+
+    # Check isolation
+    assert repo.is_isolated(wu_isolated), "WU should be isolated"
+
+    # Safe delete should succeed
+    deleted = repo.safe_delete(wu_isolated)
+    assert deleted, "Isolated WU should be deleted"
+
+    # Verify all nodes were deleted
+
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_isolated._id}
+    ))
+    assert len(result) == 0, "WU should be deleted"
+
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": t._id}
+    ))
+    assert len(result) == 0, "Component should be deleted"
+
+    result = list(db.execute_and_fetch(
+        f"MATCH (r:Rationale) WHERE id(r) = $r_id RETURN r",
+        {"r_id": rat._id}
+    ))
+    assert len(result) == 0, "Rationale should be deleted"
+
+    print("✓ Test 1: Isolated WU deleted successfully")
+
+    # ========== Test 2: Shared component (should NOT delete) ==========
+    wu_shared_1 = WisdomUnit(reasoning_mode="shared_1")
+    wu_shared_1.save()
+
+    wu_shared_2 = WisdomUnit(reasoning_mode="shared_2")
+    wu_shared_2.save()
+
+    # Create shared component
+    shared_comp = DialecticalComponent(statement="Shared thesis")
+    shared_comp.save()
+
+    # Connect to both WUs
+    wu_shared_1.t.connect(shared_comp, properties={'alias': 'T1'})
+    wu_shared_2.t.connect(shared_comp, properties={'alias': 'T2'})
+
+    # Add other required components to wu_shared_1
+    for pos, stmt in [('t_plus', 'T1+'), ('t_minus', 'T1-'),
+                       ('a', 'A1'), ('a_plus', 'A1+'), ('a_minus', 'A1-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_shared_1, pos).connect(comp, properties={'alias': stmt})
+
+    # Check isolation (should be False - shared component)
+    assert not repo.is_isolated(wu_shared_1), "WU with shared component should not be isolated"
+
+    # Safe delete should NOT delete
+    deleted = repo.safe_delete(wu_shared_1)
+    assert not deleted, "WU with shared component should NOT be deleted"
+
+    # Verify WU still exists
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_shared_1._id}
+    ))
+    assert len(result) == 1, "WU should still exist (not deleted)"
+
+    # Verify shared component still exists
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": shared_comp._id}
+    ))
+    assert len(result) == 1, "Shared component should still exist"
+
+    print("✓ Test 2: Shared component prevented deletion")
+
+    # ========== Test 3: HAS_STATEMENT boundary (should disconnect, conditionally delete) ==========
+    wu_boundary = WisdomUnit(reasoning_mode="boundary_test")
+    wu_boundary.save()
+
+    # Create WU components
+    t_boundary = DialecticalComponent(statement="Boundary thesis")
+    t_boundary.save()
+    wu_boundary.t.connect(t_boundary, properties={'alias': 'T'})
+
+    # Add other required components
+    for pos, stmt in [('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_boundary, pos).connect(comp, properties={'alias': stmt})
+
+    # Create rationale with HAS_STATEMENT (orphaned component)
+    rat_boundary = Rationale(text="Rationale with statement")
+    rat_boundary.save()
+    wu_boundary.rationales.connect(rat_boundary)
+
+    stmt_comp_orphan = DialecticalComponent(statement="Statement component (orphan)")
+    stmt_comp_orphan.save()
+    rat_boundary.derived_statements.connect(stmt_comp_orphan)
+
+    # Check isolation (HAS_STATEMENT doesn't prevent deletion)
+    assert repo.is_isolated(wu_boundary), "WU with HAS_STATEMENT should still be isolated"
+
+    # Safe delete should succeed
+    deleted = repo.safe_delete(wu_boundary)
+    assert deleted, "WU with HAS_STATEMENT boundary should be deleted"
+
+    # Verify WU deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_boundary._id}
+    ))
+    assert len(result) == 0, "WU should be deleted"
+
+    # Verify orphaned stmt_component also deleted (not in any WU)
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": stmt_comp_orphan._id}
+    ))
+    assert len(result) == 0, "Orphaned statement component should be deleted"
+
+    print("✓ Test 3: HAS_STATEMENT boundary handled correctly")
+
+    # ========== Test 4: HAS_STATEMENT with component in another WU (should keep component) ==========
+    wu_boundary_2 = WisdomUnit(reasoning_mode="boundary_test_2")
+    wu_boundary_2.save()
+
+    wu_other = WisdomUnit(reasoning_mode="other_wu")
+    wu_other.save()
+
+    # Create WU components for wu_boundary_2
+    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_boundary_2, pos).connect(comp, properties={'alias': stmt})
+
+    # Create shared stmt_component used in another WU
+    stmt_comp_shared = DialecticalComponent(statement="Statement component (in another WU)")
+    stmt_comp_shared.save()
+    wu_other.t.connect(stmt_comp_shared, properties={'alias': 'T_other'})
+
+    # Create rationale with HAS_STATEMENT to shared component
+    rat_boundary_2 = Rationale(text="Rationale with shared statement")
+    rat_boundary_2.save()
+    wu_boundary_2.rationales.connect(rat_boundary_2)
+    rat_boundary_2.derived_statements.connect(stmt_comp_shared)
+
+    # Safe delete should succeed
+    deleted = repo.safe_delete(wu_boundary_2)
+    assert deleted, "WU should be deleted"
+
+    # Verify WU deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_boundary_2._id}
+    ))
+    assert len(result) == 0, "WU should be deleted"
+
+    # Verify shared stmt_component still exists (used in wu_other)
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": stmt_comp_shared._id}
+    ))
+    assert len(result) == 1, "Shared statement component should still exist"
+
+    print("✓ Test 4: HAS_STATEMENT with shared component kept component alive")
+
+    # ========== Test 5: Rationales as attributes (should delete with WU) ==========
+    wu_rationale = WisdomUnit(reasoning_mode="rationale_test")
+    wu_rationale.save()
+
+    # Create components
+    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_rationale, pos).connect(comp, properties={'alias': stmt})
+
+    # Create rationale chain (critique relationships)
+    rat1 = Rationale(text="Base rationale")
+    rat1.save()
+    wu_rationale.rationales.connect(rat1)
+
+    rat2 = Rationale(text="Critique of rat1")
+    rat2.save()
+    rat2.critiques.connect(rat1)
+    wu_rationale.rationales.connect(rat2)
+
+    rat3 = Rationale(text="Critique of rat2")
+    rat3.save()
+    rat3.critiques.connect(rat2)
+    wu_rationale.rationales.connect(rat3)
+
+    # Check isolation (CRITIQUES within WU doesn't prevent deletion)
+    assert repo.is_isolated(wu_rationale), "WU with internal critique chain should be isolated"
+
+    # Safe delete should succeed
+    deleted = repo.safe_delete(wu_rationale)
+    assert deleted, "WU with internal critique chain should be deleted"
+
+    # Verify all rationales deleted (attributes of WU)
+    for rat in [rat1, rat2, rat3]:
+        result = list(db.execute_and_fetch(
+            f"MATCH (r:Rationale) WHERE id(r) = $r_id RETURN r",
+            {"r_id": rat._id}
+        ))
+        assert len(result) == 0, f"Rationale {rat.text} should be deleted"
+
+    print("✓ Test 5: Rationales with CRITIQUES deleted as attributes")
+
+    # ========== Test 6: WU with Transformation (should delete Transformation + Transitions) ==========
+    from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.transition import Transition
+
+    wu_with_trans = WisdomUnit(reasoning_mode="with_transformation")
+    wu_with_trans.save()
+
+    # Create components for the WU
+    wu_t_minus = DialecticalComponent(statement="T-")
+    wu_t_minus.save()
+    wu_with_trans.t_minus.connect(wu_t_minus, properties={'alias': 'T-'})
+
+    wu_a_plus = DialecticalComponent(statement="A+")
+    wu_a_plus.save()
+    wu_with_trans.a_plus.connect(wu_a_plus, properties={'alias': 'A+'})
+
+    wu_a_minus = DialecticalComponent(statement="A-")
+    wu_a_minus.save()
+    wu_with_trans.a_minus.connect(wu_a_minus, properties={'alias': 'A-'})
+
+    wu_t_plus = DialecticalComponent(statement="T+")
+    wu_t_plus.save()
+    wu_with_trans.t_plus.connect(wu_t_plus, properties={'alias': 'T+'})
+
+    # Add remaining required components
+    for pos, stmt in [('t', 'T'), ('a', 'A')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_with_trans, pos).connect(comp, properties={'alias': stmt})
+
+    # Create Transformation with Transitions
+    transformation = Transformation()
+    transformation.save()
+    wu_with_trans.transformation.connect(transformation)
+
+    # Create ac_re WisdomUnit for the transformation
+    ac_re_wu = WisdomUnit(reasoning_mode="ac_re")
+    ac_re_wu.save()
+    for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
+                       ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(ac_re_wu, pos).connect(comp, properties={'alias': stmt})
+    transformation.ac_re.connect(ac_re_wu)
+
+    # Create Transitions
+    trans1 = Transition()
+    trans1.save()
+    trans1.source.connect(wu_t_minus)
+    trans1.target.connect(wu_a_plus)
+    transformation.transitions.connect(trans1)
+
+    trans2 = Transition()
+    trans2.save()
+    trans2.source.connect(wu_a_minus)
+    trans2.target.connect(wu_t_plus)
+    transformation.transitions.connect(trans2)
+
+    # Store IDs for verification
+    trans_id = transformation._id
+    trans1_id = trans1._id
+    trans2_id = trans2._id
+
+    # Check isolation (should be isolated - Transformation and Transitions are part of subgraph)
+    assert repo.is_isolated(wu_with_trans), "WU with Transformation should be isolated"
+
+    # Safe delete should succeed
+    deleted = repo.safe_delete(wu_with_trans)
+    assert deleted, "WU with Transformation should be deleted"
+
+    # Verify WU deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_with_trans._id}
+    ))
+    assert len(result) == 0, "WU should be deleted"
+
+    # Verify Transformation deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (t:Transformation) WHERE id(t) = $t_id RETURN t",
+        {"t_id": trans_id}
+    ))
+    assert len(result) == 0, "Transformation should be deleted"
+
+    # Verify Transitions deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (t:Transition) WHERE id(t) = $t_id RETURN t",
+        {"t_id": trans1_id}
+    ))
+    assert len(result) == 0, "Transition 1 should be deleted"
+
+    result = list(db.execute_and_fetch(
+        f"MATCH (t:Transition) WHERE id(t) = $t_id RETURN t",
+        {"t_id": trans2_id}
+    ))
+    assert len(result) == 0, "Transition 2 should be deleted"
+
+    # Note: ac_re_wu should still exist (it's referenced by transformation.ac_re)
+    # But transformation is deleted, so ac_re becomes orphaned
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": ac_re_wu._id}
+    ))
+    assert len(result) == 1, "ac_re WU should still exist (becomes orphan)"
+
+    print("✓ Test 6: WU with Transformation deleted Transformation and Transitions")
+
+    # ========== Test 7: WU that IS an ac_re (should NOT delete - external reference) ==========
+    wu_parent = WisdomUnit(reasoning_mode="parent_with_trans")
+    wu_parent.save()
+
+    # Create components for parent WU
+    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_parent, pos).connect(comp, properties={'alias': stmt})
+
+    # Create Transformation that references another WU as ac_re
+    wu_as_ac_re = WisdomUnit(reasoning_mode="used_as_ac_re")
+    wu_as_ac_re.save()
+    for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
+                       ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_as_ac_re, pos).connect(comp, properties={'alias': stmt})
+
+    parent_transformation = Transformation()
+    parent_transformation.save()
+    wu_parent.transformation.connect(parent_transformation)
+    parent_transformation.ac_re.connect(wu_as_ac_re)
+
+    # Check isolation (should NOT be isolated - referenced by transformation.ac_re)
+    assert not repo.is_isolated(wu_as_ac_re), "WU used as ac_re should NOT be isolated"
+
+    # Safe delete should NOT delete
+    deleted = repo.safe_delete(wu_as_ac_re)
+    assert not deleted, "WU used as ac_re should NOT be deleted"
+
+    # Verify WU still exists
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_as_ac_re._id}
+    ))
+    assert len(result) == 1, "WU used as ac_re should still exist"
+
+    print("✓ Test 7: WU used as ac_re prevented deletion (external reference)")
+
+    # ========== Test 8: Replacing ac_re (disconnect + safe_delete) ==========
+    wu_replace = WisdomUnit(reasoning_mode="replace_test")
+    wu_replace.save()
+
+    # Create components
+    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_replace, pos).connect(comp, properties={'alias': stmt})
+
+    # Create old ac_re
+    old_ac_re = WisdomUnit(reasoning_mode="old_ac_re")
+    old_ac_re.save()
+    for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
+                       ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(old_ac_re, pos).connect(comp, properties={'alias': stmt})
+
+    # Create transformation with old ac_re
+    replace_transformation = Transformation()
+    replace_transformation.save()
+    wu_replace.transformation.connect(replace_transformation)
+    replace_transformation.ac_re.connect(old_ac_re)
+
+    old_ac_re_id = old_ac_re._id
+
+    # Verify old_ac_re is NOT isolated (still referenced)
+    assert not repo.is_isolated(old_ac_re), "Old ac_re should NOT be isolated (still referenced)"
+
+    # Simulate replacing ac_re (disconnect)
+    replace_transformation.ac_re.disconnect(old_ac_re)
+
+    # Now old_ac_re should be isolated
+    assert repo.is_isolated(old_ac_re), "Old ac_re should be isolated after disconnect"
+
+    # Safe delete should succeed
+    deleted = repo.safe_delete(old_ac_re)
+    assert deleted, "Old ac_re should be deleted after disconnect"
+
+    # Verify old ac_re deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": old_ac_re_id}
+    ))
+    assert len(result) == 0, "Old ac_re should be deleted"
+
+    print("✓ Test 8: Replacing ac_re (disconnect + safe_delete) works correctly")
+
+    print("\n✅ All WisdomUnitRepository.safe_delete() tests passed!")
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])
