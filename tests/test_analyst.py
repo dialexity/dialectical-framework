@@ -195,22 +195,9 @@ async def test_wheel_spiral(number_of_thoughts):
     1,
     2,
 ])
-async def test_wheel_acre(number_of_thoughts):
-    # Access container directly (can't use fixture with @observe decorator)
-    # But override graph_db to use TestMemgraph wrapper for proper cleanup
-    from dialectical_framework.settings import Settings
-    from dependency_injector import providers
-    from tests.conftest import _create_test_graph_db
-
-    container = DialecticalReasoning.setup(Settings.from_env())
-
-    # Override to use TestMemgraph wrapper (adds TEST_LABEL for cleanup)
-    container.graph_db.override(
-        providers.Singleton(
-            _create_test_graph_db,
-            settings=container.settings
-        )
-    )
+async def test_wheel_acre(number_of_thoughts, request):
+    # Use request fixture to access di_container (works with @observe decorator)
+    di_container = request.getfixturevalue('di_container')
 
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory2 = DecoratorActionReflection(builder=factory)
@@ -327,7 +314,7 @@ async def test_wheel_acre(number_of_thoughts):
     assert new_ac_re_wu._id != old_ac_re_id, "Should have NEW ac_re (different ID)"
 
     # Verify old ac_re was DELETED (not orphaned)
-    db = container.graph_db()
+    db = di_container.graph_db()
     old_ac_re_check = list(db.execute_and_fetch(
         "MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
         {"wu_id": old_ac_re_id}
