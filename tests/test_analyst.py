@@ -197,8 +197,20 @@ async def test_wheel_spiral(number_of_thoughts):
 ])
 async def test_wheel_acre(number_of_thoughts):
     # Access container directly (can't use fixture with @observe decorator)
+    # But override graph_db to use TestMemgraph wrapper for proper cleanup
     from dialectical_framework.settings import Settings
+    from dependency_injector import providers
+    from tests.conftest import _create_test_graph_db
+
     container = DialecticalReasoning.setup(Settings.from_env())
+
+    # Override to use TestMemgraph wrapper (adds TEST_LABEL for cleanup)
+    container.graph_db.override(
+        providers.Singleton(
+            _create_test_graph_db,
+            settings=container.settings
+        )
+    )
 
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory2 = DecoratorActionReflection(builder=factory)

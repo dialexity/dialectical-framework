@@ -239,3 +239,32 @@ def graph_db_available(di_container)-> bool:
     return is_graph_db_available(settings)
 
 
+@pytest.fixture(autouse=True)
+def cleanup_graph_db(graph_db_available, di_container):
+    """
+    Auto-cleanup fixture for all graph DB tests.
+
+    Automatically skips tests if the configured graph database is not available.
+    Cleans up test data before and after each test.
+
+    SAFETY: Only deletes nodes labeled with :___DIALEXITY_TEST___
+    This allows tests to run safely alongside production data.
+    """
+    settings = di_container.settings()
+    if not graph_db_available:
+        pytest.skip(
+            f"{settings.graph_db_vendor} is not available. "
+            f"Please start the database and try again."
+        )
+
+    db = di_container.graph_db()
+    cleanup_test_data(db)
+
+    yield
+
+    try:
+        cleanup_test_data(db)
+    except Exception:
+        pass  # Ignore cleanup errors
+
+
