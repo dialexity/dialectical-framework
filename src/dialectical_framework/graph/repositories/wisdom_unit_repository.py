@@ -87,222 +87,176 @@ class WisdomUnitRepository:
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
-        Safely delete a WisdomUnit and its isolated subgraph.
+        Safely delete a WisdomUnit and its complete subgraph.
 
-        Performs isolation check before deletion:
-        1. Checks if WisdomUnit has any incoming relationships
-        2. Checks if any connected nodes (components, rationales) have external references
-        3. Only deletes if the entire subgraph is isolated (not shared)
+        **Deletion Logic:**
 
-        This prevents accidentally deleting components that are reused across
-        multiple WisdomUnits (e.g., shared thesis components).
+        1. **Vocabulary Check** (via is_isolated()):
+           - Checks if WU is in any wheel (Level 2 vocabulary)
+           - Checks if any component is in vocabulary (Level 1 vocabulary)
+           - If NOT isolated → Keep as provenance (return False)
+           - If isolated → Proceed with deletion
 
-        The deletion is recursive and includes:
-        - The WisdomUnit itself
-        - All connected DialecticalComponents (T, A, T+, T-, A+, A-)
-        - All rationales attached to the WisdomUnit
-        - All rationales attached to the components
+        2. **Recursive Deletion** (if isolated):
+           - WisdomUnit itself
+           - Transformation, Transitions, Synthesis nodes
+           - Rationales, Estimations (attributes of their parents)
+           - HAS_STATEMENT derived components (if orphaned)
+
+        3. **DialecticalComponent Smart Handling**:
+           For each component (T, A, T+, T-, A+, A-, S+, S-):
+           - **If in vocabulary** (polarity rels to other WUs, in Cycles/Spirals) → DETACH only
+           - **If orphaned** → DELETE component AND its rationales/estimations
+
+        **Two-Level Vocabulary Preservation:**
+        - **Level 1**: DialecticalComponents (statements) can be shared
+        - **Level 2**: WisdomUnits (polarities) can be shared across wheels
+
+        Both levels are preserved when in use, keeping provenance for future reuse.
 
         Args:
             wisdom_unit: The WisdomUnit to delete
             graph_db: Database connection (injected via DI)
 
         Returns:
-            True if deleted (subgraph was isolated)
-            False if kept (subgraph has external references)
+            True if deleted (WU was isolated)
+            False if kept as provenance (WU or components in vocabulary)
 
         Example:
-            # Delete an AC/RE WisdomUnit that's no longer referenced
-            old_ac_re = transformation.ac_re.get()[0]
+            # After disconnecting from wheel
             transformation.ac_re.disconnect(old_ac_re)
-            repo.safe_delete(old_ac_re)  # Cleans up if isolated
+            if repo.is_isolated(old_ac_re):
+                repo.safe_delete(old_ac_re)  # Deletes if truly isolated
+            # Otherwise kept as Level 2 vocabulary
         """
         if wisdom_unit._id is None:
             return False  # Not saved, nothing to delete
 
-        # Check if subgraph is isolated using dedicated method
+        # PRIMARY CHECK: Is WU isolated (vocabulary check)?
         if not self.is_isolated(wisdom_unit, graph_db=graph_db):
-            # Subgraph is shared with other parts of the graph - don't delete
-            # Keep as orphan for future garbage collection
+            # WU or its components are in vocabulary - keep as provenance
             return False
 
         # Subgraph is fully isolated - safe to recursively delete everything
         # HAS_STATEMENT is a boundary: disconnect link, delete component only if orphaned
 
-        # Handle HAS_STATEMENT boundary (do this BEFORE deleting rationales)
-        # Step 1: Disconnect all HAS_STATEMENT links from this WU's rationales
+        # Step 1: Handle HAS_STATEMENT boundary (do this BEFORE deleting rationales/transitions)
+        # Disconnect HAS_STATEMENT links from rationales and transitions
         disconnect_has_statement_query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
-        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(rationale)
-        OPTIONAL MATCH (rationale)-[has_stmt:HAS_STATEMENT]->(stmt_comp:DialecticalComponent)
-        WHERE has_stmt IS NOT NULL
-        DELETE has_stmt
+
+        // Find all rationales in subgraph (including critiques - recursive)
+        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(wu_rationale)
+        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component)
+        OPTIONAL MATCH (component)<-[:EXPLAINS]-(comp_rationale)
+        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
+        OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
+        OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
+        OPTIONAL MATCH (transition)<-[:EXPLAINS]-(transit_rationale)
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
+        OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
+
+        WITH collect(DISTINCT wu_rationale) + collect(DISTINCT comp_rationale) +
+             collect(DISTINCT trans_rationale) + collect(DISTINCT transit_rationale) +
+             collect(DISTINCT synth_rationale) AS all_rationales,
+             collect(DISTINCT transition) AS transitions
+
+        // Disconnect HAS_STATEMENT from rationales (including recursive critiques)
+        UNWIND all_rationales AS rat
+        OPTIONAL MATCH (rat)-[:CRITIQUES*0..10]->(child_rat:Rationale)
+        OPTIONAL MATCH (child_rat)-[has_stmt_r:HAS_STATEMENT]->(:DialecticalComponent)
+        WHERE has_stmt_r IS NOT NULL
+        DELETE has_stmt_r
+
+        WITH transitions
+
+        // Disconnect HAS_STATEMENT from transitions (derived_statements)
+        UNWIND transitions AS trans
+        OPTIONAL MATCH (trans)-[has_stmt_t:HAS_STATEMENT]->(:DialecticalComponent)
+        WHERE has_stmt_t IS NOT NULL
+        DELETE has_stmt_t
         """
         graph_db.execute(disconnect_has_statement_query, {"wu_id": wisdom_unit._id})
 
-        # Step 2: Delete orphaned HAS_STATEMENT components (not in any WU)
-        # This query finds all DialecticalComponents with no polarity relationships
-        # (orphaned components that aren't part of any WisdomUnit)
+        # Step 2: Delete orphaned HAS_STATEMENT components (not in any WU or Synthesis)
         delete_orphaned_stmt_query = """
         MATCH (stmt_comp:DialecticalComponent)
-        WHERE NOT exists((stmt_comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(:WisdomUnit))
-        AND NOT exists((stmt_comp)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-())
+        WHERE NOT exists((stmt_comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]->())
+        AND NOT exists((stmt_comp)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-())
         DETACH DELETE stmt_comp
         """
         graph_db.execute(delete_orphaned_stmt_query)
 
-        # Finally, delete the WU and all its subgraph (including Transformation and Transitions)
+        # Step 3: Delete the complete WU subgraph
         delete_subgraph_query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
+
+        // Find all nodes in subgraph
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component)
-        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(rationale)
-        OPTIONAL MATCH (component)<-[:EXPLAINS]-(component_rationale)
+        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(wu_rationale)
+        OPTIONAL MATCH (component)<-[:EXPLAINS]-(comp_rationale)
         OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
+        OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
         OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
+        OPTIONAL MATCH (transition)<-[:EXPLAINS]-(transit_rationale)
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
+        OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
+        OPTIONAL MATCH (synthesis)<-[:S_PLUS|S_MINUS]-(synth_component)
+
+        // Collect nodes for deletion (DETACH DELETE will handle estimations automatically)
         WITH wu,
              collect(DISTINCT component) AS components,
-             collect(DISTINCT rationale) + collect(DISTINCT component_rationale) AS rationales,
+             collect(DISTINCT wu_rationale) AS wu_rationales,
+             collect(DISTINCT comp_rationale) AS comp_rationales,
              collect(DISTINCT transformation) AS transformations,
-             collect(DISTINCT transition) AS transitions
-        FOREACH (comp IN components | DETACH DELETE comp)
+             collect(DISTINCT trans_rationale) AS trans_rationales,
+             collect(DISTINCT transition) AS transitions,
+             collect(DISTINCT transit_rationale) AS transit_rationales,
+             collect(DISTINCT synthesis) AS syntheses,
+             collect(DISTINCT synth_rationale) AS synth_rationales,
+             collect(DISTINCT synth_component) AS synth_components
+
+        // Combine all rationales for deletion (DETACH DELETE handles recursive critiques)
+        WITH wu, components, transformations, transitions, syntheses, synth_components,
+             wu_rationales + comp_rationales + trans_rationales + transit_rationales + synth_rationales AS rationales
+
+        // Delete in proper order (DETACH DELETE removes all relationships including estimations)
         FOREACH (rat IN rationales | DETACH DELETE rat)
         FOREACH (trans IN transitions | DETACH DELETE trans)
         FOREACH (transformation IN transformations | DETACH DELETE transformation)
+        FOREACH (scomp IN synth_components | DETACH DELETE scomp)
+        FOREACH (synth IN syntheses | DETACH DELETE synth)
+
+        // For components: check each one's vocabulary status before deletion
+        // Components are "in vocabulary" if they have polarity or synthesis relationships
+        WITH wu, components
+        UNWIND components AS comp
+
+        // Disconnect component from this WU (already done by DETACH DELETE wu below)
+        // Check if component is orphaned (not in vocabulary)
+        OPTIONAL MATCH (comp)-[vocab_rel:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]->(other_wu)
+        WHERE other_wu <> wu
+
+        OPTIONAL MATCH (comp)<-[vocab_rel_in:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-(other_wu_in)
+        WHERE other_wu_in <> wu
+
+        OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(transition_ref:Transition)
+        OPTIONAL MATCH (transition_ref)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
+
+        WITH wu, comp,
+             count(vocab_rel) + count(vocab_rel_in) + count(cycle_or_spiral) AS vocab_count
+
+        // Delete component only if orphaned (not in vocabulary)
+        FOREACH (_ IN CASE WHEN vocab_count = 0 THEN [1] ELSE [] END |
+            DETACH DELETE comp
+        )
+
+        WITH DISTINCT wu
         DETACH DELETE wu
         """
         graph_db.execute(delete_subgraph_query, {"wu_id": wisdom_unit._id})
 
         return True
-
-    @inject
-    def _has_incoming_references(
-        self,
-        wisdom_unit: WisdomUnit,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> bool:
-        """Check if WU has incoming references from outside its subgraph.
-
-        Excludes internal structural relationships:
-        - Polarity relationships (T, T_PLUS, etc.) from components
-        - EXPLAINS from rationales
-        - IS_SPIRAL_OF from transformations
-        """
-        if wisdom_unit._id is None:
-            return False
-
-        query = """
-        MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
-        OPTIONAL MATCH (external)-[r]->(wu)
-        WHERE external IS NOT NULL
-          AND type(r) <> 'T'
-          AND type(r) <> 'T_PLUS'
-          AND type(r) <> 'T_MINUS'
-          AND type(r) <> 'A'
-          AND type(r) <> 'A_PLUS'
-          AND type(r) <> 'A_MINUS'
-          AND type(r) <> 'S_PLUS'
-          AND type(r) <> 'S_MINUS'
-          AND type(r) <> 'EXPLAINS'
-          AND type(r) <> 'IS_SPIRAL_OF'
-        RETURN count(r) > 0 AS has_refs
-        """
-        result = list(graph_db.execute_and_fetch(query, {"wu_id": wisdom_unit._id}))
-        return result[0]["has_refs"] if result else False
-
-    @inject
-    def _components_have_external_refs(
-        self,
-        wisdom_unit: WisdomUnit,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> bool:
-        """Check if WU's components have refs from/to outside subgraph.
-
-        Checks both:
-        - Incoming refs to components (external->component)
-        - Outgoing refs from components (component->external) for polarity relationships
-        """
-        if wisdom_unit._id is None:
-            return False
-
-        query = """
-        MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
-
-        // Find subgraph nodes
-        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component)
-        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(rationale)
-        OPTIONAL MATCH (component)<-[:EXPLAINS]-(component_rationale)
-        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
-        OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
-
-        WITH wu,
-             [wu] + collect(DISTINCT component) + collect(DISTINCT rationale) +
-             collect(DISTINCT component_rationale) + collect(DISTINCT transformation) +
-             collect(DISTINCT transition) AS all_subgraph_nodes,
-             collect(DISTINCT component) AS components
-
-        // Check for external refs (both incoming and outgoing)
-        UNWIND components AS comp
-
-        // Check incoming refs (excluding transition rels and EXPLAINS/HAS_STATEMENT)
-        OPTIONAL MATCH (external_in)-[r_in]->(comp)
-        WHERE external_in IS NOT NULL
-          AND NOT external_in IN all_subgraph_nodes
-          AND type(r_in) <> 'EXPLAINS'
-          AND type(r_in) <> 'HAS_STATEMENT'
-          AND type(r_in) <> 'IS_SOURCE_OF'
-          AND type(r_in) <> 'IS_TARGET_OF'
-
-        // Check outgoing polarity refs (component shared across multiple WUs)
-        OPTIONAL MATCH (comp)-[r_out]->(external_out)
-        WHERE external_out IS NOT NULL
-          AND NOT external_out IN all_subgraph_nodes
-          AND (type(r_out) = 'T' OR type(r_out) = 'T_PLUS' OR type(r_out) = 'T_MINUS'
-               OR type(r_out) = 'A' OR type(r_out) = 'A_PLUS' OR type(r_out) = 'A_MINUS'
-               OR type(r_out) = 'S_PLUS' OR type(r_out) = 'S_MINUS')
-
-        RETURN count(r_in) + count(r_out) > 0 AS has_refs
-        """
-        result = list(graph_db.execute_and_fetch(query, {"wu_id": wisdom_unit._id}))
-        return result[0]["has_refs"] if result else False
-
-    @inject
-    def _rationales_explain_external(
-        self,
-        wisdom_unit: WisdomUnit,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> bool:
-        """Check if WU's rationales explain anything outside the subgraph."""
-        if wisdom_unit._id is None:
-            return False
-
-        query = """
-        MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
-
-        // Find subgraph nodes
-        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component)
-        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(rationale)
-        OPTIONAL MATCH (component)<-[:EXPLAINS]-(component_rationale)
-        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
-        OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
-
-        WITH wu,
-             [wu] + collect(DISTINCT component) + collect(DISTINCT rationale) +
-             collect(DISTINCT component_rationale) + collect(DISTINCT transformation) +
-             collect(DISTINCT transition) AS all_subgraph_nodes,
-             collect(DISTINCT rationale) + collect(DISTINCT component_rationale) AS rationales
-
-        // Check if any rationale explains something outside
-        WITH all_subgraph_nodes,
-             CASE WHEN size(rationales) > 0 THEN rationales ELSE [null] END AS rationales_safe
-        UNWIND rationales_safe AS rat
-        OPTIONAL MATCH (rat)-[:EXPLAINS]->(external)
-        WHERE rat IS NOT NULL
-          AND external IS NOT NULL
-          AND NOT external IN all_subgraph_nodes
-        RETURN count(external) > 0 AS has_refs
-        """
-        result = list(graph_db.execute_and_fetch(query, {"wu_id": wisdom_unit._id}))
-        return result[0]["has_refs"] if result else False
 
     @inject
     def is_isolated(
@@ -311,45 +265,94 @@ class WisdomUnitRepository:
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
-        Check if a WisdomUnit and its subgraph are isolated (not referenced externally).
+        Check if a WisdomUnit is isolated (not part of vocabulary at any level).
 
-        A WisdomUnit is isolated if:
-        1. WU has no incoming relationships (disconnected from parent structures)
-        2. Components have no incoming relationships except from WU and rationales
-        3. Rationales don't EXPLAIN anything outside the WU subgraph
+        **Two-Level Vocabulary Architecture:**
 
-        Rationales and Estimations are treated as "attributes" - they belong to what
-        they explain and are deleted together with their parent.
+        1. **Level 1 Vocabulary - Statements**: DialecticalComponents
+           - Can be reused across multiple WisdomUnits
+           - Can be source/target in Cycles/Spirals (transitively in wheels)
 
-        CRITIQUES relationships are ignored (rationales critiquing each other are
-        still attributes of the same subgraph).
+        2. **Level 2 Vocabulary - Polarities**: WisdomUnits
+           - Can be reused across multiple Wheels
+           - Can be used as ac_re in Transformations
 
-        HAS_STATEMENT is treated as a boundary - components referenced this way
-        live independently and are handled specially during deletion.
+        **Isolation Criteria:**
+
+        A WisdomUnit is isolated ONLY if ALL of the following are true:
+
+        1. **WU Level Check**: WU is NOT in any wheel
+           - No BELONGS_TO_WHEEL relationship to any Wheel
+
+        2. **Component Level Check**: ALL components are NOT in vocabulary
+           - No polarity relationships (T/A/T+/T-/A+/A-/S+/S-) to other WUs
+           - Not source/target of Transitions in Cycles/Spirals
+
+        If isolated, the WU can be safely deleted.
+        If NOT isolated, the WU should be kept as "provenance" - higher-level vocabulary
+        for future reuse.
 
         Args:
             wisdom_unit: The WisdomUnit to check
             graph_db: Database connection (injected via DI)
 
         Returns:
-            True if isolated (safe to delete), False if has external references
+            True if WU and all its components are isolated (safe to delete)
+            False if WU or any component is in vocabulary (keep for provenance)
 
         Example:
-            if repo.is_isolated(old_ac_re):
-                repo.safe_delete(old_ac_re)
+            # Check before deletion
+            if repo.is_isolated(wu):
+                repo.safe_delete(wu)  # Safe to delete
+            else:
+                # Keep as provenance (vocabulary for future wheels)
+                pass
         """
         if wisdom_unit._id is None:
             return True  # Not saved = isolated by definition
 
-        # Check each isolation criteria separately for easier debugging
-        # Note: Don't pass graph_db explicitly - DI will inject it for each helper
-        if self._has_incoming_references(wisdom_unit):
-            return False
+        query = """
+        MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        if self._components_have_external_refs(wisdom_unit):
-            return False
+        // Level 2 Check: Is WU in any wheel or referenced as ac_re?
+        OPTIONAL MATCH (wu)-[:BELONGS_TO_WHEEL]->(wheel:Wheel)
 
-        if self._rationales_explain_external(wisdom_unit):
-            return False
+        // Check if WU is used as ac_re by external Transformations
+        OPTIONAL MATCH (external_trans:Transformation)-[:ACTION_REFLECTION]->(wu)
+        WHERE NOT (external_trans)-[:IS_SPIRAL_OF]->(wu)
 
-        return True
+        // Level 1 Check: Are any components in vocabulary?
+        // Find all components of this WU
+        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
+
+        WITH wu,
+             count(DISTINCT wheel) AS wheel_count,
+             count(DISTINCT external_trans) AS ac_re_count,
+             collect(DISTINCT component) AS components
+
+        // For each component, check if it's in vocabulary
+        UNWIND CASE WHEN size(components) > 0 THEN components ELSE [null] END AS comp
+
+        // Check 1: Component has polarity relationships to OTHER WUs
+        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-(other_wu:WisdomUnit)
+        WHERE comp IS NOT NULL AND other_wu <> wu
+
+        // Check 2: Component is source/target of Transition in EXTERNAL Cycle/Spiral
+        // (Exclude transitions belonging to THIS WU's own Transformation)
+        OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans:Transition)
+        OPTIONAL MATCH (trans)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
+        WHERE comp IS NOT NULL
+          AND NOT (trans)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
+
+        WITH wheel_count, ac_re_count,
+             count(DISTINCT other_wu) + count(DISTINCT cycle_or_spiral) AS component_vocab_count
+
+        // NOT isolated if: in wheel OR used as ac_re OR any component is in vocabulary
+        RETURN wheel_count > 0 OR ac_re_count > 0 OR component_vocab_count > 0 AS not_isolated
+        """
+        result = list(graph_db.execute_and_fetch(query, {"wu_id": wisdom_unit._id}))
+        if result:
+            return not result[0]["not_isolated"]  # Flip: not_isolated=False means isolated=True
+
+        return True  # Default to isolated if query fails
+
