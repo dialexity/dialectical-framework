@@ -1236,25 +1236,68 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # Check isolation (should be False - shared component)
     assert not repo.is_isolated(wu_shared_1), "WU with shared component should not be isolated"
 
-    # Safe delete should NOT delete
-    deleted = repo.safe_delete(wu_shared_1)
-    assert not deleted, "WU with shared component should NOT be deleted"
+    # Check is_shared
+    assert repo.is_shared(wu_shared_1), "WU should have shared components"
 
-    # Verify WU still exists
+    # Check not in_use (not in wheel)
+    assert not repo.in_use(wu_shared_1), "WU should not be in use (not in wheel)"
+
+    # Safe delete with force_gc=True (default) SHOULD delete (ignores component sharing)
+    deleted = repo.safe_delete(wu_shared_1, force_gc=True)
+    assert deleted, "WU with shared components SHOULD be deleted in GC mode (default)"
+
+    # Verify WU deleted but shared component preserved
     result = list(db.execute_and_fetch(
         f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
         {"wu_id": wu_shared_1._id}
     ))
-    assert len(result) == 1, "WU should still exist (not deleted)"
+    assert len(result) == 0, "WU should be deleted in GC mode"
 
-    # Verify shared component still exists
+    # Verify shared component still exists (preserved)
     result = list(db.execute_and_fetch(
         f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
         {"c_id": shared_comp._id}
     ))
-    assert len(result) == 1, "Shared component should still exist"
+    assert len(result) == 1, "Shared component should still exist (preserved)"
 
-    print("✓ Test 2: Shared component prevented deletion")
+    # Verify wu_shared_2 still has connection to shared component
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit)<-[:T]-(c:DialecticalComponent) WHERE id(wu) = $wu_id AND id(c) = $c_id RETURN wu",
+        {"wu_id": wu_shared_2._id, "c_id": shared_comp._id}
+    ))
+    assert len(result) == 1, "wu_shared_2 should still have shared component connected"
+
+    print("✓ Test 2: GC mode deleted WU but preserved shared component")
+
+    # ========== Test 2b: Conservative mode with shared component (should NOT delete) ==========
+    wu_shared_3 = WisdomUnit(reasoning_mode="shared_3")
+    wu_shared_3.save()
+
+    # Create shared component (reuse the same one)
+    wu_shared_3.t.connect(shared_comp, properties={'alias': 'T3'})
+
+    # Add other required components
+    for pos, stmt in [('t_plus', 'T3+'), ('t_minus', 'T3-'),
+                       ('a', 'A3'), ('a_plus', 'A3+'), ('a_minus', 'A3-')]:
+        comp = DialecticalComponent(statement=stmt)
+        comp.save()
+        getattr(wu_shared_3, pos).connect(comp, properties={'alias': stmt})
+
+    # Check is_shared
+    assert repo.is_shared(wu_shared_3), "WU should have shared components"
+
+    # Safe delete with force_gc=False (conservative) should NOT delete
+    deleted = repo.safe_delete(wu_shared_3, force_gc=False)
+    assert not deleted, "WU with shared components should NOT be deleted in conservative mode"
+
+    # Verify WU still exists
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_shared_3._id}
+    ))
+    assert len(result) == 1, "WU should still exist (conservative mode preserved it)"
+
+    print("✓ Test 2b: Conservative mode preserved WU with shared component")
 
     # ========== Test 3: HAS_STATEMENT boundary (should disconnect, conditionally delete) ==========
     wu_boundary = WisdomUnit(reasoning_mode="boundary_test")

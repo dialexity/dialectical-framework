@@ -84,58 +84,91 @@ class WisdomUnitRepository:
     def safe_delete(
         self,
         wisdom_unit: WisdomUnit,
+        force_gc: bool = True,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
         Safely delete a WisdomUnit and its complete subgraph.
 
-        **Deletion Logic:**
+        **Deletion Modes:**
 
-        1. **Vocabulary Check** (via is_isolated()):
-           - Checks if WU is in any wheel (Level 2 vocabulary)
-           - Checks if any component is in vocabulary (Level 1 vocabulary)
+        **Garbage Collection Mode (force_gc=True, default):**
+        1. **Aggressive WU Deletion** - Only check Level 2 (use in_use()):
+           - If WU in use (in wheel or as ac_re) → Keep (return False)
+           - If WU NOT in use → Delete WU structure (ignore component sharing)
+           - This cleans up orphaned WUs that aren't actively used
+           - **Components are preserved:** Shared components are DETACHED (kept in graph),
+             only orphaned components are DELETED
+
+        **Conservative Mode (force_gc=False):**
+        1. **Full Vocabulary Check** (via is_isolated()):
+           - Checks if WU is in use (Level 2 vocabulary)
+           - Checks if any component is shared (Level 1 vocabulary via is_shared())
            - If NOT isolated → Keep as provenance (return False)
            - If isolated → Proceed with deletion
 
-        2. **Recursive Deletion** (if isolated):
-           - WisdomUnit itself
-           - Transformation, Transitions, Synthesis nodes
-           - Rationales, Estimations (attributes of their parents)
-           - HAS_STATEMENT derived components (if orphaned)
+        **Recursive Deletion** (when deletion proceeds):
+        - WisdomUnit itself
+        - Transformation, Transitions, Synthesis nodes
+        - Rationales, Estimations (attributes of their parents)
+        - HAS_STATEMENT derived components (if orphaned)
 
-        3. **DialecticalComponent Smart Handling**:
-           For each component (T, A, T+, T-, A+, A-, S+, S-):
-           - **If in vocabulary** (polarity rels to other WUs, in Cycles/Spirals) → DETACH only
-           - **If orphaned** → DELETE component AND its rationales/estimations
+        **DialecticalComponent Smart Handling** (always applied):
+        For each component (T, A, T+, T-, A+, A-, S+, S-):
+        - **If in vocabulary** (polarity rels to other WUs, in Cycles/Spirals) → DETACH only
+        - **If orphaned** → DELETE component AND its rationales/estimations
 
         **Two-Level Vocabulary Preservation:**
         - **Level 1**: DialecticalComponents (statements) can be shared
         - **Level 2**: WisdomUnits (polarities) can be shared across wheels
 
-        Both levels are preserved when in use, keeping provenance for future reuse.
-
         Args:
             wisdom_unit: The WisdomUnit to delete
+            force_gc: If True (default), aggressive GC mode. If False, conservative mode.
             graph_db: Database connection (injected via DI)
 
         Returns:
-            True if deleted (WU was isolated)
-            False if kept as provenance (WU or components in vocabulary)
+            True if deleted
+            False if kept (in use, or in vocabulary if force_gc=False)
 
-        Example:
-            # After disconnecting from wheel
-            transformation.ac_re.disconnect(old_ac_re)
-            if repo.is_isolated(old_ac_re):
-                repo.safe_delete(old_ac_re)  # Deletes if truly isolated
-            # Otherwise kept as Level 2 vocabulary
+        Examples:
+            # GC mode (default) - deletes if not in_use()
+            repo.safe_delete(wu)  # Ignores component sharing
+
+            # Conservative mode - deletes only if isolated (not in_use AND not shared)
+            repo.safe_delete(wu, force_gc=False)  # Respects all vocabulary
+
+            # When you want to know BEFORE deleting:
+            if repo.is_isolated(wu):
+                print("Will be deleted in conservative mode")
+            else:
+                print("Will be preserved in conservative mode")
+
+            # Decide which mode to use:
+            if repo.in_use(wu):
+                print("WU is in use - can't delete in any mode")
+            elif repo.is_shared(wu):
+                print("WU not in use but has shared components")
+                repo.safe_delete(wu, force_gc=True)  # Delete WU, preserve components
+            else:
+                print("WU is fully isolated - can delete everything")
+                repo.safe_delete(wu)  # Either mode works
         """
         if wisdom_unit._id is None:
             return False  # Not saved, nothing to delete
 
-        # PRIMARY CHECK: Is WU isolated (vocabulary check)?
-        if not self.is_isolated(wisdom_unit, graph_db=graph_db):
-            # WU or its components are in vocabulary - keep as provenance
-            return False
+        if force_gc:
+            # AGGRESSIVE GC MODE: Only check Level 2 (WU usage)
+            # Allow deletion if WU is not in use (ignore component sharing)
+            if self.in_use(wisdom_unit, graph_db=graph_db):
+                # WU is in a wheel or used as ac_re - keep it
+                return False
+            # Otherwise proceed with deletion (components still handled smartly)
+        else:
+            # CONSERVATIVE MODE: Full vocabulary check (both levels)
+            if not self.is_isolated(wisdom_unit, graph_db=graph_db):
+                # WU or its components are in vocabulary - keep as provenance
+                return False
 
         # Subgraph is fully isolated - safe to recursively delete everything
         # HAS_STATEMENT is a boundary: disconnect link, delete component only if orphaned
@@ -355,4 +388,153 @@ class WisdomUnitRepository:
             return not result[0]["not_isolated"]  # Flip: not_isolated=False means isolated=True
 
         return True  # Default to isolated if query fails
+
+    @inject
+    def count_usage(
+        self,
+        wisdom_unit: WisdomUnit,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> int:
+        """
+        Count distinct structural containers where this WisdomUnit is used.
+
+        A WU can be used in:
+        - Wheels (via BELONGS_TO_WHEEL) - Level 2 vocabulary
+        - Transformations (as ac_re via ACTION_REFLECTION) - Level 2 vocabulary
+
+        This helps determine how "valuable" a WU is as provenance.
+
+        Args:
+            wisdom_unit: The WisdomUnit to count usage for
+            graph_db: Database connection (injected via DI)
+
+        Returns:
+            Count of distinct containers using this WU (0 = orphaned)
+
+        Example:
+            usage = repo.count_usage(wu)
+            if usage == 0:
+                # Orphaned WU, candidate for garbage collection
+                repo.safe_delete(wu, force_gc=True)
+            elif usage == 1:
+                # Used in one place, keep as provenance
+                pass
+            else:
+                # Heavily reused, important vocabulary
+                pass
+        """
+        if wisdom_unit._id is None:
+            return 0  # Not saved = no usage
+
+        query = """
+        MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
+
+        // Count wheels
+        OPTIONAL MATCH (wu)-[:BELONGS_TO_WHEEL]->(wheel:Wheel)
+
+        // Count external transformations using this as ac_re
+        OPTIONAL MATCH (external_trans:Transformation)-[:ACTION_REFLECTION]->(wu)
+        WHERE NOT (external_trans)-[:IS_SPIRAL_OF]->(wu)
+
+        // Return count of DISTINCT containers
+        RETURN count(DISTINCT wheel) + count(DISTINCT external_trans) AS usage_count
+        """
+        result = list(graph_db.execute_and_fetch(query, {"wu_id": wisdom_unit._id}))
+        if result:
+            return result[0]["usage_count"]
+
+        return 0
+
+    @inject
+    def in_use(
+        self,
+        wisdom_unit: WisdomUnit,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> bool:
+        """
+        Check if WisdomUnit is actively in use (Level 2 vocabulary).
+
+        A WU is "in use" if it's in any wheel or used as ac_re by a transformation.
+        This is a convenience wrapper around count_usage() > 0.
+
+        Args:
+            wisdom_unit: The WisdomUnit to check
+            graph_db: Database connection (injected via DI)
+
+        Returns:
+            True if WU is in use (count_usage() > 0)
+            False if WU is orphaned (count_usage() == 0)
+
+        Example:
+            if not repo.in_use(wu):
+                # WU is orphaned - candidate for GC
+                repo.safe_delete(wu)  # Default GC mode deletes it
+        """
+        return self.count_usage(wisdom_unit, graph_db=graph_db) > 0
+
+    @inject
+    def is_shared(
+        self,
+        wisdom_unit: WisdomUnit,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> bool:
+        """
+        Check if any of this WU's components are shared (Level 1 vocabulary).
+
+        Components are "shared" if they have:
+        - Polarity relationships to other WUs (T/A/T+/T-/A+/A-/S+/S-)
+        - Transition relationships to external Cycles/Spirals
+
+        This indicates Level 1 vocabulary value (statement provenance).
+
+        **Relationship to other methods:**
+        - is_isolated() = NOT in_use() AND NOT is_shared()
+        - If is_isolated() and not is_shared() → equivalent to not in_use()
+
+        Args:
+            wisdom_unit: The WisdomUnit to check
+            graph_db: Database connection (injected via DI)
+
+        Returns:
+            True if any component is shared (in vocabulary)
+            False if all components are exclusive to this WU
+
+        Example:
+            if not repo.in_use(wu) and not repo.is_shared(wu):
+                # No vocabulary value at any level - safe to GC
+                repo.safe_delete(wu)  # Default GC mode deletes it
+        """
+        if wisdom_unit._id is None:
+            return False  # Not saved = no sharing
+
+        query = """
+        MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
+
+        // Find all components of this WU
+        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
+
+        WITH wu, collect(DISTINCT component) AS components
+
+        // For each component, check if it's shared
+        UNWIND CASE WHEN size(components) > 0 THEN components ELSE [null] END AS comp
+
+        // Check 1: Component has polarity relationships to OTHER WUs
+        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-(other_wu:WisdomUnit)
+        WHERE comp IS NOT NULL AND other_wu <> wu
+
+        // Check 2: Component is source/target of Transition in EXTERNAL Cycle/Spiral
+        OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans:Transition)
+        OPTIONAL MATCH (trans)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
+        WHERE comp IS NOT NULL
+          AND NOT (trans)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
+
+        WITH count(DISTINCT other_wu) + count(DISTINCT cycle_or_spiral) AS shared_count
+
+        RETURN shared_count > 0 AS has_shared
+        """
+        result = list(graph_db.execute_and_fetch(query, {"wu_id": wisdom_unit._id}))
+        if result:
+            return result[0]["has_shared"]
+
+        return False
 
