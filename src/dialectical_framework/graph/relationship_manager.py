@@ -295,7 +295,7 @@ class BoundRelationshipManager(Generic[T]):
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> bool:
         """
-        Remove relationship to the target node.
+        Remove relationship to the target node. It does NOT delete the target node.
 
         Uses dependency injection to get the database connection.
 

@@ -539,10 +539,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         if overwrite_existing:
             for trans in all_transitions:
                 # Remove existing ProbabilityEstimation if present
-                existing_estimations = list(trans.estimations.all())
-                for est, _ in existing_estimations:
-                    if isinstance(est, ProbabilityEstimation):
-                        trans.estimations.disconnect(est)
+                estimation_manager.clear_estimations(trans, [ProbabilityEstimation])
 
         # Check which transitions already have probabilities
         transitions_with_probs = []
