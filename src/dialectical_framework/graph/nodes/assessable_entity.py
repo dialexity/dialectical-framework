@@ -123,15 +123,18 @@ class AssessableEntity(BaseNode):
     @property
     def relevance(self) -> Optional[float]:
         """
-        Get relevance following legacy semantics.
+        Get relevance following legacy semantics with FeasibilityEstimation fallback.
 
         Returns:
-        - CalculatedRelevanceEstimation value if exists
-        - OTHERWISE: GM of all RelevanceEstimation nodes (manual)
+        - CalculatedRelevanceEstimation value if exists (highest priority)
+        - OTHERWISE: GM of all RelevanceEstimation nodes (manual, second priority)
+        - OTHERWISE: GM of all FeasibilityEstimation nodes (manual, fallback priority)
         - NOT mixed together!
 
-        This matches legacy behavior:
-            return calculated_relevance if calculated_relevance is not None else manual_relevance
+        Priority order:
+        1. CalculatedRelevanceEstimation (TaroRank output)
+        2. RelevanceEstimation (manual)
+        3. FeasibilityEstimation (manual fallback - semantically same as relevance)
 
         If any manual estimation is 0, returns 0 (veto semantics).
 
@@ -139,27 +142,30 @@ class AssessableEntity(BaseNode):
             Relevance value (0.0-1.0) or None if no estimations exist
 
         Example:
-            # Manual only
+            # RelevanceEstimation takes priority
             component.estimations.connect(RelevanceEstimation(value=0.9))
-            rel = component.relevance  # Returns 0.9
+            component.estimations.connect(FeasibilityEstimation(value=0.7))
+            rel = component.relevance  # Returns 0.9 (RelevanceEstimation takes priority)
 
-            # Multiple manual: returns geometric mean
-            component.estimations.connect(RelevanceEstimation(value=0.7))
-            rel = component.relevance  # Returns ~0.789 (GM of 0.9 and 0.7)
+            # FeasibilityEstimation as fallback
+            component.estimations.connect(FeasibilityEstimation(value=0.8))
+            rel = component.relevance  # Returns 0.8 (FeasibilityEstimation used as fallback)
 
-            # Calculated exists: returns calculated (ignores manual)
+            # Calculated takes precedence over both
+            component.estimations.connect(RelevanceEstimation(value=0.9))
             component.estimations.connect(CalculatedRelevanceEstimation(value=0.85))
             rel = component.relevance  # Returns 0.85 (calculated takes precedence)
         """
         from dialectical_framework.graph.nodes.estimation import (
             RelevanceEstimation,
+            FeasibilityEstimation,
             CalculatedRelevanceEstimation
         )
         from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
         estimations = self.estimations.all()
 
-        # 1. Check for calculated (TaroRank output) first
+        # 1. Check for calculated (TaroRank output) first - highest priority
         calculated = [
             est for est, _ in estimations
             if isinstance(est, CalculatedRelevanceEstimation)
@@ -168,16 +174,26 @@ class AssessableEntity(BaseNode):
             # Should be at most one calculated estimation per node
             return calculated[0].value
 
-        # 2. Otherwise, aggregate manual estimations
-        manual = [
+        # 2. Check for manual RelevanceEstimation - second priority
+        manual_relevance = [
             est for est, _ in estimations
             if isinstance(est, RelevanceEstimation)
         ]
-        if not manual:
-            return None
+        if manual_relevance:
+            values = [est.value for est in manual_relevance]
+            return gm_with_zeros_and_nones_handled(values)
 
-        values = [est.value for est in manual]
-        return gm_with_zeros_and_nones_handled(values)
+        # 3. Fallback to FeasibilityEstimation - third priority
+        manual_feasibility = [
+            est for est, _ in estimations
+            if isinstance(est, FeasibilityEstimation)
+        ]
+        if manual_feasibility:
+            values = [est.value for est in manual_feasibility]
+            return gm_with_zeros_and_nones_handled(values)
+
+        # 4. No estimations found
+        return None
 
     @property
     def best_rationale(self) -> Optional[Rationale]:

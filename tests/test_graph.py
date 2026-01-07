@@ -1600,6 +1600,103 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("\n✅ All WisdomUnitRepository.safe_delete() tests passed!")
 
 
+def test_feasibility_estimation_fallback(di_container):
+    """FeasibilityEstimation should be used when RelevanceEstimation doesn't exist."""
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
+
+    component = DialecticalComponent(statement="Test")
+    component.save()
+
+    # Add FeasibilityEstimation
+    feas_est = FeasibilityEstimation(value=0.75)
+    feas_est.save()
+    component.estimations.connect(feas_est)
+
+    # Should use FeasibilityEstimation as relevance
+    assert component.relevance == 0.75, f"Expected relevance=0.75, got {component.relevance}"
+
+    print("✓ FeasibilityEstimation fallback works correctly")
+
+
+def test_relevance_estimation_priority(di_container):
+    """RelevanceEstimation should take priority over FeasibilityEstimation."""
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation, RelevanceEstimation
+
+    component = DialecticalComponent(statement="Test")
+    component.save()
+
+    # Add both estimations
+    feas_est = FeasibilityEstimation(value=0.6)
+    feas_est.save()
+    component.estimations.connect(feas_est)
+
+    rel_est = RelevanceEstimation(value=0.9)
+    rel_est.save()
+    component.estimations.connect(rel_est)
+
+    # Should use RelevanceEstimation (priority)
+    assert component.relevance == 0.9, f"Expected relevance=0.9, got {component.relevance}"
+
+    print("✓ RelevanceEstimation takes priority over FeasibilityEstimation")
+
+
+def test_calculated_relevance_priority(di_container):
+    """CalculatedRelevanceEstimation should take priority over both manual estimations."""
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.estimation import (
+        FeasibilityEstimation,
+        RelevanceEstimation,
+        CalculatedRelevanceEstimation
+    )
+
+    component = DialecticalComponent(statement="Test")
+    component.save()
+
+    # Add manual estimations
+    feas_est = FeasibilityEstimation(value=0.6)
+    feas_est.save()
+    component.estimations.connect(feas_est)
+
+    rel_est = RelevanceEstimation(value=0.9)
+    rel_est.save()
+    component.estimations.connect(rel_est)
+
+    # Add calculated estimation
+    calc_rel = CalculatedRelevanceEstimation(value=0.75)
+    calc_rel.save()
+    component.estimations.connect(calc_rel)
+
+    # Should use CalculatedRelevanceEstimation (highest priority)
+    assert component.relevance == 0.75, f"Expected relevance=0.75, got {component.relevance}"
+
+    print("✓ CalculatedRelevanceEstimation takes priority over both manual estimations")
+
+
+def test_multiple_feasibility_estimations(di_container):
+    """Multiple FeasibilityEstimations should be aggregated via GM."""
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
+
+    component = DialecticalComponent(statement="Test")
+    component.save()
+
+    # Add multiple FeasibilityEstimations
+    feas_est1 = FeasibilityEstimation(value=0.8)
+    feas_est1.save()
+    component.estimations.connect(feas_est1)
+
+    feas_est2 = FeasibilityEstimation(value=0.6)
+    feas_est2.save()
+    component.estimations.connect(feas_est2)
+
+    # Should aggregate via geometric mean: sqrt(0.8 * 0.6) ≈ 0.693
+    assert abs(component.relevance - 0.693) < 0.001, f"Expected relevance≈0.693, got {component.relevance}"
+
+    print("✓ Multiple FeasibilityEstimations aggregated correctly via geometric mean")
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])

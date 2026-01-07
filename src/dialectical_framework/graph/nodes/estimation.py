@@ -105,6 +105,27 @@ class FeasibilityEstimation(Estimation):
 
     Represents how achievable or practical an outcome is.
     Values typically range from 0.0 (infeasible) to 1.0 (easily achievable).
+
+    **TaroRank Semantics**:
+    FeasibilityEstimation is treated semantically the same as RelevanceEstimation.
+
+    Priority order for relevance calculation:
+    1. CalculatedRelevanceEstimation (TaroRank output)
+    2. RelevanceEstimation (manual)
+    3. FeasibilityEstimation (manual fallback)
+
+    When both RelevanceEstimation and FeasibilityEstimation exist on the same node,
+    RelevanceEstimation takes priority for relevance calculation, and FeasibilityEstimation
+    becomes additional metadata.
+
+    Example:
+        # FeasibilityEstimation used as relevance
+        rationale.estimations.connect(FeasibilityEstimation(value=0.7))
+        rel = rationale.relevance  # Returns 0.7
+
+        # RelevanceEstimation takes priority
+        rationale.estimations.connect(RelevanceEstimation(value=0.9))
+        rel = rationale.relevance  # Returns 0.9 (FeasibilityEstimation ignored)
     """
 
     pass

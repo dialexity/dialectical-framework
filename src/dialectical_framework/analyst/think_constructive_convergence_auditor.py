@@ -16,6 +16,8 @@ from dialectical_framework.ai_dto.constructive_convergence_transition_audit_dto 
 from dialectical_framework.analyst.think_constructive_convergence import ThinkConstructiveConvergence
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.graph.nodes.rationale import Rationale as GraphRationale
+from dialectical_framework.graph.estimation_manager import EstimationManager
+from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
 
 
 class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
@@ -193,10 +195,14 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         for (transition, rationale), audit in zip(audit_pairs, audits):
             # Create new rationale node as critique
             audit_rationale = GraphRationale(
-                relevance=audit.feasibility,
                 text=f"**Key Factors:** {audit.key_factors}\n\n**Argumentation:** {audit.argumentation}\n\n**Conditions for Success:** {audit.success_conditions}"
             )
             audit_rationale.save()
+
+            # Store feasibility as FeasibilityEstimation (will be used as relevance via fallback)
+            manager = EstimationManager()
+            manager.upsert_estimation(audit_rationale, FeasibilityEstimation, audit.feasibility)
+
             # Connect as critique of the original rationale
             rationale.rationales.connect(audit_rationale)
 
