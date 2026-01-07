@@ -1,12 +1,15 @@
 from functools import wraps
 from typing import Any, Callable, Optional, TypeVar
+import logging
 
 import litellm
 from mirascope import llm
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_exception_type
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.protocols.has_brain import HasBrain
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -76,15 +79,21 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
                     pass
 
             # https://mirascope.com/docs/mirascope/learn/retries
-            @retry(
-                stop=stop_after_attempt(3),
-                wait=wait_exponential(multiplier=1, min=4, max=10),
-            )
             @llm.call(**call_params)
             async def _llm_call():
                 return await method(*args, **kwargs)
 
-            return await _llm_call()
+            @retry(
+                stop=stop_after_attempt(10),
+                wait=wait_exponential(multiplier=1, min=10, max=120),
+                retry=retry_if_exception_type((Exception,)),
+                before_sleep=before_sleep_log(logger, logging.WARNING),
+                reraise=True,
+            )
+            async def _retry_wrapper():
+                return await _llm_call()
+
+            return await _retry_wrapper()
 
         return wrapper
 

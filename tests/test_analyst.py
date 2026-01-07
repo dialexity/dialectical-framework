@@ -11,6 +11,9 @@ from dialectical_framework.utils.dw_report import dw_report
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
 
+# import litellm
+# litellm._turn_on_debug()
+
 # Examples
 example_wu1 = WisdomUnit(
     t_minus=DialecticalComponent(alias="T1-", statement="Destructive aggression"),
