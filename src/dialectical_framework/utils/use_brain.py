@@ -13,12 +13,13 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
+def use_brain(brain: Optional[Brain] = None, retry_max: int = 10, **llm_call_kwargs):
     """
     Decorator factory for Mirascope that creates an LLM call using the brain's AI provider and model.
 
     Args:
         brain: Optional Brain instance to use. If not provided, will expect 'self' to implement HasBrain protocol
+        retry_max: Maximum number of attempts (default: 10). Set to 0 or 1 to disable retries.
         **llm_call_kwargs: All keyword arguments to pass to @llm.call, including response_model
 
     Returns:
@@ -84,7 +85,7 @@ def use_brain(brain: Optional[Brain] = None, **llm_call_kwargs):
                 return await method(*args, **kwargs)
 
             @retry(
-                stop=stop_after_attempt(10),
+                stop=stop_after_attempt(max(retry_max, 1)),
                 wait=wait_exponential(multiplier=1, min=10, max=120),
                 retry=retry_if_exception_type((Exception,)),
                 before_sleep=before_sleep_log(logger, logging.WARNING),
