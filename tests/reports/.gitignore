@@ -1,0 +1,5 @@
+# Ignore all diagnostic reports
+*.txt
+
+# But keep this .gitignore
+!.gitignore
