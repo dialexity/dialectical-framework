@@ -204,6 +204,74 @@ class Transition(AssessableEntity):
                 # Fallback to truncated UID if no alias found
                 return comp.uid[:8]
 
+    def _is_segment_transition(self) -> bool:
+        """
+        Check if this transition has segment semantics (Spiral/Transformation).
+
+        Returns:
+            True if transition is in a Spiral or Transformation container
+        """
+        from dialectical_framework.graph.nodes.spiral import Spiral
+        from dialectical_framework.graph.nodes.transformation import Transformation
+
+        cycle_result = self.cycle.get()
+        if not cycle_result:
+            return False
+
+        container, _ = cycle_result
+        return isinstance(container, (Spiral, Transformation))
+
+    def _get_segment_source_labels(
+        self,
+        source_comp: DialecticalComponent,
+        mode: str,
+        wheel: Wheel | None
+    ) -> str:
+        """
+        Get source labels for segment-based transitions (Spiral/Transformation).
+
+        For segment transitions, source is represented by minus AND core components
+        (e.g., "T1-, T1" not just "T1-").
+
+        Args:
+            source_comp: The source component (minus component)
+            mode: Format mode
+            wheel: Optional wheel for alias resolution
+
+        Returns:
+            Formatted source label with segment aliases (e.g., "T1-, T1")
+        """
+        if not wheel:
+            return self._get_component_label(source_comp, mode, wheel)
+
+        # Find the segment containing this source component
+        source_segment = self.get_source_wheel_segment(wheel)
+        if not source_segment:
+            return self._get_component_label(source_comp, mode, wheel)
+
+        wu = source_segment.wisdom_unit
+
+        # Get the minus and core components from the segment
+        # Source component should be the minus (T- or A-)
+        if source_segment.side == "T":
+            minus_result = wu.t_minus.get()
+            core_result = wu.t.get()
+        else:  # A-side
+            minus_result = wu.a_minus.get()
+            core_result = wu.a.get()
+
+        if not minus_result or not core_result:
+            return self._get_component_label(source_comp, mode, wheel)
+
+        minus_comp, _ = minus_result
+        core_comp, _ = core_result
+
+        # Get labels for both components
+        minus_label = self._get_component_label(minus_comp, mode, wheel)
+        core_label = self._get_component_label(core_comp, mode, wheel)
+
+        return f"{minus_label}, {core_label}"
+
     def __format__(self, format_spec: str) -> str:
         """
         Format this Transition using Python's format string protocol.
@@ -215,12 +283,16 @@ class Transition(AssessableEntity):
         "explicit"        - Combines both: "T1- (statement) → A1+ (statement)"
         "verbose"         - Shows alias format + rationale text
 
+        For Spiral/Transformation transitions, source shows segment aliases:
+        - Cycle: "T1- → A1+" (component-to-component)
+        - Spiral/Transformation: "T1-, T1 → A1+" (segment-to-component)
+
         Examples:
         ---------
-        f"{transition}"           - Default: "T1- → A1+"
+        f"{transition}"           - Default: "T1- → A1+" or "T1-, T1 → A1+"
         f"{transition:statements}" - Statements: "Negative aspect → Positive aspect"
-        f"{transition:explicit}"  - Explicit: "T1- (Negative aspect) → A1+ (Positive aspect)"
-        f"{transition:verbose}"   - Verbose: "T1- → A1+\\nRationale: ..."
+        f"{transition:explicit}"  - Explicit: "T1- (statement) → A1+ (statement)"
+        f"{transition:verbose}"   - Verbose: "T1-, T1 → A1+\\nRationale: ..."
 
         Returns:
             Formatted string representing the transition
@@ -241,15 +313,24 @@ class Transition(AssessableEntity):
         # Normalize mode
         mode = format_spec if format_spec else "aliases"
 
+        # Check if this is a segment transition (Spiral/Transformation)
+        is_segment = self._is_segment_transition()
+
+        # Helper to get source label (segment or component based)
+        def get_source_label(label_mode: str) -> str:
+            if is_segment and label_mode != "statements":
+                return self._get_segment_source_labels(source_comp, label_mode, wheel)
+            return self._get_component_label(source_comp, label_mode, wheel)
+
         if mode == "verbose":
             # Verbose: aliases + rationale
-            source_label = self._get_component_label(source_comp, "aliases", wheel)
+            source_label = get_source_label("aliases")
             target_label = self._get_component_label(target_comp, "aliases", wheel)
 
             result = f"{source_label} → {target_label}"
 
             # Add explicit format on new line
-            source_explicit = self._get_component_label(source_comp, "explicit", wheel)
+            source_explicit = get_source_label("explicit")
             target_explicit = self._get_component_label(target_comp, "explicit", wheel)
             result = f"{result}\n{source_explicit} → {target_explicit}"
 
@@ -273,7 +354,7 @@ class Transition(AssessableEntity):
             return result
 
         elif mode in ("", "aliases", "statements", "explicit"):
-            source_label = self._get_component_label(source_comp, mode, wheel)
+            source_label = get_source_label(mode)
             target_label = self._get_component_label(target_comp, mode, wheel)
             return f"{source_label} → {target_label}"
 

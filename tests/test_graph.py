@@ -441,6 +441,89 @@ def test_transition_str_formatting():
     print(f"✓ Orphan transition statements format: {orphan_statements}")
 
 
+def test_transition_segment_formatting():
+    """Test Transition formatting shows segment aliases for Spiral/Transformation."""
+    from dialectical_framework.graph.nodes.spiral import Spiral
+
+    # Create components for a full wisdom unit
+    t = DialecticalComponent(statement="Main thesis")
+    t_plus = DialecticalComponent(statement="Positive thesis")
+    t_minus = DialecticalComponent(statement="Negative thesis")
+    a = DialecticalComponent(statement="Main antithesis")
+    a_plus = DialecticalComponent(statement="Positive antithesis")
+    a_minus = DialecticalComponent(statement="Negative antithesis")
+
+    for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
+        comp.save()
+
+    # Create WisdomUnit with all components
+    wu = WisdomUnit()
+    wu.save()
+    wu.t.connect(t, properties={'alias': 'T'})
+    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
+    wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
+    wu.a.connect(a, properties={'alias': 'A'})
+    wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
+    wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
+
+    # Create Wheel
+    wheel = Wheel()
+    wheel.save()
+    wu.wheel.connect(wheel)
+
+    # Create Spiral transition: T- → A+ (segment transition)
+    spiral_trans = Transition()
+    spiral_trans.save()
+    spiral_trans.source.connect(t_minus)
+    spiral_trans.target.connect(a_plus)
+
+    # Create Spiral and connect
+    spiral = Spiral()
+    spiral.save()
+    spiral.transitions.connect(spiral_trans)
+    wheel.spiral.connect(spiral)
+
+    # Test: Spiral transition should show "T-, T → A+" (segment format)
+    spiral_str = str(spiral_trans)
+    print(f"Spiral transition format: {spiral_str}")
+    assert "T-" in spiral_str
+    assert "T" in spiral_str  # Core T should also be present
+    assert "A+" in spiral_str
+    assert "," in spiral_str  # Should have comma separating segment aliases
+    print(f"✓ Spiral transition shows segment aliases: {spiral_str}")
+
+    # Test explicit mode
+    explicit_str = f"{spiral_trans:explicit}"
+    print(f"Spiral transition explicit: {explicit_str}")
+    assert "T-" in explicit_str
+    assert "Negative thesis" in explicit_str
+    assert "A+" in explicit_str
+    assert "Positive antithesis" in explicit_str
+    print(f"✓ Spiral transition explicit format: {explicit_str}")
+
+    # Compare with Cycle transition (should be component-only)
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.enums.causality_type import CausalityType
+
+    cycle_trans = Transition()
+    cycle_trans.save()
+    cycle_trans.source.connect(t_minus)
+    cycle_trans.target.connect(a_plus)
+
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+    cycle.transitions.connect(cycle_trans)
+    wheel.t_cycle.connect(cycle)
+
+    # Cycle transition should show only "T- → A+" (component format, no segment expansion)
+    cycle_str = str(cycle_trans)
+    print(f"Cycle transition format: {cycle_str}")
+    # Cycle should NOT have comma (single component on each side)
+    # Note: It will have T- and A+ but not "T-, T"
+    assert "→" in cycle_str
+    print(f"✓ Cycle transition shows component aliases: {cycle_str}")
+
+
 def test_cycle_is_same_structure():
     """Test is_same_structure() detects rotational equivalence."""
 
