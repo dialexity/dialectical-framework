@@ -160,6 +160,133 @@ class Transition(AssessableEntity):
         from dialectical_framework.graph.wheel_segment import WheelSegment
         return WheelSegment(wu, side)
 
+    @staticmethod
+    def _get_component_label(
+        comp: DialecticalComponent,
+        mode: str,
+        wheel: Wheel | None
+    ) -> str:
+        """
+        Get label for a component based on format mode.
+
+        Args:
+            comp: The dialectical component
+            mode: Format mode ("aliases", "statements", "explicit")
+            wheel: Optional wheel for alias resolution
+
+        Returns:
+            Formatted label string
+        """
+        alias = None
+
+        # Try to resolve alias through wheel context
+        if wheel and mode in ("", "aliases", "explicit"):
+            wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
+            for wu in wisdom_units:
+                try:
+                    alias = comp.get_alias(wu)
+                    break
+                except ValueError:
+                    continue
+
+        # Build label based on mode
+        if mode == "statements":
+            return comp.statement
+        elif mode == "explicit":
+            if alias:
+                return f"{alias} ({comp.statement})"
+            else:
+                return comp.statement
+        else:  # "" or "aliases"
+            if alias:
+                return alias
+            else:
+                # Fallback to truncated UID if no alias found
+                return comp.uid[:8]
+
+    def __format__(self, format_spec: str) -> str:
+        """
+        Format this Transition using Python's format string protocol.
+
+        Format Specifications:
+        ----------------------
+        "" or "aliases"   - Shows "source_alias → target_alias" (e.g., "T1- → A1+")
+        "statements"      - Shows "source_statement → target_statement"
+        "explicit"        - Combines both: "T1- (statement) → A1+ (statement)"
+        "verbose"         - Shows alias format + rationale text
+
+        Examples:
+        ---------
+        f"{transition}"           - Default: "T1- → A1+"
+        f"{transition:statements}" - Statements: "Negative aspect → Positive aspect"
+        f"{transition:explicit}"  - Explicit: "T1- (Negative aspect) → A1+ (Positive aspect)"
+        f"{transition:verbose}"   - Verbose: "T1- → A1+\\nRationale: ..."
+
+        Returns:
+            Formatted string representing the transition
+        """
+        # Get source and target components
+        source_result = self.source.get()
+        target_result = self.target.get()
+
+        if not source_result or not target_result:
+            return f"Transition(uid={self.uid})"
+
+        source_comp, _ = source_result
+        target_comp, _ = target_result
+
+        # Get wheel context for alias resolution
+        wheel = self.get_wheel()
+
+        # Normalize mode
+        mode = format_spec if format_spec else "aliases"
+
+        if mode == "verbose":
+            # Verbose: aliases + rationale
+            source_label = self._get_component_label(source_comp, "aliases", wheel)
+            target_label = self._get_component_label(target_comp, "aliases", wheel)
+
+            result = f"{source_label} → {target_label}"
+
+            # Add explicit format on new line
+            source_explicit = self._get_component_label(source_comp, "explicit", wheel)
+            target_explicit = self._get_component_label(target_comp, "explicit", wheel)
+            result = f"{result}\n{source_explicit} → {target_explicit}"
+
+            # Add rationales
+            rationales = list(self.rationales.all())
+            if rationales:
+                if len(rationales) > 1:
+                    explanations = []
+                    for idx, (rationale, _) in enumerate(rationales, 1):
+                        if rationale.text:
+                            explanations.append(f"Rationale {idx}: {rationale.text}")
+                    if explanations:
+                        result = f"{result}\n" + "\n".join(explanations)
+                else:
+                    rationale, _ = rationales[0]
+                    if rationale.text:
+                        result = f"{result}\nRationale: {rationale.text}"
+            else:
+                result = f"{result}\nRationale: N/A"
+
+            return result
+
+        elif mode in ("", "aliases", "statements", "explicit"):
+            source_label = self._get_component_label(source_comp, mode, wheel)
+            target_label = self._get_component_label(target_comp, mode, wheel)
+            return f"{source_label} → {target_label}"
+
+        else:
+            raise ValueError(
+                f"Invalid format_spec: {format_spec}. "
+                f"Must be '', 'aliases', 'statements', 'explicit', or 'verbose'"
+            )
+
+    def __str__(self) -> str:
+        """String representation using default format."""
+        return self.__format__("")
+
     def __repr__(self) -> str:
-        """String representation of the transition."""
+        """Debug representation of the transition."""
         return f"Transition(uid={self.uid})"

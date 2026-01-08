@@ -188,38 +188,13 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
             r: Optional specific rationale to use. If None, uses best rationale from transition.
 
         Returns:
-            Formatted string with source → target (using aliases) and advice
+            Formatted string with source → target (using aliases + statements) and advice
         """
         # Get rationale - either provided or best from transition
         rationale = r if r is not None else transition.best_rationale
 
-        # Get source and target components from transition
-        source_result = transition.source.get()
-        target_result = transition.target.get()
-
-        if not source_result or not target_result:
-            raise ValueError(
-                f"Transition {transition.uid} is missing required relationships. "
-                f"Source: {source_result is not None}, Target: {target_result is not None}"
-            )
-
-        source_comp, _ = source_result
-        target_comp, _ = target_result
-
-        # Get aliases from wheel segments
-        source_segment = transition.get_source_wheel_segment()
-        target_segment = transition.get_target_wheel_segment()
-
-        if source_segment and target_segment:
-            source_label = source_comp.get_alias(source_segment.wisdom_unit)
-            target_label = target_comp.get_alias(target_segment.wisdom_unit)
-        else:
-            # Fallback if segments not found (shouldn't happen normally)
-            source_label = source_comp.statement
-            target_label = target_comp.statement
-
         str_pieces = [
-            f"{source_label} → {target_label}",
+            f"{transition:explicit}",
             f"Advice: {rationale.text if rationale else 'N/A'}",
         ]
 

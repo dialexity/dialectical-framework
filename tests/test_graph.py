@@ -351,6 +351,96 @@ def test_cycle_str_formatting():
     print(f"✓ Cycle string fallback to statement preview: {fallback_string}")
 
 
+def test_transition_str_formatting():
+    """Test Transition.__format__() with various modes."""
+
+    # Create components
+    source_comp = DialecticalComponent(statement="Negative aspect of thesis")
+    target_comp = DialecticalComponent(statement="Positive aspect of antithesis")
+    source_comp.save()
+    target_comp.save()
+
+    # Create transition
+    trans = Transition()
+    trans.save()
+    trans.source.connect(source_comp)
+    trans.target.connect(target_comp)
+
+    # Create WisdomUnit and connect components with aliases
+    wu = WisdomUnit()
+    wu.save()
+    wu.t_minus.connect(source_comp, properties={'alias': 'T-'})
+    wu.a_plus.connect(target_comp, properties={'alias': 'A+'})
+
+    # Create Wheel and connect
+    wheel = Wheel()
+    wheel.save()
+    wu.wheel.connect(wheel)
+
+    # Create Cycle and connect transition + wheel
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.enums.causality_type import CausalityType
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+    cycle.transitions.connect(trans)
+    wheel.t_cycle.connect(cycle)
+
+    # Test 1: Default format (aliases)
+    default_str = str(trans)
+    assert "T-" in default_str
+    assert "A+" in default_str
+    assert "→" in default_str
+    print(f"✓ Transition default format: {default_str}")
+
+    # Test 2: Explicit format (aliases + statements)
+    explicit_str = f"{trans:explicit}"
+    assert "T-" in explicit_str
+    assert "A+" in explicit_str
+    assert "Negative aspect" in explicit_str
+    assert "Positive aspect" in explicit_str
+    print(f"✓ Transition explicit format: {explicit_str}")
+
+    # Test 3: Statements format
+    statements_str = f"{trans:statements}"
+    assert "Negative aspect of thesis" in statements_str
+    assert "Positive aspect of antithesis" in statements_str
+    print(f"✓ Transition statements format: {statements_str}")
+
+    # Test 4: Verbose format (with rationale)
+    from dialectical_framework.graph.nodes.rationale import Rationale
+    rationale = Rationale(text="This transition represents dialectical transformation")
+    rationale.save()
+    trans.rationales.connect(rationale)
+
+    verbose_str = f"{trans:verbose}"
+    assert "T-" in verbose_str
+    assert "A+" in verbose_str
+    assert "Rationale:" in verbose_str
+    assert "dialectical transformation" in verbose_str
+    print(f"✓ Transition verbose format: {verbose_str}")
+
+    # Test 5: Orphan transition (no wheel context) - should fallback to UID
+    orphan_trans = Transition()
+    orphan_trans.save()
+    orphan_comp1 = DialecticalComponent(statement="Orphan source")
+    orphan_comp2 = DialecticalComponent(statement="Orphan target")
+    orphan_comp1.save()
+    orphan_comp2.save()
+    orphan_trans.source.connect(orphan_comp1)
+    orphan_trans.target.connect(orphan_comp2)
+
+    orphan_str = str(orphan_trans)
+    # Should contain truncated UIDs (8 chars) since no wheel context
+    assert "→" in orphan_str
+    print(f"✓ Orphan transition fallback: {orphan_str}")
+
+    # Test 6: Orphan transition with statements mode
+    orphan_statements = f"{orphan_trans:statements}"
+    assert "Orphan source" in orphan_statements
+    assert "Orphan target" in orphan_statements
+    print(f"✓ Orphan transition statements format: {orphan_statements}")
+
+
 def test_cycle_is_same_structure():
     """Test is_same_structure() detects rotational equivalence."""
 
