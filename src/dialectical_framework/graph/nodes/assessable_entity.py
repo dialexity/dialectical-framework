@@ -196,6 +196,48 @@ class AssessableEntity(BaseNode):
         return None
 
     @property
+    def is_probability_calculated(self) -> bool:
+        """
+        Check if probability comes from calculated (TaroRank) estimation.
+
+        Returns:
+            True if CalculatedProbabilityEstimation exists, False otherwise
+
+        Example:
+            if entity.is_probability_calculated:
+                print(f"[{entity.probability}]")  # Show in brackets
+            else:
+                print(f"{entity.probability}")    # Show without brackets
+        """
+        from dialectical_framework.graph.nodes.estimation import CalculatedProbabilityEstimation
+
+        for est, _ in self.estimations.all():
+            if isinstance(est, CalculatedProbabilityEstimation):
+                return True
+        return False
+
+    @property
+    def is_relevance_calculated(self) -> bool:
+        """
+        Check if relevance comes from calculated (TaroRank) estimation.
+
+        Returns:
+            True if CalculatedRelevanceEstimation exists, False otherwise
+
+        Example:
+            if entity.is_relevance_calculated:
+                print(f"[{entity.relevance}]")  # Show in brackets
+            else:
+                print(f"{entity.relevance}")    # Show without brackets
+        """
+        from dialectical_framework.graph.nodes.estimation import CalculatedRelevanceEstimation
+
+        for est, _ in self.estimations.all():
+            if isinstance(est, CalculatedRelevanceEstimation):
+                return True
+        return False
+
+    @property
     def best_rationale(self) -> Optional[Rationale]:
         """
         Get the highest-scoring rationale explaining this entity.

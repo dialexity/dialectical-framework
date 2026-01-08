@@ -125,7 +125,7 @@ async def test_full_blown_wheel(number_of_thoughts):
     print("\n" + "="*80)
     print(f"FULL BLOWN WHEEL (with {number_of_thoughts} thoughts: Action-Reflection, Spiral, Audit, and Syntheses)")
     print("="*80)
-    print(str(wheel))
+    print(f"{wheel:scores}")
 
     # Print each wisdom unit with full details (including synthesis and rationales)
     # Use polar_pairs_ordered to get wisdom units in ta_cycle order with correct polarity

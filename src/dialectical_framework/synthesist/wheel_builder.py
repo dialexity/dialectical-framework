@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Dict, Union
 
 from dependency_injector.wiring import Provide
+
+logger = logging.getLogger(__name__)
 
 from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto
 from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
@@ -290,9 +293,26 @@ class WheelBuilder(SettingsAware):
             # Extract S+ and S- from the deck (should have exactly 2 components)
             synthesis_components = [component_from_dto(dto) for dto in synthesis_deck_dto.dialectical_components]
 
-            # Identify S+ and S- by alias
-            s_plus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_PLUS)
-            s_minus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_MINUS)
+            # Identify S+ and S- by alias (may be indexed like S2+, S2-)
+            # Use DialecticalComponentDto to compute the expected indexed alias
+            wu_index = wu.get_human_friendly_index()
+            s_plus_alias_dto = DialecticalComponentDto(alias=POSITION_S_PLUS, statement="")
+            s_minus_alias_dto = DialecticalComponentDto(alias=POSITION_S_MINUS, statement="")
+            s_plus_alias_dto.set_human_friendly_index(wu_index)
+            s_minus_alias_dto.set_human_friendly_index(wu_index)
+
+            try:
+                s_plus_dto = synthesis_deck_dto.get_by_alias(s_plus_alias_dto.alias)
+                s_minus_dto = synthesis_deck_dto.get_by_alias(s_minus_alias_dto.alias)
+            except KeyError:
+                # Fallback to non-indexed aliases if indexed not found
+                try:
+                    s_plus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_PLUS)
+                    s_minus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_MINUS)
+                except KeyError as e:
+                    # Skip if S+ or S- not found in the synthesis deck
+                    logger.warning(f"Skipping synthesis for WU {wu.uid}: {e}")
+                    continue
 
             s_plus_comp = component_from_dto(s_plus_dto)
             s_minus_comp = component_from_dto(s_minus_dto)
@@ -307,14 +327,13 @@ class WheelBuilder(SettingsAware):
                 SMinusRelationship,
             )
 
-            synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias=POSITION_S_PLUS))
-            synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias=POSITION_S_MINUS))
+            synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias=s_plus_alias_dto.alias))
+            synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias=s_minus_alias_dto.alias))
 
             # Connect Synthesis to WisdomUnit
             synthesis.wisdom_unit.connect(wu)
 
             # Set human-friendly index if WU has one
-            wu_index = wu.get_human_friendly_index()
             if wu_index > 0:
                 synthesis.set_human_friendly_index(wu_index)
 

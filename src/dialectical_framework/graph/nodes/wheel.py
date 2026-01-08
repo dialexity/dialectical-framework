@@ -626,8 +626,15 @@ class Wheel(AssessableEntity):
 
         Format Specifications:
         ----------------------
-        (empty) - Default format showing cycles, wisdom units, and spiral
-        "compact" - Compact format with abbreviated components
+        Modifiers can be combined with `:` separator.
+
+        Modes:
+        - (empty) - Default format showing cycles, wisdom units, and spiral
+        - "compact" - Compact format with abbreviated components
+
+        Modifiers:
+        - "scores" - Shows S/R/P values for wheel, cycles, spiral, transformations
+                     Calculated values shown in [brackets], manual without
 
         Shows:
         - T-cycle with rationale
@@ -637,18 +644,36 @@ class Wheel(AssessableEntity):
 
         Examples:
         ---------
-        f"{wheel}"         - Default format
-        f"{wheel:compact}" - Compact format
+        f"{wheel}"              - Default format
+        f"{wheel:compact}"      - Compact format
+        f"{wheel:scores}"       - Default with S/R/P scores
+        f"{wheel:compact:scores}" - Compact with S/R/P scores
 
         Returns:
             Multi-line formatted string
         """
+        # Parse format spec - split by : to get modifiers
+        modifiers = set(format_spec.split(":")) if format_spec else set()
+        modifiers.discard("")  # Remove empty strings
+
+        show_scores = "scores" in modifiers
+        is_compact = "compact" in modifiers
         output = []
 
-        # Helper to format cycle with rationale
+        # Import score formatting if needed
+        if show_scores:
+            from dialectical_framework.utils.score_format import (
+                fmt_scores, fmt_score, fmt_relevance, fmt_probability
+            )
+
+        # Helper to format cycle with rationale (and optionally scores)
         def _format_cycle(cycle_obj, cycle_name: str) -> list[str]:
             lines = []
-            lines.append(f"=== {cycle_name} ===")
+            header = f"=== {cycle_name} ==="
+            if show_scores:
+                header = f"=== {cycle_name} [{fmt_scores(cycle_obj, colorize=True)}] ==="
+            lines.append(header)
+
             from dialectical_framework.graph.nodes.cycle import Cycle
             prefix = f"{cycle_obj.causality_type} : " if isinstance(cycle_obj, Cycle) else ""
             lines.append(f"{prefix}{cycle_obj:aliases}")
@@ -659,6 +684,11 @@ class Wheel(AssessableEntity):
                 lines.append(f"Rationale: {rationale.text}")
 
             return lines
+
+        # Wheel header with scores
+        if show_scores:
+            output.append(f"=== Wheel [{fmt_scores(self, colorize=True)}] ===")
+            output.append("")
 
         # T-Cycle
         t_cycle_result = self.t_cycle.get()
@@ -744,6 +774,19 @@ class Wheel(AssessableEntity):
                 table.append(row)
 
             output.append(tabulate(table, tablefmt="plain"))
+
+            # Show transformation scores if in scores mode
+            if show_scores:
+                output.append("")
+                output.append("Transformation Scores:")
+                for idx, pair in enumerate(polar_pairs, 1):
+                    wu = pair.wisdom_unit
+                    transformation_result = wu.transformation.get()
+                    if transformation_result:
+                        transformation, _ = transformation_result
+                        output.append(f"  WU{idx}: [{fmt_scores(transformation, colorize=True)}]")
+                    else:
+                        output.append(f"  WU{idx}: [No transformation]")
         else:
             output.append("[No wisdom units]")
         output.append("")
@@ -753,6 +796,51 @@ class Wheel(AssessableEntity):
         if spiral_result:
             spiral_obj, _ = spiral_result
             output.extend(_format_cycle(spiral_obj, "Spiral"))
+            output.append("")
+
+        # Transitions table with scores (only in scores mode)
+        if show_scores:
+            output.append("=== Transitions ===")
+            from tabulate import tabulate
+
+            transitions_data = []
+
+            # Collect transitions from all cycles
+            cycles_to_check = [
+                ("T-Cycle", t_cycle_result[0] if t_cycle_result else None),
+                ("TA-Cycle", ta_cycle_result[0] if ta_cycle_result else None),
+                ("Spiral", spiral_result[0] if spiral_result else None),
+            ]
+
+            # Add transformation transitions
+            for idx, pair in enumerate(polar_pairs, 1):
+                wu = pair.wisdom_unit
+                transformation_result = wu.transformation.get()
+                if transformation_result:
+                    transformation, _ = transformation_result
+                    cycles_to_check.append((f"WU{idx} Trans", transformation))
+
+            for cycle_name, cycle_obj in cycles_to_check:
+                if cycle_obj is None:
+                    continue
+
+                for trans, _ in cycle_obj.transitions.all():
+                    trans_repr = f"{trans}"  # Uses Transition.__str__
+                    s = fmt_score(trans.score, colorize=True)
+                    r = fmt_relevance(trans, colorize=True)
+                    p = fmt_probability(trans, colorize=True)
+
+                    # Get rationale summary
+                    rationale = trans.best_rationale
+                    rationale_text = rationale.text[:50] + "..." if rationale and rationale.text and len(rationale.text) > 50 else (rationale.text if rationale else "N/A")
+
+                    transitions_data.append([cycle_name, trans_repr, s, r, p, rationale_text])
+
+            if transitions_data:
+                headers = ["Cycle", "Transition", "S", "R", "P", "Rationale"]
+                output.append(tabulate(transitions_data, headers=headers, tablefmt="simple"))
+            else:
+                output.append("[No transitions]")
             output.append("")
 
         return "\n".join(output)

@@ -24,7 +24,22 @@ class DialecticalComponentsDeck(BaseModel):
         return [dc.alias for dc in self.dialectical_components]
 
     def get_by_alias(self, alias: str) -> DialecticalComponent:
-        return next(filter(lambda d: d.alias == alias, self.dialectical_components))
+        """
+        Retrieve a component by its alias.
+
+        Args:
+            alias: The alias to search for (e.g., "T", "A", "T+")
+
+        Returns:
+            The DialecticalComponent with matching alias
+
+        Raises:
+            KeyError: If no component with given alias is found
+        """
+        for dc in self.dialectical_components:
+            if dc.alias == alias:
+                return dc
+        raise KeyError(f"No component with alias '{alias}' found. Available: {self.get_aliases()}")
 
     def rearrange_by_aliases(
         self, ordered_aliases: list[str], mutate: bool = False

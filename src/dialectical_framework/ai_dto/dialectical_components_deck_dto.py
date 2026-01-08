@@ -53,9 +53,12 @@ class DialecticalComponentsDeckDto(BaseModel):
             The DialecticalComponentDto with matching alias
 
         Raises:
-            StopIteration: If no component with given alias is found
+            KeyError: If no component with given alias is found
         """
-        return next(filter(lambda d: d.alias == alias, self.dialectical_components))
+        for dc in self.dialectical_components:
+            if dc.alias == alias:
+                return dc
+        raise KeyError(f"No component with alias '{alias}' found. Available: {self.get_aliases()}")
 
     def rearrange_by_aliases(
         self, ordered_aliases: list[str], mutate: bool = False
