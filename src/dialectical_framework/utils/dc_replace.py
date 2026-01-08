@@ -3,17 +3,28 @@ import re
 
 def dc_replace(text: str, dialectical_component_name: str, replace_to: str) -> str:
     """
-    # 1. **`(?<!\w)`**: Ensures `T-` is not preceded by a word character (prevents matches like `T-something`).
-    # 2. **`(["'\(\[\{]?)`**: Matches an optional opening character like `"`, `'`, `(`, `[`, or `{`. This is captured in group `\1`.
-    # 3. **`T-` **: Matches the literal `T-`.
-    # 4. **`(\s|[\]'"}).,!?:]|$)`**:
-    #     - Matches any of the following right after `T-`:
-    #     - A space (`\s`) (e.g., `T- something` or `T-`).
-    #     - A closing punctuation mark like `]`, `'`, `"`, `)`, `}`.
-    #     - Specific punctuation characters: `.`, `,`, `!`, `?`, or `:`.
-    #     - The end of the line (`$`).
-    #
-    #     - This captures both proper sentence endings (e.g., `T-.`) and cases where punctuation appears mid-sentence (e.g., `T-,` or `T-!`).
+    Replace a dialectical component alias in text, respecting word boundaries.
+
+    Use this for single replacements where there's no risk of overlapping aliases.
+    For multiple replacements with overlapping aliases (e.g., T, T+, T-), use dc_safe_replace.
+
+    Args:
+        text: The text to perform replacement in
+        dialectical_component_name: The alias to find (e.g., "T-", "C1_1")
+        replace_to: The replacement string (e.g., "A-", "T1")
+
+    Returns:
+        Text with replacements made
+
+    Example:
+        >>> dc_replace("T- causes A+", "T-", "A-")
+        "A- causes A+"
+
+    Regex details:
+    - `(?<!\\w)`: Not preceded by word character (prevents "AT-" matching)
+    - `(["'([{]?)`: Optional opening bracket/quote (captured)
+    - `<alias>`: The literal alias (escaped)
+    - `(\\s|[]'"}).,!?:]|$)`: Followed by space, punctuation, or end (captured)
     """
     return re.sub(
         r'(?<!\w)(["\'\(\[\{]?)'
@@ -27,6 +38,35 @@ def dc_replace(text: str, dialectical_component_name: str, replace_to: str) -> s
 
 
 def dc_safe_replace(text: str, replacements: dict[str, str]) -> str:
+    """
+    Replace multiple dialectical component aliases safely, handling overlapping keys.
+
+    Use this when replacing multiple aliases that could overlap (e.g., swapping T↔A
+    where T, T+, T-, A, A+, A- all exist). Direct replacement would corrupt longer
+    aliases (replacing "T" first would turn "T+" into "A+").
+
+    This function uses a two-pass approach:
+    1. Replace all aliases with temporary placeholders (_T_, _A_, etc.)
+    2. Replace placeholders with final values
+
+    Args:
+        text: The text to perform replacements in
+        replacements: Dict mapping aliases to their replacements
+
+    Returns:
+        Text with all replacements made safely
+
+    Example:
+        >>> dc_safe_replace(
+        ...     "T- contradicts A+",
+        ...     {"T": "A", "A": "T", "T-": "A-", "A+": "T+"}
+        ... )
+        "A- contradicts T+"
+
+    When to use dc_safe_replace vs dc_replace:
+    - dc_replace: Single replacement, no overlap risk (e.g., C1_1 → T1)
+    - dc_safe_replace: Multiple replacements with overlapping aliases (e.g., T↔A swap)
+    """
     result = text
     # Sort keys by length in descending order to replace longer keys first
     sorted_keys = sorted(replacements.keys(), key=len, reverse=True)

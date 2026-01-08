@@ -11,7 +11,6 @@ from dialectical_framework.analyst.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
-from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:

@@ -28,6 +28,7 @@ from dialectical_framework.protocols.causality_sequencer import (
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
+from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.decompose_probability_uniformly import decompose_probability_uniformly
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
@@ -355,6 +356,19 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         # Create estimation manager for setting probabilities/relevance
         estimation_manager = EstimationManager()
 
+        # Build translation map from technical aliases to original aliases
+        # Technical aliases: C{seq_idx}_{comp_idx} (e.g., "C1_2")
+        # Original aliases: T1, A1, etc. (from WisdomUnit edges)
+        alias_translations: dict[str, str] = {}
+        for seq_idx, sequence in enumerate(sequences, 1):
+            for comp_idx, component in enumerate(sequence, 1):
+                technical_alias = f"C{seq_idx}_{comp_idx}"
+                # Find original alias from components_with_aliases
+                for comp, original_alias in components_with_aliases:
+                    if comp.uid == component.uid:
+                        alias_translations[technical_alias] = original_alias
+                        break
+
         cycles: list[Cycle] = []
         total_score = 0
         for causal_cycle in causal_cycles_deck.causal_cycles:
@@ -434,10 +448,18 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                         # Connect transition to cycle
                         transition.cycle.connect(cycle)
 
+                # Translate technical aliases back to original aliases in text fields
+                # This ensures the rationale text uses meaningful aliases (T1, A1) instead of (C1_1, C1_2)
+                reasoning_text = causal_cycle.reasoning_explanation
+                argumentation_text = causal_cycle.argumentation
+                for technical_alias, original_alias in alias_translations.items():
+                    reasoning_text = dc_replace(reasoning_text, technical_alias, original_alias)
+                    argumentation_text = dc_replace(argumentation_text, technical_alias, original_alias)
+
                 # Create rationale from reasoning and argumentation
                 cycle_rationale = Rationale(
-                    summary=f"{causal_cycle.argumentation}",
-                    text=f"{causal_cycle.reasoning_explanation}",
+                    summary=argumentation_text,
+                    text=reasoning_text,
                 )
                 cycle_rationale.save()  # Save before connecting
 
