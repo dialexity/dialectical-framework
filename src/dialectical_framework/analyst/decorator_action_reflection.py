@@ -27,12 +27,16 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
     async def _do_calculate_transitions_all(
         self, wheel: Wheel
     ) -> list[Transition]:
+        # Action-Reflection: iterate over unique WisdomUnits, not all segments
+        # Each WU needs only one transformation (T-side and A-side point to same WU)
+        wus = [wu for wu, _ in wheel.wisdom_units.all()]
+
         # Run all transitions in parallel for better performance
         async_tasks = [
-            self._do_calculate_transitions(wheel, segment)
-            for segment in wheel.segments_ordered
+            self._do_calculate_transitions(wheel, wu.segment_t)  # Use T-side segment
+            for wu in wus
         ]
-        
+
         results = await gather(*async_tasks)
 
         # Flatten the list of lists

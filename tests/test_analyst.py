@@ -118,9 +118,9 @@ async def test_full_blown_wheel(number_of_thoughts):
             assert s_plus_result is not None, "Synthesis should have S+ component"
             assert s_minus_result is not None, "Synthesis should have S- component"
 
-    # Calculate score (optional, but useful to verify scoring works)
-    # Note: Scoring requires TaroRank setup
-    # assert wheel.score is not None, "Wheel should have a score"
+    # Score the wheel after all modifications are complete
+    # This calculates scores for wheel → cycles → transitions → rationales
+    factory1.scorer.calculate_score(wheel, force=True)
 
     print("\n" + "="*80)
     print(f"FULL BLOWN WHEEL (with {number_of_thoughts} thoughts: Action-Reflection, Spiral, Audit, and Syntheses)")

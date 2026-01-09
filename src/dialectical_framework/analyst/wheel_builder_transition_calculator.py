@@ -42,6 +42,10 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     def settings(self) -> Settings:
         return self.__decorated_builder.settings
 
+    @property
+    def scorer(self):
+        return self.__decorated_builder.scorer
+
     async def build_wheel_permutations(
         self, *, theses: Union[list[str | DialecticalComponent | None], list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]] = None, t_cycle: Cycle = None
     ) -> list[Wheel]:
@@ -72,13 +76,18 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         if wheel not in self.wheel_permutations:
             raise ValueError(f"Wheel permutation {wheel} not found in available wheels")
 
+        # Collect all transitions created by this and decorated builders
+        all_transitions: list[Transition] = []
+
         if at is None:
             # Calculate for each
             if hasattr(self.decorated_builder, "calculate_transitions"):
                 await self.decorated_builder.calculate_transitions(wheel=wheel, at=None)
             # This is for subclasses to implement
             # Duplicate detection now happens inside think() methods
-            await self._do_calculate_transitions_all(wheel=wheel)
+            transitions = await self._do_calculate_transitions_all(wheel=wheel)
+            if transitions:
+                all_transitions.extend(transitions)
         elif isinstance(at, list):
             # Calculate for some
             if hasattr(self.decorated_builder, "calculate_transitions"):
@@ -89,7 +98,9 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
                 segment = wheel.segment_at(ref)
                 # This is for subclasses to implement
                 # Duplicate detection now happens inside think() methods
-                await self._do_calculate_transitions(wheel=wheel, at=segment)
+                transitions = await self._do_calculate_transitions(wheel=wheel, at=segment)
+                if transitions:
+                    all_transitions.extend(transitions)
         else:
             # Calculate for one
             if hasattr(self.decorated_builder, "calculate_transitions"):
@@ -98,10 +109,13 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
             segment = wheel.segment_at(at)
             # This is for subclasses to implement
             # Duplicate detection now happens inside think() methods
-            await self._do_calculate_transitions(wheel=wheel, at=segment)
+            transitions = await self._do_calculate_transitions(wheel=wheel, at=segment)
+            if transitions:
+                all_transitions.extend(transitions)
 
-        # Note: Scoring is caller's responsibility. The upsert_estimation calls
-        # inside think() methods handle DB invalidation propagation automatically.
+        # Note: Scoring is caller's responsibility.
+        # Call scorer.calculate_score(wheel, force=True) after all modifications are complete.
+        # The upsert_estimation calls inside think() methods handle DB invalidation propagation.
 
     @abstractmethod
     async def _do_calculate_transitions(

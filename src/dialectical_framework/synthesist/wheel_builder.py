@@ -339,7 +339,8 @@ class WheelBuilder(SettingsAware):
 
             syntheses.append(synthesis)
 
-        # Note: Scoring is caller's responsibility
+        # Note: Scoring is caller's responsibility.
+        # Call scorer.calculate_score(wheel, force=True) after all modifications are complete.
         return syntheses
 
 
@@ -568,9 +569,8 @@ class WheelBuilder(SettingsAware):
 
             new_wheels.append(new_wheel)
 
-        # Score all new wheels
-        for wheel in new_wheels:
-            self.scorer.calculate_score(wheel)
+        # Note: Scoring is caller's responsibility.
+        # Call scorer.calculate_score(wheel) after all modifications are complete.
 
         # Update internal wheels list
         self.__wheels = new_wheels
