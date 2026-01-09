@@ -2,50 +2,7 @@
 
 [] "toolify" services, so that LLM can be made an agent for thesis extraction, etc.
 
-[] the ability to use these transitions and/or argumentations as starting points for new wheels....
-
 [] Get rid of "reasoning mode", this seems to be connected to brain, which is a pluggable service. Old: DialecticalReasoningMode should be parametrized in config
-
-[] Fidelity score evaluator for a dialectical component
-```aiignore
-    @prompt_template(
-        """
-        USER:
-        Original source content:
-        {source_content}
-        
-        Extracted dialectical component:
-        Alias: {component_alias}
-        Statement: {component_statement}
-        Explanation: {component_explanation}
-        
-        <instructions>
-        Evaluate how well this dialectical component captures the essence of the source content.
-        
-        Consider:
-        - **Accuracy**: Does it reflect what's actually in the source?
-        - **Completeness**: Does it capture the key aspects relevant to its role?
-        - **Precision**: Is it specific enough to be meaningful?
-        - **Context Preservation**: Does it maintain the original meaning?
-        
-        Rate from 0.0 (completely misrepresents source) to 1.0 (perfectly captures essence).
-        </instructions>
-        
-        <formatting>
-        Output only a float between 0.0 and 1.0
-        </formatting>
-        """
-    )
-
-```
-
-[] Bring the initial context out of the prompts, should be somehow pluggable
-
-[] Recalculate 1 wisdom unit, and then recalculate cycles (needed when T or A is changed), it's an efficient implementation of "redefine"
-
-[] Customizable prompt/rules for thesis extraction. Some sort of "system" prompt for overall analysis?
-
-[] Wheel serialization and incremental maintenance. For every analysis (impacting probabilities) we must have a "meta" info how it was derived, so that in a multi-agent architecture we know that different agetns were working.
 
 [] Linear actions (cycle transitions)
 ```aiignore
@@ -99,11 +56,7 @@ Transformation - How to make sequences happen
 The causation analysis (like in your PDF) is indeed a separate and valuable analytical tool that we hadn't explicitly captured in our previous prompts.
 ```
 
-[] Actualization (report generation)
-
 [] Control statements calculation for wisdom units
-
-[] Image/Docs upload
 
 [] Consolidate wisdom units if the provided theses contain among them also antitheses. The overall number of theses must be ensured still
 
