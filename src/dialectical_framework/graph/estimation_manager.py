@@ -7,7 +7,6 @@ as separate Estimation nodes connected to AssessableEntity nodes.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Optional, Union, TYPE_CHECKING, TypeVar, Type, Sequence
 
 from dependency_injector.wiring import inject, Provide
@@ -19,6 +18,7 @@ from dialectical_framework.graph.nodes.estimation import (
     RelevanceEstimation
 )
 from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.invalidation import invalidate_node_and_parents
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
@@ -74,7 +74,7 @@ class EstimationManager:
             # Delete existing estimations of this type
             self._delete_estimations(node, estimation_type, graph_db)
             if should_invalidate:
-                self._invalidate_node_and_parents(node, graph_db)
+                invalidate_node_and_parents(node, graph_db=graph_db)
             return
 
         # Check for existing estimation of this type
@@ -87,14 +87,14 @@ class EstimationManager:
             existing.save()
             # Only invalidate if value actually changed AND it's a manual estimation
             if should_invalidate and old_value != value:
-                self._invalidate_node_and_parents(node, graph_db)
+                invalidate_node_and_parents(node, graph_db=graph_db)
         else:
             # Create new
             estimation = estimation_type(value=value)
             estimation.save()
             node.estimations.connect(estimation)
             if should_invalidate:
-                self._invalidate_node_and_parents(node, graph_db)
+                invalidate_node_and_parents(node, graph_db=graph_db)
 
     @inject
     def clear_estimations(
@@ -150,7 +150,7 @@ class EstimationManager:
 
         # Invalidate if we cleared any manual estimations
         if should_invalidate:
-            self._invalidate_node_and_parents(node, graph_db)
+            invalidate_node_and_parents(node, graph_db=graph_db)
 
     def _delete_all_estimations(
         self,
@@ -227,77 +227,3 @@ class EstimationManager:
             DETACH DELETE e
         """
         graph_db.execute(query, {"node_id": node._id})
-
-    def _invalidate_node_and_parents(
-        self,
-        node: AssessableEntity,
-        graph_db: Union[Memgraph, Neo4j],
-        visited: set[int] | None = None
-    ) -> None:
-        """
-        Invalidate this node and recursively propagate to all parent nodes.
-
-        This ensures that when a child's estimation changes, all ancestors
-        are marked invalid so they get rescored on the next scoring pass.
-
-        Args:
-            node: AssessableEntity to invalidate
-            graph_db: Database connection
-            visited: Set of node IDs already visited (for cycle detection)
-        """
-        if node._id is None:
-            return
-
-        # Initialize visited set on first call
-        if visited is None:
-            visited = set()
-
-        # Avoid cycles
-        if node._id in visited:
-            return
-        visited.add(node._id)
-
-        now = datetime.now()
-
-        # Invalidate this node
-        node.score_invalidated_at = now
-        node.save()
-
-        # Find immediate parents using directed relationship pattern
-        # All parent relationships use RelationshipTo() which creates outgoing edges (child→parent):
-        # - WisdomUnit.wheel → WU→Wheel
-        # - Transformation.wisdom_unit → Transformation→WU
-        # - Transformation.ac_re → Transformation→WU(ac_re)
-        # - Cycle/Spiral._wheel_as_* → Cycle/Spiral→Wheel
-        # - Rationale.explanation → Rationale→Entity
-        # - Rationale.critiques → RationaleA→RationaleB (critique→critiqued)
-        #
-        # IMPORTANT: Exclude HAS_STATEMENT to prevent crossing wheel boundaries
-        # - HAS_STATEMENT is a text reference/derivation relationship (not structural ownership)
-        # - Structural relationships handle within-wheel propagation
-        # - Excluding HAS_STATEMENT prevents invalidating external wheels that reference statements
-        query = """
-            MATCH (child)-[rel]->(parent:AssessableEntity)
-            WHERE id(child) = $child_id
-            AND type(rel) <> 'HAS_STATEMENT'
-            RETURN DISTINCT id(parent) as parent_id
-        """
-
-        try:
-            results = list(graph_db.execute_and_fetch(query, {"child_id": node._id}))
-
-            # Recursively invalidate each parent
-            from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-            for record in results:
-                parent_id = record["parent_id"]
-                if parent_id not in visited:
-                    # Load parent and recursively invalidate
-                    parent = AssessableEntity(_id=parent_id)
-                    parent.load(db=graph_db)
-                    if parent:
-                        # Recursive call to invalidate grandparents too
-                        self._invalidate_node_and_parents(parent, graph_db, visited)
-        except Exception as e:
-            # Log error but don't fail the whole operation
-            # Silent failure to avoid breaking the estimation update flow
-            pass

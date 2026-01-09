@@ -339,9 +339,7 @@ class WheelBuilder(SettingsAware):
 
             syntheses.append(synthesis)
 
-        # Rescore wheel after synthesis
-        self.scorer.calculate_score(wheel)
-
+        # Note: Scoring is caller's responsibility
         return syntheses
 
 

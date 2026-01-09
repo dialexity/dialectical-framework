@@ -8,8 +8,12 @@ nodes that can be assessed/scored (Components, WisdomUnits, Wheels, Cycles, etc.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import ClassVar, Optional, TYPE_CHECKING
+from typing import ClassVar, Optional, TYPE_CHECKING, Union
 
+from dependency_injector.wiring import inject, Provide
+from gqlalchemy import Memgraph, Neo4j
+
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 
@@ -274,7 +278,11 @@ class AssessableEntity(BaseNode):
         # Fallback: return first rationale if none have scores
         return rationales[0] if rationales else None
 
-    def is_score_valid(self) -> bool:
+    @inject
+    def is_score_valid(
+        self,
+        graph_db: Optional[Union[Memgraph, Neo4j]] = Provide[DI.graph_db]
+    ) -> bool:
         """
         Check if the score is still valid (data hasn't changed since computation).
 
@@ -283,8 +291,8 @@ class AssessableEntity(BaseNode):
         - Score was computed (has timestamp)
         - Either never invalidated OR computed after last invalidation
 
-        This allows skipping recalculation when data hasn't changed,
-        regardless of how old the score is.
+        This method queries the DB for the current invalidation timestamp to handle
+        cases where in-memory objects are stale after DB modifications.
 
         Returns:
             True if score is valid and doesn't need recalculation
@@ -300,11 +308,40 @@ class AssessableEntity(BaseNode):
         if self.score_computed_at is None:
             return False
 
-        if self.score_invalidated_at is None:
+        # Query DB for current invalidation timestamp (in-memory may be stale)
+        db_invalidated_at = self._get_db_invalidated_at(graph_db)
+
+        if db_invalidated_at is None:
             return True  # Never invalidated
 
         # Valid if computed AFTER invalidation
-        return self.score_computed_at > self.score_invalidated_at
+        return self.score_computed_at > db_invalidated_at
+
+    def _get_db_invalidated_at(
+        self,
+        graph_db: Union[Memgraph, Neo4j]
+    ) -> Optional[datetime]:
+        """
+        Query DB for current score_invalidated_at value.
+
+        This ensures we check against the actual DB state, not stale in-memory state.
+        """
+        if self._id is None:
+            return self.score_invalidated_at  # Not persisted, use in-memory
+
+        try:
+            query = """
+                MATCH (n)
+                WHERE id(n) = $node_id
+                RETURN n.score_invalidated_at as invalidated_at
+            """
+            results = list(graph_db.execute_and_fetch(query, {"node_id": self._id}))
+            if results:
+                return results[0]["invalidated_at"]
+        except Exception:
+            pass  # Fall back to in-memory value
+
+        return self.score_invalidated_at
 
     def __repr__(self) -> str:
         """String representation of the assessable entity."""

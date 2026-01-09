@@ -64,7 +64,7 @@ class BaseCalculator(ABC):
         """
         ...
 
-    def score_children(self, node: AssessableEntity) -> None:
+    def score_children(self, node: AssessableEntity, force: bool = False) -> None:
         """
         Recursively score all children nodes.
 
@@ -73,6 +73,7 @@ class BaseCalculator(ABC):
 
         Args:
             node: Parent node whose children should be scored
+            force: If True, force rescore even if children appear valid
         """
         pass
 

@@ -133,13 +133,14 @@ class TaroRank:
 
     def calculate_score(
         self,
-        node: AssessableEntity
+        node: AssessableEntity,
+        force: bool = False
     ) -> Optional[float]:
         """
         Calculate and store score for a node.
 
         This method:
-        1. Checks if score is valid (always skips if valid)
+        1. Checks if score is valid (skips if valid, unless force=True)
         2. Detects circular dependencies (returns None if cycle found)
         3. Clears old calculated estimations (so properties return manual/child values)
         4. Recursively scores children
@@ -159,6 +160,10 @@ class TaroRank:
 
         Args:
             node: AssessableEntity to score
+            force: If True, recalculate even if score appears valid. Use this when
+                   you know DB was modified but in-memory object may be stale.
+                   This only affects the top-level node - children still use
+                   validity checks (their DB state should be accurate).
 
         Returns:
             Computed score or None if insufficient data or cycle detected
@@ -166,9 +171,13 @@ class TaroRank:
         Example:
             scorer = TaroRank(alpha=1.0)
             score = scorer.score_node(wheel)
+
+            # After calculate_transitions/calculate_syntheses, force rescore:
+            score = scorer.calculate_score(wheel, force=True)
         """
-        # Always skip valid nodes - invalidation propagation ensures correctness
-        if node.is_score_valid():
+        # Skip valid nodes unless force=True
+        # force is useful when caller knows DB was modified but in-memory object is stale
+        if not force and node.is_score_valid():
             return node.score
 
         # Detect cycles: if this node is already being scored up the call stack,
@@ -193,7 +202,8 @@ class TaroRank:
             calculator = self._get_calculator(node.__class__.__name__)
 
             # Always score children recursively (they get fresh calculated values)
-            calculator.score_children(node)
+            # Propagate force flag so children also rescore if parent is forced
+            calculator.score_children(node, force=force)
 
             # Calculate P and R (properties now return correct values)
             p = calculator.calculate_probability(node)

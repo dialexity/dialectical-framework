@@ -199,11 +199,12 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
             )
             audit_rationale.save()
 
-            # Store feasibility as FeasibilityEstimation (will be used as relevance via fallback)
+            # Connect as critique FIRST so the graph structure exists
+            rationale.critiques.connect(audit_rationale)
+
+            # Store feasibility - this triggers invalidation that now propagates through parents
+            # (rationale → transition → spiral → wheel) because the relationship exists
             manager = EstimationManager()
             manager.upsert_estimation(audit_rationale, FeasibilityEstimation, audit.feasibility)
-
-            # Connect as critique of the original rationale
-            rationale.rationales.connect(audit_rationale)
 
         return transitions

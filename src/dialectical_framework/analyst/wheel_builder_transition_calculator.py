@@ -100,8 +100,8 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
             # Duplicate detection now happens inside think() methods
             await self._do_calculate_transitions(wheel=wheel, at=segment)
 
-        # Rescore wheel after adding transitions
-        self.scorer.calculate_score(wheel)
+        # Note: Scoring is caller's responsibility. The upsert_estimation calls
+        # inside think() methods handle DB invalidation propagation automatically.
 
     @abstractmethod
     async def _do_calculate_transitions(

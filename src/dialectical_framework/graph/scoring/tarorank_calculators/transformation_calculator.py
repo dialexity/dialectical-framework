@@ -32,23 +32,24 @@ class TransformationCalculator(BaseCalculator):
     - Includes transformation-level rationale Rs (with rating)
     """
 
-    def score_children(self, transformation: Transformation) -> None:
+    def score_children(self, transformation: Transformation, force: bool = False) -> None:
         """
         Score all transitions and ac_re WisdomUnit in this transformation.
 
         Args:
             transformation: Transformation whose children should be scored
+            force: If True, force rescore even if children appear valid
         """
         # Score all transitions
         transitions = transformation.transitions_ordered  # Uses SequenceTopologyMixin
         for trans in transitions:
-            self.scorer.calculate_score(trans)
+            self.scorer.calculate_score(trans, force=force)
 
         # Score ac_re WisdomUnit (action-reflection context)
         ac_re_result = transformation.ac_re.get()
         if ac_re_result:
             ac_re_wu = ac_re_result[0]
-            self.scorer.calculate_score(ac_re_wu)
+            self.scorer.calculate_score(ac_re_wu, force=force)
 
     def calculate_probability(self, transformation: Transformation) -> Optional[float]:
         """

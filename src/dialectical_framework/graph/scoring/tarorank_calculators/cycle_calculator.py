@@ -33,16 +33,17 @@ class CycleCalculator(BaseCalculator):
     - Includes cycle-level rationale Rs (via GM, no rating)
     """
 
-    def score_children(self, cycle: Cycle) -> None:
+    def score_children(self, cycle: Cycle, force: bool = False) -> None:
         """
         Score all transitions in this cycle.
 
         Args:
             cycle: Cycle whose transitions should be scored
+            force: If True, force rescore even if children appear valid
         """
         transitions = cycle.transitions_ordered  # Uses SequenceTopologyMixin
         for trans in transitions:
-            self.scorer.calculate_score(trans)
+            self.scorer.calculate_score(trans, force=force)
 
     def calculate_probability(self, cycle: Cycle) -> Optional[float]:
         """

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -56,11 +56,12 @@ class Rationale(AssessableEntity):
         cardinality=(0, 1)  # Zero or one (rationale explains one entity)
     )
 
-    # Rationales can critique other rationales (recursive critique)
-    critiques: ClassVar[RelationshipManager[Rationale]] = RelationshipTo(
+    # Incoming: rationales that critique this one (audit-wins semantics)
+    # Usage: parent_rationale.critiques.connect(audit_rationale) creates audit_rationale -[CRITIQUES]-> parent_rationale
+    critiques: ClassVar[RelationshipManager[Rationale]] = RelationshipFrom(
         "Rationale",
         "CRITIQUES",
-        cardinality=(0, 1)  # Zero or one (rationale may critique another rationale)
+        cardinality=(0, None)  # Zero or more critiques
     )
 
     derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(

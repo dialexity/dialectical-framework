@@ -129,7 +129,7 @@ class RationaleAuditor:
         Returns:
             List of critique nodes at deepest level
         """
-        critiques_list = [crit for crit, _ in rationale.rationales.all()]
+        critiques_list = [crit for crit, _ in rationale.critiques.all()]
 
         if not critiques_list:
             return []
@@ -140,7 +140,7 @@ class RationaleAuditor:
             return []
 
         # Check if any critique has been further audited (has its own critiques)
-        audited_critiques = [r for r in valid_critiques if list(r.rationales.all())]
+        audited_critiques = [r for r in valid_critiques if list(r.critiques.all())]
 
         if audited_critiques:
             # Use deepest level - recursively get critiques from audited critiques

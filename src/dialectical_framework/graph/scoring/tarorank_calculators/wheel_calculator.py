@@ -33,30 +33,31 @@ class WheelCalculator(BaseCalculator):
     - Skip None values (unknown), keep zeros (hard constraints)
     """
 
-    def score_children(self, wheel: Wheel) -> None:
+    def score_children(self, wheel: Wheel, force: bool = False) -> None:
         """
         Score all WUs, cycles, and spiral.
 
         Args:
             wheel: Wheel whose children should be scored
+            force: If True, force rescore even if children appear valid
         """
         # Score all wisdom units
         wus = [wu for wu, _ in wheel.wisdom_units.all()]
         for wu in wus:
-            self.scorer.calculate_score(wu)
+            self.scorer.calculate_score(wu, force=force)
 
         # Score canonical cycles
         t_cycle_result = wheel.t_cycle.get()
         if t_cycle_result:
-            self.scorer.calculate_score(t_cycle_result[0])
+            self.scorer.calculate_score(t_cycle_result[0], force=force)
 
         ta_cycle_result = wheel.ta_cycle.get()
         if ta_cycle_result:
-            self.scorer.calculate_score(ta_cycle_result[0])
+            self.scorer.calculate_score(ta_cycle_result[0], force=force)
 
         spiral_result = wheel.spiral.get()
         if spiral_result:
-            self.scorer.calculate_score(spiral_result[0])
+            self.scorer.calculate_score(spiral_result[0], force=force)
 
     def calculate_relevance(self, wheel: Wheel) -> Optional[float]:
         """

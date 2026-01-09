@@ -33,22 +33,23 @@ class SynthesisCalculator(BaseCalculator):
     - Synthesis has no structural probability (returns 1.0)
     """
 
-    def score_children(self, synthesis: Synthesis) -> None:
+    def score_children(self, synthesis: Synthesis, force: bool = False) -> None:
         """
         Score the S+ and S- components in this Synthesis.
 
         Args:
             synthesis: Synthesis whose children should be scored
+            force: If True, force rescore even if children appear valid
         """
         # Score S+ component (exactly one)
         sp_result = synthesis.s_plus.get()
         if sp_result:
-            self.scorer.calculate_score(sp_result[0])
+            self.scorer.calculate_score(sp_result[0], force=force)
 
         # Score S- component (exactly one)
         sm_result = synthesis.s_minus.get()
         if sm_result:
-            self.scorer.calculate_score(sm_result[0])
+            self.scorer.calculate_score(sm_result[0], force=force)
 
     def calculate_relevance(self, synthesis: Synthesis) -> Optional[float]:
         """

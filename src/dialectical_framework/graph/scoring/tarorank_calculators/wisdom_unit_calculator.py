@@ -38,28 +38,29 @@ class WisdomUnitCalculator(BaseCalculator):
     - If no transformation: P = 1.0 (no structural constraint)
     """
 
-    def score_children(self, wu: WisdomUnit) -> None:
+    def score_children(self, wu: WisdomUnit, force: bool = False) -> None:
         """
         Score all components, transformation, and synthesis alternatives in this WU.
 
         Args:
             wu: WisdomUnit whose children should be scored
+            force: If True, force rescore even if children appear valid
         """
         # Score all 6 core components
         for rel_manager in [wu.t, wu.t_plus, wu.t_minus, wu.a, wu.a_plus, wu.a_minus]:
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
-                self.scorer.calculate_score(comp)
+                self.scorer.calculate_score(comp, force=force)
 
         # Score transformation if present
         trans_result = wu.transformation.get()
         if trans_result:
             transformation = trans_result[0]
-            self.scorer.calculate_score(transformation)
+            self.scorer.calculate_score(transformation, force=force)
 
         # Score all synthesis alternatives if present
         for synthesis, _ in wu.synthesis.all():
-            self.scorer.calculate_score(synthesis)
+            self.scorer.calculate_score(synthesis, force=force)
 
     def calculate_relevance(self, wu: WisdomUnit) -> Optional[float]:
         """

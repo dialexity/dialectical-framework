@@ -33,16 +33,17 @@ class SpiralCalculator(BaseCalculator):
     - Includes spiral-level rationale Rs (via GM, no rating)
     """
 
-    def score_children(self, spiral: Spiral) -> None:
+    def score_children(self, spiral: Spiral, force: bool = False) -> None:
         """
         Score all transitions in this spiral.
 
         Args:
             spiral: Spiral whose transitions should be scored
+            force: If True, force rescore even if children appear valid
         """
         transitions = spiral.transitions_ordered  # Uses SequenceTopologyMixin
         for trans in transitions:
-            self.scorer.calculate_score(trans)
+            self.scorer.calculate_score(trans, force=force)
 
     def calculate_probability(self, spiral: Spiral) -> Optional[float]:
         """
