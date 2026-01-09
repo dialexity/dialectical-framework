@@ -6,7 +6,7 @@ This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional, TYPE_CHECKING
+from typing import Any, ClassVar, Optional, Union, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
@@ -20,6 +20,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.nodes.input import Input
+    from dialectical_framework.graph.nodes.rationale import Rationale
 
 
 class DialecticalComponent(AssessableEntity):
@@ -51,6 +53,18 @@ class DialecticalComponent(AssessableEntity):
 
     source_of: ClassVar[RelationshipManager[Transition]] = RelationshipTo("Transition", "IS_SOURCE_OF")
     target_of: ClassVar[RelationshipManager[Transition]] = RelationshipFrom("Transition", "IS_TARGET_OF")
+
+    # Reverse relationship - find the source node that created this statement
+    # HAS_STATEMENT can come from different node types:
+    # - Input: statement extracted from external source
+    # - Transition: statement derived from dialectical transition
+    # - Rationale: key point extracted from rationale
+    # Each statement has at most one source (same text in different sources = different nodes)
+    input: ClassVar[RelationshipManager[Union[Input, Transition, Rationale]]] = RelationshipFrom(
+        ("Input", "Transition", "Rationale"),  # Match any of these node types
+        "HAS_STATEMENT",
+        cardinality=(0, 1),  # Zero (self-originated) or one source
+    )
 
     def __repr__(self) -> str:
         """String representation of the component."""

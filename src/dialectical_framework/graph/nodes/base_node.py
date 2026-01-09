@@ -6,7 +6,7 @@ This module provides the foundational node class that all other graph nodes inhe
 
 from __future__ import annotations
 
-from typing import Union
+from typing import Optional, Union
 from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
@@ -22,9 +22,19 @@ class BaseNode(Node):
 
     All nodes in the system inherit from this class and automatically
     get a unique identifier (uid).
+
+    Attributes:
+        uid: Auto-generated unique identifier (UUID)
+        handle: Optional user-friendly identifier (slug, readable name).
+                Use instead of uid for human-facing references.
+        uri: Optional pointer to source of origin. None if self-originated
+             (content created within this system). Set when node references
+             or derives from external content (URL, IPFS, another dw:// graph).
     """
 
     uid: str = Field(default_factory=lambda: str(uuid4()))
+    handle: Optional[str] = None
+    uri: Optional[str] = None
 
     @inject
     def save(
