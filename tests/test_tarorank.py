@@ -449,7 +449,7 @@ class TestRationaleAuditWins:
         c_est = RelevanceEstimation(value=0.5)
         c_est.save()
         critique.estimations.connect(c_est)
-        rationale.rationales.connect(critique)
+        rationale.critiques.connect(critique)
 
         # Rationale should aggregate via audit-wins (GM of deepest critiques)
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
@@ -482,7 +482,7 @@ class TestRationaleAuditWins:
         a1_est = RelevanceEstimation(value=0.7)
         a1_est.save()
         audit1.estimations.connect(a1_est)
-        rationale.rationales.connect(audit1)
+        rationale.critiques.connect(audit1)
 
         # Second audit (auditing the auditor)
         audit2 = Rationale(text="Second audit")
@@ -490,7 +490,7 @@ class TestRationaleAuditWins:
         a2_est = RelevanceEstimation(value=0.4)
         a2_est.save()
         audit2.estimations.connect(a2_est)
-        audit1.rationales.connect(audit2)
+        audit1.critiques.connect(audit2)
 
         # Calculate - should use deepest audit (audit2)
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
@@ -874,7 +874,7 @@ class TestComplexScoringScenarios:
         audit_prob = ProbabilityEstimation(value=0.6)
         audit_prob.save()
         audit.estimations.connect(audit_prob)
-        rationale.rationales.connect(audit)
+        rationale.critiques.connect(audit)
 
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
         scorer = TaroRank(alpha=1.0)
