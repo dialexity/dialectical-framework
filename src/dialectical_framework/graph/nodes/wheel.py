@@ -820,6 +820,24 @@ class Wheel(AssessableEntity):
                     transformation, _ = transformation_result
                     cycles_to_check.append((f"WU{idx} Trans", transformation))
 
+            def format_rationale_tree(rationales: list, indent: int = 0) -> list[str]:
+                """Format rationale hierarchy with scores."""
+                lines = []
+                prefix = "  " * indent + "- " if indent > 0 else "- "
+                for rat in rationales:
+                    # Format rationale line with scores
+                    text_preview = rat.text[:40] + "..." if rat.text and len(rat.text) > 40 else (rat.text or "Unnamed rationale")
+                    s_str = f"S={fmt_score(rat.score, colorize=False)}"
+                    r_str = f"R={fmt_relevance(rat, colorize=False)}"
+                    p_str = f"P={fmt_probability(rat, colorize=False)}"
+                    lines.append(f"{prefix}{text_preview} [{s_str} | {r_str} | {p_str}]")
+
+                    # Get critiques (audit rationales)
+                    critiques = [c for c, _ in rat.critiques.all()]
+                    if critiques:
+                        lines.extend(format_rationale_tree(critiques, indent + 1))
+                return lines
+
             for cycle_name, cycle_obj in cycles_to_check:
                 if cycle_obj is None:
                     continue
@@ -830,15 +848,19 @@ class Wheel(AssessableEntity):
                     r = fmt_relevance(trans, colorize=True)
                     p = fmt_probability(trans, colorize=True)
 
-                    # Get rationale summary
-                    rationale = trans.best_rationale
-                    rationale_text = rationale.text[:50] + "..." if rationale and rationale.text and len(rationale.text) > 50 else (rationale.text if rationale else "N/A")
+                    # Get rationale hierarchy
+                    rationales = [rat for rat, _ in trans.rationales.all()]
+                    if rationales:
+                        rationale_lines = format_rationale_tree(rationales)
+                        rationale_text = "\n".join(rationale_lines)
+                    else:
+                        rationale_text = "No rationales"
 
                     transitions_data.append([cycle_name, trans_repr, s, r, p, rationale_text])
 
             if transitions_data:
-                headers = ["Cycle", "Transition", "S", "R", "P", "Rationale"]
-                output.append(tabulate(transitions_data, headers=headers, tablefmt="simple"))
+                headers = ["Cycle", "Transition", "S", "R", "P", "Rationales"]
+                output.append(tabulate(transitions_data, headers=headers, tablefmt="grid"))
             else:
                 output.append("[No transitions]")
             output.append("")
