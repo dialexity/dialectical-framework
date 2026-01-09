@@ -140,6 +140,19 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         return self.ac_re_prompt(self._text, focus=focus)
 
     async def think(self, focus: WheelSegment) -> list[Transition]:
+        """
+        Calculate action-reflection transitions for a wisdom unit.
+
+        Action-reflection always creates both T-side and A-side transitions
+        together, as they form one transformation unit. The focus segment
+        is used to identify which WU to process.
+
+        Args:
+            focus: The wheel segment identifying the WU to process
+
+        Returns:
+            List of transitions created/updated (always both T- → A+ and A- → T+)
+        """
         wu = self._wheel.wisdom_unit_at(focus)
 
         async_reasoning_threads = [
@@ -255,7 +268,17 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             # Return the transitions we updated with new rationales
             return transitions_updated
         else:
-            # No transformation exists - create new transformation with transitions
+            # No transformation exists - create new transformation with both transitions
+            # Create transformation first
+            transformation = Transformation()
+            transformation.save()
+
+            # Connect ac_re wisdom unit to transformation
+            transformation.ac_re.connect(ac_re_wu)
+
+            # Connect transformation to wisdom unit
+            wu.transformation.connect(transformation)
+
             # Transition 1: T- → A+
             rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
             rationale1.save()
@@ -265,6 +288,8 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             transition1.source.connect(t_minus_comp)
             transition1.target.connect(a_plus_comp)
             transition1.rationales.connect(rationale1)
+
+            transformation.transitions.connect(transition1)
 
             # Transition 2: A- → T+
             rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
@@ -276,21 +301,9 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             transition2.target.connect(t_plus_comp)
             transition2.rationales.connect(rationale2)
 
-            # Create transformation
-            transformation = Transformation()
-            transformation.save()
-
-            # Connect ac_re wisdom unit to transformation
-            transformation.ac_re.connect(ac_re_wu)
-
-            # Connect transformation to wisdom unit
-            wu.transformation.connect(transformation)
-
-            # Connect transitions to transformation
-            transformation.transitions.connect(transition1)
             transformation.transitions.connect(transition2)
 
-            # Return newly created transitions
+            # Return both newly created transitions
             return [transition1, transition2]
 
     @staticmethod
