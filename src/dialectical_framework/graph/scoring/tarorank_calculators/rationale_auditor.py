@@ -86,29 +86,33 @@ class RationaleAuditor:
         3. Otherwise use parent's normal aggregation logic
         4. No hard veto on R=0 (soft exclusion)
 
+        Note: FeasibilityEstimation is used as fallback for relevance
+        (same priority as in AssessableEntity.relevance property).
+
         Args:
             rationale: Rationale node to evaluate
 
         Returns:
             R value or None if no relevance evidence
         """
-        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
+        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation, FeasibilityEstimation
 
         # Get deepest critiques (matching legacy _get_deepest_critiques)
         deepest_critiques = self._get_deepest_critiques(rationale)
 
         if deepest_critiques:
             # Aggregate deepest critique relevances
+            # Try RelevanceEstimation first, then FeasibilityEstimation as fallback
             critique_r = self._aggregate_critique_values(
                 deepest_critiques,
-                lambda c: self._get_manual_value(c, RelevanceEstimation)
+                lambda c: self._get_manual_relevance_with_fallback(c)
             )
             if critique_r is not None:
                 return critique_r
 
         # No critiques or critiques have no value → use own manual relevance
         # (Simplified: no wheels support, just own value)
-        return self._get_manual_value(rationale, RelevanceEstimation)
+        return self._get_manual_relevance_with_fallback(rationale)
 
     def _get_deepest_critiques(self, rationale: Rationale) -> list[Rationale]:
         """
@@ -202,6 +206,30 @@ class RationaleAuditor:
                 return None
             weighted_sum = sum(v * w for v, w in zip(values, weights))
             return weighted_sum / total_weight
+
+    def _get_manual_relevance_with_fallback(self, rationale: Rationale) -> Optional[float]:
+        """
+        Get manual relevance with FeasibilityEstimation fallback.
+
+        Priority order (matches AssessableEntity.relevance):
+        1. RelevanceEstimation (manual)
+        2. FeasibilityEstimation (manual fallback)
+
+        Args:
+            rationale: Rationale to get relevance from
+
+        Returns:
+            Relevance value or None if no evidence
+        """
+        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation, FeasibilityEstimation
+
+        # Try RelevanceEstimation first
+        relevance = self._get_manual_value(rationale, RelevanceEstimation)
+        if relevance is not None:
+            return relevance
+
+        # Fallback to FeasibilityEstimation
+        return self._get_manual_value(rationale, FeasibilityEstimation)
 
     def _get_manual_value(self, rationale: Rationale, estimation_type: Type[T]) -> Optional[float]:
         """
