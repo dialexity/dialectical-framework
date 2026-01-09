@@ -22,7 +22,7 @@ class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
             text=self.text, wheel=wheel, brain=self.reasoner.brain
         )
 
-        return [await consultant.think(at)]
+        return await consultant.think(at)
 
     async def _do_calculate_transitions_all(
         self, wheel: Wheel
