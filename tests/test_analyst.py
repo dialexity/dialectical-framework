@@ -4,49 +4,10 @@ from langfuse.decorators import observe
 from dialectical_framework.analyst.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
 from dialectical_framework.analyst.decorator_discrete_spiral_audited import DecoratorDiscreteSpiralAudited
-from dialectical_framework.domain.dialectical_component import DialecticalComponent
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
-from dialectical_framework.domain.wisdom_unit import WisdomUnit
-from dialectical_framework.utils.dw_report import dw_report
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
 
-# import litellm
-# litellm._turn_on_debug()
-
-# Examples
-example_wu1 = WisdomUnit(
-    t_minus=DialecticalComponent(alias="T1-", statement="Destructive aggression"),
-    t=DialecticalComponent(alias="T1", statement="Putin initiates war"),
-    t_plus=DialecticalComponent(alias="T1+", statement="Strategic power projection"),
-    a_plus=DialecticalComponent(alias="A1+", statement="Mutual understanding"),
-    a=DialecticalComponent(alias="A1", statement="Peace negotiations"),
-    a_minus=DialecticalComponent(alias="A1-", statement="Passive submission"),
-)
-example_wu2 = WisdomUnit(
-    t_minus=DialecticalComponent(alias="T2-", statement="Endless conflict and destruction"),
-    t=DialecticalComponent(alias="T2", statement="Ukraine resists invasion"),
-    t_plus=DialecticalComponent(alias="T2+", statement="Liberation and sovereignty protected"),
-    a_plus=DialecticalComponent(alias="A2+", statement="Immediate peace achieved"),
-    a=DialecticalComponent(alias="A2", statement="Ukraine surrenders to invasion"),
-    a_minus=DialecticalComponent(alias="A2-", statement="Freedom and independence lost"),
-)
-example_wu3 = WisdomUnit(
-    t_minus=DialecticalComponent(alias="T3-", statement="Military resources drain rapidly"),
-    t=DialecticalComponent(alias="T3", statement="Russian offensive weakens"),
-    t_plus=DialecticalComponent(alias="T3+", statement="Ukrainian victory approaches"),
-    a_plus=DialecticalComponent(alias="A3+", statement="Strategic military strength maintained"),
-    a=DialecticalComponent(alias="A3", statement="Russian military dominance persists"),
-    a_minus=DialecticalComponent(alias="A3-", statement="Total defeat inevitable"),
-)
-example_wu4 = WisdomUnit(
-    t_minus=DialecticalComponent(alias="T4-", statement="Vengeance intensifies"),
-    t=DialecticalComponent(alias="T4", statement="Ukrainian victory approaches"),
-    t_plus=DialecticalComponent(alias="T4+", statement="Freedom restored"),
-    a_plus=DialecticalComponent(alias="A4+", statement="Stability maintained"),
-    a=DialecticalComponent(alias="A4", statement="Russian dominance persists"),
-    a_minus=DialecticalComponent(alias="A4-", statement="Oppression deepens"),
-)
 
 @pytest.mark.asyncio
 @observe()

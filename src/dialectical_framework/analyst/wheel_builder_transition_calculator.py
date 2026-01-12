@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
-from dialectical_framework import DialecticalComponent
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
@@ -11,6 +10,7 @@ from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel, WheelSegmentReference
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit

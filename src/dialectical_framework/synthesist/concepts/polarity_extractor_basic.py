@@ -11,8 +11,7 @@ from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 from dialectical_framework.synthesist.concepts.thesis_extractor_basic import ThesisExtractorBasic
-from dialectical_framework.domain.wheel_segment import ALIAS_T
-from dialectical_framework.domain.wisdom_unit import ALIAS_A
+from dialectical_framework.graph.nodes.wisdom_unit import POSITION_T as ALIAS_T, POSITION_A as ALIAS_A
 from dialectical_framework.utils.use_brain import use_brain
 
 

@@ -7,7 +7,6 @@ from dependency_injector.wiring import Provide
 
 logger = logging.getLogger(__name__)
 
-from dialectical_framework.ai_dto.dto_mapper import map_list_from_dto
 from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
 from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
