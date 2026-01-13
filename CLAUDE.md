@@ -1,6 +1,66 @@
-# CLAUDE.md
+# CLAUDE.md - AI Co-Developer Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides context for Claude Code to be an effective co-developer on the Dialectical Framework.
+
+## What is the Dialectical Framework?
+
+A semantic graph system for dialectical reasoning - modeling thesis-antithesis-synthesis dynamics as graph structures. Used for systems analysis, wisdom mining, and ethical modeling.
+
+### Core Metaphor: The Wheel
+
+Think of a Dialectical Wheel as a pizza:
+- **Wheel** = entire pizza (top-level container)
+- **Segment** = pizza slice (contains T, T+, T- components)
+- **WisdomUnit** = half-pizza (T-segment + opposing A-segment)
+
+### Key Positions (6 core + 2 synthesis)
+
+| Position | Meaning | Example |
+|----------|---------|---------|
+| T | Neutral thesis | "Remote work exists" |
+| T+ | Positive aspect of thesis | "Eliminates commute" |
+| T- | Negative aspect of thesis | "Causes isolation" |
+| A | Neutral antithesis | "Office work exists" |
+| A+ | Positive aspect of antithesis | "Enables collaboration" |
+| A- | Negative aspect of antithesis | "Requires presence" |
+| S+ | Positive synthesis | "Hybrid model works" |
+| S- | Negative synthesis | "Context switching cost" |
+
+### Structural Elements
+
+- **Transition**: Recipe for moving between segments (T-→A+, A-→T+)
+- **Transformation**: Internal spiral within a WisdomUnit (2 transitions)
+- **Cycle**: Sequence of transitions (T-cycle, TA-cycle)
+- **Spiral**: Transformational sequence (softer than cycle)
+- **Input**: External content source (URL/IPFS) linked to extracted components
+
+---
+
+## Quick Navigation
+
+### Where Things Live
+
+| Purpose | Location |
+|---------|----------|
+| DI Container (START HERE) | `src/dialectical_framework/dialectical_reasoning.py` |
+| Graph nodes | `src/dialectical_framework/graph/nodes/*.py` |
+| Relationships | `src/dialectical_framework/graph/relationships/*.py` |
+| Relationship API | `src/dialectical_framework/graph/relationship_manager.py` |
+| Scoring (TaroRank) | `src/dialectical_framework/graph/scoring/tarorank.py` |
+| AI/LLM reasoning | `src/dialectical_framework/synthesist/` |
+| Analysis tools | `src/dialectical_framework/analyst/` |
+| Configuration | `src/dialectical_framework/settings.py` |
+| LLM abstraction | `src/dialectical_framework/brain.py` |
+
+### Key Files to Understand First
+
+1. `graph/nodes/base_node.py` - Foundation (uid, handle, save())
+2. `graph/nodes/assessable_entity.py` - Scoreable nodes (P, R, score)
+3. `graph/relationship_manager.py` - Declarative relationship API
+4. `graph/scoring/tarorank.py` - Score = P × R^α
+5. `dialectical_reasoning.py` - DI container setup
+
+---
 
 ## Development Commands
 
@@ -14,40 +74,129 @@ This is a Python project using Poetry for dependency management:
 - **Activate virtual environment**: `poetry shell`
 - **Build package**: `poetry build`
 
-## Core Architecture
+---
 
-The Dialectical Framework implements a semantic graph system for dialectical reasoning, structured as a wheel metaphor:
+## Architecture Overview
 
-### Core Components
+### Technology Stack
 
-- **Wheel**: The main container composed of segments, representing a complete dialectical system
-- **WheelSegment**: Individual "slices" of the wheel, each containing dialectical components
-- **WisdomUnit**: A half-wheel structure containing thesis-antithesis pairs with validation constraints
-- **DialecticalComponent**: Basic building blocks representing statements/concepts with aliases (T, A, T+, A-, etc.)
-- **Transition**: Rules for moving between segments, enabling synthesis pathways
+- **Graph DB**: Memgraph or Neo4j (via GQLAlchemy)
+- **DI**: dependency-injector
+- **Validation**: Pydantic v1
+- **LLM**: Mirascope (OpenAI, Anthropic, LiteLLM)
+- **Python**: 3.11+
 
-### Key Domain Objects
+### Module Map
 
-- **Cycle**: Represents cyclical patterns in dialectical reasoning
-- **Spiral**: Advanced cycle with transformational properties
-- **Transformation**: Rules for converting dialectical components
-- **Rationale**: Explanatory context for dialectical relationships
+```
+src/dialectical_framework/
+├── brain.py                  # LLM abstraction (provider-agnostic)
+├── settings.py               # Configuration via environment
+├── dialectical_reasoning.py  # DI container (START HERE)
+│
+├── graph/                    # Core graph-native data model
+│   ├── nodes/               # BaseNode → AssessableEntity → {Component, WU, Wheel, ...}
+│   ├── relationships/       # Polarity, opposition relationship models
+│   ├── scoring/             # TaroRank: Score = P × R^α
+│   │   └── tarorank_calculators/  # Per-node-type calculators
+│   ├── repositories/        # Data access layer
+│   └── relationship_manager.py    # RelationshipTo/From declarative API
+│
+├── synthesist/              # Reasoning engines
+│   ├── polarity/           # Extract T/A pairs from text
+│   ├── causality/          # Order transitions (BALANCED, REALISTIC, etc.)
+│   └── concepts/           # Concept extraction
+│
+├── analyst/                 # Analysis & validation
+│   ├── consultant.py       # Base for transition analysis
+│   └── decorators          # Action-reflection, spiral decorators
+│
+├── protocols/               # Python Protocol interfaces
+├── ai_dto/                  # DTOs for LLM communication
+├── enums/                   # DI enum, CausalityType, etc.
+└── utils/                   # Helpers
+```
 
-### Architectural Patterns
+---
 
-1. **Protocol-Based Design**: Uses Python protocols (`Assessable`, `Ratable`, `HasBrain`) for flexible composition
-2. **Circular Dependency Resolution**: The `__init__.py` file carefully orders imports and rebuilds Pydantic models to resolve circular references
-3. **AI Integration**: Heavy use of Mirascope for LLM interactions, with Brain abstraction for model switching
-4. **Dependency Injection**: Uses `dependency-injector` for service composition
+## Core Patterns
 
-### Module Structure
+### Dependency Injection
 
-- `synthesist/`: Core reasoning engines (polarity, causality, concepts)
-- `analyst/`: Analysis and validation tools (domain objects, consultants, decorators)
-- `protocols/`: Interface definitions for extensibility
-- `ai_dto/`: Data transfer objects for AI interactions
-- `utils/`: Utility functions and helpers
-- `validator/`: Validation and checking logic
+```python
+from dependency_injector.wiring import inject, Provide
+from dialectical_framework.enums.di import DI
+
+@inject
+def my_function(
+    graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    settings: Settings = Provide[DI.settings],
+    tarorank: TaroRank = Provide[DI.tarorank],
+):
+    # All services injected automatically
+    pass
+```
+
+### Graph Node Lifecycle
+
+```python
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+
+# Create and save
+component = DialecticalComponent(statement="Remote work increases productivity")
+component.save()  # Uses injected graph_db
+
+wu = WisdomUnit()
+wu.save()
+
+# Connect (child→parent direction)
+wu.t.connect(component)
+
+# Access
+result = wu.t.get()  # Returns (node, relationship) or None
+all_items = wu.t.all()  # Returns [(node, rel), ...]
+count = wu.t.count()
+
+# Disconnect
+wu.t.disconnect(component)
+```
+
+### Relationship Pattern (CRITICAL)
+
+RelationshipTo and RelationshipFrom define the **SAME edge** from different perspectives:
+
+```python
+# Child defines outgoing edge TO parent
+class WisdomUnit(AssessableEntity):
+    wheel = RelationshipTo("Wheel", "BELONGS_TO_WHEEL")  # WU→Wheel
+
+# Parent sees incoming edge FROM children (SAME edge!)
+class Wheel(AssessableEntity):
+    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_WHEEL")
+```
+
+**Convention**: Child→Parent edges use `RelationshipTo` on child.
+
+### Scoring
+
+```python
+from dependency_injector.wiring import inject, Provide
+from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.scoring.tarorank import TaroRank
+
+@inject
+def score_wheel(
+    wheel: Wheel,
+    tarorank: TaroRank = Provide[DI.tarorank]
+):
+    tarorank.score_node(wheel)  # Recursive depth-first scoring
+    print(f"Score: {wheel.score}")  # P × R^α
+    print(f"P: {wheel.probability}")
+    print(f"R: {wheel.relevance}")
+```
+
+---
 
 ## Environment Configuration
 
@@ -55,40 +204,54 @@ Required environment variables:
 - `DIALEXITY_DEFAULT_MODEL`: Default LLM model (e.g., "gpt-4")
 - `DIALEXITY_DEFAULT_MODEL_PROVIDER`: Model provider ("openai", "anthropic", etc.)
 
+Optional:
+- `DIALEXITY_GRAPH_DB_VENDOR`: "memgraph" (default) or "neo4j"
+- `DIALEXITY_GRAPH_DB_HOST`: Database host (default: "127.0.0.1")
+- `DIALEXITY_GRAPH_DB_PORT`: Database port (default: 7687)
+- `DIALEXITY_TARORANK_ALPHA`: Relevance exponent (default: 1.0)
+
 Store these in a `.env` file in the project root.
 
-## Testing
+---
 
-Tests are located in `tests/` directory. The project uses pytest with asyncio support enabled. Key test files:
-- `test_synthesist.py`: Core reasoning engine tests
-- `test_analyst.py`: Analysis functionality tests
-- `test_wu_construction.py`: Wisdom Unit construction tests
-- `conftest.py`: Shared test configuration
+## Critical Conventions
 
-## Development Notes
+### DO NOT modify `__init__.py` files
 
-- **Pydantic Models**: Many classes inherit from Pydantic models for validation and serialization
-- **Async Support**: The framework supports both sync and async operations
-- **Model Rebuilding**: Due to circular dependencies, Pydantic models require explicit rebuilding in `__init__.py`
-- **AI Brain Abstraction**: The `Brain` class provides a unified interface for different LLM providers
-- **Contextual Fidelity**: The system tracks probability and confidence propagation through dialectical structures
-- Scoring architecture is described in scoring.md
+These files handle critical import ordering and circular dependency resolution. Adding logic to `__init__.py` files can break imports. Put helper functions in separate modules instead.
 
-## Important Conventions
+### Adding New Node Types
 
-- **DO NOT update `__init__.py` files**: These files handle critical import ordering and circular dependency resolution. Adding logic to `__init__.py` files can break imports. Put helper functions in separate modules instead.
-- **Graph Database**: The framework uses `graph_db` (via DI) for graph-native structures with Memgraph/Neo4j
+1. Create class in `graph/nodes/`, inherit from `BaseNode` or `AssessableEntity`
+2. Use `ClassVar[RelationshipManager[T]]` for relationship descriptors
+3. If assessable, add calculator in `graph/scoring/tarorank_calculators/`
+4. Register calculator in `tarorank.py`
+
+### Relationship Cardinality
+
+```python
+# Exactly one
+t: ClassVar[RelationshipManager[Component]] = RelationshipFrom(..., cardinality=(1, 1))
+
+# Zero or one
+transformation: ClassVar[...] = RelationshipFrom(..., cardinality=(0, 1))
+
+# Zero or more
+rationales: ClassVar[...] = RelationshipFrom(..., cardinality=(0, None))
+```
+
+---
 
 ## Type Hints Best Practices
 
-⚠️ **CRITICAL: NEVER USE QUOTED TYPE STRINGS!** ⚠️
+**CRITICAL: NEVER USE QUOTED TYPE STRINGS!**
 
-**This is a hard requirement. Every module MUST use `from __future__ import annotations` + `TYPE_CHECKING`.**
+This is a hard requirement. Every module MUST use `from __future__ import annotations` + `TYPE_CHECKING`.
 
 ### The Golden Rule
 
 ```python
-# ✅ ALWAYS DO THIS
+# ALWAYS DO THIS
 from __future__ import annotations  # MANDATORY - First import in EVERY module!
 
 from typing import TYPE_CHECKING
@@ -99,7 +262,7 @@ if TYPE_CHECKING:
 def my_function(arg: SomeType) -> list[SomeType]:  # NO QUOTES!
     ...
 
-# ❌ NEVER DO THIS
+# NEVER DO THIS
 def my_function(arg: "SomeType") -> "list[SomeType]":  # WRONG - Don't use quotes!
     ...
 ```
@@ -110,14 +273,14 @@ def my_function(arg: "SomeType") -> "list[SomeType]":  # WRONG - Don't use quote
 
 **ALWAYS provide type hints for function parameters and return types.** This project values strong typing:
 
-- ✅ Type ALL function parameters
-- ✅ Type ALL return values (including `None`)
-- ✅ Use specific types over `Any` whenever possible
-- ✅ Prefer `list[Type]` over `list` or `List`
-- ✅ Prefer `dict[KeyType, ValueType]` over `dict` or `Dict`
+- Type ALL function parameters
+- Type ALL return values (including `None`)
+- Use specific types over `Any` whenever possible
+- Prefer `list[Type]` over `list` or `List`
+- Prefer `dict[KeyType, ValueType]` over `dict` or `Dict`
 
 ```python
-# ✅ GOOD - Fully typed
+# GOOD - Fully typed
 def process_components(
     components: list[DialecticalComponent],
     filter_fn: Optional[Callable[[DialecticalComponent], bool]] = None
@@ -126,7 +289,7 @@ def process_components(
         return [c for c in components if filter_fn(c)]
     return components
 
-# ❌ BAD - Missing types
+# BAD - Missing types
 def process_components(components, filter_fn=None):
     if filter_fn:
         return [c for c in components if filter_fn(c)]
@@ -151,82 +314,17 @@ if TYPE_CHECKING:
 2. **`TYPE_CHECKING`**: Makes types available to IDEs and type checkers without runtime imports
 3. **No quoted strings**: Write `Union[Cycle, Spiral]` NOT `"Union[Cycle, Spiral]"`
 
-### Examples
-
-**✅ CORRECT - Use actual types:**
-```python
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, ClassVar
-
-if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.transition import Transition
-
-class Cycle(BaseNode):
-    # IDE can autocomplete .all(), .connect(), etc.
-    transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(...)
-
-    def get_components(self) -> list[DialecticalComponent]:
-        return [comp for comp in self.components]
-```
-
-**❌ INCORRECT - Avoid quoted strings:**
-```python
-# BAD: No __future__ annotations, uses strings
-class Cycle(BaseNode):
-    transitions: ClassVar[RelationshipManager["Transition"]] = RelationshipFrom(...)
-
-    def get_components(self) -> "list[DialecticalComponent]":  # Don't quote!
-        return [comp for comp in self.components]
-```
-
 ### Generic Type Parameters
 
 When using `RelationshipManager`, ALWAYS specify the generic type:
 
 ```python
-# ✅ CORRECT - IDE sees methods
+# CORRECT - IDE sees methods
 transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(...)
 
-# ❌ WRONG - IDE can't resolve methods
+# WRONG - IDE can't resolve methods
 transitions: ClassVar[RelationshipManager] = RelationshipFrom(...)
 ```
-
-### Benefits
-
-- IDE autocomplete works perfectly (`.all()`, `.connect()`, `.get()`, `.count()`)
-- Type checkers (mypy, pyright) can verify correctness
-- No "Unresolved attribute reference" warnings
-- Better refactoring support
-- Catches bugs at development time instead of runtime
-- Makes code self-documenting and easier to understand
-
-### Descriptor Protocol Typing
-
-When implementing descriptors (like `RelationshipManager`), use `@overload` to help IDEs understand the return types:
-
-```python
-from typing import overload
-
-class RelationshipManager(Generic[T]):
-    @overload
-    def __get__(self, instance: None, owner: type) -> RelationshipManager[T]:
-        """When accessed on class, returns descriptor itself."""
-        ...
-
-    @overload
-    def __get__(self, instance: Node, owner: type) -> BoundRelationshipManager[T]:
-        """When accessed on instance, returns bound manager."""
-        ...
-
-    def __get__(self, instance, owner):
-        """Actual implementation."""
-        if instance is None:
-            return self
-        return BoundRelationshipManager(...)
-```
-
-This allows IDEs to properly resolve methods like `.all()`, `.connect()`, etc. on relationship attributes.
 
 ### ClassVar Requirement for GQLAlchemy Descriptors
 
@@ -239,7 +337,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
 
 class Cycle(AssessableEntity):
-    # ✅ REQUIRED - ClassVar tells GQLAlchemy metaclass to skip this field
+    # REQUIRED - ClassVar tells GQLAlchemy metaclass to skip this field
     transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(...)
 ```
 
@@ -249,47 +347,74 @@ class Cycle(AssessableEntity):
 - This causes `AttributeError: 'ForwardRef' object has no attribute '__name__'`
 - `ClassVar` tells the metaclass "this is class-level, don't process as a field"
 
-**Known limitation with Union types:**
-When using descriptors on Union types, type checkers may struggle:
-
-```python
-@inject
-def order_transitions(
-    cycle_or_spiral: Union[Cycle, Spiral],
-    graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-) -> list[Transition]:
-    # Type checkers struggle with descriptor protocol on Union types
-    # Use explicit annotation with type: ignore to help IDE
-    transitions_manager: BoundRelationshipManager[Transition] = cycle_or_spiral.transitions  # type: ignore[assignment]
-    all_transitions = [trans for trans, _ in transitions_manager.all()]  # Now IDE sees .all()
-```
-
-This is a known limitation of type checkers with descriptors. The code works correctly at runtime.
-
 ### Modern Python Type Syntax
 
 Use Python 3.10+ syntax (this project targets Python 3.11+):
 
 ```python
-# ✅ GOOD - Modern syntax
+# GOOD - Modern syntax
 def get_items() -> list[str]:
     return ["a", "b"]
-
-def get_mapping() -> dict[str, int]:
-    return {"a": 1}
 
 def union_type(value: int | str) -> int | str:
     return value
 
-# ❌ OLD - Don't use typing.List, typing.Dict
+# OLD - Don't use typing.List, typing.Dict
 from typing import List, Dict, Union
 
 def get_items() -> List[str]:  # Don't use List
     return ["a", "b"]
-
-def get_mapping() -> Dict[str, int]:  # Don't use Dict
-    return {"a": 1}
-
-def union_type(value: Union[int, str]) -> Union[int, str]:  # Prefer | over Union
-    return value
 ```
+
+---
+
+## Testing
+
+### Key Test Files
+
+- `test_graph.py` (64KB): Core graph operations, WisdomUnits, components
+- `test_tarorank.py` (48KB): Comprehensive scoring tests
+- `test_synthesist.py`: Reasoning engines
+- `conftest.py`: DI setup and fixtures
+
+### DI in Tests
+
+Tests use session-scoped DI container with test database wrapper. Test nodes are auto-labeled for cleanup.
+
+```python
+# conftest.py pattern
+@pytest.fixture(scope="session", autouse=True)
+def di_container():
+    container = DialecticalReasoning.setup(Settings.from_env())
+    container.graph_db.override(providers.Singleton(_create_test_graph_db, ...))
+    yield container
+    container.unwire()
+```
+
+### Writing Tests
+
+```python
+def test_create_wisdom_unit():
+    wu = WisdomUnit()
+    wu.save()
+
+    t = DialecticalComponent(statement="Democracy empowers citizens")
+    t.save()
+    wu.t.connect(t)
+
+    assert wu.t.count() == 1
+    result = wu.t.get()
+    assert result is not None
+    component, rel = result
+    assert component.statement == "Democracy empowers citizens"
+```
+
+---
+
+## Documentation References
+
+| Doc | Purpose |
+|-----|---------|
+| `docs/graph.md` | Quick reference for graph data model |
+| `docs/scoring.md` | Complete TaroRank specification |
+| `src/dialectical_framework/graph/CLAUDE.md` | Deep dive into graph architecture |

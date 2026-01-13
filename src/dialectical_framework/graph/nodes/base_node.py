@@ -27,14 +27,10 @@ class BaseNode(Node):
         uid: Auto-generated unique identifier (UUID)
         handle: Optional user-friendly identifier (slug, readable name).
                 Use instead of uid for human-facing references.
-        uri: Optional pointer to source of origin. None if self-originated
-             (content created within this system). Set when node references
-             or derives from external content (URL, IPFS, another dw:// graph).
     """
 
     uid: str = Field(default_factory=lambda: str(uuid4()))
     handle: Optional[str] = None
-    uri: Optional[str] = None
 
     @inject
     def save(

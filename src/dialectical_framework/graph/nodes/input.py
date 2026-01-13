@@ -8,7 +8,7 @@ happens at the application layer.
 
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING
+from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
@@ -24,11 +24,14 @@ class Input(BaseNode):
     """
     A source of content for dialectical analysis.
 
-    Input nodes point to external content via the inherited `uri` field.
+    Input nodes point to external content via the `content_uri` field.
     Statements extracted from the content are linked via HAS_STATEMENT.
+    These statements form the basis for dialectical wheels.
 
-    The `uri` field (inherited from BaseNode) should always be set for Input,
-    as it IS the pointer to the source content.
+    Attributes:
+        content_uri: URI of the source content from which statements are derived.
+                     This is the external context upon which the dialectical
+                     analysis is based.
 
     URI schemes:
         - https://example.com/article - Web content
@@ -42,7 +45,7 @@ class Input(BaseNode):
 
     Example:
         input_node = Input(
-            uri="https://bbc.com/article/123",
+            content_uri="https://bbc.com/article/123",
             handle="bbc-ukraine-article"
         )
         input_node.save()
@@ -51,6 +54,9 @@ class Input(BaseNode):
         input_node.statements.connect(component1)
         input_node.statements.connect(component2)
     """
+
+    # URI of the source content from which statements are derived
+    content_uri: Optional[str] = None
 
     # Statements extracted from this input
     statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(

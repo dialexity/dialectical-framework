@@ -25,7 +25,7 @@ from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.utils.order_transitions import order_transitions
+from dialectical_framework.utils.order_transitions import order_transitions
 
 
 def test_create_simple_wisdom_unit():
