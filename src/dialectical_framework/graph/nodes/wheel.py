@@ -47,10 +47,19 @@ class Wheel(AssessableEntity):
     The wheel metaphor represents the circular, iterative nature of
     dialectical reasoning where thesis and antithesis are arranged in segments.
 
+    Attributes:
+        input_uri: The content source this Wheel's analysis is based on.
+            This makes the Wheel a self-contained artifact that knows its origin.
+            Format: Any valid URI (http, https, ipfs, file, s3, data, etc.)
+            Example: "https://example.com/article" or "ipfs://Qm..."
+
     Properties:
-    - order: Number of wisdom units (computed from relationships)
-    - degree: Total segments = order × 2 (computed)
+        polarity_count: Number of wisdom units (computed from relationships)
+        segment_count: Total segments = polarity_count × 2 (computed)
     """
+
+    # The content source this Wheel is based on (makes Wheel self-contained)
+    input_uri: Optional[str] = None
 
     def __init__(self, **data):
         """Initialize wheel with polar pair cache."""

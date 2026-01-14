@@ -98,7 +98,7 @@ graph/
 │   ├── assessable_entity.py       # AssessableEntity (score, P, R, rationales)
 │   ├── dialectical_component.py   # DialecticalComponent (statement)
 │   ├── wisdom_unit.py             # WisdomUnit (t, a, t_plus, t_minus, etc.)
-│   ├── wheel.py                   # Wheel (wisdom_units, cycles, spiral)
+│   ├── wheel.py                   # Wheel (wisdom_units, cycles, spiral, input_uri)
 │   ├── cycle.py                   # Cycle (transitions)
 │   ├── spiral.py                  # Spiral (transitions)
 │   ├── transformation.py          # Transformation (internal WU spiral)
@@ -164,7 +164,7 @@ BaseNode (uid, handle, save())
 ### Node Containment (Wheel Structure)
 
 ```
-Wheel
+Wheel (input_uri: content source)
   ├── WisdomUnits (1+)
   │   ├── DialecticalComponents (T, A, T+, T-, A+, A-)
   │   │   └── Rationales (0+) → Rationales (0+) [recursive critiques]
@@ -175,11 +175,12 @@ Wheel
   │       └── ac_re: WisdomUnit (action-reflection context)
   ├── Cycles (T-cycle, TA-cycle)
   │   └── Transitions (2+)
-  ├── Spiral (0-1)
-  │   └── Transitions (2+)
-  └── Input (0+)
-      └── statements → DialecticalComponents
+  └── Spiral (0-1)
+      └── Transitions (2+)
 ```
+
+**Note:** `Input` node is optional—for apps needing extraction provenance.
+The `Wheel.input_uri` makes Wheels self-contained artifacts.
 
 ---
 
@@ -541,10 +542,26 @@ wu.wheel      # Parent Wheel (cardinality 0,1)
 ### Wheel Specific
 
 ```python
+wheel.input_uri     # Content source URI (self-contained provenance)
 wheel.wisdom_units  # WisdomUnit nodes (cardinality 1,N)
 wheel.t_cycle       # T-cycle (cardinality 0,1)
 wheel.ta_cycle      # TA-cycle (cardinality 0,1)
 wheel.spiral        # Spiral (cardinality 0,1)
+```
+
+**Wheel as Self-Contained Artifact:**
+
+The `input_uri` field stores the content source this Wheel's analysis is based on,
+making the Wheel a portable, self-contained artifact that can be shared or exported
+independently without requiring graph traversal to Input nodes.
+
+```python
+# Create a wheel with its source
+wheel = Wheel(input_uri="https://example.com/article")
+wheel.save()
+
+# All WisdomUnits in this wheel implicitly share this source
+# Components are vocabulary—their extraction origin is app-level concern
 ```
 
 ---

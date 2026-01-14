@@ -30,9 +30,28 @@ Wheel (top-level)
 | **Cycle** | Causal loop | `transitions`, `_wheel_as_t`, `_wheel_as_ta` |
 | **Spiral** | Transformational sequence | `transitions`, `_wheel_as_spiral` |
 | **Transformation** | Internal WU spiral | `transitions`, `wisdom_unit`, `ac_re` |
-| **Wheel** | Top container | `wisdom_units`, `t_cycle`, `ta_cycle`, `spiral` |
+| **Wheel** | Top container | `wisdom_units`, `t_cycle`, `ta_cycle`, `spiral`, `input_uri` |
 | **Rationale** | Evidence/explanation | `explanation`, `critiques` |
 | **Estimation** | P/R values | `assessed_entity` |
+| **Input** | Content source | `statements` (optional, for extraction provenance) |
+
+## Wheel as Self-Contained Artifact
+
+A Wheel carries its source reference directly via `input_uri`, making it a portable, self-contained analytical artifact:
+
+```python
+wheel = Wheel(input_uri="https://example.com/article")
+wheel.save()
+
+# Later: reconstruct analysis context
+print(f"This wheel analyzes: {wheel.input_uri}")
+```
+
+**Design rationale:**
+- Wheels can be shared/exported independently
+- No dependency on external Input nodes for provenance
+- All WisdomUnits in a Wheel share the same source (the Wheel's `input_uri`)
+- Components are vocabulary—their extraction origin is an app-level concern
 
 ## Relationship Patterns
 
