@@ -124,10 +124,13 @@ class WisdomUnit(AssessableEntity):
     )
 
     # Relationship to Wheel
+    # WisdomUnits are shared across Wheels within the same t_cycle group.
+    # This enables synchronized reasoning quality - scoring a WU affects all
+    # wheels in the group. Isolation happens at the t_cycle group level.
     wheel: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
         "BELONGS_TO_WHEEL",
-        cardinality=(0, 1)  # Zero or one wheel
+        cardinality=(0, None)  # Zero or more wheels (shared within t_cycle group)
     )
 
     # Internal transformation spiral (T- → A+, A- → T+)
