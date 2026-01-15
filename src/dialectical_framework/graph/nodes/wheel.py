@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import ClassVar, Union, Optional, TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
     POSITION_T_PLUS,
@@ -20,6 +20,8 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_A_MINUS,
 )
 
+from dialectical_framework.graph.relationships.branching_relationship import BranchingRelationship
+
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -27,6 +29,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.spiral import Spiral
+    from dialectical_framework.graph.growth.increment import Increment
+    from dialectical_framework.graph.growth.decrement import Decrement
+    from dialectical_framework.graph.growth.refinement import Refinement
 
     # Type alias for flexible wheel segment references (no integer indexing in graph-native)
     WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
@@ -92,6 +97,14 @@ class Wheel(AssessableEntity):
         "Spiral",
         "IS_SPIRAL_OF",
         cardinality=(0, 1)  # Zero or one wheel-level spiral (Transformations are internal to WisdomUnits)
+    )
+
+    # Branches from this wheel (evolution operations)
+    # Wheel -[BRANCHES]-> Increment, Decrement, or Refinement
+    branches: ClassVar[RelationshipManager[Increment | Decrement | Refinement]] = RelationshipTo(
+        ("Increment", "Decrement", "Refinement"),
+        model=BranchingRelationship,
+        cardinality=(0, None)  # Zero or more branches
     )
 
     @property

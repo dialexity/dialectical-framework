@@ -14,9 +14,12 @@ from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
+from dialectical_framework.graph.relationships.branching_relationship import BranchingRelationship
+
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.growth.reconsideration import Reconsideration
 
 
 class Cycle(CircularTopologyMixin, AssessableEntity):
@@ -66,6 +69,14 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
         "Wheel",
         "IS_TA_CYCLE_OF",
         cardinality=(0, 1)
+    )
+
+    # Branches from this cycle (reconsideration operations)
+    # Cycle -[BRANCHES]-> Reconsideration
+    branches: ClassVar[RelationshipManager[Reconsideration]] = RelationshipTo(
+        "Reconsideration",
+        model=BranchingRelationship,
+        cardinality=(0, None)  # Zero or more reconsiderations
     )
 
     def get_wheel(self) -> Wheel | None:

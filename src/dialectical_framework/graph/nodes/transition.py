@@ -11,6 +11,7 @@ from typing import ClassVar, TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationships.branching_relationship import BranchingRelationship
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.wheel_segment import WheelSegment
+    from dialectical_framework.graph.growth.sprout import Sprout
 
 
 class Transition(AssessableEntity):
@@ -71,6 +73,13 @@ class Transition(AssessableEntity):
     derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
         "HAS_STATEMENT",
+        cardinality=(0, None)
+    )
+
+    # Branches from this transition (spawns new statements via Sprout)
+    branches: ClassVar[RelationshipManager[Sprout]] = RelationshipTo(
+        "Sprout",
+        model=BranchingRelationship,
         cardinality=(0, None)
     )
 
