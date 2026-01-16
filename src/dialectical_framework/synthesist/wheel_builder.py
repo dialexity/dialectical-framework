@@ -201,14 +201,14 @@ class WheelBuilder(SettingsAware):
             w.save()
 
             # Connect wisdom units (all cycles use same WUs, different interpretations)
-            # IMPORTANT: WUs must be connected BEFORE cycles (validated by connect_t_cycle/connect_ta_cycle)
+            # IMPORTANT: WUs must be connected BEFORE cycles (validated by pre_connect hook)
             for wu in wheel_wisdom_units:
                 w.wisdom_units.connect(wu)
 
             # Connect cycles (T-cycle is the primary path, TA-cycle is the permutation)
-            # Uses validated methods that ensure cycle WUs are already in this wheel
-            w.connect_t_cycle(t_cycle)
-            w.connect_ta_cycle(cycle)
+            # pre_connect hook validates that cycle WUs are already in this wheel
+            w.t_cycle.connect(t_cycle)
+            w.ta_cycle.connect(cycle)
 
             # Set human-friendly indices on wisdom units if multiple WUs
             if len(wheel_wisdom_units) > 1:
@@ -562,11 +562,11 @@ class WheelBuilder(SettingsAware):
             for wu in new_wus:
                 new_wheel.wisdom_units.connect(wu)
 
-            # Connect matched cycles (validated to ensure WUs are in wheel)
+            # Connect matched cycles (pre_connect hook validates WUs are in wheel)
             if matching_t_cycle:
-                new_wheel.connect_t_cycle(matching_t_cycle)
+                new_wheel.t_cycle.connect(matching_t_cycle)
             if matching_ta_cycle:
-                new_wheel.connect_ta_cycle(matching_ta_cycle)
+                new_wheel.ta_cycle.connect(matching_ta_cycle)
 
             new_wheels.append(new_wheel)
 

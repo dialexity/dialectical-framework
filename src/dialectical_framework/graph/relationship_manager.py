@@ -274,6 +274,78 @@ class BoundRelationshipManager(Generic[T]):
         self.direction = direction
         self.cardinality = cardinality
 
+    def _validate_cycle_wheel_connection(self, target_node: Node) -> None:
+        """
+        Validate Cycle <-> Wheel connections.
+
+        When connecting a Cycle to a Wheel (or vice versa), validates that all
+        WisdomUnits referenced by the cycle are already connected to the wheel.
+
+        This is called automatically by connect() - works regardless of which
+        side initiates the connection.
+        """
+        from dialectical_framework.graph.nodes.cycle import Cycle
+        from dialectical_framework.graph.nodes.wheel import Wheel
+
+        # Determine which is the Cycle and which is the Wheel
+        if isinstance(self.source_node, Cycle) and isinstance(target_node, Wheel):
+            cycle, wheel = self.source_node, target_node
+        elif isinstance(self.source_node, Wheel) and isinstance(target_node, Cycle):
+            wheel, cycle = self.source_node, target_node
+        else:
+            return  # Not a Cycle-Wheel connection, skip validation
+
+        # Validate: all WisdomUnits in cycle must be connected to wheel
+        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+
+        # Get all WisdomUnits connected to this wheel
+        wheel_wu_uids = {wu.uid for wu, _ in wheel.wisdom_units.all()}
+
+        if not wheel_wu_uids:
+            raise ValueError(
+                "Cannot connect cycle to wheel: wheel has no WisdomUnits. "
+                "Connect WisdomUnits to the wheel first."
+            )
+
+        # Get all transitions from the cycle
+        transitions = cycle.transitions.all()
+        if not transitions:
+            return  # Empty cycle, nothing to validate
+
+        # Collect all unique components from transitions
+        components_by_uid: dict[str, Node] = {}
+        for transition, _ in transitions:
+            source_result = transition.source.get()
+            if source_result:
+                comp = source_result[0]
+                components_by_uid[comp.uid] = comp
+            target_result = transition.target.get()
+            if target_result:
+                comp = target_result[0]
+                components_by_uid[comp.uid] = comp
+
+        # For each component, verify it belongs to a WU that's in this wheel
+        repo = WisdomUnitRepository()
+        for component in components_by_uid.values():
+            component_wus = repo.find_by_dialectical_component(component)
+
+            if not component_wus:
+                stmt = getattr(component, 'statement', str(component.uid))[:50]
+                raise ValueError(
+                    f"Cannot connect cycle: component '{stmt}...' "
+                    f"(uid={component.uid}) does not belong to any WisdomUnit."
+                )
+
+            # Check if at least one of the component's WUs is in this wheel
+            component_wu_uids = {wu.uid for wu, _ in component_wus}
+            if not component_wu_uids.intersection(wheel_wu_uids):
+                stmt = getattr(component, 'statement', str(component.uid))[:50]
+                raise ValueError(
+                    f"Cannot connect cycle: component '{stmt}...' "
+                    f"(uid={component.uid}) belongs to WisdomUnit(s) not connected to this wheel. "
+                    f"Connect the WisdomUnit to the wheel first."
+                )
+
     @inject
     def connect(
         self,
@@ -321,6 +393,9 @@ class BoundRelationshipManager(Generic[T]):
             ValueError: If nodes haven't been saved or cardinality constraint violated
         """
         db = graph_db  # Use injected db
+
+        # Type-based validation: Cycle <-> Wheel connections require WU validation
+        self._validate_cycle_wheel_connection(target_node)
 
         # Helper function to get node ID
         def get_node_id(node):

@@ -300,22 +300,22 @@ def test_cycle_str_formatting():
     for trans in transitions:
         cycle.transitions.connect(trans)
 
-    # Create Wheel with WisdomUnits
-    wheel = Wheel()
-    wheel.save()
-
-    # Connect cycle to wheel as T-cycle
-    wheel.t_cycle.connect(cycle)
-
-    # Create WisdomUnit and connect components with aliases
+    # Create WisdomUnit and connect components with aliases FIRST
     wu = WisdomUnit()
     wu.save()
-    wu.wheel.connect(wheel)
 
     wu.t.connect(components[0], properties={'alias': 'T'})
     wu.t_plus.connect(components[1], properties={'alias': 'T+'})
     wu.t_minus.connect(components[2], properties={'alias': 'T-'})
     wu.a.connect(components[3], properties={'alias': 'A'})
+
+    # Create Wheel and connect WisdomUnit BEFORE cycle
+    wheel = Wheel()
+    wheel.save()
+    wu.wheel.connect(wheel)
+
+    # Connect cycle to wheel as T-cycle (validation passes because WU is connected)
+    wheel.t_cycle.connect(cycle)
 
     # Test 1: Automatic Wheel resolution (no parameters needed!)
     cycle_string = str(cycle)  # Use __str__ instead of as_str()
