@@ -58,11 +58,12 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
     )
 
     # Reverse relationships to Wheel (private - use get_wheel() instead)
-    # Cycle can be either t_cycle or ta_cycle of a wheel
+    # t_cycle defines the "sharing group" - multiple wheels can share the same t_cycle
+    # ta_cycle is unique per wheel (each wheel has its own permutation)
     _wheel_as_t: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
         "IS_T_CYCLE_OF",
-        cardinality=(0, 1)
+        cardinality=(0, None)  # Shared across wheels in t_cycle group
     )
 
     _wheel_as_ta: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(

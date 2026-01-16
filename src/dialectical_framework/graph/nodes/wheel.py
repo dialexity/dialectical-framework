@@ -107,6 +107,101 @@ class Wheel(AssessableEntity):
         cardinality=(0, None)  # Zero or more branches
     )
 
+    def _validate_cycle_wisdom_units(self, cycle: Cycle) -> None:
+        """
+        Validate that all WisdomUnits referenced by a cycle are connected to this wheel.
+
+        This enforces the invariant: WisdomUnits participating in a cycle must already
+        be connected to the wheel before connecting the cycle. It is never valid to have
+        wisdom units from one place and cycles from another.
+
+        Args:
+            cycle: The Cycle to validate
+
+        Raises:
+            ValueError: If any component in the cycle belongs to a WisdomUnit
+                       that is not connected to this wheel
+        """
+        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+
+        # Get all WisdomUnits connected to this wheel
+        wheel_wu_uids = {wu.uid for wu, _ in self.wisdom_units.all()}
+
+        if not wheel_wu_uids:
+            raise ValueError(
+                "Cannot connect cycle: wheel has no WisdomUnits. "
+                "Connect WisdomUnits to the wheel first."
+            )
+
+        # Get all transitions from the cycle
+        transitions = cycle.transitions.all()
+        if not transitions:
+            return  # Empty cycle, nothing to validate
+
+        # Collect all unique components from transitions (use dict to dedup by uid)
+        components_by_uid: dict[str, DialecticalComponent] = {}
+        for transition, _ in transitions:
+            source_result = transition.source.get()
+            if source_result:
+                comp = source_result[0]
+                components_by_uid[comp.uid] = comp
+            target_result = transition.target.get()
+            if target_result:
+                comp = target_result[0]
+                components_by_uid[comp.uid] = comp
+
+        # For each component, verify it belongs to a WU that's in this wheel
+        repo = WisdomUnitRepository()
+        for component in components_by_uid.values():
+            component_wus = repo.find_by_dialectical_component(component)
+
+            if not component_wus:
+                raise ValueError(
+                    f"Cannot connect cycle: component '{component.statement[:50]}...' "
+                    f"(uid={component.uid}) does not belong to any WisdomUnit."
+                )
+
+            # Check if at least one of the component's WUs is in this wheel
+            component_wu_uids = {wu.uid for wu, _ in component_wus}
+            if not component_wu_uids.intersection(wheel_wu_uids):
+                raise ValueError(
+                    f"Cannot connect cycle: component '{component.statement[:50]}...' "
+                    f"(uid={component.uid}) belongs to WisdomUnit(s) not connected to this wheel. "
+                    f"Connect the WisdomUnit to the wheel first."
+                )
+
+    def connect_t_cycle(self, cycle: Cycle) -> None:
+        """
+        Connect a t_cycle to this wheel with validation.
+
+        Validates that all WisdomUnits referenced by the cycle are already
+        connected to this wheel before creating the relationship.
+
+        Args:
+            cycle: The Cycle to connect as t_cycle
+
+        Raises:
+            ValueError: If validation fails (WisdomUnits not connected to wheel)
+        """
+        self._validate_cycle_wisdom_units(cycle)
+        self.t_cycle.connect(cycle)
+
+    def connect_ta_cycle(self, cycle: Cycle) -> None:
+        """
+        Connect a ta_cycle to this wheel with validation.
+
+        Validates that all WisdomUnits referenced by the cycle are already
+        connected to this wheel before creating the relationship.
+
+        Args:
+            cycle: The Cycle to connect as ta_cycle
+
+        Raises:
+            ValueError: If validation fails (WisdomUnits not connected to wheel)
+        """
+        self._validate_cycle_wisdom_units(cycle)
+        self.ta_cycle.connect(cycle)
+
     @property
     def polarity_count(self) -> int:
         """
