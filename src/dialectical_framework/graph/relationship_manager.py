@@ -26,6 +26,119 @@ from dialectical_framework.enums.di import DI
 
 T = TypeVar("T", bound=Node)
 
+# Cache for inverse relationship lookup
+# Key: (source_class_name, target_class_name, relationship_type)
+# Value: (inverse_manager, attr_name) or None if no inverse exists
+_inverse_cache: dict[tuple[str, str, str], tuple[RelationshipManager, str] | None] = {}
+
+
+def _get_all_subclasses(cls: type) -> dict[str, type]:
+    """Recursively collect all subclasses of a class."""
+    result = {}
+    for subclass in cls.__subclasses__():
+        result[subclass.__name__] = subclass
+        result.update(_get_all_subclasses(subclass))
+    return result
+
+
+def _get_node_class_by_name(name: str) -> type | None:
+    """Resolve a node class by name by searching BaseNode subclasses."""
+    from dialectical_framework.graph.nodes.base_node import BaseNode
+    from gqlalchemy import Node
+
+    # Special case for base types
+    if name == "Node":
+        return Node
+    if name == "BaseNode":
+        return BaseNode
+
+    # Dynamically discover all node subclasses
+    all_classes = _get_all_subclasses(BaseNode)
+    return all_classes.get(name)
+
+
+def _is_class_compatible(source_class_name: str, target_class_names: list[str]) -> bool:
+    """
+    Check if source_class_name is compatible with any of the target_class_names.
+
+    This handles inheritance - e.g., DialecticalComponent is compatible with
+    AssessableEntity because it's a subclass.
+
+    Args:
+        source_class_name: The name of the class to check
+        target_class_names: List of class names that are acceptable targets
+
+    Returns:
+        True if source_class_name matches exactly or is a subclass of any target
+    """
+    # Quick exact match check
+    if source_class_name in target_class_names:
+        return True
+
+    source_class = _get_node_class_by_name(source_class_name)
+    if source_class is None:
+        return False
+
+    for target_name in target_class_names:
+        target_class = _get_node_class_by_name(target_name)
+        if target_class is not None and issubclass(source_class, target_class):
+            return True
+
+    return False
+
+
+def _find_inverse_manager(
+    source_class_name: str,
+    target_class: type,
+    relationship_type: str,
+    source_direction: str
+) -> tuple[RelationshipManager, str] | None:
+    """
+    Find the inverse RelationshipManager on target_class.
+
+    Args:
+        source_class_name: Name of the source class
+        target_class: The class to search for inverse
+        relationship_type: The relationship type to match
+        source_direction: Direction of the calling relationship
+
+    Returns:
+        Tuple of (inverse RelationshipManager, attribute name) or None if not found.
+        None means no cardinality constraint on the target side (implicit 0, None).
+    """
+    target_class_name = target_class.__name__
+    cache_key = (source_class_name, target_class_name, relationship_type)
+
+    if cache_key in _inverse_cache:
+        return _inverse_cache[cache_key]
+
+    # Determine opposite direction
+    if source_direction == "outgoing":
+        opposite_direction = "incoming"
+    elif source_direction == "incoming":
+        opposite_direction = "outgoing"
+    else:  # "any" - cannot determine inverse
+        _inverse_cache[cache_key] = None
+        return None
+
+    # Search target class for inverse (include private _attrs)
+    for attr_name in dir(target_class):
+        attr = getattr(target_class, attr_name, None)
+        if not isinstance(attr, RelationshipManager):
+            continue
+
+        if (attr.relationship_type == relationship_type and
+            attr.direction == opposite_direction and
+            _is_class_compatible(source_class_name, attr.target_class_names)):
+            result = (attr, attr_name)
+            _inverse_cache[cache_key] = result
+            return result
+
+    # No inverse found = no cardinality constraint on target side (implicit 0, None)
+    _inverse_cache[cache_key] = None
+    return None
+
+
 class RelationshipManager(Generic[T]):
     """
     Manages relationships for a node, providing a clean API similar to neomodel.
@@ -236,6 +349,23 @@ class BoundRelationshipManager(Generic[T]):
         source_id = get_node_id(self.source_node)
         target_id = get_node_id(target_node)
 
+        # For symmetric relationships (direction="any"), check if already connected
+        # in either direction. If so, return existing relationship (idempotent).
+        if self.direction == "any":
+            query = f"""
+            MATCH (a)-[r:{self.relationship_type}]-(b)
+            WHERE id(a) = $source_id AND id(b) = $target_id
+            RETURN r as relationship
+            LIMIT 1
+            """
+            result = list(db.execute_and_fetch(query, {
+                "source_id": source_id,
+                "target_id": target_id
+            }))
+            if result:
+                # Already connected - return existing relationship
+                return result[0]["relationship"]
+
         # Check max cardinality before adding
         if self.cardinality:
             min_card, max_card = self.cardinality
@@ -247,6 +377,41 @@ class BoundRelationshipManager(Generic[T]):
                     f"Cannot add relationship: maximum cardinality "
                     f"{max_card} already reached (current: {current_count})"
                 )
+
+        # Check inverse cardinality (target node's constraint)
+        # If no inverse is defined, it means unbounded (0, None) - no constraint
+        inverse_result = _find_inverse_manager(
+            source_class_name=self.source_node.__class__.__name__,
+            target_class=target_node.__class__,
+            relationship_type=self.relationship_type,
+            source_direction=self.direction
+        )
+
+        if inverse_result is not None:
+            inverse_manager, inverse_attr_name = inverse_result
+
+            if inverse_manager.cardinality is not None:
+                inv_min, inv_max = inverse_manager.cardinality
+
+                if inv_max is not None:
+                    # Count from target's perspective
+                    target_bound = BoundRelationshipManager(
+                        source_node=target_node,
+                        target_class_name=inverse_manager.target_class_name,
+                        relationship_type=inverse_manager.relationship_type,
+                        relationship_model=inverse_manager.relationship_model,
+                        direction=inverse_manager.direction,
+                        cardinality=inverse_manager.cardinality,
+                    )
+                    inv_count = target_bound.count()
+
+                    if inv_count >= inv_max:
+                        raise ValueError(
+                            f"Cannot add relationship: target's cardinality "
+                            f"constraint violated. {target_node.__class__.__name__} "
+                            f"already has {inv_count} '{inverse_attr_name}' "
+                            f"relationship(s), maximum is {inv_max}."
+                        )
 
         # Determine start and end based on direction
         if self.direction == "outgoing":
@@ -537,10 +702,19 @@ def RelationshipBoth(
     target_class: str | Type[T] | tuple[str | Type[T], ...],
     relationship_type: Optional[str] = None,
     model: Optional[Type[GQLRelationship]] = None,
-    cardinality: Optional[tuple[int, Optional[int]]] = None,
 ) -> RelationshipManager[T]:
     """
-    Define a bidirectional relationship (similar to neomodel's Relationship).
+    Define a bidirectional/symmetric relationship.
+
+    This is for truly symmetric relationships like "friends" where if A is
+    connected to B, then B is connected to A (same edge, either direction).
+
+    Key behaviors:
+    - connect() is idempotent: if already connected in either direction, no-op
+    - all()/count() query edges in both directions
+    - No cardinality support (doesn't make sense for symmetric relationships)
+
+    For relationships needing cardinality, use RelationshipTo/RelationshipFrom pairs.
 
     Args:
         target_class: Target node class (name, class, or tuple for Union types).
@@ -548,7 +722,6 @@ def RelationshipBoth(
         relationship_type: Cypher relationship type (optional if model is provided,
                           will be inferred from model.type)
         model: Optional relationship model class
-        cardinality: (min, max) where max=None means unbounded
 
     Returns:
         RelationshipManager descriptor
@@ -560,5 +733,5 @@ def RelationshipBoth(
         relationship_type=relationship_type,
         relationship_model=model,
         direction="any",
-        cardinality=cardinality,
+        cardinality=None,  # Cardinality not supported for symmetric relationships
     )

@@ -66,6 +66,11 @@ class DialecticalComponent(AssessableEntity):
         cardinality=(0, 1),  # Zero (self-originated) or one source
     )
 
+    # Note: Inverse relationships for polarity positions (T, T+, T-, A, A+, A-)
+    # are NOT defined here because DialecticalComponents have no cardinality
+    # constraints - the same component can be used in unlimited WisdomUnits.
+    # No inverse = implicit (0, None) cardinality.
+
     def __repr__(self) -> str:
         """String representation of the component."""
         statement_preview = (

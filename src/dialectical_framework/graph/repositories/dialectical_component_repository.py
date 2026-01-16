@@ -67,3 +67,4 @@ class DialecticalComponentRepository:
 
         results = graph_db.execute_and_fetch(query, {"wisdom_unit_id": wisdom_unit._id})
         return [(result["c"], result["alias"]) for result in results]
+

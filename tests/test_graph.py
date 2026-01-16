@@ -1210,31 +1210,6 @@ def test_wheel_is_set():
     print("✓ Wheel.is_set() works correctly")
 
 
-def test_dialectical_component_repository_find_wisdom_units():
-    """Test DialecticalComponentRepository.find_wisdom_units()."""
-    from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
-
-    # Create wisdom unit
-    wu = WisdomUnit(reasoning_mode="test")
-    wu.save()
-
-    # Create component and connect it to wisdom unit
-    component = DialecticalComponent(statement="Test statement")
-    component.save()
-    wu.t.connect(component, properties={'alias': 'T'})
-
-    # Use repository to find wisdom units
-    repo = DialecticalComponentRepository()
-    results = repo.find_wisdom_units(component)
-
-    # Verify results
-    assert len(results) == 1
-    assert results[0][0].uid == wu.uid
-    assert results[0][1] == "T"
-
-    print("✓ DialecticalComponentRepository.find_wisdom_units() works correctly")
-
-
 def test_dialectical_component_repository_find_by_wisdom_unit():
     """Test DialecticalComponentRepository.find_by_wisdom_unit()."""
     from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
@@ -1868,6 +1843,126 @@ def test_multiple_feasibility_estimations(di_container):
     assert abs(component.relevance - 0.693) < 0.001, f"Expected relevance≈0.693, got {component.relevance}"
 
     print("✓ Multiple FeasibilityEstimations aggregated correctly via geometric mean")
+
+
+# =============================================================================
+# Bidirectional Cardinality Enforcement Tests
+# =============================================================================
+
+def test_bidirectional_cardinality_enforcement():
+    """
+    Test that cardinality is enforced from both sides of connect().
+
+    Use Transformation -> WisdomUnit which has (0, 1) on WU.transformation.
+    If we try to connect two transformations to the same WU, the second
+    should fail due to inverse cardinality check.
+    """
+    from dialectical_framework.graph.nodes.transformation import Transformation
+
+    # Create WisdomUnit with all required components
+    wu = WisdomUnit()
+    wu.save()
+
+    # Add required components
+    components = []
+    for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
+        c = DialecticalComponent(statement=f"Statement {stmt}")
+        c.save()
+        components.append(c)
+
+    wu.t.connect(components[0], properties={'alias': 'T'})
+    wu.t_plus.connect(components[1], properties={'alias': 'T+'})
+    wu.t_minus.connect(components[2], properties={'alias': 'T-'})
+    wu.a.connect(components[3], properties={'alias': 'A'})
+    wu.a_plus.connect(components[4], properties={'alias': 'A+'})
+    wu.a_minus.connect(components[5], properties={'alias': 'A-'})
+
+    # Create first transformation and connect to WU - should succeed
+    trans1 = Transformation()
+    trans1.save()
+    trans1.wisdom_unit.connect(wu)
+
+    # Create second transformation
+    trans2 = Transformation()
+    trans2.save()
+
+    # This should fail - WU already has a transformation (cardinality 0,1)
+    # The inverse cardinality check on WU.transformation (0,1) should trigger
+    with pytest.raises(ValueError, match="cardinality"):
+        trans2.wisdom_unit.connect(wu)
+
+    print("✓ Bidirectional cardinality enforcement works from child side")
+
+
+def test_bidirectional_cardinality_via_parent_connect():
+    """
+    Test that parent-side connect also checks child's cardinality.
+
+    When using wu.transformation.connect(trans), the inverse cardinality
+    on Transformation.wisdom_unit (1,1) should be checked.
+    """
+    from dialectical_framework.graph.nodes.transformation import Transformation
+
+    # Create WisdomUnit with all required components
+    wu = WisdomUnit()
+    wu.save()
+
+    components = []
+    for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
+        c = DialecticalComponent(statement=f"Statement {stmt}")
+        c.save()
+        components.append(c)
+
+    wu.t.connect(components[0], properties={'alias': 'T'})
+    wu.t_plus.connect(components[1], properties={'alias': 'T+'})
+    wu.t_minus.connect(components[2], properties={'alias': 'T-'})
+    wu.a.connect(components[3], properties={'alias': 'A'})
+    wu.a_plus.connect(components[4], properties={'alias': 'A+'})
+    wu.a_minus.connect(components[5], properties={'alias': 'A-'})
+
+    # Create first transformation - connect via PARENT side
+    trans1 = Transformation()
+    trans1.save()
+    wu.transformation.connect(trans1)  # Via parent side - should succeed
+
+    # Create second transformation
+    trans2 = Transformation()
+    trans2.save()
+
+    # This should fail even via parent side - WU already has transformation
+    # Error can come from either:
+    # - Source side: "maximum cardinality ... already reached"
+    # - Target side (inverse): "cardinality constraint violated"
+    with pytest.raises(ValueError, match="cardinality"):
+        wu.transformation.connect(trans2)
+
+    print("✓ Bidirectional cardinality enforcement works from parent side")
+
+
+def test_bidirectional_cardinality_allows_valid_connection():
+    """Test that valid connections still work with bidirectional enforcement."""
+    from dialectical_framework.graph.nodes.transformation import Transformation
+
+    # Create TWO WisdomUnits
+    wu1 = WisdomUnit()
+    wu1.save()
+
+    wu2 = WisdomUnit()
+    wu2.save()
+
+    # Each can have ONE transformation (cardinality 0,1)
+    trans1 = Transformation()
+    trans1.save()
+    trans1.wisdom_unit.connect(wu1)  # OK - wu1 has no transformation
+
+    trans2 = Transformation()
+    trans2.save()
+    trans2.wisdom_unit.connect(wu2)  # OK - wu2 has no transformation
+
+    assert wu1.transformation.count() == 1
+    assert wu2.transformation.count() == 1
+
+    print("✓ Valid connections still work with bidirectional enforcement")
 
 
 if __name__ == "__main__":

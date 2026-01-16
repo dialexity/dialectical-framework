@@ -140,8 +140,9 @@ class WisdomUnit(AssessableEntity):
         cardinality=(0, 1)  # Zero or one internal transformation spiral
     )
 
-    # Note: Transformation.ac_re points to action-reflection WisdomUnit
-    # To find transformations referencing this WU, query via Transformation.ac_re
+    # Note: Transformation.ac_re points to action-reflection WisdomUnit.
+    # No inverse defined here - a WU can be the ac_re for unlimited transformations.
+    # No inverse = implicit (0, None) cardinality.
 
     def __repr__(self) -> str:
         """String representation of the wisdom unit."""

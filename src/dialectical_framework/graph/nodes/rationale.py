@@ -63,7 +63,15 @@ class Rationale(AssessableEntity):
     critiques: ClassVar[RelationshipManager[Rationale]] = RelationshipFrom(
         "Rationale",
         "CRITIQUES",
-        cardinality=(0, None)  # Zero or more critiques
+        cardinality=(0, None)  # Zero or more critiques can target this rationale
+    )
+
+    # Inverse: the rationale this one critiques (outgoing edge)
+    # A rationale can critique at most one other rationale
+    _critiques_target: ClassVar[RelationshipManager[Rationale]] = RelationshipTo(
+        "Rationale",
+        "CRITIQUES",
+        cardinality=(0, 1)  # Zero or one target (can critique at most one rationale)
     )
 
     derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
