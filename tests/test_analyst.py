@@ -30,12 +30,14 @@ async def test_full_blown_wheel(number_of_thoughts):
     # Verify structure
     assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {wheel.polarity_count}"
 
-    # Verify cycles exist
-    t_cycle_result = wheel.t_cycle.get()
-    assert t_cycle_result is not None, "T-cycle should exist"
+    # Verify cycle exists (new architecture: Wheel belongs to Cycle)
+    cycle_result = wheel.cycle.get()
+    assert cycle_result is not None, "Wheel should belong to a Cycle"
 
-    ta_cycle_result = wheel.ta_cycle.get()
-    assert ta_cycle_result is not None, "TA-cycle should exist"
+    # Verify Nexus exists (via cycle)
+    cycle_obj, _ = cycle_result
+    nexus = cycle_obj.get_nexus()
+    assert nexus is not None, "Cycle should belong to a Nexus"
 
     # Calculate transitions (spiral will be created during this step)
     await factory1.calculate_transitions(wheel)
@@ -117,12 +119,14 @@ async def test_wheel_spiral(number_of_thoughts):
     # Verify structure
     assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {wheel.polarity_count}"
 
-    # Verify cycles exist
-    t_cycle_result = wheel.t_cycle.get()
-    assert t_cycle_result is not None, "T-cycle should exist"
+    # Verify cycle exists (new architecture: Wheel belongs to Cycle)
+    cycle_result = wheel.cycle.get()
+    assert cycle_result is not None, "Wheel should belong to a Cycle"
 
-    ta_cycle_result = wheel.ta_cycle.get()
-    assert ta_cycle_result is not None, "TA-cycle should exist"
+    # Verify Nexus exists (via cycle)
+    cycle_obj, _ = cycle_result
+    nexus = cycle_obj.get_nexus()
+    assert nexus is not None, "Cycle should belong to a Nexus"
 
     # Calculate transitions (spiral will be created during this step)
     await factory1.calculate_transitions(wheel=wheel)
@@ -169,12 +173,14 @@ async def test_wheel_acre(number_of_thoughts, request):
     assert len(wheels) > 0
     wheel = wheels[0]
 
-    # Check that cycles exist (graph-native)
-    t_cycle_result = wheel.t_cycle.get()
-    assert t_cycle_result is not None, "T-cycle should exist"
+    # Check that cycle exists (new architecture: Wheel belongs to Cycle)
+    cycle_result = wheel.cycle.get()
+    assert cycle_result is not None, "Wheel should belong to a Cycle"
 
-    ta_cycle_result = wheel.ta_cycle.get()
-    assert ta_cycle_result is not None, "TA-cycle should exist"
+    # Verify Nexus exists (via cycle)
+    cycle_obj, _ = cycle_result
+    nexus = cycle_obj.get_nexus()
+    assert nexus is not None, "Cycle should belong to a Nexus"
 
     # First call to calculate_transitions
     await factory2.calculate_transitions(wheel)

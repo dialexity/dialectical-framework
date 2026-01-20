@@ -75,7 +75,8 @@ The scoring system is built on the `Assessable` protocol with the following inhe
     - `Cycle` - Sequences of transitions between components
     - `Spiral` - Transformational cycles between segments
   - `WisdomUnit` - Thesis-antithesis pairs with synthesis and transformation
-  - `Wheel` - Complete dialectical systems containing multiple WisdomUnits
+  - `Nexus` - Pool of WisdomUnits where collective insights emerge (staging area before cycle arrangement)
+  - `Wheel` - Complete dialectical systems (detailed implementation of a cycle arrangement)
 
 **Key Behavioral Differences:**
 - **Hard Veto Policy**: Components and transitions with zero values (R=0 or P=0) indicate structural impossibility and return 0
@@ -87,22 +88,32 @@ The scoring system is built on the `Assessable` protocol with the following inhe
 **R tracks "Does this make sense in context or reality?"**
 
 ```
-Level 4: Wheel
-         ├─ Aggregates all WisdomUnit Rs
-         ├─ Includes external Transition Rs (wheel-level connections)
+Level 5: Wheel
+         ├─ Uses Nexus R (via parent Cycle)
+         ├─ Includes wheel-level Transition Rs (ta-cycle detail)
+         ├─ Includes Spiral R (if present)
          └─ Includes wheel-level Rationale Rs
 
-Level 3: WisdomUnit
+Level 4: Cycle
+         ├─ Uses Nexus R (scoring child)
+         ├─ Includes cycle-level Transition Rs
+         └─ Includes cycle-level Rationale Rs
+
+Level 3: Nexus (pool of WisdomUnits)
+         ├─ Aggregates all WisdomUnit Rs (GM)
+         └─ Includes nexus-level Rationale Rs
+
+Level 2: WisdomUnit
          ├─ Aggregates both WheelSegment Rs (T-side + A-side)
          ├─ Includes Transformation R (internal spiral)
          ├─ Includes Synthesis R
          └─ Includes unit-level Rationale Rs
 
-Level 2: WheelSegment
+Level 1: WheelSegment
          ├─ Aggregates DialecticalComponent Rs (T, T+, T-)
          └─ Includes segment-level Rationale Rs
 
-Level 1: DialecticalComponent (leaf)
+Level 0: DialecticalComponent (leaf)
          ├─ Own R × own rating
          └─ Includes component-level Rationale Rs
 
@@ -122,23 +133,29 @@ Level 1: DialecticalComponent (leaf)
 **P tracks "Could this structural arrangement work?"**
 
 ```
-Level 3: Wheel
-         ├─ GM of canonical cycle probabilities (T, TA, Spiral)
-         └─ Includes summary of WisdomUnit transformation probabilities
+Level 4: Wheel
+         ├─ Parent Cycle P
+         ├─ Nexus P (via Cycle → Nexus)
+         ├─ Wheel-level Transitions P (product)
+         └─ Spiral P (if present)
 
-Level 2: Cycle
-         └─ Product of member Transition probabilities (in sequence)
+Level 3: Cycle
+         ├─ Product of member Transition probabilities (in sequence)
+         └─ Does NOT include Nexus P (Nexus feeds into Wheel, not Cycle)
+
+Level 2: Nexus
+         └─ GM of WisdomUnit transformation probabilities
 
 Level 1: Transition (leaf for probability)
          ├─ Manual probability × confidence
          └─ Transition-level rationale probabilities × confidence
-         
-         WisdomUnit (feeds into Wheel P)
+
+         WisdomUnit (feeds into Nexus P)
          └─ Transformation probability (internal spiral product)
 
          Rationale (evidence, contributes to P when it has probability data)
          ├─ Own probability × confidence (if provided)
-         ├─ Child/spawned wheel probabilities  
+         ├─ Child/spawned wheel probabilities
          └─ Returns None if no probability evidence (prevents empty rationale inflation)
 ```
 
@@ -149,6 +166,44 @@ Level 1: Transition (leaf for probability)
 3. **Hierarchical Evidence**: P and R flow upward from specific elements to general containers
 4. **Selective Veto Power**: Different element types have different veto behaviors for robustness
 5. **Local Score Computation**: P and R aggregate hierarchically; the final Score is computed locally from that node's own P and R
+
+### Score Invalidation and Edge Directions
+
+When an element's estimation changes, all dependent (parent) nodes must be invalidated so they get rescored. The graph edges support this by pointing from **scoring children** to **scoring parents**.
+
+**Edge Direction Convention:**
+
+Edges point from the element whose score contributes TO the element that consumes that score:
+
+```
+SCORING FLOW (scores aggregate upward):
+
+DialecticalComponent ──► WisdomUnit ──► Nexus ──► Cycle ──► Wheel
+                                                    ▲          ▲
+Transition ─────────────────────────────────────────┴──────────┘
+                                                               ▲
+Spiral ────────────────────────────────────────────────────────┘
+```
+
+**Graph Edge Directions:**
+
+| From (Child) | To (Parent) | Edge Type | Meaning |
+|--------------|-------------|-----------|---------|
+| WisdomUnit | Nexus | BELONGS_TO_NEXUS | WU score contributes to Nexus score |
+| Nexus | Cycle | HAS_CYCLE | Nexus score contributes to Cycle score |
+| Cycle | Wheel | HAS_WHEEL | Cycle score contributes to Wheel score |
+| Transition | Cycle/Wheel | TRANSITION_OF | Transition score contributes to Cycle/Wheel |
+| Spiral | Wheel | SPIRAL_OF | Spiral score contributes to Wheel |
+| Rationale | Entity | EXPLAINS | Rationale score contributes to Entity |
+
+**Invalidation Propagation:**
+
+When WisdomUnit changes:
+1. Query finds outgoing edge: `(WU)-[BELONGS_TO_NEXUS]->(Nexus)` → Nexus invalidated
+2. Query finds outgoing edge: `(Nexus)-[HAS_CYCLE]->(Cycle)` → Cycle invalidated
+3. Query finds outgoing edge: `(Cycle)-[HAS_WHEEL]->(Wheel)` → Wheel invalidated
+
+This ensures that when a scoring input changes, all nodes that depend on it are marked for rescoring.
 
 ## Complete Example: How Wheel Score is Calculated
 
@@ -409,17 +464,23 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 
 *Note: WisdomUnit R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis R to 0.0.*
 
+**Nexus** *(pool of WisdomUnits)*
+
+* R = GM of all **WisdomUnit Rs** in the pool (+ rated nexus-level rationales).
+* Represents the collective quality/relevance of the WisdomUnit pool.
+* Acts as an intermediate aggregation layer between WisdomUnits and Cycles.
+
 **Cycle** *(T, TA, Spiral, Transformation — diagnostic)*
 
 * R = GM of member **Transition Rs** (+ rated cycle-level rationales).
-* **Do not** feed cycle Rs into the Wheel R (prevents double-counting transitions).
+* Cycle accesses Nexus for scoring children but does not include Nexus R in its own R.
 
 **Wheel**
 
 * R = GM of:
 
-  * **all WisdomUnit Rs** (they already include internal relations),
-  * **all external Transition Rs** (edges across units),
+  * **Nexus R** (accessed via parent Cycle → Nexus, summarizes all WisdomUnit Rs),
+  * **deduplicated Transition Rs** (with specificity preference: Spiral > Wheel > Cycle),
   * **rated wheel-level rationales**.
 
 ### Using alpha with R
@@ -465,18 +526,28 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 * P = **product** of member **Transition** probabilities (in order).
 * Any edge 0 ⇒ cycle 0. Any edge unknown ⇒ cycle unknown.
 * No cycle-level opinions in probability.
+* Cycle scores its Nexus as part of score_children but does not include Nexus P in its own P.
 
 **WisdomUnit**
 
 * P = probability of its **Transformation** cycle (the two internal transitions)
 * Represents the structural feasibility of the thesis-antithesis dialectical relationship
 
+**Nexus** *(pool of WisdomUnits)*
+
+* P = GM of all **WisdomUnit Ps** in the pool.
+* Represents the collective structural feasibility of the WisdomUnit transformations.
+* This is the summarized WU transformation probability that feeds into Wheel P.
+
 **Wheel**
 
-* P = **geometric mean** over canonical cycle probabilities (T, TA, Spiral cycles)  
-* Include internal relations **once** via geometric mean of all WisdomUnit transformation probabilities
+* P = **geometric mean** of:
+  * **Parent Cycle P** (product of cycle-level transitions)
+  * **Nexus P** (accessed via Cycle → Nexus, GM of WU transformation Ps)
+  * **Wheel-level Transitions P** (product of wheel's own transitions)
+  * **Spiral P** (if present)
 * Keep zeros (hard constraints); skip unknowns (insufficient data)
-* If all canonical cycles are unknown → wheel P = unknown
+* If all terms are unknown → wheel P = unknown
 
 ### Alpha Parameter Usage
 

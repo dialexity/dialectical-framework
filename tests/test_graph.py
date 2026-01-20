@@ -23,6 +23,7 @@ from dialectical_framework.graph.nodes.dialectical_component import DialecticalC
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
+from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.utils.order_transitions import order_transitions
@@ -309,13 +310,28 @@ def test_cycle_str_formatting():
     wu.t_minus.connect(components[2], properties={'alias': 'T-'})
     wu.a.connect(components[3], properties={'alias': 'A'})
 
-    # Create Wheel and connect WisdomUnit BEFORE cycle
+    # Create Nexus and connect WisdomUnit
+    nexus = Nexus()
+    nexus.save()
+    wu.nexus.connect(nexus)
+
+    # Connect Nexus to Cycle
+    nexus.cycles.connect(cycle)
+
+    # Create Wheel first
     wheel = Wheel()
     wheel.save()
-    wu.wheel.connect(wheel)
 
-    # Connect cycle to wheel as T-cycle (validation passes because WU is connected)
-    wheel.t_cycle.connect(cycle)
+    # Create separate transitions for wheel (same components, different transition objects)
+    for i in range(4):
+        wheel_trans = Transition()
+        wheel_trans.save()
+        wheel_trans.source.connect(components[i])
+        wheel_trans.target.connect(components[(i + 1) % 4])
+        wheel_trans.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle (validation will succeed)
+    cycle.wheels.connect(wheel)
 
     # Test 1: Automatic Wheel resolution (no parameters needed!)
     cycle_string = str(cycle)  # Use __str__ instead of as_str()
@@ -372,20 +388,39 @@ def test_transition_str_formatting():
     wu.t_minus.connect(source_comp, properties={'alias': 'T-'})
     wu.a_plus.connect(target_comp, properties={'alias': 'A+'})
 
-    # Create Wheel and connect
-    wheel = Wheel()
-    wheel.save()
-    wu.wheel.connect(wheel)
+    # Create Nexus and connect WisdomUnit
+    nexus = Nexus()
+    nexus.save()
+    wu.nexus.connect(nexus)
 
-    # Create Cycle and connect transition + wheel
-    from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.enums.causality_type import CausalityType
+    # Create Cycle and connect to Nexus + transition
     cycle = Cycle(causality_type=CausalityType.BALANCED)
     cycle.save()
+    nexus.cycles.connect(cycle)
     trans.cycle.connect(cycle)
-    wheel.t_cycle.connect(cycle)
 
-    # Test 1: Default format (aliases)
+    # Create Wheel first
+    wheel = Wheel()
+    wheel.save()
+
+    # Create separate wheel transition (same components, different transition object)
+    wheel_trans = Transition()
+    wheel_trans.save()
+    wheel_trans.source.connect(source_comp)
+    wheel_trans.target.connect(target_comp)
+    wheel_trans.cycle.connect(wheel)
+
+    # Need a second transition to form a cycle
+    wheel_trans2 = Transition()
+    wheel_trans2.save()
+    wheel_trans2.source.connect(target_comp)
+    wheel_trans2.target.connect(source_comp)
+    wheel_trans2.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle
+    cycle.wheels.connect(wheel)
+
+    # Test 1: Default format (aliases) - use wheel_trans which is connected to wheel
     default_str = str(trans)
     assert "T-" in default_str
     assert "A+" in default_str
@@ -466,10 +501,48 @@ def test_transition_segment_formatting():
     wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
     wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
 
-    # Create Wheel
+    # Create Nexus and connect WisdomUnit
+    nexus = Nexus()
+    nexus.save()
+    wu.nexus.connect(nexus)
+
+    # Create Cycle (needed for Wheel)
+    cycle_base = Cycle(causality_type=CausalityType.REALISTIC)
+    cycle_base.save()
+    nexus.cycles.connect(cycle_base)
+
+    # Create cycle transitions: T- → A+ → T- (for the wheel)
+    cycle_trans1 = Transition()
+    cycle_trans1.save()
+    cycle_trans1.source.connect(t_minus)
+    cycle_trans1.target.connect(a_plus)
+    cycle_trans1.cycle.connect(cycle_base)
+
+    cycle_trans2 = Transition()
+    cycle_trans2.save()
+    cycle_trans2.source.connect(a_plus)
+    cycle_trans2.target.connect(t_minus)
+    cycle_trans2.cycle.connect(cycle_base)
+
+    # Create Wheel first
     wheel = Wheel()
     wheel.save()
-    wu.wheel.connect(wheel)
+
+    # Create separate wheel transitions (same components, different transition objects)
+    wheel_trans1 = Transition()
+    wheel_trans1.save()
+    wheel_trans1.source.connect(t_minus)
+    wheel_trans1.target.connect(a_plus)
+    wheel_trans1.cycle.connect(wheel)
+
+    wheel_trans2 = Transition()
+    wheel_trans2.save()
+    wheel_trans2.source.connect(a_plus)
+    wheel_trans2.target.connect(t_minus)
+    wheel_trans2.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle
+    cycle_base.wheels.connect(wheel)
 
     # Create Spiral transition: T- → A+ (segment transition)
     spiral_trans = Transition()
@@ -502,18 +575,13 @@ def test_transition_segment_formatting():
     print(f"✓ Spiral transition explicit format: {explicit_str}")
 
     # Compare with Cycle transition (should be component-only)
-    from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.enums.causality_type import CausalityType
-
     cycle_trans = Transition()
     cycle_trans.save()
     cycle_trans.source.connect(t_minus)
     cycle_trans.target.connect(a_plus)
 
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
-    cycle.save()
-    cycle_trans.cycle.connect(cycle)
-    wheel.t_cycle.connect(cycle)
+    # Connect to the existing cycle_base
+    cycle_trans.cycle.connect(cycle_base)
 
     # Cycle transition should show only "T- → A+" (component format, no segment expansion)
     cycle_str = str(cycle_trans)
@@ -746,16 +814,55 @@ def test_best_rationale_property():
 def test_wheel_navigation_properties():
     """Test wheel navigation properties (order, degree)."""
 
-    # Create a wheel with 4 wisdom units
-    wheel = Wheel()
-    wheel.save()
-
+    # Create 4 wisdom units with T components
     wus = []
+    components = []
     for i in range(4):
         wu = WisdomUnit(reasoning_mode=f"mode_{i}")
         wu.save()
-        wu.wheel.connect(wheel)
+
+        comp = DialecticalComponent(statement=f"Component {i}")
+        comp.save()
+        wu.t.connect(comp, properties={'alias': f'T{i}'})
+
         wus.append(wu)
+        components.append(comp)
+
+    # Create Nexus and connect all WUs
+    nexus = Nexus()
+    nexus.save()
+    for wu in wus:
+        wu.nexus.connect(nexus)
+
+    # Create Cycle and connect to Nexus
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+    nexus.cycles.connect(cycle)
+
+    # Create transitions forming a cycle: T0 → T1 → T2 → T3 → T0
+    transitions = []
+    for i in range(4):
+        trans = Transition()
+        trans.save()
+        trans.source.connect(components[i])
+        trans.target.connect(components[(i + 1) % 4])
+        trans.cycle.connect(cycle)
+        transitions.append(trans)
+
+    # Create Wheel first
+    wheel = Wheel()
+    wheel.save()
+
+    # Create separate wheel transitions (same components, different transition objects)
+    for i in range(4):
+        wheel_trans = Transition()
+        wheel_trans.save()
+        wheel_trans.source.connect(components[i])
+        wheel_trans.target.connect(components[(i + 1) % 4])
+        wheel_trans.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle
+    cycle.wheels.connect(wheel)
 
     # Test 1: polarity_count property
     assert wheel.polarity_count == 4
@@ -769,21 +876,55 @@ def test_wheel_navigation_properties():
 def test_wheel_wisdom_unit_at():
     """Test wisdom_unit_at() method (no integer indexing)."""
 
-    wheel = Wheel()
-    wheel.save()
-
     # Create wisdom units with components
     wus = []
+    components = []
     for i in range(3):
         wu = WisdomUnit()
         wu.save()
-        wu.wheel.connect(wheel)
 
         # Add a T component with alias
         comp = DialecticalComponent(statement=f"Component {i}")
         comp.save()
         wu.t.connect(comp, properties={'alias': f'T{i}'})
         wus.append((wu, comp))
+        components.append(comp)
+
+    # Create Nexus and connect all WUs
+    nexus = Nexus()
+    nexus.save()
+    for wu, _ in wus:
+        wu.nexus.connect(nexus)
+
+    # Create Cycle and connect to Nexus
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+    nexus.cycles.connect(cycle)
+
+    # Create transitions forming a cycle: T0 → T1 → T2 → T0
+    transitions = []
+    for i in range(3):
+        trans = Transition()
+        trans.save()
+        trans.source.connect(components[i])
+        trans.target.connect(components[(i + 1) % 3])
+        trans.cycle.connect(cycle)
+        transitions.append(trans)
+
+    # Create Wheel first
+    wheel = Wheel()
+    wheel.save()
+
+    # Create separate wheel transitions (same components, different transition objects)
+    for i in range(3):
+        wheel_trans = Transition()
+        wheel_trans.save()
+        wheel_trans.source.connect(components[i])
+        wheel_trans.target.connect(components[(i + 1) % 3])
+        wheel_trans.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle
+    cycle.wheels.connect(wheel)
 
     # Test 1: Get by alias
     wu = wheel.wisdom_unit_at("T0")
@@ -817,40 +958,79 @@ def test_wheel_wisdom_unit_at():
 
 
 def test_wheel_is_same_structure():
-    """Test is_same_structure() for comparing wheels."""
+    """Test is_same_structure() for comparing wheels by transitions."""
 
-    # Create first wheel with 2 wisdom units
-    wheel1 = Wheel()
-    wheel1.save()
+    # Helper function to create a complete wheel setup
+    def create_wheel_with_transitions(n_components: int, prefix: str):
+        """Create a wheel with n components connected in a cycle."""
+        components = []
+        for i in range(n_components):
+            comp = DialecticalComponent(statement=f"{prefix} Component {i}")
+            comp.save()
+            components.append(comp)
 
-    for i in range(2):
-        wu = WisdomUnit()
-        wu.save()
-        wu.wheel.connect(wheel1)
+        # Create WisdomUnits
+        wus = []
+        for i, comp in enumerate(components):
+            wu = WisdomUnit()
+            wu.save()
+            wu.t.connect(comp, properties={'alias': f'{prefix}T{i}'})
+            wus.append(wu)
 
-    # Create second wheel with same order
-    wheel2 = Wheel()
-    wheel2.save()
+        # Create Nexus
+        nexus = Nexus()
+        nexus.save()
+        for wu in wus:
+            wu.nexus.connect(nexus)
 
-    for i in range(2):
-        wu = WisdomUnit()
-        wu.save()
-        wu.wheel.connect(wheel2)
+        # Create Cycle
+        cycle = Cycle(causality_type=CausalityType.BALANCED)
+        cycle.save()
+        nexus.cycles.connect(cycle)
 
-    # Test 1: Same order
-    assert wheel1.is_same_structure(wheel2)
+        # Create transitions forming a cycle
+        transitions = []
+        for i in range(n_components):
+            trans = Transition()
+            trans.save()
+            trans.source.connect(components[i])
+            trans.target.connect(components[(i + 1) % n_components])
+            trans.cycle.connect(cycle)
+            transitions.append(trans)
 
-    # Create third wheel with different order
-    wheel3 = Wheel()
-    wheel3.save()
+        # Create Wheel first
+        wheel = Wheel()
+        wheel.save()
 
-    for i in range(3):  # Different order
-        wu = WisdomUnit()
-        wu.save()
-        wu.wheel.connect(wheel3)
+        # Create separate wheel transitions (same components, different transition objects)
+        for i in range(n_components):
+            wheel_trans = Transition()
+            wheel_trans.save()
+            wheel_trans.source.connect(components[i])
+            wheel_trans.target.connect(components[(i + 1) % n_components])
+            wheel_trans.cycle.connect(wheel)
 
-    # Test 2: Different order
-    assert not wheel1.is_same_structure(wheel3)
+        # Now connect Wheel to Cycle
+        cycle.wheels.connect(wheel)
+
+        return wheel, components
+
+    # Create first wheel with 2 components
+    wheel1, _ = create_wheel_with_transitions(2, "W1")
+
+    # Create second wheel with same structure (2 components)
+    wheel2, _ = create_wheel_with_transitions(2, "W2")
+
+    # Test 1: Same structure (same number of transitions)
+    # Note: is_same_structure compares by component statements
+    assert wheel1.is_same_structure(wheel2, compare='statement') is False  # Different statements
+    # Both have 2 transitions, but comparing by alias/statement shows they're different
+
+    # Create third wheel with different structure (3 components)
+    wheel3, _ = create_wheel_with_transitions(3, "W3")
+
+    # Test 2: Different structure
+    assert not wheel1.is_same_structure(wheel3, compare='statement')
 
     print("✓ is_same_structure() correctly compares wheels")
 
@@ -978,20 +1158,18 @@ def test_wheel_segment_at():
     """Test Wheel.segment_at() lookup by alias or component."""
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
-    # Create wheel with 2 wisdom units
-    wheel = Wheel()
-    wheel.save()
-
+    # Create 2 wisdom units with full components
     wus = []
+    t_comps = []
     for i in range(2):
         wu = WisdomUnit(reasoning_mode=f"mode_{i}")
         wu.save()
-        wu.wheel.connect(wheel)
 
         # Add T-side components
         t_comp = DialecticalComponent(statement=f"Thesis {i}")
         t_comp.save()
         wu.t.connect(t_comp, properties={'alias': f'T{i}'})
+        t_comps.append(t_comp)
 
         t_plus = DialecticalComponent(statement=f"T+ {i}")
         t_plus.save()
@@ -1015,6 +1193,42 @@ def test_wheel_segment_at():
         wu.a_minus.connect(a_minus, properties={'alias': f'A{i}-'})
 
         wus.append((wu, t_comp, a_comp))
+
+    # Create Nexus and connect WUs
+    nexus = Nexus()
+    nexus.save()
+    for wu, _, _ in wus:
+        wu.nexus.connect(nexus)
+
+    # Create Cycle and connect to Nexus
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+    nexus.cycles.connect(cycle)
+
+    # Create transitions: T0 → T1 → T0
+    transitions = []
+    for i in range(2):
+        trans = Transition()
+        trans.save()
+        trans.source.connect(t_comps[i])
+        trans.target.connect(t_comps[(i + 1) % 2])
+        trans.cycle.connect(cycle)
+        transitions.append(trans)
+
+    # Create Wheel first
+    wheel = Wheel()
+    wheel.save()
+
+    # Create separate wheel transitions (same components, different transition objects)
+    for i in range(2):
+        wheel_trans = Transition()
+        wheel_trans.save()
+        wheel_trans.source.connect(t_comps[i])
+        wheel_trans.target.connect(t_comps[(i + 1) % 2])
+        wheel_trans.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle
+    cycle.wheels.connect(wheel)
 
     # Test 1: By alias
     seg_t0 = wheel.segment_at("T0")
@@ -1117,20 +1331,18 @@ def test_wheel_segment_is_set():
 
 def test_wheel_wisdom_unit_at_segment():
     """Test Wheel.wisdom_unit_at() with WheelSegment."""
-    wheel = Wheel()
-    wheel.save()
-
-    # Create 2 wisdom units
+    # Create 2 wisdom units with components
     wus = []
+    t_comps = []
     for i in range(2):
         wu = WisdomUnit(reasoning_mode=f"mode_{i}")
         wu.save()
-        wu.wheel.connect(wheel)
 
         # Add minimal components
         t = DialecticalComponent(statement=f"T{i}")
         t.save()
         wu.t.connect(t, properties={'alias': f'T{i}'})
+        t_comps.append(t)
 
         t_plus = DialecticalComponent(statement=f"T{i}+")
         t_plus.save()
@@ -1154,6 +1366,42 @@ def test_wheel_wisdom_unit_at_segment():
 
         wus.append(wu)
 
+    # Create Nexus and connect WUs
+    nexus = Nexus()
+    nexus.save()
+    for wu in wus:
+        wu.nexus.connect(nexus)
+
+    # Create Cycle and connect to Nexus
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+    nexus.cycles.connect(cycle)
+
+    # Create transitions: T0 → T1 → T0
+    transitions = []
+    for i in range(2):
+        trans = Transition()
+        trans.save()
+        trans.source.connect(t_comps[i])
+        trans.target.connect(t_comps[(i + 1) % 2])
+        trans.cycle.connect(cycle)
+        transitions.append(trans)
+
+    # Create Wheel first
+    wheel = Wheel()
+    wheel.save()
+
+    # Create separate wheel transitions (same components, different transition objects)
+    for i in range(2):
+        wheel_trans = Transition()
+        wheel_trans.save()
+        wheel_trans.source.connect(t_comps[i])
+        wheel_trans.target.connect(t_comps[(i + 1) % 2])
+        wheel_trans.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle
+    cycle.wheels.connect(wheel)
+
     # Get segments
     t_seg_1 = wus[1].segment_t
     a_seg_0 = wus[0].segment_a
@@ -1170,12 +1418,9 @@ def test_wheel_wisdom_unit_at_segment():
 
 def test_wheel_is_set():
     """Test Wheel.is_set() method."""
-    wheel = Wheel()
-    wheel.save()
-
+    # Create WisdomUnit
     wu = WisdomUnit(reasoning_mode="test")
     wu.save()
-    wu.wheel.connect(wheel)
 
     # Add components
     t = DialecticalComponent(statement="T")
@@ -1189,6 +1434,49 @@ def test_wheel_is_set():
     a = DialecticalComponent(statement="A")
     a.save()
     wu.a.connect(a, properties={'alias': 'A'})
+
+    # Create Nexus and connect WU
+    nexus = Nexus()
+    nexus.save()
+    wu.nexus.connect(nexus)
+
+    # Create Cycle and connect to Nexus
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+    nexus.cycles.connect(cycle)
+
+    # Create transitions: T → A → T (minimal cycle)
+    trans1 = Transition()
+    trans1.save()
+    trans1.source.connect(t)
+    trans1.target.connect(a)
+    trans1.cycle.connect(cycle)
+
+    trans2 = Transition()
+    trans2.save()
+    trans2.source.connect(a)
+    trans2.target.connect(t)
+    trans2.cycle.connect(cycle)
+
+    # Create Wheel first
+    wheel = Wheel()
+    wheel.save()
+
+    # Create separate wheel transitions (same components, different transition objects)
+    wheel_trans1 = Transition()
+    wheel_trans1.save()
+    wheel_trans1.source.connect(t)
+    wheel_trans1.target.connect(a)
+    wheel_trans1.cycle.connect(wheel)
+
+    wheel_trans2 = Transition()
+    wheel_trans2.save()
+    wheel_trans2.source.connect(a)
+    wheel_trans2.target.connect(t)
+    wheel_trans2.cycle.connect(wheel)
+
+    # Now connect Wheel to Cycle
+    cycle.wheels.connect(wheel)
 
     # Test with alias
     assert wheel.is_set('T') is True

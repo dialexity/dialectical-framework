@@ -605,7 +605,12 @@ class Wheel(CircularTopologyMixin, AssessableEntity):
 
     def __repr__(self) -> str:
         """String representation of the wheel."""
-        return f"Wheel(uid={self.uid}, polarity_count={self.polarity_count if len(self.wisdom_units) > 0 else 0})"
+        try:
+            wus = self.wisdom_units
+            polarity_count = len(wus) if wus else 0
+        except (ValueError, AttributeError):
+            polarity_count = 0
+        return f"Wheel(uid={self.uid}, polarity_count={polarity_count})"
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -691,7 +696,8 @@ class Wheel(CircularTopologyMixin, AssessableEntity):
             if show_scores:
                 header = f"=== Wheel Transitions [{fmt_scores(self, colorize=True)}] ==="
             lines.append(header)
-            lines.append(f"{self:aliases}")  # Use CircularTopologyMixin formatting
+            # Use CircularTopologyMixin's __format__ directly to avoid recursion
+            lines.append(CircularTopologyMixin.__format__(self, "aliases"))
 
             # Add the best rationale if it exists
             rationale = self.best_rationale

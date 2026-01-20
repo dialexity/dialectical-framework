@@ -17,7 +17,9 @@ from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
 # Graph-native models
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.synthesis import Synthesis
+from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.wisdom_unit import (
     WisdomUnit,
@@ -191,29 +193,58 @@ class WheelBuilder(SettingsAware):
 
         cycles: list[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units)
 
+        # New architecture: WU → Nexus → Cycle → Wheel
+        # Create a shared Nexus for all wisdom units
+        nexus = Nexus()
+        nexus.save()
+
+        # Connect WUs to Nexus (child→parent: WU connects to Nexus)
+        for wu in wheel_wisdom_units:
+            wu.nexus.connect(nexus)
+
+        # Set human-friendly indices on wisdom units if multiple WUs
+        if len(wheel_wisdom_units) > 1:
+            for idx, wu in enumerate(wheel_wisdom_units, start=1):
+                wu.set_human_friendly_index(idx)
+
+        # Connect cycles to Nexus (parent→child: Nexus has cycles)
+        # T-cycle and TA-cycles all belong to the same Nexus
+        nexus.cycles.connect(t_cycle)
+        for cycle in cycles:
+            if cycle.uid != t_cycle.uid:  # Don't double-connect t_cycle
+                nexus.cycles.connect(cycle)
+
         # Create wheels for each TA-cycle permutation
-        # In graph-native, multiple wheels can share the same WisdomUnit nodes
-        # The different TA-cycles represent different analytical interpretations
+        # Each wheel is a detailed implementation of a cycle arrangement
         wheels = []
         for cycle in cycles:
             # Create wheel node
             w = Wheel()
             w.save()
 
-            # Connect wisdom units (all cycles use same WUs, different interpretations)
-            # IMPORTANT: WUs must be connected BEFORE cycles (validated by pre_connect hook)
-            for wu in wheel_wisdom_units:
-                w.wisdom_units.connect(wu)
+            # Create wheel-level transitions FIRST (ta_cycle level detail)
+            # These are separate from cycle-level transitions
+            # Wheel transitions follow the same component sequence
+            # MUST be done before connecting to cycle (validation requires transitions)
+            for trans in cycle.transitions:
+                source_result = trans.source.get()
+                target_result = trans.target.get()
+                if source_result and target_result:
+                    source_comp, _ = source_result
+                    target_comp, _ = target_result
 
-            # Connect cycles (T-cycle is the primary path, TA-cycle is the permutation)
-            # pre_connect hook validates that cycle WUs are already in this wheel
-            w.t_cycle.connect(t_cycle)
-            w.ta_cycle.connect(cycle)
+                    # Create new transition for wheel (separate object, same components)
+                    wheel_trans = Transition()
+                    wheel_trans.save()
+                    wheel_trans.source.connect(source_comp)
+                    wheel_trans.target.connect(target_comp)
+                    wheel_trans.cycle.connect(w)  # Connect to wheel (CircularTopologyMixin)
 
-            # Set human-friendly indices on wisdom units if multiple WUs
-            if len(wheel_wisdom_units) > 1:
-                for idx, wu in enumerate(wheel_wisdom_units, start=1):
-                    wu.set_human_friendly_index(idx)
+            # Connect wheel to cycle (creates Cycle → HAS_WHEEL → Wheel)
+            # This establishes: Wheel.cycle.get() returns this cycle
+            # And: Cycle.wheels.all() includes this wheel
+            # MUST be done after transitions exist (validation checks transitions)
+            cycle.wheels.connect(w)
 
             wheels.append(w)
 
@@ -485,16 +516,13 @@ class WheelBuilder(SettingsAware):
                 # Reuse cached cycles
                 recalculated_t_cycles, recalculated_ta_cycles = recalculated_cycles_cache[wu_cache_key]
 
-            # Find matching T-cycle and TA-cycle for this original wheel
-            # Match by structure (alias ordering) to maintain 1-to-1 correspondence
-            original_t_cycle_result = wheel.t_cycle.get()
-            original_ta_cycle_result = wheel.ta_cycle.get()
+            # In new architecture: Wheel belongs to Cycle which belongs to Nexus
+            # Get original cycle from wheel
+            original_cycle_result = wheel.cycle.get()
+            if not original_cycle_result:
+                raise ValueError(f"Original wheel {wheel.uid} missing cycle")
 
-            if not original_t_cycle_result or not original_ta_cycle_result:
-                raise ValueError(f"Original wheel {wheel.uid} missing cycles")
-
-            original_t_cycle, _ = original_t_cycle_result
-            original_ta_cycle, _ = original_ta_cycle_result
+            original_cycle, _ = original_cycle_result
 
             # Helper function to extract alias sequence from a cycle
             def get_alias_sequence(cycle: Cycle, wisdom_units: list[WisdomUnit]) -> list[str]:
@@ -511,10 +539,9 @@ class WheelBuilder(SettingsAware):
                             continue  # Not in this WU, try next
                 return aliases
 
-            # Get alias sequences for original cycles
+            # Get alias sequences for original cycle
             original_wus = wheel.wisdom_units
-            original_t_aliases = get_alias_sequence(original_t_cycle, original_wus)
-            original_ta_aliases = get_alias_sequence(original_ta_cycle, original_wus)
+            original_ta_aliases = get_alias_sequence(original_cycle, original_wus)
 
             # Helper function to check if two alias sequences represent the same structure (allowing rotation)
             def is_same_alias_structure(seq1: list[str], seq2: list[str]) -> bool:
@@ -530,18 +557,6 @@ class WheelBuilder(SettingsAware):
                     for i in range(len(seq2))
                 )
 
-            # Find matching new T-cycle
-            matching_t_cycle = None
-            for new_t_cycle in recalculated_t_cycles:
-                new_t_aliases = get_alias_sequence(new_t_cycle, new_wus)
-                if is_same_alias_structure(original_t_aliases, new_t_aliases):
-                    matching_t_cycle = new_t_cycle
-                    break
-
-            if not matching_t_cycle:
-                # If no match found, use first one (highest probability)
-                matching_t_cycle = recalculated_t_cycles[0] if recalculated_t_cycles else None
-
             # Find matching new TA-cycle
             matching_ta_cycle = None
             for new_ta_cycle in recalculated_ta_cycles:
@@ -554,19 +569,44 @@ class WheelBuilder(SettingsAware):
                 # If no match found, use first one (highest probability)
                 matching_ta_cycle = recalculated_ta_cycles[0] if recalculated_ta_cycles else None
 
-            # Create exactly one new wheel that corresponds to this original wheel
+            if not matching_ta_cycle:
+                raise ValueError(f"Could not find matching cycle for wheel {wheel.uid}")
+
+            # New architecture: WU → Nexus → Cycle → Wheel
+            # Create a new Nexus for the new WUs
+            new_nexus = Nexus()
+            new_nexus.save()
+
+            # Connect new WUs to Nexus
+            for wu in new_wus:
+                wu.nexus.connect(new_nexus)
+
+            # Connect T-cycle and TA-cycle to new Nexus
+            if recalculated_t_cycles:
+                for t_cycle in recalculated_t_cycles:
+                    new_nexus.cycles.connect(t_cycle)
+            new_nexus.cycles.connect(matching_ta_cycle)
+
+            # Create new wheel connected to matching TA-cycle
             new_wheel = Wheel()
             new_wheel.save()
 
-            # Connect wisdom units (must be done BEFORE cycles)
-            for wu in new_wus:
-                new_wheel.wisdom_units.connect(wu)
+            # Create wheel-level transitions FIRST (before connecting to cycle)
+            for trans in matching_ta_cycle.transitions:
+                source_result = trans.source.get()
+                target_result = trans.target.get()
+                if source_result and target_result:
+                    source_comp, _ = source_result
+                    target_comp, _ = target_result
 
-            # Connect matched cycles (pre_connect hook validates WUs are in wheel)
-            if matching_t_cycle:
-                new_wheel.t_cycle.connect(matching_t_cycle)
-            if matching_ta_cycle:
-                new_wheel.ta_cycle.connect(matching_ta_cycle)
+                    wheel_trans = Transition()
+                    wheel_trans.save()
+                    wheel_trans.source.connect(source_comp)
+                    wheel_trans.target.connect(target_comp)
+                    wheel_trans.cycle.connect(new_wheel)
+
+            # Connect wheel to cycle (after transitions exist)
+            matching_ta_cycle.wheels.connect(new_wheel)
 
             new_wheels.append(new_wheel)
 

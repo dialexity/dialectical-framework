@@ -74,20 +74,33 @@ def invalidate_node_and_parents(
     node.score_invalidated_at = now
     node.save()
 
-    # Find immediate parents using directed relationship pattern
-    # All parent relationships use RelationshipTo() which creates outgoing edges (child→parent):
-    # - WisdomUnit.wheel → WU→Wheel
-    # - Transformation.wisdom_unit → Transformation→WU
-    # - Transformation.ac_re → Transformation→WU(ac_re)
-    # - Cycle/Spiral._wheel_as_* → Cycle/Spiral→Wheel
-    # - Rationale.explanation → Rationale→Entity
-    # - Rationale.critiques → RationaleA→RationaleB (critique→critiqued)
+    # Find immediate scoring parents using directed relationship pattern.
+    # Scoring parents are nodes whose score DEPENDS ON this node's score.
     #
-    # IMPORTANT: Exclude HAS_STATEMENT to prevent crossing wheel boundaries
+    # SCORING DEPENDENCIES (edges that should propagate invalidation):
+    # - Polarity (T/A/T+/T-/A+/A-/S+/S-): Component→WU (WU score depends on Component)
+    # - BELONGS_TO_NEXUS: WU→Nexus (Nexus depends on WU)
+    # - HAS_CYCLE: Nexus→Cycle (Cycle scores Nexus as child)
+    # - HAS_WHEEL: Cycle→Wheel (Wheel depends on Cycle)
+    # - TRANSITION_OF: Transition→Cycle/Wheel (Cycle/Wheel depends on Transition)
+    # - SPIRAL_OF: Spiral→Wheel (Wheel depends on Spiral)
+    # - TRANSFORMATION_OF: Transformation→WU (WU depends on Transformation)
+    # - SYNTHESIS_OF: Synthesis→WU (WU depends on Synthesis)
+    # - EXPLAINS: Rationale→Entity (Entity depends on Rationale)
+    # - CRITIQUES: Critique→Rationale (Rationale depends on critique)
+    #
+    # NON-SCORING EDGES (should NOT propagate - these are structural, not scoring):
+    # - IS_SOURCE_OF: Component→Transition (Transition doesn't use Component.R/P)
+    # - IS_TARGET_OF: Transition→Component (Component doesn't use Transition.R/P)
+    # - HAS_STATEMENT: Various→Component (derived output, not scoring input)
+    # - HAS_ESTIMATION: Entity→Estimation (storage, not scoring)
+    # - OPPOSITIONS: Component→Component (structural opposition, not scoring)
+    # - SHRUNK_TO/EXPANDED_TO: Nexus→Nexus (evolution tracking, not scoring)
+    # - CHANGED_TO: WU→WU (evolution tracking, not scoring)
     query = """
         MATCH (child)-[rel]->(parent:AssessableEntity)
         WHERE id(child) = $child_id
-        AND type(rel) <> 'HAS_STATEMENT'
+        AND NOT type(rel) IN ['HAS_STATEMENT', 'IS_SOURCE_OF', 'IS_TARGET_OF', 'HAS_ESTIMATION', 'OPPOSITIONS', 'SHRUNK_TO', 'EXPANDED_TO', 'CHANGED_TO']
         RETURN DISTINCT id(parent) as parent_id
     """
 

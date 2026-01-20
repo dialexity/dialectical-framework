@@ -35,13 +35,19 @@ class CycleCalculator(BaseCalculator):
 
     def score_children(self, cycle: Cycle, force: bool = False) -> None:
         """
-        Score all transitions in this cycle.
+        Score Nexus (which scores WUs) and all transitions in this cycle.
 
         Args:
-            cycle: Cycle whose transitions should be scored
+            cycle: Cycle whose children should be scored
             force: If True, force rescore even if children appear valid
         """
-        transitions = cycle.transitions  # Uses SequenceTopologyMixin
+        # Score Nexus (which recursively scores WisdomUnits)
+        nexus = cycle.get_nexus()
+        if nexus:
+            self.scorer.calculate_score(nexus, force=force)
+
+        # Score transitions
+        transitions = cycle.transitions
         for trans in transitions:
             self.scorer.calculate_score(trans, force=force)
 
@@ -116,11 +122,17 @@ class CycleCalculator(BaseCalculator):
 
     def clear_children(self, cycle: Cycle) -> None:
         """
-        Clear scores from all transitions.
+        Clear scores from Nexus (which clears WUs) and all transitions.
 
         Args:
-            cycle: Cycle whose transitions should be cleared
+            cycle: Cycle whose children should be cleared
         """
+        # Clear Nexus (which recursively clears WisdomUnits)
+        nexus = cycle.get_nexus()
+        if nexus:
+            self.scorer.clear_scores(nexus)
+
+        # Clear transitions
         transitions = cycle.transitions
         for trans in transitions:
             self.scorer.clear_scores(trans)

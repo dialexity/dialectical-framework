@@ -295,26 +295,38 @@ class BoundRelationshipManager(Generic[T]):
         else:
             return  # Not a Cycle-Wheel connection, skip validation
 
-        # Validate: all WisdomUnits in cycle must be connected to wheel
-        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+        # In the new architecture:
+        # - Wheel gets WUs via wheel → cycle → nexus → wisdom_units
+        # - When connecting, we validate that wheel's transitions reference
+        #   components from the cycle's nexus
 
-        # Get all WisdomUnits connected to this wheel
-        wheel_wu_uids = {wu.uid for wu in wheel.wisdom_units}
-
-        if not wheel_wu_uids:
+        # Get WisdomUnits from cycle's nexus
+        nexus = cycle.get_nexus()
+        if not nexus:
             raise ValueError(
-                "Cannot connect cycle to wheel: wheel has no WisdomUnits. "
-                "Connect WisdomUnits to the wheel first."
+                "Cannot connect cycle to wheel: cycle has no Nexus. "
+                "Connect the cycle to a Nexus first."
             )
 
-        # Get all transitions from the cycle
-        transitions = cycle.transitions
-        if not transitions:
-            return  # Empty cycle, nothing to validate
+        nexus_wu_uids = {wu.uid for wu, _ in nexus.wisdom_units.all()}
+        if not nexus_wu_uids:
+            raise ValueError(
+                "Cannot connect cycle to wheel: cycle's Nexus has no WisdomUnits. "
+                "Connect WisdomUnits to the Nexus first."
+            )
 
-        # Collect all unique components from transitions
+        # Get wheel's transitions
+        wheel_transitions = wheel.transitions
+        if not wheel_transitions:
+            raise ValueError(
+                "Cannot connect cycle to wheel: wheel has no transitions. "
+                "Connect transitions to the wheel first."
+            )
+
+        # Collect all unique components from wheel's transitions
+        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
         components_by_uid: dict[str, Node] = {}
-        for transition in transitions:
+        for transition in wheel_transitions:
             source_result = transition.source.get()
             if source_result:
                 comp = source_result[0]
@@ -324,7 +336,7 @@ class BoundRelationshipManager(Generic[T]):
                 comp = target_result[0]
                 components_by_uid[comp.uid] = comp
 
-        # For each component, verify it belongs to a WU that's in this wheel
+        # For each component, verify it belongs to a WU that's in the cycle's Nexus
         repo = WisdomUnitRepository()
         for component in components_by_uid.values():
             component_wus = repo.find_by_dialectical_component(component)
@@ -336,14 +348,14 @@ class BoundRelationshipManager(Generic[T]):
                     f"(uid={component.uid}) does not belong to any WisdomUnit."
                 )
 
-            # Check if at least one of the component's WUs is in this wheel
+            # Check if at least one of the component's WUs is in the cycle's Nexus
             component_wu_uids = {wu.uid for wu, _ in component_wus}
-            if not component_wu_uids.intersection(wheel_wu_uids):
+            if not component_wu_uids.intersection(nexus_wu_uids):
                 stmt = getattr(component, 'statement', str(component.uid))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
-                    f"(uid={component.uid}) belongs to WisdomUnit(s) not connected to this wheel. "
-                    f"Connect the WisdomUnit to the wheel first."
+                    f"(uid={component.uid}) belongs to WisdomUnit(s) not in the cycle's Nexus. "
+                    f"Connect the WisdomUnit to the Nexus first."
                 )
 
     @inject
