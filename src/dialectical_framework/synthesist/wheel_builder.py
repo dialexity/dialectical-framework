@@ -258,7 +258,7 @@ class WheelBuilder(SettingsAware):
             syntheses = await wheel_builder.calculate_syntheses(wheel=wheel)
 
             # Synthesize specific WU
-            wus = [wu for wu, _ in wheel.wisdom_units.all()]
+            wus = wheel.wisdom_units
             syntheses = await wheel_builder.calculate_syntheses(wheel=wheel, at=wus[0])
 
             # Synthesize multiple WUs
@@ -271,7 +271,7 @@ class WheelBuilder(SettingsAware):
         # Determine which WUs to synthesize
         if at is None:
             # Synthesize all WUs in the wheel
-            wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
+            wisdom_units = wheel.wisdom_units
         elif isinstance(at, list):
             # Synthesize specific WUs (list)
             wisdom_units = at
@@ -428,7 +428,7 @@ class WheelBuilder(SettingsAware):
         for wheel in self.__wheels:
             # Get wisdom units from this wheel (ordered by their indices)
             wus = sorted(
-                [wu for wu, _ in wheel.wisdom_units.all()],
+                wheel.wisdom_units,
                 key=lambda wu: wu.get_human_friendly_index()
             )
 
@@ -512,7 +512,7 @@ class WheelBuilder(SettingsAware):
                 return aliases
 
             # Get alias sequences for original cycles
-            original_wus = [wu for wu, _ in wheel.wisdom_units.all()]
+            original_wus = wheel.wisdom_units
             original_t_aliases = get_alias_sequence(original_t_cycle, original_wus)
             original_ta_aliases = get_alias_sequence(original_ta_cycle, original_wus)
 

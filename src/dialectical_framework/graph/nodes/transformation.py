@@ -16,7 +16,7 @@ from dialectical_framework.graph.mixins.circular_topology_mixin import CircularT
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.nexus import Nexus
 
 
 class Transformation(CircularTopologyMixin, AssessableEntity):
@@ -44,11 +44,12 @@ class Transformation(CircularTopologyMixin, AssessableEntity):
     Wheel relationship, which would be semantically incorrect.
     """
 
-    # Exactly two transitions for internal transformation
-    transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+    # Override _transitions from CircularTopologyMixin with exact cardinality
+    # Exactly two transitions for internal transformation: T- → A+, A- → T+
+    _transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         "BELONGS_TO_CYCLE",
-        cardinality=(2, 2)  # Exactly two transitions: T- → A+, A- → T+
+        cardinality=(2, 2)  # Exactly two transitions
     )
 
     # The containing WisdomUnit (this transformation is internal to it)
@@ -68,21 +69,21 @@ class Transformation(CircularTopologyMixin, AssessableEntity):
     # Note: Transformation does not directly connect to Wheel
     # It's accessed via its containing WisdomUnit (wisdom_unit field)
 
-    def get_wheel(self) -> Wheel | None:
+    def get_nexus(self) -> Nexus | None:
         """
-        Get the wheel this transformation belongs to via its WisdomUnit.
+        Get the nexus this transformation belongs to via its WisdomUnit.
 
         Transformation is internal to a WisdomUnit, so this method:
         1. Gets the containing WisdomUnit
-        2. Gets the Wheel from that WisdomUnit
+        2. Gets the first Nexus from that WisdomUnit
 
         Returns:
-            Wheel instance or None if not assigned to a wheel
+            Nexus instance or None if not connected
 
         Example:
-            wheel = transformation.get_wheel()
-            if wheel:
-                print(f"Transformation belongs to wheel {wheel.uid}")
+            nexus = transformation.get_nexus()
+            if nexus:
+                print(f"Transformation's source nexus has {nexus.wisdom_units.count()} WUs")
         """
         # Get the containing WisdomUnit
         wu_result = self.wisdom_unit.get()
@@ -91,10 +92,12 @@ class Transformation(CircularTopologyMixin, AssessableEntity):
 
         wisdom_unit = wu_result[0]
 
-        # Get the Wheel from the WisdomUnit
-        wheel_result = wisdom_unit.wheel.get()
-        if wheel_result:
-            return wheel_result[0]
+        # Get the first Nexus from the WisdomUnit.
+        # It's fine to take any Nexus since aliases are stored on WU-Component edges,
+        # not on Nexus relationships - all Nexuses containing this WU see the same aliases.
+        nexus_result = wisdom_unit.nexus.get()
+        if nexus_result:
+            return nexus_result[0]
 
         return None
 

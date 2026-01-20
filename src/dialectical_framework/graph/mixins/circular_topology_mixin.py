@@ -1,74 +1,71 @@
 """
 Mixin providing sequence topology methods for cycles, spirals, and transformations.
 
-This mixin can be used by any node class that has a `transitions` relationship
-to provide common topology navigation methods.
+This mixin provides the `_transitions` relationship and common topology navigation methods
+for any node class representing a circular structure (Cycle, Spiral, Wheel, Transformation).
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, ClassVar
 
+from dialectical_framework.graph.relationship_manager import RelationshipManager, RelationshipFrom
 from dialectical_framework.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transition import Transition
-    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.nexus import Nexus
 
 
 class CircularTopologyMixin(ABC):
     """
-    Abstract mixin providing topology methods for nodes with transitions.
+    Abstract mixin providing topology methods and transitions relationship for circular structures.
 
-    Any node class with a `transitions` RelationshipManager can use this mixin
-    to get topology navigation methods.
+    This mixin provides:
+        - `_transitions` RelationshipManager (from Transition nodes)
+        - `transitions` property returning ordered transitions
+        - `dialectical_components` property for accessing components in order
+        - `is_same_structure()` method for structural comparison
+
+    Subclasses can override `_transitions` to change cardinality (e.g., Transformation uses (2,2)).
 
     Requires:
-        - Subclass must have a `transitions` RelationshipManager attribute
-        - Subclass must implement `get_wheel()` method
+        - Subclass must implement `get_nexus()` method for alias resolution
     """
 
+    # Transitions that form this circular structure
+    # Subclasses can override to change cardinality (e.g., Transformation uses (2, 2))
+    _transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        "BELONGS_TO_CYCLE",
+        cardinality=(2, None)  # Default: at least two transitions to form a cycle
+    )
+
     @property
-    def transitions_ordered(self) -> list[Transition]:
+    def transitions(self) -> list[Transition]:
         """
         Get transitions in order by following source->target chain.
 
-        This implementation works for any class with a `transitions` RelationshipManager.
-
         Returns:
             List of Transition nodes in order, or empty list if no transitions
-
-        Raises:
-            AttributeError: If the subclass does not have a `transitions` attribute
         """
-        if not hasattr(self, 'transitions'):
-            raise AttributeError(
-                f"{self.__class__.__name__} must have a 'transitions' RelationshipManager "
-                f"attribute to use CircularTopologyMixin"
-            )
-        all_transitions = [trans for trans, _ in self.transitions.all()]  # type: ignore[attr-defined]
+        all_transitions = [trans for trans, _ in self._transitions.all()]
 
-        from dialectical_framework.graph.nodes.cycle import Cycle
-        if isinstance(self, Cycle):
-            # Avoid infinite recursion for Cycle, so pass wheel=None
-            return order_transitions(all_transitions, wheel=None)
-
-        # Get wheel context for segment-based ordering (used by Spirals)
-        wheel = self.get_wheel()
-        return order_transitions(all_transitions, wheel=wheel)
+        # Order by following source→target chain
+        return order_transitions(all_transitions)
 
     @abstractmethod
-    def get_wheel(self) -> Wheel | None:
+    def get_nexus(self) -> Nexus | None:
         """
-        Get the wheel this sequence belongs to.
+        Get the nexus this sequence belongs to.
 
-        Subclasses must implement this to provide wheel context for alias resolution.
-        Database connection is handled via dependency injection within implementations.
+        Subclasses must implement this to provide nexus context for alias resolution.
+        The Nexus contains the WisdomUnits which hold component aliases.
 
         Returns:
-            Wheel instance or None if not assigned to a wheel
+            Nexus instance or None if not assigned to a nexus
         """
         ...
 
@@ -87,7 +84,7 @@ class CircularTopologyMixin(ABC):
             List of DialecticalComponent nodes from the sequence
         """
         components = []
-        transitions = self.transitions_ordered
+        transitions = self.transitions
 
         if not transitions:
             return []
@@ -157,15 +154,15 @@ class CircularTopologyMixin(ABC):
         # Determine mode
         mode = format_spec if format_spec else "aliases"
 
-        # Try to get wheel context for alias resolution
-        wheel = self.get_wheel()
+        # Try to get nexus context for alias resolution
+        nexus = self.get_nexus()
 
         # Get aliases if needed for this mode
         aliases = []
         if mode in ("", "aliases", "explicit"):
-            # Need aliases - try to get from wheel context
-            if wheel:
-                wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
+            # Need aliases - try to get from nexus context
+            if nexus:
+                wisdom_units = [wu for wu, _ in nexus.wisdom_units.all()]
                 for i, comp in enumerate(components):
                     alias = None
                     for wu in wisdom_units:
@@ -176,25 +173,25 @@ class CircularTopologyMixin(ABC):
                             continue  # Not in this WU
                     aliases.append(alias if alias else f"C{i+1}")
             else:
-                # No wheel context - fallback to statements for readability
+                # No nexus context - fallback to statements for readability
                 aliases = [comp.statement for comp in components]
 
         # Build labels based on mode
         if mode in ("", "aliases"):
-            # Just aliases (or statements if no wheel context)
+            # Just aliases (or statements if no nexus context)
             labels = aliases
         elif mode == "statements":
             # Just statements
             labels = [comp.statement for comp in components]
         elif mode == "explicit":
             # Aliases with statements in parentheses
-            if wheel:
+            if nexus:
                 labels = [
                     f"{alias} ({comp.statement})"
                     for alias, comp in zip(aliases, components)
                 ]
             else:
-                # No wheel, aliases are already statements, so just use them
+                # No nexus, aliases are already statements, so just use them
                 labels = aliases
         else:
             raise ValueError(
@@ -219,14 +216,14 @@ class CircularTopologyMixin(ABC):
         Args:
             other: Another node with SequenceTopologyMixin to compare with
             compare: What to compare - 'alias' (default) or 'statement'
-                    - 'alias': Compare by component aliases (requires wheel context)
+                    - 'alias': Compare by component aliases (requires nexus context)
                     - 'statement': Compare by component statement text
 
         Returns:
             True if both have same components in same order (allowing rotation)
 
         Raises:
-            ValueError: If compare='alias' but wheel context not available
+            ValueError: If compare='alias' but nexus context not available
         """
         if not isinstance(other, CircularTopologyMixin):
             return False
@@ -239,19 +236,19 @@ class CircularTopologyMixin(ABC):
             return False
 
         if compare == 'alias':
-            # Compare by aliases - requires wheel context
-            self_wheel = self.get_wheel()
-            other_wheel = other.get_wheel()
+            # Compare by aliases - requires nexus context
+            self_nexus = self.get_nexus()
+            other_nexus = other.get_nexus()
 
-            if not self_wheel or not other_wheel:
+            if not self_nexus or not other_nexus:
                 raise ValueError(
-                    "Cannot compare by alias: wheel context not available. "
-                    "Use compare='statement' or ensure cycles are connected to wheels."
+                    "Cannot compare by alias: nexus context not available. "
+                    "Use compare='statement' or ensure cycles are connected to a nexus."
                 )
 
-            # Extract aliases from wheel context
-            self_wisdom_units = [wu for wu, _ in self_wheel.wisdom_units.all()]
-            other_wisdom_units = [wu for wu, _ in other_wheel.wisdom_units.all()]
+            # Extract aliases from nexus context
+            self_wisdom_units = [wu for wu, _ in self_nexus.wisdom_units.all()]
+            other_wisdom_units = [wu for wu, _ in other_nexus.wisdom_units.all()]
 
             self_aliases = []
             for comp in self_components:
@@ -263,7 +260,7 @@ class CircularTopologyMixin(ABC):
                     except ValueError:
                         continue  # Not in this WU
                 if not alias:
-                    raise ValueError(f"Component {comp.uid} has no alias in wheel context")
+                    raise ValueError(f"Component {comp.uid} has no alias in nexus context")
                 self_aliases.append(alias)
 
             other_aliases = []
@@ -276,7 +273,7 @@ class CircularTopologyMixin(ABC):
                     except ValueError:
                         continue  # Not in this WU
                 if not alias:
-                    raise ValueError(f"Component {comp.uid} has no alias in wheel context")
+                    raise ValueError(f"Component {comp.uid} has no alias in nexus context")
                 other_aliases.append(alias)
 
             # Convert to sets for same elements check

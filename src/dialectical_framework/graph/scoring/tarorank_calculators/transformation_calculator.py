@@ -41,7 +41,7 @@ class TransformationCalculator(BaseCalculator):
             force: If True, force rescore even if children appear valid
         """
         # Score all transitions
-        transitions = transformation.transitions_ordered  # Uses SequenceTopologyMixin
+        transitions = transformation.transitions  # Uses SequenceTopologyMixin
         for trans in transitions:
             self.scorer.calculate_score(trans, force=force)
 
@@ -65,7 +65,7 @@ class TransformationCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or None if no valid transitions
         """
-        transitions = transformation.transitions_ordered
+        transitions = transformation.transitions
 
         if not transitions:
             return None
@@ -95,7 +95,7 @@ class TransformationCalculator(BaseCalculator):
         values = []
 
         # Transition relevances
-        transitions = transformation.transitions_ordered
+        transitions = transformation.transitions
         for trans in transitions:
             trans_r = trans.relevance
             if trans_r is not None:
@@ -135,7 +135,7 @@ class TransformationCalculator(BaseCalculator):
             transformation: Transformation whose children should be cleared
         """
         # Clear all transitions
-        transitions = transformation.transitions_ordered
+        transitions = transformation.transitions
         for trans in transitions:
             self.scorer.clear_scores(trans)
 

@@ -64,3 +64,12 @@ class Input(BaseNode):
         "HAS_STATEMENT",
         cardinality=(0, None),  # Zero or more statements
     )
+
+    def __repr__(self) -> str:
+        """String representation of the input."""
+        return f"Input(uid={self.uid}, content_uri={self.content_uri})"
+
+    def __str__(self) -> str:
+        """Human-readable string representation."""
+        uri_preview = self.content_uri[:50] + "..." if self.content_uri and len(self.content_uri) > 50 else self.content_uri
+        return f"Input: {uri_preview or 'No URI'}"

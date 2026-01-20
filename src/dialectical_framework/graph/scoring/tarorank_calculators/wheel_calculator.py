@@ -42,7 +42,7 @@ class WheelCalculator(BaseCalculator):
             force: If True, force rescore even if children appear valid
         """
         # Score all wisdom units
-        wus = [wu for wu, _ in wheel.wisdom_units.all()]
+        wus = wheel.wisdom_units
         for wu in wus:
             self.scorer.calculate_score(wu, force=force)
 
@@ -80,7 +80,7 @@ class WheelCalculator(BaseCalculator):
         values = []
 
         # WisdomUnit relevances
-        wus = [wu for wu, _ in wheel.wisdom_units.all()]
+        wus = wheel.wisdom_units
         for wu in wus:
             wu_r = wu.relevance
             if wu_r is not None:
@@ -94,14 +94,14 @@ class WheelCalculator(BaseCalculator):
         t_cycle_result = wheel.t_cycle.get()
         if t_cycle_result:
             t_cycle = t_cycle_result[0]
-            for trans in t_cycle.transitions_ordered:
+            for trans in t_cycle.transitions:
                 unique_transitions[trans.uid] = trans
 
         # Get transitions from ta_cycle (more specific, prefer over t_cycle)
         ta_cycle_result = wheel.ta_cycle.get()
         if ta_cycle_result:
             ta_cycle = ta_cycle_result[0]
-            for trans in ta_cycle.transitions_ordered:
+            for trans in ta_cycle.transitions:
                 if trans.uid in unique_transitions:
                     # Calculate the one being overwritten (legacy behavior)
                     old_trans = unique_transitions[trans.uid]
@@ -113,7 +113,7 @@ class WheelCalculator(BaseCalculator):
         spiral_result = wheel.spiral.get()
         if spiral_result:
             spiral = spiral_result[0]
-            for trans in spiral.transitions_ordered:
+            for trans in spiral.transitions:
                 if trans.uid in unique_transitions:
                     # Calculate the one being overwritten (legacy behavior)
                     old_trans = unique_transitions[trans.uid]
@@ -187,7 +187,7 @@ class WheelCalculator(BaseCalculator):
         # WisdomUnit transformation Ps - summarize first via GM
         internal_summary = None
         unit_vals = []
-        wus = [wu for wu, _ in wheel.wisdom_units.all()]
+        wus = wheel.wisdom_units
         for wu in wus:
             wu_p = wu.probability
             if wu_p is not None:
@@ -214,7 +214,7 @@ class WheelCalculator(BaseCalculator):
             wheel: Wheel whose children should be cleared
         """
         # Clear all wisdom units
-        wus = [wu for wu, _ in wheel.wisdom_units.all()]
+        wus = wheel.wisdom_units
         for wu in wus:
             self.scorer.clear_scores(wu)
 

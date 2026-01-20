@@ -227,7 +227,7 @@ async def test_causality_sequencer(di_container):
             print(f"  Reasoning: {rat.text[:100] if rat.text else 'N/A'}...")
 
             # Verify transition probabilities were set
-            transitions = [trans for trans, _ in cycle.transitions.all()]
+            transitions = cycle.transitions
             if transitions:
                 trans_probs = [t.probability for t in transitions if t.probability is not None]
                 if trans_probs:

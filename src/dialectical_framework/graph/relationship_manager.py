@@ -299,7 +299,7 @@ class BoundRelationshipManager(Generic[T]):
         from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 
         # Get all WisdomUnits connected to this wheel
-        wheel_wu_uids = {wu.uid for wu, _ in wheel.wisdom_units.all()}
+        wheel_wu_uids = {wu.uid for wu in wheel.wisdom_units}
 
         if not wheel_wu_uids:
             raise ValueError(
@@ -308,13 +308,13 @@ class BoundRelationshipManager(Generic[T]):
             )
 
         # Get all transitions from the cycle
-        transitions = cycle.transitions.all()
+        transitions = cycle.transitions
         if not transitions:
             return  # Empty cycle, nothing to validate
 
         # Collect all unique components from transitions
         components_by_uid: dict[str, Node] = {}
-        for transition, _ in transitions:
+        for transition in transitions:
             source_result = transition.source.get()
             if source_result:
                 comp = source_result[0]
@@ -712,6 +712,16 @@ class BoundRelationshipManager(Generic[T]):
             return False, f"Maximum {max_card} allowed, found {current_count}"
 
         return True, None
+
+    def is_cardinality_valid(self) -> bool:
+        """
+        Check if current count satisfies cardinality constraint.
+
+        Returns:
+            True if cardinality is satisfied, False otherwise
+        """
+        is_valid, _ = self.validate_cardinality()
+        return is_valid
 
 
 # Convenience functions for common patterns

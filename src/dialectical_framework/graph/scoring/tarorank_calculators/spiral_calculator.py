@@ -41,7 +41,7 @@ class SpiralCalculator(BaseCalculator):
             spiral: Spiral whose transitions should be scored
             force: If True, force rescore even if children appear valid
         """
-        transitions = spiral.transitions_ordered  # Uses SequenceTopologyMixin
+        transitions = spiral.transitions  # Uses SequenceTopologyMixin
         for trans in transitions:
             self.scorer.calculate_score(trans, force=force)
 
@@ -59,7 +59,7 @@ class SpiralCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or None if no valid transitions
         """
-        transitions = spiral.transitions_ordered
+        transitions = spiral.transitions
 
         if not transitions:
             return None
@@ -89,7 +89,7 @@ class SpiralCalculator(BaseCalculator):
         values = []
 
         # Transition relevances
-        transitions = spiral.transitions_ordered
+        transitions = spiral.transitions
         for trans in transitions:
             trans_r = trans.relevance
             if trans_r is not None:
@@ -120,6 +120,6 @@ class SpiralCalculator(BaseCalculator):
         Args:
             spiral: Spiral whose transitions should be cleared
         """
-        transitions = spiral.transitions_ordered
+        transitions = spiral.transitions
         for trans in transitions:
             self.scorer.clear_scores(trans)

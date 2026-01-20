@@ -61,10 +61,9 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         """
     )
     def prompt_constructive_convergence_audit(self, text: str, transition: Transition, rationale: Rationale) -> "Messages.Type":
-        # Extract segments from transition using wheel context
-        wheel = self._wheel
-        focus = transition.get_source_wheel_segment(wheel=wheel)
-        next_ws = transition.get_target_wheel_segment(wheel=wheel)
+        # Extract segments from transition (uses Nexus internally)
+        focus = transition.get_source_wheel_segment()
+        next_ws = transition.get_target_wheel_segment()
 
         if not focus or not next_ws:
             raise ValueError(f"Cannot extract wheel segments from transition {transition.uid}")
@@ -124,7 +123,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
             target_comp, _ = next_ws_t_plus_result
 
             spiral = spiral_result[0]
-            spiral_transitions = [t for t, _ in spiral.transitions.all()]
+            spiral_transitions = spiral.transitions
 
             # Check for duplicate using shared helper
             spiral_link = self.find_duplicate_transition(spiral_transitions, source_comp, target_comp)
@@ -147,7 +146,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         if transformation_result:
             transformation = transformation_result[0]
             # Get all transformation transitions
-            trans_list = [t for t, _ in transformation.transitions.all()]
+            trans_list = transformation.transitions
 
             # Transformation has exactly 2 fixed transitions within the same WU:
             # - T- → A+ (linear action)

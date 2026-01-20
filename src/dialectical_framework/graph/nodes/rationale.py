@@ -11,11 +11,9 @@ from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
-from dialectical_framework.graph.relationships.branching_relationship import BranchingRelationship
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.growth.sprout import Sprout
 
 
 class Rationale(AssessableEntity):
@@ -80,12 +78,6 @@ class Rationale(AssessableEntity):
         cardinality=(0, None)
     )
 
-    # Branches from this rationale (spawns new statements via Sprout)
-    branches: ClassVar[RelationshipManager[Sprout]] = RelationshipTo(
-        "Sprout",
-        model=BranchingRelationship,
-        cardinality=(0, None)
-    )
 
     def __repr__(self) -> str:
         """String representation of the rationale."""

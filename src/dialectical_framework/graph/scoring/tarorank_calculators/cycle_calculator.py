@@ -41,7 +41,7 @@ class CycleCalculator(BaseCalculator):
             cycle: Cycle whose transitions should be scored
             force: If True, force rescore even if children appear valid
         """
-        transitions = cycle.transitions_ordered  # Uses SequenceTopologyMixin
+        transitions = cycle.transitions  # Uses SequenceTopologyMixin
         for trans in transitions:
             self.scorer.calculate_score(trans, force=force)
 
@@ -58,7 +58,7 @@ class CycleCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or None if any transition has no P
         """
-        transitions = cycle.transitions_ordered
+        transitions = cycle.transitions
 
         if not transitions:
             return None
@@ -89,7 +89,7 @@ class CycleCalculator(BaseCalculator):
         values = []
 
         # Transition relevances
-        transitions = cycle.transitions_ordered
+        transitions = cycle.transitions
         for trans in transitions:
             trans_r = trans.relevance
             if trans_r is not None:
@@ -121,6 +121,6 @@ class CycleCalculator(BaseCalculator):
         Args:
             cycle: Cycle whose transitions should be cleared
         """
-        transitions = cycle.transitions_ordered
+        transitions = cycle.transitions
         for trans in transitions:
             self.scorer.clear_scores(trans)

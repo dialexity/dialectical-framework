@@ -110,6 +110,7 @@ class TaroRank:
             from dialectical_framework.graph.scoring.tarorank_calculators.spiral_calculator import SpiralCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.transformation_calculator import TransformationCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.wheel_calculator import WheelCalculator
+            from dialectical_framework.graph.scoring.tarorank_calculators.nexus_calculator import NexusCalculator
 
             calculator_map = {
                 'DialecticalComponent': ComponentCalculator,
@@ -121,6 +122,7 @@ class TaroRank:
                 'Spiral': SpiralCalculator,
                 'Transformation': TransformationCalculator,
                 'Wheel': WheelCalculator,
+                'Nexus': NexusCalculator,
             }
 
             calculator_class = calculator_map.get(node_type)

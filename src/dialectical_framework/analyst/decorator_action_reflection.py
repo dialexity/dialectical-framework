@@ -60,7 +60,7 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
             transformation_result = wu.transformation.get()
             if transformation_result:
                 transformation, _ = transformation_result
-                return [t for t, _ in transformation.transitions.all()]
+                return transformation.transitions
             return []
 
         # Mark as processed
@@ -81,7 +81,7 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
         Parallelizes across unique WUs for efficiency (one LLM call per WU).
         """
         # Get unique WUs (action-reflection works per WU, not per segment)
-        unique_wus = [wu for wu, _ in wheel.wisdom_units.all()]
+        unique_wus = wheel.wisdom_units
 
         # Parallelize across unique WUs
         async_tasks = [

@@ -205,12 +205,12 @@ def test_cycle_topology_ordered_transitions():
     cycle = Cycle(causality_type=CausalityType.BALANCED)
     cycle.save()
 
-    cycle.transitions.connect(trans1)
-    cycle.transitions.connect(trans2)
-    cycle.transitions.connect(trans3)
+    trans1.cycle.connect(cycle)
+    trans2.cycle.connect(cycle)
+    trans3.cycle.connect(cycle)
 
     # Test order_transitions utility
-    all_transitions = [trans for trans, _ in cycle.transitions.all()]
+    all_transitions = cycle.transitions
     ordered = order_transitions(all_transitions)
     assert len(ordered) == 3, f"Expected 3 transitions, got {len(ordered)}"
 
@@ -260,9 +260,9 @@ def test_cycle_dialectical_components():
     cycle = Cycle(causality_type=CausalityType.REALISTIC)
     cycle.save()
 
-    cycle.transitions.connect(trans1)
-    cycle.transitions.connect(trans2)
-    cycle.transitions.connect(trans3)
+    trans1.cycle.connect(cycle)
+    trans2.cycle.connect(cycle)
+    trans3.cycle.connect(cycle)
 
     # Test dialectical_components property
     components = cycle.dialectical_components
@@ -298,7 +298,7 @@ def test_cycle_str_formatting():
     cycle.save()
 
     for trans in transitions:
-        cycle.transitions.connect(trans)
+        trans.cycle.connect(cycle)
 
     # Create WisdomUnit and connect components with aliases FIRST
     wu = WisdomUnit()
@@ -343,7 +343,7 @@ def test_cycle_str_formatting():
     orphan_comp.save()
     orphan_trans.source.connect(orphan_comp)
     orphan_trans.target.connect(orphan_comp)
-    orphan_cycle.transitions.connect(orphan_trans)
+    orphan_trans.cycle.connect(orphan_cycle)
 
     fallback_string = str(orphan_cycle)  # Use __str__ instead of as_str()
     assert "Orphan component" in fallback_string
@@ -382,7 +382,7 @@ def test_transition_str_formatting():
     from dialectical_framework.enums.causality_type import CausalityType
     cycle = Cycle(causality_type=CausalityType.BALANCED)
     cycle.save()
-    cycle.transitions.connect(trans)
+    trans.cycle.connect(cycle)
     wheel.t_cycle.connect(cycle)
 
     # Test 1: Default format (aliases)
@@ -480,7 +480,7 @@ def test_transition_segment_formatting():
     # Create Spiral and connect
     spiral = Spiral()
     spiral.save()
-    spiral.transitions.connect(spiral_trans)
+    spiral_trans.cycle.connect(spiral)
     wheel.spiral.connect(spiral)
 
     # Test: Spiral transition should show "T-, T → A+" (segment format)
@@ -512,7 +512,7 @@ def test_transition_segment_formatting():
 
     cycle = Cycle(causality_type=CausalityType.BALANCED)
     cycle.save()
-    cycle.transitions.connect(cycle_trans)
+    cycle_trans.cycle.connect(cycle)
     wheel.t_cycle.connect(cycle)
 
     # Cycle transition should show only "T- → A+" (component format, no segment expansion)
@@ -554,9 +554,9 @@ def test_cycle_is_same_structure():
     cycle1 = Cycle(causality_type=CausalityType.BALANCED)
     cycle1.save()
 
-    cycle1.transitions.connect(trans1a)
-    cycle1.transitions.connect(trans2a)
-    cycle1.transitions.connect(trans3a)
+    trans1a.cycle.connect(cycle1)
+    trans2a.cycle.connect(cycle1)
+    trans3a.cycle.connect(cycle1)
 
     # Create second cycle with same components, different starting point: T2 → T3 → T1 → T2
     t1b = DialecticalComponent(statement="Component 1")
@@ -585,9 +585,9 @@ def test_cycle_is_same_structure():
     cycle2 = Cycle(causality_type=CausalityType.BALANCED)
     cycle2.save()
 
-    cycle2.transitions.connect(trans1b)
-    cycle2.transitions.connect(trans2b)
-    cycle2.transitions.connect(trans3b)
+    trans1b.cycle.connect(cycle2)
+    trans2b.cycle.connect(cycle2)
+    trans3b.cycle.connect(cycle2)
 
     # Test is_same_structure (should be True - rotational equivalence)
     # Use compare='statement' since cycles aren't connected to wheels
@@ -621,9 +621,9 @@ def test_cycle_is_same_structure():
     cycle3 = Cycle(causality_type=CausalityType.BALANCED)
     cycle3.save()
 
-    cycle3.transitions.connect(trans1c)
-    cycle3.transitions.connect(trans2c)
-    cycle3.transitions.connect(trans3c)
+    trans1c.cycle.connect(cycle3)
+    trans2c.cycle.connect(cycle3)
+    trans3c.cycle.connect(cycle3)
 
     # Test is_same_structure (should be False - different components)
     assert not cycle1.is_same_structure(cycle3, compare='statement'), "Cycles with different components should not be equivalent"
@@ -1597,13 +1597,13 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     trans1.save()
     trans1.source.connect(wu_t_minus)
     trans1.target.connect(wu_a_plus)
-    transformation.transitions.connect(trans1)
+    trans1.cycle.connect(transformation)
 
     trans2 = Transition()
     trans2.save()
     trans2.source.connect(wu_a_minus)
     trans2.target.connect(wu_t_plus)
-    transformation.transitions.connect(trans2)
+    trans2.cycle.connect(transformation)
 
     # Store IDs for verification
     trans_id = transformation._id
@@ -1963,6 +1963,138 @@ def test_bidirectional_cardinality_allows_valid_connection():
     assert wu2.transformation.count() == 1
 
     print("✓ Valid connections still work with bidirectional enforcement")
+
+
+# =============================================================================
+# Cardinality Validation Tests
+# =============================================================================
+
+def test_cycle_cardinality_validation():
+    """Test that Cycle._transitions cardinality (2, None) is validated correctly."""
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.enums.causality_type import CausalityType
+
+    # Create cycle with no transitions
+    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle.save()
+
+    # 0 transitions - should be invalid (min is 2)
+    assert not cycle._transitions.is_cardinality_valid(), "Cycle with 0 transitions should be invalid"
+
+    # Add 1 transition
+    t1 = DialecticalComponent(statement="T1")
+    t1.save()
+    trans1 = Transition()
+    trans1.save()
+    trans1.source.connect(t1)
+    trans1.target.connect(t1)
+    trans1.cycle.connect(cycle)
+
+    # 1 transition - should still be invalid (min is 2)
+    assert not cycle._transitions.is_cardinality_valid(), "Cycle with 1 transition should be invalid"
+
+    # Add 2nd transition
+    t2 = DialecticalComponent(statement="T2")
+    t2.save()
+    trans2 = Transition()
+    trans2.save()
+    trans2.source.connect(t1)
+    trans2.target.connect(t2)
+    trans2.cycle.connect(cycle)
+
+    # 2 transitions - should be valid (meets minimum)
+    assert cycle._transitions.is_cardinality_valid(), "Cycle with 2 transitions should be valid"
+
+    # Add 3rd transition - should still be valid (no max)
+    trans3 = Transition()
+    trans3.save()
+    trans3.source.connect(t2)
+    trans3.target.connect(t1)
+    trans3.cycle.connect(cycle)
+
+    assert cycle._transitions.is_cardinality_valid(), "Cycle with 3 transitions should be valid"
+
+    print("✓ Cycle cardinality validation works correctly")
+
+
+def test_transformation_cardinality_validation():
+    """Test that Transformation._transitions cardinality (2, 2) is validated correctly."""
+    from dialectical_framework.graph.nodes.transformation import Transformation
+
+    # Create transformation with no transitions
+    transformation = Transformation()
+    transformation.save()
+
+    # 0 transitions - should be invalid (min is 2)
+    assert not transformation._transitions.is_cardinality_valid(), "Transformation with 0 transitions should be invalid"
+
+    # Add 1 transition
+    t1 = DialecticalComponent(statement="T-")
+    t1.save()
+    a1 = DialecticalComponent(statement="A+")
+    a1.save()
+    trans1 = Transition()
+    trans1.save()
+    trans1.source.connect(t1)
+    trans1.target.connect(a1)
+    trans1.cycle.connect(transformation)
+
+    # 1 transition - should be invalid (min is 2)
+    assert not transformation._transitions.is_cardinality_valid(), "Transformation with 1 transition should be invalid"
+
+    # Add 2nd transition
+    a2 = DialecticalComponent(statement="A-")
+    a2.save()
+    t2 = DialecticalComponent(statement="T+")
+    t2.save()
+    trans2 = Transition()
+    trans2.save()
+    trans2.source.connect(a2)
+    trans2.target.connect(t2)
+    trans2.cycle.connect(transformation)
+
+    # 2 transitions - should be valid (exactly 2)
+    assert transformation._transitions.is_cardinality_valid(), "Transformation with 2 transitions should be valid"
+
+    print("✓ Transformation cardinality validation works correctly")
+
+
+def test_transformation_max_cardinality_enforced():
+    """Test that Transformation cannot exceed max cardinality of 2."""
+    from dialectical_framework.graph.nodes.transformation import Transformation
+
+    transformation = Transformation()
+    transformation.save()
+
+    # Add 2 transitions (the max allowed)
+    components = []
+    for i in range(4):
+        c = DialecticalComponent(statement=f"C{i}")
+        c.save()
+        components.append(c)
+
+    trans1 = Transition()
+    trans1.save()
+    trans1.source.connect(components[0])
+    trans1.target.connect(components[1])
+    trans1.cycle.connect(transformation)
+
+    trans2 = Transition()
+    trans2.save()
+    trans2.source.connect(components[2])
+    trans2.target.connect(components[3])
+    trans2.cycle.connect(transformation)
+
+    # Try to add 3rd transition - should fail (max cardinality)
+    trans3 = Transition()
+    trans3.save()
+    trans3.source.connect(components[0])
+    trans3.target.connect(components[2])
+
+    with pytest.raises(ValueError, match="cardinality"):
+        trans3.cycle.connect(transformation)
+
+    print("✓ Transformation max cardinality (2) is enforced at connect time")
 
 
 if __name__ == "__main__":

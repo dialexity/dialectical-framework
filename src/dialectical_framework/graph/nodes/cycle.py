@@ -14,27 +14,21 @@ from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
-from dialectical_framework.graph.relationships.branching_relationship import BranchingRelationship
-
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
-    from dialectical_framework.graph.growth.reconsideration import Reconsideration
+    from dialectical_framework.graph.nodes.nexus import Nexus
 
 
 class Cycle(CircularTopologyMixin, AssessableEntity):
     """
-    Represents a causal cycle in the dialectical framework.
+    Represents a causal arrangement of WisdomUnits from a Nexus.
 
     A Cycle is an analytical interpretation - a directed graph of transitions
     between components that forms a closed loop. Cycles capture causal
     relationships and feedback loops discovered in the dialectical system.
 
-    Cycles are "drawn on" a wheel to show different causal patterns:
-
-    Types of cycles:
-    - T-cycle: Causal loop through thesis components only
-    - TA-cycle: Causal loop including both thesis and antithesis (with blindspots)
+    Causality types (via causality_type field):
     - REALISTIC: Current/actual state of affairs
     - DESIRABLE: Ideal/preferred outcomes
     - FEASIBLE: Achievable intermediate states
@@ -42,66 +36,52 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
 
     Cycles always flow clockwise through the components.
 
-    Relationship to Wheel:
-    - A wheel can have primary/canonical cycles (wheel.t_cycle, wheel.ta_cycle)
-    - Alternative cycle interpretations can also analyze the same wheel
-    - Use get_wheel() to find which wheel this cycle analyzes
+    Hierarchy:
+        Nexus (pool of WUs) → Cycle (arrangement) → Wheel (detailed implementation)
+
+    Relationships:
+    - Cycle belongs to exactly one Nexus (source of WisdomUnits)
+    - Cycle can have multiple Wheels (different detailed arrangements)
+    - Use get_nexus() to find the source Nexus
+    - Use wheels.all() to find associated Wheels
     """
 
     causality_type: Optional[CausalityType] = None
 
-    # Declarative relationships - ClassVar required for GQLAlchemy metaclass
-    transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
-        "Transition",
-        "BELONGS_TO_CYCLE",
-        cardinality=(2, None)  # At least two transitions to form a cycle
+    # Note: transitions relationship is inherited from CircularTopologyMixin as _transitions
+    # Access via .transitions property which returns ordered list
+
+    # Source Nexus (where WUs come from)
+    # Parent→child: Nexus has this Cycle
+    nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
+        "Nexus",
+        "HAS_CYCLE",
+        cardinality=(1, 1)  # Exactly one source Nexus
     )
 
-    # Reverse relationships to Wheel (private - use get_wheel() instead)
-    # t_cycle defines the "sharing group" - multiple wheels can share the same t_cycle
-    # ta_cycle is unique per wheel (each wheel has its own permutation)
-    _wheel_as_t: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
+    # Wheels that implement this cycle's arrangement
+    # Parent→child: Cycle has Wheels
+    wheels: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
-        "IS_T_CYCLE_OF",
-        cardinality=(0, None)  # Shared across wheels in t_cycle group
+        "HAS_WHEEL",
+        cardinality=(1, None)  # At least one wheel per cycle
     )
 
-    _wheel_as_ta: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
-        "Wheel",
-        "IS_TA_CYCLE_OF",
-        cardinality=(0, 1)
-    )
-
-    # Branches from this cycle (reconsideration operations)
-    # Cycle -[BRANCHES]-> Reconsideration
-    branches: ClassVar[RelationshipManager[Reconsideration]] = RelationshipTo(
-        "Reconsideration",
-        model=BranchingRelationship,
-        cardinality=(0, None)  # Zero or more reconsiderations
-    )
-
-    def get_wheel(self) -> Wheel | None:
+    def get_nexus(self) -> Nexus | None:
         """
-        Get the wheel this cycle belongs to.
+        Get the source Nexus for this cycle.
 
         Returns:
-            Wheel instance or None if not assigned to a wheel
+            Nexus instance or None if not connected
 
         Example:
-            wheel = cycle.get_wheel()
-            if wheel:
-                print(f"Cycle belongs to wheel {wheel.uid}")
+            nexus = cycle.get_nexus()
+            if nexus:
+                print(f"Cycle derived from nexus with {nexus.wisdom_units.count()} WUs")
         """
-        # Check if this is a t_cycle
-        t_result = self._wheel_as_t.get()
-        if t_result:
-            return t_result[0]
-
-        # Check if this is a ta_cycle
-        ta_result = self._wheel_as_ta.get()
-        if ta_result:
-            return ta_result[0]
-
+        result = self.nexus.get()
+        if result:
+            return result[0]
         return None
 
     def __format__(self, format_spec: str) -> str:

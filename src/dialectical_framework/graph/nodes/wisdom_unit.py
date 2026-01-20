@@ -24,7 +24,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
@@ -123,14 +123,29 @@ class WisdomUnit(AssessableEntity):
         cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
-    # Relationship to Wheel
-    # WisdomUnits are shared across Wheels within the same t_cycle group.
-    # This enables synchronized reasoning quality - scoring a WU affects all
-    # wheels in the group. Isolation happens at the t_cycle group level.
-    wheel: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
-        "Wheel",
-        "BELONGS_TO_WHEEL",
-        cardinality=(0, None)  # Zero or more wheels (shared within t_cycle group)
+    # Relationship to Nexus (pool of WisdomUnits)
+    # WisdomUnits can belong to multiple Nexuses for different analytical perspectives.
+    # Child→parent: WU belongs to Nexus
+    nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
+        "Nexus",
+        "BELONGS_TO_NEXUS",
+        cardinality=(0, None)  # Zero or more Nexuses
+    )
+
+    # Evolution relationships (direct, no intermediate nodes)
+    # WU → CHANGED_TO → WU (evolved version)
+    changed_to: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
+        "WisdomUnit",
+        "CHANGED_TO",
+        cardinality=(0, None)
+    )
+
+    # Reverse: WU ← CHANGED_TO ← WU (source of evolution)
+    # Single lineage: a WU can only evolve from one predecessor
+    changed_from: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
+        "WisdomUnit",
+        "CHANGED_TO",
+        cardinality=(0, 1)
     )
 
     # Internal transformation spiral (T- → A+, A- → T+)

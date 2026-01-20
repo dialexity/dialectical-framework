@@ -457,7 +457,7 @@ class ReverseEngineer:
         ta_cycle = ta_cycle_result[0] if ta_cycle_result else None
 
         # Get wisdom units list
-        wisdom_units_list = [wu for wu, _ in wheel.wisdom_units.all()]
+        wisdom_units_list = wheel.wisdom_units
 
         return ReverseEngineer.till_cycle(
             wisdom_units_list, t_cycle, ta_cycle, text

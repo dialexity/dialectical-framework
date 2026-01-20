@@ -241,7 +241,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             # Connect new ac_re
             transformation.ac_re.connect(ac_re_wu)
 
-            existing_transitions = [t for t, _ in transformation.transitions.all()]
+            existing_transitions = transformation.transitions
 
             transitions_updated = []
 
@@ -289,7 +289,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             transition1.target.connect(a_plus_comp)
             transition1.rationales.connect(rationale1)
 
-            transformation.transitions.connect(transition1)
+            transition1.cycle.connect(transformation)
 
             # Transition 2: A- → T+
             rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
@@ -301,7 +301,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             transition2.target.connect(t_plus_comp)
             transition2.rationales.connect(rationale2)
 
-            transformation.transitions.connect(transition2)
+            transition2.cycle.connect(transformation)
 
             # Return both newly created transitions
             return [transition1, transition2]

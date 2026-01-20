@@ -28,10 +28,9 @@ class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
         self, wheel: Wheel
     ) -> list[Transition]:
         # Run all transitions in parallel for better performance
-        # Use segments_ordered to get segments in ta_cycle order
         async_tasks = [
             self._do_calculate_transitions(wheel, segment)
-            for segment in wheel.segments_ordered
+            for segment in wheel.segments
         ]
 
         results = await gather(*async_tasks)

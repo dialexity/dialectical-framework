@@ -10,12 +10,13 @@ from __future__ import annotations
 from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.nexus import Nexus
 
 
 class Spiral(CircularTopologyMixin, AssessableEntity):
@@ -37,34 +38,32 @@ class Spiral(CircularTopologyMixin, AssessableEntity):
     - Spirals can exist independently or be created after the wheel
     """
 
-    transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
-        "Transition",
-        "BELONGS_TO_CYCLE",
-        cardinality=(2, None)  # At least two transitions to form a spiral
-    )
+    # Note: transitions relationship is inherited from CircularTopologyMixin as _transitions
+    # Access via .transitions property which returns ordered list
 
-    _wheel_as_spiral: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
+    wheel: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
         "IS_SPIRAL_OF",
-        cardinality=(0, 1)  # Optional - spiral may analyze a wheel
+        cardinality=(1, 1)  # Spiral is always drawn on a wheel
     )
 
-    def get_wheel(self) -> Wheel | None:
+    def get_nexus(self) -> Nexus | None:
         """
-        Get the wheel this spiral belongs to.
+        Get the nexus this spiral belongs to via its Wheel→Cycle→Nexus path.
 
         Returns:
-            Wheel instance or None if not assigned to a wheel
+            Nexus instance or None if not connected
 
         Example:
-            wheel = spiral.get_wheel()
-            if wheel:
-                print(f"Spiral belongs to wheel {wheel.uid}")
+            nexus = spiral.get_nexus()
+            if nexus:
+                print(f"Spiral's source nexus has {nexus.wisdom_units.count()} WUs")
         """
-        wheel_result = self._wheel_as_spiral.get()
-        if wheel_result:
-            return wheel_result[0]
-        return None
+        wheel_result = self.wheel.get()
+        if not wheel_result:
+            return None
+        wheel_obj, _ = wheel_result
+        return wheel_obj.get_nexus()
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -123,18 +122,18 @@ class Spiral(CircularTopologyMixin, AssessableEntity):
             return result
 
         # Non-verbose modes: build transition sequence
-        transitions = self.transitions_ordered
+        transitions = self.transitions
         if not transitions:
             return ""
 
         # Determine mode
         mode = format_spec if format_spec else "aliases"
 
-        # Try to get wheel context for alias resolution
-        wheel = self.get_wheel()
+        # Try to get nexus context for alias resolution
+        nexus = self.get_nexus()
         wisdom_units = []
-        if wheel:
-            wisdom_units = [wu for wu, _ in wheel.wisdom_units.all()]
+        if nexus:
+            wisdom_units = [wu for wu, _ in nexus.wisdom_units.all()]
 
         # Helper to get label for a component
         def get_label(comp) -> str:

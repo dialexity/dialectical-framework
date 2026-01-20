@@ -7,10 +7,11 @@ for a complete dialectical system.
 
 from __future__ import annotations
 
-from typing import ClassVar, Union, Optional, TYPE_CHECKING, Literal
+from typing import ClassVar, Union, Optional, TYPE_CHECKING, Literal, Any
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
     POSITION_T_PLUS,
@@ -20,8 +21,6 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_A_MINUS,
 )
 
-from dialectical_framework.graph.relationships.branching_relationship import BranchingRelationship
-
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -29,28 +28,31 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.spiral import Spiral
-    from dialectical_framework.graph.growth.increment import Increment
-    from dialectical_framework.graph.growth.decrement import Decrement
-    from dialectical_framework.graph.growth.refinement import Refinement
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.nodes.nexus import Nexus
 
     # Type alias for flexible wheel segment references (no integer indexing in graph-native)
     WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
 
 
-class Wheel(AssessableEntity):
+class Wheel(CircularTopologyMixin, AssessableEntity):
     """
-    Represents a complete dialectical system (wheel metaphor).
+    Represents a detailed dialectical arrangement belonging to a Cycle.
 
-    A Wheel is fundamentally a structured collection of WisdomUnits arranged
-    in a specific configuration. The wheel represents the "raw dialectical material."
+    A Wheel is a concrete implementation of a Cycle's causal arrangement,
+    containing transitions that form the detailed causal loop through
+    thesis and antithesis components.
 
-    Cycles and spirals are analytical interpretations created on top of the wheel:
-    - They can be discovered/created after the wheel exists
-    - A wheel can have canonical (primary) cycles/spirals
-    - Alternative analyses can also reference the same wheel
+    Hierarchy:
+        Nexus (pool of WUs) → Cycle (arrangement) → Wheel (detailed implementation)
 
     The wheel metaphor represents the circular, iterative nature of
     dialectical reasoning where thesis and antithesis are arranged in segments.
+
+    Relationships:
+    - Wheel belongs to exactly one Cycle
+    - WisdomUnits are accessed via cycle.nexus (not stored directly on Wheel)
+    - Wheel can have a Spiral for transformational sequences
 
     Attributes:
         input_uri: The content source this Wheel's analysis is based on.
@@ -59,8 +61,9 @@ class Wheel(AssessableEntity):
             Example: "https://example.com/article" or "ipfs://Qm..."
 
     Properties:
-        polarity_count: Number of wisdom units (computed from relationships)
+        polarity_count: Number of wisdom units (computed via cycle.nexus)
         segment_count: Total segments = polarity_count × 2 (computed)
+        wisdom_units: WisdomUnits accessed via cycle.nexus (property)
     """
 
     # The content source this Wheel is based on (makes Wheel self-contained)
@@ -72,42 +75,100 @@ class Wheel(AssessableEntity):
         # Cache for polar pairs: wu_uid -> WheelSegmentPolarPair
         self._polar_pair_cache: dict[str, WheelSegmentPolarPair] = {}
 
-    # Declarative relationships
-    wisdom_units: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
-        "WisdomUnit",
-        "BELONGS_TO_WHEEL",
-        cardinality=(1, None)  # One or more wisdom units
-    )
-
-    # Canonical/primary analytical structures (optional)
-    # These represent the "authoritative" interpretation when one exists
-    # Note: Cycle-Wheel validation happens automatically in connect() - ensures
-    # all WisdomUnits in the cycle are connected to the wheel first
-    t_cycle: ClassVar[RelationshipManager[Cycle]] = RelationshipFrom(
+    # Parent Cycle (required)
+    # Parent→child: Cycle has this Wheel
+    cycle: ClassVar[RelationshipManager[Cycle]] = RelationshipFrom(
         "Cycle",
-        "IS_T_CYCLE_OF",
-        cardinality=(0, 1),  # Zero or one (can be analyzed later)
+        "HAS_WHEEL",
+        cardinality=(1, 1)  # Exactly one parent cycle
     )
 
-    ta_cycle: ClassVar[RelationshipManager[Cycle]] = RelationshipFrom(
-        "Cycle",
-        "IS_TA_CYCLE_OF",
-        cardinality=(0, 1),  # Zero or one (can be analyzed later)
-    )
+    # Note: transitions relationship is inherited from CircularTopologyMixin as _transitions
+    # Access via .transitions property which returns ordered list
 
+    # Optional spiral (transformational sequence)
     spiral: ClassVar[RelationshipManager[Spiral]] = RelationshipFrom(
         "Spiral",
         "IS_SPIRAL_OF",
-        cardinality=(0, 1)  # Zero or one wheel-level spiral (Transformations are internal to WisdomUnits)
+        cardinality=(0, 1)  # Zero or one wheel-level spiral
     )
 
-    # Branches from this wheel (evolution operations)
-    # Wheel -[BRANCHES]-> Increment, Decrement, or Refinement
-    branches: ClassVar[RelationshipManager[Increment | Decrement | Refinement]] = RelationshipTo(
-        ("Increment", "Decrement", "Refinement"),
-        model=BranchingRelationship,
-        cardinality=(0, None)  # Zero or more branches
-    )
+    @property
+    def wisdom_units(self) -> list[WisdomUnit]:
+        """
+        Get WisdomUnits in transition order.
+
+        WisdomUnits are accessed via Wheel → Cycle → Nexus, then ordered
+        by following the wheel's transitions. This is the canonical ordering
+        for the wheel.
+
+        Returns:
+            List of WisdomUnit nodes in transition order
+
+        Raises:
+            ValueError: If wheel has no transitions
+        """
+        ordered_transitions = self.transitions
+        if not ordered_transitions:
+            raise ValueError("Wheel has no transitions")
+
+        # Get all WUs from Nexus
+        cycle_result = self.cycle.get()
+        if not cycle_result:
+            return []
+
+        cycle_obj, _ = cycle_result
+        nexus_result = cycle_obj.nexus.get()
+        if not nexus_result:
+            return []
+
+        nexus_obj, _ = nexus_result
+        all_wus = [wu for wu, _ in nexus_obj.wisdom_units.all()]
+
+        # Track which wisdom units we've seen to avoid duplicates
+        seen_wisdom_units = set()
+        wisdom_units_list = []
+
+        # Traverse transitions and extract wisdom units in order
+        for transition in ordered_transitions:
+            source_result = transition.source.get()
+            if not source_result:
+                continue
+
+            source_component, _ = source_result
+
+            # Find which wisdom unit this component belongs to
+            for wu in all_wus:
+                try:
+                    source_component.get_alias(wu)
+                    # Found it - add if not already seen
+                    if wu.uid not in seen_wisdom_units:
+                        wisdom_units_list.append(wu)
+                        seen_wisdom_units.add(wu.uid)
+                    break
+                except ValueError:
+                    continue  # Not in this WU
+
+        return wisdom_units_list
+
+    def get_nexus(self) -> Nexus | None:
+        """
+        Get the source Nexus for this wheel via its Cycle.
+
+        Returns:
+            Nexus instance or None if not connected
+
+        Example:
+            nexus = wheel.get_nexus()
+            if nexus:
+                print(f"Wheel's source nexus has {nexus.wisdom_units.count()} WUs")
+        """
+        cycle_result = self.cycle.get()
+        if not cycle_result:
+            return None
+
+        cycle_obj, _ = cycle_result
+        return cycle_obj.get_nexus()
 
     @property
     def polarity_count(self) -> int:
@@ -115,17 +176,18 @@ class Wheel(AssessableEntity):
         The number of polarities (wisdom units) in the wheel.
 
         Each wisdom unit represents one polarity - a thesis/antithesis pair.
+        Computed via cycle.nexus.wisdom_units.
 
         Returns:
             Number of wisdom units in the wheel
 
         Raises:
-            ValueError: If the wheel is empty
+            ValueError: If the wheel has no WisdomUnits
         """
-        count = self.wisdom_units.count()
-        if count == 0:
-            raise ValueError("The wheel is empty, therefore polarity_count is undefined.")
-        return count
+        wus = self.wisdom_units
+        if not wus:
+            raise ValueError("The wheel has no WisdomUnits, therefore polarity_count is undefined.")
+        return len(wus)
 
     @property
     def segment_count(self) -> int:
@@ -177,7 +239,7 @@ class Wheel(AssessableEntity):
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as DCClass
         from dialectical_framework.graph.wheel_segment import WheelSegment
 
-        wus = [wu for wu, _ in self.wisdom_units.all()]
+        wus = self.wisdom_units
 
         if isinstance(key, WUClass):
             # Match by UID
@@ -272,7 +334,7 @@ class Wheel(AssessableEntity):
 
         # If key is a WheelSegment, validate it exists in this wheel and return it
         if isinstance(key, WSClass):
-            wus = [wu for wu, _ in self.wisdom_units.all()]
+            wus = self.wisdom_units
             for wu in wus:
                 if wu.segment_t.is_same(key) or wu.segment_a.is_same(key):
                     return key
@@ -280,7 +342,7 @@ class Wheel(AssessableEntity):
 
         # If key is a DialecticalComponent instance, use it directly
         elif isinstance(key, DCClass):
-            wus = [wu for wu, _ in self.wisdom_units.all()]
+            wus = self.wisdom_units
             for wu in wus:
                 # Check T-side segment
                 t_seg = wu.segment_t
@@ -299,7 +361,7 @@ class Wheel(AssessableEntity):
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
-            wus = [wu for wu, _ in self.wisdom_units.all()]
+            wus = self.wisdom_units
 
             # 1. Try as component UID
             for wu in wus:
@@ -357,116 +419,26 @@ class Wheel(AssessableEntity):
         except ValueError:
             return False
 
-    def is_same_structure(self, other: Wheel) -> bool:
-        """
-        Check if two wheels have the same structure.
-
-        Compares:
-        - Number of wisdom units (polarity_count)
-        - T-cycle structure (if both have one)
-        - TA-cycle structure (if both have one)
-
-        Args:
-            other: Another Wheel to compare with
-
-        Returns:
-            True if wheels have same structure
-        """
-        # Compare polarity_count
-        if self.polarity_count != other.polarity_count:
-            return False
-
-        # Compare T-cycles if both exist
-        self_t_cycle = self.t_cycle.get()
-        other_t_cycle = other.t_cycle.get()
-
-        if self_t_cycle and other_t_cycle:
-            if not self_t_cycle[0].is_same_structure(other_t_cycle[0]):
-                return False
-
-        # Compare TA-cycles if both exist
-        self_ta_cycle = self.ta_cycle.get()
-        other_ta_cycle = other.ta_cycle.get()
-
-        if self_ta_cycle and other_ta_cycle:
-            if not self_ta_cycle[0].is_same_structure(other_ta_cycle[0]):
-                return False
-
-        return True
-
     @property
-    def _wisdom_units_ordered(self) -> list[WisdomUnit]:
+    def polar_pairs(self) -> list[WheelSegmentPolarPair]:
         """
-        Internal helper: Get all wisdom units in ta_cycle order.
+        Get all wisdom units as WheelSegmentPolarPair objects in transition order.
 
-        Traverses the ta_cycle to determine the canonical ordering of wisdom units.
-        This is used internally by polar_pairs_ordered. External code should use
-        polar_pairs_ordered instead.
-
-        Returns:
-            List of WisdomUnit nodes in ta_cycle order
-
-        Raises:
-            ValueError: If ta_cycle is not set on this wheel
-        """
-        # Get ta_cycle
-        ta_cycle_result = self.ta_cycle.get()
-        if not ta_cycle_result:
-            raise ValueError("ta_cycle is not set on this wheel")
-
-        ta_cycle_obj, _ = ta_cycle_result
-
-        # Get ordered transitions from ta_cycle
-        ordered_transitions = ta_cycle_obj.transitions_ordered
-
-        # Track which wisdom units we've seen to avoid duplicates
-        seen_wisdom_units = set()
-        wisdom_units = []
-
-        # Traverse transitions and extract wisdom units
-        for transition in ordered_transitions:
-            # Get source component from transition (cardinality 1,1)
-            source_result = transition.source.get()
-            if not source_result:
-                continue
-
-            source_component, _ = source_result
-
-            # Find which wisdom unit this component belongs to
-            for wu, _ in self.wisdom_units.all():
-                # Check if this component belongs to this wisdom unit
-                try:
-                    source_component.get_alias(wu)
-                    # Found it - add if not already seen
-                    if wu.uid not in seen_wisdom_units:
-                        wisdom_units.append(wu)
-                        seen_wisdom_units.add(wu.uid)
-                    break
-                except ValueError:
-                    continue  # Not in this WU
-
-        return wisdom_units
-
-    @property
-    def polar_pairs_ordered(self) -> list[WheelSegmentPolarPair]:
-        """
-        Get all wisdom units as WheelSegmentPolarPair objects in ta_cycle order.
-
-        The ta_cycle determines which side of each WU appears on the left/west.
-        For example, if ta_cycle is T1 → A2 → A1 → T2, the pairs are:
+        The transitions determine which side of each WU appears on the left/west.
+        For example, if transitions follow T1 → A2 → A1 → T2, the pairs are:
         - Pair 1: (T1 on left, A1 on right) - T1 appears first
         - Pair 2: (A2 on left, T2 on right) - A2 appears first
 
         Polar pairs are cached per wisdom unit to ensure the same instances are reused.
 
         Returns:
-            List of WheelSegmentPolarPair objects in ta_cycle order with correct orientation
+            List of WheelSegmentPolarPair objects in transition order with correct orientation
 
         Raises:
-            ValueError: If ta_cycle is not set on this wheel
+            ValueError: If wheel has no transitions
 
         Example:
-            pairs = wheel.polar_pairs_ordered
+            pairs = wheel.polar_pairs
             for pair in pairs:
                 print(f"Left: {pair.segment_left.t.get()[0].statement}")
                 print(f"Right: {pair.segment_right.t.get()[0].statement}")
@@ -477,20 +449,16 @@ class Wheel(AssessableEntity):
             POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
         )
 
-        # Get ta_cycle
-        ta_cycle_result = self.ta_cycle.get()
-        if not ta_cycle_result:
-            raise ValueError("ta_cycle is not set on this wheel")
+        # Wheel is now CircularTopologyMixin, get transitions directly
+        ordered_transitions = self.transitions
 
-        ta_cycle_obj, _ = ta_cycle_result
-
-        # Get ordered transitions from ta_cycle
-        ordered_transitions = ta_cycle_obj.transitions_ordered
+        if not ordered_transitions:
+            raise ValueError("Wheel has no transitions")
 
         # Build a lookup map: component_uid -> (wisdom_unit, position)
         # This avoids repeated searches through all WUs for each transition
         component_to_wu_map = {}
-        for wu, _ in self.wisdom_units.all():
+        for wu in self.wisdom_units:
             # Check all positions in this WU
             positions = [
                 (POSITION_T, wu.t),
@@ -549,41 +517,36 @@ class Wheel(AssessableEntity):
         return pairs
 
     @property
-    def segments_ordered(self) -> list[WheelSegment]:
+    def segments(self) -> list[WheelSegment]:
         """
-        Get all wheel segments (T and A sides) following the actual ta_cycle traversal order.
+        Get all wheel segments (T and A sides) in transition order.
 
-        Returns segments in the exact order they appear in the ta_cycle, which is the
-        correct order for creating spiral transitions (each segment's minus connects to
-        the next segment's plus).
+        Returns segments in the exact order they appear in the wheel's transitions,
+        which is the correct order for creating spiral transitions (each segment's
+        minus connects to the next segment's plus).
 
         Returns:
-            List of WheelSegment objects in ta_cycle traversal order
+            List of WheelSegment objects in transition order
 
         Raises:
-            ValueError: If ta_cycle is not set on this wheel
+            ValueError: If wheel has no transitions
 
         Example:
-            # If ta_cycle is T1 → A2 → A1 → T2:
-            # Returns: [T1, A2, A1, T2] (exact ta_cycle order)
+            # If transitions follow T1 → A2 → A1 → T2:
+            # Returns: [T1, A2, A1, T2] (exact transition order)
 
-            segments = wheel.segments_ordered
-            for seg in segments:
+            for seg in wheel.segments:
                 comp = seg.t.get()
                 if comp:
                     print(f"{seg.side}: {comp[0].statement}")
         """
-        # Get ta_cycle
-        ta_cycle_result = self.ta_cycle.get()
-        if not ta_cycle_result:
-            raise ValueError("ta_cycle is not set on this wheel")
+        # Wheel is now CircularTopologyMixin, get transitions directly
+        ordered_transitions = self.transitions
 
-        ta_cycle_obj, _ = ta_cycle_result
+        if not ordered_transitions:
+            raise ValueError("Wheel has no transitions")
 
-        # Get ordered transitions from ta_cycle
-        ordered_transitions = ta_cycle_obj.transitions_ordered
-
-        # Extract segments by following the ta_cycle transitions
+        # Extract segments by following the transitions
         segments = []
         seen_segments = set()
 
@@ -596,7 +559,7 @@ class Wheel(AssessableEntity):
             source_component, _ = source_result
 
             # Find which segment this component belongs to
-            for wu, _ in self.wisdom_units.all():
+            for wu in self.wisdom_units:
                 # Try to get segment containing this component
                 t_seg = wu.segment_t
                 if t_seg.is_set(source_component):
@@ -618,18 +581,18 @@ class Wheel(AssessableEntity):
 
     def get_next_segment(self, current: WheelSegment) -> WheelSegment:
         """
-        Get the next segment in ta_cycle order.
+        Get the next segment in transition order.
 
         Args:
             current: The current segment
 
         Returns:
-            The next segment in ta_cycle circular order
+            The next segment in circular order
 
         Raises:
             ValueError: If current segment is not found in this wheel
         """
-        segments = self.segments_ordered
+        segments = self.segments
 
         # Find current segment
         for i, seg in enumerate(segments):
@@ -638,11 +601,11 @@ class Wheel(AssessableEntity):
                 next_index = (i + 1) % len(segments)
                 return segments[next_index]
 
-        raise ValueError(f"Segment not found in wheel's ta_cycle order")
+        raise ValueError(f"Segment not found in wheel's transition order")
 
     def __repr__(self) -> str:
         """String representation of the wheel."""
-        return f"Wheel(uid={self.uid}, polarity_count={self.polarity_count if self.wisdom_units.count() > 0 else 0})"
+        return f"Wheel(uid={self.uid}, polarity_count={self.polarity_count if len(self.wisdom_units) > 0 else 0})"
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -661,8 +624,8 @@ class Wheel(AssessableEntity):
                      Calculated values shown in [brackets], manual without
 
         Shows:
-        - T-cycle with rationale
-        - TA-cycle with rationale
+        - Parent Cycle (t_cycle) with rationale
+        - Wheel transitions (ta_cycle level)
         - Tabular view of all wisdom units using WheelSegmentPolarPair
         - Spiral with rationale (if present)
 
@@ -714,30 +677,40 @@ class Wheel(AssessableEntity):
             output.append(f"=== Wheel [{fmt_scores(self, colorize=True)}] ===")
             output.append("")
 
-        # T-Cycle
-        t_cycle_result = self.t_cycle.get()
-        if t_cycle_result:
-            t_cycle_obj, _ = t_cycle_result
-            output.extend(_format_cycle(t_cycle_obj, "T-Cycle"))
+        # Parent Cycle (t_cycle level)
+        cycle_result = self.cycle.get()
+        if cycle_result:
+            cycle_obj, _ = cycle_result
+            output.extend(_format_cycle(cycle_obj, "Cycle (t_cycle)"))
             output.append("")
 
-        # TA-Cycle
-        ta_cycle_result = self.ta_cycle.get()
-        if ta_cycle_result:
-            ta_cycle_obj, _ = ta_cycle_result
-            output.extend(_format_cycle(ta_cycle_obj, "TA-Cycle"))
+        # Wheel transitions (ta_cycle level) - Wheel is now CircularTopologyMixin
+        if len(self.transitions) > 0:
+            lines = []
+            header = "=== Wheel Transitions (ta_cycle) ==="
+            if show_scores:
+                header = f"=== Wheel Transitions [{fmt_scores(self, colorize=True)}] ==="
+            lines.append(header)
+            lines.append(f"{self:aliases}")  # Use CircularTopologyMixin formatting
+
+            # Add the best rationale if it exists
+            rationale = self.best_rationale
+            if rationale and rationale.text:
+                lines.append(f"Rationale: {rationale.text}")
+
+            output.extend(lines)
             output.append("")
 
         # Wisdom Units (tabular with transformations)
-        # Use polar_pairs_ordered to get wisdom units in ta_cycle order with correct polarity
+        # Use polar_pairs to get wisdom units in transition order with correct polarity
         output.append("=== Wisdom Units / Transformations ===")
 
         try:
-            polar_pairs = self.polar_pairs_ordered
+            polar_pairs = self.polar_pairs
         except ValueError:
-            # ta_cycle not set, fall back to unordered wisdom units
+            # No transitions, fall back to unordered wisdom units
             from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
-            polar_pairs = [WheelSegmentPolarPair(wu, "normal") for wu, _ in self.wisdom_units.all()]
+            polar_pairs = [WheelSegmentPolarPair(wu, "normal") for wu in self.wisdom_units]
 
         if polar_pairs:
             from tabulate import tabulate
@@ -829,10 +802,10 @@ class Wheel(AssessableEntity):
 
             transitions_data = []
 
-            # Collect transitions from all cycles
+            # Collect transitions from all sources
             cycles_to_check = [
-                ("T-Cycle", t_cycle_result[0] if t_cycle_result else None),
-                ("TA-Cycle", ta_cycle_result[0] if ta_cycle_result else None),
+                ("Cycle", cycle_result[0] if cycle_result else None),
+                ("Wheel", self),  # Wheel itself has transitions (ta_cycle level)
                 ("Spiral", spiral_result[0] if spiral_result else None),
             ]
 
@@ -866,7 +839,7 @@ class Wheel(AssessableEntity):
                 if cycle_obj is None:
                     continue
 
-                for trans, _ in cycle_obj.transitions.all():
+                for trans in cycle_obj.transitions:
                     trans_repr = f"{trans}"  # Uses Transition.__str__
                     s = fmt_score(trans.score, colorize=True)
                     r = fmt_relevance(trans, colorize=True)

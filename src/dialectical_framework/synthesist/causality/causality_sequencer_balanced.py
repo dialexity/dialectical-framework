@@ -553,7 +553,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         estimation_manager = EstimationManager()
 
         # Get all transitions
-        all_transitions = [trans for trans, _ in cycle.transitions.all()]
+        all_transitions = cycle.transitions
         if not all_transitions:
             return
 

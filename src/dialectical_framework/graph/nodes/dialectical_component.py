@@ -20,7 +20,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.transition import Transition
-    from dialectical_framework.graph.growth.input import Input
+    from dialectical_framework.graph.nodes.input import Input
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
