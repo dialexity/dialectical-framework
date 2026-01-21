@@ -99,7 +99,7 @@ graph/
 │   ├── dialectical_component.py   # DialecticalComponent (statement)
 │   ├── wisdom_unit.py             # WisdomUnit (t, a, t_plus, t_minus, nexus)
 │   ├── nexus.py                   # Nexus (pool of WisdomUnits, cycles)
-│   ├── wheel.py                   # Wheel (cycle, transitions, spiral, input_uri)
+│   ├── wheel.py                   # Wheel (cycle, transitions, spiral)
 │   ├── cycle.py                   # Cycle (transitions, nexus, wheels)
 │   ├── spiral.py                  # Spiral (transitions)
 │   ├── transformation.py          # Transformation (internal WU spiral)
@@ -172,7 +172,7 @@ Component → WisdomUnit → Nexus → Cycle → Wheel
 ### Node Containment (Nexus-based Structure)
 
 ```
-Wheel (input_uri: content source)
+Wheel (top-level container)
   └── Cycle (parent, required)
       ├── Nexus (pool of WisdomUnits)
       │   └── WisdomUnits (1+)
@@ -193,8 +193,7 @@ Wheel (input_uri: content source)
 different Cycles and analytical perspectives. WisdomUnits can belong to
 multiple Nexuses within the same `t_cycle` group.
 
-**Note:** `Input` node is optional—for apps needing extraction provenance.
-The `Wheel.input_uri` makes Wheels self-contained artifacts.
+**Note:** Provenance traces through Nexus to Input nodes via `get_root_inputs()`.
 
 ---
 
@@ -579,7 +578,6 @@ nexus.expanded_from # Inverse of expands_to
 ### Wheel Specific
 
 ```python
-wheel.input_uri     # Content source URI (self-contained provenance)
 wheel.cycle         # Parent Cycle (cardinality 1,1 - required)
 wheel.transitions   # Wheel-level transitions (more detailed than Cycle)
 wheel.spiral        # Spiral (cardinality 0,1)
@@ -587,11 +585,18 @@ wheel.wisdom_units  # Property: WUs via cycle.nexus (not direct relationship)
 wheel.get_nexus()   # Helper: access Nexus via Cycle
 ```
 
-**Wheel as Self-Contained Artifact:**
+**Provenance Tracing:**
 
-The `input_uri` field stores the content source this Wheel's analysis is based on,
-making the Wheel a portable, self-contained artifact that can be shared or exported
-independently without requiring graph traversal to Input nodes.
+Trace a Wheel's source Inputs via the Nexus hierarchy:
+
+```python
+from dialectical_framework.graph.repositories.dialectical_component_repository import (
+    DialecticalComponentRepository
+)
+
+repo = DialecticalComponentRepository()
+roots = repo.get_root_inputs(wheel)  # All Inputs that contributed
+```
 
 ```python
 # Create full hierarchy
@@ -603,7 +608,7 @@ cycle = Cycle()
 cycle.save()
 nexus.cycles.connect(cycle)
 
-wheel = Wheel(input_uri="https://example.com/article")
+wheel = Wheel()
 wheel.save()
 cycle.wheels.connect(wheel)
 

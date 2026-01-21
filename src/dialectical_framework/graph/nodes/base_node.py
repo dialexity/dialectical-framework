@@ -52,3 +52,13 @@ class BaseNode(Node):
     def __repr__(self) -> str:
         """String representation of the node."""
         return f"{self.__class__.__name__}(uid={self.uid})"
+
+    def __hash__(self) -> int:
+        """Hash based on uid for use in sets and dict keys."""
+        return hash(self.uid)
+
+    def __eq__(self, other: object) -> bool:
+        """Equality based on uid."""
+        if not isinstance(other, BaseNode):
+            return NotImplemented
+        return self.uid == other.uid

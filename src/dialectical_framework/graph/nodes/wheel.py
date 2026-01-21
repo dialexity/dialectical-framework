@@ -7,7 +7,7 @@ for a complete dialectical system.
 
 from __future__ import annotations
 
-from typing import ClassVar, Union, Optional, TYPE_CHECKING, Literal, Any
+from typing import ClassVar, Union, TYPE_CHECKING, Literal, Any
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
@@ -54,20 +54,11 @@ class Wheel(CircularTopologyMixin, AssessableEntity):
     - WisdomUnits are accessed via cycle.nexus (not stored directly on Wheel)
     - Wheel can have a Spiral for transformational sequences
 
-    Attributes:
-        input_uri: The content source this Wheel's analysis is based on.
-            This makes the Wheel a self-contained artifact that knows its origin.
-            Format: Any valid URI (http, https, ipfs, file, s3, data, etc.)
-            Example: "https://example.com/article" or "ipfs://Qm..."
-
     Properties:
         polarity_count: Number of wisdom units (computed via cycle.nexus)
         segment_count: Total segments = polarity_count × 2 (computed)
         wisdom_units: WisdomUnits accessed via cycle.nexus (property)
     """
-
-    # The content source this Wheel is based on (makes Wheel self-contained)
-    input_uri: Optional[str] = None
 
     def __init__(self, **data):
         """Initialize wheel with polar pair cache."""

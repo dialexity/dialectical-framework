@@ -249,6 +249,60 @@ transformation: ClassVar[...] = RelationshipFrom(..., cardinality=(0, 1))
 rationales: ClassVar[...] = RelationshipFrom(..., cardinality=(0, None))
 ```
 
+### Vocabulary and WisdomUnit Purity
+
+**WisdomUnits must only contain components from the same vocabulary context.** This is enforced at connect time.
+
+**Vocabulary Contexts:**
+
+| Generation | Context | Components Include |
+|------------|---------|-------------------|
+| **Gen-1** | Input | Components born via `Input.HAS_STATEMENT` |
+| **Gen-2+** | Nexus | Position components + Synthesis S+/S- + HAS_STATEMENT from Nexus tree |
+
+**Purity Rule:** All 6 components in a WisdomUnit (T, A, T+, T-, A+, A-) must belong to the same vocabulary:
+- Gen-1 WU: All components from the same Input
+- Gen-2+ WU: All components from the same Nexus vocabulary
+
+```python
+# Gen-1: Components from same Input
+input_a = Input(content_uri="https://article.com/x")
+input_a.save()
+comp1 = DialecticalComponent(statement="Thesis from A")
+comp1.save()
+input_a.statements.connect(comp1)
+
+wu = WisdomUnit()
+wu.save()
+wu.t.connect(comp1)  # OK - first component sets vocabulary
+wu.a.connect(comp2_from_input_a)  # OK - same Input vocabulary
+
+# This fails - different vocabulary!
+wu.t_plus.connect(comp_from_input_b)  # ValueError: component not in vocabulary
+```
+
+**Query Helpers** (in `dialectical_component_repository.py`):
+
+```python
+from dialectical_framework.graph.repositories.dialectical_component_repository import (
+    DialecticalComponentRepository
+)
+
+repo = DialecticalComponentRepository()
+
+# Get vocabulary for a context
+input_vocab = repo.get_vocabulary(input_node)   # Gen-1 components
+nexus_vocab = repo.get_vocabulary(nexus)        # Gen-2+ components
+
+# Find context for any node
+context = repo.get_vocabulary_context(component)  # Returns Input or Nexus
+
+# Trace all root Inputs (multi-root provenance)
+roots = repo.get_root_inputs(wheel)  # All Inputs that contributed
+```
+
+**Multi-Root Provenance:** Gen-2+ components trace back to multiple original Inputs via the Nexus ancestry—this is by design for synthesis.
+
 ---
 
 ## Type Hints Best Practices

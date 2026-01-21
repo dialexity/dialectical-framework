@@ -34,28 +34,32 @@ while Wheels provide detailed transition-level analysis.
 | **Cycle** | Causal loop | `transitions`, `nexus`, `wheels` |
 | **Spiral** | Transformational sequence | `transitions`, `wheel` |
 | **Transformation** | Internal WU spiral | `transitions`, `wisdom_unit`, `ac_re` |
-| **Wheel** | Top container | `cycle`, `transitions`, `spiral`, `input_uri` |
+| **Wheel** | Top container | `cycle`, `transitions`, `spiral` |
 | **Rationale** | Evidence/explanation | `explanation`, `critiques` |
 | **Estimation** | P/R values | `assessed_entity` |
 | **Input** | Content source | `statements` (optional, for extraction provenance) |
 
-## Wheel as Self-Contained Artifact
+## Provenance Tracing
 
-A Wheel carries its source reference directly via `input_uri`, making it a portable, self-contained analytical artifact:
+Wheels trace back to their source Inputs via the Nexus hierarchy:
 
 ```python
-wheel = Wheel(input_uri="https://example.com/article")
-wheel.save()
+from dialectical_framework.graph.repositories.dialectical_component_repository import (
+    DialecticalComponentRepository
+)
 
-# Later: reconstruct analysis context
-print(f"This wheel analyzes: {wheel.input_uri}")
+repo = DialecticalComponentRepository()
+
+# Trace all root Inputs that contributed to a Wheel
+roots = repo.get_root_inputs(wheel)
+for input_node in roots:
+    print(f"Source: {input_node.content_uri}")
 ```
 
-**Design rationale:**
-- Wheels can be shared/exported independently
-- No dependency on external Input nodes for provenance
-- All WisdomUnits in a Wheel share the same source (the Wheel's `input_uri`)
-- Components are vocabulary—their extraction origin is an app-level concern
+**Key concepts:**
+- Gen-1 WUs trace to a single Input
+- Gen-2+ WUs trace to multiple Inputs (multi-root provenance via Nexus synthesis)
+- `get_root_inputs()` recursively collects all contributing sources
 
 ## Relationship Patterns
 
@@ -84,6 +88,103 @@ class Nexus:
 # Direct evolution (no intermediate nodes)
 nexus1.shrinks_to.connect(nexus2)   # Reduction: fewer WUs
 nexus1.expands_to.connect(nexus3)   # Growth: more WUs
+```
+
+## Vocabulary and WisdomUnit Purity
+
+Components are born via `HAS_STATEMENT` relationships from different sources. The **vocabulary** determines which components can be combined in a WisdomUnit.
+
+### Component Birth Sources
+
+| Source | Relationship | Generation |
+|--------|--------------|------------|
+| **Input** | `Input -[HAS_STATEMENT]-> Component` | Gen-1 (primary) |
+| **Synthesis** | `Synthesis.s_plus/s_minus -> Component` | Gen-2+ (synthesis) |
+| **Transition** | `Transition -[HAS_STATEMENT]-> Component` | Gen-2+ (synthesis) |
+| **Rationale** | `Rationale -[HAS_STATEMENT]-> Component` | Gen-2+ (synthesis) |
+
+### Vocabulary Boundaries
+
+```
+Gen-1 Vocabulary: Input
+────────────────────────
+Input_A ──HAS_STATEMENT──> [Component_1, Component_2, ...]
+                                    │
+                                    ▼
+                            WisdomUnit (Gen-1)
+                            All components from same Input
+
+Gen-2+ Vocabulary: Nexus
+────────────────────────
+Nexus_1
+├── WU position components (Input-born, pulled into vocabulary)
+├── Synthesis S+/S- components
+├── Transition-derived components
+└── Rationale-derived components
+                                    │
+                                    ▼
+                            WisdomUnit (Gen-2)
+                            All components from same Nexus vocabulary
+```
+
+### WisdomUnit Purity Rule
+
+**All components in a WisdomUnit must belong to the same vocabulary:**
+- **Gen-1 WU**: All 6 components from the same Input
+- **Gen-2+ WU**: All 6 components from the same Nexus's vocabulary
+
+This is **enforced at connect time**. Attempting to connect a component from a different vocabulary raises `ValueError`.
+
+```python
+# Gen-1: Components from same Input
+input_a = Input(content_uri="https://article.com/x")
+input_a.save()
+comp1 = DialecticalComponent(statement="Thesis from A")
+comp1.save()
+input_a.statements.connect(comp1)
+
+# This works - same Input vocabulary
+wu.t.connect(comp1)
+wu.a.connect(comp2_from_input_a)  # OK
+
+# This fails - different Input vocabulary
+wu.t_plus.connect(comp_from_input_b)  # ValueError!
+```
+
+### Querying Vocabulary
+
+```python
+from dialectical_framework.graph.repositories.dialectical_component_repository import (
+    DialecticalComponentRepository
+)
+
+repo = DialecticalComponentRepository()
+
+# Get vocabulary for a context
+input_vocab = repo.get_vocabulary(input_node)   # Gen-1 components
+nexus_vocab = repo.get_vocabulary(nexus)        # Gen-2+ components
+
+# Find context for any node
+context = repo.get_vocabulary_context(component)  # Returns Input or Nexus
+
+# Trace all root Inputs
+roots = repo.get_root_inputs(wheel)  # All Inputs that contributed
+```
+
+### Multi-Root Provenance
+
+Gen-2+ components have **multi-root provenance** - they trace back to multiple original Inputs via the Nexus that produced them. This is by design: synthesis combines perspectives from different sources.
+
+```
+Wheel_2
+  └── Cycle_2
+        └── Nexus_2 (Gen-2 WUs)
+              │
+              └── birth_nexus = Nexus_1
+                    ├── WU_A (from Input_A)
+                    └── WU_B (from Input_B)
+
+get_root_inputs(Wheel_2) → [Input_A, Input_B]
 ```
 
 ## Polarity Relationships

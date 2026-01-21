@@ -2385,6 +2385,125 @@ def test_transformation_max_cardinality_enforced():
     print("✓ Transformation max cardinality (2) is enforced at connect time")
 
 
+def test_wisdom_unit_vocabulary_validation():
+    """
+    Test that WisdomUnit components must all come from the same vocabulary context.
+
+    Gen-1 WU: All components must come from the same Input.
+    Gen-2+ WU: All components must come from the same Nexus vocabulary.
+    """
+    from dialectical_framework.graph.nodes.input import Input
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
+        APlusRelationship, AMinusRelationship
+    )
+
+    # === Gen-1 Test: Components must come from the same Input ===
+
+    # Create two separate Inputs
+    input_a = Input(content_uri="https://example.com/article-a")
+    input_a.save()
+
+    input_b = Input(content_uri="https://example.com/article-b")
+    input_b.save()
+
+    # Create components for Input A
+    t_a = DialecticalComponent(statement="Thesis from A")
+    t_a.save()
+    input_a.statements.connect(t_a)
+
+    a_a = DialecticalComponent(statement="Antithesis from A")
+    a_a.save()
+    input_a.statements.connect(a_a)
+
+    t_plus_a = DialecticalComponent(statement="T+ from A")
+    t_plus_a.save()
+    input_a.statements.connect(t_plus_a)
+
+    t_minus_a = DialecticalComponent(statement="T- from A")
+    t_minus_a.save()
+    input_a.statements.connect(t_minus_a)
+
+    a_plus_a = DialecticalComponent(statement="A+ from A")
+    a_plus_a.save()
+    input_a.statements.connect(a_plus_a)
+
+    a_minus_a = DialecticalComponent(statement="A- from A")
+    a_minus_a.save()
+    input_a.statements.connect(a_minus_a)
+
+    # Create a component for Input B
+    t_b = DialecticalComponent(statement="Thesis from B")
+    t_b.save()
+    input_b.statements.connect(t_b)
+
+    # Create WisdomUnit and connect first component from Input A
+    wu = WisdomUnit()
+    wu.save()
+    wu.t.connect(t_a, relationship=TRelationship(alias="T"))
+
+    # Connecting another component from Input A should work
+    wu.a.connect(a_a, relationship=ARelationship(alias="A"))
+    wu.t_plus.connect(t_plus_a, relationship=TPlusRelationship(alias="T+"))
+    wu.t_minus.connect(t_minus_a, relationship=TMinusRelationship(alias="T-"))
+    wu.a_plus.connect(a_plus_a, relationship=APlusRelationship(alias="A+"))
+
+    # Trying to connect a component from Input B should FAIL
+    with pytest.raises(ValueError, match="not in vocabulary"):
+        wu.a_minus.connect(t_b, relationship=AMinusRelationship(alias="A-"))
+
+    # Complete with correct component
+    wu.a_minus.connect(a_minus_a, relationship=AMinusRelationship(alias="A-"))
+
+    print("✓ Gen-1 vocabulary validation: components from different Inputs rejected")
+
+    # === Gen-2+ Test: Components from same Nexus vocabulary work ===
+
+    # Pool the WU into a Nexus
+    nexus = Nexus()
+    nexus.save()
+    wu.nexus.connect(nexus)
+
+    # Create a second WU from Input B (valid on its own)
+    t_plus_b = DialecticalComponent(statement="T+ from B")
+    t_plus_b.save()
+    input_b.statements.connect(t_plus_b)
+
+    t_minus_b = DialecticalComponent(statement="T- from B")
+    t_minus_b.save()
+    input_b.statements.connect(t_minus_b)
+
+    a_b = DialecticalComponent(statement="Antithesis from B")
+    a_b.save()
+    input_b.statements.connect(a_b)
+
+    a_plus_b = DialecticalComponent(statement="A+ from B")
+    a_plus_b.save()
+    input_b.statements.connect(a_plus_b)
+
+    a_minus_b = DialecticalComponent(statement="A- from B")
+    a_minus_b.save()
+    input_b.statements.connect(a_minus_b)
+
+    wu_b = WisdomUnit()
+    wu_b.save()
+    wu_b.t.connect(t_b, relationship=TRelationship(alias="T"))
+    wu_b.a.connect(a_b, relationship=ARelationship(alias="A"))
+    wu_b.t_plus.connect(t_plus_b, relationship=TPlusRelationship(alias="T+"))
+    wu_b.t_minus.connect(t_minus_b, relationship=TMinusRelationship(alias="T-"))
+    wu_b.a_plus.connect(a_plus_b, relationship=APlusRelationship(alias="A+"))
+    wu_b.a_minus.connect(a_minus_b, relationship=AMinusRelationship(alias="A-"))
+
+    # Both WUs can be pooled into the same Nexus (mixing Inputs at Nexus level is OK)
+    wu_b.nexus.connect(nexus)
+
+    assert nexus.wisdom_units.count() == 2, "Nexus should have 2 WUs from different Inputs"
+
+    print("✓ Gen-2+ vocabulary: WUs from different Inputs can be pooled in same Nexus")
+    print("✓ WisdomUnit vocabulary validation works correctly")
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])

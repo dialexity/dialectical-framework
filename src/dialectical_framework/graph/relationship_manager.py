@@ -274,6 +274,86 @@ class BoundRelationshipManager(Generic[T]):
         self.direction = direction
         self.cardinality = cardinality
 
+    def _validate_wisdom_unit_vocabulary(self, target_node: Node) -> None:
+        """
+        Validate that components connected to a WisdomUnit belong to the same vocabulary.
+
+        When connecting a DialecticalComponent to a WisdomUnit (via polarity relationships
+        T, A, T+, T-, A+, A-), validates that the component is in the same vocabulary
+        as any existing components in the WU.
+
+        Vocabulary rules:
+        - Gen-1 WU: All components must be in the same Input's vocabulary
+        - Gen-2+ WU: All components must be in the same Nexus's vocabulary
+
+        This is called automatically by connect() for polarity relationships.
+        """
+        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+
+        # Only validate WU -> Component polarity connections
+        polarity_types = {'T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS'}
+
+        # Check if this is a WU receiving a component (incoming direction)
+        if not (isinstance(self.source_node, WisdomUnit) and
+                isinstance(target_node, DialecticalComponent) and
+                self.relationship_type in polarity_types):
+            return  # Not a WU-component polarity connection
+
+        wu = self.source_node
+        new_component = target_node
+
+        # Get existing components from the WU
+        existing_components: list[DialecticalComponent] = []
+        for manager in [wu.t, wu.a, wu.t_plus, wu.t_minus, wu.a_plus, wu.a_minus]:
+            result = manager.get()
+            if result:
+                comp, _ = result
+                # Don't include the new component if it's already connected
+                if comp.uid != new_component.uid:
+                    existing_components.append(comp)
+
+        # If no existing components, any component is valid (first one sets the context)
+        if not existing_components:
+            return
+
+        # Get vocabulary context for the first existing component (they should all match)
+        from dialectical_framework.graph.repositories.dialectical_component_repository import (
+            DialecticalComponentRepository
+        )
+        repo = DialecticalComponentRepository()
+        existing_context = repo.get_vocabulary_context(existing_components[0])
+
+        if existing_context is None:
+            # Existing components have no context - allow the connection
+            return
+
+        # Get the vocabulary for this context
+        vocabulary = repo.get_vocabulary(existing_context)
+
+        # Check if new component is in the vocabulary
+        # Compare by uid since set membership might not work across object instances
+        vocabulary_uids = {comp.uid for comp in vocabulary}
+
+        if new_component.uid not in vocabulary_uids:
+            from dialectical_framework.graph.nodes.input import Input
+
+            context_type = "Input" if isinstance(existing_context, Input) else "Nexus"
+            context_id = (
+                getattr(existing_context, 'content_uri', None) or
+                getattr(existing_context, 'handle', None) or
+                existing_context.uid
+            )
+            stmt_preview = new_component.statement[:50] if new_component.statement else ""
+
+            raise ValueError(
+                f"Cannot connect component to WisdomUnit: component not in vocabulary. "
+                f"Component '{stmt_preview}...' (uid={new_component.uid}) "
+                f"is not in the {context_type} '{context_id}' vocabulary. "
+                f"All components in a WisdomUnit must belong to the same vocabulary "
+                f"(same Input for Gen-1, same Nexus for Gen-2+)."
+            )
+
     def _validate_cycle_wheel_connection(self, target_node: Node) -> None:
         """
         Validate Cycle <-> Wheel connections.
@@ -406,7 +486,10 @@ class BoundRelationshipManager(Generic[T]):
         """
         db = graph_db  # Use injected db
 
-        # Type-based validation: Cycle <-> Wheel connections require WU validation
+        # Type-based validations
+        # 1. WisdomUnit component vocabulary context validation
+        self._validate_wisdom_unit_vocabulary(target_node)
+        # 2. Cycle <-> Wheel connections require WU validation
         self._validate_cycle_wheel_connection(target_node)
 
         # Helper function to get node ID
