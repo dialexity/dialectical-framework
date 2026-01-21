@@ -205,6 +205,19 @@ When WisdomUnit changes:
 
 This ensures that when a scoring input changes, all nodes that depend on it are marked for rescoring.
 
+**Multi-Parent Handling:**
+
+WisdomUnits can belong to multiple Nexuses (shared across analytical perspectives). The scoring system handles this correctly:
+
+1. **Invalidation**: When a shared WU changes, ALL parent Nexuses are invalidated (the query follows all outgoing BELONGS_TO_NEXUS edges), cascading to all dependent Cycles and Wheels.
+
+2. **Scoring**: Each node is scored once and cached via `is_score_valid()`. When scoring multiple Wheels that share a WU:
+   - First Wheel's scoring path: Wheel → Cycle → Nexus → scores WU (marked valid)
+   - Second Wheel's scoring path: Wheel → Cycle → Nexus → WU already valid (skipped)
+   - Both Nexuses read the same cached WU.probability and WU.relevance values
+
+This ensures efficient scoring without redundant calculations while maintaining correctness across shared structures.
+
 ## Complete Example: How Wheel Score is Calculated
 
 ```
