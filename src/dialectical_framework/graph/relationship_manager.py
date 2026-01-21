@@ -675,6 +675,64 @@ class BoundRelationshipManager(Generic[T]):
         return result[0]["deleted"] > 0 if result else False
 
     @inject
+    def update_properties(
+        self,
+        target_node: T,
+        properties: dict,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> bool:
+        """
+        Update properties on an existing relationship without disconnect/reconnect.
+
+        This is useful for changing relationship properties (like alias) without
+        triggering vocabulary validation, since the relationship already exists.
+
+        Args:
+            target_node: The target node of the relationship
+            properties: Dict of properties to update (e.g., {'alias': 'T1'})
+
+        Returns:
+            True if relationship was updated, False if it didn't exist
+        """
+        db = graph_db
+        if self.source_node._id is None or target_node._id is None:
+            return False
+
+        # Build SET clause for properties
+        set_clauses = ", ".join(f"r.{key} = ${key}" for key in properties.keys())
+        if not set_clauses:
+            return False
+
+        # Determine direction
+        if self.direction == "outgoing":
+            query = f"""
+            MATCH (source)-[r:{self.relationship_type}]->(target)
+            WHERE id(source) = $source_id AND id(target) = $target_id
+            SET {set_clauses}
+            RETURN count(r) as updated
+            """
+        elif self.direction == "incoming":
+            query = f"""
+            MATCH (source)<-[r:{self.relationship_type}]-(target)
+            WHERE id(source) = $source_id AND id(target) = $target_id
+            SET {set_clauses}
+            RETURN count(r) as updated
+            """
+        else:  # any
+            query = f"""
+            MATCH (source)-[r:{self.relationship_type}]-(target)
+            WHERE id(source) = $source_id AND id(target) = $target_id
+            SET {set_clauses}
+            RETURN count(r) as updated
+            """
+
+        params = {"source_id": self.source_node._id, "target_id": target_node._id}
+        params.update(properties)
+
+        result = list(db.execute_and_fetch(query, params))
+        return result[0]["updated"] > 0 if result else False
+
+    @inject
     def all(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],

@@ -434,10 +434,8 @@ class WisdomUnit(AssessableEntity):
 
                 # Update the edge property if changed
                 if new_alias != old_alias:
-                    manager.disconnect(component)
-                    # Use typed relationship - manager creates correct relationship type (T/A/T+/etc)
-                    typed_rel = rel_class(alias=new_alias)
-                    manager.connect(component, relationship=typed_rel)
+                    # Update relationship property in place (no disconnect/reconnect needed)
+                    manager.update_properties(component, {'alias': new_alias})
 
     def __format__(self, format_spec: str) -> str:
         """

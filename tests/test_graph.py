@@ -2701,6 +2701,279 @@ def test_wisdom_unit_vocabulary_validation():
     print("✓ WisdomUnit vocabulary validation works correctly")
 
 
+def test_nexus_vocabulary_validation():
+    """
+    Test Gen-2+ vocabulary validation: components in a Nexus-based WU must come from
+    the Nexus vocabulary (components from WUs already in the Nexus).
+
+    This tests the Nexus branch of get_vocabulary() which had a Cypher syntax bug.
+    """
+    from dialectical_framework.graph.nodes.input import Input
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
+        APlusRelationship, AMinusRelationship, SPlusRelationship, SMinusRelationship
+    )
+    from dialectical_framework.graph.repositories.dialectical_component_repository import (
+        DialecticalComponentRepository
+    )
+
+    repo = DialecticalComponentRepository()
+
+    # === Setup: Create Input with components and pool into Nexus ===
+
+    input_source = Input(content_uri="https://example.com/nexus-test")
+    input_source.save()
+
+    # Create 6 components for the first WU
+    components_wu1 = {}
+    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"WU1 {pos}")
+        comp.save()
+        input_source.statements.connect(comp)
+        components_wu1[pos] = comp
+
+    # Create WU1 and connect all components
+    wu1 = WisdomUnit(reasoning_mode="nexus_vocab_test_wu1")
+    wu1.save()
+    wu1.t.connect(components_wu1['t'], relationship=TRelationship(alias="T"))
+    wu1.a.connect(components_wu1['a'], relationship=ARelationship(alias="A"))
+    wu1.t_plus.connect(components_wu1['t_plus'], relationship=TPlusRelationship(alias="T+"))
+    wu1.t_minus.connect(components_wu1['t_minus'], relationship=TMinusRelationship(alias="T-"))
+    wu1.a_plus.connect(components_wu1['a_plus'], relationship=APlusRelationship(alias="A+"))
+    wu1.a_minus.connect(components_wu1['a_minus'], relationship=AMinusRelationship(alias="A-"))
+
+    # Create Nexus and pool WU1
+    nexus = Nexus()
+    nexus.save()
+    wu1.nexus.connect(nexus)
+
+    # === Test 1: get_vocabulary() returns components from Nexus ===
+
+    vocabulary = repo.get_vocabulary(nexus)
+    assert len(vocabulary) == 6, f"Nexus vocabulary should have 6 components, got {len(vocabulary)}"
+
+    vocab_uids = {c.uid for c in vocabulary}
+    for pos, comp in components_wu1.items():
+        assert comp.uid in vocab_uids, f"Component {pos} should be in Nexus vocabulary"
+
+    print("✓ Test 1: get_vocabulary() correctly returns Nexus components")
+
+    # === Test 2: Add Synthesis components to Nexus vocabulary ===
+
+    synth = Synthesis()
+    synth.save()
+    synth.wisdom_unit.connect(wu1)
+
+    s_plus = DialecticalComponent(statement="Synthesis S+")
+    s_plus.save()
+    synth.s_plus.connect(s_plus, relationship=SPlusRelationship(alias="S+"))
+
+    s_minus = DialecticalComponent(statement="Synthesis S-")
+    s_minus.save()
+    synth.s_minus.connect(s_minus, relationship=SMinusRelationship(alias="S-"))
+
+    # Vocabulary should now include synthesis components
+    vocabulary = repo.get_vocabulary(nexus)
+    assert len(vocabulary) == 8, f"Nexus vocabulary should have 8 components (6 core + 2 synthesis), got {len(vocabulary)}"
+
+    vocab_uids = {c.uid for c in vocabulary}
+    assert s_plus.uid in vocab_uids, "S+ should be in Nexus vocabulary"
+    assert s_minus.uid in vocab_uids, "S- should be in Nexus vocabulary"
+
+    print("✓ Test 2: Synthesis components included in Nexus vocabulary")
+
+    # === Test 3: Create second WU reusing components from Nexus vocabulary ===
+
+    # Create a second WU that reuses some components from WU1 (valid - same Nexus)
+    wu2 = WisdomUnit(reasoning_mode="nexus_vocab_test_wu2")
+    wu2.save()
+    wu2.nexus.connect(nexus)  # Pool into same Nexus first
+
+    # Reuse T from WU1 (should work - same vocabulary)
+    wu2.t.connect(components_wu1['t'], relationship=TRelationship(alias="T2"))
+
+    # Create new components for remaining positions
+    for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"WU2 {pos}")
+        comp.save()
+        input_source.statements.connect(comp)
+
+        rel_map = {
+            'a': ARelationship(alias="A2"),
+            't_plus': TPlusRelationship(alias="T2+"),
+            't_minus': TMinusRelationship(alias="T2-"),
+            'a_plus': APlusRelationship(alias="A2+"),
+            'a_minus': AMinusRelationship(alias="A2-"),
+        }
+        getattr(wu2, pos).connect(comp, relationship=rel_map[pos])
+
+    assert wu2.t.count() == 1, "WU2 should have T connected"
+    assert nexus.wisdom_units.count() == 2, "Nexus should have 2 WUs"
+
+    print("✓ Test 3: WU can reuse components from same Nexus vocabulary")
+
+    # === Test 4: Components from different Nexus should be rejected ===
+
+    # Create a separate Nexus with different components
+    input_other = Input(content_uri="https://example.com/other-source")
+    input_other.save()
+
+    other_comp = DialecticalComponent(statement="Component from other Input")
+    other_comp.save()
+    input_other.statements.connect(other_comp)
+
+    wu_other = WisdomUnit(reasoning_mode="other_nexus_wu")
+    wu_other.save()
+    wu_other.t.connect(other_comp, relationship=TRelationship(alias="T"))
+
+    # Create other components for wu_other
+    for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"Other {pos}")
+        comp.save()
+        input_other.statements.connect(comp)
+        rel_map = {
+            'a': ARelationship(alias="A"),
+            't_plus': TPlusRelationship(alias="T+"),
+            't_minus': TMinusRelationship(alias="T-"),
+            'a_plus': APlusRelationship(alias="A+"),
+            'a_minus': AMinusRelationship(alias="A-"),
+        }
+        getattr(wu_other, pos).connect(comp, relationship=rel_map[pos])
+
+    nexus_other = Nexus()
+    nexus_other.save()
+    wu_other.nexus.connect(nexus_other)
+
+    # Now try to create a WU in the original Nexus but with a component from nexus_other
+    wu3 = WisdomUnit(reasoning_mode="cross_nexus_test")
+    wu3.save()
+    wu3.nexus.connect(nexus)  # Pool into original Nexus
+
+    # First connect a valid component from the Nexus vocabulary
+    wu3.t.connect(components_wu1['a'], relationship=TRelationship(alias="T3"))
+
+    # Now try to connect a component from the OTHER Nexus - should FAIL
+    with pytest.raises(ValueError, match="not in vocabulary"):
+        wu3.a.connect(other_comp, relationship=ARelationship(alias="A3"))
+
+    print("✓ Test 4: Components from different Nexus rejected")
+
+    # === Test 5: HAS_STATEMENT components in Nexus tree ===
+
+    # Create a Rationale with HAS_STATEMENT - should be in vocabulary
+    from dialectical_framework.graph.nodes.rationale import Rationale
+
+    rat = Rationale(text="Test rationale", headline="Test")
+    rat.save()
+    wu1.rationales.connect(rat)
+
+    derived_comp = DialecticalComponent(statement="Derived from rationale")
+    derived_comp.save()
+    rat.derived_statements.connect(derived_comp)
+
+    # Vocabulary should now include the derived component
+    vocabulary = repo.get_vocabulary(nexus)
+    vocab_uids = {c.uid for c in vocabulary}
+    assert derived_comp.uid in vocab_uids, "HAS_STATEMENT derived component should be in Nexus vocabulary"
+
+    print("✓ Test 5: HAS_STATEMENT components included in Nexus vocabulary")
+
+    print("\n✅ All Nexus vocabulary validation tests passed!")
+
+
+def test_nexus_vocabulary_context():
+    """
+    Test get_vocabulary_context() correctly identifies Nexus for Gen-2+ nodes.
+    """
+    from dialectical_framework.graph.nodes.input import Input
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
+        APlusRelationship, AMinusRelationship, SPlusRelationship, SMinusRelationship
+    )
+    from dialectical_framework.graph.repositories.dialectical_component_repository import (
+        DialecticalComponentRepository
+    )
+
+    repo = DialecticalComponentRepository()
+
+    # Create Input
+    input_node = Input(content_uri="https://example.com/context-test")
+    input_node.save()
+
+    # Input is its own vocabulary context
+    assert repo.get_vocabulary_context(input_node) == input_node
+    print("✓ Input is its own vocabulary context")
+
+    # Create component from Input
+    comp = DialecticalComponent(statement="Test component")
+    comp.save()
+    input_node.statements.connect(comp)
+
+    # Component's context should be the Input
+    context = repo.get_vocabulary_context(comp)
+    assert context is not None
+    assert context.uid == input_node.uid
+    print("✓ Input-born component has Input as vocabulary context")
+
+    # Create full WU and pool into Nexus
+    wu = WisdomUnit(reasoning_mode="context_test")
+    wu.save()
+    wu.t.connect(comp, relationship=TRelationship(alias="T"))
+
+    for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        c = DialecticalComponent(statement=f"Context {pos}")
+        c.save()
+        input_node.statements.connect(c)
+        rel_map = {
+            'a': ARelationship(alias="A"),
+            't_plus': TPlusRelationship(alias="T+"),
+            't_minus': TMinusRelationship(alias="T-"),
+            'a_plus': APlusRelationship(alias="A+"),
+            'a_minus': AMinusRelationship(alias="A-"),
+        }
+        getattr(wu, pos).connect(c, relationship=rel_map[pos])
+
+    nexus = Nexus()
+    nexus.save()
+    wu.nexus.connect(nexus)
+
+    # Nexus is its own vocabulary context
+    assert repo.get_vocabulary_context(nexus) == nexus
+    print("✓ Nexus is its own vocabulary context")
+
+    # WU's context should now be the Nexus
+    wu_context = repo.get_vocabulary_context(wu)
+    assert wu_context is not None
+    assert wu_context.uid == nexus.uid
+    print("✓ WisdomUnit in Nexus has Nexus as vocabulary context")
+
+    # Create Synthesis - its context should be the Nexus
+    synth = Synthesis()
+    synth.save()
+    synth.wisdom_unit.connect(wu)
+
+    s_plus = DialecticalComponent(statement="S+")
+    s_plus.save()
+    synth.s_plus.connect(s_plus, relationship=SPlusRelationship(alias="S+"))
+
+    s_minus = DialecticalComponent(statement="S-")
+    s_minus.save()
+    synth.s_minus.connect(s_minus, relationship=SMinusRelationship(alias="S-"))
+
+    synth_context = repo.get_vocabulary_context(synth)
+    assert synth_context is not None
+    assert synth_context.uid == nexus.uid
+    print("✓ Synthesis has Nexus as vocabulary context")
+
+    print("\n✅ All vocabulary context tests passed!")
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])

@@ -147,10 +147,8 @@ class Synthesis(AssessableEntity):
 
                 # Update the edge property if changed
                 if new_alias != old_alias:
-                    manager.disconnect(component)
-                    # Use typed relationship - manager creates correct relationship type (S+/S-)
-                    typed_rel = rel_class(alias=new_alias)
-                    manager.connect(component, relationship=typed_rel)
+                    # Update relationship property in place (no disconnect/reconnect needed)
+                    manager.update_properties(component, {'alias': new_alias})
 
     def is_same(self, other: Synthesis) -> bool:
         """

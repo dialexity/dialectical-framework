@@ -157,6 +157,7 @@ class DialecticalComponentRepository:
             // Collect all components
             WITH collect(DISTINCT pos_comp) + collect(DISTINCT synth_comp) + collect(DISTINCT hs_comp) AS all_comps
             UNWIND all_comps AS comp
+            WITH comp
             WHERE comp IS NOT NULL
             RETURN DISTINCT comp
             """
@@ -211,14 +212,14 @@ class DialecticalComponentRepository:
         from dialectical_framework.graph.nodes.input import Input
         from dialectical_framework.graph.nodes.nexus import Nexus
 
-        if node._id is None:
-            return None
-
-        # Input and Nexus are vocabulary contexts themselves
+        # Input and Nexus are vocabulary contexts themselves (no DB query needed)
         if isinstance(node, Input):
             return node
         if isinstance(node, Nexus):
             return node
+
+        if node._id is None:
+            return None
 
         # Query to find closest Input or Nexus
         query = """
