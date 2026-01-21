@@ -71,10 +71,19 @@ class WisdomUnitRepository:
             return []
 
         query = """
+        // Core positions (T, T+, T-, A, A+, A-) directly on WU
         MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
         WHERE id(c) = $component_id
-        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS', 'S_PLUS', 'S_MINUS']
-        RETURN wu, type(r) as rel_type
+        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS']
+        RETURN wu, type(r) AS rel_type
+
+        UNION
+
+        // Synthesis positions (S+, S-) via Synthesis node
+        MATCH (c:DialecticalComponent)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(wu:WisdomUnit)
+        WHERE id(c) = $component_id
+        AND type(r) IN ['S_PLUS', 'S_MINUS']
+        RETURN wu, type(r) AS rel_type
         """
 
         results = graph_db.execute_and_fetch(query, {"component_id": component._id})
@@ -257,30 +266,56 @@ class WisdomUnitRepository:
         FOREACH (rat IN rationales | DETACH DELETE rat)
         FOREACH (trans IN transitions | DETACH DELETE trans)
         FOREACH (transformation IN transformations | DETACH DELETE transformation)
-        FOREACH (scomp IN synth_components | DETACH DELETE scomp)
+
+        // For synthesis components: check vocabulary status before deletion
+        // Synth components are "in vocabulary" if they have S+/S- to OTHER Syntheses
+        WITH wu, components, synth_components, syntheses
+        UNWIND CASE WHEN size(synth_components) > 0 THEN synth_components ELSE [null] END AS scomp
+
+        // Check if synth component is used in another WU's Synthesis
+        OPTIONAL MATCH (scomp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu:WisdomUnit)
+        WHERE scomp IS NOT NULL AND other_wu <> wu
+
+        // Check if synth component is source/target of Transition
+        OPTIONAL MATCH (scomp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans_ref:Transition)
+        OPTIONAL MATCH (trans_ref)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
+        WHERE scomp IS NOT NULL
+
+        WITH wu, components, syntheses, scomp,
+             count(DISTINCT other_synth) + count(DISTINCT cycle_or_spiral) AS synth_vocab_count
+
+        // Delete synth component only if orphaned
+        FOREACH (_ IN CASE WHEN scomp IS NOT NULL AND synth_vocab_count = 0 THEN [1] ELSE [] END |
+            DETACH DELETE scomp
+        )
+
+        WITH DISTINCT wu, components, syntheses
         FOREACH (synth IN syntheses | DETACH DELETE synth)
 
-        // For components: check each one's vocabulary status before deletion
-        // Components are "in vocabulary" if they have polarity or synthesis relationships
+        // For core components: check vocabulary status before deletion
+        // Core components are "in vocabulary" if they have polarity rels to other WUs
         WITH wu, components
-        UNWIND components AS comp
+        UNWIND CASE WHEN size(components) > 0 THEN components ELSE [null] END AS comp
 
-        // Disconnect component from this WU (already done by DETACH DELETE wu below)
-        // Check if component is orphaned (not in vocabulary)
-        OPTIONAL MATCH (comp)-[vocab_rel:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]->(other_wu)
-        WHERE other_wu <> wu
+        // Check 1: Core component has polarity relationships to OTHER WUs
+        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
+        WHERE comp IS NOT NULL AND other_wu <> wu
 
-        OPTIONAL MATCH (comp)<-[vocab_rel_in:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-(other_wu_in)
-        WHERE other_wu_in <> wu
+        // Check 2: Core component is used as S+/S- in ANY Synthesis (possibly in other WU)
+        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(any_synth:Synthesis)
+        WHERE comp IS NOT NULL
 
+        // Check 3: Component is source/target of Transition in external Cycle/Spiral
         OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(transition_ref:Transition)
         OPTIONAL MATCH (transition_ref)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
+        WHERE comp IS NOT NULL
+          AND NOT (transition_ref)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
 
         WITH wu, comp,
-             count(vocab_rel) + count(vocab_rel_in) + count(cycle_or_spiral) AS vocab_count
+             count(DISTINCT other_wu) + count(DISTINCT any_synth) + count(DISTINCT cycle_or_spiral) AS vocab_count
 
         // Delete component only if orphaned (not in vocabulary)
-        FOREACH (_ IN CASE WHEN vocab_count = 0 THEN [1] ELSE [] END |
+        FOREACH (_ IN CASE WHEN comp IS NOT NULL AND vocab_count = 0 THEN [1] ELSE [] END |
             DETACH DELETE comp
         )
 
@@ -314,12 +349,16 @@ class WisdomUnitRepository:
 
         A WisdomUnit is isolated ONLY if ALL of the following are true:
 
-        1. **WU Level Check**: WU is NOT in any wheel
-           - No BELONGS_TO_WHEEL relationship to any Wheel
+        1. **WU Level Check**: WU is NOT in any wheel (via Nexus hierarchy)
+           - No path: WU → Nexus → Cycle → Wheel
 
-        2. **Component Level Check**: ALL components are NOT in vocabulary
-           - No polarity relationships (T/A/T+/T-/A+/A-/S+/S-) to other WUs
-           - Not source/target of Transitions in Cycles/Spirals
+        2. **ac_re Check**: WU is NOT used as action-reflection context
+           - No external Transformation references this WU via ACTION_REFLECTION
+
+        3. **Component Level Check**: ALL components are NOT in vocabulary
+           - No polarity relationships (T/A/T+/T-/A+/A-) to other WUs
+           - No S+/S- relationships to other Syntheses (→ other WUs)
+           - Not source/target of Transitions in external Cycles/Spirals
 
         If isolated, the WU can be safely deleted.
         If NOT isolated, the WU should be kept as "provenance" - higher-level vocabulary
@@ -347,30 +386,36 @@ class WisdomUnitRepository:
         query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        // Level 2 Check: Is WU in any wheel or referenced as ac_re?
-        OPTIONAL MATCH (wu)-[:BELONGS_TO_WHEEL]->(wheel:Wheel)
+        // Level 2 Check: Is WU in any wheel via Nexus hierarchy?
+        OPTIONAL MATCH (wu)-[:BELONGS_TO_NEXUS]->(nexus:Nexus)-[:HAS_CYCLE]->(cycle:Cycle)-[:HAS_WHEEL]->(wheel:Wheel)
 
         // Check if WU is used as ac_re by external Transformations
         OPTIONAL MATCH (external_trans:Transformation)-[:ACTION_REFLECTION]->(wu)
         WHERE NOT (external_trans)-[:IS_SPIRAL_OF]->(wu)
 
-        // Level 1 Check: Are any components in vocabulary?
-        // Find all components of this WU
+        // Level 1 Check: Are any core components (T, A, T+, T-, A+, A-) in vocabulary?
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
+
+        // Also get synthesis components
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
         WITH wu,
              count(DISTINCT wheel) AS wheel_count,
              count(DISTINCT external_trans) AS ac_re_count,
-             collect(DISTINCT component) AS components
+             collect(DISTINCT component) + collect(DISTINCT synth_comp) AS all_components
 
         // For each component, check if it's in vocabulary
-        UNWIND CASE WHEN size(components) > 0 THEN components ELSE [null] END AS comp
+        UNWIND CASE WHEN size(all_components) > 0 THEN all_components ELSE [null] END AS comp
 
-        // Check 1: Component has polarity relationships to OTHER WUs
-        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-(other_wu:WisdomUnit)
+        // Check 1: Core component has polarity relationships to OTHER WUs
+        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
 
-        // Check 2: Component is source/target of Transition in EXTERNAL Cycle/Spiral
+        // Check 2: Synthesis component is in another WU's Synthesis
+        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
+        WHERE comp IS NOT NULL AND other_wu2 <> wu
+
+        // Check 3: Component is source/target of Transition in EXTERNAL Cycle/Spiral
         // (Exclude transitions belonging to THIS WU's own Transformation)
         OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans:Transition)
         OPTIONAL MATCH (trans)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
@@ -378,7 +423,7 @@ class WisdomUnitRepository:
           AND NOT (trans)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
 
         WITH wheel_count, ac_re_count,
-             count(DISTINCT other_wu) + count(DISTINCT cycle_or_spiral) AS component_vocab_count
+             count(DISTINCT other_wu) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS component_vocab_count
 
         // NOT isolated if: in wheel OR used as ac_re OR any component is in vocabulary
         RETURN wheel_count > 0 OR ac_re_count > 0 OR component_vocab_count > 0 AS not_isolated
@@ -399,7 +444,7 @@ class WisdomUnitRepository:
         Count distinct structural containers where this WisdomUnit is used.
 
         A WU can be used in:
-        - Wheels (via BELONGS_TO_WHEEL) - Level 2 vocabulary
+        - Wheels (via Nexus → Cycle → Wheel hierarchy) - Level 2 vocabulary
         - Transformations (as ac_re via ACTION_REFLECTION) - Level 2 vocabulary
 
         This helps determine how "valuable" a WU is as provenance.
@@ -429,8 +474,8 @@ class WisdomUnitRepository:
         query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        // Count wheels
-        OPTIONAL MATCH (wu)-[:BELONGS_TO_WHEEL]->(wheel:Wheel)
+        // Count wheels via Nexus hierarchy
+        OPTIONAL MATCH (wu)-[:BELONGS_TO_NEXUS]->(nexus:Nexus)-[:HAS_CYCLE]->(cycle:Cycle)-[:HAS_WHEEL]->(wheel:Wheel)
 
         // Count external transformations using this as ac_re
         OPTIONAL MATCH (external_trans:Transformation)-[:ACTION_REFLECTION]->(wu)
@@ -510,25 +555,32 @@ class WisdomUnitRepository:
         query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        // Find all components of this WU
+        // Find all core components of this WU (T, A, T+, T-, A+, A-)
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
 
-        WITH wu, collect(DISTINCT component) AS components
+        // Also get synthesis components (S+, S-)
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+
+        WITH wu, collect(DISTINCT component) + collect(DISTINCT synth_comp) AS all_components
 
         // For each component, check if it's shared
-        UNWIND CASE WHEN size(components) > 0 THEN components ELSE [null] END AS comp
+        UNWIND CASE WHEN size(all_components) > 0 THEN all_components ELSE [null] END AS comp
 
-        // Check 1: Component has polarity relationships to OTHER WUs
-        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-(other_wu:WisdomUnit)
+        // Check 1: Core component has polarity relationships to OTHER WUs
+        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
 
-        // Check 2: Component is source/target of Transition in EXTERNAL Cycle/Spiral
+        // Check 2: Synthesis component is in another WU's Synthesis
+        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
+        WHERE comp IS NOT NULL AND other_wu2 <> wu
+
+        // Check 3: Component is source/target of Transition in EXTERNAL Cycle/Spiral
         OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans:Transition)
         OPTIONAL MATCH (trans)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
         WHERE comp IS NOT NULL
           AND NOT (trans)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
 
-        WITH count(DISTINCT other_wu) + count(DISTINCT cycle_or_spiral) AS shared_count
+        WITH count(DISTINCT other_wu) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS shared_count
 
         RETURN shared_count > 0 AS has_shared
         """

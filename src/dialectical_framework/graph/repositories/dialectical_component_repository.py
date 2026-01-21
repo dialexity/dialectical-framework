@@ -66,11 +66,21 @@ class DialecticalComponentRepository:
         if wisdom_unit._id is None:
             return []
 
+        # Two separate queries combined with UNION for Memgraph compatibility
         query = """
+        // Core positions (T, T+, T-, A, A+, A-) directly on WU
         MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
         WHERE id(wu) = $wisdom_unit_id
-        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS', 'S_PLUS', 'S_MINUS']
-        RETURN c, r.alias as alias
+        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS']
+        RETURN c, r.alias AS alias
+
+        UNION
+
+        // Synthesis positions (S+, S-) via Synthesis node
+        MATCH (c:DialecticalComponent)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(wu:WisdomUnit)
+        WHERE id(wu) = $wisdom_unit_id
+        AND type(r) IN ['S_PLUS', 'S_MINUS']
+        RETURN c, r.alias AS alias
         """
 
         results = graph_db.execute_and_fetch(query, {"wisdom_unit_id": wisdom_unit._id})
@@ -116,7 +126,6 @@ class DialecticalComponentRepository:
         """
         from dialectical_framework.graph.nodes.input import Input
         from dialectical_framework.graph.nodes.nexus import Nexus
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
         if context._id is None:
             return set()
@@ -156,19 +165,7 @@ class DialecticalComponentRepository:
 
         results = graph_db.execute_and_fetch(query, {"context_id": context._id})
 
-        components: set[DialecticalComponent] = set()
-        for record in results:
-            comp_node = record["comp"]
-            # GQLAlchemy returns node objects directly
-            if isinstance(comp_node, DialecticalComponent):
-                components.add(comp_node)
-            elif hasattr(comp_node, "_properties"):
-                # Reconstruct from raw node data if needed
-                comp = DialecticalComponent(**comp_node._properties)
-                comp._id = comp_node._id
-                components.add(comp)
-
-        return components
+        return {record["comp"] for record in results if record["comp"] is not None}
 
     @inject
     def get_vocabulary_context(
@@ -275,23 +272,11 @@ class DialecticalComponentRepository:
 
         # Input-born takes priority (Gen-1)
         if result.get("input"):
-            input_node = result["input"]
-            if isinstance(input_node, Input):
-                return input_node
-            elif hasattr(input_node, "_properties"):
-                inp = Input(**input_node._properties)
-                inp._id = input_node._id
-                return inp
+            return result["input"]
 
         # Nexus (Gen-2+)
         if result.get("nexus"):
-            nexus_node = result["nexus"]
-            if isinstance(nexus_node, Nexus):
-                return nexus_node
-            elif hasattr(nexus_node, "_properties"):
-                nex = Nexus(**nexus_node._properties)
-                nex._id = nexus_node._id
-                return nex
+            return result["nexus"]
 
         return None
 
@@ -327,8 +312,6 @@ class DialecticalComponentRepository:
             for input_node in roots:
                 print(f"  - {input_node.content_uri}")
         """
-        from dialectical_framework.graph.nodes.input import Input
-
         if node._id is None:
             return set()
 
@@ -346,15 +329,5 @@ class DialecticalComponentRepository:
 
         results = graph_db.execute_and_fetch(query, {"node_id": node._id})
 
-        inputs = set()
-        for record in results:
-            input_node = record["input"]
-            if isinstance(input_node, Input):
-                inputs.add(input_node)
-            elif hasattr(input_node, "_properties"):
-                inp = Input(**input_node._properties)
-                inp._id = input_node._id
-                inputs.add(inp)
-
-        return inputs
+        return {record["input"] for record in results if record["input"] is not None}
 

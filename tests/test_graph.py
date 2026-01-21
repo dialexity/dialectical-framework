@@ -2033,6 +2033,203 @@ def test_wisdom_unit_repository_safe_delete(di_container):
 
     print("✓ Test 8: Replacing ac_re (disconnect + safe_delete) works correctly")
 
+    # ========== Test 9: WU with Synthesis (should delete Synthesis and orphaned S+/S- components) ==========
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
+    from dialectical_framework.graph.relationships.polarity_relationship import SPlusRelationship, SMinusRelationship
+
+    wu_with_synth = WisdomUnit(reasoning_mode="with_synthesis")
+    wu_with_synth.save()
+
+    # Create core components
+    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=f"Synth test {stmt}")
+        comp.save()
+        getattr(wu_with_synth, pos).connect(comp, properties={'alias': stmt})
+
+    # Create Synthesis with S+ and S- components
+    synth = Synthesis()
+    synth.save()
+    synth.wisdom_unit.connect(wu_with_synth)
+
+    s_plus_comp = DialecticalComponent(statement="Positive synthesis")
+    s_plus_comp.save()
+    synth.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias="S+"))
+
+    s_minus_comp = DialecticalComponent(statement="Negative synthesis")
+    s_minus_comp.save()
+    synth.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias="S-"))
+
+    synth_id = synth._id
+    s_plus_id = s_plus_comp._id
+    s_minus_id = s_minus_comp._id
+
+    # Check isolation (should be isolated - no sharing)
+    assert repo.is_isolated(wu_with_synth), "WU with isolated Synthesis should be isolated"
+    assert not repo.is_shared(wu_with_synth), "WU with isolated Synthesis should not be shared"
+
+    # Safe delete should succeed
+    deleted = repo.safe_delete(wu_with_synth)
+    assert deleted, "WU with Synthesis should be deleted"
+
+    # Verify WU deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_with_synth._id}
+    ))
+    assert len(result) == 0, "WU should be deleted"
+
+    # Verify Synthesis deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (s:Synthesis) WHERE id(s) = $s_id RETURN s",
+        {"s_id": synth_id}
+    ))
+    assert len(result) == 0, "Synthesis should be deleted"
+
+    # Verify S+ and S- components deleted (orphaned)
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": s_plus_id}
+    ))
+    assert len(result) == 0, "Orphaned S+ component should be deleted"
+
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": s_minus_id}
+    ))
+    assert len(result) == 0, "Orphaned S- component should be deleted"
+
+    print("✓ Test 9: WU with Synthesis deleted Synthesis and orphaned S+/S- components")
+
+    # ========== Test 10: Shared Synthesis component (should preserve shared S+ component) ==========
+    wu_synth_1 = WisdomUnit(reasoning_mode="synth_shared_1")
+    wu_synth_1.save()
+
+    wu_synth_2 = WisdomUnit(reasoning_mode="synth_shared_2")
+    wu_synth_2.save()
+
+    # Create core components for both WUs
+    for wu in [wu_synth_1, wu_synth_2]:
+        for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                           ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+            comp = DialecticalComponent(statement=f"{wu.reasoning_mode} {stmt}")
+            comp.save()
+            getattr(wu, pos).connect(comp, properties={'alias': stmt})
+
+    # Create shared S+ component
+    shared_s_plus = DialecticalComponent(statement="Shared positive synthesis")
+    shared_s_plus.save()
+
+    # Create Synthesis for wu_synth_1 using shared S+
+    synth_1 = Synthesis()
+    synth_1.save()
+    synth_1.wisdom_unit.connect(wu_synth_1)
+    synth_1.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
+
+    s_minus_1 = DialecticalComponent(statement="S- for wu_synth_1")
+    s_minus_1.save()
+    synth_1.s_minus.connect(s_minus_1, relationship=SMinusRelationship(alias="S-"))
+
+    # Create Synthesis for wu_synth_2 using same shared S+
+    synth_2 = Synthesis()
+    synth_2.save()
+    synth_2.wisdom_unit.connect(wu_synth_2)
+    synth_2.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
+
+    s_minus_2 = DialecticalComponent(statement="S- for wu_synth_2")
+    s_minus_2.save()
+    synth_2.s_minus.connect(s_minus_2, relationship=SMinusRelationship(alias="S-"))
+
+    shared_s_plus_id = shared_s_plus._id
+    s_minus_1_id = s_minus_1._id
+    synth_1_id = synth_1._id
+
+    # Check sharing - wu_synth_1 should have shared components (S+ is shared)
+    assert repo.is_shared(wu_synth_1), "WU with shared S+ component should be shared"
+    assert not repo.is_isolated(wu_synth_1), "WU with shared S+ component should NOT be isolated"
+
+    # GC mode delete should delete WU but preserve shared S+ component
+    deleted = repo.safe_delete(wu_synth_1, force_gc=True)
+    assert deleted, "WU should be deleted in GC mode"
+
+    # Verify WU deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_synth_1._id}
+    ))
+    assert len(result) == 0, "wu_synth_1 should be deleted"
+
+    # Verify Synthesis deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (s:Synthesis) WHERE id(s) = $s_id RETURN s",
+        {"s_id": synth_1_id}
+    ))
+    assert len(result) == 0, "synth_1 should be deleted"
+
+    # Verify shared S+ component preserved (still used by wu_synth_2's Synthesis)
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": shared_s_plus_id}
+    ))
+    assert len(result) == 1, "Shared S+ component should be preserved"
+
+    # Verify orphaned S- component deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        {"c_id": s_minus_1_id}
+    ))
+    assert len(result) == 0, "Orphaned S- component should be deleted"
+
+    # Verify wu_synth_2's Synthesis still has connection to shared S+
+    result = list(db.execute_and_fetch(
+        """
+        MATCH (synth:Synthesis)<-[:S_PLUS]-(c:DialecticalComponent)
+        WHERE id(synth) = $synth_id AND id(c) = $c_id
+        RETURN synth
+        """,
+        {"synth_id": synth_2._id, "c_id": shared_s_plus_id}
+    ))
+    assert len(result) == 1, "wu_synth_2's Synthesis should still have shared S+ connected"
+
+    print("✓ Test 10: Shared Synthesis component preserved, orphaned component deleted")
+
+    # ========== Test 11: Conservative mode with shared Synthesis (should NOT delete) ==========
+    wu_synth_conservative = WisdomUnit(reasoning_mode="synth_conservative")
+    wu_synth_conservative.save()
+
+    # Create core components
+    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=f"Conservative {stmt}")
+        comp.save()
+        getattr(wu_synth_conservative, pos).connect(comp, properties={'alias': stmt})
+
+    # Create Synthesis using the shared S+ from wu_synth_2
+    synth_conservative = Synthesis()
+    synth_conservative.save()
+    synth_conservative.wisdom_unit.connect(wu_synth_conservative)
+    synth_conservative.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
+
+    s_minus_cons = DialecticalComponent(statement="S- for conservative")
+    s_minus_cons.save()
+    synth_conservative.s_minus.connect(s_minus_cons, relationship=SMinusRelationship(alias="S-"))
+
+    # Check sharing
+    assert repo.is_shared(wu_synth_conservative), "WU with shared S+ should be shared"
+
+    # Conservative mode should NOT delete (shared component)
+    deleted = repo.safe_delete(wu_synth_conservative, force_gc=False)
+    assert not deleted, "WU with shared S+ should NOT be deleted in conservative mode"
+
+    # Verify WU still exists
+    result = list(db.execute_and_fetch(
+        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
+        {"wu_id": wu_synth_conservative._id}
+    ))
+    assert len(result) == 1, "WU should still exist in conservative mode"
+
+    print("✓ Test 11: Conservative mode preserved WU with shared Synthesis component")
+
     print("\n✅ All WisdomUnitRepository.safe_delete() tests passed!")
 
 
