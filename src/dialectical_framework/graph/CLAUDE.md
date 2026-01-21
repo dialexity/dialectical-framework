@@ -97,9 +97,10 @@ graph/
 │   ├── base_node.py               # BaseNode (uid, handle, uri, save())
 │   ├── assessable_entity.py       # AssessableEntity (score, P, R, rationales)
 │   ├── dialectical_component.py   # DialecticalComponent (statement)
-│   ├── wisdom_unit.py             # WisdomUnit (t, a, t_plus, t_minus, etc.)
-│   ├── wheel.py                   # Wheel (wisdom_units, cycles, spiral, input_uri)
-│   ├── cycle.py                   # Cycle (transitions)
+│   ├── wisdom_unit.py             # WisdomUnit (t, a, t_plus, t_minus, nexus)
+│   ├── nexus.py                   # Nexus (pool of WisdomUnits, cycles)
+│   ├── wheel.py                   # Wheel (cycle, transitions, spiral, input_uri)
+│   ├── cycle.py                   # Cycle (transitions, nexus, wheels)
 │   ├── spiral.py                  # Spiral (transitions)
 │   ├── transformation.py          # Transformation (internal WU spiral)
 │   ├── transition.py              # Transition (source, target)
@@ -120,6 +121,7 @@ graph/
 │       ├── base_calculator.py
 │       ├── dialectical_component_calculator.py
 │       ├── wisdom_unit_calculator.py
+│       ├── nexus_calculator.py    # Nexus: GM of WisdomUnit scores
 │       ├── wheel_calculator.py
 │       ├── cycle_calculator.py
 │       ├── spiral_calculator.py
@@ -151,33 +153,45 @@ BaseNode (uid, handle, save())
   │   ├── Rationale              # Leaf: evidence/critique with audit-wins semantics
   │   ├── Synthesis              # Composite: S+/S- pair
   │   ├── WisdomUnit             # Composite: T-side + A-side + optional synthesis/transformation
+  │   ├── Nexus                  # Pool: collection of WisdomUnits for shared analysis
   │   ├── Transformation         # Composite: internal spiral (2 transitions)
-  │   ├── Cycle                  # Composite: T-cycle or TA-cycle
+  │   ├── Cycle                  # Composite: causal sequence from Nexus
   │   ├── Spiral                 # Composite: transformational sequence
-  │   └── Wheel                  # Top-level: contains WisdomUnits, cycles, spiral
+  │   └── Wheel                  # Top-level: detailed view of Cycle with transitions
   │
   ├── Input                      # NOT assessable: content source (content_uri→statements)
   │
   └── Estimation                 # NOT assessable: P/R values
 ```
 
-### Node Containment (Wheel Structure)
+**Score Flow (child → parent):**
+```
+Component → WisdomUnit → Nexus → Cycle → Wheel
+```
+
+### Node Containment (Nexus-based Structure)
 
 ```
 Wheel (input_uri: content source)
-  ├── WisdomUnits (1+)
-  │   ├── DialecticalComponents (T, A, T+, T-, A+, A-)
-  │   │   └── Rationales (0+) → Rationales (0+) [recursive critiques]
-  │   ├── Synthesis (0-N)
-  │   │   └── DialecticalComponents (S+, S-)
-  │   └── Transformation (0-1)
-  │       ├── Transitions (exactly 2: T-→A+, A-→T+)
-  │       └── ac_re: WisdomUnit (action-reflection context)
-  ├── Cycles (T-cycle, TA-cycle)
-  │   └── Transitions (2+)
+  └── Cycle (parent, required)
+      ├── Nexus (pool of WisdomUnits)
+      │   └── WisdomUnits (1+)
+      │       ├── DialecticalComponents (T, A, T+, T-, A+, A-)
+      │       │   └── Rationales (0+) → Rationales (0+) [recursive critiques]
+      │       ├── Synthesis (0-N)
+      │       │   └── DialecticalComponents (S+, S-)
+      │       └── Transformation (0-1)
+      │           ├── Transitions (exactly 2: T-→A+, A-→T+)
+      │           └── ac_re: WisdomUnit (action-reflection context)
+      └── Transitions (2+, cycle-level)
+  ├── Transitions (wheel-level, more detailed)
   └── Spiral (0-1)
       └── Transitions (2+)
 ```
+
+**Key insight:** Nexus is a "pool" of WisdomUnits that can be shared across
+different Cycles and analytical perspectives. WisdomUnits can belong to
+multiple Nexuses within the same `t_cycle` group.
 
 **Note:** `Input` node is optional—for apps needing extraction provenance.
 The `Wheel.input_uri` makes Wheels self-contained artifacts.
@@ -211,14 +225,21 @@ These define the **SAME edge** from different perspectives:
 ```python
 # Child defines outgoing edge TO parent
 class WisdomUnit(AssessableEntity):
-    wheel = RelationshipTo("Wheel", "BELONGS_TO_WHEEL")  # WU→Wheel
+    nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")  # WU→Nexus
 
 # Parent sees same edge FROM children
-class Wheel(AssessableEntity):
-    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_WHEEL")  # Same edge!
+class Nexus(AssessableEntity):
+    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_NEXUS")  # Same edge!
 ```
 
 **Convention**: Child→Parent edges use `RelationshipTo` on the child.
+
+**Full Nexus-based hierarchy:**
+```python
+WU.nexus.connect(nexus)      # WU → Nexus
+nexus.cycles.connect(cycle)   # Nexus → Cycle
+cycle.wheels.connect(wheel)   # Cycle → Wheel
+```
 
 ### Cardinality
 
@@ -237,18 +258,22 @@ rationales: ClassVar[...] = RelationshipFrom(..., cardinality=(0, None))
 
 | Child | Parent | Edge Type | Child Attr | Parent Attr |
 |-------|--------|-----------|------------|-------------|
-| WisdomUnit | Wheel | BELONGS_TO_WHEEL | `wheel` | `wisdom_units` |
+| WisdomUnit | Nexus | BELONGS_TO_NEXUS | `nexus` | `wisdom_units` |
+| Nexus | Cycle | HAS_CYCLE | `cycles` | `nexus` |
+| Cycle | Wheel | HAS_WHEEL | `wheels` | `cycle` |
 | DialecticalComponent | WisdomUnit | T/A/T+/T-/A+/A- | - | `t`, `a`, `t_plus`, etc. |
 | Transformation | WisdomUnit | TRANSFORMATION_OF | `wisdom_unit` | `transformation` |
 | Transformation | WisdomUnit | AC_RE_OF | `ac_re` | - |
-| Transition | Cycle/Spiral/Trans | TRANSITION_OF | - | `transitions` |
-| Cycle | Wheel | T_CYCLE_OF / TA_CYCLE_OF | `_wheel_as_t` | `t_cycle`, `ta_cycle` |
-| Spiral | Wheel | SPIRAL_OF | `_wheel_as_spiral` | `spiral` |
+| Transition | Cycle/Spiral/Wheel | TRANSITION_OF | `cycle` | `transitions` |
+| Spiral | Wheel | SPIRAL_OF | `wheel` | `spiral` |
 | Rationale | AssessableEntity | EXPLAINS | `explanation` | `rationales` |
 | Rationale | Rationale | CRITIQUES | `critiques` | `_critiqued_by` |
 | Input | DialecticalComponent | HAS_STATEMENT | `statements` | `_source_inputs` |
 | Transition | DialecticalComponent | IS_SOURCE_OF | `source` | `source_of` |
 | Transition | DialecticalComponent | IS_TARGET_OF | `target` | `target_of` |
+| Nexus | Nexus | SHRINKS_TO | `shrinks_to` | `shrunk_from` |
+| Nexus | Nexus | EXPANDS_TO | `expands_to` | `expanded_from` |
+| WisdomUnit | WisdomUnit | CHANGED_TO | `changed_to` | `changed_from` |
 
 ---
 
@@ -272,11 +297,12 @@ Score = P × R^α
 | Transition | `TransitionCalculator` | GM(own, rationales) | GM(own, rationales) |
 | Rationale | `RationaleCalculator` | Audit-wins (deepest critique) | Audit-wins |
 | WisdomUnit | `WisdomUnitCalculator` | Transformation.P | PM(T↔A pairs) + transformation.R |
+| Nexus | `NexusCalculator` | GM(WU transformation Ps) | GM(WU relevances) |
 | Transformation | `TransformationCalculator` | Product(transitions) | GM(transitions) + ac_re.R |
-| Cycle | `CycleCalculator` | Product(transitions) | GM(transitions) |
+| Cycle | `CycleCalculator` | Product(transitions) + Nexus.P | GM(transitions) + Nexus.R |
 | Spiral | `SpiralCalculator` | Product(transitions) | GM(transitions) |
 | Synthesis | `SynthesisCalculator` | GM(s_plus, s_minus) | GM(s_plus, s_minus) |
-| Wheel | `WheelCalculator` | GM(cycles, WU summaries) | GM(WUs, transitions) |
+| Wheel | `WheelCalculator` | GM(Cycle.P, Nexus.P, wheel trans) | GM(Nexus.R, transitions) |
 
 ### Aggregation Methods
 
@@ -536,17 +562,29 @@ wu.a_plus     # A+ component (cardinality 1,1)
 wu.a_minus    # A- component (cardinality 1,1)
 wu.synthesis  # Synthesis nodes (cardinality 0,N)
 wu.transformation  # Transformation (cardinality 0,1)
-wu.wheel      # Parent Wheel (cardinality 0,1)
+wu.nexus      # Parent Nexus (cardinality 0,N - can belong to multiple)
+```
+
+### Nexus Specific
+
+```python
+nexus.wisdom_units  # WisdomUnits in this pool (cardinality 1,N)
+nexus.cycles        # Cycles derived from this Nexus (cardinality 0,N)
+nexus.shrinks_to    # Evolution: reduced Nexus (cardinality 0,N)
+nexus.expands_to    # Evolution: expanded Nexus (cardinality 0,N)
+nexus.shrunk_from   # Inverse of shrinks_to
+nexus.expanded_from # Inverse of expands_to
 ```
 
 ### Wheel Specific
 
 ```python
 wheel.input_uri     # Content source URI (self-contained provenance)
-wheel.wisdom_units  # WisdomUnit nodes (cardinality 1,N)
-wheel.t_cycle       # T-cycle (cardinality 0,1)
-wheel.ta_cycle      # TA-cycle (cardinality 0,1)
+wheel.cycle         # Parent Cycle (cardinality 1,1 - required)
+wheel.transitions   # Wheel-level transitions (more detailed than Cycle)
 wheel.spiral        # Spiral (cardinality 0,1)
+wheel.wisdom_units  # Property: WUs via cycle.nexus (not direct relationship)
+wheel.get_nexus()   # Helper: access Nexus via Cycle
 ```
 
 **Wheel as Self-Contained Artifact:**
@@ -556,12 +594,22 @@ making the Wheel a portable, self-contained artifact that can be shared or expor
 independently without requiring graph traversal to Input nodes.
 
 ```python
-# Create a wheel with its source
+# Create full hierarchy
+nexus = Nexus()
+nexus.save()
+wu.nexus.connect(nexus)
+
+cycle = Cycle()
+cycle.save()
+nexus.cycles.connect(cycle)
+
 wheel = Wheel(input_uri="https://example.com/article")
 wheel.save()
+cycle.wheels.connect(wheel)
 
-# All WisdomUnits in this wheel implicitly share this source
-# Components are vocabulary—their extraction origin is app-level concern
+# Access WisdomUnits through the hierarchy
+for wu, _ in wheel.wisdom_units:
+    print(f"WU: {wu.uid}")
 ```
 
 ---

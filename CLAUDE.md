@@ -28,11 +28,15 @@ Think of a Dialectical Wheel as a pizza:
 
 ### Structural Elements
 
+- **Nexus**: Pool of WisdomUnits that can be shared across perspectives
 - **Transition**: Recipe for moving between segments (T-→A+, A-→T+)
 - **Transformation**: Internal spiral within a WisdomUnit (2 transitions)
-- **Cycle**: Sequence of transitions (T-cycle, TA-cycle)
+- **Cycle**: Sequence of transitions derived from a Nexus
 - **Spiral**: Transformational sequence (softer than cycle)
+- **Wheel**: Top-level container with detailed transitions (belongs to Cycle)
 - **Input**: External content source (URL/IPFS) linked to extracted components
+
+**Hierarchy:** WisdomUnit → Nexus → Cycle → Wheel
 
 ---
 
@@ -169,14 +173,19 @@ RelationshipTo and RelationshipFrom define the **SAME edge** from different pers
 ```python
 # Child defines outgoing edge TO parent
 class WisdomUnit(AssessableEntity):
-    wheel = RelationshipTo("Wheel", "BELONGS_TO_WHEEL")  # WU→Wheel
+    nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")  # WU→Nexus
 
 # Parent sees incoming edge FROM children (SAME edge!)
-class Wheel(AssessableEntity):
-    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_WHEEL")
+class Nexus(AssessableEntity):
+    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_NEXUS")
 ```
 
 **Convention**: Child→Parent edges use `RelationshipTo` on child.
+
+**Full hierarchy:**
+```
+WU.nexus → Nexus.cycles → Cycle.wheels → Wheel
+```
 
 ### Scoring
 

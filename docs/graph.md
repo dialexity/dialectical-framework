@@ -6,31 +6,35 @@ Graph-native dialectical framework using Memgraph/Neo4j.
 
 ```
 Wheel (top-level)
-├─ WisdomUnit (1+) ─────────────────────┐
-│  ├─ T, A, T+, T-, A+, A- components   │ 6 core positions (1:1 each)
-│  ├─ Synthesis (0-N) ──┐               │
-│  │  └─ S+, S- components (1:1 each)   │
-│  └─ Transformation (0-1) ─────────────┤ internal spiral
-│     ├─ Transitions (exactly 2)        │
-│     └─ ac_re → WisdomUnit             │
-├─ Cycles (T-cycle, TA-cycle) ──────────┤
-│  └─ Transitions (2+)                  │
-└─ Spiral (0-1) ────────────────────────┘
+├─ Cycle ────────────────────────────────┐
+│  ├─ Nexus (pool of WisdomUnits) ───────┤ WU → Nexus → Cycle → Wheel
+│  │  └─ WisdomUnits (1+) ───────────────┤
+│  │     ├─ T, A, T+, T-, A+, A- components (1:1 each)
+│  │     ├─ Synthesis (0-N) with S+, S-
+│  │     └─ Transformation (0-1) internal spiral
+│  └─ Transitions (2+)                   │
+├─ Wheel-level Transitions (detailed)    │
+└─ Spiral (0-1) ─────────────────────────┘
    └─ Transitions (2+)
 ```
+
+**Key insight:** Nexus serves as a "pool" of WisdomUnits that can be shared
+across different analytical perspectives. Cycles arrange WUs in causal sequences,
+while Wheels provide detailed transition-level analysis.
 
 ## Core Nodes
 
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
 | **DialecticalComponent** | Atomic statement | `oppositions`, `source_of`, `target_of` |
-| **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `wheel` |
+| **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus` |
+| **Nexus** | Pool of WisdomUnits | `wisdom_units`, `cycles`, `shrinks_to`, `expands_to` |
 | **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `wisdom_unit` |
 | **Transition** | Component relationship | `source`, `target`, `cycle` |
-| **Cycle** | Causal loop | `transitions`, `_wheel_as_t`, `_wheel_as_ta` |
-| **Spiral** | Transformational sequence | `transitions`, `_wheel_as_spiral` |
+| **Cycle** | Causal loop | `transitions`, `nexus`, `wheels` |
+| **Spiral** | Transformational sequence | `transitions`, `wheel` |
 | **Transformation** | Internal WU spiral | `transitions`, `wisdom_unit`, `ac_re` |
-| **Wheel** | Top container | `wisdom_units`, `t_cycle`, `ta_cycle`, `spiral`, `input_uri` |
+| **Wheel** | Top container | `cycle`, `transitions`, `spiral`, `input_uri` |
 | **Rationale** | Evidence/explanation | `explanation`, `critiques` |
 | **Estimation** | P/R values | `assessed_entity` |
 | **Input** | Content source | `statements` (optional, for extraction provenance) |
@@ -55,18 +59,32 @@ print(f"This wheel analyzes: {wheel.input_uri}")
 
 ## Relationship Patterns
 
+**The Nexus-based hierarchy:**
+```
+WisdomUnit → Nexus → Cycle → Wheel
+     ↓          ↓       ↓        ↓
+  (content)  (pool)  (order)  (detail)
+```
+
 **Same edge, different views:**
 ```python
 # Child defines outgoing edge
 class WisdomUnit:
-    wheel = RelationshipTo("Wheel", "BELONGS_TO_WHEEL")  # WU → Wheel
+    nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")  # WU → Nexus
 
 # Parent sees incoming edge (same physical edge)
-class Wheel:
-    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_WHEEL")
+class Nexus:
+    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_NEXUS")
 ```
 
 **Convention:** Child → Parent edges use `RelationshipTo` on child.
+
+**Nexus evolution relationships:**
+```python
+# Direct evolution (no intermediate nodes)
+nexus1.shrinks_to.connect(nexus2)   # Reduction: fewer WUs
+nexus1.expands_to.connect(nexus3)   # Growth: more WUs
+```
 
 ## Polarity Relationships
 
@@ -93,9 +111,13 @@ The `alias` property on relationships stores contextual names (e.g., "T1", "A2+"
 
 | Method | Use Case |
 |--------|----------|
-| **GM** | Independent evidence (component + rationales) |
+| **GM** | Independent evidence (component + rationales, Nexus aggregation) |
 | **PM (p=4)** | Symmetric pairs (T↔A) |
 | **Product** | Sequential probability (cycle transitions) |
+
+**Score flow:** Component → WU → Nexus → Cycle → Wheel (child to parent)
+
+**Nexus aggregation:** Nexus.R = GM(WU relevances), Nexus.P = GM(WU transformation Ps)
 
 **Hard veto:** Element's own P=0 or R=0 → returns 0
 **Soft exclusion:** Rationale P=0 or R=0 → filtered out
@@ -111,25 +133,42 @@ The `alias` property on relationships stores contextual names (e.g., "T1", "A2+"
 
 ```python
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.nexus import Nexus
+from dialectical_framework.graph.nodes.cycle import Cycle
+from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
-# Create and connect component to WisdomUnit
+# Create WisdomUnit with components
+wu = WisdomUnit()
+wu.save()
 component = DialecticalComponent(statement="Remote work improves focus")
 component.save()
 wu.t.connect(component, relationship=TRelationship(alias='T1'))
 
-# Get all connected nodes with relationships
-for comp, rel in wu.t.all():
-    print(f"{rel.alias}: {comp.statement}")
+# Create Nexus and pool WisdomUnits
+nexus = Nexus()
+nexus.save()
+wu.nexus.connect(nexus)
 
-# Get single connection
-result = wu.t.get()  # Returns (component, relationship) or None
+# Create Cycle from Nexus
+cycle = Cycle()
+cycle.save()
+nexus.cycles.connect(cycle)
 
-# Score a wheel
+# Create Wheel from Cycle
+wheel = Wheel()
+wheel.save()
+cycle.wheels.connect(wheel)
+
+# Access WisdomUnits from Wheel (via Cycle→Nexus)
+for wu, _ in wheel.wisdom_units:
+    print(f"WU: {wu.uid}")
+
+# Score the hierarchy
 scorer = TaroRank(alpha=1.0)
-scorer.calculate_score(wheel)
+scorer.calculate_score(wheel)  # Recursively scores: WU → Nexus → Cycle → Wheel
 print(f"Wheel score: {wheel.score}")
 ```
 
