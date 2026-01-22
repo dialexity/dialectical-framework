@@ -354,6 +354,50 @@ class BoundRelationshipManager(Generic[T]):
                 f"(same Input for Gen-1, same Nexus for Gen-2+)."
             )
 
+    def _validate_nexus_frozen_after_cycle(self, target_node: Node) -> None:
+        """
+        Validate that WisdomUnits cannot be added to a Nexus that already has Cycles.
+
+        Once a Nexus has been "crystallized" into one or more Cycles, its WisdomUnit
+        membership is frozen. To add more WUs, use the evolution pattern (shrunk_to/expanded_to)
+        to create a new Nexus.
+
+        This is called automatically by connect() for BELONGS_TO_NEXUS relationships.
+
+        Raises:
+            ValueError: If trying to add a WU to a Nexus that already has Cycles
+        """
+        from dialectical_framework.graph.nodes.nexus import Nexus
+        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+
+        # Determine which is the Nexus (could be source or target depending on direction)
+        # WU.nexus is RelationshipTo (outgoing from WU to Nexus)
+        # Nexus.wisdom_units is RelationshipFrom (incoming to Nexus from WU)
+        if self.relationship_type != "BELONGS_TO_NEXUS":
+            return  # Not a Nexus-WU connection
+
+        # Identify the Nexus in this connection
+        nexus = None
+        if isinstance(self.source_node, WisdomUnit) and isinstance(target_node, Nexus):
+            # wu.nexus.connect(nexus) - target is the Nexus
+            nexus = target_node
+        elif isinstance(self.source_node, Nexus) and isinstance(target_node, WisdomUnit):
+            # nexus.wisdom_units.connect(wu) - source is the Nexus
+            nexus = self.source_node
+
+        if nexus is None:
+            return  # Not a WU-Nexus connection
+
+        # Check if Nexus already has any Cycles
+        cycle_count = nexus.cycles.count()
+        if cycle_count > 0:
+            raise ValueError(
+                f"Cannot add WisdomUnit to Nexus: Nexus already has {cycle_count} Cycle(s). "
+                f"Once a Nexus has Cycles, its WisdomUnit membership is frozen. "
+                f"To evolve the Nexus, use shrunk_to/expanded_to to create a new Nexus "
+                f"with different WisdomUnits."
+            )
+
     def _validate_cycle_wheel_connection(self, target_node: Node) -> None:
         """
         Validate Cycle <-> Wheel connections.
@@ -491,6 +535,8 @@ class BoundRelationshipManager(Generic[T]):
         self._validate_wisdom_unit_vocabulary(target_node)
         # 2. Cycle <-> Wheel connections require WU validation
         self._validate_cycle_wheel_connection(target_node)
+        # 3. Nexus membership is frozen once Cycles exist
+        self._validate_nexus_frozen_after_cycle(target_node)
 
         # Helper function to get node ID
         def get_node_id(node):

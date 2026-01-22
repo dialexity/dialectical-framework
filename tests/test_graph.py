@@ -2974,6 +2974,153 @@ def test_nexus_vocabulary_context():
     print("\n✅ All vocabulary context tests passed!")
 
 
+def test_nexus_frozen_after_cycle():
+    """
+    Test that WisdomUnits cannot be added to a Nexus after Cycles have been created.
+
+    Once a Nexus has been "crystallized" into one or more Cycles, its WisdomUnit
+    membership should be frozen. This prevents semantic inconsistencies where
+    Cycles reference components that don't include newly added WUs.
+    """
+    from dialectical_framework.graph.nodes.input import Input
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
+        APlusRelationship, AMinusRelationship
+    )
+
+    # === Setup: Create Input with components ===
+
+    input_source = Input(content_uri="https://example.com/frozen-nexus-test")
+    input_source.save()
+
+    # Create components for WU1
+    components_wu1 = {}
+    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"WU1 {pos}")
+        comp.save()
+        input_source.statements.connect(comp)
+        components_wu1[pos] = comp
+
+    # Create WU1 and connect all components
+    wu1 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu1")
+    wu1.save()
+    wu1.t.connect(components_wu1['t'], relationship=TRelationship(alias="T1"))
+    wu1.a.connect(components_wu1['a'], relationship=ARelationship(alias="A1"))
+    wu1.t_plus.connect(components_wu1['t_plus'], relationship=TPlusRelationship(alias="T1+"))
+    wu1.t_minus.connect(components_wu1['t_minus'], relationship=TMinusRelationship(alias="T1-"))
+    wu1.a_plus.connect(components_wu1['a_plus'], relationship=APlusRelationship(alias="A1+"))
+    wu1.a_minus.connect(components_wu1['a_minus'], relationship=AMinusRelationship(alias="A1-"))
+
+    # Create Nexus and pool WU1
+    nexus = Nexus()
+    nexus.save()
+    wu1.nexus.connect(nexus)
+
+    # === Test 1: Can add WU before Cycle exists ===
+
+    # Create components for WU2
+    components_wu2 = {}
+    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"WU2 {pos}")
+        comp.save()
+        input_source.statements.connect(comp)
+        components_wu2[pos] = comp
+
+    wu2 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu2")
+    wu2.save()
+    wu2.t.connect(components_wu2['t'], relationship=TRelationship(alias="T2"))
+    wu2.a.connect(components_wu2['a'], relationship=ARelationship(alias="A2"))
+    wu2.t_plus.connect(components_wu2['t_plus'], relationship=TPlusRelationship(alias="T2+"))
+    wu2.t_minus.connect(components_wu2['t_minus'], relationship=TMinusRelationship(alias="T2-"))
+    wu2.a_plus.connect(components_wu2['a_plus'], relationship=APlusRelationship(alias="A2+"))
+    wu2.a_minus.connect(components_wu2['a_minus'], relationship=AMinusRelationship(alias="A2-"))
+
+    # Should work - no Cycle yet
+    wu2.nexus.connect(nexus)
+    assert nexus.wisdom_units.count() == 2
+    print("✓ Test 1: Can add WU to Nexus before Cycle exists")
+
+    # === Test 2: Create Cycle - Nexus becomes frozen ===
+
+    cycle = Cycle()
+    cycle.save()
+    nexus.cycles.connect(cycle)
+
+    assert nexus.cycles.count() == 1
+    print("✓ Test 2: Cycle created and connected to Nexus")
+
+    # === Test 3: Cannot add WU after Cycle exists (via wu.nexus.connect) ===
+
+    # Create WU3
+    components_wu3 = {}
+    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"WU3 {pos}")
+        comp.save()
+        input_source.statements.connect(comp)
+        components_wu3[pos] = comp
+
+    wu3 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu3")
+    wu3.save()
+    wu3.t.connect(components_wu3['t'], relationship=TRelationship(alias="T3"))
+    wu3.a.connect(components_wu3['a'], relationship=ARelationship(alias="A3"))
+    wu3.t_plus.connect(components_wu3['t_plus'], relationship=TPlusRelationship(alias="T3+"))
+    wu3.t_minus.connect(components_wu3['t_minus'], relationship=TMinusRelationship(alias="T3-"))
+    wu3.a_plus.connect(components_wu3['a_plus'], relationship=APlusRelationship(alias="A3+"))
+    wu3.a_minus.connect(components_wu3['a_minus'], relationship=AMinusRelationship(alias="A3-"))
+
+    # Should FAIL - Nexus is frozen
+    with pytest.raises(ValueError, match="already has.*Cycle"):
+        wu3.nexus.connect(nexus)
+
+    print("✓ Test 3: Cannot add WU to frozen Nexus via wu.nexus.connect()")
+
+    # === Test 4: Cannot add WU after Cycle exists (via nexus.wisdom_units.connect) ===
+
+    # Create WU4
+    components_wu4 = {}
+    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"WU4 {pos}")
+        comp.save()
+        input_source.statements.connect(comp)
+        components_wu4[pos] = comp
+
+    wu4 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu4")
+    wu4.save()
+    wu4.t.connect(components_wu4['t'], relationship=TRelationship(alias="T4"))
+    wu4.a.connect(components_wu4['a'], relationship=ARelationship(alias="A4"))
+    wu4.t_plus.connect(components_wu4['t_plus'], relationship=TPlusRelationship(alias="T4+"))
+    wu4.t_minus.connect(components_wu4['t_minus'], relationship=TMinusRelationship(alias="T4-"))
+    wu4.a_plus.connect(components_wu4['a_plus'], relationship=APlusRelationship(alias="A4+"))
+    wu4.a_minus.connect(components_wu4['a_minus'], relationship=AMinusRelationship(alias="A4-"))
+
+    # Should FAIL - Nexus is frozen (testing the other direction)
+    with pytest.raises(ValueError, match="already has.*Cycle"):
+        nexus.wisdom_units.connect(wu4)
+
+    print("✓ Test 4: Cannot add WU to frozen Nexus via nexus.wisdom_units.connect()")
+
+    # === Test 5: Evolution pattern - create new Nexus for changes ===
+
+    # The correct way to "expand" a Nexus is to create a new one
+    nexus2 = Nexus()
+    nexus2.save()
+
+    # Track evolution
+    nexus.expanded_to.connect(nexus2)
+
+    # Can add WUs to the new Nexus
+    wu3.nexus.connect(nexus2)
+    wu4.nexus.connect(nexus2)
+
+    assert nexus2.wisdom_units.count() == 2
+    assert nexus.expanded_to.count() == 1
+    print("✓ Test 5: Evolution pattern works - new Nexus can receive WUs")
+
+    print("\n✅ All Nexus frozen validation tests passed!")
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])
