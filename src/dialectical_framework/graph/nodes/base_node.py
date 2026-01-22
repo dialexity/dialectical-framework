@@ -6,6 +6,7 @@ This module provides the foundational node class that all other graph nodes inhe
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional, Union
 from uuid import uuid4
 
@@ -14,6 +15,11 @@ from gqlalchemy import Memgraph, Neo4j, Node
 from pydantic.v1 import Field
 
 from dialectical_framework.enums.di import DI
+
+
+def _utc_now_iso() -> str:
+    """Return current UTC time as ISO 8601 string."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class BaseNode(Node):
@@ -27,10 +33,14 @@ class BaseNode(Node):
         uid: Auto-generated unique identifier (UUID)
         handle: Optional user-friendly identifier (slug, readable name).
                 Use instead of uid for human-facing references.
+        created_at: ISO 8601 UTC timestamp of node creation.
+        updated_at: ISO 8601 UTC timestamp of last save.
     """
 
     uid: str = Field(default_factory=lambda: str(uuid4()))
     handle: Optional[str] = None
+    created_at: str = Field(default_factory=_utc_now_iso)
+    updated_at: str = Field(default_factory=_utc_now_iso)
 
     @inject
     def save(
@@ -46,6 +56,7 @@ class BaseNode(Node):
         Returns:
             Self for chaining
         """
+        self.updated_at = _utc_now_iso()
         graph_db.save_node(self)
         return self
 
