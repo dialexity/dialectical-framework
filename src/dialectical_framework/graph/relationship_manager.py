@@ -498,6 +498,8 @@ class BoundRelationshipManager(Generic[T]):
         # For each component, verify it belongs to a WU that's in the cycle's Nexus
         repo = WisdomUnitRepository()
         for component in components_by_uid.values():
+            from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+            assert isinstance(component, DialecticalComponent)
             component_wus = repo.find_by_dialectical_component(component)
 
             if not component_wus:
@@ -548,14 +550,14 @@ class BoundRelationshipManager(Generic[T]):
         def safe_connect_semantic(source_comp: DialecticalComponent,
                                    rel_manager_name: str,
                                    target_comp: DialecticalComponent) -> None:
-            """Connect if not already connected. Skips validation for auto-created relationships."""
+            """Connect if not already connected. Uses internal connect for auto-created relationships."""
             manager = getattr(source_comp, rel_manager_name)
             # Check if already connected
             existing = manager.get(target_comp)
             if existing is None:
-                # Skip semantic validation for auto-created relationships
-                # (we know they're correct based on WU structure)
-                manager.connect(target_comp, _skip_semantic_validation=True)
+                # Use internal connect for auto-created relationships
+                # (we know they're correct based on WU structure, skip expensive validation)
+                manager._connect_internal(target_comp)
 
         # Create POSITIVE_SIDE_OF: T+ → T, A+ → A
         if position == 'T_PLUS':
@@ -755,14 +757,11 @@ class BoundRelationshipManager(Generic[T]):
                         f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
                     )
 
-    @inject
     def connect(
         self,
         target_node: T,
         properties: Optional[dict] = None,
         relationship: Optional[GQLRelationship] = None,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        _skip_semantic_validation: bool = False,
     ) -> GQLRelationship:
         """
         Create a relationship to the target node.
@@ -802,9 +801,7 @@ class BoundRelationshipManager(Generic[T]):
         Raises:
             ValueError: If nodes haven't been saved or cardinality constraint violated
         """
-        db = graph_db  # Use injected db
-
-        # Type-based validations
+        # Run all validations before connecting
         # 1. WisdomUnit component vocabulary context validation
         self._validate_wisdom_unit_vocabulary(target_node)
         # 2. Cycle <-> Wheel connections require WU validation
@@ -812,9 +809,36 @@ class BoundRelationshipManager(Generic[T]):
         # 3. Nexus membership is frozen once Cycles exist
         self._validate_nexus_frozen_after_cycle(target_node)
         # 4. Semantic relationship consistency (component-to-component)
-        # Skip for auto-created semantic relationships to avoid slow validation queries
-        if not _skip_semantic_validation:
-            self._validate_semantic_relationship_consistency(target_node)
+        self._validate_semantic_relationship_consistency(target_node)
+
+        # Delegate to internal connect (no validation)
+        # noinspection PyArgumentList
+        return self._connect_internal(target_node, properties, relationship)
+
+    @inject
+    def _connect_internal(
+        self,
+        target_node: T,
+        properties: Optional[dict] = None,
+        relationship: Optional[GQLRelationship] = None,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> GQLRelationship:
+        """
+        Internal connect method that skips validation.
+
+        Used by:
+        - connect() after validation passes
+        - Auto-creation of semantic relationships (where we know they're correct)
+
+        Args:
+            target_node: The target node to connect to
+            properties: Optional properties dict
+            relationship: Optional typed relationship instance
+
+        Returns:
+            The created relationship
+        """
+        db = graph_db
 
         # Helper function to get node ID
         def get_node_id(node):
@@ -875,8 +899,8 @@ class BoundRelationshipManager(Generic[T]):
         # Check inverse cardinality (target node's constraint)
         # If no inverse is defined, it means unbounded (0, None) - no constraint
         inverse_result = _find_inverse_manager(
-            source_class_name=self.source_node.__class__.__name__,
-            target_class=target_node.__class__,
+            source_class_name=type(self.source_node).__name__,
+            target_class=type(target_node),
             relationship_type=self.relationship_type,
             source_direction=self.direction
         )
