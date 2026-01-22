@@ -94,13 +94,16 @@ def invalidate_node_and_parents(
     # - IS_TARGET_OF: Transition→Component (Component doesn't use Transition.R/P)
     # - HAS_STATEMENT: Various→Component (derived output, not scoring input)
     # - HAS_ESTIMATION: Entity→Estimation (storage, not scoring)
-    # - OPPOSITIONS: Component→Component (structural opposition, not scoring)
+    # - OPPOSITE_OF: Component↔Component (semantic opposition, not scoring)
+    # - POSITIVE_SIDE_OF: Component→Component (semantic polarity, not scoring)
+    # - NEGATIVE_SIDE_OF: Component→Component (semantic polarity, not scoring)
+    # - SIMILAR_TO: Component→Component (semantic similarity, not scoring)
     # - SHRUNK_TO/EXPANDED_TO: Nexus→Nexus (evolution tracking, not scoring)
     # - CHANGED_TO: WU→WU (evolution tracking, not scoring)
     query = """
         MATCH (child)-[rel]->(parent:AssessableEntity)
         WHERE id(child) = $child_id
-        AND NOT type(rel) IN ['HAS_STATEMENT', 'IS_SOURCE_OF', 'IS_TARGET_OF', 'HAS_ESTIMATION', 'OPPOSITIONS', 'SHRUNK_TO', 'EXPANDED_TO', 'CHANGED_TO']
+        AND NOT type(rel) IN ['HAS_STATEMENT', 'IS_SOURCE_OF', 'IS_TARGET_OF', 'HAS_ESTIMATION', 'OPPOSITE_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO', 'SHRUNK_TO', 'EXPANDED_TO', 'CHANGED_TO']
         RETURN DISTINCT id(parent) as parent_id
     """
 

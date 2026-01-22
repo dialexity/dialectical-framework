@@ -9,7 +9,12 @@ from __future__ import annotations
 from typing import Any, ClassVar, Optional, Union, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import (
+    RelationshipFrom,
+    RelationshipTo,
+    RelationshipBoth,
+    RelationshipManager,
+)
 from dialectical_framework.graph.relationships.opposite_of_relationship import (
     OppositeOfRelationship,
 )
@@ -63,21 +68,37 @@ class DialecticalComponent(AssessableEntity):
 
     statement: str
 
-    oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
+    # Symmetric relationship: if A opposes B, then B opposes A
+    oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipBoth(
         "DialecticalComponent",
         model=OppositeOfRelationship,
-        cardinality=(0, None)
     )
 
     # Semantic relationship: T+ → T, A+ → A (positive aspect of neutral)
+    # A component can be the positive side of many components
     positive_side_of: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
         model=PositiveSideOfRelationship,
         cardinality=(0, None)
     )
 
+    # Reverse: A component can have many positive sides
+    positive_sides: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
+        "DialecticalComponent",
+        model=PositiveSideOfRelationship,
+        cardinality=(0, None)
+    )
+
     # Semantic relationship: T- → T, A- → A (negative aspect of neutral)
+    # A component can be the negative side of many components
     negative_side_of: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
+        "DialecticalComponent",
+        model=NegativeSideOfRelationship,
+        cardinality=(0, None)
+    )
+
+    # Reverse: A component can have many negative sides
+    negative_sides: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=NegativeSideOfRelationship,
         cardinality=(0, None)
