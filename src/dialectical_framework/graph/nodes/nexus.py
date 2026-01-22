@@ -15,6 +15,18 @@ from dialectical_framework.graph.relationship_manager import (
     RelationshipTo,
     RelationshipManager,
 )
+from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
+    BelongsToNexusRelationship,
+)
+from dialectical_framework.graph.relationships.has_cycle_relationship import (
+    HasCycleRelationship,
+)
+from dialectical_framework.graph.relationships.shrunk_to_relationship import (
+    ShrunkToRelationship,
+)
+from dialectical_framework.graph.relationships.expanded_to_relationship import (
+    ExpandedToRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -61,7 +73,7 @@ class Nexus(AssessableEntity):
     # Child→parent: WU belongs to Nexus
     wisdom_units: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
         "WisdomUnit",
-        "BELONGS_TO_NEXUS",
+        model=BelongsToNexusRelationship,
         cardinality=(1, None)  # At least one WU required
     )
 
@@ -69,7 +81,7 @@ class Nexus(AssessableEntity):
     # Parent→child: Nexus has cycles
     cycles: ClassVar[RelationshipManager[Cycle]] = RelationshipTo(
         "Cycle",
-        "HAS_CYCLE",
+        model=HasCycleRelationship,
         cardinality=(0, None)  # Zero or more cycles can be derived
     )
 
@@ -77,27 +89,27 @@ class Nexus(AssessableEntity):
     # Nexus → SHRUNK_TO → Nexus (reduced version)
     shrunk_to: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
         "Nexus",
-        "SHRUNK_TO",
+        model=ShrunkToRelationship,
         cardinality=(0, None)
     )
 
     # Nexus → EXPANDED_TO → Nexus (expanded version)
     expanded_to: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
         "Nexus",
-        "EXPANDED_TO",
+        model=ExpandedToRelationship,
         cardinality=(0, None)
     )
 
     # Reverse relationships for evolution tracking
     shrunk_from: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
         "Nexus",
-        "SHRUNK_TO",
+        model=ShrunkToRelationship,
         cardinality=(0, None)
     )
 
     expanded_from: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
         "Nexus",
-        "EXPANDED_TO",
+        model=ExpandedToRelationship,
         cardinality=(0, None)
     )
 

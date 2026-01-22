@@ -12,6 +12,12 @@ from typing import ClassVar, Optional, TYPE_CHECKING
 from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationships.has_cycle_relationship import (
+    HasCycleRelationship,
+)
+from dialectical_framework.graph.relationships.has_wheel_relationship import (
+    HasWheelRelationship,
+)
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
@@ -55,7 +61,7 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
     # Parent→child: Nexus has this Cycle
     nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
         "Nexus",
-        "HAS_CYCLE",
+        model=HasCycleRelationship,
         cardinality=(1, 1)  # Exactly one source Nexus
     )
 
@@ -63,7 +69,7 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
     # Parent→child: Cycle has Wheels
     wheels: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
-        "HAS_WHEEL",
+        model=HasWheelRelationship,
         cardinality=(1, None)  # At least one wheel per cycle
     )
 

@@ -16,6 +16,12 @@ from gqlalchemy import Memgraph, Neo4j
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationships.explains_relationship import (
+    ExplainsRelationship,
+)
+from dialectical_framework.graph.relationships.has_estimation_relationship import (
+    HasEstimationRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.estimation import (
@@ -54,14 +60,14 @@ class AssessableEntity(BaseNode):
     # Rationales explain this assessable entity
     rationales: ClassVar[RelationshipManager[Rationale]] = RelationshipFrom(
         "Rationale",
-        "EXPLAINS",
+        model=ExplainsRelationship,
         cardinality=(0, None)  # Zero or more rationales
     )
 
     # Estimations for this assessable entity
     estimations: ClassVar[RelationshipManager[Estimation]] = RelationshipTo(
         "Estimation",
-        "HAS_ESTIMATION",
+        model=HasEstimationRelationship,
         cardinality=(0, None)  # Zero or more estimations
     )
 

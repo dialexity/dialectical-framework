@@ -20,6 +20,18 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     APlusRelationship,
     AMinusRelationship,
 )
+from dialectical_framework.graph.relationships.synthesis_of_relationship import (
+    SynthesisOfRelationship,
+)
+from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
+    BelongsToNexusRelationship,
+)
+from dialectical_framework.graph.relationships.changed_to_relationship import (
+    ChangedToRelationship,
+)
+from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
+    IsSpiralOfRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -119,7 +131,7 @@ class WisdomUnit(AssessableEntity):
     # Multiple synthesis alternatives can exist for the same WU
     synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
         "Synthesis",
-        "SYNTHESIS_OF",
+        model=SynthesisOfRelationship,
         cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
@@ -128,7 +140,7 @@ class WisdomUnit(AssessableEntity):
     # Child→parent: WU belongs to Nexus
     nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
         "Nexus",
-        "BELONGS_TO_NEXUS",
+        model=BelongsToNexusRelationship,
         cardinality=(0, None)  # Zero or more Nexuses
     )
 
@@ -136,7 +148,7 @@ class WisdomUnit(AssessableEntity):
     # WU → CHANGED_TO → WU (evolved version)
     changed_to: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
         "WisdomUnit",
-        "CHANGED_TO",
+        model=ChangedToRelationship,
         cardinality=(0, None)
     )
 
@@ -144,14 +156,14 @@ class WisdomUnit(AssessableEntity):
     # Single lineage: a WU can only evolve from one predecessor
     changed_from: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
         "WisdomUnit",
-        "CHANGED_TO",
+        model=ChangedToRelationship,
         cardinality=(0, 1)
     )
 
     # Internal transformation spiral (T- → A+, A- → T+)
     transformation: ClassVar[RelationshipManager[Transformation]] = RelationshipFrom(
         "Transformation",
-        "IS_SPIRAL_OF",
+        model=IsSpiralOfRelationship,
         cardinality=(0, 1)  # Zero or one internal transformation spiral
     )
 

@@ -11,6 +11,9 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
+    IsSpiralOfRelationship,
+)
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
@@ -43,7 +46,7 @@ class Spiral(CircularTopologyMixin, AssessableEntity):
 
     wheel: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
-        "IS_SPIRAL_OF",
+        model=IsSpiralOfRelationship,
         cardinality=(1, 1)  # Spiral is always drawn on a wheel
     )
 

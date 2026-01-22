@@ -11,6 +11,9 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Literal, ClassVar
 
 from dialectical_framework.graph.relationship_manager import RelationshipManager, RelationshipFrom
+from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
+    BelongsToCycleRelationship,
+)
 from dialectical_framework.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
@@ -39,7 +42,7 @@ class CircularTopologyMixin(ABC):
     # Subclasses can override to change cardinality (e.g., Transformation uses (2, 2))
     _transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
-        "BELONGS_TO_CYCLE",
+        model=BelongsToCycleRelationship,
         cardinality=(2, None)  # Default: at least two transitions to form a cycle
     )
 

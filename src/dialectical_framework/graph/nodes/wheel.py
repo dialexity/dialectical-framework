@@ -11,6 +11,12 @@ from typing import ClassVar, Union, TYPE_CHECKING, Literal, Any
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationships.has_wheel_relationship import (
+    HasWheelRelationship,
+)
+from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
+    IsSpiralOfRelationship,
+)
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
@@ -70,7 +76,7 @@ class Wheel(CircularTopologyMixin, AssessableEntity):
     # Parent→child: Cycle has this Wheel
     cycle: ClassVar[RelationshipManager[Cycle]] = RelationshipFrom(
         "Cycle",
-        "HAS_WHEEL",
+        model=HasWheelRelationship,
         cardinality=(1, 1)  # Exactly one parent cycle
     )
 
@@ -80,7 +86,7 @@ class Wheel(CircularTopologyMixin, AssessableEntity):
     # Optional spiral (transformational sequence)
     spiral: ClassVar[RelationshipManager[Spiral]] = RelationshipFrom(
         "Spiral",
-        "IS_SPIRAL_OF",
+        model=IsSpiralOfRelationship,
         cardinality=(0, 1)  # Zero or one wheel-level spiral
     )
 

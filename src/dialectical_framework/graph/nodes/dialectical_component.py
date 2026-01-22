@@ -16,6 +16,15 @@ from dialectical_framework.graph.relationships.opposition_relationship import (
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
 )
+from dialectical_framework.graph.relationships.is_source_of_relationship import (
+    IsSourceOfRelationship,
+)
+from dialectical_framework.graph.relationships.is_target_of_relationship import (
+    IsTargetOfRelationship,
+)
+from dialectical_framework.graph.relationships.has_statement_relationship import (
+    HasStatementRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -51,8 +60,14 @@ class DialecticalComponent(AssessableEntity):
         cardinality=(1, None)
     )
 
-    source_of: ClassVar[RelationshipManager[Transition]] = RelationshipTo("Transition", "IS_SOURCE_OF")
-    target_of: ClassVar[RelationshipManager[Transition]] = RelationshipFrom("Transition", "IS_TARGET_OF")
+    source_of: ClassVar[RelationshipManager[Transition]] = RelationshipTo(
+        "Transition",
+        model=IsSourceOfRelationship,
+    )
+    target_of: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=IsTargetOfRelationship,
+    )
 
     # Reverse relationship - find the source node that created this statement
     # HAS_STATEMENT can come from different node types:
@@ -62,7 +77,7 @@ class DialecticalComponent(AssessableEntity):
     # Each statement has at most one source (same text in different sources = different nodes)
     input: ClassVar[RelationshipManager[Union[Input, Transition, Rationale]]] = RelationshipFrom(
         ("Input", "Transition", "Rationale"),  # Match any of these node types
-        "HAS_STATEMENT",
+        model=HasStatementRelationship,
         cardinality=(0, 1),  # Zero (self-originated) or one source
     )
 

@@ -11,6 +11,9 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationships.has_estimation_relationship import (
+    HasEstimationRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
@@ -38,7 +41,7 @@ class Estimation(BaseNode):
     # Declarative relationships
     assessed_entity: ClassVar[RelationshipManager[AssessableEntity]] = RelationshipFrom(
         "AssessableEntity",
-        "HAS_ESTIMATION",
+        model=HasEstimationRelationship,
         cardinality=(1, 1)  # Exactly one assessable entity
     )
 

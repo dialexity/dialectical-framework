@@ -11,6 +11,15 @@ from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationships.explains_relationship import (
+    ExplainsRelationship,
+)
+from dialectical_framework.graph.relationships.critiques_relationship import (
+    CritiquesRelationship,
+)
+from dialectical_framework.graph.relationships.has_statement_relationship import (
+    HasStatementRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -52,7 +61,7 @@ class Rationale(AssessableEntity):
     # What this rationale explains
     explanation: ClassVar[RelationshipManager[AssessableEntity]] = RelationshipTo(
         "AssessableEntity",
-        "EXPLAINS",
+        model=ExplainsRelationship,
         cardinality=(0, 1)  # Zero or one (rationale explains one entity)
     )
 
@@ -60,7 +69,7 @@ class Rationale(AssessableEntity):
     # Usage: parent_rationale.critiques.connect(audit_rationale) creates audit_rationale -[CRITIQUES]-> parent_rationale
     critiques: ClassVar[RelationshipManager[Rationale]] = RelationshipFrom(
         "Rationale",
-        "CRITIQUES",
+        model=CritiquesRelationship,
         cardinality=(0, None)  # Zero or more critiques can target this rationale
     )
 
@@ -68,13 +77,13 @@ class Rationale(AssessableEntity):
     # A rationale can critique at most one other rationale
     _critiques_target: ClassVar[RelationshipManager[Rationale]] = RelationshipTo(
         "Rationale",
-        "CRITIQUES",
+        model=CritiquesRelationship,
         cardinality=(0, 1)  # Zero or one target (can critique at most one rationale)
     )
 
     derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
-        "HAS_STATEMENT",
+        model=HasStatementRelationship,
         cardinality=(0, None)
     )
 

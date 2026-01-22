@@ -11,6 +11,18 @@ from typing import ClassVar, TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationships.is_source_of_relationship import (
+    IsSourceOfRelationship,
+)
+from dialectical_framework.graph.relationships.is_target_of_relationship import (
+    IsTargetOfRelationship,
+)
+from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
+    BelongsToCycleRelationship,
+)
+from dialectical_framework.graph.relationships.has_statement_relationship import (
+    HasStatementRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -54,25 +66,25 @@ class Transition(AssessableEntity):
 
     source: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
-        "IS_SOURCE_OF",
+        model=IsSourceOfRelationship,
         cardinality=(1, 1)
     )
 
     target: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
-        "IS_TARGET_OF",
+        model=IsTargetOfRelationship,
         cardinality=(1, 1)
     )
 
     cycle: ClassVar[RelationshipManager[Cycle | Spiral | Transformation | Wheel]] = RelationshipTo(
         ("Cycle", "Spiral", "Transformation", "Wheel"),
-        "BELONGS_TO_CYCLE",
+        model=BelongsToCycleRelationship,
         cardinality=(1, 1)  # Exactly one container
     )
 
     derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
-        "HAS_STATEMENT",
+        model=HasStatementRelationship,
         cardinality=(0, None)
     )
 

@@ -17,6 +17,9 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     SPlusRelationship,
     SMinusRelationship,
 )
+from dialectical_framework.graph.relationships.synthesis_of_relationship import (
+    SynthesisOfRelationship,
+)
 
 # Import position constants from wisdom_unit for consistency
 
@@ -58,7 +61,7 @@ class Synthesis(AssessableEntity):
     # Relationship to WisdomUnit
     wisdom_unit: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
         "WisdomUnit",
-        "SYNTHESIS_OF",
+        model=SynthesisOfRelationship,
         cardinality=(1, 1)  # Exactly one WU
     )
 

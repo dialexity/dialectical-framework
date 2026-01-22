@@ -11,6 +11,15 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
+    BelongsToCycleRelationship,
+)
+from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
+    IsSpiralOfRelationship,
+)
+from dialectical_framework.graph.relationships.action_reflection_relationship import (
+    ActionReflectionRelationship,
+)
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
@@ -48,21 +57,21 @@ class Transformation(CircularTopologyMixin, AssessableEntity):
     # Exactly two transitions for internal transformation: T- → A+, A- → T+
     _transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
-        "BELONGS_TO_CYCLE",
+        model=BelongsToCycleRelationship,
         cardinality=(2, 2)  # Exactly two transitions
     )
 
     # The containing WisdomUnit (this transformation is internal to it)
     wisdom_unit: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
         "WisdomUnit",
-        "IS_SPIRAL_OF",
+        model=IsSpiralOfRelationship,
         cardinality=(1, 1)  # Required - transformation (spiral) belongs to one wisdom unit
     )
 
     # The action-reflection context WisdomUnit (what this transformation is about)
     ac_re: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
         "WisdomUnit",
-        "ACTION_REFLECTION",
+        model=ActionReflectionRelationship,
         cardinality=(1, 1)  # Required action-reflection wisdom unit
     )
 

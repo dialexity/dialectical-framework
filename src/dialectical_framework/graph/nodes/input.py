@@ -15,6 +15,9 @@ from dialectical_framework.graph.relationship_manager import (
     RelationshipManager,
     RelationshipTo,
 )
+from dialectical_framework.graph.relationships.has_statement_relationship import (
+    HasStatementRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -61,7 +64,7 @@ class Input(BaseNode):
     # Statements extracted from this input
     statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
-        "HAS_STATEMENT",
+        model=HasStatementRelationship,
         cardinality=(0, None),  # Zero or more statements
     )
 
