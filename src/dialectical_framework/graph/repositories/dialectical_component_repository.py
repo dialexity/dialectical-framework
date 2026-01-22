@@ -101,6 +101,7 @@ class DialecticalComponentRepository:
           - Input-born components from WUs in this Nexus (pulled into vocabulary)
           - Synthesis components (S+/S-) from WUs in this Nexus
           - HAS_STATEMENT components from anywhere in the Nexus tree (Transitions, Rationales, etc.)
+          - Inherited vocabulary from parent Nexuses (via EXPANDED_TO/SHRUNK_TO)
 
         The Nexus boundary prevents traversal into other Nexuses' territories.
 
@@ -136,49 +137,113 @@ class DialecticalComponentRepository:
             WHERE id(input) = $context_id
             RETURN DISTINCT comp
             """
+            results = graph_db.execute_and_fetch(query, {"context_id": context._id})
+            return {record["comp"] for record in results if record["comp"] is not None}
+
         elif isinstance(context, Nexus):
-            # Note: We explicitly list structural relationship types to avoid traversing
-            # semantic relationships (OPPOSITE_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO)
-            # which can create exponential path explosion between components.
-            query = """
-            MATCH (nexus:Nexus) WHERE id(nexus) = $context_id
+            # Get own vocabulary first
+            vocabulary = self._get_nexus_own_vocabulary(context, graph_db)
 
-            // 1. WU position components (Input-born, included in Nexus vocabulary)
-            OPTIONAL MATCH (nexus)<-[:BELONGS_TO_NEXUS]-(wu:WisdomUnit)
-            OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(pos_comp:DialecticalComponent)
+            # Recursively inherit from parent Nexuses (via expanded_from/shrunk_from)
+            visited: set[str] = {context.uid}
+            self._collect_inherited_vocabulary(context, vocabulary, visited, graph_db)
 
-            // 2. Synthesis components (S+/S-)
-            OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)
-            OPTIONAL MATCH (synth)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+            return vocabulary
 
-            // 3. HAS_STATEMENT from structural nodes in the Nexus tree
-            // Only traverse structural relationships to avoid semantic relationship explosion
-            OPTIONAL MATCH (nexus)<-[:HAS_CYCLE]-(cycle)
-            OPTIONAL MATCH (cycle)-[:HAS_STATEMENT]->(cycle_comp:DialecticalComponent)
-            OPTIONAL MATCH (cycle)<-[:HAS_WHEEL]-(wheel)
-            OPTIONAL MATCH (wheel)-[:HAS_STATEMENT]->(wheel_comp:DialecticalComponent)
-
-            // 4. HAS_STATEMENT from Rationales attached to WUs or components in the Nexus
-            OPTIONAL MATCH (wu)<-[:EXPLAINS]-(rat:Rationale)
-            OPTIONAL MATCH (rat)-[:HAS_STATEMENT]->(rat_comp:DialecticalComponent)
-            OPTIONAL MATCH (pos_comp)<-[:EXPLAINS]-(comp_rat:Rationale)
-            OPTIONAL MATCH (comp_rat)-[:HAS_STATEMENT]->(comp_rat_comp:DialecticalComponent)
-
-            // Collect all components
-            WITH collect(DISTINCT pos_comp) + collect(DISTINCT synth_comp) +
-                 collect(DISTINCT cycle_comp) + collect(DISTINCT wheel_comp) +
-                 collect(DISTINCT rat_comp) + collect(DISTINCT comp_rat_comp) AS all_comps
-            UNWIND all_comps AS comp
-            WITH comp
-            WHERE comp IS NOT NULL
-            RETURN DISTINCT comp
-            """
         else:
             raise ValueError(f"Context must be Input or Nexus, got {type(context)}")
 
-        results = graph_db.execute_and_fetch(query, {"context_id": context._id})
+    def _get_nexus_own_vocabulary(
+        self,
+        nexus: Nexus,
+        graph_db: Union[Memgraph, Neo4j]
+    ) -> set[DialecticalComponent]:
+        """
+        Get vocabulary directly belonging to a single Nexus (no inheritance).
 
+        This is the base vocabulary from WUs, Syntheses, Cycles, Wheels, and Rationales
+        that are directly connected to this Nexus.
+        """
+        from dialectical_framework.graph.nodes.nexus import Nexus
+
+        if nexus._id is None:
+            return set()
+
+        # Note: We explicitly list structural relationship types to avoid traversing
+        # semantic relationships (OPPOSITE_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO)
+        # which can create exponential path explosion between components.
+        query = """
+        MATCH (nexus:Nexus) WHERE id(nexus) = $nexus_id
+
+        // 1. WU position components (Input-born, included in Nexus vocabulary)
+        OPTIONAL MATCH (nexus)<-[:BELONGS_TO_NEXUS]-(wu:WisdomUnit)
+        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(pos_comp:DialecticalComponent)
+
+        // 2. Synthesis components (S+/S-)
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)
+        OPTIONAL MATCH (synth)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+
+        // 3. HAS_STATEMENT from structural nodes in the Nexus tree
+        // Only traverse structural relationships to avoid semantic relationship explosion
+        OPTIONAL MATCH (nexus)<-[:HAS_CYCLE]-(cycle)
+        OPTIONAL MATCH (cycle)-[:HAS_STATEMENT]->(cycle_comp:DialecticalComponent)
+        OPTIONAL MATCH (cycle)<-[:HAS_WHEEL]-(wheel)
+        OPTIONAL MATCH (wheel)-[:HAS_STATEMENT]->(wheel_comp:DialecticalComponent)
+
+        // 4. HAS_STATEMENT from Rationales attached to WUs or components in the Nexus
+        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(rat:Rationale)
+        OPTIONAL MATCH (rat)-[:HAS_STATEMENT]->(rat_comp:DialecticalComponent)
+        OPTIONAL MATCH (pos_comp)<-[:EXPLAINS]-(comp_rat:Rationale)
+        OPTIONAL MATCH (comp_rat)-[:HAS_STATEMENT]->(comp_rat_comp:DialecticalComponent)
+
+        // Collect all components
+        WITH collect(DISTINCT pos_comp) + collect(DISTINCT synth_comp) +
+             collect(DISTINCT cycle_comp) + collect(DISTINCT wheel_comp) +
+             collect(DISTINCT rat_comp) + collect(DISTINCT comp_rat_comp) AS all_comps
+        UNWIND all_comps AS comp
+        WITH comp
+        WHERE comp IS NOT NULL
+        RETURN DISTINCT comp
+        """
+
+        results = graph_db.execute_and_fetch(query, {"nexus_id": nexus._id})
         return {record["comp"] for record in results if record["comp"] is not None}
+
+    def _collect_inherited_vocabulary(
+        self,
+        nexus: Nexus,
+        vocabulary: set[DialecticalComponent],
+        visited: set[str],
+        graph_db: Union[Memgraph, Neo4j]
+    ) -> None:
+        """
+        Recursively collect vocabulary from parent Nexuses.
+
+        A Nexus inherits vocabulary from its parents (via EXPANDED_TO/SHRUNK_TO).
+        This method traverses the ancestry chain and collects all inherited components.
+
+        Args:
+            nexus: Current Nexus to check for parents
+            vocabulary: Set to add inherited components to (modified in place)
+            visited: Set of already-visited Nexus UIDs (prevents cycles)
+            graph_db: Database connection
+        """
+        from dialectical_framework.graph.nodes.nexus import Nexus
+
+        # Check for parent Nexuses (those that expanded/shrunk TO this one)
+        for parent, _ in nexus.expanded_from.all():
+            if parent.uid not in visited:
+                visited.add(parent.uid)
+                parent_vocab = self._get_nexus_own_vocabulary(parent, graph_db)
+                vocabulary.update(parent_vocab)
+                self._collect_inherited_vocabulary(parent, vocabulary, visited, graph_db)
+
+        for parent, _ in nexus.shrunk_from.all():
+            if parent.uid not in visited:
+                visited.add(parent.uid)
+                parent_vocab = self._get_nexus_own_vocabulary(parent, graph_db)
+                vocabulary.update(parent_vocab)
+                self._collect_inherited_vocabulary(parent, vocabulary, visited, graph_db)
 
     @inject
     def get_vocabulary_context(

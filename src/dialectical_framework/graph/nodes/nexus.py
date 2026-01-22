@@ -101,16 +101,17 @@ class Nexus(AssessableEntity):
     )
 
     # Reverse relationships for evolution tracking
+    # A Nexus can have at most one parent per evolution type
     shrunk_from: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
         "Nexus",
         model=ShrunkToRelationship,
-        cardinality=(0, None)
+        cardinality=(0, 1)
     )
 
     expanded_from: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
         "Nexus",
         model=ExpandedToRelationship,
-        cardinality=(0, None)
+        cardinality=(0, 1)
     )
 
     def __repr__(self) -> str:

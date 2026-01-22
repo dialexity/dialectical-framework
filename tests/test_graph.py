@@ -2955,6 +2955,55 @@ def test_nexus_vocabulary_validation():
 
     print("✓ Test 5: HAS_STATEMENT components included in Nexus vocabulary")
 
+    # === Test 6: Vocabulary inheritance via EXPANDED_TO ===
+
+    # Create an expanded Nexus that inherits vocabulary from the original
+    expanded_nexus = Nexus()
+    expanded_nexus.save()
+    nexus.expanded_to.connect(expanded_nexus)  # nexus -> EXPANDED_TO -> expanded_nexus
+
+    # The expanded Nexus should inherit vocabulary from the parent (nexus)
+    expanded_vocab = repo.get_vocabulary(expanded_nexus)
+    assert len(expanded_vocab) >= 8, f"Expanded Nexus should inherit parent vocabulary, got {len(expanded_vocab)}"
+
+    # Create a new WU in the expanded Nexus using components from parent vocabulary
+    wu_expanded = WisdomUnit(reasoning_mode="expanded_nexus_wu")
+    wu_expanded.save()
+    wu_expanded.nexus.connect(expanded_nexus)  # Connect to expanded Nexus
+
+    # Should be able to use components from parent Nexus vocabulary
+    wu_expanded.t.connect(components_wu1['t'], relationship=TRelationship(alias="T-Expanded"))
+
+    # Create derived components for remaining positions
+    for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
+        comp = DialecticalComponent(statement=f"Expanded WU {pos}")
+        comp.save()
+        rel_map = {
+            'a': ARelationship(alias="A-Exp"),
+            't_plus': TPlusRelationship(alias="T+-Exp"),
+            't_minus': TMinusRelationship(alias="T--Exp"),
+            'a_plus': APlusRelationship(alias="A+-Exp"),
+            'a_minus': AMinusRelationship(alias="A--Exp"),
+        }
+        getattr(wu_expanded, pos).connect(comp, relationship=rel_map[pos])
+
+    assert wu_expanded.t.count() == 1
+    assert expanded_nexus.wisdom_units.count() == 1
+
+    print("✓ Test 6: Vocabulary inheritance via EXPANDED_TO works")
+
+    # === Test 7: Vocabulary inheritance via SHRUNK_TO ===
+
+    shrunk_nexus = Nexus()
+    shrunk_nexus.save()
+    nexus.shrunk_to.connect(shrunk_nexus)  # nexus -> SHRUNK_TO -> shrunk_nexus
+
+    # The shrunk Nexus should also inherit vocabulary from the parent
+    shrunk_vocab = repo.get_vocabulary(shrunk_nexus)
+    assert len(shrunk_vocab) >= 8, f"Shrunk Nexus should inherit parent vocabulary, got {len(shrunk_vocab)}"
+
+    print("✓ Test 7: Vocabulary inheritance via SHRUNK_TO works")
+
     print("\n✅ All Nexus vocabulary validation tests passed!")
 
 
