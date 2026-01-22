@@ -1,7 +1,7 @@
 """
 Relationship model for dialectical component opposition.
 
-This module provides the OppositionRelationship class for representing
+This module provides the OppositeOfRelationship class for representing
 semantic opposition between dialectical components.
 """
 
@@ -12,7 +12,7 @@ from typing import Optional
 from gqlalchemy import Relationship
 
 
-class OppositionRelationship(Relationship, type="OPPOSITE_OF"):
+class OppositeOfRelationship(Relationship, type="OPPOSITE_OF"):
     """
     Relationship representing semantic opposition between components.
 
@@ -28,4 +28,4 @@ class OppositionRelationship(Relationship, type="OPPOSITE_OF"):
 
     def __repr__(self) -> str:
         """String representation of the relationship."""
-        return f"OppositionRelationship(strength={self.strength}, type={self.type})"
+        return f"OppositeOfRelationship(strength={self.strength}, type={self.type})"

@@ -10,8 +10,8 @@ from typing import Any, ClassVar, Optional, Union, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
-from dialectical_framework.graph.relationships.opposition_relationship import (
-    OppositionRelationship,
+from dialectical_framework.graph.relationships.opposite_of_relationship import (
+    OppositeOfRelationship,
 )
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
@@ -56,7 +56,7 @@ class DialecticalComponent(AssessableEntity):
 
     oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
-        model=OppositionRelationship,
+        model=OppositeOfRelationship,
         cardinality=(1, None)
     )
 
