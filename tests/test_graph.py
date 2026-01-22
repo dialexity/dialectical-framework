@@ -2586,8 +2586,8 @@ def test_wisdom_unit_vocabulary_validation():
     """
     Test that WisdomUnit components must all come from the same vocabulary context.
 
-    Gen-1 WU: All components must come from the same Input.
-    Gen-2+ WU: All components must come from the same Nexus vocabulary.
+    Gen-0 WU: All components must come from the same Input.
+    Gen-1+ WU: All components must come from the same Nexus vocabulary.
     """
     from dialectical_framework.graph.nodes.input import Input
     from dialectical_framework.graph.nodes.nexus import Nexus
@@ -2596,7 +2596,7 @@ def test_wisdom_unit_vocabulary_validation():
         APlusRelationship, AMinusRelationship
     )
 
-    # === Gen-1 Test: Components must come from the same Input ===
+    # === Gen-0 Test: Components must come from the same Input ===
 
     # Create two separate Inputs
     input_a = Input(content_uri="https://example.com/article-a")
@@ -2647,15 +2647,15 @@ def test_wisdom_unit_vocabulary_validation():
     wu.a_plus.connect(a_plus_a, relationship=APlusRelationship(alias="A+"))
 
     # Trying to connect a component from Input B should FAIL
-    with pytest.raises(ValueError, match="not in vocabulary"):
+    with pytest.raises(ValueError, match="vocabulary context mismatch"):
         wu.a_minus.connect(t_b, relationship=AMinusRelationship(alias="A-"))
 
     # Complete with correct component
     wu.a_minus.connect(a_minus_a, relationship=AMinusRelationship(alias="A-"))
 
-    print("✓ Gen-1 vocabulary validation: components from different Inputs rejected")
+    print("✓ Gen-0 vocabulary validation: components from different Inputs rejected")
 
-    # === Gen-2+ Test: Components from same Nexus vocabulary work ===
+    # === Gen-1+ Test: Components from same Nexus vocabulary work ===
 
     # Pool the WU into a Nexus
     nexus = Nexus()
@@ -2697,13 +2697,85 @@ def test_wisdom_unit_vocabulary_validation():
 
     assert nexus.wisdom_units.count() == 2, "Nexus should have 2 WUs from different Inputs"
 
-    print("✓ Gen-2+ vocabulary: WUs from different Inputs can be pooled in same Nexus")
+    print("✓ Gen-1+ vocabulary: WUs from different Inputs can be pooled in same Nexus")
+
+    # === Gen-1+ Test: Create new WU mixing components from different original Inputs ===
+
+    # Create a new WU and connect it to the Nexus FIRST (Gen-1 mode)
+    wu_gen1 = WisdomUnit(reasoning_mode="gen1_mixed_inputs")
+    wu_gen1.save()
+    wu_gen1.nexus.connect(nexus)  # Connect to Nexus first = Gen-1 mode
+
+    # Now we can mix components from different original Inputs
+    # because they're all in the same Nexus vocabulary
+    wu_gen1.t.connect(t_a, relationship=TRelationship(alias="T-Gen1"))  # From Input A
+    wu_gen1.a.connect(t_b, relationship=ARelationship(alias="A-Gen1"))  # From Input B!
+
+    # Add derived components (no HAS_STATEMENT) - should also work
+    derived_t_plus = DialecticalComponent(statement="Derived T+ for Gen1")
+    derived_t_plus.save()
+    wu_gen1.t_plus.connect(derived_t_plus, relationship=TPlusRelationship(alias="T+-Gen1"))
+
+    derived_t_minus = DialecticalComponent(statement="Derived T- for Gen1")
+    derived_t_minus.save()
+    wu_gen1.t_minus.connect(derived_t_minus, relationship=TMinusRelationship(alias="T--Gen1"))
+
+    derived_a_plus = DialecticalComponent(statement="Derived A+ for Gen1")
+    derived_a_plus.save()
+    wu_gen1.a_plus.connect(derived_a_plus, relationship=APlusRelationship(alias="A+-Gen1"))
+
+    derived_a_minus = DialecticalComponent(statement="Derived A- for Gen1")
+    derived_a_minus.save()
+    wu_gen1.a_minus.connect(derived_a_minus, relationship=AMinusRelationship(alias="A--Gen1"))
+
+    assert wu_gen1.t.count() == 1
+    assert wu_gen1.a.count() == 1
+    assert nexus.wisdom_units.count() == 3
+
+    print("✓ Gen-1+ vocabulary: Can mix components from different Inputs when WU is in Nexus")
+
+    # === Gen-1+ Test: Create WU "in the air" using Nexus vocabulary ===
+    # This tests the scenario where we create a new WU without connecting to Nexus first,
+    # but use components that are already in the same Nexus vocabulary
+
+    wu_air = WisdomUnit(reasoning_mode="wu_in_the_air")
+    wu_air.save()
+    # NOT connected to any Nexus yet!
+
+    # Both t_a and t_b are in the same Nexus vocabulary (via wu and wu_b)
+    # Even though they came from different original Inputs, their context is now Nexus
+    wu_air.t.connect(t_a, relationship=TRelationship(alias="T-Air"))  # From Input A, but in Nexus
+    wu_air.a.connect(a_b, relationship=ARelationship(alias="A-Air"))  # From Input B, but in same Nexus!
+
+    # Add derived components
+    air_t_plus = DialecticalComponent(statement="Air T+")
+    air_t_plus.save()
+    wu_air.t_plus.connect(air_t_plus, relationship=TPlusRelationship(alias="T+-Air"))
+
+    air_t_minus = DialecticalComponent(statement="Air T-")
+    air_t_minus.save()
+    wu_air.t_minus.connect(air_t_minus, relationship=TMinusRelationship(alias="T--Air"))
+
+    air_a_plus = DialecticalComponent(statement="Air A+")
+    air_a_plus.save()
+    wu_air.a_plus.connect(air_a_plus, relationship=APlusRelationship(alias="A+-Air"))
+
+    air_a_minus = DialecticalComponent(statement="Air A-")
+    air_a_minus.save()
+    wu_air.a_minus.connect(air_a_minus, relationship=AMinusRelationship(alias="A--Air"))
+
+    assert wu_air.t.count() == 1
+    assert wu_air.a.count() == 1
+    # WU is still not in any Nexus
+    assert wu_air.nexus.count() == 0
+
+    print("✓ Gen-1+ vocabulary: Can create WU 'in the air' with components from same Nexus")
     print("✓ WisdomUnit vocabulary validation works correctly")
 
 
 def test_nexus_vocabulary_validation():
     """
-    Test Gen-2+ vocabulary validation: components in a Nexus-based WU must come from
+    Test Gen-1+ vocabulary validation: components in a Nexus-based WU must come from
     the Nexus vocabulary (components from WUs already in the Nexus).
 
     This tests the Nexus branch of get_vocabulary() which had a Cypher syntax bug.
@@ -2855,7 +2927,7 @@ def test_nexus_vocabulary_validation():
     wu3.t.connect(components_wu1['a'], relationship=TRelationship(alias="T3"))
 
     # Now try to connect a component from the OTHER Nexus - should FAIL
-    with pytest.raises(ValueError, match="not in vocabulary"):
+    with pytest.raises(ValueError, match="not in Nexus vocabulary"):
         wu3.a.connect(other_comp, relationship=ARelationship(alias="A3"))
 
     print("✓ Test 4: Components from different Nexus rejected")
@@ -2885,7 +2957,7 @@ def test_nexus_vocabulary_validation():
 
 def test_nexus_vocabulary_context():
     """
-    Test get_vocabulary_context() correctly identifies Nexus for Gen-2+ nodes.
+    Test get_vocabulary_context() correctly identifies Nexus for Gen-1+ nodes.
     """
     from dialectical_framework.graph.nodes.input import Input
     from dialectical_framework.graph.nodes.nexus import Nexus

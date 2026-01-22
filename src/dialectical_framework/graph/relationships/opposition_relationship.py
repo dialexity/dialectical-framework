@@ -12,7 +12,7 @@ from typing import Optional
 from gqlalchemy import Relationship
 
 
-class OppositionRelationship(Relationship, type="OPPOSES"):
+class OppositionRelationship(Relationship, type="OPPOSITE_OF"):
     """
     Relationship representing semantic opposition between components.
 

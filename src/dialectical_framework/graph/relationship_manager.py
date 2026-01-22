@@ -283,8 +283,8 @@ class BoundRelationshipManager(Generic[T]):
         as any existing components in the WU.
 
         Vocabulary rules:
-        - Gen-1 WU: All components must be in the same Input's vocabulary
-        - Gen-2+ WU: All components must be in the same Nexus's vocabulary
+        - Gen-0 WU: All components must be in the same Input's vocabulary
+        - Gen-1+ WU: All components must be in the same Nexus's vocabulary
 
         This is called automatically by connect() for polarity relationships.
         """
@@ -303,6 +303,38 @@ class BoundRelationshipManager(Generic[T]):
         wu = self.source_node
         new_component = target_node
 
+        from dialectical_framework.graph.repositories.dialectical_component_repository import (
+            DialecticalComponentRepository
+        )
+        repo = DialecticalComponentRepository()
+
+        # Check if WU is in a Nexus (Gen-1 mode)
+        nexus_result = wu.nexus.get()
+        if nexus_result:
+            nexus, _ = nexus_result
+            # Gen-1 mode: validate against Nexus vocabulary
+            vocabulary = repo.get_vocabulary(nexus)
+            vocabulary_uids = {c.uid for c in vocabulary}
+
+            if new_component.uid in vocabulary_uids:
+                return  # Component is in Nexus vocabulary, OK
+
+            # Check if it's a derived component (no context)
+            new_context = repo.get_vocabulary_context(new_component)
+            if new_context is None:
+                return  # Derived component with no context, allow
+
+            # Component has a context but is not in Nexus vocabulary
+            stmt_preview = new_component.statement[:50] if new_component.statement else ""
+            raise ValueError(
+                f"Cannot connect component to WisdomUnit: component not in Nexus vocabulary. "
+                f"Component '{stmt_preview}...' (uid={new_component.uid}) "
+                f"is not in Nexus '{nexus.uid}' vocabulary. "
+                f"In Gen-1 mode (WU in Nexus), all components must be from the Nexus vocabulary "
+                f"or be derived components without prior context."
+            )
+
+        # Gen-0 mode: WU not in Nexus - validate against Input context
         # Get existing components from the WU
         existing_components: list[DialecticalComponent] = []
         for manager in [wu.t, wu.a, wu.t_plus, wu.t_minus, wu.a_plus, wu.a_minus]:
@@ -318,40 +350,43 @@ class BoundRelationshipManager(Generic[T]):
             return
 
         # Get vocabulary context for the first existing component (they should all match)
-        from dialectical_framework.graph.repositories.dialectical_component_repository import (
-            DialecticalComponentRepository
-        )
-        repo = DialecticalComponentRepository()
         existing_context = repo.get_vocabulary_context(existing_components[0])
 
         if existing_context is None:
             # Existing components have no context - allow the connection
             return
 
-        # Get the vocabulary for this context
-        vocabulary = repo.get_vocabulary(existing_context)
+        # Check if new component has its own vocabulary context
+        new_component_context = repo.get_vocabulary_context(new_component)
 
-        # Check if new component is in the vocabulary
-        # Compare by uid since set membership might not work across object instances
-        vocabulary_uids = {comp.uid for comp in vocabulary}
+        if new_component_context is None:
+            # New component has no context (derived/generated component)
+            # Allow it - we only block mixing components from DIFFERENT contexts
+            return
 
-        if new_component.uid not in vocabulary_uids:
+        # Both have contexts - they must match
+        if existing_context.uid != new_component_context.uid:
             from dialectical_framework.graph.nodes.input import Input
 
-            context_type = "Input" if isinstance(existing_context, Input) else "Nexus"
-            context_id = (
+            existing_type = "Input" if isinstance(existing_context, Input) else "Nexus"
+            new_type = "Input" if isinstance(new_component_context, Input) else "Nexus"
+            existing_id = (
                 getattr(existing_context, 'content_uri', None) or
                 getattr(existing_context, 'handle', None) or
                 existing_context.uid
             )
+            new_id = (
+                getattr(new_component_context, 'content_uri', None) or
+                getattr(new_component_context, 'handle', None) or
+                new_component_context.uid
+            )
             stmt_preview = new_component.statement[:50] if new_component.statement else ""
 
             raise ValueError(
-                f"Cannot connect component to WisdomUnit: component not in vocabulary. "
-                f"Component '{stmt_preview}...' (uid={new_component.uid}) "
-                f"is not in the {context_type} '{context_id}' vocabulary. "
-                f"All components in a WisdomUnit must belong to the same vocabulary "
-                f"(same Input for Gen-1, same Nexus for Gen-2+)."
+                f"Cannot connect component to WisdomUnit: vocabulary context mismatch. "
+                f"Component '{stmt_preview}...' belongs to {new_type} '{new_id}', "
+                f"but WisdomUnit's existing components belong to {existing_type} '{existing_id}'. "
+                f"All components in a WisdomUnit must belong to the same vocabulary context."
             )
 
     def _validate_nexus_frozen_after_cycle(self, target_node: Node) -> None:

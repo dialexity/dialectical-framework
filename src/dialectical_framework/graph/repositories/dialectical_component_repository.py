@@ -6,7 +6,7 @@ keeping the model clean and declarative while centralizing complex queries.
 
 Key concepts:
 - **Vocabulary**: The set of DialecticalComponents available in a given context (Input or Nexus)
-- **Vocabulary Context**: The closest Input (Gen-1) or Nexus (Gen-2+) that bounds a node's vocabulary
+- **Vocabulary Context**: The closest Input (Gen-0) or Nexus (Gen-1+) that bounds a node's vocabulary
 - **Root Inputs**: All original Input sources that contributed to a component's existence
 """
 
@@ -105,7 +105,7 @@ class DialecticalComponentRepository:
         The Nexus boundary prevents traversal into other Nexuses' territories.
 
         Args:
-            context: Either an Input (Gen-1 vocabulary) or Nexus (Gen-2+ vocabulary)
+            context: Either an Input (Gen-0 vocabulary) or Nexus (Gen-1+ vocabulary)
             graph_db: Database connection (injected via DI)
 
         Returns:
@@ -114,15 +114,15 @@ class DialecticalComponentRepository:
         Example:
             repo = DialecticalComponentRepository()
 
-            # Gen-1: Components from an Input
+            # Gen-0: Components from an Input
             input_vocab = repo.get_vocabulary(input_node)
 
-            # Gen-2+: Components available in a Nexus context
+            # Gen-1+: Components available in a Nexus context
             nexus_vocab = repo.get_vocabulary(nexus)
 
             # Check if a component is in vocabulary
             if component in nexus_vocab:
-                print("Component available for Gen-2 WisdomUnits")
+                print("Component available for Gen-1 WisdomUnits")
         """
         from dialectical_framework.graph.nodes.input import Input
         from dialectical_framework.graph.nodes.nexus import Nexus
@@ -193,7 +193,7 @@ class DialecticalComponentRepository:
             graph_db: Database connection (injected via DI)
 
         Returns:
-            Input (for Gen-1), Nexus (for Gen-2+), or None if not determinable
+            Input (for Gen-0), Nexus (for Gen-1+), or None if not determinable
 
         Example:
             repo = DialecticalComponentRepository()
@@ -201,9 +201,9 @@ class DialecticalComponentRepository:
             # Find context for a component
             context = repo.get_vocabulary_context(component)
             if isinstance(context, Input):
-                print("Gen-1 component from Input")
+                print("Gen-0 component from Input")
             elif isinstance(context, Nexus):
-                print("Gen-2+ component from Nexus analysis")
+                print("Gen-1+ component from Nexus analysis")
 
             # Find context for a wheel
             context = repo.get_vocabulary_context(wheel)
@@ -258,7 +258,7 @@ class DialecticalComponentRepository:
         OPTIONAL MATCH path2 = (source)-[*1..6]-(nexus8:Nexus)
         WHERE nexus8:Nexus AND NONE(intermediate IN nodes(path2)[1..-1] WHERE intermediate:Nexus)
 
-        // Return first match: Input takes priority (Gen-1), then Nexus (Gen-2+)
+        // Return both - let Python decide priority based on context
         WITH input,
              coalesce(nexus1, nexus2, nexus3, nexus4, nexus5, nexus6, nexus7, nexus8) AS nexus
         RETURN input, nexus
@@ -271,13 +271,15 @@ class DialecticalComponentRepository:
 
         result = results[0]
 
-        # Input-born takes priority (Gen-1)
-        if result.get("input"):
-            return result["input"]
-
-        # Nexus (Gen-2+)
+        # Nexus takes priority if component is already in a Nexus (Gen-1+ working context)
+        # This allows mixing components from different original Inputs when they're
+        # in the same Nexus vocabulary
         if result.get("nexus"):
             return result["nexus"]
+
+        # Input is used only if component is NOT in any Nexus (Gen-0)
+        if result.get("input"):
+            return result["input"]
 
         return None
 
@@ -293,8 +295,8 @@ class DialecticalComponentRepository:
         Recursively traverses through Nexuses to collect all root Inputs.
         This answers: "What primary sources contributed to this insight?"
 
-        For a Gen-1 component, returns its single Input.
-        For a Gen-2+ component, returns all Inputs from the Nexus that produced it.
+        For a Gen-0 component, returns its single Input.
+        For a Gen-1+ component, returns all Inputs from the Nexus that produced it.
         For a Wheel, returns all Inputs from all WUs in its Nexus hierarchy.
 
         Args:
