@@ -2866,11 +2866,14 @@ def test_nexus_vocabulary_validation():
     # Reuse T from WU1 (should work - same vocabulary)
     wu2.t.connect(components_wu1['t'], relationship=TRelationship(alias="T2"))
 
-    # Create new components for remaining positions
+    # Create new DERIVED components for remaining positions (no Input connection)
+    # In Gen-1 mode (WU in Nexus), new components must either be:
+    # 1. Already in the Nexus vocabulary (from other WUs)
+    # 2. Derived components with no prior context (no HAS_STATEMENT)
     for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
         comp = DialecticalComponent(statement=f"WU2 {pos}")
         comp.save()
-        input_source.statements.connect(comp)
+        # NOTE: Not connecting to Input - these are derived components
 
         rel_map = {
             'a': ARelationship(alias="A2"),
@@ -2932,7 +2935,7 @@ def test_nexus_vocabulary_validation():
 
     print("✓ Test 4: Components from different Nexus rejected")
 
-    # === Test 5: HAS_STATEMENT components in Nexus tree ===
+    # === Test 5: HAS_STATEMENT components from Rationales in Nexus tree ===
 
     # Create a Rationale with HAS_STATEMENT - should be in vocabulary
     from dialectical_framework.graph.nodes.rationale import Rationale

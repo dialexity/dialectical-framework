@@ -155,13 +155,13 @@ async def cleanup_async_resources():
     for task in tasks:
         if not task.done():
             task.cancel()
-    
+
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     # Force garbage collection to clean up any remaining references
     gc.collect()
-    
+
     # Small delay to allow cleanup to complete
     await asyncio.sleep(0.01)
 
@@ -180,17 +180,9 @@ def final_cleanup():
 async def cleanup_aiohttp_sessions():
     """Specifically cleanup aiohttp sessions"""
     yield
-    try:
-        import aiohttp
-        # Look for any aiohttp sessions that might be lingering
-        for obj in gc.get_objects():
-            if isinstance(obj, aiohttp.ClientSession):
-                if not obj.closed:
-                    await obj.close()
-    except ImportError:
-        pass
-    
-    # Force garbage collection after closing sessions
+    # Note: Removed gc.get_objects() iteration as it's extremely slow
+    # when there are many objects in memory (e.g., after graph tests).
+    # aiohttp sessions should be closed explicitly where created.
     gc.collect()
     await asyncio.sleep(0.01)
 

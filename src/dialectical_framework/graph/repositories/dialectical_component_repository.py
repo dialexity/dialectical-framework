@@ -137,6 +137,9 @@ class DialecticalComponentRepository:
             RETURN DISTINCT comp
             """
         elif isinstance(context, Nexus):
+            # Note: We explicitly list structural relationship types to avoid traversing
+            # semantic relationships (OPPOSITE_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO)
+            # which can create exponential path explosion between components.
             query = """
             MATCH (nexus:Nexus) WHERE id(nexus) = $context_id
 
@@ -148,14 +151,23 @@ class DialecticalComponentRepository:
             OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)
             OPTIONAL MATCH (synth)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
-            // 3. HAS_STATEMENT from anywhere in the Nexus tree (bounded traversal)
-            // Traverse from Nexus through any path, stop at Nexus boundaries
-            OPTIONAL MATCH path = (nexus)-[*1..10]-(entity)
-            WHERE NONE(n IN nodes(path)[1..] WHERE n:Nexus)
-            OPTIONAL MATCH (entity)-[:HAS_STATEMENT]->(hs_comp:DialecticalComponent)
+            // 3. HAS_STATEMENT from structural nodes in the Nexus tree
+            // Only traverse structural relationships to avoid semantic relationship explosion
+            OPTIONAL MATCH (nexus)<-[:HAS_CYCLE]-(cycle)
+            OPTIONAL MATCH (cycle)-[:HAS_STATEMENT]->(cycle_comp:DialecticalComponent)
+            OPTIONAL MATCH (cycle)<-[:HAS_WHEEL]-(wheel)
+            OPTIONAL MATCH (wheel)-[:HAS_STATEMENT]->(wheel_comp:DialecticalComponent)
+
+            // 4. HAS_STATEMENT from Rationales attached to WUs or components in the Nexus
+            OPTIONAL MATCH (wu)<-[:EXPLAINS]-(rat:Rationale)
+            OPTIONAL MATCH (rat)-[:HAS_STATEMENT]->(rat_comp:DialecticalComponent)
+            OPTIONAL MATCH (pos_comp)<-[:EXPLAINS]-(comp_rat:Rationale)
+            OPTIONAL MATCH (comp_rat)-[:HAS_STATEMENT]->(comp_rat_comp:DialecticalComponent)
 
             // Collect all components
-            WITH collect(DISTINCT pos_comp) + collect(DISTINCT synth_comp) + collect(DISTINCT hs_comp) AS all_comps
+            WITH collect(DISTINCT pos_comp) + collect(DISTINCT synth_comp) +
+                 collect(DISTINCT cycle_comp) + collect(DISTINCT wheel_comp) +
+                 collect(DISTINCT rat_comp) + collect(DISTINCT comp_rat_comp) AS all_comps
             UNWIND all_comps AS comp
             WITH comp
             WHERE comp IS NOT NULL
