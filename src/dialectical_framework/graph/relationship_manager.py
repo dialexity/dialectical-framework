@@ -517,6 +517,244 @@ class BoundRelationshipManager(Generic[T]):
                     f"Connect the WisdomUnit to the Nexus first."
                 )
 
+    def _create_wisdom_unit_semantic_relationships(self, target_node: Node) -> None:
+        """
+        Auto-create semantic relationships when connecting components to WisdomUnit positions.
+
+        Creates:
+        - OPPOSITE_OF: T ↔ A, T+ ↔ A-, A+ ↔ T-
+        - POSITIVE_SIDE_OF: T+ → T, A+ → A
+        - NEGATIVE_SIDE_OF: T- → T, A- → A
+
+        This is called automatically by connect() after successfully connecting
+        a DialecticalComponent to a WisdomUnit polarity position.
+        """
+        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+
+        # Only for WU -> Component polarity connections
+        polarity_types = {'T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS'}
+
+        if not (isinstance(self.source_node, WisdomUnit) and
+                isinstance(target_node, DialecticalComponent) and
+                self.relationship_type in polarity_types):
+            return  # Not a WU-component polarity connection
+
+        wu = self.source_node
+        new_comp = target_node
+        position = self.relationship_type
+
+        # Helper to safely connect without duplicate edges
+        def safe_connect_semantic(source_comp: DialecticalComponent,
+                                   rel_manager_name: str,
+                                   target_comp: DialecticalComponent) -> None:
+            """Connect if not already connected. Skips validation for auto-created relationships."""
+            manager = getattr(source_comp, rel_manager_name)
+            # Check if already connected
+            existing = manager.get(target_comp)
+            if existing is None:
+                # Skip semantic validation for auto-created relationships
+                # (we know they're correct based on WU structure)
+                manager.connect(target_comp, _skip_semantic_validation=True)
+
+        # Create POSITIVE_SIDE_OF: T+ → T, A+ → A
+        if position == 'T_PLUS':
+            t_result = wu.t.get()
+            if t_result:
+                t_comp, _ = t_result
+                safe_connect_semantic(new_comp, 'positive_side_of', t_comp)
+        elif position == 'A_PLUS':
+            a_result = wu.a.get()
+            if a_result:
+                a_comp, _ = a_result
+                safe_connect_semantic(new_comp, 'positive_side_of', a_comp)
+
+        # Create NEGATIVE_SIDE_OF: T- → T, A- → A
+        elif position == 'T_MINUS':
+            t_result = wu.t.get()
+            if t_result:
+                t_comp, _ = t_result
+                safe_connect_semantic(new_comp, 'negative_side_of', t_comp)
+        elif position == 'A_MINUS':
+            a_result = wu.a.get()
+            if a_result:
+                a_comp, _ = a_result
+                safe_connect_semantic(new_comp, 'negative_side_of', a_comp)
+
+        # Create OPPOSITE_OF relationships (bidirectional)
+        # T ↔ A (neutral opposites)
+        elif position == 'T':
+            a_result = wu.a.get()
+            if a_result:
+                a_comp, _ = a_result
+                # Bidirectional: T→A and A→T
+                safe_connect_semantic(new_comp, 'oppositions', a_comp)
+                safe_connect_semantic(a_comp, 'oppositions', new_comp)
+        elif position == 'A':
+            t_result = wu.t.get()
+            if t_result:
+                t_comp, _ = t_result
+                # Bidirectional: A→T and T→A
+                safe_connect_semantic(new_comp, 'oppositions', t_comp)
+                safe_connect_semantic(t_comp, 'oppositions', new_comp)
+
+        # Cross-opposites: T+ ↔ A-, A+ ↔ T- (bidirectional)
+        if position == 'T_PLUS':
+            a_minus_result = wu.a_minus.get()
+            if a_minus_result:
+                a_minus_comp, _ = a_minus_result
+                # Bidirectional: T+→A- and A-→T+
+                safe_connect_semantic(new_comp, 'oppositions', a_minus_comp)
+                safe_connect_semantic(a_minus_comp, 'oppositions', new_comp)
+        elif position == 'A_MINUS':
+            t_plus_result = wu.t_plus.get()
+            if t_plus_result:
+                t_plus_comp, _ = t_plus_result
+                # Bidirectional: A-→T+ and T+→A-
+                safe_connect_semantic(new_comp, 'oppositions', t_plus_comp)
+                safe_connect_semantic(t_plus_comp, 'oppositions', new_comp)
+        elif position == 'A_PLUS':
+            t_minus_result = wu.t_minus.get()
+            if t_minus_result:
+                t_minus_comp, _ = t_minus_result
+                # Bidirectional: A+→T- and T-→A+
+                safe_connect_semantic(new_comp, 'oppositions', t_minus_comp)
+                safe_connect_semantic(t_minus_comp, 'oppositions', new_comp)
+        elif position == 'T_MINUS':
+            a_plus_result = wu.a_plus.get()
+            if a_plus_result:
+                a_plus_comp, _ = a_plus_result
+                # Bidirectional: T-→A+ and A+→T-
+                safe_connect_semantic(new_comp, 'oppositions', a_plus_comp)
+                safe_connect_semantic(a_plus_comp, 'oppositions', new_comp)
+
+        # Also create relationships when T or A is connected and positive/negative sides exist
+        if position == 'T':
+            # T+ → T (if T+ already exists)
+            t_plus_result = wu.t_plus.get()
+            if t_plus_result:
+                t_plus_comp, _ = t_plus_result
+                safe_connect_semantic(t_plus_comp, 'positive_side_of', new_comp)
+            # T- → T (if T- already exists)
+            t_minus_result = wu.t_minus.get()
+            if t_minus_result:
+                t_minus_comp, _ = t_minus_result
+                safe_connect_semantic(t_minus_comp, 'negative_side_of', new_comp)
+        elif position == 'A':
+            # A+ → A (if A+ already exists)
+            a_plus_result = wu.a_plus.get()
+            if a_plus_result:
+                a_plus_comp, _ = a_plus_result
+                safe_connect_semantic(a_plus_comp, 'positive_side_of', new_comp)
+            # A- → A (if A- already exists)
+            a_minus_result = wu.a_minus.get()
+            if a_minus_result:
+                a_minus_comp, _ = a_minus_result
+                safe_connect_semantic(a_minus_comp, 'negative_side_of', new_comp)
+
+    def _validate_semantic_relationship_consistency(self, target_node: Node) -> None:
+        """
+        Validate that manual semantic relationships don't contradict WisdomUnit structure.
+
+        When manually creating semantic relationships between components,
+        this validates that the relationship doesn't contradict how the
+        components are positioned within shared WisdomUnits.
+
+        For example:
+        - If T+ and T are in the same WU, T+ should be POSITIVE_SIDE_OF T, not OPPOSITE_OF T
+        - If T and A are in the same WU, they should be OPPOSITE_OF, not POSITIVE_SIDE_OF
+
+        This is called automatically by connect() for semantic relationships
+        (OPPOSITE_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO).
+
+        Raises:
+            ValueError: If the relationship contradicts WisdomUnit structure
+        """
+        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+
+        # Only validate Component-to-Component semantic relationships
+        semantic_types = {'OPPOSITE_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO'}
+
+        if not (isinstance(self.source_node, DialecticalComponent) and
+                isinstance(target_node, DialecticalComponent) and
+                self.relationship_type in semantic_types):
+            return  # Not a semantic relationship between components
+
+        source_comp = self.source_node
+        target_comp = target_node
+        rel_type = self.relationship_type
+
+        # Find shared WisdomUnits
+        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+        repo = WisdomUnitRepository()
+
+        source_wus = {wu.uid: (wu, pos) for wu, pos in repo.find_by_dialectical_component(source_comp)}
+        target_wus = {wu.uid: (wu, pos) for wu, pos in repo.find_by_dialectical_component(target_comp)}
+
+        # Find common WisdomUnits
+        common_wu_uids = set(source_wus.keys()) & set(target_wus.keys())
+
+        if not common_wu_uids:
+            return  # No shared WisdomUnits, no structural constraint
+
+        # Check each shared WisdomUnit for contradictions
+        for wu_uid in common_wu_uids:
+            _, source_pos = source_wus[wu_uid]
+            _, target_pos = target_wus[wu_uid]
+
+            # Define expected relationships based on positions
+            # POSITIVE_SIDE_OF: T+ → T, A+ → A
+            positive_side_pairs = {('T_PLUS', 'T'), ('A_PLUS', 'A')}
+            # NEGATIVE_SIDE_OF: T- → T, A- → A
+            negative_side_pairs = {('T_MINUS', 'T'), ('A_MINUS', 'A')}
+            # OPPOSITE_OF: T ↔ A, T+ ↔ A-, A+ ↔ T-
+            opposite_pairs = {
+                ('T', 'A'), ('A', 'T'),
+                ('T_PLUS', 'A_MINUS'), ('A_MINUS', 'T_PLUS'),
+                ('A_PLUS', 'T_MINUS'), ('T_MINUS', 'A_PLUS'),
+            }
+
+            pos_pair = (source_pos, target_pos)
+
+            if rel_type == 'POSITIVE_SIDE_OF':
+                # Only valid for T+ → T or A+ → A
+                if pos_pair in opposite_pairs:
+                    raise ValueError(
+                        f"Cannot create POSITIVE_SIDE_OF between components that are opposites "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have OPPOSITE_OF relationship, not POSITIVE_SIDE_OF."
+                    )
+                if pos_pair in negative_side_pairs:
+                    raise ValueError(
+                        f"Cannot create POSITIVE_SIDE_OF between components where source is "
+                        f"a negative side ({source_pos}) in WisdomUnit. "
+                        f"Use NEGATIVE_SIDE_OF instead."
+                    )
+
+            elif rel_type == 'NEGATIVE_SIDE_OF':
+                # Only valid for T- → T or A- → A
+                if pos_pair in opposite_pairs:
+                    raise ValueError(
+                        f"Cannot create NEGATIVE_SIDE_OF between components that are opposites "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have OPPOSITE_OF relationship, not NEGATIVE_SIDE_OF."
+                    )
+                if pos_pair in positive_side_pairs:
+                    raise ValueError(
+                        f"Cannot create NEGATIVE_SIDE_OF between components where source is "
+                        f"a positive side ({source_pos}) in WisdomUnit. "
+                        f"Use POSITIVE_SIDE_OF instead."
+                    )
+
+            elif rel_type == 'OPPOSITE_OF':
+                # Should not be used between same-side components
+                if pos_pair in positive_side_pairs or pos_pair in negative_side_pairs:
+                    raise ValueError(
+                        f"Cannot create OPPOSITE_OF between components that are on the same side "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
+                    )
+
     @inject
     def connect(
         self,
@@ -524,6 +762,7 @@ class BoundRelationshipManager(Generic[T]):
         properties: Optional[dict] = None,
         relationship: Optional[GQLRelationship] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        _skip_semantic_validation: bool = False,
     ) -> GQLRelationship:
         """
         Create a relationship to the target node.
@@ -572,6 +811,10 @@ class BoundRelationshipManager(Generic[T]):
         self._validate_cycle_wheel_connection(target_node)
         # 3. Nexus membership is frozen once Cycles exist
         self._validate_nexus_frozen_after_cycle(target_node)
+        # 4. Semantic relationship consistency (component-to-component)
+        # Skip for auto-created semantic relationships to avoid slow validation queries
+        if not _skip_semantic_validation:
+            self._validate_semantic_relationship_consistency(target_node)
 
         # Helper function to get node ID
         def get_node_id(node):
@@ -702,6 +945,10 @@ class BoundRelationshipManager(Generic[T]):
                 )(_start_node_id=start_id, _end_node_id=end_id, **properties)
 
         db.save_relationship(rel)
+
+        # Auto-create semantic relationships when connecting components to WisdomUnit
+        self._create_wisdom_unit_semantic_relationships(target_node)
+
         return rel
 
     @inject

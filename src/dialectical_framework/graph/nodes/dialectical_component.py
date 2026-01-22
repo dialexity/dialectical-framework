@@ -25,6 +25,15 @@ from dialectical_framework.graph.relationships.is_target_of_relationship import 
 from dialectical_framework.graph.relationships.has_statement_relationship import (
     HasStatementRelationship,
 )
+from dialectical_framework.graph.relationships.positive_side_of_relationship import (
+    PositiveSideOfRelationship,
+)
+from dialectical_framework.graph.relationships.negative_side_of_relationship import (
+    NegativeSideOfRelationship,
+)
+from dialectical_framework.graph.relationships.similar_to_relationship import (
+    SimilarToRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -57,7 +66,28 @@ class DialecticalComponent(AssessableEntity):
     oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
         "DialecticalComponent",
         model=OppositeOfRelationship,
-        cardinality=(1, None)
+        cardinality=(0, None)
+    )
+
+    # Semantic relationship: T+ → T, A+ → A (positive aspect of neutral)
+    positive_side_of: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
+        "DialecticalComponent",
+        model=PositiveSideOfRelationship,
+        cardinality=(0, None)
+    )
+
+    # Semantic relationship: T- → T, A- → A (negative aspect of neutral)
+    negative_side_of: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
+        "DialecticalComponent",
+        model=NegativeSideOfRelationship,
+        cardinality=(0, None)
+    )
+
+    # Semantic relationship: similarity between components
+    similar_to: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
+        "DialecticalComponent",
+        model=SimilarToRelationship,
+        cardinality=(0, None)
     )
 
     source_of: ClassVar[RelationshipManager[Transition]] = RelationshipTo(
