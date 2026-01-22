@@ -26,16 +26,16 @@ while Wheels provide detailed transition-level analysis.
 
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
-| **DialecticalComponent** | Atomic statement | `oppositions`, `source_of`, `target_of` |
-| **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus` |
-| **Nexus** | Pool of WisdomUnits | `wisdom_units`, `cycles`, `shrinks_to`, `expands_to` |
+| **DialecticalComponent** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
+| **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus`, `changed_to` |
+| **Nexus** | Pool of WisdomUnits | `wisdom_units`, `cycles`, `shrunk_to`, `expanded_to` |
 | **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `wisdom_unit` |
-| **Transition** | Component relationship | `source`, `target`, `cycle` |
-| **Cycle** | Causal loop | `transitions`, `nexus`, `wheels` |
-| **Spiral** | Transformational sequence | `transitions`, `wheel` |
-| **Transformation** | Internal WU spiral | `transitions`, `wisdom_unit`, `ac_re` |
-| **Wheel** | Top container | `cycle`, `transitions`, `spiral` |
-| **Rationale** | Evidence/explanation | `explanation`, `critiques` |
+| **Transition** | Component relationship | `source`, `target`, `cycle`, `derived_statements` |
+| **Cycle** | Causal loop | `nexus`, `wheels` |
+| **Spiral** | Transformational sequence | `wheel` |
+| **Transformation** | Internal WU spiral | `wisdom_unit`, `ac_re` |
+| **Wheel** | Top container | `cycle`, `spiral` |
+| **Rationale** | Evidence/explanation | `explanation`, `critiques`, `derived_statements` |
 | **Estimation** | P/R values | `assessed_entity` |
 | **Input** | Content source | `statements` (optional, for extraction provenance) |
 
@@ -86,8 +86,8 @@ class Nexus:
 **Nexus evolution relationships:**
 ```python
 # Direct evolution (no intermediate nodes)
-nexus1.shrinks_to.connect(nexus2)   # Reduction: fewer WUs
-nexus1.expands_to.connect(nexus3)   # Growth: more WUs
+nexus1.shrunk_to.connect(nexus2)    # Reduction: fewer WUs
+nexus1.expanded_to.connect(nexus3)  # Growth: more WUs
 ```
 
 ## Vocabulary and WisdomUnit Purity
@@ -202,6 +202,52 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 
 The `alias` property on relationships stores contextual names (e.g., "T1", "A2+").
 
+## Semantic Relationships
+
+Components have semantic relationships that capture dialectical structure:
+
+| Relationship | Direction | Purpose |
+|--------------|-----------|---------|
+| `OPPOSITE_OF` | Symmetric | T ↔ A, T+ ↔ A-, A+ ↔ T- (opposites) |
+| `POSITIVE_SIDE_OF` | T+ → T, A+ → A | Positive aspect of neutral |
+| `NEGATIVE_SIDE_OF` | T- → T, A- → A | Negative aspect of neutral |
+| `SIMILAR_TO` | Directed | Semantic similarity between components |
+
+**Auto-creation:** When connecting components to WisdomUnit positions, semantic relationships are automatically created:
+
+```python
+wu = WisdomUnit()
+wu.save()
+
+t = DialecticalComponent(statement="Democracy")
+t.save()
+wu.t.connect(t)
+
+a = DialecticalComponent(statement="Autocracy")
+a.save()
+wu.a.connect(a)  # Auto-creates: t.oppositions ↔ a
+
+t_plus = DialecticalComponent(statement="Citizen empowerment")
+t_plus.save()
+wu.t_plus.connect(t_plus)  # Auto-creates: t_plus.positive_side_of → t
+                           # Auto-creates: t_plus.oppositions ↔ a_minus (if exists)
+```
+
+**Access patterns:**
+```python
+# Get all opposites
+for opp, _ in component.oppositions.all():
+    print(f"Opposite: {opp.statement}")
+
+# Get what this component is a positive side of
+for neutral, _ in component.positive_side_of.all():
+    print(f"Positive side of: {neutral.statement}")
+
+# Get all positive sides of this component
+for pos, _ in component.positive_sides.all():
+    print(f"Has positive side: {pos.statement}")
+```
+
 ## Scoring (TaroRank)
 
 **Formula:** `Score = P × R^α`
@@ -291,5 +337,5 @@ node.relevance    # Returns calculated or manual R or feasibility
 
 ## Further Reading
 
-- **Detailed architecture:** `src/dialectical_framework/graph/CLAUDE.md`
 - **Scoring specification:** `docs/scoring.md`
+- **Project conventions:** `CLAUDE.md`

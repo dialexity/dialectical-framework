@@ -38,6 +38,17 @@ Think of a Dialectical Wheel as a pizza:
 
 **Hierarchy:** WisdomUnit → Nexus → Cycle → Wheel
 
+### Semantic Relationships (auto-created)
+
+When connecting components to WisdomUnit positions, semantic relationships are automatically created:
+
+| Relationship | Direction | When Created |
+|--------------|-----------|--------------|
+| `OPPOSITE_OF` | Symmetric | T ↔ A, T+ ↔ A-, A+ ↔ T- |
+| `POSITIVE_SIDE_OF` | Directed | T+ → T, A+ → A |
+| `NEGATIVE_SIDE_OF` | Directed | T- → T, A- → A |
+| `SIMILAR_TO` | Directed | Manual creation only |
+
 ---
 
 ## Quick Navigation
@@ -478,6 +489,5 @@ def test_create_wisdom_unit():
 
 | Doc | Purpose |
 |-----|---------|
-| `docs/graph.md` | Quick reference for graph data model |
+| `docs/graph.md` | Graph data model reference |
 | `docs/scoring.md` | Complete TaroRank specification |
-| `src/dialectical_framework/graph/CLAUDE.md` | Deep dive into graph architecture |
