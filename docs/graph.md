@@ -10,8 +10,8 @@ Wheel (top-level)
 │  ├─ Nexus (pool of WisdomUnits) ───────┤ WU → Nexus → Cycle → Wheel
 │  │  └─ WisdomUnits (1+) ───────────────┤
 │  │     ├─ T, A, T+, T-, A+, A- components (1:1 each)
-│  │     ├─ Synthesis (0-N) with S+, S-
 │  │     └─ Transformation (0-1) internal spiral
+│  │        └─ Synthesis (0-N) with S+, S-
 │  └─ Transitions (2+)                   │
 ├─ Wheel-level Transitions (detailed)    │
 └─ Spiral (0-1) ─────────────────────────┘
@@ -29,11 +29,11 @@ while Wheels provide detailed transition-level analysis.
 | **DialecticalComponent** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
 | **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus`, `changed_to` |
 | **Nexus** | Pool of WisdomUnits | `wisdom_units`, `cycles`, `shrunk_to`, `expanded_to` |
-| **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `wisdom_unit` |
+| **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Transformation or Spiral) |
 | **Transition** | Component relationship | `source`, `target`, `cycle`, `derived_statements` |
 | **Cycle** | Causal loop | `nexus`, `wheels` |
-| **Spiral** | Transformational sequence | `wheel` |
-| **Transformation** | Internal WU spiral | `wisdom_unit`, `ac_re` |
+| **Spiral** | Transformational sequence | `wheel`, `synthesis` (0-N) |
+| **Transformation** | Internal WU spiral | `wisdom_unit`, `ac_re`, `synthesis` (0-N) |
 | **Wheel** | Top container | `cycle`, `spiral` |
 | **Rationale** | Evidence/explanation | `explanation`, `critiques`, `derived_statements` |
 | **Estimation** | P/R values | `assessed_entity` |
@@ -68,6 +68,19 @@ for input_node in roots:
 WisdomUnit → Nexus → Cycle → Wheel
      ↓          ↓       ↓        ↓
   (content)  (pool)  (order)  (detail)
+```
+
+**Complete scoring hierarchy (child → parent edges):**
+```
+DialecticalComponent ──► WisdomUnit ──► Nexus ──► Cycle ──► Wheel
+       │                     ▲                               ▲
+       │                     │                               │
+       │              Transformation ◄── Synthesis           │
+       │                                    │                │
+       └──► Synthesis ──────────────────────┴──► Spiral ─────┘
+
+Transition ──► Cycle/Wheel/Spiral/Transformation
+Rationale ──► (any AssessableEntity)
 ```
 
 **Same edge, different views:**

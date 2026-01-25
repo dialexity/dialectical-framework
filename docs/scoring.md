@@ -105,8 +105,7 @@ Level 3: Nexus (pool of WisdomUnits)
 
 Level 2: WisdomUnit
          ├─ Aggregates both WheelSegment Rs (T-side + A-side)
-         ├─ Includes Transformation R (internal spiral)
-         ├─ Includes Synthesis R
+         ├─ Includes Transformation R (internal spiral, includes Synthesis R)
          └─ Includes unit-level Rationale Rs
 
 Level 1: WheelSegment
@@ -178,23 +177,36 @@ Edges point from the element whose score contributes TO the element that consume
 ```
 SCORING FLOW (scores aggregate upward):
 
-DialecticalComponent ──► WisdomUnit ──► Nexus ──► Cycle ──► Wheel
-                                                    ▲          ▲
-Transition ─────────────────────────────────────────┴──────────┘
-                                                               ▲
-Spiral ────────────────────────────────────────────────────────┘
+                                    ┌─────────────────────────────────────────────┐
+                                    ▼                                             │
+DialecticalComponent ──► WisdomUnit ──► Nexus ──► Cycle ──► Wheel                 │
+       │                     ▲                               ▲                    │
+       │                     │                               │                    │
+       │              Transformation ◄── Synthesis           │                    │
+       │                                    │                │                    │
+       └──► Synthesis ──────────────────────┼──► Spiral ─────┘                    │
+                                            │       ▲                             │
+                                            └───────┘                             │
+Transition ───────────────────────────────────────────────────────────────────────┘
+Rationale ──► (any AssessableEntity)
 ```
 
 **Graph Edge Directions:**
 
 | From (Child) | To (Parent) | Edge Type | Meaning |
 |--------------|-------------|-----------|---------|
+| DialecticalComponent | WisdomUnit | T/A/T+/T-/A+/A- (polarity) | Component score contributes to WU |
+| DialecticalComponent | Synthesis | S+/S- (polarity) | Component score contributes to Synthesis |
+| Synthesis | Transformation | SYNTHESIS_OF | Synthesis score contributes to Transformation |
+| Synthesis | Spiral | SYNTHESIS_OF | Synthesis score contributes to Spiral (meta-synthesis) |
+| Transformation | WisdomUnit | IS_SPIRAL_OF | Transformation score contributes to WU |
 | WisdomUnit | Nexus | BELONGS_TO_NEXUS | WU score contributes to Nexus score |
 | Nexus | Cycle | HAS_CYCLE | Nexus score contributes to Cycle score |
 | Cycle | Wheel | HAS_WHEEL | Cycle score contributes to Wheel score |
-| Transition | Cycle/Wheel | TRANSITION_OF | Transition score contributes to Cycle/Wheel |
-| Spiral | Wheel | SPIRAL_OF | Spiral score contributes to Wheel |
+| Transition | Cycle/Wheel/Spiral/Transformation | TRANSITION_OF | Transition score contributes to parent |
+| Spiral | Wheel | IS_SPIRAL_OF | Spiral score contributes to Wheel |
 | Rationale | Entity | EXPLAINS | Rationale score contributes to Entity |
+| Rationale | Rationale | CRITIQUES | Critique overrides parent rationale |
 
 **Invalidation Propagation:**
 
@@ -202,6 +214,15 @@ When WisdomUnit changes:
 1. Query finds outgoing edge: `(WU)-[BELONGS_TO_NEXUS]->(Nexus)` → Nexus invalidated
 2. Query finds outgoing edge: `(Nexus)-[HAS_CYCLE]->(Cycle)` → Cycle invalidated
 3. Query finds outgoing edge: `(Cycle)-[HAS_WHEEL]->(Wheel)` → Wheel invalidated
+
+When Synthesis changes (e.g., S+ component updated):
+1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Transformation)` → Transformation invalidated
+2. Query finds outgoing edge: `(Transformation)-[IS_SPIRAL_OF]->(WU)` → WU invalidated
+3. Continues: WU → Nexus → Cycle → Wheel (as above)
+
+Or for Spiral-level Synthesis:
+1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Spiral)` → Spiral invalidated
+2. Query finds outgoing edge: `(Spiral)-[IS_SPIRAL_OF]->(Wheel)` → Wheel invalidated
 
 This ensures that when a scoring input changes, all nodes that depend on it are marked for rescoring.
 
@@ -234,15 +255,15 @@ Wheel: "Work Environment Optimization" (single WisdomUnit)
     │   ├── A: "Office work enables collaboration" (R=0.7, rating=0.8)
     │   ├── A+: "Face-to-face communication" (R=0.8, rating=0.6)
     │   └── A-: "Requires physical presence" (R=0.5, rating=0.4)
-    ├── Synthesis:
-    │   ├── S+: "Hybrid model optimizes both" (R=0.85, rating=0.8)
-    │   │   ├── Rationale: "Best of both worlds approach" (R=0.9, rating=0.9, P=0.8, confidence=0.8)
-    │   │   └── Rationale: "Microsoft hybrid work data" (R=0.8, rating=0.7, P=0.85, confidence=0.9)
-    │   │       └── Critique: "Corporate bias in reporting" (R=0.6, rating=0.5)
-    │   └── S-: "Context switching overhead" (R=0.4, rating=0.3)
     └── Transformation (internal spiral: T- → A+ and A- → T+):
         ├── T-→A+: "Isolation → face-to-face need" (P=0.7, R=0.8)
-        └── A-→T+: "Physical limits → remote benefits" (P=0.6, R=0.7)
+        ├── A-→T+: "Physical limits → remote benefits" (P=0.6, R=0.7)
+        └── Synthesis (emerges from transformation):
+            ├── S+: "Hybrid model optimizes both" (R=0.85, rating=0.8)
+            │   ├── Rationale: "Best of both worlds approach" (R=0.9, rating=0.9, P=0.8, confidence=0.8)
+            │   └── Rationale: "Microsoft hybrid work data" (R=0.8, rating=0.7, P=0.85, confidence=0.9)
+            │       └── Critique: "Corporate bias in reporting" (R=0.6, rating=0.5)
+            └── S-: "Context switching overhead" (R=0.4, rating=0.3)
 
 External Transitions (wheel-level cycles):
 ├── T-Cycle: T → T (dummy cycle, single thesis)
@@ -276,13 +297,15 @@ External Transitions (wheel-level cycles):
   - Element: GM(0.85×0.8, 0.81, 0.42) = GM(0.68, 0.81, 0.42) = 0.61
 - **S-**: 0.4 × 0.3 = 0.12
 
-**Step 2: WisdomUnit R** (symmetric pairs + synthesis + transformation)
+**Step 2: WisdomUnit R** (symmetric pairs + transformation w/ synthesis)
 - **T ↔ A pair**: PowerMean(0.72, 0.56, p=4) = 0.66
 - **T+ ↔ A- pair**: PowerMean(0.67, 0.20, p=4) = 0.57
 - **T- ↔ A+ pair**: PowerMean(0.32, 0.48, p=4) = 0.43
-- **S+ ↔ S- pair**: PowerMean(0.61, 0.12, p=4) = 0.51
-- Transformation R: GM(0.8, 0.7) = 0.75
-- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.51, 0.75) = 0.57
+- **Transformation R** (includes Synthesis S+ ↔ S-):
+  - Transition Rs: GM(0.8, 0.7) = 0.75
+  - Synthesis pair: PowerMean(0.61, 0.12, p=4) = 0.51
+  - **Transformation R** = GM(0.75, 0.51) = 0.62
+- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.62) = 0.56
 
 **Step 3: WisdomUnit P** (from Transformation)
 - **Transformation P** = Product(0.7, 0.6) = 0.42
@@ -298,12 +321,12 @@ External Transitions (wheel-level cycles):
 
 **Step 5: Wheel Aggregation**
 - **Wheel R** = GM(WisdomUnit_r, TA_transition_rs)
-  = GM(0.57, 0.71, 0.5) = 0.59
+  = GM(0.56, 0.71, 0.5) = 0.58
 - **Wheel P** = GM(T_cycle_p, TA_cycle_p, Spiral_p, unit_transformations)
   = GM(1.0, 0.43, 0.42, 0.42) = 0.55
 
 **Step 6: Final Score**
-- **Wheel Score** (α=1) = 0.55 × 0.59 = **0.32**
+- **Wheel Score** (α=1) = 0.55 × 0.58 = **0.32**
 
 **Note on Implementation Reality**: The actual implementation may produce values that vary from this worked example due to several factors:
 
@@ -471,8 +494,7 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
     * **T ↔ A**: Power mean of thesis and antithesis Rs
     * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis Rs
     * **T- ↔ A+**: Power mean of negative thesis and positive antithesis Rs
-    * **S+ ↔ S-**: Power mean of synthesis components (if present)
-  * **Transformation R** (internal spiral transitions between segments),
+  * **Transformation R** (internal spiral transitions between segments, includes Synthesis S+ ↔ S-),
   * **rated unit-level rationales**,
 
 *Note: WisdomUnit R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis R to 0.0.*

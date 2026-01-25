@@ -30,9 +30,10 @@ Think of a Dialectical Wheel as a pizza:
 
 - **Nexus**: Pool of WisdomUnits that can be shared across perspectives
 - **Transition**: Recipe for moving between segments (T-→A+, A-→T+)
-- **Transformation**: Internal spiral within a WisdomUnit (2 transitions)
+- **Transformation**: Internal spiral within a WisdomUnit (2 transitions), produces Synthesis
+- **Synthesis**: Emergent S+/S- pair from Transformation or Spiral (meta-synthesis at wheel level)
 - **Cycle**: Sequence of transitions derived from a Nexus
-- **Spiral**: Transformational sequence (softer than cycle)
+- **Spiral**: Transformational sequence (softer than cycle), can produce wheel-level Synthesis
 - **Wheel**: Top-level container with detailed transitions (belongs to Cycle)
 - **Input**: External content source (URL/IPFS) linked to extracted components
 
@@ -196,9 +197,19 @@ class Nexus(AssessableEntity):
 
 **Convention**: Child→Parent edges use `RelationshipTo` on child.
 
-**Full hierarchy:**
+**Full hierarchy (simplified):**
 ```
 WU.nexus → Nexus.cycles → Cycle.wheels → Wheel
+```
+
+**Complete scoring hierarchy:**
+```
+Component → WU → Nexus → Cycle → Wheel
+    │        ▲                     ▲
+    │        │                     │
+    │   Transformation ← Synthesis │
+    │                       │      │
+    └→ Synthesis ───────────┴→ Spiral
 ```
 
 ### Scoring

@@ -21,27 +21,30 @@ from dialectical_framework.graph.relationships.synthesis_of_relationship import 
     SynthesisOfRelationship,
 )
 
-# Import position constants from wisdom_unit for consistency
-
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.spiral import Spiral
+
+# Position constants for S+/S- (canonical names)
+POSITION_S_PLUS = "S+"
+POSITION_S_MINUS = "S-"
 
 
 class Synthesis(AssessableEntity):
     """
-    Represents ONE synthesis interpretation of a dialectical pair.
+    Represents ONE synthesis interpretation of a dialectical transformation.
 
     Each Synthesis contains a symmetric S+/S- pair representing emergent properties:
     - S+ (exactly one): Positive synthesis - complementary harmony (1+1>2)
     - S- (exactly one): Negative synthesis - reinforcing uniformity (1+1<2)
 
-    A WisdomUnit can have multiple Synthesis nodes to explore alternative
-    synthesis interpretations (similar to how multiple WUs explore alternative
-    consequences of the same thesis).
+    Synthesis emerges from:
+    - Transformation: Internal dialectical crossing (T- ↔ A+, A- ↔ T+)
+    - Spiral: Wheel-level transformational sequence (meta-synthesis)
 
-    Unlike WisdomUnit's core 6 positions (T, T+, T-, A, A+, A-), synthesis
-    is computed later and represents emergent properties of the dialectic.
+    A Transformation or Spiral can have multiple Synthesis nodes to explore
+    alternative synthesis interpretations.
     """
 
     # S+ side (exactly one positive synthesis component)
@@ -58,16 +61,30 @@ class Synthesis(AssessableEntity):
         cardinality=(1, 1)  # Exactly one
     )
 
-    # Relationship to WisdomUnit
-    wisdom_unit: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
-        "WisdomUnit",
+    # Target relationship (Transformation or Spiral)
+    # Uses union type via tuple - exactly one target required
+    target: ClassVar[RelationshipManager[Transformation | Spiral]] = RelationshipTo(
+        ("Transformation", "Spiral"),
         model=SynthesisOfRelationship,
-        cardinality=(1, 1)  # Exactly one WU
+        cardinality=(1, 1)  # Exactly one target
     )
+
+    @property
+    def target_type(self) -> str:
+        """
+        Return type of target: 'transformation', 'spiral', or 'none'.
+
+        Returns:
+            Lowercase name of the target class, or 'none' if not connected.
+        """
+        result = self.target.get()
+        if result:
+            return type(result[0]).__name__.lower()
+        return "none"
 
     def __repr__(self) -> str:
         """String representation of the synthesis."""
-        return f"Synthesis(uid={self.uid}, wisdom_unit={self.wisdom_unit})"
+        return f"Synthesis(uid={self.uid}, target_type={self.target_type})"
 
     def get_human_friendly_index(self) -> int:
         """
@@ -275,8 +292,6 @@ class Synthesis(AssessableEntity):
         # Validate newlines (allow 0 for comma separation, treat negative as 0)
         if newlines < 0:
             newlines = 0
-
-        from dialectical_framework.graph.nodes.wisdom_unit import POSITION_S_PLUS, POSITION_S_MINUS
 
         formatted_components = []
 

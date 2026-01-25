@@ -20,12 +20,16 @@ from dialectical_framework.graph.relationships.is_spiral_of_relationship import 
 from dialectical_framework.graph.relationships.action_reflection_relationship import (
     ActionReflectionRelationship,
 )
+from dialectical_framework.graph.relationships.synthesis_of_relationship import (
+    SynthesisOfRelationship,
+)
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
 class Transformation(CircularTopologyMixin, AssessableEntity):
@@ -73,6 +77,13 @@ class Transformation(CircularTopologyMixin, AssessableEntity):
         "WisdomUnit",
         model=ActionReflectionRelationship,
         cardinality=(1, 1)  # Required action-reflection wisdom unit
+    )
+
+    # Synthesis alternatives (S+/S- pairs) derived from this transformation
+    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
+        "Synthesis",
+        model=SynthesisOfRelationship,
+        cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
     # Note: Transformation does not directly connect to Wheel

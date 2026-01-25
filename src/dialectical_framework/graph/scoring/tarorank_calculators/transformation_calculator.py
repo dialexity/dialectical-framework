@@ -29,12 +29,13 @@ class TransformationCalculator(BaseCalculator):
     R calculation:
     - GM of all transition Rs
     - GM of ac_re WisdomUnit R (action-reflection context)
+    - GM of synthesis alternatives R (S+/S- emergent properties)
     - Includes transformation-level rationale Rs (with rating)
     """
 
     def score_children(self, transformation: Transformation, force: bool = False) -> None:
         """
-        Score all transitions and ac_re WisdomUnit in this transformation.
+        Score all transitions, ac_re WisdomUnit, and synthesis in this transformation.
 
         Args:
             transformation: Transformation whose children should be scored
@@ -50,6 +51,10 @@ class TransformationCalculator(BaseCalculator):
         if ac_re_result:
             ac_re_wu = ac_re_result[0]
             self.scorer.calculate_score(ac_re_wu, force=force)
+
+        # Score all synthesis alternatives
+        for synthesis, _ in transformation.synthesis.all():
+            self.scorer.calculate_score(synthesis, force=force)
 
     def calculate_probability(self, transformation: Transformation) -> Optional[float]:
         """
@@ -109,6 +114,22 @@ class TransformationCalculator(BaseCalculator):
             if ac_re_r is not None:
                 values.append(ac_re_r)
 
+        # Synthesis alternatives R (aggregate if multiple exist)
+        synthesis_rs = []
+        for synthesis, _ in transformation.synthesis.all():
+            synth_r = synthesis.relevance
+            if synth_r is not None:
+                synthesis_rs.append(synth_r)
+
+        if synthesis_rs:
+            # If single synthesis, use directly; if multiple, aggregate via GM
+            if len(synthesis_rs) == 1:
+                values.append(synthesis_rs[0])
+            else:
+                aggregated_synth_r = gm_with_zeros_and_nones_handled(synthesis_rs)
+                if aggregated_synth_r is not None:
+                    values.append(aggregated_synth_r)
+
         # Transformation-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
@@ -129,7 +150,7 @@ class TransformationCalculator(BaseCalculator):
 
     def clear_children(self, transformation: Transformation) -> None:
         """
-        Clear scores from all transitions and ac_re WisdomUnit.
+        Clear scores from all transitions, ac_re WisdomUnit, and synthesis.
 
         Args:
             transformation: Transformation whose children should be cleared
@@ -144,3 +165,7 @@ class TransformationCalculator(BaseCalculator):
         if ac_re_result:
             ac_re_wu = ac_re_result[0]
             self.scorer.clear_scores(ac_re_wu)
+
+        # Clear all synthesis alternatives
+        for synthesis, _ in transformation.synthesis.all():
+            self.scorer.clear_scores(synthesis)

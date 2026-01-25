@@ -70,8 +70,11 @@ async def test_full_blown_wheel(number_of_thoughts):
         print(f"Calculating synthesis for WisdomUnit {i+1}/{len(wu_list)}")
         await factory1.calculate_syntheses(wheel=wheel, at=wu)
 
-        # Verify synthesis was created
-        synthesis_list = [s for s, _ in wu.synthesis.all()]
+        # Verify synthesis was created (via transformation)
+        trans_result = wu.transformation.get()
+        assert trans_result is not None, f"WisdomUnit {i+1} should have a transformation"
+        transformation = trans_result[0]
+        synthesis_list = [s for s, _ in transformation.synthesis.all()]
         assert len(synthesis_list) >= 1, f"WisdomUnit {i+1} should have at least one synthesis"
 
         # Verify S+ and S- exist

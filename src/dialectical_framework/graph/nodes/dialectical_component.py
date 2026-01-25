@@ -284,20 +284,21 @@ class DialecticalComponent(AssessableEntity):
                         return rel.alias if rel.alias else position
                     return position  # Non-polarity relationship, use position
 
-        # Also check synthesis if present
-        synth_result = wisdom_unit.synthesis.get()
-        if synth_result:
-            synthesis = synth_result[0]
-            # Check S+ and S- on the Synthesis node
-            for manager in [synthesis.s_plus, synthesis.s_minus]:
-                components = manager.all()
-                for comp, rel in components:
-                    if comp.uid == self.uid:
-                        # Use isinstance for type-safe property access
-                        if isinstance(rel, PolarityRelationship):
-                            # Return custom alias if set, otherwise position constant
-                            return rel.alias if rel.alias else position
-                        return position  # Non-polarity relationship, use position
+        # Also check synthesis via transformation if present
+        trans_result = wisdom_unit.transformation.get()
+        if trans_result:
+            transformation = trans_result[0]
+            for synthesis, _ in transformation.synthesis.all():
+                # Check S+ and S- on the Synthesis node
+                for manager in [synthesis.s_plus, synthesis.s_minus]:
+                    components = manager.all()
+                    for comp, rel in components:
+                        if comp.uid == self.uid:
+                            # Use isinstance for type-safe property access
+                            if isinstance(rel, PolarityRelationship):
+                                # Return custom alias if set, otherwise position constant
+                                return rel.alias if rel.alias else position
+                            return position  # Non-polarity relationship, use position
 
         # Should not reach here since get_position() already validated connection
         return position
@@ -331,6 +332,8 @@ class DialecticalComponent(AssessableEntity):
         from dialectical_framework.graph.nodes.wisdom_unit import (
             POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
             POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS,
+        )
+        from dialectical_framework.graph.nodes.synthesis import (
             POSITION_S_PLUS, POSITION_S_MINUS
         )
 
@@ -352,19 +355,20 @@ class DialecticalComponent(AssessableEntity):
                 if comp.uid == self.uid:
                     return position_name
 
-        # Also check synthesis if present
-        synth_result = wisdom_unit.synthesis.get()
-        if synth_result:
-            synthesis = synth_result[0]
-            # Check S+ and S- on the Synthesis node
-            synth_positions = [
-                (POSITION_S_PLUS, synthesis.s_plus),
-                (POSITION_S_MINUS, synthesis.s_minus),
-            ]
-            for position_name, manager in synth_positions:
-                components = manager.all()
-                for comp, rel in components:
-                    if comp.uid == self.uid:
-                        return position_name
+        # Also check synthesis via Transformation if present
+        trans_result = wisdom_unit.transformation.get()
+        if trans_result:
+            transformation = trans_result[0]
+            for synthesis, _ in transformation.synthesis.all():
+                # Check S+ and S- on the Synthesis node
+                synth_positions = [
+                    (POSITION_S_PLUS, synthesis.s_plus),
+                    (POSITION_S_MINUS, synthesis.s_minus),
+                ]
+                for position_name, manager in synth_positions:
+                    components = manager.all()
+                    for comp, rel in components:
+                        if comp.uid == self.uid:
+                            return position_name
 
         return None

@@ -28,10 +28,11 @@ class WisdomUnitCalculator(BaseCalculator):
       * T ↔ A (neutral pair)
       * T+ ↔ A- (positive thesis ↔ negative antithesis)
       * T- ↔ A+ (negative thesis ↔ positive antithesis)
-    - Includes synthesis alternatives R (0-N Synthesis nodes, aggregated via GM)
-    - Includes transformation R (internal spiral)
+    - Includes transformation R (internal spiral, which includes synthesis)
     - Includes unit-level rationale Rs (with rating)
     - Aggregates all via GM
+
+    Note: Synthesis R flows through Transformation (Synthesis → Transformation → WU)
 
     P calculation:
     - P comes from Transformation (internal spiral)
@@ -40,7 +41,7 @@ class WisdomUnitCalculator(BaseCalculator):
 
     def score_children(self, wu: WisdomUnit, force: bool = False) -> None:
         """
-        Score all components, transformation, and synthesis alternatives in this WU.
+        Score all components and transformation in this WU.
 
         Args:
             wu: WisdomUnit whose children should be scored
@@ -52,15 +53,11 @@ class WisdomUnitCalculator(BaseCalculator):
             for comp in components:
                 self.scorer.calculate_score(comp, force=force)
 
-        # Score transformation if present
+        # Score transformation if present (includes synthesis scoring)
         trans_result = wu.transformation.get()
         if trans_result:
             transformation = trans_result[0]
             self.scorer.calculate_score(transformation, force=force)
-
-        # Score all synthesis alternatives if present
-        for synthesis, _ in wu.synthesis.all():
-            self.scorer.calculate_score(synthesis, force=force)
 
     def calculate_relevance(self, wu: WisdomUnit) -> Optional[float]:
         """
@@ -125,23 +122,7 @@ class WisdomUnitCalculator(BaseCalculator):
             if pair_r is not None:
                 values.append(pair_r)
 
-        # Synthesis alternatives R (aggregate if multiple exist)
-        synthesis_rs = []
-        for synthesis, _ in wu.synthesis.all():
-            synth_r = synthesis.relevance
-            if synth_r is not None:
-                synthesis_rs.append(synth_r)
-
-        if synthesis_rs:
-            # If single synthesis, use directly; if multiple, aggregate via GM
-            if len(synthesis_rs) == 1:
-                values.append(synthesis_rs[0])
-            else:
-                aggregated_synth_r = gm_with_zeros_and_nones_handled(synthesis_rs)
-                if aggregated_synth_r is not None:
-                    values.append(aggregated_synth_r)
-
-        # Transformation R (internal spiral)
+        # Transformation R (internal spiral, includes synthesis R)
         trans_result = wu.transformation.get()
         if trans_result:
             transformation = trans_result[0]
@@ -187,7 +168,7 @@ class WisdomUnitCalculator(BaseCalculator):
 
     def clear_children(self, wu: WisdomUnit) -> None:
         """
-        Clear scores from all components, transformation, and synthesis alternatives.
+        Clear scores from all components and transformation.
 
         Args:
             wu: WisdomUnit whose children should be cleared
@@ -198,12 +179,8 @@ class WisdomUnitCalculator(BaseCalculator):
             for comp in components:
                 self.scorer.clear_scores(comp)
 
-        # Clear transformation if present
+        # Clear transformation if present (includes synthesis clearing)
         trans_result = wu.transformation.get()
         if trans_result:
             transformation = trans_result[0]
             self.scorer.clear_scores(transformation)
-
-        # Clear all synthesis alternatives if present
-        for synthesis, _ in wu.synthesis.all():
-            self.scorer.clear_scores(synthesis)

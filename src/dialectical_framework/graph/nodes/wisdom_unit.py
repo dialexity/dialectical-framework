@@ -20,9 +20,6 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     APlusRelationship,
     AMinusRelationship,
 )
-from dialectical_framework.graph.relationships.synthesis_of_relationship import (
-    SynthesisOfRelationship,
-)
 from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
     BelongsToNexusRelationship,
 )
@@ -37,18 +34,16 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
 # Position constants - module level to avoid GQLAlchemy metaclass interference
+# Note: S+ and S- constants are in synthesis.py (Synthesis now belongs to Transformation/Spiral)
 POSITION_T = "T"
 POSITION_T_PLUS = "T+"
 POSITION_T_MINUS = "T-"
 POSITION_A = "A"
 POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
-POSITION_S_PLUS = "S+"
-POSITION_S_MINUS = "S-"
 
 
 class WisdomUnit(AssessableEntity):
@@ -65,9 +60,8 @@ class WisdomUnit(AssessableEntity):
     consequences or alternative perspectives on the same thesis, create multiple
     WisdomUnits that share the same T component node (component reuse pattern).
 
-    Synthesis (S+, S-) is a separate optional entity that represents emergent
-    properties derived from the dialectic. It is connected via the synthesis
-    relationship, not stored as core positions.
+    Note: Synthesis (S+, S-) emerges from Transformation, not directly from WisdomUnit.
+    Access synthesis via: wu.transformation.get()[0].synthesis.all()
 
     The cardinality constraints are enforced at the RelationshipManager level,
     providing automatic validation and runtime checks.
@@ -125,14 +119,6 @@ class WisdomUnit(AssessableEntity):
         "DialecticalComponent",
         model=AMinusRelationship,
         cardinality=(1, 1)  # Exactly one
-    )
-
-    # Optional synthesis (emergent properties derived from dialectic)
-    # Multiple synthesis alternatives can exist for the same WU
-    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
-        "Synthesis",
-        model=SynthesisOfRelationship,
-        cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
     # Relationship to Nexus (pool of WisdomUnits)

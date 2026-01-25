@@ -78,14 +78,14 @@ def invalidate_node_and_parents(
     # Scoring parents are nodes whose score DEPENDS ON this node's score.
     #
     # SCORING DEPENDENCIES (edges that should propagate invalidation):
-    # - Polarity (T/A/T+/T-/A+/A-/S+/S-): Component→WU (WU score depends on Component)
+    # - Polarity (T/A/T+/T-/A+/A-): Component→WU (WU score depends on Component)
+    # - Polarity (S+/S-): Component→Synthesis (Synthesis score depends on Component)
     # - BELONGS_TO_NEXUS: WU→Nexus (Nexus depends on WU)
     # - HAS_CYCLE: Nexus→Cycle (Cycle scores Nexus as child)
     # - HAS_WHEEL: Cycle→Wheel (Wheel depends on Cycle)
     # - TRANSITION_OF: Transition→Cycle/Wheel (Cycle/Wheel depends on Transition)
-    # - SPIRAL_OF: Spiral→Wheel (Wheel depends on Spiral)
-    # - TRANSFORMATION_OF: Transformation→WU (WU depends on Transformation)
-    # - SYNTHESIS_OF: Synthesis→WU (WU depends on Synthesis)
+    # - IS_SPIRAL_OF: Transformation→WU, Spiral→Wheel (WU/Wheel depends on Transformation/Spiral)
+    # - SYNTHESIS_OF: Synthesis→Transformation/Spiral (Transformation/Spiral depends on Synthesis)
     # - EXPLAINS: Rationale→Entity (Entity depends on Rationale)
     # - CRITIQUES: Critique→Rationale (Rationale depends on critique)
     #

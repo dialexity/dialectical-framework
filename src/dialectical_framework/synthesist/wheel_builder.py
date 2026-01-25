@@ -19,14 +19,12 @@ from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.nexus import Nexus
-from dialectical_framework.graph.nodes.synthesis import Synthesis
+from dialectical_framework.graph.nodes.synthesis import Synthesis, POSITION_S_PLUS, POSITION_S_MINUS
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.wisdom_unit import (
     WisdomUnit,
     POSITION_T,
-    POSITION_S_PLUS,
-    POSITION_S_MINUS,
 )
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
@@ -371,8 +369,13 @@ class WheelBuilder(SettingsAware):
             synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias=s_plus_alias_dto.alias))
             synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias=s_minus_alias_dto.alias))
 
-            # Connect Synthesis to WisdomUnit
-            synthesis.wisdom_unit.connect(wu)
+            # Connect Synthesis to Transformation (synthesis emerges from transformation)
+            trans_result = wu.transformation.get()
+            if trans_result:
+                transformation = trans_result[0]
+                synthesis.target.connect(transformation)
+            else:
+                logger.warning(f"WU {wu.uid} has no transformation - skipping synthesis connection")
 
             # Set human-friendly index if WU has one
             if wu_index > 0:

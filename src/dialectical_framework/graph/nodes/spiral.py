@@ -10,9 +10,12 @@ from __future__ import annotations
 from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
     IsSpiralOfRelationship,
+)
+from dialectical_framework.graph.relationships.synthesis_of_relationship import (
+    SynthesisOfRelationship,
 )
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
@@ -20,6 +23,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
 class Spiral(CircularTopologyMixin, AssessableEntity):
@@ -48,6 +52,13 @@ class Spiral(CircularTopologyMixin, AssessableEntity):
         "Wheel",
         model=IsSpiralOfRelationship,
         cardinality=(1, 1)  # Spiral is always drawn on a wheel
+    )
+
+    # Meta-synthesis alternatives (S+/S- pairs) derived from this spiral
+    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
+        "Synthesis",
+        model=SynthesisOfRelationship,
+        cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
     def get_nexus(self) -> Nexus | None:

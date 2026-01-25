@@ -233,8 +233,12 @@ class WheelSegmentPolarPair:
         from tabulate import tabulate
         sections = []
 
-        # Section 1: Synthesis (if exists)
-        synthesis_list = list(self._wisdom_unit.synthesis.all())
+        # Section 1: Synthesis (if exists, via transformation)
+        synthesis_list = []
+        trans_check = self._wisdom_unit.transformation.get()
+        if trans_check:
+            trans_node, _ = trans_check
+            synthesis_list = list(trans_node.synthesis.all())
 
         if synthesis_list:
             synthesis_parts = ["=== Synthesis ==="]
@@ -305,8 +309,12 @@ class WheelSegmentPolarPair:
 
         lines = []
 
-        # Section 1: Synthesis (if exists)
-        synthesis_list = list(self._wisdom_unit.synthesis.all())
+        # Section 1: Synthesis (if exists, via transformation)
+        synthesis_list = []
+        trans_check = self._wisdom_unit.transformation.get()
+        if trans_check:
+            trans_node, _ = trans_check
+            synthesis_list = list(trans_node.synthesis.all())
 
         if synthesis_list:
             lines.append("=== Synthesis ===")
