@@ -32,12 +32,25 @@ Think of a Dialectical Wheel as a pizza:
 - **Transition**: Recipe for moving between segments (T-→A+, A-→T+)
 - **Transformation**: Internal spiral within a WisdomUnit (2 transitions), produces Synthesis
 - **Synthesis**: Emergent S+/S- pair from Transformation or Spiral (meta-synthesis at wheel level)
-- **Cycle**: Sequence of transitions derived from a Nexus
-- **Spiral**: Transformational sequence (softer than cycle), can produce wheel-level Synthesis
+- **Cycle**: Sequence of transitions derived from a Nexus (has causality_type: BALANCED, REALISTIC, etc.)
+- **Spiral**: Transformational sequence derived from Wheel structure + WU Transformations
 - **Wheel**: Top-level container with detailed transitions (belongs to Cycle)
 - **Input**: External content source (URL/IPFS) linked to extracted components
 
 **Hierarchy:** WisdomUnit → Nexus → Cycle → Wheel
+
+### Cardinality Design: Where to Branch
+
+Both `WisdomUnit.transformation` and `Wheel.spiral` use **(0, 1)** cardinality because they are **derived structures** - fully determined by their inputs. The Spiral inherits intentions from WU Transformations; it has no independent "intentions."
+
+**To explore different paths, branch upstream:**
+- Different transformation interpretations → Create different **WisdomUnits**
+- Different WU combinations → Create different **Nexuses**
+- Different orderings/causality types → Create different **Cycles**
+
+Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on both Transformation and Spiral.
+
+See `docs/graph.md` → "Branching and Cardinality Rationale" for detailed explanation.
 
 ### Semantic Relationships (auto-created)
 

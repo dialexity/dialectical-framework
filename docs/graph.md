@@ -39,6 +39,59 @@ while Wheels provide detailed transition-level analysis.
 | **Estimation** | P/R values | `assessed_entity` |
 | **Input** | Content source | `statements` (optional, for extraction provenance) |
 
+## Branching and Cardinality Rationale
+
+The framework uses (0, 1) cardinality for both `WisdomUnit.transformation` and `Wheel.spiral`. This is intentional - different exploration paths require branching **upstream**, not at these nodes.
+
+### Why (0, 1) for Transformation and Spiral?
+
+Both Transformation and Spiral are **derived structures**, fully determined by their inputs:
+
+| Node | Determined By | Cardinality |
+|------|---------------|-------------|
+| **Transformation** | WU's polar structure (T, A, T+, T-, A+, A-) | (0, 1) per WU |
+| **Spiral** | Wheel's segment ordering + WU Transformations | (0, 1) per Wheel |
+
+**Key insight:** The Spiral doesn't have independent "intentions" - it inherits them from the WU Transformations within the Nexus. Given a fixed Wheel arrangement and fixed WU Transformations, there is exactly one Spiral structure.
+
+### Where Branching Happens
+
+To explore different dialectical paths, branch at the appropriate upstream level:
+
+```
+Different polar interpretations     → Create different WisdomUnits
+Different WU combinations           → Create different Nexuses
+Different orderings/causality types → Create different Cycles
+Different detailed implementations  → Create different Wheels
+```
+
+**Example:** To explore Love↔Hate through different transformation paths:
+
+```
+WU1: Love↔Hate (Transformation: fear-based)
+WU2: Love↔Hate (Transformation: growth-based)  ← Different WU, not multiple Transformations
+     │
+     ▼
+Nexus A {WU1, WU3}          Nexus B {WU2, WU3}
+     │                           │
+     ▼                           ▼
+Cycle → Wheel → Spiral A    Cycle → Wheel → Spiral B
+```
+
+### Multiple Synthesis Interpretations
+
+While Transformation and Spiral have (0, 1) cardinality, **Synthesis has (0, ∞)**:
+
+```
+Transformation (0, 1)
+└── Synthesis (0, ∞)  ← Multiple interpretations of the same transformation
+
+Spiral (0, 1)
+└── Synthesis (0, ∞)  ← Multiple interpretations of the same spiral path
+```
+
+This allows exploring different synthesis outcomes (S+/S-) without duplicating the structural path.
+
 ## Provenance Tracing
 
 Wheels trace back to their source Inputs via the Nexus hierarchy:
