@@ -30,8 +30,9 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     TRelationship,
     ARelationship,
 )
+from dialectical_framework.protocols.antithesis_extractor import AntithesisExtractor
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
+from dialectical_framework.protocols.polarity_finder import PolarityFinder
 from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
@@ -57,7 +58,8 @@ class PolarReasoner(HasBrain, Reloadable):
         self,
         *,
         text: str = "",
-        polarity_extractor: PolarityExtractor = Provide[DI.polarity_extractor],
+        polarity_finder: PolarityFinder = Provide[DI.polarity_finder],
+        antithesis_extractor: AntithesisExtractor = Provide[DI.antithesis_extractor],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ):
         self._text = text
@@ -68,8 +70,11 @@ class PolarReasoner(HasBrain, Reloadable):
         # Store perspectives (list of graph-native WisdomUnits)
         self._perspectives: list[WisdomUnit] = []
 
-        self._extractor = polarity_extractor
-        self._extractor.reload(text=text)
+        self._polarity_finder = polarity_finder
+        self._polarity_finder.reload(text=text)
+
+        self._antithesis_extractor = antithesis_extractor
+        self._antithesis_extractor.reload(text=text)
 
         self._graph_db = graph_db
 
@@ -81,7 +86,8 @@ class PolarReasoner(HasBrain, Reloadable):
         self, *, text: str, perspectives: WisdomUnit | list[WisdomUnit] = None
     ) -> Self:
         self._text = text
-        self._extractor.reload(text=text)
+        self._polarity_finder.reload(text=text)
+        self._antithesis_extractor.reload(text=text)
 
         if not perspectives:
             perspectives = []
@@ -396,8 +402,8 @@ class PolarReasoner(HasBrain, Reloadable):
                 return input_val  # Already a string or None
 
         if not isinstance(thesis, DialecticalComponentDto) or not isinstance(antithesis, DialecticalComponentDto):
-            # Extract polarities using extractor (returns DTOs)
-            polarity = await self._extractor.extract_polarities(
+            # Extract polarities using polarity finder (returns DTOs)
+            polarity = await self._polarity_finder.extract_polarities(
                 given=[(get_statement(thesis), get_statement(antithesis))]
             )
             t_dto, a_dto = polarity[0]
@@ -636,7 +642,7 @@ class PolarReasoner(HasBrain, Reloadable):
                 if changed.get(base_pos) and not changed.get(other_pos):
                     # base side changed - regenerate other
                     orig_other = original.get_component(other_pos)
-                    o_dto = await self._extractor.extract_single_antithesis(thesis=base_comp.statement)
+                    o_dto = await self._antithesis_extractor.extract_single_antithesis(thesis=base_comp.statement)
 
                     # Check if regenerated statement matches original
                     if orig_other and orig_other.statement == o_dto.statement:
@@ -659,7 +665,7 @@ class PolarReasoner(HasBrain, Reloadable):
                 elif changed.get(other_pos) and not changed.get(base_pos):
                     # other side changed - regenerate base
                     orig_base = original.get_component(base_pos)
-                    bm_dto = await self._extractor.extract_single_antithesis(thesis=other_comp.statement)
+                    bm_dto = await self._antithesis_extractor.extract_single_antithesis(thesis=other_comp.statement)
 
                     # Check if regenerated statement matches original
                     if orig_base and orig_base.statement == bm_dto.statement:

@@ -118,7 +118,11 @@ src/dialectical_framework/
 │   └── relationship_manager.py    # RelationshipTo/From declarative API
 │
 ├── synthesist/              # Reasoning engines
-│   ├── polarity/           # Extract T/A pairs from text
+│   ├── ideas/              # Idea extraction (thesis, antithesis, polarity)
+│   │   ├── thesis_extractor_basic.py      # Extract thesis concepts
+│   │   ├── antithesis_extractor_basic.py  # Extract antithesis concepts
+│   │   └── polarity_finder_basic.py       # Orchestrate polarity extraction
+│   ├── polarity/           # Polar reasoning (PolarReasoner, WisdomUnit building)
 │   ├── causality/          # Order transitions (BALANCED, REALISTIC, etc.)
 │   ├── concepts/           # Concept extraction
 │   └── wisdom/             # Transition analysis & validation

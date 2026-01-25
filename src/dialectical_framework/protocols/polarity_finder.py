@@ -3,15 +3,19 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Union
 
-from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
-from dialectical_framework.ai_dto.dialectical_component_dto import \
-    DialecticalComponentDto
-from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
+from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+from dialectical_framework.protocols.reloadable import Reloadable
 
 
-class PolarityExtractor(ThesisExtractor):
+class PolarityFinder(Reloadable):
     """
-    Protocol for extracting polarities (thesis-antithesis pairs).
+    Protocol for orchestrating polarity extraction (thesis-antithesis pair coordination).
+
+    This protocol handles:
+    - Input normalization (strings, lists, tuples)
+    - Selective generation (via `at` parameter)
+    - Deduplication across the matrix
+    - DTO creation with proper aliases
 
     All methods return DTOs - conversion to graph nodes happens in the reasoning layer.
     """
@@ -102,9 +106,3 @@ class PolarityExtractor(ThesisExtractor):
             If more than 4 polarities are requested
         """
         ...
-
-    @abstractmethod
-    async def extract_multiple_antitheses( self, *, theses: list[str], not_like_these: list[str] | None = None) -> DialecticalComponentsDeckDto: ...
-
-    @abstractmethod
-    async def extract_single_antithesis(self, *, thesis: str, not_like_these: list[str] | None = None) -> DialecticalComponentDto: ...

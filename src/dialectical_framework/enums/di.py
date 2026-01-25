@@ -9,5 +9,10 @@ class DI(str, Enum):
     brain = "brain"
     polar_reasoner = "polar_reasoner"
     causality_sequencer = "causality_sequencer"
-    polarity_extractor = "polarity_extractor"
+
+    # Focused extractors for idea extraction
+    thesis_extractor = "thesis_extractor"
+    antithesis_extractor = "antithesis_extractor"
+    polarity_finder = "polarity_finder"
+
     tarorank = "tarorank"

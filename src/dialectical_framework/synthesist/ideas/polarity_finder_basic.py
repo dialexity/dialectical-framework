@@ -1,105 +1,53 @@
 from __future__ import annotations
 
-from typing import Union
+from typing import TYPE_CHECKING, Self, Union
 
-from mirascope import Messages, prompt_template
-from mirascope.integrations.langfuse import with_langfuse
+from dependency_injector.wiring import Provide
 
-from dialectical_framework.ai_dto.dialectical_component_dto import \
-    DialecticalComponentDto
-from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
-    DialecticalComponentsDeckDto
-from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
-from dialectical_framework.synthesist.ideas.thesis_extractor_basic import ThesisExtractorBasic
+from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+from dialectical_framework.ai_dto.dialectical_components_deck_dto import DialecticalComponentsDeckDto
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.wisdom_unit import POSITION_T as ALIAS_T, POSITION_A as ALIAS_A
-from dialectical_framework.utils.use_brain import use_brain
+from dialectical_framework.protocols.polarity_finder import PolarityFinder
+
+if TYPE_CHECKING:
+    from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
+    from dialectical_framework.protocols.antithesis_extractor import AntithesisExtractor
 
 
-class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
+class PolarityFinderBasic(PolarityFinder):
+    """
+    Orchestrates polarity extraction by coordinating thesis and antithesis extractors.
 
-    @prompt_template(
-        """
-        MESSAGES:
-        {thesis_extraction}
-        
-        ASSISTANT:
-        Thesis (it might look irrelevant, but this is what I got, so let's use it):
-        T = {thesis}
-        
-        USER:
-        A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
+    This class handles:
+    - Input normalization (strings, lists, tuples)
+    - Selective generation (via `at` parameter)
+    - Deduplication across the matrix
+    - DTO creation with proper aliases
 
-        Generate a dialectical opposition (A) of the thesis "{thesis}" (T). Be detailed enough to show deep understanding, yet concise enough to maintain clarity.
+    Delegates actual extraction to injected ThesisExtractor and AntithesisExtractor.
+    """
 
-        Output the dialectical component A within {component_length} word(s), the shorter, the better. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T" or "A" in the explanation.
-        
-        {rule_out}
-        """
-    )
-    def prompt_single_antithesis(self, *, thesis: str, not_like_these: list[str] | None = None) -> "Messages.Type":
-        rule_out = ""
+    def __init__(
+        self,
+        thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],
+        antithesis_extractor: AntithesisExtractor = Provide[DI.antithesis_extractor],
+        *,
+        text: str | None = "",
+    ):
+        self._thesis_extractor = thesis_extractor
+        self._antithesis_extractor = antithesis_extractor
+        self._text = text if text else ""
 
-        if not_like_these:
-            rule_out = "**Rules**\nIMPORTANT: The antithesis A must be different than these already known statements:\n\n- " + "\n- ".join(not_like_these)
+    @property
+    def text(self) -> str:
+        return self._text
 
-        return {
-            "computed_fields": {
-                'thesis_extraction': self.prompt_single_thesis(),
-                "thesis": thesis,
-                "rule_out": rule_out,
-                "component_length": self.settings.component_length,
-            },
-        }
-
-    @prompt_template(
-        """
-        MESSAGES:
-        {theses_extraction}
-        
-        ASSISTANT:
-        Theses (they might look irrelevant, but this is what I got, so let's use them):
-        {theses}
-        
-        USER:
-        A dialectical opposition presents the conceptual or functional antithesis of the original statement that creates direct opposition, while potentially still allowing their mutual coexistence. For instance, Love vs. Hate or Indifference; Science vs. Superstition, Faith/Belief; Human-caused Global Warming vs. Natural Cycles.
-        
-        For each thesis, generate a dialectical opposition (A). Be detailed enough to show deep understanding, yet concise enough to maintain clarity.
-
-        **Output Format:**
-        A1 = [antithesis of T1 in 1-{component_length} words]
-        Explanation: [The explanation how it was derived in the passive voice]
-        
-        A2 = [antithesis of T2 in 1-{component_length} words]
-        Explanation: [The explanation how it was derived in the passive voice]
-        
-        ...
-        
-        Ax = [antithesis of Tx in 1-{component_length} words]
-        Explanation: [The explanation how it was derived in the passive voice]
-        
-        **Rules**
-        Make sure to output {count} antitheses, i.e. one for each thesis, no more no less.
-        {rule_out}
-        """
-    )
-    def prompt_multiple_antitheses(self, *, theses: list[str], not_like_these: list[str] | None = None) -> "Messages.Type":
-        rule_out = ""
-
-        if not_like_these:
-            rule_out = "IMPORTANT: The antitheses A1 ... Ax must be different than these statements:\n\n- " + "\n- ".join(
-                not_like_these)
-
-        theses_str = "\n".join(f"T{i + 1} = {thesis}" for i, thesis in enumerate(theses))
-
-        return {
-            "computed_fields": {
-                "theses_extraction": self.prompt_multiple_theses(count=len(theses)),
-                "theses": theses_str,
-                "count": len(theses),
-                "rule_out": rule_out,
-                "component_length": self.settings.component_length,
-            },
-        }
+    def reload(self, *, text: str) -> Self:
+        self._text = text
+        self._thesis_extractor.reload(text=text)
+        self._antithesis_extractor.reload(text=text)
+        return self
 
     async def extract_polarities(
         self,
@@ -189,11 +137,11 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
 
         # Extract missing theses for empty positions (returns DTOs)
         if empty_count == 1:
-            t_dto = await self._extract_single_thesis_dto(not_like_these=not_like_these)
+            t_dto = await self._thesis_extractor.extract_single_thesis(not_like_these=not_like_these)
             not_like_these.append(t_dto.statement)
             theses_to_find_dtos = [t_dto]
         elif empty_count > 1:
-            ts_dto = await self._extract_multiple_theses_dto(count=empty_count, not_like_these=not_like_these)
+            ts_dto = await self._thesis_extractor.extract_multiple_theses(count=empty_count, not_like_these=not_like_these)
             not_like_these.extend(t_dto.statement for t_dto in ts_dto.dialectical_components)
             theses_to_find_dtos = ts_dto.dialectical_components
 
@@ -293,13 +241,13 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
         # Extract all opposites in one batch (returns DTOs)
         opposites_dtos: list[DialecticalComponentDto] = []
         if len(statements_needing_opposites) == 1:
-            opposite_dto = await self._extract_single_antithesis_dto(
+            opposite_dto = await self._antithesis_extractor.extract_single_antithesis(
                 thesis=statements_needing_opposites[0],
                 not_like_these=not_like_these
             )
             opposites_dtos = [opposite_dto]
         elif len(statements_needing_opposites) > 1:
-            deck_dto = await self._extract_multiple_antitheses_dto(
+            deck_dto = await self._antithesis_extractor.extract_multiple_antitheses(
                 theses=statements_needing_opposites,
                 not_like_these=not_like_these
             )
@@ -322,78 +270,3 @@ class PolarityExtractorBasic(ThesisExtractorBasic, PolarityExtractor):
 
         # Return DTOs directly - conversion to graph happens in reasoning layer
         return result_dtos
-
-    # Private helper methods that return DTOs (used internally)
-    async def _extract_single_thesis_dto(self, *, not_like_these: list[str] | None = None) -> DialecticalComponentDto:
-        """Internal method that returns thesis as DTO"""
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponentDto)
-        async def _find_thesis():
-            return self.prompt_single_thesis(not_like_these=not_like_these)
-
-        return await _find_thesis()
-
-    async def _extract_multiple_theses_dto(self, *, count: int, not_like_these: list[str] | None = None) -> DialecticalComponentsDeckDto:
-        """Internal method that returns theses as DTO deck"""
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeckDto)
-        async def _find_theses():
-            return self.prompt_multiple_theses(count=count, not_like_these=not_like_these)
-
-        return await _find_theses()
-
-    async def _extract_single_antithesis_dto(self, *, thesis: str, not_like_these: list[str] | None = None) -> DialecticalComponentDto:
-        """Internal method that returns antithesis as DTO"""
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponentDto)
-        async def _find_antithesis():
-            return self.prompt_single_antithesis(thesis=thesis, not_like_these=not_like_these)
-
-        return await _find_antithesis()
-
-    async def _extract_multiple_antitheses_dto(self, *, theses: list[str], not_like_these: list[str] | None = None) -> DialecticalComponentsDeckDto:
-        """Internal method that returns antitheses as DTO deck"""
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=DialecticalComponentsDeckDto)
-        async def _find_antitheses():
-            return self.prompt_multiple_antitheses(theses=theses, not_like_these=not_like_these)
-
-        return await _find_antitheses()
-
-    async def extract_multiple_antitheses(self, *, theses: list[str], not_like_these: list[str] | None = None) \
-            -> DialecticalComponentsDeckDto:
-        """
-        Protocol method: Extracts multiple antitheses and returns them as DTO deck.
-        Now returns DialecticalComponentsDeckDto instead of legacy DialecticalComponentsDeck.
-        """
-        count = len(theses)
-
-        # Use internal DTO method
-        deck_dto = await self._extract_multiple_antitheses_dto(theses=theses, not_like_these=not_like_these)
-
-        # Filter DTOs for antitheses only (AI might return theses too)
-        antithesis_dtos = []
-        for dto in deck_dto.dialectical_components:
-            if dto.alias.startswith(ALIAS_A):
-                antithesis_dtos.append(dto)
-
-        if len(antithesis_dtos) < count:
-            raise ValueError(f"AI returned {len(antithesis_dtos)} antitheses but {count} were requested.")
-
-        # Take only the requested count if AI returned more
-        result_deck = DialecticalComponentsDeckDto(dialectical_components=antithesis_dtos[:count])
-
-        # For single component, set human_friendly_index to 0 (no numeric suffix)
-        if count == 1 and len(result_deck.dialectical_components) == 1:
-            dc_dto: DialecticalComponentDto = result_deck.dialectical_components[0]
-            dc_dto.set_human_friendly_index(0)
-
-        return result_deck
-
-    async def extract_single_antithesis(self, *, thesis: str, not_like_these: list[str] | None = None) \
-            -> DialecticalComponentDto:
-        """
-        Protocol method: Extracts single antithesis and returns it as DTO.
-        """
-        # Get DTO from AI and return it directly
-        return await self._extract_single_antithesis_dto(thesis=thesis, not_like_these=not_like_these)

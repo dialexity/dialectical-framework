@@ -12,7 +12,8 @@ from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.protocols.polarity_extractor import PolarityExtractor
+from dialectical_framework.protocols.polarity_finder import PolarityFinder
+from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 
 # Graph-native models
 from dialectical_framework.graph.nodes.cycle import Cycle
@@ -35,7 +36,8 @@ from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReason
 class WheelBuilder(SettingsAware):
     def __init__(
         self,
-        polarity_extractor: PolarityExtractor = Provide[DI.polarity_extractor],
+        thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],
+        polarity_finder: PolarityFinder = Provide[DI.polarity_finder],
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
         polar_reasoner: PolarReasoner = Provide[DI.polar_reasoner],
         tarorank: TaroRank = Provide[DI.tarorank],
@@ -48,8 +50,11 @@ class WheelBuilder(SettingsAware):
 
         # TODO: reloading singletons isn't very good design here, because we're guessing the parameters...
 
-        self.__extractor = polarity_extractor
-        self.__extractor.reload(text=text)
+        self.__thesis_extractor = thesis_extractor
+        self.__thesis_extractor.reload(text=text)
+
+        self.__polarity_finder = polarity_finder
+        self.__polarity_finder.reload(text=text)
 
         self.__sequencer = causality_sequencer
         self.__sequencer.reload(text=text)
@@ -68,8 +73,12 @@ class WheelBuilder(SettingsAware):
         return self.__text
 
     @property
-    def extractor(self) -> PolarityExtractor:
-        return self.__extractor
+    def thesis_extractor(self) -> ThesisExtractor:
+        return self.__thesis_extractor
+
+    @property
+    def polarity_finder(self) -> PolarityFinder:
+        return self.__polarity_finder
 
     @property
     def reasoner(self) -> PolarReasoner:
@@ -95,7 +104,7 @@ class WheelBuilder(SettingsAware):
         """
         if theses is None:
             # No theses provided, generate one automatically
-            t_dto = await self.extractor.extract_single_thesis()
+            t_dto = await self.thesis_extractor.extract_single_thesis()
             t = component_from_dto(t_dto)  # Convert DTO → graph node
             theses = [t]
         else:
@@ -124,12 +133,12 @@ class WheelBuilder(SettingsAware):
                 if len(none_positions) == 1:
                     # Single thesis case: place at the correct original position
                     pos = none_positions[0]
-                    generated_thesis_dto = await self.extractor.extract_single_thesis(not_like_these=known_theses)
+                    generated_thesis_dto = await self.thesis_extractor.extract_single_thesis(not_like_these=known_theses)
                     generated_thesis = component_from_dto(generated_thesis_dto)  # Convert DTO → graph node
                     final_theses[pos] = generated_thesis
                 else:
                     # Multiple theses case - extract all missing ones at once
-                    t_deck_dto = await self.extractor.extract_multiple_theses(
+                    t_deck_dto = await self.thesis_extractor.extract_multiple_theses(
                         count=len(none_positions),
                         not_like_these=known_theses
                     )
@@ -144,7 +153,7 @@ class WheelBuilder(SettingsAware):
                     # Backfill any remaining None (precaution in case fewer were generated than requested)
                     for pos in none_positions:
                         if final_theses[pos] is None:
-                            generated_thesis_dto = await self.extractor.extract_single_thesis(not_like_these=known_theses)
+                            generated_thesis_dto = await self.thesis_extractor.extract_single_thesis(not_like_these=known_theses)
                             generated_thesis = component_from_dto(generated_thesis_dto)  # Convert DTO → graph node
                             final_theses[pos] = generated_thesis
 
