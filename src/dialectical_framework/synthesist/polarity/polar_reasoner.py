@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 
 
-class PolarityReasoner(HasBrain, Reloadable):
+class PolarReasoner(HasBrain, Reloadable):
     def __init__(
         self,
         *,

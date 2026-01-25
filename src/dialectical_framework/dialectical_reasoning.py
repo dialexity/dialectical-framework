@@ -21,8 +21,8 @@ from dialectical_framework.synthesist.causality.causality_sequencer_feasible imp
 from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
     CausalitySequencerRealistic
 from dialectical_framework.synthesist.ideas.polarity_extractor_basic import PolarityExtractorBasic
-from dialectical_framework.synthesist.polarity.polarity_reasoner import \
-    PolarityReasoner
+from dialectical_framework.synthesist.polarity.polar_reasoner import \
+    PolarReasoner
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import \
     ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
@@ -101,7 +101,7 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         settings=settings
     )
 
-    polarity_reasoner: providers.Factory[PolarityReasoner] = providers.Factory(
+    polar_reasoner: providers.Factory[PolarReasoner] = providers.Factory(
         ReasonFastAndSimple,
     )
 

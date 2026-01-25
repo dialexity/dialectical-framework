@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from dialectical_framework.settings import Settings
-from dialectical_framework.synthesist.polarity.polarity_reasoner import \
-    PolarityReasoner
+from dialectical_framework.synthesist.polarity.polar_reasoner import \
+    PolarReasoner
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
         return self.__decorated_builder
 
     @property
-    def reasoner(self) -> PolarityReasoner:
+    def reasoner(self) -> PolarReasoner:
         return self.__decorated_builder.reasoner
 
     @property

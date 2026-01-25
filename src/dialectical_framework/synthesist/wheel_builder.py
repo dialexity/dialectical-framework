@@ -29,7 +29,7 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
 )
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
-from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
+from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 
 
 class WheelBuilder(SettingsAware):
@@ -37,7 +37,7 @@ class WheelBuilder(SettingsAware):
         self,
         polarity_extractor: PolarityExtractor = Provide[DI.polarity_extractor],
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
-        polarity_reasoner: PolarityReasoner = Provide[DI.polarity_reasoner],
+        polar_reasoner: PolarReasoner = Provide[DI.polar_reasoner],
         tarorank: TaroRank = Provide[DI.tarorank],
         *,
         text: str = "",
@@ -54,7 +54,7 @@ class WheelBuilder(SettingsAware):
         self.__sequencer = causality_sequencer
         self.__sequencer.reload(text=text)
 
-        self.__reasoner = polarity_reasoner
+        self.__reasoner = polar_reasoner
         self.__reasoner.reload(text=text)
 
         self.__tarorank = tarorank
@@ -72,7 +72,7 @@ class WheelBuilder(SettingsAware):
         return self.__extractor
 
     @property
-    def reasoner(self) -> PolarityReasoner:
+    def reasoner(self) -> PolarReasoner:
         return self.__reasoner
 
     @property

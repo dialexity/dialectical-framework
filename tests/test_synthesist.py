@@ -6,7 +6,7 @@ from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 # Graph-native imports
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as GraphDialecticalComponent
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as GraphWisdomUnit
-from dialectical_framework.synthesist.polarity.polarity_reasoner import PolarityReasoner
+from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.polarity.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
@@ -69,18 +69,18 @@ async def test_bigger_wheel(number_of_thoughts):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("reasoner_cls", [
-    PolarityReasoner,
+    PolarReasoner,
     ReasonFastAndSimple,
     ReasonFast,
     ReasonFastPolarizedConflict,
 ])
 async def test_reasoner(di_container, reasoner_cls):
     with di_container.override_providers(
-            polarity_reasoner=providers.Singleton(
+            polar_reasoner=providers.Singleton(
                 reasoner_cls,
             )
     ):
-        reasoner = di_container.polarity_reasoner()
+        reasoner = di_container.polar_reasoner()
         reasoner.reload(text=user_message)
         wu = await reasoner.think()
         assert wu.is_complete()
@@ -122,7 +122,7 @@ async def test_redefine(di_container):
     wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
 
     # Test redefine with same values - should return original (optimization)
-    reasoner = di_container.polarity_reasoner()
+    reasoner = di_container.polar_reasoner()
     redefined_wu = await reasoner.redefine(
         original=wu,
         t="Courage",  # Same as original - tests optimization

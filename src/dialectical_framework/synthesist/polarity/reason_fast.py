@@ -7,14 +7,14 @@ from mirascope import Messages, prompt_template
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.settings import Settings
-from dialectical_framework.synthesist.polarity.polarity_reasoner import \
-    PolarityReasoner
+from dialectical_framework.synthesist.polarity.polar_reasoner import \
+    PolarReasoner
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
-class ReasonFast(PolarityReasoner):
+class ReasonFast(PolarReasoner):
     @prompt_template(
         """
         USER:
