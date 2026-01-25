@@ -10,7 +10,7 @@ from mirascope.integrations.langfuse import with_langfuse
 from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.ai_dto.reciprocal_solution_dto import ReciprocalSolutionDto
-from dialectical_framework.analyst.strategic_consultant import \
+from dialectical_framework.synthesist.wisdom.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.enums.dialectical_reasoning_mode import \
     DialecticalReasoningMode

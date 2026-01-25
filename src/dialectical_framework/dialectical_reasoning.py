@@ -20,7 +20,7 @@ from dialectical_framework.synthesist.causality.causality_sequencer_feasible imp
     CausalitySequencerFeasible
 from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
     CausalitySequencerRealistic
-from dialectical_framework.synthesist.concepts.polarity_extractor_basic import PolarityExtractorBasic
+from dialectical_framework.synthesist.ideas.polarity_extractor_basic import PolarityExtractorBasic
 from dialectical_framework.synthesist.polarity.polarity_reasoner import \
     PolarityReasoner
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import \

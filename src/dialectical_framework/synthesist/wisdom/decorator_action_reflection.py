@@ -8,9 +8,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel, WheelSegmentReference
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
-from dialectical_framework.analyst.think_action_reflection import \
+from dialectical_framework.synthesist.wisdom.think_action_reflection import \
     ThinkActionReflection
-from dialectical_framework.analyst.wheel_builder_transition_calculator import \
+from dialectical_framework.synthesist.wisdom.wheel_builder_transition_calculator import \
     WheelBuilderTransitionCalculator
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 

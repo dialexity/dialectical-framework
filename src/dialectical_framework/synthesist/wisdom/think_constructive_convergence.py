@@ -7,7 +7,7 @@ from mirascope.integrations.langfuse import with_langfuse
 
 from dialectical_framework.ai_dto.action_plan_dto import ActionPlanDto
 from dialectical_framework.ai_dto.transition_summary_dto import TransitionSummaryDto
-from dialectical_framework.analyst.strategic_consultant import \
+from dialectical_framework.synthesist.wisdom.strategic_consultant import \
     StrategicConsultant
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer

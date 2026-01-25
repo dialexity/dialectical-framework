@@ -7,8 +7,8 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
-from dialectical_framework.analyst.decorator_discrete_spiral import DecoratorDiscreteSpiral
-from dialectical_framework.analyst.think_constructive_convergence_auditor import ThinkConstructiveConvergenceAuditor
+from dialectical_framework.synthesist.wisdom.decorator_discrete_spiral import DecoratorDiscreteSpiral
+from dialectical_framework.synthesist.wisdom.think_constructive_convergence_auditor import ThinkConstructiveConvergenceAuditor
 
 
 class DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral):

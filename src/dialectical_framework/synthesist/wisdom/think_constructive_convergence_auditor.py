@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 from dialectical_framework.ai_dto.constructive_convergence_transition_audit_dto import \
     ConstructiveConvergenceTransitionAuditDto
-from dialectical_framework.analyst.think_constructive_convergence import ThinkConstructiveConvergence
+from dialectical_framework.synthesist.wisdom.think_constructive_convergence import ThinkConstructiveConvergence
 from dialectical_framework.utils.use_brain import use_brain
 from dialectical_framework.graph.nodes.rationale import Rationale as GraphRationale
 from dialectical_framework.graph.estimation_manager import EstimationManager

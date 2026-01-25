@@ -63,7 +63,7 @@ When connecting components to WisdomUnit positions, semantic relationships are a
 | Relationship API | `src/dialectical_framework/graph/relationship_manager.py` |
 | Scoring (TaroRank) | `src/dialectical_framework/graph/scoring/tarorank.py` |
 | AI/LLM reasoning | `src/dialectical_framework/synthesist/` |
-| Analysis tools | `src/dialectical_framework/analyst/` |
+| Wisdom reasoning | `src/dialectical_framework/synthesist/wisdom/` |
 | Configuration | `src/dialectical_framework/settings.py` |
 | LLM abstraction | `src/dialectical_framework/brain.py` |
 
@@ -120,11 +120,10 @@ src/dialectical_framework/
 ├── synthesist/              # Reasoning engines
 │   ├── polarity/           # Extract T/A pairs from text
 │   ├── causality/          # Order transitions (BALANCED, REALISTIC, etc.)
-│   └── concepts/           # Concept extraction
-│
-├── analyst/                 # Analysis & validation
-│   ├── consultant.py       # Base for transition analysis
-│   └── decorators          # Action-reflection, spiral decorators
+│   ├── concepts/           # Concept extraction
+│   └── wisdom/             # Transition analysis & validation
+│       ├── consultant.py   # Base for transition analysis
+│       └── decorators      # Action-reflection, spiral decorators
 │
 ├── protocols/               # Python Protocol interfaces
 ├── ai_dto/                  # DTOs for LLM communication
