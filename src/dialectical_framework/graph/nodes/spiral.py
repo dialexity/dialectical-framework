@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
     IsSpiralOfRelationship,
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
-class Spiral(CircularTopologyMixin, AssessableEntity):
+class Spiral(IntentMixin, CircularTopologyMixin, AssessableEntity):
     """
     Represents a transformational spiral in the dialectical framework.
 

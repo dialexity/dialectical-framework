@@ -30,7 +30,7 @@ class WisdomUnitRepository:
     Example usage:
         from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 
-        wu = WisdomUnit(reasoning_mode="GENERAL_CONCEPTS")
+        wu = WisdomUnit(intent="preset:general_concepts")
         wu.save()
 
         repo = WisdomUnitRepository()
@@ -195,7 +195,7 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
         OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
         OPTIONAL MATCH (transition)<-[:EXPLAINS]-(transit_rationale)
-        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
+        OPTIONAL MATCH (transformation)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
         OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
 
         WITH collect(DISTINCT wu_rationale) + collect(DISTINCT comp_rationale) +
@@ -241,7 +241,7 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
         OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
         OPTIONAL MATCH (transition)<-[:EXPLAINS]-(transit_rationale)
-        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
+        OPTIONAL MATCH (transformation)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
         OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
         OPTIONAL MATCH (synthesis)<-[:S_PLUS|S_MINUS]-(synth_component)
 
@@ -272,8 +272,8 @@ class WisdomUnitRepository:
         WITH wu, components, synth_components, syntheses
         UNWIND CASE WHEN size(synth_components) > 0 THEN synth_components ELSE [null] END AS scomp
 
-        // Check if synth component is used in another WU's Synthesis
-        OPTIONAL MATCH (scomp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu:WisdomUnit)
+        // Check if synth component is used in another WU's Synthesis (via Transformation)
+        OPTIONAL MATCH (scomp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_trans:Transformation)-[:IS_SPIRAL_OF]->(other_wu:WisdomUnit)
         WHERE scomp IS NOT NULL AND other_wu <> wu
 
         // Check if synth component is source/target of Transition
@@ -396,8 +396,8 @@ class WisdomUnitRepository:
         // Level 1 Check: Are any core components (T, A, T+, T-, A+, A-) in vocabulary?
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
 
-        // Also get synthesis components
-        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+        // Also get synthesis components via Transformation
+        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(trans_s:Transformation)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
         WITH wu,
              count(DISTINCT wheel) AS wheel_count,
@@ -411,8 +411,8 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
 
-        // Check 2: Synthesis component is in another WU's Synthesis
-        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
+        // Check 2: Synthesis component is in another WU's Synthesis (via Transformation)
+        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_trans_s:Transformation)-[:IS_SPIRAL_OF]->(other_wu2:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu2 <> wu
 
         // Check 3: Component is source/target of Transition in EXTERNAL Cycle/Spiral
@@ -558,8 +558,8 @@ class WisdomUnitRepository:
         // Find all core components of this WU (T, A, T+, T-, A+, A-)
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
 
-        // Also get synthesis components (S+, S-)
-        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+        // Also get synthesis components (S+, S-) via Transformation
+        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(trans:Transformation)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
         WITH wu, collect(DISTINCT component) + collect(DISTINCT synth_comp) AS all_components
 
@@ -570,15 +570,15 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
 
-        // Check 2: Synthesis component is in another WU's Synthesis
-        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
+        // Check 2: Synthesis component is in another WU's Synthesis (via Transformation)
+        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_trans:Transformation)-[:IS_SPIRAL_OF]->(other_wu2:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu2 <> wu
 
         // Check 3: Component is source/target of Transition in EXTERNAL Cycle/Spiral
-        OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans:Transition)
-        OPTIONAL MATCH (trans)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
+        OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(transition:Transition)
+        OPTIONAL MATCH (transition)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
         WHERE comp IS NOT NULL
-          AND NOT (trans)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
+          AND NOT (transition)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
 
         WITH count(DISTINCT other_wu) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS shared_count
 

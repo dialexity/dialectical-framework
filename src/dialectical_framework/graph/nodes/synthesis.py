@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
@@ -31,7 +32,7 @@ POSITION_S_PLUS = "S+"
 POSITION_S_MINUS = "S-"
 
 
-class Synthesis(AssessableEntity):
+class Synthesis(IntentMixin, AssessableEntity):
     """
     Represents ONE synthesis interpretation of a dialectical transformation.
 

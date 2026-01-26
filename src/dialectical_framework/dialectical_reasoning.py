@@ -6,7 +6,6 @@ from dependency_injector import containers, providers
 from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.brain import Brain
-from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 from dialectical_framework.protocols.antithesis_extractor import AntithesisExtractor
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
@@ -110,13 +109,13 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     @staticmethod
     def _create_causality_sequencer(settings: Settings) -> CausalitySequencer:
         """Factory method to create the appropriate causality sequencer based on config"""
-        causality_type = settings.causality_type
+        cycle_intent = settings.cycle_intent.lower()
 
-        if causality_type == CausalityType.DESIRABLE:
+        if cycle_intent in ("preset:desirable", "desirable"):
             return CausalitySequencerDesirable()
-        elif causality_type == CausalityType.FEASIBLE:
+        elif cycle_intent in ("preset:feasible", "feasible"):
             return CausalitySequencerFeasible()
-        elif causality_type == CausalityType.REALISTIC:
+        elif cycle_intent in ("preset:realistic", "realistic"):
             return CausalitySequencerRealistic()
         else:
             return CausalitySequencerBalanced()

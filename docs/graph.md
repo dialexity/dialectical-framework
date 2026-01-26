@@ -37,7 +37,112 @@ while Wheels provide detailed transition-level analysis.
 | **Wheel** | Top container | `cycle`, `spiral` |
 | **Rationale** | Evidence/explanation | `explanation`, `critiques`, `derived_statements` |
 | **Estimation** | P/R values | `assessed_entity` |
-| **Input** | Content source | `statements` (optional, for extraction provenance) |
+| **Input** | Content source | `statements`, `ideas` |
+| **Ideas** | Distilled concepts from Input | `input` (→Input), `statements` |
+| **Brainstorm** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
+
+## Intent Levels
+
+All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Optional[str]` field. Intent maps to the reflective practice framework:
+
+| Level | Reflection | Question | Lives On | Example Intent |
+|-------|------------|----------|----------|----------------|
+| **Discovery** | (Gathering) | What sources to explore? | Brainstorm, Ideas | "economic_articles", "ethical_perspectives" |
+| **Focus** | What? | What tensions exist? | Nexus | "economic_vs_social", "sustainability" |
+| **Dynamics** | So What? | Why do they matter? | Cycle | "preset:balanced", "preset:realistic" |
+| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation | "preset:general_concepts", "growth_based" |
+| **Synthesis** | (Outcome) | What emerges? | Synthesis, Spiral | "practical_compromise" |
+
+**Nodes with IntentMixin:** Brainstorm, Ideas, Nexus, Cycle, WisdomUnit, Transformation, Synthesis, Spiral, Wheel
+
+**Intent enables grouping:** Explicit intent on the graph allows finding explorations with similar focus, grouping by dynamics, and making the graph a readable analysis artifact. Presets like "preset:balanced" or "preset:realistic" serve as defaults but can be replaced with natural language.
+
+## Transformation and Spiral: Local vs Global
+
+**WU Transformation** (local, abstract):
+- Internal spiral within ONE WisdomUnit (2 transitions)
+- Resolves the internal dialectic of a single tension
+- Produces local Synthesis (S+/S-)
+- Has its own Path intent
+
+**Wheel Spiral** (global, concrete):
+- Weaves together all WU Transformations in the Nexus
+- Blends Path intents from all WUs into coherent navigation
+- Adds inter-WU transitions and ordering
+- Produces meta-Synthesis (what emerges from the whole journey)
+- **Spirals are the ultimate artifacts** - preserved synthesis decisions
+
+### Calculation Order
+
+**Bottom-up: WU Transformations first, then Wheel Spiral**
+
+1. Each WU calculates its Transformation (local path with local intent)
+2. Wheel Spiral weaves those Transformations together with Wheel-level (blended) intent
+3. Wheel doesn't recalculate WU paths - it sequences and blends them
+
+```
+WU₁.Transformation ──┐
+WU₂.Transformation ──┼──► Wheel.Spiral (blended navigation)
+WU₃.Transformation ──┘
+```
+
+**What Wheel Spiral adds:**
+- Ordering between WU transitions (WU₁'s T-→A+ before WU₂'s A-→T+)
+- Inter-WU transitions (moving from one tension to another)
+- Meta-synthesis (emergent insight from the whole journey)
+
+## Brainstorm Layer
+
+The Brainstorm layer provides multi-input exploration before WisdomUnit construction:
+
+```
+Brainstorm (multi-input exploration)
+├── HAS_INPUT → Input₁
+│              └── DISTILLED_TO → Ideas₁ (intent: "thesis_extraction")
+│                                └── HAS_STATEMENT → Components...
+├── HAS_INPUT → Input₂
+│              └── DISTILLED_TO → Ideas₂ (intent: "antithesis_extraction")
+└── get_vocabulary() → All components from all inputs/ideas
+```
+
+### Key Concepts
+
+| Node | Purpose | Cardinality |
+|------|---------|-------------|
+| **Brainstorm** | Multi-input exploration with shared vocabulary | HAS_INPUT (1, ∞) to Input |
+| **Ideas** | Distilled concepts from a single Input | DISTILLED_TO (1, 1) from Input |
+
+**Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
+
+**Brainstorm vocabulary:** `brainstorm.get_vocabulary()` returns the union of all components from connected Inputs and their Ideas nodes. This enables cross-input WisdomUnit construction.
+
+### Usage
+
+```python
+from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.ideas import Ideas
+from dialectical_framework.graph.nodes.input import Input
+
+# Create inputs
+input_a = Input(content_uri="https://article.com/pro")
+input_b = Input(content_uri="https://article.com/con")
+input_a.save()
+input_b.save()
+
+# Create ideas (distilled concepts)
+ideas_thesis = Ideas(intent="thesis_extraction")
+ideas_thesis.save()
+input_a.ideas.connect(ideas_thesis)  # Input → Ideas via DISTILLED_TO
+
+# Create brainstorm combining multiple inputs
+brainstorm = Brainstorm(intent="economic_debate")
+brainstorm.save()
+brainstorm.inputs.connect(input_a)
+brainstorm.inputs.connect(input_b)
+
+# Get unified vocabulary for WisdomUnit construction
+vocab = brainstorm.get_vocabulary()
+```
 
 ## Branching and Cardinality Rationale
 
@@ -49,10 +154,30 @@ Both Transformation and Spiral are **derived structures**, fully determined by t
 
 | Node | Determined By | Cardinality |
 |------|---------------|-------------|
-| **Transformation** | WU's polar structure (T, A, T+, T-, A+, A-) | (0, 1) per WU |
-| **Spiral** | Wheel's segment ordering + WU Transformations | (0, 1) per Wheel |
+| **Transformation** | WU's polar structure + Path intent | (0, 1) per WU |
+| **Spiral** | Wheel's segment ordering + all WU Transformations | (0, 1) per Wheel |
 
-**Key insight:** The Spiral doesn't have independent "intentions" - it inherits them from the WU Transformations within the Nexus. Given a fixed Wheel arrangement and fixed WU Transformations, there is exactly one Spiral structure.
+**Key insight:** The Spiral doesn't have independent "intentions" - it inherits and blends them from the WU Transformations within the Nexus. Given a fixed Wheel arrangement and fixed WU Transformations, there is exactly one Spiral structure.
+
+### Nexus as Snapshot
+
+**Critical:** A Nexus contains specific WU versions, not "latest" WUs. It is a snapshot, not a living container.
+
+When a WU evolves via `CHANGED_TO`:
+- The original WU remains in its Nexus
+- `CHANGED_TO` is **provenance**, not a pointer the Wheel follows
+- To use the evolved WU, create a new Nexus
+
+```
+WU₁ ──CHANGED_TO──► WU₁' (evolved version)
+ │                    │
+ └── Nexus₁ (snapshot)  └── Nexus₂ (new snapshot with evolved WU)
+       │                      │
+    Wheel₁ → Spiral₁       Wheel₂ → Spiral₂
+    (preserved)            (new synthesis)
+```
+
+**Why this matters:** Spirals are ultimate artifacts. Spiral₁ remains as historical synthesis - "given these WUs with these intents, here's what emerged." It's a committed insight, not a cache to be invalidated.
 
 ### Where Branching Happens
 
@@ -64,6 +189,8 @@ Different WU combinations           → Create different Nexuses
 Different orderings/causality types → Create different Cycles
 Different detailed implementations  → Create different Wheels
 ```
+
+**The duplication is the feature:** WUs appearing in multiple Nexuses isn't waste - it's provenance. You can trace "Spiral₂ emerged because WU₁ evolved, while keeping WU₂, WU₃."
 
 **Example:** To explore Love↔Hate through different transformation paths:
 

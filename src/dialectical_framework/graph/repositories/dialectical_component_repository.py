@@ -179,8 +179,8 @@ class DialecticalComponentRepository:
         OPTIONAL MATCH (nexus)<-[:BELONGS_TO_NEXUS]-(wu:WisdomUnit)
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(pos_comp:DialecticalComponent)
 
-        // 2. Synthesis components (S+/S-)
-        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)
+        // 2. Synthesis components (S+/S-) via Transformation
+        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(trans:Transformation)<-[:SYNTHESIS_OF]-(synth:Synthesis)
         OPTIONAL MATCH (synth)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
         // 3. HAS_STATEMENT from structural nodes in the Nexus tree
@@ -321,8 +321,8 @@ class DialecticalComponentRepository:
         // Path 5: Transition -> Cycle -> Nexus
         OPTIONAL MATCH (n)-[:BELONGS_TO_CYCLE]->(cycle2)-[:HAS_CYCLE|IS_SPIRAL_OF*1..2]-(nexus5:Nexus)
 
-        // Path 6: Synthesis -> WU -> Nexus
-        OPTIONAL MATCH (n)-[:SYNTHESIS_OF]->(wu2:WisdomUnit)-[:BELONGS_TO_NEXUS]->(nexus6:Nexus)
+        // Path 6: Synthesis -> Transformation -> WU -> Nexus
+        OPTIONAL MATCH (n)-[:SYNTHESIS_OF]->(trans:Transformation)-[:IS_SPIRAL_OF]->(wu2:WisdomUnit)-[:BELONGS_TO_NEXUS]->(nexus6:Nexus)
 
         // Path 7: Rationale -> explained entity -> ... -> Nexus (bounded traversal)
         OPTIONAL MATCH (n)-[:EXPLAINS]->(explained)

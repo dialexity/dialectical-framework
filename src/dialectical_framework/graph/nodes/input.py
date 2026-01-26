@@ -12,15 +12,24 @@ from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
+    RelationshipFrom,
     RelationshipManager,
     RelationshipTo,
 )
 from dialectical_framework.graph.relationships.has_statement_relationship import (
     HasStatementRelationship,
 )
+from dialectical_framework.graph.relationships.distilled_to_relationship import (
+    DistilledToRelationship,
+)
+from dialectical_framework.graph.relationships.has_input_relationship import (
+    HasInputRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.ideas import Ideas
+    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 
 
 class Input(BaseNode):
@@ -66,6 +75,22 @@ class Input(BaseNode):
         "DialecticalComponent",
         model=HasStatementRelationship,
         cardinality=(0, None),  # Zero or more statements
+    )
+
+    # Ideas distilled from this input
+    # Parent→child: Input distills to Ideas
+    ideas: ClassVar[RelationshipManager[Ideas]] = RelationshipTo(
+        "Ideas",
+        model=DistilledToRelationship,
+        cardinality=(0, None),  # Zero or more Ideas
+    )
+
+    # Brainstorms that include this input (reverse relationship)
+    # Child→parent: Brainstorm has this Input
+    _brainstorms: ClassVar[RelationshipManager[Brainstorm]] = RelationshipFrom(
+        "Brainstorm",
+        model=HasInputRelationship,
+        cardinality=(0, None),  # Zero or more Brainstorms
     )
 
     def __repr__(self) -> str:

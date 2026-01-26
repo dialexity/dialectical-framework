@@ -8,15 +8,13 @@ from mirascope import Messages, prompt_template
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.enums.di import DI
-from dialectical_framework.enums.dialectical_reasoning_mode import \
-    DialecticalReasoningMode
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import \
     ReasonFastAndSimple
 
 
 class ReasonFastPolarizedConflict(ReasonFastAndSimple):
-    _mode = DialecticalReasoningMode.MAJOR_TENSION
+    _intent = "major_tension"
 
     @prompt_template(
         """

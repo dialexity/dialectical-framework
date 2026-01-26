@@ -7,10 +7,10 @@ composed of transitions between dialectical components.
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional, TYPE_CHECKING
+from typing import ClassVar, TYPE_CHECKING
 
-from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.has_cycle_relationship import (
     HasCycleRelationship,
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
 
 
-class Cycle(CircularTopologyMixin, AssessableEntity):
+class Cycle(IntentMixin, CircularTopologyMixin, AssessableEntity):
     """
     Represents a causal arrangement of WisdomUnits from a Nexus.
 
@@ -34,11 +34,8 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
     between components that forms a closed loop. Cycles capture causal
     relationships and feedback loops discovered in the dialectical system.
 
-    Causality types (via causality_type field):
-    - REALISTIC: Current/actual state of affairs
-    - DESIRABLE: Ideal/preferred outcomes
-    - FEASIBLE: Achievable intermediate states
-    - BALANCED: Optimized balance of concerns
+    The intent field captures the dynamics/causality type of this cycle
+    (e.g., "preset:realistic", "preset:desirable", "preset:feasible", "preset:balanced").
 
     Cycles always flow clockwise through the components.
 
@@ -51,8 +48,6 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
     - Use get_nexus() to find the source Nexus
     - Use wheels.all() to find associated Wheels
     """
-
-    causality_type: Optional[CausalityType] = None
 
     # Note: transitions relationship is inherited from CircularTopologyMixin as _transitions
     # Access via .transitions property which returns ordered list
@@ -94,14 +89,14 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
         """
         Format this Cycle using Python's format string protocol.
 
-        Extends CircularTopologyMixin with a "verbose" mode that shows causality type and rationales.
+        Extends CircularTopologyMixin with a "verbose" mode that shows intent and rationales.
 
         Format Specifications:
         ----------------------
         "" or "aliases"   - Chains aliases like "T1 → T2 → T3 → T1..." (inherited from mixin)
         "statements"      - Uses component statements instead of aliases (inherited from mixin)
         "explicit"        - Combines both: "T1 (statement) → T2 (statement) → ..." (inherited from mixin)
-        "verbose"         - Shows causality type, sequence, and rationales
+        "verbose"         - Shows intent, sequence, and rationales
 
         Examples:
         ---------
@@ -113,12 +108,12 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
             Formatted string representing the cycle
         """
         if format_spec == "verbose":
-            # Verbose mode: show causality_type + sequence + rationales
+            # Verbose mode: show intent + sequence + rationales
             result = ""
 
-            # Add causality type if present
-            if self.causality_type:
-                result = f"{self.causality_type.name} cycle: "
+            # Add intent if present
+            if self.intent:
+                result = f"{self.intent} cycle: "
             else:
                 result = "Cycle: "
 
@@ -158,4 +153,4 @@ class Cycle(CircularTopologyMixin, AssessableEntity):
 
     def __repr__(self) -> str:
         """Debug representation of the cycle."""
-        return f"Cycle(uid={self.uid}, type={self.causality_type})"
+        return f"Cycle(uid={self.uid}, intent={self.intent})"

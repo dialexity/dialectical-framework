@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
-class Transformation(CircularTopologyMixin, AssessableEntity):
+class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity):
     """
     Internal transformation within a WisdomUnit.
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager, BoundRelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
@@ -46,7 +47,7 @@ POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
 
 
-class WisdomUnit(AssessableEntity):
+class WisdomUnit(IntentMixin, AssessableEntity):
     """
     Represents ONE coherent dialectical analysis with enforced cardinality.
 
@@ -65,15 +66,14 @@ class WisdomUnit(AssessableEntity):
 
     The cardinality constraints are enforced at the RelationshipManager level,
     providing automatic validation and runtime checks.
+
+    The intent field (from IntentMixin) captures the guiding question for this analysis.
     """
 
     def __init__(self, **data: Any):
         super().__init__(**data)
         self._cached_segment_t: Optional[WheelSegment] = None
         self._cached_segment_a: Optional[WheelSegment] = None
-
-
-    reasoning_mode: Optional[str] = None
 
     # Declarative relationships with specific polarity relationship types
     # The alias is stored on the relationship edge, making component positions contextual
@@ -159,7 +159,7 @@ class WisdomUnit(AssessableEntity):
 
     def __repr__(self) -> str:
         """String representation of the wisdom unit."""
-        return f"WisdomUnit(uid={self.uid}, reasoning_mode={self.reasoning_mode})"
+        return f"WisdomUnit(uid={self.uid}, intent={self.intent})"
 
     def is_complete(self) -> bool:
         """

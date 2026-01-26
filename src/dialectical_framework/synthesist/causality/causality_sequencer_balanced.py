@@ -428,7 +428,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                                 break
 
                 # Create graph-native cycle
-                cycle = Cycle(causality_type=self.settings.causality_type)
+                cycle = Cycle(intent=self.settings.cycle_intent)
                 cycle.save()
 
                 # Create transitions for the component chain

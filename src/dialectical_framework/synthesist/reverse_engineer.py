@@ -6,9 +6,6 @@ from mirascope import BaseMessageParam, Messages, prompt_template
 
 from dialectical_framework.ai_dto.dialectical_component_dto import \
     DialecticalComponentDto
-from dialectical_framework.enums.causality_type import CausalityType
-from dialectical_framework.enums.dialectical_reasoning_mode import \
-    DialecticalReasoningMode
 from dialectical_framework.utils.extend_tpl import extend_tpl
 
 # Graph-native imports
@@ -107,7 +104,7 @@ class ReverseEngineer:
         {theses:lists}
         
         USER:
-        ## Dialectical Analysis (Reasoning Mode: {reasoning_mode})
+        ## Dialectical Analysis (Intent: {intent})
         <instructions>
         For every thesis (T), identify its semantic/functional antithesis (A), such that positive/constructive side of thesis (T+) should oppose/contradict the negative/exaggerated side of antithesis (A-), while negative/exaggerated side of thesis (T-) should oppose/contradict the positive/constructive side of antithesis (A+). 
 
@@ -130,7 +127,7 @@ class ReverseEngineer:
     def prompt_find_wisdom_units__general_concepts(
         self,
         *,
-        reasoning_mode: str,
+        intent: str,
         theses: list[list[str]],
         wisdom_units: list[list[str]],
     ) -> "Messages.Type": ...
@@ -142,7 +139,7 @@ class ReverseEngineer:
         {theses:lists}
 
         USER:
-        ## Dialectical Analysis (Reasoning Mode: {reasoning_mode})}
+        ## Dialectical Analysis (Intent: {intent})}
         <instructions>
         For very thesis (T), frame the problem as a tension between two opposing approaches:
         - Thesis (T): The first approach or position
@@ -168,7 +165,7 @@ class ReverseEngineer:
     def prompt_find_wisdom_units__major_tension(
         self,
         *,
-        reasoning_mode: str,
+        intent: str,
         theses: list[list[str]],
         wisdom_units: list[list[str]],
     ) -> "Messages.Type": ...
@@ -336,10 +333,10 @@ class ReverseEngineer:
             input_messages = reverse_engineer.prompt_input_text(text=text)
             extend_tpl(tpl, input_messages)
 
-        wus: Dict[DialecticalReasoningMode, list[WisdomUnit]] = (
-            _wisdom_units_grouped_by_reasoning_mode(wisdom_units)
+        wus: Dict[str, list[WisdomUnit]] = (
+            _wisdom_units_grouped_by_intent(wisdom_units)
         )
-        for mode, wisdom_units in wus.items():
+        for intent_mode, wisdom_units in wus.items():
             # Extract component info for all WUs using graph-native helper
             theses = []
             wu_lists = []
@@ -377,16 +374,16 @@ class ReverseEngineer:
                     f"{am_alias} explanation: {am_rationale}",
                 ])
 
-            if mode == DialecticalReasoningMode.MAJOR_TENSION:
+            if intent_mode == "major_tension":
                 wu_messages = reverse_engineer.prompt_find_wisdom_units__major_tension(
-                    reasoning_mode=DialecticalReasoningMode.MAJOR_TENSION.value,
+                    intent=intent_mode,
                     theses=theses,
                     wisdom_units=wu_lists,
                 )
             else:
                 wu_messages = (
                     reverse_engineer.prompt_find_wisdom_units__general_concepts(
-                        reasoning_mode=DialecticalReasoningMode.GENERAL_CONCEPTS.value,
+                        intent=intent_mode,
                         theses=theses,
                         wisdom_units=wu_lists,
                     )
@@ -410,29 +407,30 @@ class ReverseEngineer:
 
         cycles = {
             str(t_cycle): [
-                f"### {t_cycle.causality_type.value.capitalize()} Causality Estimation for {t_cycle}",
+                f"### {(t_cycle.intent or 'preset:balanced')} Causality Estimation for {t_cycle}",
                 f"Probability: {t_cycle.relevance}",  # Note that it's the initial assessment that we take, not normalized
                 f"Rationale: {t_cycle.best_rationale.text if t_cycle.best_rationale and t_cycle.best_rationale.text else 'N/A'}",
             ],
         }
         if ta_cycle:
             cycles[str(ta_cycle)] = [
-                f"### {ta_cycle.causality_type.value.capitalize()} Causality Estimation for {ta_cycle}",
+                f"### {(ta_cycle.intent or 'preset:balanced')} Causality Estimation for {ta_cycle}",
                 f"Probability: {ta_cycle.relevance}", # Note that it's the initial assessment that we take, not normalized
                 f"Rationale: {ta_cycle.best_rationale.text if ta_cycle.best_rationale and ta_cycle.best_rationale.text else 'N/A'}",
             ]
 
-        if t_cycle.causality_type == CausalityType.REALISTIC:
+        cycle_intent = (t_cycle.intent or "preset:balanced").lower()
+        if cycle_intent in ("preset:realistic", "realistic"):
             cycle_messages = reverse_engineer.prompt_cycle__realistic(
                 sequences=list(cycles.keys()),
                 estimations=list(cycles.values()),
             )
-        elif t_cycle.causality_type == CausalityType.DESIRABLE:
+        elif cycle_intent in ("preset:desirable", "desirable"):
             cycle_messages = reverse_engineer.prompt_cycle__desirable(
                 sequences=list(cycles.keys()),
                 estimations=list(cycles.values()),
             )
-        elif t_cycle.causality_type == CausalityType.FEASIBLE:
+        elif cycle_intent in ("preset:feasible", "feasible"):
             cycle_messages = reverse_engineer.prompt_cycle__feasible(
                 sequences=list(cycles.keys()),
                 estimations=list(cycles.values()),
@@ -464,12 +462,13 @@ class ReverseEngineer:
         )
 
 
-def _wisdom_units_grouped_by_reasoning_mode(
+def _wisdom_units_grouped_by_intent(
     wisdom_units: list[WisdomUnit],
-) -> Dict[DialecticalReasoningMode, list[WisdomUnit]]:
-    grouped_units = {}
+) -> Dict[str, list[WisdomUnit]]:
+    grouped_units: Dict[str, list[WisdomUnit]] = {}
     for wu in wisdom_units:
-        if wu.reasoning_mode not in grouped_units:
-            grouped_units[wu.reasoning_mode] = []
-        grouped_units[wu.reasoning_mode].append(wu)
+        intent_key = wu.intent or "preset:general_concepts"
+        if intent_key not in grouped_units:
+            grouped_units[intent_key] = []
+        grouped_units[intent_key].append(wu)
     return grouped_units

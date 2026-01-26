@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
     RelationshipTo,
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
 
 
-class Nexus(AssessableEntity):
+class Nexus(IntentMixin, AssessableEntity):
     """
     A pool of WisdomUnits where collective insights emerge.
 
@@ -59,7 +60,7 @@ class Nexus(AssessableEntity):
         wu2.nexus.connect(nexus)
 
         # Create a Cycle from this Nexus (parent→child: Nexus has Cycle)
-        cycle = Cycle(causality_type=CausalityType.REALISTIC)
+        cycle = Cycle(intent="REALISTIC")
         cycle.save()
         nexus.cycles.connect(cycle)
 

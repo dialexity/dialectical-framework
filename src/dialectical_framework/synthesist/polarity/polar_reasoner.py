@@ -12,8 +12,6 @@ from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
     DialecticalComponentsDeckDto
 from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
-from dialectical_framework.enums.dialectical_reasoning_mode import \
-    DialecticalReasoningMode
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.wisdom_unit import (
@@ -65,7 +63,7 @@ class PolarReasoner(HasBrain, Reloadable):
         self._text = text
         self._wisdom_unit = None
 
-        self._mode: DialecticalReasoningMode = DialecticalReasoningMode.GENERAL_CONCEPTS
+        self._intent: str = "preset:general_concepts"
 
         # Store perspectives (list of graph-native WisdomUnits)
         self._perspectives: list[WisdomUnit] = []
@@ -465,7 +463,7 @@ class PolarReasoner(HasBrain, Reloadable):
             a_alias = a_dto.alias if a_dto.alias else POSITION_A
 
         # Create graph WisdomUnit
-        wu = WisdomUnit(reasoning_mode=self._mode)
+        wu = WisdomUnit(intent=self._intent)
         wu.save()  # Save the WU node first
 
         # Connect components with typed relationships (validates alias at creation)
@@ -581,7 +579,7 @@ class PolarReasoner(HasBrain, Reloadable):
             if k in valid_fields
         }
 
-        new_wu: WisdomUnit = WisdomUnit(reasoning_mode=original.reasoning_mode)
+        new_wu: WisdomUnit = WisdomUnit(intent=original.intent)
         new_wu.save()  # Save the new WU node first
 
         # ==

@@ -6,8 +6,6 @@ from typing import Optional, Self
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
 
-from dialectical_framework.enums.causality_type import CausalityType
-
 
 class Settings(BaseModel):
     model_config = ConfigDict(
@@ -17,7 +15,7 @@ class Settings(BaseModel):
     ai_model: str = Field(..., description="AI model alias/deployment to use.")
     ai_provider: Optional[str] = Field(default=None, description="AI model provider to use.")
     component_length: int = Field(default=7, description="Approximate length in words of the dialectical component.")
-    causality_type: CausalityType = Field(default=CausalityType.BALANCED, description="Type of causality in the wheel.")
+    cycle_intent: str = Field(default="preset:balanced", description="Default intent for cycles (e.g., preset:realistic, preset:desirable, preset:feasible, preset:balanced).")
     tarorank_default_transition_probability: Optional[float] = Field(
         default=None,
         ge=0.0,
@@ -113,9 +111,7 @@ class Settings(BaseModel):
             ai_model=model,
             ai_provider=provider,
             component_length=int(os.getenv("DIALEXITY_DEFAULT_COMPONENT_LENGTH", 7)),
-            causality_type=CausalityType(
-                os.getenv("DIALEXITY_DEFAULT_CAUSALITY_TYPE", CausalityType.BALANCED.value)
-            ),
+            cycle_intent=os.getenv("DIALEXITY_DEFAULT_CYCLE_INTENT", "preset:balanced"),
             tarorank_default_transition_probability=default_prob,
             tarorank_alpha=tarorank_alpha,
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),

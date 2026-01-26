@@ -28,29 +28,58 @@ Think of a Dialectical Wheel as a pizza:
 
 ### Structural Elements
 
-- **Nexus**: Pool of WisdomUnits that can be shared across perspectives
+- **Nexus**: Pool of WisdomUnits (snapshot - contains specific WU versions)
 - **Transition**: Recipe for moving between segments (T-→A+, A-→T+)
-- **Transformation**: Internal spiral within a WisdomUnit (2 transitions), produces Synthesis
-- **Synthesis**: Emergent S+/S- pair from Transformation or Spiral (meta-synthesis at wheel level)
-- **Cycle**: Sequence of transitions derived from a Nexus (has causality_type: BALANCED, REALISTIC, etc.)
-- **Spiral**: Transformational sequence derived from Wheel structure + WU Transformations
+- **Transformation**: Internal spiral within a WisdomUnit (2 transitions), produces local Synthesis
+- **Synthesis**: Emergent S+/S- pair from Transformation or Spiral
+- **Cycle**: Sequence of transitions derived from a Nexus (intent: "preset:balanced", "preset:realistic", etc.)
+- **Spiral**: Blended navigation across all WU Transformations - **the ultimate artifact**
 - **Wheel**: Top-level container with detailed transitions (belongs to Cycle)
 - **Input**: External content source (URL/IPFS) linked to extracted components
+- **Ideas**: Distilled concepts from an Input (intent describes extraction focus)
+- **Brainstorm**: Multi-input exploration container with unified vocabulary
 
 **Hierarchy:** WisdomUnit → Nexus → Cycle → Wheel
+**Brainstorm flow:** Brainstorm → Input → Ideas → Components
+
+### Intent Levels
+
+All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Optional[str]` field. Intent maps to the reflective practice framework:
+
+| Level | Reflection | Question | Lives On |
+|-------|------------|----------|----------|
+| **Discovery** | (Gathering) | What sources to explore? | Brainstorm, Ideas |
+| **Focus** | What? | What tensions exist? | Nexus |
+| **Dynamics** | So What? | Why do they matter? | Cycle |
+| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation |
+| **Synthesis** | (Outcome) | What emerges? | Synthesis, Spiral |
+
+**Nodes with IntentMixin:** Brainstorm, Ideas, Nexus, Cycle, WisdomUnit, Transformation, Synthesis, Spiral, Wheel
+
+### Transformation vs Spiral
+
+**WU Transformation** (local): Resolves internal dialectic of ONE tension (2 transitions), produces local S+/S-.
+
+**Wheel Spiral** (global): Weaves all WU Transformations into coherent navigation, produces meta-synthesis.
+
+**Calculation order:** WU Transformations first → Wheel Spiral uses those as inputs. Wheel blends WU intents; it doesn't recalculate individual paths.
 
 ### Cardinality Design: Where to Branch
 
-Both `WisdomUnit.transformation` and `Wheel.spiral` use **(0, 1)** cardinality because they are **derived structures** - fully determined by their inputs. The Spiral inherits intentions from WU Transformations; it has no independent "intentions."
+Both `WisdomUnit.transformation` and `Wheel.spiral` use **(0, 1)** cardinality because they are **derived structures**.
+
+**Nexus is a snapshot:** Contains specific WU versions. `CHANGED_TO` is provenance, not a pointer.
+
+**Spirals are ultimate artifacts:** When a WU evolves, create new Nexus → new Spiral. Old Spiral remains as historical synthesis.
 
 **To explore different paths, branch upstream:**
 - Different transformation interpretations → Create different **WisdomUnits**
 - Different WU combinations → Create different **Nexuses**
-- Different orderings/causality types → Create different **Cycles**
+- Different orderings/dynamics intents → Create different **Cycles**
 
 Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on both Transformation and Spiral.
 
-See `docs/graph.md` → "Branching and Cardinality Rationale" for detailed explanation.
+See `docs/graph.md` → "Intent Levels" and "Branching and Cardinality Rationale" for detailed explanation.
 
 ### Semantic Relationships (auto-created)
 
@@ -125,6 +154,7 @@ src/dialectical_framework/
 │
 ├── graph/                    # Core graph-native data model
 │   ├── nodes/               # BaseNode → AssessableEntity → {Component, WU, Wheel, ...}
+│   ├── mixins/              # Shared node behaviors (IntentMixin)
 │   ├── relationships/       # Polarity, opposition relationship models
 │   ├── scoring/             # TaroRank: Score = P × R^α
 │   │   └── tarorank_calculators/  # Per-node-type calculators
@@ -137,7 +167,7 @@ src/dialectical_framework/
 │   │   ├── antithesis_extractor_basic.py  # Extract antithesis concepts
 │   │   └── polarity_finder_basic.py       # Orchestrate polarity extraction
 │   ├── polarity/           # Polar reasoning (PolarReasoner, WisdomUnit building)
-│   ├── causality/          # Order transitions (BALANCED, REALISTIC, etc.)
+│   ├── causality/          # Order transitions (preset:balanced, preset:realistic, etc.)
 │   ├── concepts/           # Concept extraction
 │   └── wisdom/             # Transition analysis & validation
 │       ├── consultant.py   # Base for transition analysis
@@ -145,7 +175,7 @@ src/dialectical_framework/
 │
 ├── protocols/               # Python Protocol interfaces
 ├── ai_dto/                  # DTOs for LLM communication
-├── enums/                   # DI enum, CausalityType, etc.
+├── enums/                   # DI enum, etc.
 └── utils/                   # Helpers
 ```
 
@@ -256,6 +286,7 @@ Optional:
 - `DIALEXITY_GRAPH_DB_HOST`: Database host (default: "127.0.0.1")
 - `DIALEXITY_GRAPH_DB_PORT`: Database port (default: 7687)
 - `DIALEXITY_TARORANK_ALPHA`: Relevance exponent (default: 1.0)
+- `DIALEXITY_DEFAULT_CYCLE_INTENT`: Default cycle intent (default: "preset:balanced")
 
 Store these in a `.env` file in the project root.
 

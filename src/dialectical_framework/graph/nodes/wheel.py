@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import ClassVar, Union, TYPE_CHECKING, Literal, Any
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
     WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
 
 
-class Wheel(CircularTopologyMixin, AssessableEntity):
+class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity):
     """
     Represents a detailed dialectical arrangement belonging to a Cycle.
 
@@ -664,7 +665,7 @@ class Wheel(CircularTopologyMixin, AssessableEntity):
             lines.append(header)
 
             from dialectical_framework.graph.nodes.cycle import Cycle
-            prefix = f"{cycle_obj.causality_type} : " if isinstance(cycle_obj, Cycle) else ""
+            prefix = f"{cycle_obj.intent} : " if isinstance(cycle_obj, Cycle) and cycle_obj.intent else ""
             lines.append(f"{prefix}{cycle_obj:aliases}")
 
             # Add the best rationale if it exists

@@ -17,13 +17,13 @@ Then run:
 
 import pytest
 
-from dialectical_framework.enums.causality_type import CausalityType
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.nexus import Nexus
+from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.utils.order_transitions import order_transitions
@@ -33,7 +33,7 @@ def test_create_simple_wisdom_unit():
     """Test creating a WisdomUnit with basic components."""
 
     # Create a wisdom unit
-    wu = WisdomUnit(index=1, reasoning_mode="dialectical")
+    wu = WisdomUnit(index=1, intent="dialectical")
     wu.save()  # Uses injected graph_db
 
     # Create thesis components
@@ -203,7 +203,7 @@ def test_cycle_topology_ordered_transitions():
     trans3.target.connect(t1)
 
     # Create cycle and connect transitions
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
 
     trans1.cycle.connect(cycle)
@@ -258,7 +258,7 @@ def test_cycle_dialectical_components():
     trans3.target.connect(t1)
 
     # Create cycle
-    cycle = Cycle(causality_type=CausalityType.REALISTIC)
+    cycle = Cycle(intent="preset:realistic")
     cycle.save()
 
     trans1.cycle.connect(cycle)
@@ -295,7 +295,7 @@ def test_cycle_str_formatting():
         transitions.append(trans)
 
     # Create cycle
-    cycle = Cycle(causality_type=CausalityType.DESIRABLE)
+    cycle = Cycle(intent="preset:desirable")
     cycle.save()
 
     for trans in transitions:
@@ -351,7 +351,7 @@ def test_cycle_str_formatting():
     print(f"✓ component.get_alias(wisdom_unit) works correctly")
 
     # Test 3: Fallback when not connected to wheel
-    orphan_cycle = Cycle(causality_type=CausalityType.BALANCED)
+    orphan_cycle = Cycle(intent="preset:balanced")
     orphan_cycle.save()
     orphan_trans = Transition()
     orphan_trans.save()
@@ -394,7 +394,7 @@ def test_transition_str_formatting():
     wu.nexus.connect(nexus)
 
     # Create Cycle and connect to Nexus + transition
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
     nexus.cycles.connect(cycle)
     trans.cycle.connect(cycle)
@@ -507,7 +507,7 @@ def test_transition_segment_formatting():
     wu.nexus.connect(nexus)
 
     # Create Cycle (needed for Wheel)
-    cycle_base = Cycle(causality_type=CausalityType.REALISTIC)
+    cycle_base = Cycle(intent="preset:realistic")
     cycle_base.save()
     nexus.cycles.connect(cycle_base)
 
@@ -619,7 +619,7 @@ def test_cycle_is_same_structure():
     trans3a.source.connect(t3a)
     trans3a.target.connect(t1a)
 
-    cycle1 = Cycle(causality_type=CausalityType.BALANCED)
+    cycle1 = Cycle(intent="preset:balanced")
     cycle1.save()
 
     trans1a.cycle.connect(cycle1)
@@ -650,7 +650,7 @@ def test_cycle_is_same_structure():
     trans3b.source.connect(t1b)
     trans3b.target.connect(t2b)
 
-    cycle2 = Cycle(causality_type=CausalityType.BALANCED)
+    cycle2 = Cycle(intent="preset:balanced")
     cycle2.save()
 
     trans1b.cycle.connect(cycle2)
@@ -686,7 +686,7 @@ def test_cycle_is_same_structure():
     trans3c.source.connect(t4)
     trans3c.target.connect(t1c)
 
-    cycle3 = Cycle(causality_type=CausalityType.BALANCED)
+    cycle3 = Cycle(intent="preset:balanced")
     cycle3.save()
 
     trans1c.cycle.connect(cycle3)
@@ -818,7 +818,7 @@ def test_wheel_navigation_properties():
     wus = []
     components = []
     for i in range(4):
-        wu = WisdomUnit(reasoning_mode=f"mode_{i}")
+        wu = WisdomUnit(intent=f"mode_{i}")
         wu.save()
 
         comp = DialecticalComponent(statement=f"Component {i}")
@@ -835,7 +835,7 @@ def test_wheel_navigation_properties():
         wu.nexus.connect(nexus)
 
     # Create Cycle and connect to Nexus
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
     nexus.cycles.connect(cycle)
 
@@ -897,7 +897,7 @@ def test_wheel_wisdom_unit_at():
         wu.nexus.connect(nexus)
 
     # Create Cycle and connect to Nexus
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
     nexus.cycles.connect(cycle)
 
@@ -984,7 +984,7 @@ def test_wheel_is_same_structure():
             wu.nexus.connect(nexus)
 
         # Create Cycle
-        cycle = Cycle(causality_type=CausalityType.BALANCED)
+        cycle = Cycle(intent="preset:balanced")
         cycle.save()
         nexus.cycles.connect(cycle)
 
@@ -1040,7 +1040,7 @@ def test_wheel_segment_from_wisdom_unit():
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
     # Create wisdom unit with complete T-side and A-side
-    wu = WisdomUnit(reasoning_mode="test")
+    wu = WisdomUnit(intent="test")
     wu.save()
 
     # Create T-side components
@@ -1106,7 +1106,7 @@ def test_wheel_segment_from_wisdom_unit():
 
 def test_wheel_segment_get_component_by_alias():
     """Test finding components within a segment by alias."""
-    wu = WisdomUnit(reasoning_mode="test")
+    wu = WisdomUnit(intent="test")
     wu.save()
 
     # Create T-side components
@@ -1162,7 +1162,7 @@ def test_wheel_segment_at():
     wus = []
     t_comps = []
     for i in range(2):
-        wu = WisdomUnit(reasoning_mode=f"mode_{i}")
+        wu = WisdomUnit(intent=f"mode_{i}")
         wu.save()
 
         # Add T-side components
@@ -1201,7 +1201,7 @@ def test_wheel_segment_at():
         wu.nexus.connect(nexus)
 
     # Create Cycle and connect to Nexus
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
     nexus.cycles.connect(cycle)
 
@@ -1254,10 +1254,10 @@ def test_wheel_segment_at():
 
 def test_wheel_segment_is_same():
     """Test WheelSegment.is_same() comparison."""
-    wu1 = WisdomUnit(reasoning_mode="test1")
+    wu1 = WisdomUnit(intent="test1")
     wu1.save()
 
-    wu2 = WisdomUnit(reasoning_mode="test2")
+    wu2 = WisdomUnit(intent="test2")
     wu2.save()
 
     # Create identical T-side components for both WUs
@@ -1289,7 +1289,7 @@ def test_wheel_segment_is_same():
 
 def test_wheel_segment_is_set():
     """Test WheelSegment.is_set() method."""
-    wu = WisdomUnit(reasoning_mode="test")
+    wu = WisdomUnit(intent="test")
     wu.save()
 
     # Create T-side components
@@ -1335,7 +1335,7 @@ def test_wheel_wisdom_unit_at_segment():
     wus = []
     t_comps = []
     for i in range(2):
-        wu = WisdomUnit(reasoning_mode=f"mode_{i}")
+        wu = WisdomUnit(intent=f"mode_{i}")
         wu.save()
 
         # Add minimal components
@@ -1373,7 +1373,7 @@ def test_wheel_wisdom_unit_at_segment():
         wu.nexus.connect(nexus)
 
     # Create Cycle and connect to Nexus
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
     nexus.cycles.connect(cycle)
 
@@ -1419,7 +1419,7 @@ def test_wheel_wisdom_unit_at_segment():
 def test_wheel_is_set():
     """Test Wheel.is_set() method."""
     # Create WisdomUnit
-    wu = WisdomUnit(reasoning_mode="test")
+    wu = WisdomUnit(intent="test")
     wu.save()
 
     # Add components
@@ -1441,7 +1441,7 @@ def test_wheel_is_set():
     wu.nexus.connect(nexus)
 
     # Create Cycle and connect to Nexus
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
     nexus.cycles.connect(cycle)
 
@@ -1503,7 +1503,7 @@ def test_dialectical_component_repository_find_by_wisdom_unit():
     from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
 
     # Create wisdom unit
-    wu = WisdomUnit(reasoning_mode="test")
+    wu = WisdomUnit(intent="test")
     wu.save()
 
     # Create and connect components
@@ -1549,7 +1549,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     db = di_container.graph_db()
 
     # ========== Test 1: Isolated WU deletion (should delete) ==========
-    wu_isolated = WisdomUnit(reasoning_mode="test_isolated")
+    wu_isolated = WisdomUnit(intent="test_isolated")
     wu_isolated.save()
 
     # Create components
@@ -1612,10 +1612,10 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 1: Isolated WU deleted successfully")
 
     # ========== Test 2: Shared component (should NOT delete) ==========
-    wu_shared_1 = WisdomUnit(reasoning_mode="shared_1")
+    wu_shared_1 = WisdomUnit(intent="shared_1")
     wu_shared_1.save()
 
-    wu_shared_2 = WisdomUnit(reasoning_mode="shared_2")
+    wu_shared_2 = WisdomUnit(intent="shared_2")
     wu_shared_2.save()
 
     # Create shared component
@@ -1670,7 +1670,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 2: GC mode deleted WU but preserved shared component")
 
     # ========== Test 2b: Conservative mode with shared component (should NOT delete) ==========
-    wu_shared_3 = WisdomUnit(reasoning_mode="shared_3")
+    wu_shared_3 = WisdomUnit(intent="shared_3")
     wu_shared_3.save()
 
     # Create shared component (reuse the same one)
@@ -1700,7 +1700,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 2b: Conservative mode preserved WU with shared component")
 
     # ========== Test 3: HAS_STATEMENT boundary (should disconnect, conditionally delete) ==========
-    wu_boundary = WisdomUnit(reasoning_mode="boundary_test")
+    wu_boundary = WisdomUnit(intent="boundary_test")
     wu_boundary.save()
 
     # Create WU components
@@ -1748,10 +1748,10 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 3: HAS_STATEMENT boundary handled correctly")
 
     # ========== Test 4: HAS_STATEMENT with component in another WU (should keep component) ==========
-    wu_boundary_2 = WisdomUnit(reasoning_mode="boundary_test_2")
+    wu_boundary_2 = WisdomUnit(intent="boundary_test_2")
     wu_boundary_2.save()
 
-    wu_other = WisdomUnit(reasoning_mode="other_wu")
+    wu_other = WisdomUnit(intent="other_wu")
     wu_other.save()
 
     # Create WU components for wu_boundary_2
@@ -1793,7 +1793,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 4: HAS_STATEMENT with shared component kept component alive")
 
     # ========== Test 5: Rationales as attributes (should delete with WU) ==========
-    wu_rationale = WisdomUnit(reasoning_mode="rationale_test")
+    wu_rationale = WisdomUnit(intent="rationale_test")
     wu_rationale.save()
 
     # Create components
@@ -1839,7 +1839,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.transition import Transition
 
-    wu_with_trans = WisdomUnit(reasoning_mode="with_transformation")
+    wu_with_trans = WisdomUnit(intent="with_transformation")
     wu_with_trans.save()
 
     # Create components for the WU
@@ -1871,7 +1871,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     wu_with_trans.transformation.connect(transformation)
 
     # Create ac_re WisdomUnit for the transformation
-    ac_re_wu = WisdomUnit(reasoning_mode="ac_re")
+    ac_re_wu = WisdomUnit(intent="ac_re")
     ac_re_wu.save()
     for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
                        ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
@@ -1943,7 +1943,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 6: WU with Transformation deleted Transformation and Transitions")
 
     # ========== Test 7: WU that IS an ac_re (should NOT delete - external reference) ==========
-    wu_parent = WisdomUnit(reasoning_mode="parent_with_trans")
+    wu_parent = WisdomUnit(intent="parent_with_trans")
     wu_parent.save()
 
     # Create components for parent WU
@@ -1954,7 +1954,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         getattr(wu_parent, pos).connect(comp, properties={'alias': stmt})
 
     # Create Transformation that references another WU as ac_re
-    wu_as_ac_re = WisdomUnit(reasoning_mode="used_as_ac_re")
+    wu_as_ac_re = WisdomUnit(intent="used_as_ac_re")
     wu_as_ac_re.save()
     for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
                        ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
@@ -1984,7 +1984,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 7: WU used as ac_re prevented deletion (external reference)")
 
     # ========== Test 8: Replacing ac_re (disconnect + safe_delete) ==========
-    wu_replace = WisdomUnit(reasoning_mode="replace_test")
+    wu_replace = WisdomUnit(intent="replace_test")
     wu_replace.save()
 
     # Create components
@@ -1995,7 +1995,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         getattr(wu_replace, pos).connect(comp, properties={'alias': stmt})
 
     # Create old ac_re
-    old_ac_re = WisdomUnit(reasoning_mode="old_ac_re")
+    old_ac_re = WisdomUnit(intent="old_ac_re")
     old_ac_re.save()
     for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
                        ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
@@ -2037,7 +2037,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.relationships.polarity_relationship import SPlusRelationship, SMinusRelationship
 
-    wu_with_synth = WisdomUnit(reasoning_mode="with_synthesis")
+    wu_with_synth = WisdomUnit(intent="with_synthesis")
     wu_with_synth.save()
 
     # Create core components
@@ -2047,10 +2047,15 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         comp.save()
         getattr(wu_with_synth, pos).connect(comp, properties={'alias': stmt})
 
-    # Create Synthesis with S+ and S- components
+    # Create Transformation for the WU
+    trans = Transformation(intent="test_transformation")
+    trans.save()
+    trans.wisdom_unit.connect(wu_with_synth)
+
+    # Create Synthesis with S+ and S- components connected to Transformation
     synth = Synthesis()
     synth.save()
-    synth.wisdom_unit.connect(wu_with_synth)
+    synth.target.connect(trans)
 
     s_plus_comp = DialecticalComponent(statement="Positive synthesis")
     s_plus_comp.save()
@@ -2063,6 +2068,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     synth_id = synth._id
     s_plus_id = s_plus_comp._id
     s_minus_id = s_minus_comp._id
+    trans_id = trans._id
 
     # Check isolation (should be isolated - no sharing)
     assert repo.is_isolated(wu_with_synth), "WU with isolated Synthesis should be isolated"
@@ -2078,6 +2084,13 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         {"wu_id": wu_with_synth._id}
     ))
     assert len(result) == 0, "WU should be deleted"
+
+    # Verify Transformation deleted
+    result = list(db.execute_and_fetch(
+        f"MATCH (t:Transformation) WHERE id(t) = $t_id RETURN t",
+        {"t_id": trans_id}
+    ))
+    assert len(result) == 0, "Transformation should be deleted"
 
     # Verify Synthesis deleted
     result = list(db.execute_and_fetch(
@@ -2102,17 +2115,17 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 9: WU with Synthesis deleted Synthesis and orphaned S+/S- components")
 
     # ========== Test 10: Shared Synthesis component (should preserve shared S+ component) ==========
-    wu_synth_1 = WisdomUnit(reasoning_mode="synth_shared_1")
+    wu_synth_1 = WisdomUnit(intent="synth_shared_1")
     wu_synth_1.save()
 
-    wu_synth_2 = WisdomUnit(reasoning_mode="synth_shared_2")
+    wu_synth_2 = WisdomUnit(intent="synth_shared_2")
     wu_synth_2.save()
 
     # Create core components for both WUs
     for wu in [wu_synth_1, wu_synth_2]:
         for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                            ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-            comp = DialecticalComponent(statement=f"{wu.reasoning_mode} {stmt}")
+            comp = DialecticalComponent(statement=f"{wu.intent} {stmt}")
             comp.save()
             getattr(wu, pos).connect(comp, properties={'alias': stmt})
 
@@ -2120,20 +2133,30 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     shared_s_plus = DialecticalComponent(statement="Shared positive synthesis")
     shared_s_plus.save()
 
-    # Create Synthesis for wu_synth_1 using shared S+
+    # Create Transformation for wu_synth_1
+    trans_1 = Transformation(intent="trans_synth_1")
+    trans_1.save()
+    trans_1.wisdom_unit.connect(wu_synth_1)
+
+    # Create Synthesis for wu_synth_1 using shared S+ connected to Transformation
     synth_1 = Synthesis()
     synth_1.save()
-    synth_1.wisdom_unit.connect(wu_synth_1)
+    synth_1.target.connect(trans_1)
     synth_1.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
     s_minus_1 = DialecticalComponent(statement="S- for wu_synth_1")
     s_minus_1.save()
     synth_1.s_minus.connect(s_minus_1, relationship=SMinusRelationship(alias="S-"))
 
-    # Create Synthesis for wu_synth_2 using same shared S+
+    # Create Transformation for wu_synth_2
+    trans_2 = Transformation(intent="trans_synth_2")
+    trans_2.save()
+    trans_2.wisdom_unit.connect(wu_synth_2)
+
+    # Create Synthesis for wu_synth_2 using same shared S+ connected to Transformation
     synth_2 = Synthesis()
     synth_2.save()
-    synth_2.wisdom_unit.connect(wu_synth_2)
+    synth_2.target.connect(trans_2)
     synth_2.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
     s_minus_2 = DialecticalComponent(statement="S- for wu_synth_2")
@@ -2194,7 +2217,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 10: Shared Synthesis component preserved, orphaned component deleted")
 
     # ========== Test 11: Conservative mode with shared Synthesis (should NOT delete) ==========
-    wu_synth_conservative = WisdomUnit(reasoning_mode="synth_conservative")
+    wu_synth_conservative = WisdomUnit(intent="synth_conservative")
     wu_synth_conservative.save()
 
     # Create core components
@@ -2204,10 +2227,15 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         comp.save()
         getattr(wu_synth_conservative, pos).connect(comp, properties={'alias': stmt})
 
-    # Create Synthesis using the shared S+ from wu_synth_2
+    # Create Transformation for wu_synth_conservative
+    trans_conservative = Transformation(intent="trans_conservative")
+    trans_conservative.save()
+    trans_conservative.wisdom_unit.connect(wu_synth_conservative)
+
+    # Create Synthesis using the shared S+ from wu_synth_2 connected to Transformation
     synth_conservative = Synthesis()
     synth_conservative.save()
-    synth_conservative.wisdom_unit.connect(wu_synth_conservative)
+    synth_conservative.target.connect(trans_conservative)
     synth_conservative.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
     s_minus_cons = DialecticalComponent(statement="S- for conservative")
@@ -2457,10 +2485,9 @@ def test_bidirectional_cardinality_allows_valid_connection():
 def test_cycle_cardinality_validation():
     """Test that Cycle._transitions cardinality (2, None) is validated correctly."""
     from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.enums.causality_type import CausalityType
-
+    
     # Create cycle with no transitions
-    cycle = Cycle(causality_type=CausalityType.BALANCED)
+    cycle = Cycle(intent="preset:balanced")
     cycle.save()
 
     # 0 transitions - should be invalid (min is 2)
@@ -2702,7 +2729,7 @@ def test_wisdom_unit_vocabulary_validation():
     # === Gen-1+ Test: Create new WU mixing components from different original Inputs ===
 
     # Create a new WU and connect it to the Nexus FIRST (Gen-1 mode)
-    wu_gen1 = WisdomUnit(reasoning_mode="gen1_mixed_inputs")
+    wu_gen1 = WisdomUnit(intent="gen1_mixed_inputs")
     wu_gen1.save()
     wu_gen1.nexus.connect(nexus)  # Connect to Nexus first = Gen-1 mode
 
@@ -2738,7 +2765,7 @@ def test_wisdom_unit_vocabulary_validation():
     # This tests the scenario where we create a new WU without connecting to Nexus first,
     # but use components that are already in the same Nexus vocabulary
 
-    wu_air = WisdomUnit(reasoning_mode="wu_in_the_air")
+    wu_air = WisdomUnit(intent="wu_in_the_air")
     wu_air.save()
     # NOT connected to any Nexus yet!
 
@@ -2807,7 +2834,7 @@ def test_nexus_vocabulary_validation():
         components_wu1[pos] = comp
 
     # Create WU1 and connect all components
-    wu1 = WisdomUnit(reasoning_mode="nexus_vocab_test_wu1")
+    wu1 = WisdomUnit(intent="nexus_vocab_test_wu1")
     wu1.save()
     wu1.t.connect(components_wu1['t'], relationship=TRelationship(alias="T"))
     wu1.a.connect(components_wu1['a'], relationship=ARelationship(alias="A"))
@@ -2834,9 +2861,15 @@ def test_nexus_vocabulary_validation():
 
     # === Test 2: Add Synthesis components to Nexus vocabulary ===
 
+    # Create Transformation for the WU
+    trans = Transformation(intent="test_transformation")
+    trans.save()
+    trans.wisdom_unit.connect(wu1)
+
+    # Create Synthesis connected to Transformation
     synth = Synthesis()
     synth.save()
-    synth.wisdom_unit.connect(wu1)
+    synth.target.connect(trans)
 
     s_plus = DialecticalComponent(statement="Synthesis S+")
     s_plus.save()
@@ -2859,7 +2892,7 @@ def test_nexus_vocabulary_validation():
     # === Test 3: Create second WU reusing components from Nexus vocabulary ===
 
     # Create a second WU that reuses some components from WU1 (valid - same Nexus)
-    wu2 = WisdomUnit(reasoning_mode="nexus_vocab_test_wu2")
+    wu2 = WisdomUnit(intent="nexus_vocab_test_wu2")
     wu2.save()
     wu2.nexus.connect(nexus)  # Pool into same Nexus first
 
@@ -2899,7 +2932,7 @@ def test_nexus_vocabulary_validation():
     other_comp.save()
     input_other.statements.connect(other_comp)
 
-    wu_other = WisdomUnit(reasoning_mode="other_nexus_wu")
+    wu_other = WisdomUnit(intent="other_nexus_wu")
     wu_other.save()
     wu_other.t.connect(other_comp, relationship=TRelationship(alias="T"))
 
@@ -2922,7 +2955,7 @@ def test_nexus_vocabulary_validation():
     wu_other.nexus.connect(nexus_other)
 
     # Now try to create a WU in the original Nexus but with a component from nexus_other
-    wu3 = WisdomUnit(reasoning_mode="cross_nexus_test")
+    wu3 = WisdomUnit(intent="cross_nexus_test")
     wu3.save()
     wu3.nexus.connect(nexus)  # Pool into original Nexus
 
@@ -2967,7 +3000,7 @@ def test_nexus_vocabulary_validation():
     assert len(expanded_vocab) >= 8, f"Expanded Nexus should inherit parent vocabulary, got {len(expanded_vocab)}"
 
     # Create a new WU in the expanded Nexus using components from parent vocabulary
-    wu_expanded = WisdomUnit(reasoning_mode="expanded_nexus_wu")
+    wu_expanded = WisdomUnit(intent="expanded_nexus_wu")
     wu_expanded.save()
     wu_expanded.nexus.connect(expanded_nexus)  # Connect to expanded Nexus
 
@@ -3046,7 +3079,7 @@ def test_nexus_vocabulary_context():
     print("✓ Input-born component has Input as vocabulary context")
 
     # Create full WU and pool into Nexus
-    wu = WisdomUnit(reasoning_mode="context_test")
+    wu = WisdomUnit(intent="context_test")
     wu.save()
     wu.t.connect(comp, relationship=TRelationship(alias="T"))
 
@@ -3077,10 +3110,15 @@ def test_nexus_vocabulary_context():
     assert wu_context.uid == nexus.uid
     print("✓ WisdomUnit in Nexus has Nexus as vocabulary context")
 
-    # Create Synthesis - its context should be the Nexus
+    # Create Transformation for the WU
+    trans = Transformation(intent="test_transformation")
+    trans.save()
+    trans.wisdom_unit.connect(wu)
+
+    # Create Synthesis connected to Transformation - its context should be the Nexus
     synth = Synthesis()
     synth.save()
-    synth.wisdom_unit.connect(wu)
+    synth.target.connect(trans)
 
     s_plus = DialecticalComponent(statement="S+")
     s_plus.save()
@@ -3128,7 +3166,7 @@ def test_nexus_frozen_after_cycle():
         components_wu1[pos] = comp
 
     # Create WU1 and connect all components
-    wu1 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu1")
+    wu1 = WisdomUnit(intent="frozen_nexus_test_wu1")
     wu1.save()
     wu1.t.connect(components_wu1['t'], relationship=TRelationship(alias="T1"))
     wu1.a.connect(components_wu1['a'], relationship=ARelationship(alias="A1"))
@@ -3152,7 +3190,7 @@ def test_nexus_frozen_after_cycle():
         input_source.statements.connect(comp)
         components_wu2[pos] = comp
 
-    wu2 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu2")
+    wu2 = WisdomUnit(intent="frozen_nexus_test_wu2")
     wu2.save()
     wu2.t.connect(components_wu2['t'], relationship=TRelationship(alias="T2"))
     wu2.a.connect(components_wu2['a'], relationship=ARelationship(alias="A2"))
@@ -3185,7 +3223,7 @@ def test_nexus_frozen_after_cycle():
         input_source.statements.connect(comp)
         components_wu3[pos] = comp
 
-    wu3 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu3")
+    wu3 = WisdomUnit(intent="frozen_nexus_test_wu3")
     wu3.save()
     wu3.t.connect(components_wu3['t'], relationship=TRelationship(alias="T3"))
     wu3.a.connect(components_wu3['a'], relationship=ARelationship(alias="A3"))
@@ -3210,7 +3248,7 @@ def test_nexus_frozen_after_cycle():
         input_source.statements.connect(comp)
         components_wu4[pos] = comp
 
-    wu4 = WisdomUnit(reasoning_mode="frozen_nexus_test_wu4")
+    wu4 = WisdomUnit(intent="frozen_nexus_test_wu4")
     wu4.save()
     wu4.t.connect(components_wu4['t'], relationship=TRelationship(alias="T4"))
     wu4.a.connect(components_wu4['a'], relationship=ARelationship(alias="A4"))

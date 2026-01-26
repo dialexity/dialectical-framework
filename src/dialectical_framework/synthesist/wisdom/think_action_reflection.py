@@ -12,8 +12,6 @@ from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
 from dialectical_framework.ai_dto.reciprocal_solution_dto import ReciprocalSolutionDto
 from dialectical_framework.synthesist.wisdom.strategic_consultant import \
     StrategicConsultant
-from dialectical_framework.enums.dialectical_reasoning_mode import \
-    DialecticalReasoningMode
 from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 from dialectical_framework.protocols.has_config import SettingsAware
@@ -170,7 +168,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
 
         # Create AC/RE wisdom unit
         ac_re_wu = WisdomUnit(
-            reasoning_mode=DialecticalReasoningMode.ACTION_REFLECTION,
+            intent="action_reflection",
         )
         ac_re_wu.save()
 
