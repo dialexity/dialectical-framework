@@ -32,7 +32,7 @@ POSITION_S_PLUS = "S+"
 POSITION_S_MINUS = "S-"
 
 
-class Synthesis(IntentMixin, AssessableEntity):
+class Synthesis(IntentMixin, AssessableEntity, label="Synthesis"):
     """
     Represents ONE synthesis interpretation of a dialectical transformation.
 

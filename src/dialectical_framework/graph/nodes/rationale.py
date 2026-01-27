@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
 
-class Rationale(AssessableEntity):
+class Rationale(AssessableEntity, label="Rationale"):
     """
     Represents an explanation or evidence for an assessment.
 

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
 
-class Brainstorm(IntentMixin, AssessableEntity):
+class Brainstorm(IntentMixin, AssessableEntity, label="Brainstorm"):
     """
     A portable discovery artifact grouping Inputs and Ideas.
 

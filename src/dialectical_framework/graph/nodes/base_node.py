@@ -22,7 +22,7 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-class BaseNode(Node):
+class BaseNode(Node, label="Node"):
     """
     Base class for all nodes in the dialectical graph.
 
@@ -57,7 +57,10 @@ class BaseNode(Node):
             Self for chaining
         """
         self.updated_at = _utc_now_iso()
-        graph_db.save_node(self)
+        result = graph_db.save_node(self)
+        # GQLAlchemy returns a new node object with _id set - capture it
+        if result is not None and result._id is not None:
+            self._id = result._id
         return self
 
     def __repr__(self) -> str:

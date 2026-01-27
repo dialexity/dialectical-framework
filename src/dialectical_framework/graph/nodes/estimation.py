@@ -18,7 +18,7 @@ from dialectical_framework.graph.relationships.has_estimation_relationship impor
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 
-class Estimation(BaseNode):
+class Estimation(BaseNode, label="Estimation"):
     """
     Base class for estimations associated with assessable entities.
 
@@ -50,7 +50,7 @@ class Estimation(BaseNode):
         return f"{self.__class__.__name__}(uid={self.uid}, value={self.value})"
 
 
-class ProbabilityEstimation(Estimation):
+class ProbabilityEstimation(Estimation, label="Probability"):
     """
     Probability estimation (P dimension in scoring formula).
 
@@ -63,7 +63,7 @@ class ProbabilityEstimation(Estimation):
     pass
 
 
-class RelevanceEstimation(Estimation):
+class RelevanceEstimation(Estimation, label="Relevance"):
     """
     Relevance estimation (R dimension in scoring formula).
 
@@ -76,7 +76,7 @@ class RelevanceEstimation(Estimation):
     pass
 
 
-class CalculatedProbabilityEstimation(Estimation):
+class CalculatedProbabilityEstimation(Estimation, label="CalculatedProbability"):
     """
     Calculated probability from TaroRank aggregation.
 
@@ -89,7 +89,7 @@ class CalculatedProbabilityEstimation(Estimation):
     pass
 
 
-class CalculatedRelevanceEstimation(Estimation):
+class CalculatedRelevanceEstimation(Estimation, label="CalculatedRelevance"):
     """
     Calculated relevance from TaroRank aggregation.
 
@@ -102,7 +102,7 @@ class CalculatedRelevanceEstimation(Estimation):
     pass
 
 
-class FeasibilityEstimation(Estimation):
+class FeasibilityEstimation(Estimation, label="Feasibility"):
     """
     Feasibility estimation for practical constraints.
 

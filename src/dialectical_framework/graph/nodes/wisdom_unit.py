@@ -47,7 +47,7 @@ POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
 
 
-class WisdomUnit(IntentMixin, AssessableEntity):
+class WisdomUnit(IntentMixin, AssessableEntity, label="WisdomUnit"):
     """
     Represents ONE coherent dialectical analysis with enforced cardinality.
 

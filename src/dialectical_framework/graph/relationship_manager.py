@@ -57,6 +57,19 @@ def _get_node_class_by_name(name: str) -> type | None:
     return all_classes.get(name)
 
 
+def _get_label_for_class_name(class_name: str) -> str:
+    """
+    Get the database label for a class name (resolves class and gets its label).
+
+    Used to convert class names like 'DialecticalComponent' to their
+    database labels like 'Component'.
+    """
+    node_class = _get_node_class_by_name(class_name)
+    if node_class is not None:
+        return getattr(node_class, 'label', class_name)
+    return class_name  # Fallback to class name if not found
+
+
 def _is_class_compatible(source_class_name: str, target_class_names: list[str]) -> bool:
     """
     Check if source_class_name is compatible with any of the target_class_names.
@@ -173,16 +186,19 @@ class RelationshipManager(Generic[T]):
                 - (0, 1): Zero or one
                 - (0, None): Zero or more
         """
+        def _get_label(tc):
+            """Get the database label for a class (uses GQLAlchemy's label attribute)."""
+            if isinstance(tc, str):
+                return tc  # String - use as-is (will be resolved later)
+            # For class objects, use the GQLAlchemy label attribute
+            return getattr(tc, 'label', tc.__name__)
+
         # Handle Union types (tuple of classes)
         if isinstance(target_class, tuple):
-            self.target_class_names = [
-                tc if isinstance(tc, str) else tc.__name__ for tc in target_class
-            ]
+            self.target_class_names = [_get_label(tc) for tc in target_class]
             self.target_class_name = "|".join(self.target_class_names)  # For Cypher
         else:
-            self.target_class_name = (
-                target_class if isinstance(target_class, str) else target_class.__name__
-            )
+            self.target_class_name = _get_label(target_class)
             self.target_class_names = [self.target_class_name]
 
         self.target_class = target_class
@@ -851,7 +867,7 @@ class BoundRelationshipManager(Generic[T]):
             if uid is None:
                 raise ValueError(f"Node must be saved before creating relationships (no uid found)")
 
-            labels = ':'.join(node.__class__.__name__.split())  # Get node label
+            labels = node._label  # Get node label(s) from GQLAlchemy
             query = f"MATCH (n:{labels} {{uid: $uid}}) RETURN id(n) as node_id"
             result = list(db.execute_and_fetch(query, {"uid": uid}))
 
@@ -1103,13 +1119,20 @@ class BoundRelationshipManager(Generic[T]):
         if self.source_node._id is None:
             return []
 
+        # Resolve class names to labels (handles classes defined with label="...")
+        # target_class_name may be pipe-separated for union types
+        class_names = self.target_class_name.split("|")
+        resolved_labels = "|".join(
+            _get_label_for_class_name(cn) for cn in class_names
+        )
+
         # Build query based on direction
         if self.direction == "outgoing":
-            pattern = f"(source)-[r:{self.relationship_type}]->(target:{self.target_class_name})"
+            pattern = f"(source)-[r:{self.relationship_type}]->(target:{resolved_labels})"
         elif self.direction == "incoming":
-            pattern = f"(source)<-[r:{self.relationship_type}]-(target:{self.target_class_name})"
+            pattern = f"(source)<-[r:{self.relationship_type}]-(target:{resolved_labels})"
         else:  # any
-            pattern = f"(source)-[r:{self.relationship_type}]-(target:{self.target_class_name})"
+            pattern = f"(source)-[r:{self.relationship_type}]-(target:{resolved_labels})"
 
         query = f"""
         MATCH {pattern}
@@ -1178,12 +1201,18 @@ class BoundRelationshipManager(Generic[T]):
         if self.source_node._id is None:
             return 0
 
+        # Resolve class names to labels
+        class_names = self.target_class_name.split("|")
+        resolved_labels = "|".join(
+            _get_label_for_class_name(cn) for cn in class_names
+        )
+
         if self.direction == "outgoing":
-            pattern = f"(source)-[:{self.relationship_type}]->(:{self.target_class_name})"
+            pattern = f"(source)-[:{self.relationship_type}]->(:{resolved_labels})"
         elif self.direction == "incoming":
-            pattern = f"(source)<-[:{self.relationship_type}]-(:{self.target_class_name})"
+            pattern = f"(source)<-[:{self.relationship_type}]-(:{resolved_labels})"
         else:
-            pattern = f"(source)-[:{self.relationship_type}]-(:{self.target_class_name})"
+            pattern = f"(source)-[:{self.relationship_type}]-(:{resolved_labels})"
 
         query = f"""
         MATCH {pattern}

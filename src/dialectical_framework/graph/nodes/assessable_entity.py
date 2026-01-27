@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
-class AssessableEntity(BaseNode):
+class AssessableEntity(BaseNode, label="Assessable"):
     """
     Base class for all assessable (scoreable) entities in the dialectical graph.
 

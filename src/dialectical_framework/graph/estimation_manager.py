@@ -101,7 +101,7 @@ def invalidate_node_and_parents(
     # - SHRUNK_TO/EXPANDED_TO: Nexus→Nexus (evolution tracking, not scoring)
     # - CHANGED_TO: WU→WU (evolution tracking, not scoring)
     query = """
-        MATCH (child)-[rel]->(parent:AssessableEntity)
+        MATCH (child)-[rel]->(parent:Assessable)
         WHERE id(child) = $child_id
         AND NOT type(rel) IN ['HAS_STATEMENT', 'IS_SOURCE_OF', 'IS_TARGET_OF', 'HAS_ESTIMATION', 'OPPOSITE_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO', 'SHRUNK_TO', 'EXPANDED_TO', 'CHANGED_TO']
         RETURN DISTINCT id(parent) as parent_id

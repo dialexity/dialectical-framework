@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
 
 
-class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity):
+class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel"):
     """
     Represents a detailed dialectical arrangement belonging to a Cycle.
 

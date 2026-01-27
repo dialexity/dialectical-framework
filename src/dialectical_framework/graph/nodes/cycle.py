@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
 
 
-class Cycle(IntentMixin, CircularTopologyMixin, AssessableEntity):
+class Cycle(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Cycle"):
     """
     Represents a causal arrangement of WisdomUnits from a Nexus.
 

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 
 
-class Input(BaseNode):
+class Input(BaseNode, label="Input"):
     """
     A source of content for dialectical analysis.
 

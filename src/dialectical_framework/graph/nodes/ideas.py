@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
 
-class Ideas(IntentMixin, AssessableEntity):
+class Ideas(IntentMixin, AssessableEntity, label="Ideas"):
     """
     A collection of extracted concepts from an Input source.
 

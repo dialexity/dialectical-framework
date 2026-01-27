@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
-class DialecticalComponent(AssessableEntity):
+class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     """
     Represents an atomic dialectical statement or concept.
 

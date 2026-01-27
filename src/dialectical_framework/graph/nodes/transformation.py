@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
-class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity):
+class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Transformation"):
     """
     Internal transformation within a WisdomUnit.
 

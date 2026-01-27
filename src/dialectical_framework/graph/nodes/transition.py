@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
 
-class Transition(AssessableEntity):
+class Transition(AssessableEntity, label="Transition"):
     """
     Represents a transition (relationship) between dialectical components.
 

@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
 
 
-class Nexus(IntentMixin, AssessableEntity):
+class Nexus(IntentMixin, AssessableEntity, label="Nexus"):
     """
     A pool of WisdomUnits where collective insights emerge.
 

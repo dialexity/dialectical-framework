@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
-class Spiral(IntentMixin, CircularTopologyMixin, AssessableEntity):
+class Spiral(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Spiral"):
     """
     Represents a transformational spiral in the dialectical framework.
 
