@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import ClassVar, Optional, TYPE_CHECKING
 
+from gqlalchemy import Node
+
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
@@ -32,7 +34,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 
 
-class Input(BaseNode, label="Input"):
+class Input(BaseNode, Node, label="Input"):
     """
     A source of content for dialectical analysis.
 

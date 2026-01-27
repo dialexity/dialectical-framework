@@ -319,7 +319,8 @@ class EstimationManager:
             return
 
         # Delete estimations of specific type in a single query
-        label = estimation_class.__name__
+        # Use GQLAlchemy's label attribute, not Python class name
+        label = estimation_class.label
         query = f"""
             MATCH (n)-[:HAS_ESTIMATION]->(e:{label})
             WHERE id(n) = $node_id

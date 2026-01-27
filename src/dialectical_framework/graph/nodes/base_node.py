@@ -11,8 +11,8 @@ from typing import Optional, Union
 from uuid import uuid4
 
 from dependency_injector.wiring import Provide, inject
-from gqlalchemy import Memgraph, Neo4j, Node
-from pydantic.v1 import Field
+from gqlalchemy import Memgraph, Neo4j
+from pydantic.v1 import BaseModel, Field
 
 from dialectical_framework.enums.di import DI
 
@@ -22,7 +22,7 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-class BaseNode(Node, label="Node"):
+class BaseNode(BaseModel):
     """
     Base class for all nodes in the dialectical graph.
 
