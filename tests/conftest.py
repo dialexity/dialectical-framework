@@ -1,5 +1,6 @@
 import asyncio
 import gc
+import os
 
 import pytest
 from gqlalchemy import Memgraph, Neo4j
@@ -14,6 +15,22 @@ from dialectical_framework.settings import Settings
 # ============================================================================
 
 TEST_LABEL = "___DIALEXITY_TEST___"
+
+# Environment variable to control test data cleanup
+# Set to "false" to keep test data for inspection after tests
+# Default: "true" (cleanup enabled)
+TEST_CLEANUP_ENV_VAR = "DIALEXITY_TEST_CLEANUP"
+
+
+def is_cleanup_enabled() -> bool:
+    """
+    Check if test data cleanup is enabled via environment variable.
+
+    Returns True (cleanup enabled) by default.
+    Set DIALEXITY_TEST_CLEANUP=false to disable cleanup and keep test data.
+    """
+    value = os.environ.get(TEST_CLEANUP_ENV_VAR, "true").lower()
+    return value not in ("false", "0", "no", "off")
 
 
 class TestMemgraph(Memgraph):
@@ -237,10 +254,17 @@ def cleanup_graph_db(graph_db_available, di_container):
     Auto-cleanup fixture for all graph DB tests.
 
     Automatically skips tests if the configured graph database is not available.
-    Cleans up test data before and after each test.
+    Cleans up test data before and after each test (when cleanup is enabled).
 
     SAFETY: Only deletes nodes labeled with :___DIALEXITY_TEST___
     This allows tests to run safely alongside production data.
+
+    Control cleanup behavior via environment variable:
+        DIALEXITY_TEST_CLEANUP=true   (default) - cleanup before/after each test
+        DIALEXITY_TEST_CLEANUP=false  - keep test data for inspection
+
+    When cleanup is re-enabled, all past test data (with TEST_LABEL) is cleared
+    on the next test run.
     """
     settings = di_container.settings()
     if not graph_db_available:
@@ -250,13 +274,17 @@ def cleanup_graph_db(graph_db_available, di_container):
         )
 
     db = di_container.graph_db()
-    cleanup_test_data(db)
+    cleanup_enabled = is_cleanup_enabled()
+
+    if cleanup_enabled:
+        cleanup_test_data(db)
 
     yield
 
-    try:
-        cleanup_test_data(db)
-    except Exception:
-        pass  # Ignore cleanup errors
+    if cleanup_enabled:
+        try:
+            cleanup_test_data(db)
+        except Exception:
+            pass  # Ignore cleanup errors
 
 
