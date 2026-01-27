@@ -16,3 +16,6 @@ class DI(str, Enum):
     polarity_finder = "polarity_finder"
 
     tarorank = "tarorank"
+
+    # Content resolution (app provides implementation)
+    input_resolver = "input_resolver"

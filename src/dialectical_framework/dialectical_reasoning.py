@@ -26,6 +26,8 @@ from dialectical_framework.synthesist.ideas.thesis_extractor_basic import Thesis
 from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
+from dialectical_framework.protocols.input_resolver import InputResolver
+from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 
 
 class DialecticalReasoning(containers.DeclarativeContainer):
@@ -151,6 +153,24 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     tarorank: providers.Factory[TaroRank] = providers.Factory(
         _create_tarorank,
         settings=settings,
+    )
+
+    # -- Content Resolution --
+    # Default resolver only handles data: URIs (useful for tests).
+    # Apps should override with their own InputResolver for production.
+    #
+    # Example app setup:
+    #   class MyAppResolver(InputResolver):
+    #       async def resolve(self, input_node, **kwargs):
+    #           uri = input_node.content_uri
+    #           if uri.startswith("session://"):
+    #               return await self._session_cache.get(uri)
+    #           # ... handle other schemes
+    #
+    #   container.input_resolver.override(providers.Singleton(MyAppResolver))
+    #
+    input_resolver: providers.Singleton[InputResolver] = providers.Singleton(
+        VerbatimInputResolver
     )
 
     # -- Wiring --
