@@ -22,9 +22,11 @@ from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
-from dialectical_framework.protocols.causality_sequencer import (
-    CausalitySequencer, generate_compatible_sequences,
-    generate_permutation_sequences)
+from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
+from dialectical_framework.utils.sequence_generation import (
+    generate_compatible_sequences,
+    generate_permutation_sequences,
+)
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
