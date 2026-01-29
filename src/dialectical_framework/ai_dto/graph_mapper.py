@@ -25,8 +25,7 @@ if TYPE_CHECKING:
 
 @inject
 def component_from_dto(
-    dto: DialecticalComponentDto,
-    graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    dto: DialecticalComponentDto
 ) -> DialecticalComponent:
     """
     Convert DialecticalComponentDto to graph-native DialecticalComponent.
@@ -67,8 +66,7 @@ def component_from_dto(
 
 @inject
 def components_from_dtos(
-    dtos: list[DialecticalComponentDto],
-    graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    dtos: list[DialecticalComponentDto]
 ) -> list[DialecticalComponent]:
     """
     Convert list of DialecticalComponentDtos to graph-native components.

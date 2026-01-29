@@ -194,7 +194,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         for (transition, rationale), audit in zip(audit_pairs, audits):
             # Create new rationale node as critique
             audit_rationale = GraphRationale(
-                text=f"**Key Factors:** {audit.key_factors}\n\n**Argumentation:** {audit.argumentation}\n\n**Conditions for Success:** {audit.success_conditions}"
+                text=f"**Key Factors:** {audit.key_factors}\n\n**Argumentation:** {audit.argumentation}\n\n**Conditions for Success:** {audit.success_conditions}",
             )
             audit_rationale.save()
 

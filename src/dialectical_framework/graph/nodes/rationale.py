@@ -7,7 +7,7 @@ and evidence for assessments in the dialectical system.
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional, TYPE_CHECKING
+from typing import Any, ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
@@ -20,6 +20,7 @@ from dialectical_framework.graph.relationships.critiques_relationship import (
 from dialectical_framework.graph.relationships.has_statement_relationship import (
     HasStatementRelationship,
 )
+from dialectical_framework.protocols.has_brain import di_brain
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -56,6 +57,19 @@ class Rationale(AssessableEntity, label="Rationale"):
     haiku: Optional[str] = None
     summary: Optional[str] = None
     rating: Optional[float] = None  # Importance/quality rating (0.0-1.0), used for weighting critiques
+    agent: Optional[str] = None  # Agent identifier (<provider>:<model>) that generated this rationale
+
+    def __init__(self, **data: Any) -> None:
+        # Auto-populate agent from DI brain if not provided
+        if "agent" not in data or data["agent"] is None:
+            try:
+                brain = di_brain()
+                provider, model = brain.specification()
+                data["agent"] = f"{provider}:{model}"
+            except Exception:
+                # DI not configured (e.g., in tests) - leave as None
+                pass
+        super().__init__(**data)
 
     # Declarative relationships
     # What this rationale explains

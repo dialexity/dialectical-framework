@@ -251,7 +251,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 # Create rationale
                 rationale = Rationale(
                     summary="Single unit wheel",
-                    text="Default single-wisdom-unit wheel arrangement"
+                    text="Default single-wisdom-unit wheel arrangement",
                 )
                 rationale.save()
 
