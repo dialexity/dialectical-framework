@@ -8,33 +8,34 @@ Apps should override with their own InputResolver for production use.
 from __future__ import annotations
 
 import base64
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 from urllib.parse import unquote
 
 from dialectical_framework.protocols.input_resolver import InputResolver
 
 if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
     from dialectical_framework.graph.nodes.input import Input
 
 
 class VerbatimInputResolver(InputResolver):
     """
-    Default InputResolver that returns content_uri as-is or decodes data: URIs.
+    Default InputResolver that returns content as-is or decodes data: URIs.
 
     Accepts:
-    - Plain text: content_uri="My test content" → returns "My test content"
-    - data: URI: content_uri="data:,Hello%20World" → returns "Hello World"
-    - base64 data: URI: content_uri="data:;base64,SGVsbG8=" → returns "Hello"
+    - Plain text: content="My test content" → returns "My test content"
+    - data: URI: content="data:,Hello%20World" → returns "Hello World"
+    - base64 data: URI: content="data:;base64,SGVsbG8=" → returns "Hello"
 
     This is the framework's minimal default. Apps should provide their own
     InputResolver for production use cases (file uploads, URLs, etc.).
 
     Example:
         # Plain text (simplest)
-        input_node = Input(content_uri="My test content")
+        input_node = Input(content="My test content")
 
         # data: URI (standard format)
-        input_node = Input(content_uri="data:,My%20test%20content")
+        input_node = Input(content="data:,My%20test%20content")
 
         # For production - override with app's resolver
         container.input_resolver.override(providers.Singleton(MyAppResolver))
@@ -42,31 +43,68 @@ class VerbatimInputResolver(InputResolver):
 
     async def resolve(self, input_node: Input) -> str:
         """
-        Resolve content_uri to text content.
+        Resolve content to text.
+
+        The content field can contain:
+        - None or empty (returns empty string)
+        - Plain text (returned as-is)
+        - data: URI (decoded and returned)
+        - Other formats (handled by custom InputResolver implementations)
 
         Args:
-            input_node: Input node with content_uri (plain text or data: URI)
+            input_node: Input node with content (plain text or data: URI)
 
         Returns:
-            Text content
-
-        Raises:
-            ValueError: If content_uri is missing
+            Text content (empty string if content is None)
         """
-        if not input_node.content_uri:
-            raise ValueError(
-                f"Input {input_node.uid} has no content_uri. "
-                f"Provide plain text or a data: URI."
-            )
-
-        uri = input_node.content_uri
+        content = input_node.content
+        if not content:
+            return ""
 
         # If it's a data: URI, decode it
-        if uri.startswith("data:"):
-            return self._decode_data_uri(uri)
+        if content.startswith("data:"):
+            return self._decode_data_uri(content)
 
         # Otherwise, treat as plain text
-        return uri
+        return content
+
+    async def resolve_all(self, source: Union[Brainstorm, list[Input]]) -> str:
+        """
+        Resolve multiple inputs to combined text content.
+
+        Combines all input contents with XML-style delineation:
+        <input content="...">resolved text</input>
+
+        Args:
+            source: Either a Brainstorm node (resolves all connected Inputs)
+                   or a list of Input nodes to resolve
+
+        Returns:
+            Combined text content with each input wrapped in <input> tags
+
+        Raises:
+            ValueError: If no inputs provided
+        """
+        from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+
+        # Get inputs list
+        if isinstance(source, Brainstorm):
+            inputs = [inp for inp, _ in source.inputs.all()]
+        else:
+            inputs = source
+
+        if not inputs:
+            raise ValueError("No inputs provided to resolve")
+
+        # Combine all inputs with delineation (skip inputs with no content)
+        parts = []
+        for input_node in inputs:
+            if not input_node.content:
+                continue  # Skip inputs with None/empty content
+            resolved_text = await self.resolve(input_node)
+            parts.append(f'<Input uid="{input_node.uid}">\n{resolved_text}\n</Input>')
+
+        return "\n\n".join(parts)
 
     @staticmethod
     def _decode_data_uri(uri: str) -> str:

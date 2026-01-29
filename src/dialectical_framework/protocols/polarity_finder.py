@@ -1,43 +1,59 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Union
+from typing import TYPE_CHECKING, Protocol, Union
 
-from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
-from dialectical_framework.protocols.reloadable import Reloadable
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.ideas import Ideas
+    from dialectical_framework.graph.nodes.input import Input
 
 
-class PolarityFinder(Reloadable):
+class PolarityFinder(Protocol):
     """
     Protocol for orchestrating polarity extraction (thesis-antithesis pair coordination).
+
+    Extractors are standalone services that:
+    1. Resolve content from source (Input or Ideas) via InputResolver
+    2. Extract thesis-antithesis polarity pairs
+    3. Create DialecticalComponent graph nodes
+    4. Connect components to source.statements (HAS_STATEMENT)
+    5. Create OPPOSITE_OF relationship between thesis and antithesis
+    6. Return the created graph node pairs
 
     This protocol handles:
     - Input normalization (strings, lists, tuples)
     - Selective generation (via `at` parameter)
     - Deduplication across the matrix
-    - DTO creation with proper aliases
-
-    All methods return DTOs - conversion to graph nodes happens in the reasoning layer.
+    - Proper alias assignment
     """
 
     @abstractmethod
     async def extract_polarities(
         self,
         *,
-        given: Union[str, list[str | None], list[tuple[str | None, str | None]]] = None,
+        source: Union[Input, Ideas],
+        given: Union[
+            str,
+            list[Union[str, DialecticalComponent, None]],
+            list[tuple[Union[str, DialecticalComponent, None], Union[str, DialecticalComponent, None]]],
+        ] = None,
         at: None | int | list[int] = None,
-        not_like_these: list[str] | None = None
-    ) -> list[tuple[DialecticalComponentDto, DialecticalComponentDto]]:
+        not_like_these: list[str] | None = None,
+    ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:
         """
         Extract polarities (thesis-antithesis pairs) with optional selective generation.
 
-        This method provides flexible polarity extraction with support for partial inputs and
-        selective generation control. It intelligently generates missing components while avoiding
-        duplicates across the entire matrix.
+        Creates graph nodes for each polarity pair with:
+        - Both components connected to source.statements (HAS_STATEMENT)
+        - OPPOSITE_OF relationship between thesis and antithesis
 
         Parameters
         ----------
-        given : Union[str, list[str | None], list[tuple[str | None, str | None]]], optional
+        source : Input | Ideas
+            Input or Ideas node to extract from and attach results to.
+
+        given : Union[str, list[...], list[tuple[...]]], optional
             Input specification for polarities. Supports multiple formats:
 
             **Simple formats:**
@@ -52,9 +68,7 @@ class PolarityFinder(Reloadable):
             - `[(None, "antithesis")]`: Generate thesis (opposite) for provided antithesis
             - `[("thesis", "antithesis")]`: Both provided, no generation needed
 
-            **Mixed formats:**
-            - `[("Love", None), (None, "Hate"), ("Peace", "War"), (None, None)]`
-              Handles any combination of complete, partial, or empty tuples
+            Can also accept DialecticalComponent graph nodes instead of strings.
 
             Maximum 4 polarities supported.
 
@@ -70,33 +84,21 @@ class PolarityFinder(Reloadable):
             - `list[int]` (e.g., `at=[0, 2]`): Generate at multiple specific indices.
               Only specified indices are completed; others remain incomplete.
 
-            **Deduplication:** When `at` is specified, all known statements from the
-            entire `given` matrix are passed as `not_like_these` to avoid duplicate
-            concepts during generation.
-
-            **Complete tuples:** If an index in `at` has both thesis and antithesis
-            already provided, no generation occurs—the tuple is simply preserved.
-
-        not_like_these: list[str] | None, optional
-            Some statements to hint that we don't need to generate them.
+        not_like_these : list[str] | None, optional
+            Statements to avoid duplicating during generation.
 
         Returns
         -------
-        list[tuple[DialecticalComponentDto, DialecticalComponentDto]]
-            List of (thesis, antithesis) DTO tuples with proper aliases and indices.
+        list[tuple[DialecticalComponent, DialecticalComponent]]
+            List of (thesis, antithesis) graph node tuples.
+            Each pair has OPPOSITE_OF relationship set.
 
             **When `at=None` (default):**
             All tuples are complete (no empty statements).
 
             **When `at` is specified:**
-            - Indices in `at`: Complete tuples (both components have statements)
-            - Indices NOT in `at`: May contain empty components:
-                - `(DialecticalComponentDto(statement="thesis"), DialecticalComponentDto(statement=""))`
-                  if only thesis was provided
-                - `(DialecticalComponentDto(statement=""), DialecticalComponentDto(statement="antithesis"))`
-                  if only antithesis was provided
-                - `(DialecticalComponentDto(statement=""), DialecticalComponentDto(statement=""))`
-                  if neither was provided
+            - Indices in `at`: Complete tuples
+            - Indices NOT in `at`: May contain components with empty statements
 
         Raises
         ------

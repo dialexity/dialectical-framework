@@ -5,15 +5,16 @@ Protocol for resolving Input nodes to text content.
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, Union
 
 if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
     from dialectical_framework.graph.nodes.input import Input
 
 
 class InputResolver(Protocol):
     """
-    Resolves Input.content_uri to text content.
+    Resolves Input or Brainstorm nodes to text content.
 
     Apps implement this protocol to handle their specific content sources
     (uploaded files, URLs, session storage, etc.).
@@ -24,10 +25,10 @@ class InputResolver(Protocol):
     Example:
         class MyAppResolver(InputResolver):
             async def resolve(self, input_node: Input) -> str:
-                uri = input_node.content_uri
-                if uri.startswith("session://"):
-                    return await self._cache.get(uri)
-                raise ValueError(f"Unknown scheme: {uri}")
+                content = input_node.content
+                if content.startswith("session://"):
+                    return await self._cache.get(content)
+                raise ValueError(f"Unknown scheme: {content}")
 
         container.input_resolver.override(providers.Singleton(MyAppResolver))
     """
@@ -35,16 +36,35 @@ class InputResolver(Protocol):
     @abstractmethod
     async def resolve(self, input_node: Input) -> str:
         """
-        Resolve Input.content_uri to text content.
+        Resolve single Input.content to text content.
 
         Args:
-            input_node: Input node with content_uri to resolve.
+            input_node: Input node with content to resolve (plain text, URI, etc.).
                         Can traverse to Ideas via input_node.ideas for intent hints.
 
         Returns:
-            Text content from the URI
+            Text content (either as-is or resolved from URI).
+            May return empty string if content is None (implementation-dependent).
 
         Raises:
-            ValueError: If content_uri is missing or unsupported
+            ValueError: If content format is unsupported (implementation-dependent)
+        """
+        ...
+
+    @abstractmethod
+    async def resolve_all(self, source: Union[Brainstorm, list[Input]]) -> str:
+        """
+        Resolve multiple inputs to combined text content.
+
+        Args:
+            source: Either a Brainstorm node (resolves all connected Inputs)
+                   or a list of Input nodes to resolve
+
+        Returns:
+            Combined text content from all inputs.
+            Implementation decides how to format/combine the content.
+
+        Raises:
+            ValueError: If no inputs provided to resolve
         """
         ...

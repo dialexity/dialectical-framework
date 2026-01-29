@@ -8,9 +8,7 @@ causal relationships and estimating transition probabilities.
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Union
-
-from dialectical_framework.protocols.reloadable import Reloadable
+from typing import TYPE_CHECKING, Protocol, Union
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -18,9 +16,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
-class CausalitySequencer(Reloadable):
+class CausalitySequencer(Protocol):
     """
-    Abstract protocol for arranging dialectical components into causal cycles.
+    Protocol for arranging dialectical components into causal cycles.
 
     Implementations analyze relationships between components/wisdom units and
     generate ordered cycles with probability estimates. The sequencer handles:
@@ -37,7 +35,10 @@ class CausalitySequencer(Reloadable):
 
     @abstractmethod
     async def arrange(
-        self, thoughts: Union[list[WisdomUnit], list[DialecticalComponent]]
+        self,
+        thoughts: Union[list[WisdomUnit], list[DialecticalComponent]],
+        *,
+        text: str,
     ) -> list[Cycle]:
         """
         Arrange thoughts into causal cycles with normalized probabilities.
@@ -50,6 +51,7 @@ class CausalitySequencer(Reloadable):
             thoughts: Input thoughts to arrange. Either:
                 - list[WisdomUnit]: Extracts T/A components for diagonal symmetry
                 - list[DialecticalComponent]: Generates permutation sequences
+            text: The source text context for AI analysis
 
         Returns:
             List of Cycle objects sorted by probability (highest first). Each cycle

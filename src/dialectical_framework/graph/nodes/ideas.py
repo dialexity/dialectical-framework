@@ -47,7 +47,7 @@ class Ideas(IntentMixin, AssessableEntity, label="Ideas"):
     - Ideas can have multiple extracted statements (via HAS_STATEMENT)
 
     Example:
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
 
         ideas = Ideas(intent="Extract key arguments")

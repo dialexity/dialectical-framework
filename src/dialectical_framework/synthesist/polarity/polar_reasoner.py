@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Self, final
+from typing import final
 
 from dependency_injector.wiring import Provide
 from mirascope import BaseMessageParam, Messages, prompt_template
@@ -31,7 +31,6 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.protocols.antithesis_extractor import AntithesisExtractor
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.polarity_finder import PolarityFinder
-from dialectical_framework.protocols.reloadable import Reloadable
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
@@ -47,59 +46,27 @@ from dialectical_framework.validator.basic_checks import (check,
 from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from gqlalchemy import Memgraph, Neo4j
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.input import Input
+    from dialectical_framework.graph.nodes.ideas import Ideas
 
 
+class PolarReasoner(HasBrain):
+    """
+    Stateless polar reasoner that takes text as method parameter.
 
+    Generates WisdomUnits from thesis/antithesis pairs through dialectical reasoning.
+    """
 
-class PolarReasoner(HasBrain, Reloadable):
     def __init__(
         self,
-        *,
-        text: str = "",
         polarity_finder: PolarityFinder = Provide[DI.polarity_finder],
         antithesis_extractor: AntithesisExtractor = Provide[DI.antithesis_extractor],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ):
-        self._text = text
-        self._wisdom_unit = None
-
-        self._intent: str = "preset:general_concepts"
-
-        # Store perspectives (list of graph-native WisdomUnits)
-        self._perspectives: list[WisdomUnit] = []
-
         self._polarity_finder = polarity_finder
-        self._polarity_finder.reload(text=text)
-
         self._antithesis_extractor = antithesis_extractor
-        self._antithesis_extractor.reload(text=text)
-
         self._graph_db = graph_db
-
-    @property
-    def text(self) -> str:
-        return self._text
-
-    def reload(
-        self, *, text: str, perspectives: WisdomUnit | list[WisdomUnit] = None
-    ) -> Self:
-        self._text = text
-        self._polarity_finder.reload(text=text)
-        self._antithesis_extractor.reload(text=text)
-
-        if not perspectives:
-            perspectives = []
-        if isinstance(perspectives, WisdomUnit):
-            perspectives = [perspectives]
-
-        self._perspectives = perspectives
-
-        if perspectives:
-            # Take last perspective as active
-            self._wisdom_unit = perspectives[-1]
-        else:
-            self._wisdom_unit = None
-        return self
 
     @prompt_template(
         """
@@ -209,26 +176,26 @@ class PolarReasoner(HasBrain, Reloadable):
         """
         MESSAGES:
         {wu_construction}
-    
+
         USER:
         Identifying Positive and Negative Syntheses
 
         USER:
         Consider the dialectical components identified in previous analysis:
         {wu_dcs:list}
-        
+
         For the pair of thesis and antithesis, identify both positive synthesis (S+) and negative synthesis (S-):
-        
+
         S+ (Positive Synthesis): The emergent quality that arises when the positive/constructive aspects (T+ and A+) are combined in complementary harmony. This represents a new dimension where 1+1>2, expanding possibilities while preserving the unique value of each component. Consider the birth of a child from two parents, or binocular vision producing depth perception.
 
         S- (Negative Synthesis): The uniformity that results when negative/exaggerated aspects (T- and A-) reinforce each other. This represents reduction of dimensionality where 1+1<2, increasing intensity along limited axes at the expense of diversity. Examples include pendulums aligning their rhythms, or centralized rules that suppress variation.
-         
+
         Output the dialectical components S+ and S-. Compose the explanation how it was derived in the passive voice. Don't mention any special denotations such as "T", "T+" or "A-" in the explanation. To the explanation add a concrete real life example.
         """
     )
-    def prompt_synthesis(self, wisdom_unit: WisdomUnit) -> "Messages.Type":
+    def prompt_synthesis(self, wisdom_unit: WisdomUnit, *, text: str) -> "Messages.Type":
         tpl = ReverseEngineer.till_wisdom_units(
-            wisdom_units=[wisdom_unit], text=self._text
+            wisdom_units=[wisdom_unit], text=text
         )
         wu_dcs = []
         # Iterate through all 6 core positions
@@ -350,18 +317,29 @@ class PolarReasoner(HasBrain, Reloadable):
     async def find_next(
         self,
         wu_so_far: WisdomUnit,
+        *,
+        text: str,
+        perspectives: list[WisdomUnit] | None = None,
     ) -> DialecticalComponentsDeckDto:
         """
+        Find the next missing component in a WisdomUnit.
+
+        Args:
+            wu_so_far: The WisdomUnit being built
+            text: Source text context
+            perspectives: Optional list of existing WisdomUnits for context.
+                         If provided, they are used to build conversation history.
+
         Raises:
             StopIteration: if nothing needs to be found anymore
         """
         prompt = self.prompt_next(wu_so_far)
-        if self._perspectives:
+        if perspectives:
             tpl = ReverseEngineer.till_wisdom_units(
-                wisdom_units=self._perspectives, text=self._text
+                wisdom_units=perspectives, text=text
             )
         else:
-            tpl = ReverseEngineer().prompt_input_text(text=self.text)
+            tpl = ReverseEngineer().prompt_input_text(text=text)
 
         return extend_tpl(tpl, prompt)
 
@@ -370,109 +348,104 @@ class PolarReasoner(HasBrain, Reloadable):
     async def find_synthesis(
         self,
         wu: WisdomUnit,
+        *,
+        text: str,
     ) -> DialecticalComponentsDeckDto:
-        return self.prompt_synthesis(wu)
+        return self.prompt_synthesis(wu, text=text)
 
     @final
     async def _find_polarity(
         self,
         *,
+        source: Union[Input, Ideas],
         thesis: str | DialecticalComponent | DialecticalComponentDto = None,
         antithesis: str | DialecticalComponent | DialecticalComponentDto = None
-    ) -> tuple[DialecticalComponentDto, DialecticalComponentDto]:
+    ) -> tuple[DialecticalComponent, DialecticalComponent]:
         """
-        Find polarity pair (thesis, antithesis) as DTOs.
+        Find polarity pair (thesis, antithesis) as graph nodes.
 
-        Accepts:
-        - str: statement text
-        - DialecticalComponent: graph-native node (converts to DTO)
-        - DialecticalComponentDto: already a DTO
+        Args:
+            source: Input or Ideas node for extraction context
+            thesis: statement text, graph-native node, or DTO
+            antithesis: statement text, graph-native node, or DTO
 
-        Returns DTOs - conversion to graph happens in the calling method.
+        Returns graph nodes (already connected to source.statements with OPPOSITE_OF relationship).
         """
-        # Helper to extract statement string from any input type
-        def get_statement(input_val):
-            if isinstance(input_val, DialecticalComponentDto):
-                return input_val.statement
-            elif isinstance(input_val, DialecticalComponent):
-                return input_val.statement  # Graph-native node
+        # Helper to normalize input to what polarity_finder expects (DialecticalComponent, str, or None)
+        def normalize_input(input_val) -> DialecticalComponent | str | None:
+            if isinstance(input_val, DialecticalComponent):
+                return input_val  # Pass graph node directly
+            elif isinstance(input_val, DialecticalComponentDto):
+                # Convert DTO to graph node (includes rationale creation)
+                if not input_val.statement:
+                    return None  # Treat empty statement as None
+                return component_from_dto(input_val)
             else:
-                return input_val  # Already a string or None
+                return input_val or None  # String or None, treat "" as None
 
-        if not isinstance(thesis, DialecticalComponentDto) or not isinstance(antithesis, DialecticalComponentDto):
-            # Extract polarities using polarity finder (returns DTOs)
-            polarity = await self._polarity_finder.extract_polarities(
-                given=[(get_statement(thesis), get_statement(antithesis))]
-            )
-            t_dto, a_dto = polarity[0]
-            if isinstance(thesis, DialecticalComponentDto):
-                t_dto = thesis
-                a_dto.set_human_friendly_index(thesis.get_human_friendly_index())
-            elif isinstance(antithesis, DialecticalComponentDto):
-                a_dto = antithesis
-                t_dto.set_human_friendly_index(antithesis.get_human_friendly_index())
-        else:
-            t_dto = thesis
-            a_dto = antithesis
+        # If both are already graph nodes, return them directly
+        if isinstance(thesis, DialecticalComponent) and isinstance(antithesis, DialecticalComponent):
+            return thesis, antithesis
 
-        return t_dto, a_dto
+        # Extract polarities using polarity finder (returns graph nodes)
+        # Pass DialecticalComponents directly to avoid creating redundant nodes
+        polarity = await self._polarity_finder.extract_polarities(
+            source=source,
+            given=[(normalize_input(thesis), normalize_input(antithesis))]
+        )
+        t_node, a_node = polarity[0]
+
+        return t_node, a_node
 
     @final
     async def think(
         self,
         *,
+        source: Union[Input, Ideas],
+        text: str,
         thesis: str | DialecticalComponent | DialecticalComponentDto = None,
-        antithesis: str | DialecticalComponent | DialecticalComponentDto = None
+        antithesis: str | DialecticalComponent | DialecticalComponentDto = None,
+        intent: str = "preset:general_concepts",
+        nexus: Nexus | None = None,
     ) -> WisdomUnit:
         """
         Core reasoning method that generates a WisdomUnit from thesis and antithesis.
 
         Args:
+            source: Input or Ideas node (for SOA extractors)
+            text: Source text context for AI prompts
             thesis: String statement, graph-native DialecticalComponent, or DialecticalComponentDto
             antithesis: String statement, graph-native DialecticalComponent, or DialecticalComponentDto
+            intent: The reasoning intent (default: "preset:general_concepts")
+            nexus: Optional Nexus to connect the WU to (for querying sibling WUs)
 
         Returns:
             Graph-native WisdomUnit persisted to the database
         """
-        # Handle graph-native components separately (reuse existing nodes)
-        if isinstance(thesis, DialecticalComponent) or isinstance(antithesis, DialecticalComponent):
-            # At least one input is already a graph node - handle each separately
-            if isinstance(thesis, DialecticalComponent):
-                t = thesis  # Reuse existing component node
-                t_alias = POSITION_T
-            else:
-                # Extract thesis as DTO and create new component
-                t_dto, _ = await self._find_polarity(thesis=thesis, antithesis=None)
-                t = component_from_dto(t_dto)
-                t_alias = t_dto.alias if t_dto.alias else POSITION_T
+        # Query perspectives from nexus if provided
+        perspectives: list[WisdomUnit] = []
+        if nexus:
+            perspectives = [wu for wu, _ in nexus.wisdom_units.all()]
 
-            if isinstance(antithesis, DialecticalComponent):
-                a = antithesis  # Reuse existing component node
-                a_alias = POSITION_A
-            else:
-                # Extract antithesis as DTO and create new component
-                _, a_dto = await self._find_polarity(thesis=None, antithesis=antithesis)
-                a = component_from_dto(a_dto)
-                a_alias = a_dto.alias if a_dto.alias else POSITION_A
-        else:
-            # Both are strings/DTOs - extract as pair (more efficient)
-            t_dto, a_dto = await self._find_polarity(thesis=thesis, antithesis=antithesis)
-            t = component_from_dto(t_dto)
-            a = component_from_dto(a_dto)
-            t_alias = t_dto.alias if t_dto.alias else POSITION_T
-            a_alias = a_dto.alias if a_dto.alias else POSITION_A
+        # Use _find_polarity to get graph nodes
+        # polarity_finder now returns graph nodes (already connected to source.statements)
+        t, a = await self._find_polarity(source=source, thesis=thesis, antithesis=antithesis)
+        t_alias = POSITION_T
+        a_alias = POSITION_A
 
         # Create graph WisdomUnit
-        wu = WisdomUnit(intent=self._intent)
+        wu = WisdomUnit(intent=intent)
         wu.save()  # Save the WU node first
 
         # Connect components with typed relationships (validates alias at creation)
         wu.t.connect(t, relationship=TRelationship(alias=t_alias))
         wu.a.connect(a, relationship=ARelationship(alias=a_alias))
 
-        self._wisdom_unit = await self._fill_with_reason(wu)
-        self._perspectives.append(self._wisdom_unit)
-        return self._wisdom_unit
+        # Connect to nexus if provided
+        if nexus:
+            wu.nexus.connect(nexus)
+
+        return await self._fill_with_reason(wu, text=text, perspectives=perspectives)
 
     def _field_to_alias(self, field: str) -> str:
         """
@@ -493,7 +466,13 @@ class PolarReasoner(HasBrain, Reloadable):
         }
         return field_to_alias_map.get(field, field.upper())
 
-    async def _fill_with_reason(self, wu: WisdomUnit) -> WisdomUnit:
+    async def _fill_with_reason(
+        self,
+        wu: WisdomUnit,
+        *,
+        text: str,
+        perspectives: list[WisdomUnit] | None = None,
+    ) -> WisdomUnit:
         empty_count = len(wu.core_positions)
         for position in wu.core_positions:
             if wu.is_set(position):
@@ -508,7 +487,7 @@ class PolarReasoner(HasBrain, Reloadable):
                 We assume here, that with every iteration we will find a new dialectical component(s).
                 If we keep finding the same ones (or not find at all), we will still avoid the infinite loop - that's good.
                 """
-                dc_deck_dto = await self.find_next(wu)
+                dc_deck_dto = await self.find_next(wu, text=text, perspectives=perspectives)
                 # Convert DTOs to graph components
                 for dc_dto in dc_deck_dto.dialectical_components:
                     dto_alias = dc_dto.alias
@@ -534,14 +513,16 @@ class PolarReasoner(HasBrain, Reloadable):
     async def redefine(
         self,
         *,  # ← everything after * is keyword-only
-        original: WisdomUnit | None = None,
+        original: WisdomUnit,
+        text: str = "",
         **modified_dialectical_components,
     ) -> WisdomUnit:
         """
         This method doesn't mutate the original WisdomUnit. It returns a fresh instance.
 
         Args:
-            original: The original WisdomUnit to base modifications on
+            original: The original WisdomUnit to base modifications on (required)
+            text: Source text context for regeneration (if needed)
             **modified_dialectical_components: Field names (t, a, t_plus, etc.) mapped to new statement strings
 
         Returns:
@@ -549,15 +530,6 @@ class PolarReasoner(HasBrain, Reloadable):
         """
 
         warnings: dict[str, list[str]] = {}
-
-        if original is None:
-            original = self._wisdom_unit
-
-        if original is None:
-            raise ValueError("Wisdom unit is not generated yet.")
-
-        # Replace it in case the parameter "original" was given
-        self._wisdom_unit = original
 
         # Valid field names for WisdomUnit (6 core positions only)
         valid_fields = {'t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus'}
@@ -640,7 +612,7 @@ class PolarReasoner(HasBrain, Reloadable):
                 if changed.get(base_pos) and not changed.get(other_pos):
                     # base side changed - regenerate other
                     orig_other = original.get_component(other_pos)
-                    o_dto = await self._antithesis_extractor.extract_single_antithesis(thesis=base_comp.statement)
+                    o_dto = await self._antithesis_extractor.extract_single_antithesis(text=text, thesis=base_comp.statement)
 
                     # Check if regenerated statement matches original
                     if orig_other and orig_other.statement == o_dto.statement:
@@ -663,7 +635,7 @@ class PolarReasoner(HasBrain, Reloadable):
                 elif changed.get(other_pos) and not changed.get(base_pos):
                     # other side changed - regenerate base
                     orig_base = original.get_component(base_pos)
-                    bm_dto = await self._antithesis_extractor.extract_single_antithesis(thesis=other_comp.statement)
+                    bm_dto = await self._antithesis_extractor.extract_single_antithesis(text=text, thesis=other_comp.statement)
 
                     # Check if regenerated statement matches original
                     if orig_base and orig_base.statement == bm_dto.statement:

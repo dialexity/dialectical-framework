@@ -5,6 +5,7 @@ from langfuse.decorators import observe
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 # Graph-native imports
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as GraphDialecticalComponent
+from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as GraphWisdomUnit
 from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
@@ -43,16 +44,16 @@ async def test_bigger_wheel(number_of_thoughts):
     elif number_of_thoughts == 4:
         assert len(wheels) == 8
 
-    # Graph-native: use ta_cycle instead of cycle
-    ta_cycle_result = wheels[0].ta_cycle.get()
-    assert ta_cycle_result is not None
+    # Graph-native: get cycle relationship
+    cycle_result = wheels[0].cycle.get()
+    assert cycle_result is not None
 
     # Graph-native: get cycle and access probability
     cycle_probs = []
     for w in wheels:
-        ta_cycle_result = w.ta_cycle.get()
-        if ta_cycle_result:
-            cycle_obj, _ = ta_cycle_result
+        cycle_result = w.cycle.get()
+        if cycle_result:
+            cycle_obj, _ = cycle_result
             if cycle_obj.probability is not None:
                 cycle_probs.append(cycle_obj.probability)
 
@@ -80,9 +81,12 @@ async def test_reasoner(di_container, reasoner_cls):
                 reasoner_cls,
             )
     ):
+        # Create Input node for SOA-ready extractors
+        input_node = Input(content=user_message)
+        input_node.save()
+
         reasoner = di_container.polar_reasoner()
-        reasoner.reload(text=user_message)
-        wu = await reasoner.think()
+        wu = await reasoner.think(source=input_node, text=user_message)
         assert wu.is_complete()
         print("\n")
         print(wu)
@@ -193,10 +197,10 @@ async def test_causality_sequencer(di_container):
     wu2.a.connect(a2, properties={'alias': 'A2'})
 
     # Test causality sequencer (DI will inject brain and settings automatically)
-    sequencer = CausalitySequencerBalanced(text="Remote work and async communication")
+    sequencer = CausalitySequencerBalanced()
 
     # Arrange WisdomUnits into cycles
-    cycles = await sequencer.arrange([wu1, wu2])
+    cycles = await sequencer.arrange([wu1, wu2], text="Remote work and async communication")
 
     # Assertions
     assert len(cycles) > 0, "Should generate at least one cycle"
@@ -244,7 +248,7 @@ async def test_redefine_is_dirty_optimization():
     wheels = await factory.build_wheel_permutations(theses=[None, None])
 
     original_wheel_uid = wheels[0].uid
-    original_wu_uids = [wu.uid for wu, _ in wheels[0].wisdom_units.all()]
+    original_wu_uids = [wu.uid for wu in wheels[0].wisdom_units]  # wisdom_units is a list property
 
     # Test 1: Empty dict - should preserve originals (first-level optimization)
     new_wheels = await factory.redefine(modified_statement_per_alias={})
@@ -259,7 +263,7 @@ async def test_redefine_is_dirty_optimization():
 
     # Test 2: Redefine with same statements - should preserve originals (second-level optimization)
     # Get original statements
-    wus = sorted([wu for wu, _ in wheels[0].wisdom_units.all()], key=lambda wu: wu.get_human_friendly_index())
+    wus = sorted(wheels[0].wisdom_units, key=lambda wu: wu.get_human_friendly_index())
     original_t1_statement = wus[0].get_component("T").statement if wus[0].get_component("T") else None
 
     if original_t1_statement:
@@ -270,7 +274,7 @@ async def test_redefine_is_dirty_optimization():
         assert new_wheels2[0].uid == original_wheel_uid, "Redefine with same statement should preserve original wheel"
 
         # WU should be the same (reasoner returned original)
-        new_wu_uids = [wu.uid for wu, _ in new_wheels2[0].wisdom_units.all()]
+        new_wu_uids = [wu.uid for wu in new_wheels2[0].wisdom_units]
         assert new_wu_uids == original_wu_uids, "WUs should be unchanged when statement is identical"
 
         print("\n=== Second-level is_dirty optimization test passed ===")
@@ -285,25 +289,26 @@ async def test_selective_synthesis():
     wheels = await factory.build_wheel_permutations(theses=[None, None])
     wheel = wheels[0]
 
-    wus = [wu for wu, _ in wheel.wisdom_units.all()]
+    wus = wheel.wisdom_units  # wisdom_units is already a list property
     assert len(wus) == 2, "Should have 2 WUs"
 
     # Synthesize only first WU
+    # Note: Synthesis connects to Transformation. Without calculate_transitions,
+    # the WU may not have a transformation, so synthesis.target may be None.
     syntheses = await factory.calculate_syntheses(wheel=wheel, at=wus[0])
 
     assert len(syntheses) == 1, "Should create synthesis for 1 WU only"
 
-    # Verify synthesis is connected to the correct WU
+    # Verify synthesis was created with S+/S- components
     synthesis = syntheses[0]
-    wu_result = synthesis.wisdom_unit.get()
-    assert wu_result is not None, "Synthesis should be connected to WU"
-    connected_wu, _ = wu_result
-    assert connected_wu.uid == wus[0].uid, "Synthesis should be connected to first WU"
+    assert synthesis.s_plus.get() is not None, "Synthesis should have S+ component"
+    assert synthesis.s_minus.get() is not None, "Synthesis should have S- component"
 
     # Verify wheel was rescored after synthesis
     assert wheel.score is not None, "Wheel should be rescored after synthesis"
 
     print("\n=== Selective synthesis test passed ===")
     print(f"Created {len(syntheses)} synthesis for 1 WU")
-    print(f"Synthesis connected to WU: {connected_wu.uid}")
+    print(f"Synthesis S+: {synthesis.s_plus.get()[0].statement if synthesis.s_plus.get() else 'None'}")
+    print(f"Synthesis S-: {synthesis.s_minus.get()[0].statement if synthesis.s_minus.get() else 'None'}")
     print(f"Wheel score after synthesis: {wheel.score}")

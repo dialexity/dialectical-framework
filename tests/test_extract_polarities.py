@@ -42,7 +42,7 @@ async def test_find_polarities(given, expected_count):
 
 async def _test_find_polarities_logic(given, expected_count):
     factory = DialecticalReasoning.wheel_builder(text=user_message)
-    polarities = await factory.polarity_finder.extract_polarities(given=given)
+    polarities = await factory.polarity_finder.extract_polarities(text=user_message, given=given)
 
     assert len(polarities) == expected_count
 
@@ -72,7 +72,7 @@ async def test_extract_polarities_selective_at_single_index():
     ]
 
     # Generate only at index 0
-    result = await factory.polarity_finder.extract_polarities(given=given, at=0)
+    result = await factory.polarity_finder.extract_polarities(text=user_message, given=given, at=0)
 
     assert len(result) == 3
     # Index 0 should have both thesis and antithesis
@@ -103,7 +103,7 @@ async def test_extract_polarities_selective_at_multiple_indices():
     ]
 
     # Generate only at indices 0 and 2
-    result = await factory.polarity_finder.extract_polarities(given=given, at=[0, 2])
+    result = await factory.polarity_finder.extract_polarities(text=user_message, given=given, at=[0, 2])
 
     assert len(result) == 3
     # Indices 0 and 2 should have both thesis and antithesis
@@ -132,7 +132,7 @@ async def test_extract_polarities_selective_with_not_like_these():
         ("Peace", None),  # Index 1: will generate antithesis, should not duplicate "Hate"
     ]
 
-    result = await factory.polarity_finder.extract_polarities(given=given, at=1)
+    result = await factory.polarity_finder.extract_polarities(text=user_message, given=given, at=1)
 
     assert len(result) == 2
     # Index 0 should remain unchanged
@@ -161,11 +161,11 @@ async def test_extract_polarities_out_of_bounds_error():
 
     # Try to access index 3 when only 2 elements exist
     with pytest.raises(IndexError, match="Index 3 is out of bounds"):
-        await factory.polarity_finder.extract_polarities(given=given, at=3)
+        await factory.polarity_finder.extract_polarities(text=user_message, given=given, at=3)
 
     # Try negative index
     with pytest.raises(IndexError, match="Index -1 is out of bounds"):
-        await factory.polarity_finder.extract_polarities(given=given, at=-1)
+        await factory.polarity_finder.extract_polarities(text=user_message, given=given, at=-1)
 
     print("\n=== Test: Out of bounds error raised correctly ===")
 
@@ -182,7 +182,7 @@ async def test_extract_polarities_default_behavior():
     ]
 
     # Without 'at' parameter, should generate all missing components
-    result = await factory.polarity_finder.extract_polarities(given=given)
+    result = await factory.polarity_finder.extract_polarities(text=user_message, given=given)
 
     assert len(result) == 2
     # Both should have thesis and antithesis (non-empty)

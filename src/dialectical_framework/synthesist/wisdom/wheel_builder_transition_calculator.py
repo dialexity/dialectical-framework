@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     def __init__(self, builder: WheelBuilder):
-        super().__init__(text=builder.text)
+        super().__init__(text=builder.text, source=builder.source)
         self.__decorated_builder = builder
 
     @property
@@ -37,6 +37,14 @@ class WheelBuilderTransitionCalculator(WheelBuilder, ABC):
     @property
     def text(self) -> str | None:
         return self.__decorated_builder.text
+
+    @property
+    def source(self):
+        return self.__decorated_builder.source
+
+    @property
+    def input_resolver(self):
+        return self.__decorated_builder.input_resolver
 
     @property
     def settings(self) -> Settings:

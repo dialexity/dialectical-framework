@@ -390,7 +390,7 @@ class DialecticalComponentRepository:
             roots = repo.get_root_inputs(wheel)
             print(f"This wheel synthesizes {len(roots)} original sources:")
             for input_node in roots:
-                print(f"  - {input_node.content_uri}")
+                print(f"  - {input_node.content}")
         """
         if node._id is None:
             return set()

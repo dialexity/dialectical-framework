@@ -53,7 +53,7 @@ class Brainstorm(IntentMixin, AssessableEntity, label="Brainstorm"):
         brainstorm = Brainstorm(intent="Explore remote work dynamics")
         brainstorm.save()
 
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
         brainstorm.inputs.connect(input_node)
 

@@ -23,8 +23,8 @@ class TestVerbatimInputResolver:
 
     @pytest.mark.asyncio
     async def test_resolve_plain_text(self, resolver: VerbatimInputResolver):
-        """Returns plain text content_uri as-is."""
-        input_node = Input(content_uri="My test content")
+        """Returns plain text content as-is."""
+        input_node = Input(content="My test content")
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -34,7 +34,7 @@ class TestVerbatimInputResolver:
     async def test_resolve_plain_text_multiline(self, resolver: VerbatimInputResolver):
         """Returns multiline plain text as-is."""
         content = "Line 1\nLine 2\nLine 3"
-        input_node = Input(content_uri=content)
+        input_node = Input(content=content)
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -44,7 +44,7 @@ class TestVerbatimInputResolver:
     async def test_resolve_plain_text_unicode(self, resolver: VerbatimInputResolver):
         """Returns unicode plain text as-is."""
         content = "Unicode: éàü 中文 🎉"
-        input_node = Input(content_uri=content)
+        input_node = Input(content=content)
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -55,7 +55,7 @@ class TestVerbatimInputResolver:
     @pytest.mark.asyncio
     async def test_resolve_data_uri_plain(self, resolver: VerbatimInputResolver):
         """Decodes URL-encoded data: URI."""
-        input_node = Input(content_uri="data:text/plain,Hello%20World")
+        input_node = Input(content="data:text/plain,Hello%20World")
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -64,7 +64,7 @@ class TestVerbatimInputResolver:
     @pytest.mark.asyncio
     async def test_resolve_data_uri_minimal(self, resolver: VerbatimInputResolver):
         """Decodes minimal data: URI without mediatype."""
-        input_node = Input(content_uri="data:,Simple%20text")
+        input_node = Input(content="data:,Simple%20text")
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -75,7 +75,7 @@ class TestVerbatimInputResolver:
         """Decodes base64-encoded data: URI."""
         content = "Hello World"
         encoded = base64.b64encode(content.encode()).decode()
-        input_node = Input(content_uri=f"data:text/plain;base64,{encoded}")
+        input_node = Input(content=f"data:text/plain;base64,{encoded}")
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -84,7 +84,7 @@ class TestVerbatimInputResolver:
     @pytest.mark.asyncio
     async def test_resolve_data_uri_special_characters(self, resolver: VerbatimInputResolver):
         """Decodes URL-encoded special characters in data: URI."""
-        input_node = Input(content_uri="data:text/plain,%C3%A9%C3%A0%C3%BC")  # éàü
+        input_node = Input(content="data:text/plain,%C3%A9%C3%A0%C3%BC")  # éàü
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -93,22 +93,71 @@ class TestVerbatimInputResolver:
     # -- Error cases --
 
     @pytest.mark.asyncio
-    async def test_no_content_uri_raises(self, resolver: VerbatimInputResolver):
-        """Raises ValueError when Input has no content_uri."""
+    async def test_no_content_returns_empty(self, resolver: VerbatimInputResolver):
+        """Returns empty string when Input has no content."""
         input_node = Input()
         input_node.save()
 
-        with pytest.raises(ValueError, match="has no content_uri"):
-            await resolver.resolve(input_node)
+        result = await resolver.resolve(input_node)
+        assert result == ""
 
     @pytest.mark.asyncio
     async def test_invalid_data_uri_raises(self, resolver: VerbatimInputResolver):
         """Raises ValueError for malformed data: URI."""
-        input_node = Input(content_uri="data:text/plain")  # Missing comma
+        input_node = Input(content="data:text/plain")  # Missing comma
         input_node.save()
 
         with pytest.raises(ValueError, match="missing comma separator"):
             await resolver.resolve(input_node)
+
+
+class TestVerbatimInputResolverResolveAll:
+    """Tests for VerbatimInputResolver.resolve_all()."""
+
+    @pytest.fixture
+    def resolver(self) -> VerbatimInputResolver:
+        return VerbatimInputResolver()
+
+    @pytest.mark.asyncio
+    async def test_resolve_all_with_input_list(self, resolver: VerbatimInputResolver):
+        """Resolves list of Inputs with XML delineation."""
+        input1 = Input(content="Content one")
+        input1.save()
+        input2 = Input(content="Content two")
+        input2.save()
+
+        result = await resolver.resolve_all([input1, input2])
+
+        assert '<Input uid="' in result
+        assert "Content one" in result
+        assert "Content two" in result
+
+    @pytest.mark.asyncio
+    async def test_resolve_all_with_brainstorm(self, resolver: VerbatimInputResolver):
+        """Resolves Brainstorm's connected Inputs."""
+        from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+
+        brainstorm = Brainstorm(intent="Test brainstorm")
+        brainstorm.save()
+
+        input1 = Input(content="First input content")
+        input1.save()
+        input2 = Input(content="Second input content")
+        input2.save()
+
+        brainstorm.inputs.connect(input1)
+        brainstorm.inputs.connect(input2)
+
+        result = await resolver.resolve_all(brainstorm)
+
+        assert "First input content" in result
+        assert "Second input content" in result
+
+    @pytest.mark.asyncio
+    async def test_resolve_all_empty_list_raises(self, resolver: VerbatimInputResolver):
+        """Raises ValueError when no inputs provided."""
+        with pytest.raises(ValueError, match="No inputs provided"):
+            await resolver.resolve_all([])
 
 
 class TestInputResolverDI:
@@ -125,7 +174,7 @@ class TestInputResolverDI:
         """Default resolver returns plain text as-is."""
         resolver = di_container.input_resolver()
 
-        input_node = Input(content_uri="Plain text content")
+        input_node = Input(content="Plain text content")
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -136,7 +185,7 @@ class TestInputResolverDI:
         """Default resolver decodes data: URIs."""
         resolver = di_container.input_resolver()
 
-        input_node = Input(content_uri="data:,test%20content")
+        input_node = Input(content="data:,test%20content")
         input_node.save()
 
         result = await resolver.resolve(input_node)
@@ -150,7 +199,16 @@ class TestInputResolverDI:
 
         class MyAppResolver(InputResolver):
             async def resolve(self, input_node):
-                return f"Custom: {input_node.content_uri}"
+                return f"Custom: {input_node.content}"
+
+            async def resolve_all(self, source):
+                from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+                if isinstance(source, Brainstorm):
+                    inputs = [inp for inp, _ in source.inputs.all()]
+                else:
+                    inputs = source
+                parts = [await self.resolve(inp) for inp in inputs]
+                return "\n".join(parts)
 
         di_container.input_resolver.override(
             providers.Singleton(MyAppResolver)
@@ -159,7 +217,7 @@ class TestInputResolverDI:
         try:
             resolver = di_container.input_resolver()
 
-            input_node = Input(content_uri="session://user/doc")
+            input_node = Input(content="session://user/doc")
             input_node.save()
 
             result = await resolver.resolve(input_node)

@@ -2626,10 +2626,10 @@ def test_wisdom_unit_vocabulary_validation():
     # === Gen-0 Test: Components must come from the same Input ===
 
     # Create two separate Inputs
-    input_a = Input(content_uri="https://example.com/article-a")
+    input_a = Input(content="https://example.com/article-a")
     input_a.save()
 
-    input_b = Input(content_uri="https://example.com/article-b")
+    input_b = Input(content="https://example.com/article-b")
     input_b.save()
 
     # Create components for Input A
@@ -2822,7 +2822,7 @@ def test_nexus_vocabulary_validation():
 
     # === Setup: Create Input with components and pool into Nexus ===
 
-    input_source = Input(content_uri="https://example.com/nexus-test")
+    input_source = Input(content="https://example.com/nexus-test")
     input_source.save()
 
     # Create 6 components for the first WU
@@ -2925,7 +2925,7 @@ def test_nexus_vocabulary_validation():
     # === Test 4: Components from different Nexus should be rejected ===
 
     # Create a separate Nexus with different components
-    input_other = Input(content_uri="https://example.com/other-source")
+    input_other = Input(content="https://example.com/other-source")
     input_other.save()
 
     other_comp = DialecticalComponent(statement="Component from other Input")
@@ -3060,7 +3060,7 @@ def test_nexus_vocabulary_context():
     repo = DialecticalComponentRepository()
 
     # Create Input
-    input_node = Input(content_uri="https://example.com/context-test")
+    input_node = Input(content="https://example.com/context-test")
     input_node.save()
 
     # Input is its own vocabulary context
@@ -3154,7 +3154,7 @@ def test_nexus_frozen_after_cycle():
 
     # === Setup: Create Input with components ===
 
-    input_source = Input(content_uri="https://example.com/frozen-nexus-test")
+    input_source = Input(content="https://example.com/frozen-nexus-test")
     input_source.save()
 
     # Create components for WU1

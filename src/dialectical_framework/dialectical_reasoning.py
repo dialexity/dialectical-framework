@@ -156,15 +156,15 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     )
 
     # -- Content Resolution --
-    # Default resolver only handles data: URIs (useful for tests).
+    # Default resolver handles plain text and data: URIs (useful for tests).
     # Apps should override with their own InputResolver for production.
     #
     # Example app setup:
     #   class MyAppResolver(InputResolver):
     #       async def resolve(self, input_node, **kwargs):
-    #           uri = input_node.content_uri
-    #           if uri.startswith("session://"):
-    #               return await self._session_cache.get(uri)
+    #           content = input_node.content
+    #           if content.startswith("session://"):
+    #               return await self._session_cache.get(content)
     #           # ... handle other schemes
     #
     #   container.input_resolver.override(providers.Singleton(MyAppResolver))

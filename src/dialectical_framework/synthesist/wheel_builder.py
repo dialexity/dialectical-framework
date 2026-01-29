@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Union
+from typing import TYPE_CHECKING, Dict, Union
 
 from dependency_injector.wiring import Provide
 
@@ -12,12 +12,15 @@ from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.protocols.polarity_finder import PolarityFinder
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 
 # Graph-native models
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.ideas import Ideas
+from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.synthesis import Synthesis, POSITION_S_PLUS, POSITION_S_MINUS
 from dialectical_framework.graph.nodes.transition import Transition
@@ -30,8 +33,19 @@ from dialectical_framework.graph.scoring.tarorank import TaroRank
 
 from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+
 
 class WheelBuilder(SettingsAware):
+    """
+    Wheel builder that orchestrates SOA-ready extractor services.
+
+    Accepts either:
+    - source: Input or Ideas node (preferred)
+    - text: Raw text (creates Input node automatically)
+    """
+
     def __init__(
         self,
         thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],
@@ -39,28 +53,105 @@ class WheelBuilder(SettingsAware):
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
         polar_reasoner: PolarReasoner = Provide[DI.polar_reasoner],
         tarorank: TaroRank = Provide[DI.tarorank],
+        input_resolver: InputResolver = Provide[DI.input_resolver],
         *,
-        text: str = "",
+        source: Union[Input, Ideas, Brainstorm, None] = None,
+        text: str | None = None,
         wheels: list[Wheel] = None,
     ):
+        """
+        Initialize WheelBuilder.
+
+        Args:
+            source: Input, Ideas, or Brainstorm node
+            text: Direct text (creates Input node if no source provided)
+            wheels: Pre-existing wheels (for continuation)
+        """
+        self.__source = source
         self.__text = text
+        self.__input_source: Input | Ideas | None = None  # Lazy: Input/Ideas for extractors
+        self.__resolved_text: str | None = None  # Lazy cache
         self.__wheels: list[Wheel] = wheels or []
 
-        # TODO: reloading singletons isn't very good design here, because we're guessing the parameters...
-
         self.__thesis_extractor = thesis_extractor
-        self.__thesis_extractor.reload(text=text)
-
         self.__polarity_finder = polarity_finder
-        self.__polarity_finder.reload(text=text)
-
         self.__sequencer = causality_sequencer
-        self.__sequencer.reload(text=text)
-
         self.__reasoner = polar_reasoner
-        self.__reasoner.reload(text=text)
-
         self.__tarorank = tarorank
+        self.__input_resolver = input_resolver
+
+    async def _get_input_source(self) -> Union[Input, Ideas]:
+        """
+        Get or create an Input/Ideas source for extractors.
+
+        Priority:
+        1. If source is Input or Ideas, use it directly
+        2. If source is Brainstorm, get its first Input
+        3. If text provided, create Input node with text as content
+        """
+        if self.__input_source is not None:
+            return self.__input_source
+
+        from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+
+        if isinstance(self.__source, (Input, Ideas)):
+            self.__input_source = self.__source
+        elif isinstance(self.__source, Brainstorm):
+            # Get first Input from Brainstorm
+            inputs = list(self.__source.inputs.all())
+            if inputs:
+                self.__input_source, _ = inputs[0]
+            else:
+                # No inputs in brainstorm - create one
+                input_node = Input(content=self.__text or "")
+                input_node.save()
+                self.__source.inputs.connect(input_node)
+                self.__input_source = input_node
+        elif self.__text is not None:
+            # Create Input from text
+            input_node = Input(content=self.__text)
+            input_node.save()
+            self.__input_source = input_node
+        else:
+            # No source and no text - create empty Input
+            input_node = Input(content="")
+            input_node.save()
+            self.__input_source = input_node
+
+        return self.__input_source
+
+    async def _get_text(self) -> str:
+        """Lazily resolve and cache text content."""
+        if self.__resolved_text is not None:
+            return self.__resolved_text
+
+        # Direct text takes precedence
+        if self.__text is not None:
+            self.__resolved_text = self.__text
+            return self.__resolved_text
+
+        # Resolve from source
+        if self.__source is None:
+            self.__resolved_text = ""
+            return self.__resolved_text
+
+        from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+
+        if isinstance(self.__source, Input):
+            self.__resolved_text = await self.__input_resolver.resolve(self.__source)
+        elif isinstance(self.__source, Ideas):
+            input_result = self.__source.input.get()
+            if input_result:
+                input_node, _ = input_result
+                self.__resolved_text = await self.__input_resolver.resolve(input_node)
+            else:
+                self.__resolved_text = ""
+        elif isinstance(self.__source, Brainstorm):
+            self.__resolved_text = await self.__input_resolver.resolve_all(self.__source)
+        else:
+            self.__resolved_text = ""
+
+        return self.__resolved_text
 
     @property
     def wheel_permutations(self) -> list[Wheel]:
@@ -68,7 +159,23 @@ class WheelBuilder(SettingsAware):
 
     @property
     def text(self) -> str | None:
+        """
+        Return the direct text if provided.
+
+        For resolved text (from source), use _get_text() which is async.
+        This property is for backward compatibility with decorators.
+        """
         return self.__text
+
+    @property
+    def source(self) -> Union[Input, Ideas, Brainstorm, None]:
+        """Return the source node if provided."""
+        return self.__source
+
+    @property
+    def input_resolver(self) -> InputResolver:
+        """Return the input resolver."""
+        return self.__input_resolver
 
     @property
     def thesis_extractor(self) -> ThesisExtractor:
@@ -100,10 +207,13 @@ class WheelBuilder(SettingsAware):
         Returns:
             List of Cycle objects arranged by causality sequencer
         """
+        source = await self._get_input_source()
+        text = await self._get_text()
+
         if theses is None:
             # No theses provided, generate one automatically
-            t_dto = await self.thesis_extractor.extract_single_thesis()
-            t = component_from_dto(t_dto)  # Convert DTO → graph node
+            # Extractor returns graph node directly (already connected to source)
+            t = await self.thesis_extractor.extract_single_thesis(source=source)
             theses = [t]
         else:
             # Handle mixed None, str, and DialecticalComponent values
@@ -117,9 +227,10 @@ class WheelBuilder(SettingsAware):
                     final_theses.append(None)  # Placeholder
                 else:
                     if isinstance(thesis, str):
-                        # Create graph node from string
+                        # Create graph node from string and connect to source
                         provided_thesis = DialecticalComponent(statement=thesis)
                         provided_thesis.save()
+                        source.statements.connect(provided_thesis)
                     else:  # thesis is already DialecticalComponent (graph node)
                         provided_thesis = thesis
                     final_theses.append(provided_thesis)
@@ -131,33 +242,34 @@ class WheelBuilder(SettingsAware):
                 if len(none_positions) == 1:
                     # Single thesis case: place at the correct original position
                     pos = none_positions[0]
-                    generated_thesis_dto = await self.thesis_extractor.extract_single_thesis(not_like_these=known_theses)
-                    generated_thesis = component_from_dto(generated_thesis_dto)  # Convert DTO → graph node
+                    generated_thesis = await self.thesis_extractor.extract_single_thesis(
+                        source=source, not_like_these=known_theses
+                    )
                     final_theses[pos] = generated_thesis
                 else:
                     # Multiple theses case - extract all missing ones at once
-                    t_deck_dto = await self.thesis_extractor.extract_multiple_theses(
+                    generated_theses = await self.thesis_extractor.extract_multiple_theses(
+                        source=source,
                         count=len(none_positions),
                         not_like_these=known_theses
                     )
-                    generated_thesis_dtos = t_deck_dto.dialectical_components
 
                     # Place generated theses in their correct positions
                     for i, pos in enumerate(none_positions):
-                        if i < len(generated_thesis_dtos):
-                            generated_thesis = component_from_dto(generated_thesis_dtos[i])  # Convert DTO → graph node
-                            final_theses[pos] = generated_thesis
+                        if i < len(generated_theses):
+                            final_theses[pos] = generated_theses[i]
 
-                    # Backfill any remaining None (precaution in case fewer were generated than requested)
+                    # Backfill any remaining None (precaution)
                     for pos in none_positions:
                         if final_theses[pos] is None:
-                            generated_thesis_dto = await self.thesis_extractor.extract_single_thesis(not_like_these=known_theses)
-                            generated_thesis = component_from_dto(generated_thesis_dto)  # Convert DTO → graph node
+                            generated_thesis = await self.thesis_extractor.extract_single_thesis(
+                                source=source, not_like_these=known_theses
+                            )
                             final_theses[pos] = generated_thesis
 
             theses = final_theses
 
-        cycles: list[Cycle] = await self.__sequencer.arrange(theses)
+        cycles: list[Cycle] = await self.__sequencer.arrange(theses, text=text)
         return cycles
 
     async def build_wheel_permutations(
@@ -169,10 +281,17 @@ class WheelBuilder(SettingsAware):
 
         The tuple in the thesis list is used to provide antithesis for the thesis, where the first element is the thesis, the second is the antithesis.
         """
+        source = await self._get_input_source()
+        text = await self._get_text()
+
         if t_cycle is None:
             cycles: list[Cycle] = await self.t_cycles(theses=[t[0] if isinstance(t, tuple) else t for t in theses])
             # The first one is the highest probability
             t_cycle = cycles[0]
+
+        # Create Nexus BEFORE building WUs so they can query sibling context
+        nexus = Nexus()
+        nexus.save()
 
         wheel_wisdom_units = []
         for dc in t_cycle.dialectical_components:
@@ -195,19 +314,11 @@ class WheelBuilder(SettingsAware):
                                 antithesis = t[1]
                                 break
 
-            wu = await self.reasoner.think(thesis=dc, antithesis=antithesis)
+            # Pass nexus for sibling context - WU will be connected to it
+            wu = await self.reasoner.think(source=source, text=text, thesis=dc, antithesis=antithesis, nexus=nexus)
             wheel_wisdom_units.append(wu)
 
-        cycles: list[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units)
-
-        # New architecture: WU → Nexus → Cycle → Wheel
-        # Create a shared Nexus for all wisdom units
-        nexus = Nexus()
-        nexus.save()
-
-        # Connect WUs to Nexus (child→parent: WU connects to Nexus)
-        for wu in wheel_wisdom_units:
-            wu.nexus.connect(nexus)
+        cycles: list[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units, text=text)
 
         # Set human-friendly indices on wisdom units if multiple WUs
         if len(wheel_wisdom_units) > 1:
@@ -322,7 +433,8 @@ class WheelBuilder(SettingsAware):
         # Iterate through selected wisdom units
         for wu in wisdom_units:
             # Call reasoner to find synthesis components (returns DTO)
-            synthesis_deck_dto = await self.reasoner.find_synthesis(wu)
+            text = await self._get_text()
+            synthesis_deck_dto = await self.reasoner.find_synthesis(wu, text=text)
 
             # Convert DTOs to graph components
             if len(synthesis_deck_dto.dialectical_components) < 2:
@@ -447,184 +559,84 @@ class WheelBuilder(SettingsAware):
                 "A+": "a_plus",
                 "A-": "a_minus",
             }
+            position = alias_to_position.get(base_alias, base_alias.lower())
+            return (wu_index, position)
 
-            position = alias_to_position.get(base_alias)
-            if not position:
-                raise ValueError(f"Invalid alias: {alias}. Expected format: T, T+, T-, A, A+, A-, or with numbers (T1, A2+, etc.)")
-
-            return wu_index, position
+        text = await self._get_text()
 
         # Group modifications by WU index
-        modifications_by_wu: Dict[int, Dict[str, str]] = {}
+        wu_modifications: Dict[int, Dict[str, str]] = {}
         for alias, statement in modified_statement_per_alias.items():
             wu_index, position = parse_alias(alias)
-            if wu_index not in modifications_by_wu:
-                modifications_by_wu[wu_index] = {}
-            modifications_by_wu[wu_index][position] = statement
+            if wu_index not in wu_modifications:
+                wu_modifications[wu_index] = {}
+            wu_modifications[wu_index][position] = statement
 
-        # Create new wheels with redefined WUs
-        new_wheels: list[Wheel] = []
-
-        # Cache for recalculated cycles (calculated once per unique WU set)
-        recalculated_cycles_cache: dict[tuple[str, ...], tuple[list[Cycle], list[Cycle]]] = {}
-
+        new_wheels = []
         for wheel in self.__wheels:
-            # Get wisdom units from this wheel (ordered by their indices)
-            wus = sorted(
-                wheel.wisdom_units,
-                key=lambda wu: wu.get_human_friendly_index()
-            )
+            # Check if any WU in this wheel needs modification
+            wus = wheel.wisdom_units
+            wheel_is_dirty = False
 
-            # Check if ANY WU in this wheel needs modification (is_dirty optimization)
-            needs_modification = False
+            new_wus = []
             for wu in wus:
-                wu_index = wu.get_human_friendly_index()
-                if wu_index in modifications_by_wu:
-                    needs_modification = True
-                    break
+                wu_idx = wu.get_human_friendly_index()
 
-            if not needs_modification:
-                # No modifications for this wheel - preserve original (is_dirty optimization)
-                new_wheels.append(wheel)
-                continue
+                if wu_idx in wu_modifications:
+                    mods = wu_modifications[wu_idx]
 
-            # Redefine affected WUs
-            new_wus: list[WisdomUnit] = []
+                    # Check if modifications actually change anything
+                    has_changes = False
+                    for pos, new_statement in mods.items():
+                        current = wu.get_component(pos.upper().replace("_PLUS", "+").replace("_MINUS", "-"))
+                        if current is None or current.statement != new_statement:
+                            has_changes = True
+                            break
 
-            for wu in wus:
-                wu_index = wu.get_human_friendly_index()
-
-                if wu_index in modifications_by_wu:
-                    # Redefine this WU with new statements
-                    kwargs = modifications_by_wu[wu_index]
-                    new_wu = await self.reasoner.redefine(original=wu, **kwargs)
-                    new_wus.append(new_wu)
+                    if has_changes:
+                        wheel_is_dirty = True
+                        # Redefine WU
+                        new_wu = await self.reasoner.redefine(original=wu, text=text, **mods)
+                        new_wus.append(new_wu)
+                    else:
+                        # No actual changes - use original
+                        new_wus.append(wu)
                 else:
-                    # Keep original WU (no changes)
+                    # No modifications for this WU - use original
                     new_wus.append(wu)
 
-            # Second-level optimization: If no WUs actually changed after redefine,
-            # preserve the original wheel (avoid expensive cycle recalculation).
-            # reasoner.redefine() returns original WU (same UID) if nothing changed.
-            original_wu_uids = [wu.uid for wu in wus]
-            new_wu_uids = [wu.uid for wu in new_wus]
+            if wheel_is_dirty:
+                # Need to rebuild wheel with modified WUs
+                # Recalculate cycles
+                cycles: list[Cycle] = await self.__sequencer.arrange(new_wus, text=text)
 
-            if original_wu_uids == new_wu_uids:
-                # Nothing changed - preserve original wheel
-                new_wheels.append(wheel)
-                continue
+                # Create new wheels
+                for cycle in cycles:
+                    w = Wheel()
+                    w.save()
 
-            # Recalculate cycles since components have changed
-            # Use cache to avoid redundant LLM calls (multiple wheels may share same WUs)
-            wu_cache_key = tuple(wu.uid for wu in new_wus)
+                    # Create wheel-level transitions
+                    for trans in cycle.transitions:
+                        source_result = trans.source.get()
+                        target_result = trans.target.get()
+                        if source_result and target_result:
+                            source_comp, _ = source_result
+                            target_comp, _ = target_result
 
-            if wu_cache_key not in recalculated_cycles_cache:
-                # Calculate cycles for this WU set
-                thesis_components = [wu.get_component(POSITION_T) for wu in new_wus if wu.get_component(POSITION_T)]
-                recalculated_t_cycles = await self.sequencer.arrange(thesis_components)
-                recalculated_ta_cycles = await self.sequencer.arrange(new_wus)
-                recalculated_cycles_cache[wu_cache_key] = (recalculated_t_cycles, recalculated_ta_cycles)
+                            wheel_trans = Transition()
+                            wheel_trans.save()
+                            wheel_trans.source.connect(source_comp)
+                            wheel_trans.target.connect(target_comp)
+                            wheel_trans.cycle.connect(w)
+
+                    cycle.wheels.connect(w)
+                    new_wheels.append(w)
+
+                    # Score the wheel
+                    self.scorer.calculate_score(w)
             else:
-                # Reuse cached cycles
-                recalculated_t_cycles, recalculated_ta_cycles = recalculated_cycles_cache[wu_cache_key]
+                # No changes - preserve original wheel
+                new_wheels.append(wheel)
 
-            # In new architecture: Wheel belongs to Cycle which belongs to Nexus
-            # Get original cycle from wheel
-            original_cycle_result = wheel.cycle.get()
-            if not original_cycle_result:
-                raise ValueError(f"Original wheel {wheel.uid} missing cycle")
-
-            original_cycle, _ = original_cycle_result
-
-            # Helper function to extract alias sequence from a cycle
-            def get_alias_sequence(cycle: Cycle, wisdom_units: list[WisdomUnit]) -> list[str]:
-                """Extract ordered list of aliases from cycle components."""
-                aliases = []
-                for comp in cycle.dialectical_components:
-                    # Try each WU until we find the one containing this component
-                    for wu in wisdom_units:
-                        try:
-                            alias = comp.get_alias(wu)
-                            aliases.append(alias)
-                            break  # Found it, move to next component
-                        except ValueError:
-                            continue  # Not in this WU, try next
-                return aliases
-
-            # Get alias sequences for original cycle
-            original_wus = wheel.wisdom_units
-            original_ta_aliases = get_alias_sequence(original_cycle, original_wus)
-
-            # Helper function to check if two alias sequences represent the same structure (allowing rotation)
-            def is_same_alias_structure(seq1: list[str], seq2: list[str]) -> bool:
-                """Check if sequences are the same allowing rotation."""
-                if len(seq1) != len(seq2):
-                    return False
-                if set(seq1) != set(seq2):
-                    return False
-                if len(seq1) <= 1:
-                    return True
-                return any(
-                    seq1 == seq2[i:] + seq2[:i]
-                    for i in range(len(seq2))
-                )
-
-            # Find matching new TA-cycle
-            matching_ta_cycle = None
-            for new_ta_cycle in recalculated_ta_cycles:
-                new_ta_aliases = get_alias_sequence(new_ta_cycle, new_wus)
-                if is_same_alias_structure(original_ta_aliases, new_ta_aliases):
-                    matching_ta_cycle = new_ta_cycle
-                    break
-
-            if not matching_ta_cycle:
-                # If no match found, use first one (highest probability)
-                matching_ta_cycle = recalculated_ta_cycles[0] if recalculated_ta_cycles else None
-
-            if not matching_ta_cycle:
-                raise ValueError(f"Could not find matching cycle for wheel {wheel.uid}")
-
-            # New architecture: WU → Nexus → Cycle → Wheel
-            # Create a new Nexus for the new WUs
-            new_nexus = Nexus()
-            new_nexus.save()
-
-            # Connect new WUs to Nexus
-            for wu in new_wus:
-                wu.nexus.connect(new_nexus)
-
-            # Connect T-cycle and TA-cycle to new Nexus
-            if recalculated_t_cycles:
-                for t_cycle in recalculated_t_cycles:
-                    new_nexus.cycles.connect(t_cycle)
-            new_nexus.cycles.connect(matching_ta_cycle)
-
-            # Create new wheel connected to matching TA-cycle
-            new_wheel = Wheel()
-            new_wheel.save()
-
-            # Create wheel-level transitions FIRST (before connecting to cycle)
-            for trans in matching_ta_cycle.transitions:
-                source_result = trans.source.get()
-                target_result = trans.target.get()
-                if source_result and target_result:
-                    source_comp, _ = source_result
-                    target_comp, _ = target_result
-
-                    wheel_trans = Transition()
-                    wheel_trans.save()
-                    wheel_trans.source.connect(source_comp)
-                    wheel_trans.target.connect(target_comp)
-                    wheel_trans.cycle.connect(new_wheel)
-
-            # Connect wheel to cycle (after transitions exist)
-            matching_ta_cycle.wheels.connect(new_wheel)
-
-            new_wheels.append(new_wheel)
-
-        # Note: Scoring is caller's responsibility.
-        # Call scorer.calculate_score(wheel) after all modifications are complete.
-
-        # Update internal wheels list
         self.__wheels = new_wheels
-        return new_wheels
+        return self.__wheels

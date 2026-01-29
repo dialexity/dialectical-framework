@@ -92,7 +92,7 @@ class TestIdeas:
 
     def test_ideas_connects_to_input(self):
         """Ideas should connect to Input via DISTILLED_TO."""
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
 
         ideas = Ideas(intent="Extract key arguments")
@@ -111,7 +111,7 @@ class TestIdeas:
 
     def test_ideas_has_statements(self):
         """Ideas can have multiple statements."""
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
 
         ideas = Ideas(intent="Extract claims")
@@ -155,7 +155,7 @@ class TestBrainstorm:
         brainstorm.save()
 
         # Should be able to connect Input
-        input_node = Input(content_uri="https://example.com")
+        input_node = Input(content="https://example.com")
         input_node.save()
 
         brainstorm.inputs.connect(input_node)
@@ -166,9 +166,9 @@ class TestBrainstorm:
         brainstorm = Brainstorm(intent="Multi-source analysis")
         brainstorm.save()
 
-        input1 = Input(content_uri="https://source1.com")
+        input1 = Input(content="https://source1.com")
         input1.save()
-        input2 = Input(content_uri="https://source2.com")
+        input2 = Input(content="https://source2.com")
         input2.save()
 
         brainstorm.inputs.connect(input1)
@@ -181,7 +181,7 @@ class TestBrainstorm:
         brainstorm = Brainstorm(intent="Test")
         brainstorm.save()
 
-        input_node = Input(content_uri="https://example.com")
+        input_node = Input(content="https://example.com")
         input_node.save()
 
         brainstorm.inputs.connect(input_node)
@@ -200,7 +200,7 @@ class TestBrainstormVocabulary:
         brainstorm = Brainstorm(intent="Test")
         brainstorm.save()
 
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
         brainstorm.inputs.connect(input_node)
 
@@ -217,7 +217,7 @@ class TestBrainstormVocabulary:
         brainstorm = Brainstorm(intent="Test")
         brainstorm.save()
 
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
         brainstorm.inputs.connect(input_node)
 
@@ -238,7 +238,7 @@ class TestBrainstormVocabulary:
         brainstorm = Brainstorm(intent="Test")
         brainstorm.save()
 
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
         brainstorm.inputs.connect(input_node)
 
@@ -266,9 +266,9 @@ class TestBrainstormVocabulary:
         brainstorm = Brainstorm(intent="Multi-source")
         brainstorm.save()
 
-        input1 = Input(content_uri="https://source1.com")
+        input1 = Input(content="https://source1.com")
         input1.save()
-        input2 = Input(content_uri="https://source2.com")
+        input2 = Input(content="https://source2.com")
         input2.save()
 
         brainstorm.inputs.connect(input1)
@@ -292,7 +292,7 @@ class TestBrainstormVocabulary:
         brainstorm = Brainstorm(intent="Test")
         brainstorm.save()
 
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
         brainstorm.inputs.connect(input_node)
 
@@ -316,7 +316,7 @@ class TestBrainstormVocabulary:
         brainstorm = Brainstorm(intent="Empty")
         brainstorm.save()
 
-        input_node = Input(content_uri="https://article.com")
+        input_node = Input(content="https://article.com")
         input_node.save()
         brainstorm.inputs.connect(input_node)
 
@@ -343,7 +343,7 @@ class TestBrainstormIntegration:
         brainstorm.save()
 
         # Add input source
-        input_node = Input(content_uri="https://article.com/remote-work")
+        input_node = Input(content="https://article.com/remote-work")
         input_node.save()
         brainstorm.inputs.connect(input_node)
 

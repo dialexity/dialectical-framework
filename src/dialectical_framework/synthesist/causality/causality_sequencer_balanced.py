@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Self, Union
+from typing import Union
 
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -37,20 +37,9 @@ from dialectical_framework.utils.use_brain import use_brain
 
 
 class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
-    def __init__(self, *, text: str = ""):
-        self.__text = text
-
-    @property
-    def text(self) -> str:
-        return self.__text
-
-    @text.setter
-    def text(self, value: str):
-        self.__text = value
-
-    def reload(self, *, text: str) -> Self:
-        self.text = text
-        return self
+    """
+    Stateless causality sequencer that takes text as method parameter.
+    """
 
     @prompt_template(
         """
@@ -101,7 +90,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
     def prompt_assess_single_sequence(self, *, sequence: str) -> "Messages.Type": ...
 
     async def _estimate_cycles(
-        self, *, sequences: list[list[DialecticalComponent]]
+        self, *, sequences: list[list[DialecticalComponent]], text: str
     ) -> CausalCyclesDeckDto:
         """
         Estimate cycles from graph-native component sequences.
@@ -170,7 +159,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             )
             tpl = ReverseEngineer.till_theses(
                 theses=dialectical_components_deck_dto.dialectical_components,
-                text=self.text
+                text=text
             )
             return extend_tpl(tpl, prompt)
 
@@ -183,7 +172,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
                 tpl = ReverseEngineer.till_theses(
                     theses=dialectical_components_deck_dto.dialectical_components,
-                    text=self.text
+                    text=text
                 )
                 return extend_tpl(tpl, prompt)
 
@@ -214,7 +203,10 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         return result
 
     async def arrange(
-        self, thoughts: Union[list[WisdomUnit], list[DialecticalComponent]]
+        self,
+        thoughts: Union[list[WisdomUnit], list[DialecticalComponent]],
+        *,
+        text: str,
     ) -> list[Cycle]:
         sequences = self._get_sequences(thoughts)
 
@@ -299,7 +291,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 raise ValueError(
                     f"{len(ordered_wisdom_units)} thoughts are not supported yet."
                 )
-            causal_cycles_deck = await self._estimate_cycles(sequences=sequences)
+            causal_cycles_deck = await self._estimate_cycles(sequences=sequences, text=text)
         else:
             # Handle list[DialecticalComponent]
             dialectical_components: list[DialecticalComponent] = thoughts
@@ -332,7 +324,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             else:
                 raise ValueError(f"More than 4 thoughts are not supported yet.")
 
-            causal_cycles_deck = await self._estimate_cycles(sequences=sequences)
+            causal_cycles_deck = await self._estimate_cycles(sequences=sequences, text=text)
 
         return self._normalize(components_with_aliases, causal_cycles_deck, sequences)
 

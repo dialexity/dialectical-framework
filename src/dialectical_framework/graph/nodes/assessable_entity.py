@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import ClassVar, Optional, TYPE_CHECKING, Union
 
 from dependency_injector.wiring import inject, Provide
-from gqlalchemy import Memgraph, Neo4j, Node
+from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
-class AssessableEntity(BaseNode, Node, label="Assessable"):
+class AssessableEntity(BaseNode, label="Assessable"):
     """
     Base class for all assessable (scoreable) entities in the dialectical graph.
 

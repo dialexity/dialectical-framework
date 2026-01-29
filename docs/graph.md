@@ -124,8 +124,8 @@ from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
 
 # Create inputs
-input_a = Input(content_uri="https://article.com/pro")
-input_b = Input(content_uri="https://article.com/con")
+input_a = Input(content="https://article.com/pro")
+input_b = Input(content="https://article.com/con")
 input_a.save()
 input_b.save()
 
@@ -233,7 +233,7 @@ repo = DialecticalComponentRepository()
 # Trace all root Inputs that contributed to a Wheel
 roots = repo.get_root_inputs(wheel)
 for input_node in roots:
-    print(f"Source: {input_node.content_uri}")
+    print(f"Source: {input_node.content}")
 ```
 
 **Key concepts:**
@@ -330,7 +330,7 @@ This is **enforced at connect time**. Attempting to connect a component from a d
 
 ```python
 # Gen-0: Components from same Input
-input_a = Input(content_uri="https://article.com/x")
+input_a = Input(content="https://article.com/x")
 input_a.save()
 comp1 = DialecticalComponent(statement="Thesis from A")
 comp1.save()

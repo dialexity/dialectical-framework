@@ -335,7 +335,7 @@ rationales: ClassVar[...] = RelationshipFrom(..., cardinality=(0, None))
 
 ```python
 # Gen-0: Components from same Input
-input_a = Input(content_uri="https://article.com/x")
+input_a = Input(content="https://article.com/x")
 input_a.save()
 comp1 = DialecticalComponent(statement="Thesis from A")
 comp1.save()

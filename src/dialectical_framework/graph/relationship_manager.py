@@ -387,12 +387,12 @@ class BoundRelationshipManager(Generic[T]):
             existing_type = "Input" if isinstance(existing_context, Input) else "Nexus"
             new_type = "Input" if isinstance(new_component_context, Input) else "Nexus"
             existing_id = (
-                getattr(existing_context, 'content_uri', None) or
+                getattr(existing_context, 'content', None) or
                 getattr(existing_context, 'handle', None) or
                 existing_context.uid
             )
             new_id = (
-                getattr(new_component_context, 'content_uri', None) or
+                getattr(new_component_context, 'content', None) or
                 getattr(new_component_context, 'handle', None) or
                 new_component_context.uid
             )

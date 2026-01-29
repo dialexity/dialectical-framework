@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from typing import ClassVar, TYPE_CHECKING
 
-from gqlalchemy import Node
-
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.has_estimation_relationship import (
@@ -20,7 +18,7 @@ from dialectical_framework.graph.relationships.has_estimation_relationship impor
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 
-class Estimation(BaseNode, Node, label="Estimation"):
+class Estimation(BaseNode, label="Estimation"):
     """
     Base class for estimations associated with assessable entities.
 
