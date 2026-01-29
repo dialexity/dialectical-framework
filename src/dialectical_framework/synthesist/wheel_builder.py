@@ -318,53 +318,22 @@ class WheelBuilder(SettingsAware):
             wu = await self.reasoner.think(source=source, text=text, thesis=dc, antithesis=antithesis, nexus=nexus)
             wheel_wisdom_units.append(wu)
 
-        cycles: list[Cycle] = await self.__sequencer.arrange(wheel_wisdom_units, text=text)
-
         # Set human-friendly indices on wisdom units if multiple WUs
         if len(wheel_wisdom_units) > 1:
             for idx, wu in enumerate(wheel_wisdom_units, start=1):
                 wu.set_human_friendly_index(idx)
 
-        # Connect cycles to Nexus (parent→child: Nexus has cycles)
-        # T-cycle and TA-cycles all belong to the same Nexus
+        # Connect t_cycle to Nexus (parent→child: Nexus has cycles)
+        # Only the t_cycle belongs to Nexus - wheels are detailed arrangements
         nexus.cycles.connect(t_cycle)
-        for cycle in cycles:
-            if cycle.uid != t_cycle.uid:  # Don't double-connect t_cycle
-                nexus.cycles.connect(cycle)
 
-        # Create wheels for each TA-cycle permutation
-        # Each wheel is a detailed implementation of a cycle arrangement
-        wheels = []
-        for cycle in cycles:
-            # Create wheel node
-            w = Wheel()
-            w.save()
+        # Create wheels directly via sequencer (no temporary Cycles)
+        # Each wheel has AI-assessed probabilities for its arrangement
+        wheels: list[Wheel] = await self.__sequencer.arrange(wheel_wisdom_units, text=text)
 
-            # Create wheel-level transitions FIRST (ta_cycle level detail)
-            # These are separate from cycle-level transitions
-            # Wheel transitions follow the same component sequence
-            # MUST be done before connecting to cycle (validation requires transitions)
-            for trans in cycle.transitions:
-                source_result = trans.source.get()
-                target_result = trans.target.get()
-                if source_result and target_result:
-                    source_comp, _ = source_result
-                    target_comp, _ = target_result
-
-                    # Create new transition for wheel (separate object, same components)
-                    wheel_trans = Transition()
-                    wheel_trans.save()
-                    wheel_trans.source.connect(source_comp)
-                    wheel_trans.target.connect(target_comp)
-                    wheel_trans.cycle.connect(w)  # Connect to wheel (CircularTopologyMixin)
-
-            # Connect wheel to cycle (creates Cycle → HAS_WHEEL → Wheel)
-            # This establishes: Wheel.cycle.get() returns this cycle
-            # And: Cycle.wheels.all() includes this wheel
-            # MUST be done after transitions exist (validation checks transitions)
-            cycle.wheels.connect(w)
-
-            wheels.append(w)
+        # Connect each wheel to the t_cycle
+        for wheel in wheels:
+            t_cycle.wheels.connect(wheel)
 
         # Score all wheels
         for wheel in wheels:
@@ -607,29 +576,18 @@ class WheelBuilder(SettingsAware):
 
             if wheel_is_dirty:
                 # Need to rebuild wheel with modified WUs
-                # Recalculate cycles
-                cycles: list[Cycle] = await self.__sequencer.arrange(new_wus, text=text)
+                # Get the original t_cycle from the wheel (thesis-level arrangement)
+                cycle_result = wheel.cycle.get()
+                if not cycle_result:
+                    raise ValueError(f"Wheel {wheel.uid} has no parent cycle")
+                original_t_cycle, _ = cycle_result
 
-                # Create new wheels
-                for cycle in cycles:
-                    w = Wheel()
-                    w.save()
+                # Create new wheels directly via sequencer
+                redefined_wheels: list[Wheel] = await self.__sequencer.arrange(new_wus, text=text)
 
-                    # Create wheel-level transitions
-                    for trans in cycle.transitions:
-                        source_result = trans.source.get()
-                        target_result = trans.target.get()
-                        if source_result and target_result:
-                            source_comp, _ = source_result
-                            target_comp, _ = target_result
-
-                            wheel_trans = Transition()
-                            wheel_trans.save()
-                            wheel_trans.source.connect(source_comp)
-                            wheel_trans.target.connect(target_comp)
-                            wheel_trans.cycle.connect(w)
-
-                    cycle.wheels.connect(w)
+                for w in redefined_wheels:
+                    # Connect to original t_cycle (thesis-level ordering preserved)
+                    original_t_cycle.wheels.connect(w)
                     new_wheels.append(w)
 
                     # Score the wheel

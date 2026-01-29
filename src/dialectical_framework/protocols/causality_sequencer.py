@@ -1,37 +1,55 @@
 """
 Protocol interface for causality sequencing.
 
-Causality sequencers arrange dialectical components into cycles by analyzing
-causal relationships and estimating transition probabilities.
+Causality sequencers arrange dialectical components or wisdom units into
+circular topologies (Cycles or Wheels) by analyzing causal relationships
+and estimating transition probabilities.
 """
 
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Protocol, Union
+from typing import TYPE_CHECKING, Protocol, Union, overload
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
 class CausalitySequencer(Protocol):
     """
-    Protocol for arranging dialectical components into causal cycles.
+    Protocol for arranging thoughts into circular topologies.
 
     Implementations analyze relationships between components/wisdom units and
-    generate ordered cycles with probability estimates. The sequencer handles:
+    generate ordered arrangements with probability estimates. The sequencer handles:
 
     - Generating candidate sequences from input thoughts
-    - Estimating cycle probabilities via AI analysis
-    - Normalizing probabilities across competing cycles
-    - Creating graph-native Cycle objects with Transition nodes
+    - Estimating arrangement probabilities via AI analysis
+    - Normalizing probabilities across competing arrangements
+    - Creating graph-native Cycle or Wheel objects with Transition nodes
 
-    Two input modes are supported:
-    - **WisdomUnits**: Extracts T/A pairs and generates diagonally symmetric sequences
-    - **DialecticalComponents**: Generates all permutations with fixed first element
+    Return type depends on input:
+    - **DialecticalComponents** → returns **Cycles** (thesis-level ordering)
+    - **WisdomUnits** → returns **Wheels** (detailed T+A arrangement)
     """
+
+    @overload
+    async def arrange(
+        self,
+        thoughts: list[DialecticalComponent],
+        *,
+        text: str,
+    ) -> list[Cycle]: ...
+
+    @overload
+    async def arrange(
+        self,
+        thoughts: list[WisdomUnit],
+        *,
+        text: str,
+    ) -> list[Wheel]: ...
 
     @abstractmethod
     async def arrange(
@@ -39,23 +57,24 @@ class CausalitySequencer(Protocol):
         thoughts: Union[list[WisdomUnit], list[DialecticalComponent]],
         *,
         text: str,
-    ) -> list[Cycle]:
+    ) -> Union[list[Cycle], list[Wheel]]:
         """
-        Arrange thoughts into causal cycles with normalized probabilities.
+        Arrange thoughts into circular topologies with normalized probabilities.
 
-        Analyzes the provided thoughts (either WisdomUnits or DialecticalComponents),
-        generates candidate sequences, estimates their probabilities, and returns
-        graph-native Cycle objects sorted by likelihood.
+        Analyzes the provided thoughts, generates candidate sequences, estimates
+        their probabilities, and returns graph-native objects sorted by likelihood.
 
         Args:
-            thoughts: Input thoughts to arrange. Either:
-                - list[WisdomUnit]: Extracts T/A components for diagonal symmetry
-                - list[DialecticalComponent]: Generates permutation sequences
+            thoughts: Input thoughts to arrange:
+                - list[DialecticalComponent]: Returns Cycles (thesis-level ordering)
+                - list[WisdomUnit]: Returns Wheels (detailed T+A arrangement)
             text: The source text context for AI analysis
 
         Returns:
-            List of Cycle objects sorted by probability (highest first). Each cycle
-            contains:
+            - list[Cycle] when given DialecticalComponents
+            - list[Wheel] when given WisdomUnits
+
+            Each returned object contains:
             - Transition nodes linking components in sequence
             - Rationale with reasoning explanation and argumentation
             - Normalized probability reflecting competitive strength
@@ -65,7 +84,8 @@ class CausalitySequencer(Protocol):
 
         Note:
             - Caller must convert strings/DTOs to DialecticalComponents before calling
-            - All cycles are estimated together for probability normalization
-            - Probabilities sum to 1.0 across returned cycles
+            - All arrangements are estimated together for probability normalization
+            - Probabilities sum to 1.0 across returned objects
+            - Wheels are NOT connected to any Cycle - caller must connect them
         """
         ...

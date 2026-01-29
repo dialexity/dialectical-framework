@@ -180,6 +180,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         for dto in deck_dto.dialectical_components:
             component = component_from_dto(dto)
             component.input.connect(source)
+            components.append(component)
 
         return components
 
