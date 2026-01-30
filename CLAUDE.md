@@ -548,4 +548,5 @@ def test_create_wisdom_unit():
 | Doc | Purpose |
 |-----|---------|
 | `docs/graph.md` | Graph data model reference |
+| `docs/graph-portability.md` | Identifiers, scopes, cloning & realms |
 | `docs/scoring.md` | Complete TaroRank specification |

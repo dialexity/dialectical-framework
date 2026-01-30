@@ -531,4 +531,5 @@ node.relevance    # Returns calculated or manual R or feasibility
 ## Further Reading
 
 - **Scoring specification:** `docs/scoring.md`
+- **Portability & identifiers:** `docs/graph-portability.md` (uid, sid, nid, scopes, cloning, realms)
 - **Project conventions:** `CLAUDE.md`
