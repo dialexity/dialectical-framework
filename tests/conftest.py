@@ -121,16 +121,20 @@ def _create_test_graph_db(settings: Settings):
         if not common_params["password"]:
             common_params["password"] = "neo4j"
 
-        return TestNeo4j(**common_params)
+        db = TestNeo4j(**common_params)
 
     elif vendor == "memgraph":
-        return TestMemgraph(**common_params)
+        db = TestMemgraph(**common_params)
 
     else:
         raise ValueError(
             f"Unknown graph_db_vendor: {vendor}. "
             f"Supported vendors: 'memgraph', 'neo4j'"
         )
+
+    # Ensure schema indexes exist (same as production)
+    DialecticalReasoning._ensure_schema(db)
+    return db
 
 
 @pytest.fixture(scope="session", autouse=True)

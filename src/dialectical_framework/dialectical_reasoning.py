@@ -82,16 +82,100 @@ class DialecticalReasoning(containers.DeclarativeContainer):
             if not common_params["password"]:
                 common_params["password"] = "neo4j"
 
-            return Neo4j(**common_params)
+            db = Neo4j(**common_params)
 
         elif vendor == "memgraph":
-            return Memgraph(**common_params)
+            db = Memgraph(**common_params)
 
         else:
             raise ValueError(
                 f"Unknown graph_db_vendor: {vendor}. "
                 f"Supported vendors: 'memgraph', 'neo4j'"
             )
+
+        # Ensure schema indexes exist
+        DialecticalReasoning._ensure_schema(db)
+        return db
+
+    @staticmethod
+    def _ensure_schema(graph_db: Union[Memgraph, Neo4j]) -> None:
+        """
+        Ensure required indexes and constraints exist on the graph database.
+
+        Creates indexes on :Node for portable identifier fields (nid, sid, origin_uid, uid).
+        Creates a unique constraint on :Node(nid).
+        Works with both Memgraph and Neo4j by detecting DB type and using appropriate syntax.
+        """
+        required_indexes = {"nid", "sid", "origin_uid", "uid"}
+        is_neo4j = isinstance(graph_db, Neo4j)
+
+        # Get existing indexes
+        existing_indexes: set[str] = set()
+        try:
+            if is_neo4j:
+                # Neo4j: SHOW INDEXES returns labelsOrTypes, properties
+                results = graph_db.execute_and_fetch("SHOW INDEXES")
+                for row in results:
+                    labels = row.get("labelsOrTypes", [])
+                    props = row.get("properties", [])
+                    if "Node" in labels and props:
+                        existing_indexes.update(props)
+            else:
+                # Memgraph: SHOW INDEX INFO returns label, property
+                results = graph_db.execute_and_fetch("SHOW INDEX INFO")
+                for row in results:
+                    if row.get("label") == "Node":
+                        existing_indexes.add(row.get("property"))
+        except Exception:
+            pass  # Fresh DB - no indexes yet
+
+        # Create missing indexes
+        for prop in required_indexes - existing_indexes:
+            if is_neo4j:
+                # Neo4j 4.x+ syntax with IF NOT EXISTS
+                graph_db.execute(
+                    f"CREATE INDEX IF NOT EXISTS FOR (n:Node) ON (n.{prop})"
+                )
+            else:
+                # Memgraph syntax
+                graph_db.execute(f"CREATE INDEX ON :Node({prop})")
+
+        # Check for existing unique constraint on nid
+        has_nid_constraint = False
+        try:
+            if is_neo4j:
+                # Neo4j: SHOW CONSTRAINTS returns labelsOrTypes, properties
+                results = graph_db.execute_and_fetch("SHOW CONSTRAINTS")
+                for row in results:
+                    labels = row.get("labelsOrTypes", [])
+                    props = row.get("properties", [])
+                    if "Node" in labels and "nid" in props:
+                        has_nid_constraint = True
+                        break
+            else:
+                # Memgraph: SHOW CONSTRAINT INFO returns constraint_type, label, properties
+                results = graph_db.execute_and_fetch("SHOW CONSTRAINT INFO")
+                for row in results:
+                    if row.get("label") == "Node" and "nid" in row.get("properties", []):
+                        has_nid_constraint = True
+                        break
+        except Exception:
+            pass  # Fresh DB or no constraints
+
+        # Create unique constraint on nid if missing
+        if not has_nid_constraint:
+            try:
+                if is_neo4j:
+                    graph_db.execute(
+                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Node) REQUIRE n.nid IS UNIQUE"
+                    )
+                else:
+                    # Memgraph syntax
+                    graph_db.execute(
+                        "CREATE CONSTRAINT ON (n:Node) ASSERT n.nid IS UNIQUE"
+                    )
+            except Exception:
+                pass  # Constraint may already exist or DB doesn't support it
 
     # Graph database (Memgraph or Neo4j) for graph-native dialectical structures
     graph_db: providers.Singleton[Union[Memgraph, Neo4j]] = providers.Singleton(
