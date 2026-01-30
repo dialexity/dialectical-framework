@@ -13,7 +13,7 @@ user_message = "Putin started the war, Ukraine will not surrender and will final
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
     2,
-    # 3,
+    3,
 ])
 async def test_full_blown_wheel(number_of_thoughts):
     """

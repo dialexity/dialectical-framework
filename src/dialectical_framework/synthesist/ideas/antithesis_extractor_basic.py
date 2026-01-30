@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
-
 from dependency_injector.wiring import Provide, inject
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -20,9 +18,6 @@ from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.utils.use_brain import use_brain
 
-if TYPE_CHECKING:
-    pass
-
 
 class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
     """
@@ -39,7 +34,7 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
     ):
         self._input_resolver = input_resolver
 
-    async def _resolve_text(self, source: Union[Input, Ideas]) -> str:
+    async def _resolve_text(self, source: Input | Ideas) -> str:
         """Resolve source to text content."""
         if isinstance(source, Ideas):
             input_result = source.input.get()
@@ -50,7 +45,7 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
         else:
             return await self._input_resolver.resolve(source)
 
-    def _get_thesis_statement(self, thesis: Union[DialecticalComponent, str]) -> str:
+    def _get_thesis_statement(self, thesis: DialecticalComponent | str) -> str:
         """Extract statement string from thesis (graph node or string)."""
         if isinstance(thesis, DialecticalComponent):
             return thesis.statement
@@ -71,7 +66,7 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
         {rule_out}
         """
     )
-    def prompt_single_antithesis(self, *, text: str, thesis: str, not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_single_antithesis(self, *, text: str, thesis: str, not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:
@@ -115,7 +110,7 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
         {rule_out}
         """
     )
-    def prompt_multiple_antitheses(self, *, text: str, theses: list[str], not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_multiple_antitheses(self, *, text: str, theses: list[str], not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:
@@ -137,8 +132,8 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
     async def extract_single_antithesis(
         self,
         *,
-        source: Union[Input, Ideas],
-        thesis: Union[DialecticalComponent, str],
+        source: Input | Ideas,
+        thesis: DialecticalComponent | str,
         not_like_these: list[str] | None = None,
     ) -> DialecticalComponent:
         """
@@ -170,8 +165,8 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
     async def extract_multiple_antitheses(
         self,
         *,
-        source: Union[Input, Ideas],
-        theses: list[Union[DialecticalComponent, str]],
+        source: Input | Ideas,
+        theses: list[DialecticalComponent | str],
         not_like_these: list[str] | None = None,
     ) -> list[DialecticalComponent]:
         """

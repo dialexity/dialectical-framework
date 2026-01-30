@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Protocol, Union
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -9,9 +9,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.input import Input
 
 
-class AntithesisExtractor(Protocol):
+class AntithesisExtractor(ABC):
     """
-    Protocol for extracting antithesis concepts from thesis statements.
+    Abstract base class for extracting antithesis concepts from thesis statements.
 
     Extractors are standalone services that:
     1. Resolve content from source (Input or Ideas) via InputResolver
@@ -25,8 +25,8 @@ class AntithesisExtractor(Protocol):
     async def extract_single_antithesis(
         self,
         *,
-        source: Union[Input, Ideas],
-        thesis: Union[DialecticalComponent, str],
+        source: Input | Ideas,
+        thesis: DialecticalComponent | str,
         not_like_these: list[str] | None = None,
     ) -> DialecticalComponent:
         """
@@ -46,8 +46,8 @@ class AntithesisExtractor(Protocol):
     async def extract_multiple_antitheses(
         self,
         *,
-        source: Union[Input, Ideas],
-        theses: list[Union[DialecticalComponent, str]],
+        source: Input | Ideas,
+        theses: list[DialecticalComponent | str],
         not_like_these: list[str] | None = None,
     ) -> list[DialecticalComponent]:
         """

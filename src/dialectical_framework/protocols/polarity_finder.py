@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Protocol, Union
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -9,9 +9,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.input import Input
 
 
-class PolarityFinder(Protocol):
+class PolarityFinder(ABC):
     """
-    Protocol for orchestrating polarity extraction (thesis-antithesis pair coordination).
+    Abstract base class for orchestrating polarity extraction (thesis-antithesis pair coordination).
 
     Extractors are standalone services that:
     1. Resolve content from source (Input or Ideas) via InputResolver
@@ -32,12 +32,11 @@ class PolarityFinder(Protocol):
     async def extract_polarities(
         self,
         *,
-        source: Union[Input, Ideas],
-        given: Union[
-            str,
-            list[Union[str, DialecticalComponent, None]],
-            list[tuple[Union[str, DialecticalComponent, None], Union[str, DialecticalComponent, None]]],
-        ] = None,
+        source: Input | Ideas,
+        given: str
+        | list[str | DialecticalComponent | None]
+        | list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]
+        | None = None,
         at: None | int | list[int] = None,
         not_like_these: list[str] | None = None,
     ) -> list[tuple[DialecticalComponent, DialecticalComponent]]:

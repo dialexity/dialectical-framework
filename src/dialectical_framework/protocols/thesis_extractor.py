@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Protocol, Union
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -9,9 +9,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.input import Input
 
 
-class ThesisExtractor(Protocol):
+class ThesisExtractor(ABC):
     """
-    Protocol for extracting thesis concepts from Input or Ideas.
+    Abstract base class for extracting thesis concepts from Input or Ideas.
 
     Extractors are standalone services that:
     1. Resolve content from source (Input or Ideas) via InputResolver
@@ -25,7 +25,7 @@ class ThesisExtractor(Protocol):
     async def extract_multiple_theses(
         self,
         *,
-        source: Union[Input, Ideas],
+        source: Input | Ideas,
         count: int = 2,
         not_like_these: list[str] | None = None,
     ) -> list[DialecticalComponent]:
@@ -46,7 +46,7 @@ class ThesisExtractor(Protocol):
     async def extract_single_thesis(
         self,
         *,
-        source: Union[Input, Ideas],
+        source: Input | Ideas,
         not_like_these: list[str] | None = None,
     ) -> DialecticalComponent:
         """

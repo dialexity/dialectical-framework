@@ -1,4 +1,4 @@
-from typing import Protocol, runtime_checkable
+from __future__ import annotations
 
 from dependency_injector.wiring import Provide, inject
 
@@ -11,8 +11,9 @@ def di_brain(brain: Brain = Provide[DI.brain]) -> Brain:
     return brain
 
 
-@runtime_checkable
-class HasBrain(Protocol):
+class HasBrain:
+    """Mixin providing access to the Brain instance via DI."""
+
     @property
     def brain(self) -> Brain:
         return di_brain()

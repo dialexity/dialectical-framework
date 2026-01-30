@@ -1,22 +1,22 @@
 """
-Protocol for resolving Input nodes to text content.
+Abstract base class for resolving Input nodes to text content.
 """
 
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Protocol, Union
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.brainstorm import Brainstorm
     from dialectical_framework.graph.nodes.input import Input
 
 
-class InputResolver(Protocol):
+class InputResolver(ABC):
     """
     Resolves Input or Brainstorm nodes to text content.
 
-    Apps implement this protocol to handle their specific content sources
+    Apps implement this class to handle their specific content sources
     (uploaded files, URLs, session storage, etc.).
 
     The resolver receives the Input node and can traverse the graph to access
@@ -52,7 +52,7 @@ class InputResolver(Protocol):
         ...
 
     @abstractmethod
-    async def resolve_all(self, source: Union[Brainstorm, list[Input]]) -> str:
+    async def resolve_all(self, source: Brainstorm | list[Input]) -> str:
         """
         Resolve multiple inputs to combined text content.
 

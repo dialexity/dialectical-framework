@@ -1,5 +1,5 @@
 """
-Protocol interface for causality sequencing.
+Abstract base class for causality sequencing.
 
 Causality sequencers arrange dialectical components or wisdom units into
 circular topologies (Cycles or Wheels) by analyzing causal relationships
@@ -8,8 +8,8 @@ and estimating transition probabilities.
 
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Protocol, Union, overload
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, overload
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -18,9 +18,9 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
-class CausalitySequencer(Protocol):
+class CausalitySequencer(ABC):
     """
-    Protocol for arranging thoughts into circular topologies.
+    Abstract base class for arranging thoughts into circular topologies.
 
     Implementations analyze relationships between components/wisdom units and
     generate ordered arrangements with probability estimates. The sequencer handles:
@@ -54,10 +54,10 @@ class CausalitySequencer(Protocol):
     @abstractmethod
     async def arrange(
         self,
-        thoughts: Union[list[WisdomUnit], list[DialecticalComponent]],
+        thoughts: list[WisdomUnit] | list[DialecticalComponent],
         *,
         text: str,
-    ) -> Union[list[Cycle], list[Wheel]]:
+    ) -> list[Cycle] | list[Wheel]:
         """
         Arrange thoughts into circular topologies with normalized probabilities.
 

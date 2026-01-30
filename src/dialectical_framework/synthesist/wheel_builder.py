@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Dict, Union
 
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class WheelBuilder(SettingsAware):
     - text: Raw text (creates Input node automatically)
     """
 
+    @inject
     def __init__(
         self,
         thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],

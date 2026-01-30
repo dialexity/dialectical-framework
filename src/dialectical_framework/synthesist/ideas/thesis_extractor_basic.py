@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
-
 from dependency_injector.wiring import Provide, inject
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
@@ -21,9 +19,6 @@ from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.utils.use_brain import use_brain
 
-if TYPE_CHECKING:
-    pass
-
 
 class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
     """
@@ -40,7 +35,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
     ):
         self._input_resolver = input_resolver
 
-    async def _resolve_text(self, source: Union[Input, Ideas]) -> str:
+    async def _resolve_text(self, source: Input | Ideas) -> str:
         """Resolve source to text content."""
         if isinstance(source, Ideas):
             input_result = source.input.get()
@@ -64,7 +59,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         {rule_out}
         """
     )
-    def prompt_single_thesis(self, *, text: str, not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_single_thesis(self, *, text: str, not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:
@@ -119,7 +114,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         {rule_out}
         """
     )
-    def prompt_multiple_theses(self, *, text: str, count: int, not_like_these: list[str] | None = None) -> Messages.Type:
+    def prompt_multiple_theses(self, *, text: str, count: int, not_like_these: list[str] | None = None) -> "Messages.Type":
         rule_out = ""
 
         if not_like_these:
@@ -139,7 +134,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
     async def extract_multiple_theses(
         self,
         *,
-        source: Union[Input, Ideas],
+        source: Input | Ideas,
         count: int = 2,
         not_like_these: list[str] | None = None,
     ) -> list[DialecticalComponent]:
@@ -187,7 +182,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
     async def extract_single_thesis(
         self,
         *,
-        source: Union[Input, Ideas],
+        source: Input | Ideas,
         not_like_these: list[str] | None = None,
     ) -> DialecticalComponent:
         """

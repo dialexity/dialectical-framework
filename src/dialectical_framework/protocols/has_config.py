@@ -1,4 +1,4 @@
-from typing import Protocol, runtime_checkable
+from __future__ import annotations
 
 from dependency_injector.wiring import Provide, inject
 
@@ -7,12 +7,13 @@ from dialectical_framework.settings import Settings
 
 
 @inject
-def di_settings(settings: Settings = Provide[DI.settings]) -> Settings:
+def _di_settings(settings: Settings = Provide[DI.settings]) -> Settings:
     return settings
 
 
-@runtime_checkable
-class SettingsAware(Protocol):
+class SettingsAware:
+    """Mixin providing access to Settings via DI."""
+
     @property
     def settings(self) -> Settings:
-        return di_settings()
+        return _di_settings()
