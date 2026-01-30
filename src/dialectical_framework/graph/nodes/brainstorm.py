@@ -7,7 +7,7 @@ providing a vocabulary of components for downstream dialectical analysis.
 
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING
+from typing import Any, ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
@@ -80,6 +80,22 @@ class Brainstorm(IntentMixin, AssessableEntity, label="Brainstorm"):
     # Reverse relationship for Inputs to find their Brainstorms
     # This is not used directly but allows bidirectional traversal
     # Defined on Input as _brainstorms
+
+    def __init__(self, **data: Any) -> None:
+        """
+        Initialize a Brainstorm as a scope root.
+
+        Brainstorm is its own scope root, meaning sid == uid.
+        This establishes the Brainstorm as the top-level container for
+        all descendant nodes in the graph (Inputs, Ideas, Components, etc.).
+
+        Args:
+            **data: Field values for the brainstorm
+        """
+        super().__init__(**data)
+        # Brainstorm is its own scope root: sid = uid
+        if self.sid is None:
+            self.sid = self.uid
 
     def get_vocabulary(self) -> list[DialecticalComponent]:
         """

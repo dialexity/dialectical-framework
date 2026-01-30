@@ -28,6 +28,7 @@ from dialectical_framework.synthesist.polarity.reason_fast_and_simple import Rea
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
+from dialectical_framework.graph.scope_context import ScopeContext
 
 
 class DialecticalReasoning(containers.DeclarativeContainer):
@@ -171,6 +172,13 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     #
     input_resolver: providers.Singleton[InputResolver] = providers.Singleton(
         VerbatimInputResolver
+    )
+
+    # -- Scope Context for Portable Identifiers --
+    # Manages current scope (sid) for node creation using contextvars.
+    # All nodes created within a scope context inherit the sid.
+    scope_context: providers.Singleton[ScopeContext] = providers.Singleton(
+        ScopeContext
     )
 
     # -- Wiring --

@@ -290,6 +290,40 @@ class BoundRelationshipManager(Generic[T]):
         self.direction = direction
         self.cardinality = cardinality
 
+    def _validate_scope_compatibility(self, target_node: Node) -> None:
+        """
+        Validate that connected nodes belong to the same scope (Brainstorm).
+
+        When connecting two nodes, validates that their sid values are compatible:
+        - If either sid is None, allow (orphan/unsaved node can join any scope)
+        - If both have sid and they match, allow
+        - If both have sid and they differ, raise ValueError
+
+        This prevents accidentally mixing nodes from different Brainstorm scopes
+        into the same graph structure.
+
+        Raises:
+            ValueError: If nodes have different non-None sids
+        """
+        source_sid = getattr(self.source_node, 'sid', None)
+        target_sid = getattr(target_node, 'sid', None)
+
+        # Allow if either is None (orphan/unsaved node)
+        if source_sid is None or target_sid is None:
+            return
+
+        # Allow if same scope
+        if source_sid == target_sid:
+            return
+
+        # Different scopes - not allowed
+        raise ValueError(
+            f"Cannot connect nodes from different scopes. "
+            f"Source node (uid={getattr(self.source_node, 'uid', '?')}) has sid={source_sid}, "
+            f"target node (uid={getattr(target_node, 'uid', '?')}) has sid={target_sid}. "
+            f"Nodes in the same graph must belong to the same scope (Brainstorm)."
+        )
+
     def _validate_wisdom_unit_vocabulary(self, target_node: Node) -> None:
         """
         Validate that components connected to a WisdomUnit belong to the same vocabulary.
@@ -818,13 +852,15 @@ class BoundRelationshipManager(Generic[T]):
             ValueError: If nodes haven't been saved or cardinality constraint violated
         """
         # Run all validations before connecting
-        # 1. WisdomUnit component vocabulary context validation
+        # 1. Scope compatibility (nodes must belong to same scope/Brainstorm)
+        self._validate_scope_compatibility(target_node)
+        # 2. WisdomUnit component vocabulary context validation
         self._validate_wisdom_unit_vocabulary(target_node)
-        # 2. Cycle <-> Wheel connections require WU validation
+        # 3. Cycle <-> Wheel connections require WU validation
         self._validate_cycle_wheel_connection(target_node)
-        # 3. Nexus membership is frozen once Cycles exist
+        # 4. Nexus membership is frozen once Cycles exist
         self._validate_nexus_frozen_after_cycle(target_node)
-        # 4. Semantic relationship consistency (component-to-component)
+        # 5. Semantic relationship consistency (component-to-component)
         self._validate_semantic_relationship_consistency(target_node)
 
         # Delegate to internal connect (no validation)
