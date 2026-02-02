@@ -129,8 +129,8 @@ class SpiralCalculator(BaseCalculator):
                     values.append(weighted_r)
 
         if not values:
-            # Neutral fallback: non-leaf nodes return R=1.0 when no evidence
-            return 1.0
+            # No evidence: return None (excluded from parent aggregation)
+            return None
 
         return gm_with_zeros_and_nones_handled(values)
 

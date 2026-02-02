@@ -437,7 +437,7 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 #### Global R Policies
 
 * **Hierarchical aggregation:** Non-leaves take the **geometric mean** of their immediate children
-* **Neutral fallback:** Only non-leaf nodes apply neutral R=1.0 when their entire child set contributes nothing; leaves never invent R values
+* **No free lunch:** Both leaf and non-leaf nodes return `None` when no evidence exists; `None` values are excluded from parent GM aggregation
 * **Single rating application:** Ratings are applied exactly once at the source:
   * A leaf's **own R** is multiplied by its **own rating** (only applies to DialecticalComponent and Transition)
   * A **rationale's R** is multiplied by **rationale.rating** by the consuming parent

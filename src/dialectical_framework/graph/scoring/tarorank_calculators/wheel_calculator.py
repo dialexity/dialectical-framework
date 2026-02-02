@@ -80,7 +80,7 @@ class WheelCalculator(BaseCalculator):
                 values.append(nexus_r)
 
         # Collect transitions from cycles with deduplication
-        # Key: transition.uid, Value: transition node
+        # Key: transition.hash, Value: transition node
         unique_transitions = {}
 
         # Get transitions from parent Cycle (most generic)
@@ -88,28 +88,28 @@ class WheelCalculator(BaseCalculator):
         if cycle_result:
             cycle = cycle_result[0]
             for trans in cycle.transitions:
-                unique_transitions[trans.uid] = trans
+                unique_transitions[trans.hash] = trans
 
         # Get transitions from Wheel itself (more specific, prefer over Cycle)
         for trans in wheel.transitions:
-            if trans.uid in unique_transitions:
+            if trans.hash in unique_transitions:
                 # Calculate the one being overwritten (legacy behavior)
-                old_trans = unique_transitions[trans.uid]
+                old_trans = unique_transitions[trans.hash]
                 _ = old_trans.relevance  # Trigger calculation
             # Prefer Wheel version
-            unique_transitions[trans.uid] = trans
+            unique_transitions[trans.hash] = trans
 
         # Get transitions from spiral (most specific, prefer over all)
         spiral_result = wheel.spiral.get()
         if spiral_result:
             spiral = spiral_result[0]
             for trans in spiral.transitions:
-                if trans.uid in unique_transitions:
+                if trans.hash in unique_transitions:
                     # Calculate the one being overwritten (legacy behavior)
-                    old_trans = unique_transitions[trans.uid]
+                    old_trans = unique_transitions[trans.hash]
                     _ = old_trans.relevance  # Trigger calculation
                 # Prefer spiral version
-                unique_transitions[trans.uid] = trans
+                unique_transitions[trans.hash] = trans
 
         # Extract relevance scores from unique transitions
         for transition in unique_transitions.values():
@@ -130,8 +130,8 @@ class WheelCalculator(BaseCalculator):
                     values.append(weighted_r)
 
         if not values:
-            # Neutral fallback: non-leaf nodes return R=1.0 when no evidence
-            return 1.0
+            # No evidence: return None (excluded from parent aggregation)
+            return None
 
         return gm_with_zeros_and_nones_handled(values)
 
