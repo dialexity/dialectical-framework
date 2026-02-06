@@ -41,17 +41,45 @@ class TestMemgraph(Memgraph):
     """
 
     def save_node(self, node):
-        """Save node and add test label."""
+        """Save node and add test label.
+
+        For content-addressable nodes (those with hash already computed),
+        look up existing node first to avoid unique constraint violations.
+
+        IMPORTANT: Always adds test label to ALL saved nodes (even those without hash)
+        so that test cleanup works correctly even when tests fail mid-execution.
+        """
+        # For content-addressable nodes, check if a node with this hash already exists
+        if hasattr(node, 'hash') and node.hash and node._id is None:
+            # Look up by hash first
+            query = """
+                MATCH (n:Node {hash: $hash})
+                RETURN n, id(n) as node_id
+                LIMIT 1
+            """
+            results = list(self.execute_and_fetch(query, {"hash": node.hash}))
+            if results:
+                # Node exists - reuse it
+                existing_node = results[0]["n"]
+                node._id = results[0]["node_id"]
+                # Ensure test label is set
+                label_query = f"""
+                    MATCH (n) WHERE id(n) = $node_id
+                    SET n:{TEST_LABEL}
+                """
+                self.execute(label_query, {"node_id": node._id})
+                return existing_node
+
         result = super().save_node(node)
 
-        # Add test label after saving (query by uid since _id isn't populated)
-        if hasattr(node, 'uid') and node.uid:
-            labels = ':'.join(node.__class__.__name__.split())
-            query = f"""
-            MATCH (n:{labels} {{uid: $uid}})
-            SET n:{TEST_LABEL}
+        # Always add test label using the node ID from result
+        # This handles both committed nodes (with hash) and uncommitted nodes (without hash)
+        if result is not None and result._id is not None:
+            label_query = f"""
+                MATCH (n) WHERE id(n) = $node_id
+                SET n:{TEST_LABEL}
             """
-            self.execute(query, {"uid": node.uid})
+            self.execute(label_query, {"node_id": result._id})
 
         return result
 
@@ -68,17 +96,45 @@ class TestNeo4j(Neo4j):
     """
 
     def save_node(self, node):
-        """Save node and add test label."""
+        """Save node and add test label.
+
+        For content-addressable nodes (those with hash already computed),
+        look up existing node first to avoid unique constraint violations.
+
+        IMPORTANT: Always adds test label to ALL saved nodes (even those without hash)
+        so that test cleanup works correctly even when tests fail mid-execution.
+        """
+        # For content-addressable nodes, check if a node with this hash already exists
+        if hasattr(node, 'hash') and node.hash and node._id is None:
+            # Look up by hash first
+            query = """
+                MATCH (n:Node {hash: $hash})
+                RETURN n, id(n) as node_id
+                LIMIT 1
+            """
+            results = list(self.execute_and_fetch(query, {"hash": node.hash}))
+            if results:
+                # Node exists - reuse it
+                existing_node = results[0]["n"]
+                node._id = results[0]["node_id"]
+                # Ensure test label is set
+                label_query = f"""
+                    MATCH (n) WHERE id(n) = $node_id
+                    SET n:{TEST_LABEL}
+                """
+                self.execute(label_query, {"node_id": node._id})
+                return existing_node
+
         result = super().save_node(node)
 
-        # Add test label after saving (query by uid since _id isn't populated)
-        if hasattr(node, 'uid') and node.uid:
-            labels = ':'.join(node.__class__.__name__.split())
-            query = f"""
-            MATCH (n:{labels} {{uid: $uid}})
-            SET n:{TEST_LABEL}
+        # Always add test label using the node ID from result
+        # This handles both committed nodes (with hash) and uncommitted nodes (without hash)
+        if result is not None and result._id is not None:
+            label_query = f"""
+                MATCH (n) WHERE id(n) = $node_id
+                SET n:{TEST_LABEL}
             """
-            self.execute(query, {"uid": node.uid})
+            self.execute(label_query, {"node_id": result._id})
 
         return result
 

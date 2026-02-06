@@ -27,16 +27,16 @@ while Wheels provide detailed transition-level analysis.
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
 | **DialecticalComponent** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
-| **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus`, `changed_to` |
-| **Nexus** | Pool of WisdomUnits | `wisdom_units`, `cycles`, `shrunk_to`, `expanded_to` |
+| **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus` |
+| **Nexus** | Pool of WisdomUnits | `wisdom_units`, `cycles` |
 | **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Transformation or Spiral) |
-| **Transition** | Component relationship | `source`, `target`, `cycle`, `derived_statements` |
+| **Transition** | Component relationship | `source`, `target`, `cycle` |
 | **Cycle** | Causal loop | `nexus`, `wheels` |
 | **Spiral** | Transformational sequence | `wheel`, `synthesis` (0-N) |
 | **Transformation** | Internal WU spiral | `wisdom_unit`, `ac_re`, `synthesis` (0-N) |
 | **Wheel** | Top container | `cycle`, `spiral` |
-| **Rationale** | Evidence/explanation | `explanation`, `critiques`, `derived_statements` |
-| **Estimation** | P/R values | `assessed_entity` |
+| **Rationale** | Evidence/explanation | `explanation`, `critiques`, `provided_estimations` |
+| **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `_provider` (←Rationale via PROVIDES) |
 | **Input** | Content source | `statements`, `ideas` |
 | **Ideas** | Distilled concepts from Input | `input` (→Input), `statements` |
 | **Brainstorm** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
@@ -114,7 +114,7 @@ Brainstorm (multi-input exploration)
 
 **Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
 
-**Brainstorm vocabulary:** `brainstorm.get_vocabulary()` returns the union of all components from connected Inputs and their Ideas nodes. This enables cross-input WisdomUnit construction.
+**Brainstorm vocabulary:** `repo.get_vocabulary(brainstorm)` returns the union of all components from connected Inputs and their Ideas nodes. This enables cross-input WisdomUnit construction.
 
 ### Usage
 
@@ -122,6 +122,9 @@ Brainstorm (multi-input exploration)
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
+from dialectical_framework.graph.repositories.dialectical_component_repository import (
+    DialecticalComponentRepository
+)
 
 # Create inputs
 input_a = Input(content="https://article.com/pro")
@@ -141,7 +144,8 @@ brainstorm.inputs.connect(input_a)
 brainstorm.inputs.connect(input_b)
 
 # Get unified vocabulary for WisdomUnit construction
-vocab = brainstorm.get_vocabulary()
+repo = DialecticalComponentRepository()
+vocab = repo.get_vocabulary(brainstorm)
 ```
 
 ## Branching and Cardinality Rationale
@@ -163,18 +167,18 @@ Both Transformation and Spiral are **derived structures**, fully determined by t
 
 **Critical:** A Nexus contains specific WU versions, not "latest" WUs. It is a snapshot, not a living container.
 
-When a WU evolves via `CHANGED_TO`:
-- The original WU remains in its Nexus
-- `CHANGED_TO` is **provenance**, not a pointer the Wheel follows
-- To use the evolved WU, create a new Nexus
+When a WU needs to evolve:
+- The original WU remains in its Nexus (immutable once committed)
+- Create a new WU with the evolved structure
+- Create a new Nexus containing the evolved WU
 
 ```
-WU₁ ──CHANGED_TO──► WU₁' (evolved version)
- │                    │
- └── Nexus₁ (snapshot)  └── Nexus₂ (new snapshot with evolved WU)
-       │                      │
-    Wheel₁ → Spiral₁       Wheel₂ → Spiral₂
-    (preserved)            (new synthesis)
+WU₁ (original)           WU₁' (evolved version - new node)
+ │                         │
+ └── Nexus₁ (snapshot)     └── Nexus₂ (new snapshot with evolved WU)
+       │                         │
+    Wheel₁ → Spiral₁          Wheel₂ → Spiral₂
+    (preserved)               (new synthesis)
 ```
 
 **Why this matters:** Spirals are ultimate artifacts. Spiral₁ remains as historical synthesis - "given these WUs with these intents, here's what emerged." It's a committed insight, not a cache to be invalidated.
@@ -241,6 +245,120 @@ for input_node in roots:
 - Gen-1+ WUs trace to multiple Inputs (multi-root provenance via Nexus synthesis)
 - `get_root_inputs()` recursively collects all contributing sources
 
+## Structural vs Analytical Layers
+
+The graph architecture separates into two distinct layers.
+
+### Structural Layer: The Immutable Backbone
+
+Think of the structural layer as a **3D tree growing downward**:
+
+- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → Nexus → WU → Components)
+- **Horizontal dimension**: Sibling relationships (multiple WUs in a Nexus, multiple Wheels in a Cycle)
+- **Depth dimension**: Branching via clones (Nexus₁ → Nexus₂ with evolved WUs)
+
+**Properties:**
+- **Hash-linked**: Each node's hash includes its children's hashes (Merkle tree)
+- **Immutable after commit**: Structure frozen for integrity
+- **Content-addressed**: Same structure = same hash = same identity
+
+| Node | Role in Structure |
+|------|-------------------|
+| DialecticalComponent | Atomic leaves (statements) |
+| WisdomUnit | Polar pairs (T/A with +/-) |
+| Transition | Edges between components |
+| Nexus | Snapshot of WU versions |
+| Cycle | Causal ordering |
+| Wheel | Complete detailed view |
+
+### Analytical Layer: Floating Annotations
+
+Think of the analytical layer as **pins and sticky notes** attached to the structural tree:
+
+- They **point into** the structure at various depths
+- They can be **attached, detached, replaced** without affecting the tree
+- They **don't contribute** to structural hashes
+- Multiple annotations can point to the **same structural node**
+
+**Properties:**
+- **Evolvable**: Can be refined, replaced, or removed
+- **Non-structural**: Don't affect parent hashes
+- **Multi-attach**: Same insight can reference multiple structural points
+
+| Node | What It Annotates |
+|------|-------------------|
+| Rationale | Any AssessableEntity (explains why) |
+| Estimation | Any AssessableEntity (P/R values) |
+| Critique | Rationales (audit/challenge) |
+| Synthesis | Transformation or Spiral (emergent S+/S-) |
+| ac_re WU | Transformation (action-reflection context) |
+
+### Why This Separation?
+
+```
+STRUCTURAL                           ANALYTICAL
+────────────────────────────────────────────────────────────
+"What IS the dialectical structure"  "How we UNDERSTAND it"
+────────────────────────────────────────────────────────────
+Immutable after commit               Evolvable anytime
+Hash = identity                      Hash = provenance (optional)
+Parent contains child hashes         Points TO structure
+Branching creates new trees          Reattaches to existing trees
+────────────────────────────────────────────────────────────
+```
+
+**The elegance**: You can have multiple analytical perspectives on the SAME structural tree. Different rationales, different estimations, different synthesis interpretations - all pointing to one immutable structure. When structure evolves, you branch the tree; when understanding evolves, you update the annotations.
+
+### Implementation
+
+**Base classes** in `relationships/immutable_structure.py`:
+
+```python
+# Structural layer - validated for immutability
+class ImmutableStructure(Relationship):
+    """Marker for structural layer"""
+
+class IdentityRelationship(ImmutableStructure):
+    """Defines what a node IS (polarity, source/target)
+    Blocked if SOURCE is committed"""
+
+class ContainerMembership(ImmutableStructure):
+    """Defines container composition (belongs_to_*, has_*)
+    Blocked if TARGET (container) is committed"""
+
+# Analytical layer - freely attachable
+class AnalyticalStructure(Relationship):
+    """Can connect/disconnect anytime, even to committed nodes"""
+```
+
+### Relationship Classification
+
+| Relationship | Layer | Base Class |
+|--------------|-------|------------|
+| Polarity (T, A, T+, etc.) | Structural | IdentityRelationship |
+| `IS_SOURCE_OF`, `IS_TARGET_OF` | Structural | IdentityRelationship |
+| `BELONGS_TO_CYCLE`, `BELONGS_TO_NEXUS` | Structural | ContainerMembership |
+| `HAS_CYCLE`, `HAS_WHEEL` | Structural | ContainerMembership |
+| `EXPLAINS`, `CRITIQUES` | Analytical | AnalyticalStructure |
+| `SYNTHESIS_OF`, `IS_SPIRAL_OF` | Analytical | AnalyticalStructure |
+| `ACTION_REFLECTION` | Analytical | AnalyticalStructure |
+| `ESTIMATES`, `PROVIDES` | Analytical | AnalyticalStructure |
+
+### Practical Effect
+
+```python
+# Structural: must follow save → add members → commit
+transformation.save()
+transition.cycle.connect(transformation)  # OK - container uncommitted
+transformation.commit()
+transition.cycle.connect(transformation)  # BLOCKED - container committed
+
+# Analytical: attach/detach anytime
+transformation.ac_re.connect(new_wu)      # OK even after commit
+transformation.ac_re.disconnect(old_wu)   # OK - just removes annotation
+rationale.set_explanation(any_node)       # OK - pointing into structure
+```
+
 ## Relationship Patterns
 
 **The Nexus-based hierarchy:**
@@ -276,13 +394,6 @@ class Nexus:
 
 **Convention:** Child → Parent edges use `RelationshipTo` on child.
 
-**Nexus evolution relationships:**
-```python
-# Direct evolution (no intermediate nodes)
-nexus1.shrunk_to.connect(nexus2)    # Reduction: fewer WUs
-nexus1.expanded_to.connect(nexus3)  # Growth: more WUs
-```
-
 ## Vocabulary and WisdomUnit Purity
 
 Components are born via `HAS_STATEMENT` relationships from different sources. The **vocabulary** determines which components can be combined in a WisdomUnit.
@@ -293,8 +404,6 @@ Components are born via `HAS_STATEMENT` relationships from different sources. Th
 |--------|--------------|------------|
 | **Input** | `Input -[HAS_STATEMENT]-> Component` | Gen-0 (primary) |
 | **Synthesis** | `Synthesis.s_plus/s_minus -> Component` | Gen-1+ (synthesis) |
-| **Transition** | `Transition -[HAS_STATEMENT]-> Component` | Gen-1+ (synthesis) |
-| **Rationale** | `Rationale -[HAS_STATEMENT]-> Component` | Gen-1+ (synthesis) |
 
 ### Vocabulary Boundaries
 
@@ -312,8 +421,7 @@ Gen-1+ Vocabulary: Nexus
 Nexus_1
 ├── WU position components (Input-born, pulled into vocabulary)
 ├── Synthesis S+/S- components
-├── Transition-derived components
-└── Rationale-derived components
+└── dx:// referenced Input components (via DialexityInputResolver)
                                     │
                                     ▼
                             WisdomUnit (Gen-1)
@@ -357,12 +465,25 @@ repo = DialecticalComponentRepository()
 input_vocab = repo.get_vocabulary(input_node)   # Gen-0 components
 nexus_vocab = repo.get_vocabulary(nexus)        # Gen-1+ components
 
-# Find context for any node
-context = repo.get_vocabulary_context(component)  # Returns Input or Nexus
+# Find all contexts for a node (component can belong to multiple vocabularies)
+contexts = repo.get_vocabulary_contexts(component)  # Returns list of Input/Nexus
+
+# Check if component belongs to a specific vocabulary
+if repo.is_in_vocabulary(component, target_input):
+    print("Component can be used in this vocabulary")
 
 # Trace all root Inputs
 roots = repo.get_root_inputs(wheel)  # All Inputs that contributed
 ```
+
+### Multi-Context Components
+
+A component can belong to **multiple vocabulary contexts** when the same statement is extracted from different Inputs. Since components are content-addressable (same statement = same hash), multiple HAS_STATEMENT relationships can point to the same component.
+
+Use `is_in_vocabulary(component, context)` to check membership rather than comparing contexts directly. This handles:
+- Components with multiple source Inputs
+- Derived components (no context = allowed anywhere)
+- Nexus vocabulary membership
 
 ### Multi-Root Provenance
 
@@ -469,6 +590,42 @@ for pos, _ in component.positive_sides.all():
 - **ClassVar:** Required for RelationshipManager descriptors on GQLAlchemy nodes
 - **Manual vs Calculated:** Separate estimation types prevent circular dependencies
 
+## Node Lifecycle Patterns
+
+### Simple Nodes
+
+Nodes without children (DialecticalComponent, Rationale) can use `commit()` directly:
+
+```python
+component = DialecticalComponent(statement="Remote work improves focus")
+component.commit()  # save + compute hash in one step
+```
+
+### Container Nodes (IncrementalBuildMixin)
+
+Container nodes (Transformation, Spiral, Nexus, Cycle, Wheel) whose hash depends on children use `IncrementalBuildMixin`:
+
+```python
+# Pattern: save() → add members → commit()
+transformation = Transformation()
+transformation.set_wisdom_unit(wu)  # Set parent reference for hash
+transformation.save()               # HEAD state - allows adding members
+
+# Add children while uncommitted
+transition1.cycle.connect(transformation)
+transition2.cycle.connect(transformation)
+
+# Commit after all members added
+transformation.commit()  # Computes hash from children, makes immutable
+```
+
+**Why this pattern?**
+- Container hash = f(children hashes) - children must exist first
+- `ContainerMembership` validation blocks adding to committed containers
+- Supports atomic construction: either fully built or not at all
+
+**Note:** The first `connect()` auto-saves if needed, so explicit `save()` is optional but recommended for clarity.
+
 ## Common Operations
 
 ```python
@@ -484,7 +641,7 @@ from dialectical_framework.graph.scoring.tarorank import TaroRank
 wu = WisdomUnit()
 wu.save()
 component = DialecticalComponent(statement="Remote work improves focus")
-component.save()
+component.commit()
 wu.t.connect(component, relationship=TRelationship(alias='T1'))
 
 # Create Nexus and pool WisdomUnits
@@ -512,20 +669,39 @@ scorer.calculate_score(wheel)  # Recursively scores: WU → Nexus → Cycle → 
 print(f"Wheel score: {wheel.score}")
 ```
 
-## Estimation Types
+## Estimation Architecture
+
+Estimations are separate nodes that point TO their target entity:
+
+```
+Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
+```
+
+**Relationships:**
+| Relationship | Direction | Purpose |
+|--------------|-----------|---------|
+| `ESTIMATES` | Estimation → AssessableEntity | What this estimation measures |
+| `PROVIDES` | Rationale → Estimation | Provenance (optional) |
+
+**Estimation Types:**
 
 | Type | Purpose |
 |------|---------|
-| `ProbabilityEstimation` | Manual P value |
-| `RelevanceEstimation` | Manual R value |
-| `FeasibilityEstimation` | Fallback R value |
-| `CalculatedProbabilityEstimation` | TaroRank-computed P |
-| `CalculatedRelevanceEstimation` | TaroRank-computed R |
+| `ProbabilityEstimation` | Manual P value (user/agent input) |
+| `RelevanceEstimation` | Manual R value (user/agent input) |
+| `FeasibilityEstimation` | Fallback R value (user/agent input) |
+| `CalculatedProbabilityEstimation` | TaroRank-computed P (algorithm output) |
+| `CalculatedRelevanceEstimation` | TaroRank-computed R (algorithm output) |
+| `CalculatedScoreEstimation` | TaroRank-computed Score = P × R^α |
 
-Access via properties:
+**Content-addressed identity:** Estimations are identified by `(type, value, target)`. Same tuple = same hash = reused node.
+
+**Access via properties:**
 ```python
 node.probability  # Returns calculated or manual P
 node.relevance    # Returns calculated or manual R or feasibility
+node.score        # Returns calculated score (via CalculatedScoreEstimation)
+node.is_score_valid()  # True if score hasn't been invalidated
 ```
 
 ## Further Reading

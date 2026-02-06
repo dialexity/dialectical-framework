@@ -7,11 +7,11 @@ but all store the contextual alias property.
 
 from __future__ import annotations
 
-from gqlalchemy import Relationship
+from dialectical_framework.graph.relationships.immutable_structure import IdentityRelationship
 
 
 # Base class for all polarity relationships
-class PolarityRelationship(Relationship):
+class PolarityRelationship(IdentityRelationship):
     """
     Base for all polarity relationships with alias property.
 

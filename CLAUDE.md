@@ -36,7 +36,7 @@ Think of a Dialectical Wheel as a pizza:
 - **Spiral**: Blended navigation across all WU Transformations - **the ultimate artifact**
 - **Wheel**: Top-level container with detailed transitions (belongs to Cycle)
 - **Input**: External content source (URL/IPFS) linked to extracted components
-- **Ideas**: Distilled concepts from an Input (intent describes extraction focus)
+- **Ideas**: Container of distilled concepts from an Input (uses IncrementalBuildMixin: save → add statements → commit)
 - **Brainstorm**: Multi-input exploration container with unified vocabulary
 
 **Hierarchy:** WisdomUnit → Nexus → Cycle → Wheel
@@ -48,13 +48,15 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 
 | Level | Reflection | Question | Lives On |
 |-------|------------|----------|----------|
-| **Discovery** | (Gathering) | What sources to explore? | Brainstorm, Ideas |
+| **Discovery** | (Gathering) | What sources to explore? | Ideas |
 | **Focus** | What? | What tensions exist? | Nexus |
 | **Dynamics** | So What? | Why do they matter? | Cycle |
 | **Path** | Now What? | How to navigate? | WisdomUnit, Transformation |
 | **Synthesis** | (Outcome) | What emerges? | Synthesis, Spiral |
 
-**Nodes with IntentMixin:** Brainstorm, Ideas, Nexus, Cycle, WisdomUnit, Transformation, Synthesis, Spiral, Wheel
+**Nodes with IntentMixin:** Ideas, Nexus, Cycle, WisdomUnit, Transformation, Synthesis, Spiral, Wheel
+
+Note: Brainstorm does not have intent - it's a container for inputs. The intent about what to explore is external to the system.
 
 ### Transformation vs Spiral
 
@@ -80,6 +82,35 @@ Both `WisdomUnit.transformation` and `Wheel.spiral` use **(0, 1)** cardinality b
 Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on both Transformation and Spiral.
 
 See `docs/graph.md` → "Intent Levels" and "Branching and Cardinality Rationale" for detailed explanation.
+
+### Structural vs Analytical Layers
+
+The graph separates relationships into two layers:
+
+**Structural Layer** (immutable after commit):
+- Forms the Merkle-tree backbone (hash-linked)
+- Components, WisdomUnits, Ideas, Nexus, Cycle, Wheel, Transitions
+- Base classes: `IdentityRelationship`, `ContainerMembership`, `OutgoingContainerMembership`
+
+**Analytical Layer** (can evolve anytime):
+- Insights and assessments that don't affect structural hashes
+- Rationale, Estimation, Critique, Synthesis, ac_re
+- Base class: `AnalyticalStructure`
+
+**Key rule**: Structural containers must follow `save() → add members → commit()`. Analytical relationships can be connected/disconnected even after commit.
+
+```python
+# Structural: blocked after container commits
+transformation.save()
+transition.cycle.connect(transformation)  # OK
+transformation.commit()
+transition.cycle.connect(transformation)  # BLOCKED
+
+# Analytical: always allowed
+transformation.ac_re.connect(new_wu)      # OK even after commit
+```
+
+See `docs/graph.md` → "Structural vs Analytical Layers" for full details.
 
 ### Semantic Relationships (auto-created)
 
@@ -112,11 +143,12 @@ When connecting components to WisdomUnit positions, semantic relationships are a
 
 ### Key Files to Understand First
 
-1. `graph/nodes/base_node.py` - Foundation (uid, handle, save())
+1. `graph/nodes/base_node.py` - Foundation (hash, commit(), update())
 2. `graph/nodes/assessable_entity.py` - Scoreable nodes (P, R, score)
 3. `graph/relationship_manager.py` - Declarative relationship API
-4. `graph/scoring/tarorank.py` - Score = P × R^α
-5. `dialectical_reasoning.py` - DI container setup
+4. `graph/relationships/immutable_structure.py` - Layer base classes (Structural vs Analytical)
+5. `graph/scoring/tarorank.py` - Score = P × R^α
+6. `dialectical_reasoning.py` - DI container setup
 
 ---
 
@@ -199,16 +231,80 @@ def my_function(
     pass
 ```
 
-### Graph Node Lifecycle
+### DI Anti-Patterns to Avoid
+
+**`graph_db` is a singleton** - it's registered once in the DI container and the same instance is injected everywhere. This means:
+
+1. **Don't pass `graph_db` between `@inject` methods** - each method gets the same singleton automatically:
 
 ```python
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+# BAD - redundant passing
+@inject
+def outer_method(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]):
+    self.inner_method(graph_db=graph_db)  # Don't do this!
 
-# Create and save
+@inject
+def inner_method(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]):
+    graph_db.execute(...)
+
+# GOOD - let DI inject at each call site
+@inject
+def outer_method(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]):
+    self.inner_method()  # DI injects graph_db automatically
+
+@inject
+def inner_method(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]):
+    graph_db.execute(...)
+```
+
+2. **Don't store `graph_db` as instance variable** - use `@inject` on each method that needs it:
+
+```python
+# BAD - storing singleton as instance variable
+class MyClass:
+    @inject
+    def __init__(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]):
+        self._graph_db = graph_db  # Don't do this!
+
+    def some_method(self):
+        self._graph_db.execute(...)  # Uses stored reference
+
+# GOOD - inject where needed
+class MyClass:
+    def __init__(self):
+        pass
+
+    @inject
+    def some_method(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]):
+        graph_db.execute(...)  # Fresh injection
+```
+
+**Why this matters:** Explicit passing adds verbosity without benefit since DI provides the same singleton. It also obscures the dependency graph and makes refactoring harder.
+
+### Graph Node Lifecycle
+
+**Simple nodes** (DialecticalComponent, Rationale):
+```python
 component = DialecticalComponent(statement="Remote work increases productivity")
-component.save()  # Uses injected graph_db
+component.commit()  # save + compute hash in one step
+```
 
+**Container nodes** (Ideas, Transformation, Spiral, Nexus, Cycle, Wheel) use `IncrementalBuildMixin`:
+```python
+# Pattern: save() → add members → commit()
+transformation = Transformation()
+transformation.set_wisdom_unit(wu)
+transformation.save()  # HEAD state - no hash yet
+
+# Add members while uncommitted
+transition.cycle.connect(transformation)  # OK
+
+# Commit after all members added
+transformation.commit()  # Computes hash from members, makes immutable
+```
+
+**Relationship operations:**
+```python
 wu = WisdomUnit()
 wu.save()
 
@@ -318,6 +414,24 @@ transformation: ClassVar[...] = RelationshipFrom(..., cardinality=(0, 1))
 rationales: ClassVar[...] = RelationshipFrom(..., cardinality=(0, None))
 ```
 
+### Prefer `isinstance` over `getattr` for Mixin Attributes
+
+When checking for mixin-provided attributes (like `origin_hash`, `branch` from `ForkableMixin`), use `isinstance` checks instead of `getattr`. This enables easier refactoring and provides better IDE support.
+
+```python
+# GOOD - isinstance for mixin attributes
+from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
+
+if isinstance(node, ForkableMixin):
+    origin = node.origin_hash  # IDE knows this exists
+    branch = node.branch
+
+# BAD - getattr hides the dependency
+origin = getattr(node, 'origin_hash', None)  # No IDE support, harder to refactor
+```
+
+**When to use `getattr`:** For class-level attributes like `label` or `type` that aren't mixin-based, `getattr` with a default is acceptable. When unsure, ask whether `isinstance` or `getattr` is appropriate.
+
 ### Vocabulary and WisdomUnit Purity
 
 **WisdomUnits must only contain components from the same vocabulary context.** This is enforced at connect time.
@@ -363,12 +477,18 @@ repo = DialecticalComponentRepository()
 input_vocab = repo.get_vocabulary(input_node)   # Gen-0 components
 nexus_vocab = repo.get_vocabulary(nexus)        # Gen-1+ components
 
-# Find context for any node
-context = repo.get_vocabulary_context(component)  # Returns Input or Nexus
+# Find all contexts for a node (component can belong to multiple vocabularies)
+contexts = repo.get_vocabulary_contexts(component)  # Returns list of Input/Nexus
+
+# Check if component belongs to a specific vocabulary
+if repo.is_in_vocabulary(component, target_input):
+    print("Component can be used in this vocabulary")
 
 # Trace all root Inputs (multi-root provenance)
 roots = repo.get_root_inputs(wheel)  # All Inputs that contributed
 ```
+
+**Multi-Context Components:** A component can belong to multiple vocabularies when the same statement is extracted from multiple Inputs. Use `is_in_vocabulary()` to check membership rather than comparing contexts directly.
 
 **Multi-Root Provenance:** Gen-1+ components trace back to multiple original Inputs via the Nexus ancestry—this is by design for synthesis.
 
