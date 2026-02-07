@@ -122,8 +122,8 @@ class BaseNode(Node, label="Node"):
 
         # Add origin_hash if this is a ForkableMixin node
         from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
-        if isinstance(self, ForkableMixin):
-            parts.extend(self.origin_hash)
+        if isinstance(self, ForkableMixin) and self.origin_hash:
+            parts.append(self.origin_hash)
 
         # Add intent if present (from IntentMixin)
         if isinstance(self, IntentMixin) and self.intent:
