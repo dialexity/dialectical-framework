@@ -39,4 +39,12 @@ class DecoratorDiscreteSpiral(WheelBuilderTransitionCalculator):
         result: list[Transition] = []
         for tr_list in results:
             result.extend(tr_list)
+
+        # Commit the spiral now that all transitions are added
+        spiral_result = wheel.spiral.get()
+        if spiral_result:
+            spiral = spiral_result[0]
+            if not spiral.is_committed:
+                spiral.commit()
+
         return result

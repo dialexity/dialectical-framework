@@ -108,7 +108,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         component_map: dict[str, DialecticalComponent] = {}  # uid -> graph-native component
 
         # Build DTOs for AI boundary
-        component_dtos: dict[str, DialecticalComponentDto] = {}  # uid -> DTO
+        component_dtos: dict[str, DialecticalComponentDto] = {}  # identity -> DTO
 
         for seq_idx, sequence in enumerate(sequences, 1):
             sequence_aliases: list[str] = []
@@ -117,9 +117,9 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 # Generate uniform technical alias to avoid AI bias
                 technical_alias = f"C{seq_idx}_{comp_idx}"
 
-                # Store graph-native component by UID for later mapping
-                if component.uid not in component_map:
-                    component_map[component.uid] = component
+                # Store graph-native component by identity for later mapping
+                if component.hash not in component_map:
+                    component_map[component.hash] = component
 
                     # Convert graph-native component → DTO for AI
                     # Get first rationale as explanation if available
@@ -129,7 +129,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                         rationale, _ = rationales[0]
                         explanation = rationale.text if rationale.text else ""
 
-                    component_dtos[component.uid] = DialecticalComponentDto(
+                    component_dtos[component.hash] = DialecticalComponentDto(
                         alias=technical_alias,
                         statement=component.statement,
                         explanation=explanation
@@ -243,23 +243,19 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 # Create transitions: T → A → T
                 for source_comp, target_comp in [(t_comp, a_comp), (a_comp, t_comp)]:
                     trans = Transition()
-                    trans.save()
-                    trans.source.connect(source_comp)
-                    trans.target.connect(target_comp)
+                    trans.set_source(source_comp)
+                    trans.set_target(target_comp)
+                    trans.commit()  # Auto-connects source/target
                     trans.cycle.connect(wheel)
 
-                # Create rationale
-                rationale = Rationale(
-                    summary="Single unit wheel",
-                    text="Default single-wisdom-unit wheel arrangement",
-                )
-                rationale.save()
-
-                estimation_manager = EstimationManager()
-                estimation_manager.upsert_estimation(rationale, ProbabilityEstimation, 1.0)
-                estimation_manager.upsert_estimation(rationale, RelevanceEstimation, 1.0)
-
-                wheel.rationales.connect(rationale)
+                # Store rationale data for deferred creation (after wheel is committed)
+                wheel._pending_rationale = {
+                    'summary': "Single unit wheel",
+                    'text': "Default single-wisdom-unit wheel arrangement",
+                    'probability': 1.0,
+                    'relevance': 1.0,
+                }
+                wheel._sorting_priority = 1.0
 
                 return [wheel]
 
@@ -342,14 +338,14 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
         estimation_manager = EstimationManager()
 
         # Build translation map from technical aliases to original aliases
-        uid_to_original_alias: dict[str, str] = {
-            comp.uid: original_alias for comp, original_alias in components_with_aliases
+        id_to_original_alias: dict[str, str] = {
+            comp.hash: original_alias for comp, original_alias in components_with_aliases
         }
         alias_translations: dict[str, str] = {}
         for seq_idx, sequence in enumerate(sequences, 1):
             for comp_idx, component in enumerate(sequence, 1):
                 technical_alias = f"C{seq_idx}_{comp_idx}"
-                original_alias = uid_to_original_alias.get(component.uid)
+                original_alias = id_to_original_alias.get(component.hash)
                 if original_alias:
                     alias_translations[technical_alias] = original_alias
 
@@ -414,16 +410,16 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 node = Wheel()
             node.save()
 
-            # Create transitions
+            # Create transitions (each is unique due to unique_id in Transition)
             if ordered_components:
                 for i in range(len(ordered_components)):
                     source_comp = ordered_components[i]
                     target_comp = ordered_components[(i + 1) % len(ordered_components)]
 
                     transition = Transition()
-                    transition.save()
-                    transition.source.connect(source_comp)
-                    transition.target.connect(target_comp)
+                    transition.set_source(source_comp)
+                    transition.set_target(target_comp)
+                    transition.commit()  # Auto-connects source/target via stored refs
                     transition.cycle.connect(node)
 
             # Translate aliases in text
@@ -433,17 +429,16 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 reasoning_text = dc_replace(reasoning_text, technical_alias, original_alias)
                 argumentation_text = dc_replace(argumentation_text, technical_alias, original_alias)
 
-            # Create rationale
-            rationale = Rationale(
-                summary=argumentation_text,
-                text=reasoning_text,
-            )
-            rationale.save()
-
-            estimation_manager.upsert_estimation(rationale, ProbabilityEstimation, float(p))
-            estimation_manager.upsert_estimation(rationale, RelevanceEstimation, causal_cycle.probability)
-
-            node.rationales.connect(rationale)
+            # Store rationale data for deferred creation (after node is committed)
+            # IncrementalBuildMixin nodes (Cycle, Wheel) need commit() before rationales can target them
+            node._pending_rationale = {
+                'summary': argumentation_text,
+                'text': reasoning_text,
+                'probability': float(p),
+                'relevance': causal_cycle.probability,
+            }
+            # Store priority for sorting (since rationale doesn't exist yet)
+            node._sorting_priority = float(p)
 
             self._decompose_probability_into_transitions(
                 probability=float(p),
@@ -454,7 +449,10 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             nodes.append(node)
 
         def get_priority(node) -> float:
-            """Get node's competitive probability from its rationale."""
+            """Get node's priority for sorting."""
+            # Use stored priority if rationale not yet created
+            if hasattr(node, '_sorting_priority'):
+                return node._sorting_priority
             rationales = list(node.rationales.all())
             if rationales:
                 rat, _ = rationales[0]
@@ -463,6 +461,40 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
         nodes.sort(key=get_priority, reverse=True)
         return nodes
+
+    @staticmethod
+    def finalize_pending_rationales(nodes: list) -> None:
+        """
+        Create rationales for nodes that have pending rationale data.
+
+        This should be called after nodes are committed, since Rationale.set_explanation
+        requires committed targets.
+
+        Args:
+            nodes: List of nodes (Cycle, Wheel, etc.) that may have _pending_rationale data
+        """
+        estimation_manager = EstimationManager()
+
+        for node in nodes:
+            if not hasattr(node, '_pending_rationale'):
+                continue
+
+            data = node._pending_rationale
+            rationale = Rationale(
+                summary=data.get('summary'),
+                text=data['text'],
+            )
+            rationale.set_explanation(node)
+            rationale.commit()  # Auto-connects to node
+
+            # Estimations target the node being explained, rationale is the provider
+            estimation_manager.upsert_estimation(node, ProbabilityEstimation, data['probability'], provider=rationale)
+            estimation_manager.upsert_estimation(node, RelevanceEstimation, data['relevance'], provider=rationale)
+
+            # Clean up temporary attributes
+            delattr(node, '_pending_rationale')
+            if hasattr(node, '_sorting_priority'):
+                delattr(node, '_sorting_priority')
 
     @staticmethod
     def _get_sequences(

@@ -28,6 +28,8 @@ from dialectical_framework.synthesist.polarity.reason_fast_and_simple import Rea
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
+from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
+from dialectical_framework.graph.composite_input_resolver import CompositeInputResolver
 from dialectical_framework.graph.scope_context import ScopeContext
 
 
@@ -102,11 +104,11 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         """
         Ensure required indexes and constraints exist on the graph database.
 
-        Creates indexes on :Node for portable identifier fields (nid, sid, origin_uid, uid).
-        Creates a unique constraint on :Node(nid).
+        Creates indexes on :Node for Merkle identity fields (hash, origin_hash, sid).
+        Creates a unique constraint on :Node(hash).
         Works with both Memgraph and Neo4j by detecting DB type and using appropriate syntax.
         """
-        required_indexes = {"nid", "sid", "origin_uid", "uid"}
+        required_indexes = {"hash", "origin_hash", "sid"}
         is_neo4j = isinstance(graph_db, Neo4j)
 
         # Get existing indexes
@@ -140,8 +142,8 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                 # Memgraph syntax
                 graph_db.execute(f"CREATE INDEX ON :Node({prop})")
 
-        # Check for existing unique constraint on nid
-        has_nid_constraint = False
+        # Check for existing unique constraint on hash
+        has_hash_constraint = False
         try:
             if is_neo4j:
                 # Neo4j: SHOW CONSTRAINTS returns labelsOrTypes, properties
@@ -149,30 +151,30 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                 for row in results:
                     labels = row.get("labelsOrTypes", [])
                     props = row.get("properties", [])
-                    if "Node" in labels and "nid" in props:
-                        has_nid_constraint = True
+                    if "Node" in labels and "hash" in props:
+                        has_hash_constraint = True
                         break
             else:
                 # Memgraph: SHOW CONSTRAINT INFO returns constraint_type, label, properties
                 results = graph_db.execute_and_fetch("SHOW CONSTRAINT INFO")
                 for row in results:
-                    if row.get("label") == "Node" and "nid" in row.get("properties", []):
-                        has_nid_constraint = True
+                    if row.get("label") == "Node" and "hash" in row.get("properties", []):
+                        has_hash_constraint = True
                         break
         except Exception:
             pass  # Fresh DB or no constraints
 
-        # Create unique constraint on nid if missing
-        if not has_nid_constraint:
+        # Create unique constraint on hash if missing
+        if not has_hash_constraint:
             try:
                 if is_neo4j:
                     graph_db.execute(
-                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Node) REQUIRE n.nid IS UNIQUE"
+                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Node) REQUIRE n.hash IS UNIQUE"
                     )
                 else:
                     # Memgraph syntax
                     graph_db.execute(
-                        "CREATE CONSTRAINT ON (n:Node) ASSERT n.nid IS UNIQUE"
+                        "CREATE CONSTRAINT ON (n:Node) ASSERT n.hash IS UNIQUE"
                     )
             except Exception:
                 pass  # Constraint may already exist or DB doesn't support it
@@ -241,8 +243,12 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     )
 
     # -- Content Resolution --
-    # Default resolver handles plain text and data: URIs (useful for tests).
-    # Apps should override with their own InputResolver for production.
+    # Composite resolver delegates to scheme-specific resolvers:
+    # - dx://  -> DialexityInputResolver (internal graph references)
+    # - data:  -> VerbatimInputResolver (data URIs)
+    # - (else) -> VerbatimInputResolver (plain text)
+    #
+    # Apps can override with their own InputResolver for production.
     #
     # Example app setup:
     #   class MyAppResolver(InputResolver):
@@ -254,8 +260,18 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     #
     #   container.input_resolver.override(providers.Singleton(MyAppResolver))
     #
-    input_resolver: providers.Singleton[InputResolver] = providers.Singleton(
+    verbatim_resolver: providers.Singleton[VerbatimInputResolver] = providers.Singleton(
         VerbatimInputResolver
+    )
+
+    dialexity_resolver: providers.Singleton[DialexityInputResolver] = providers.Singleton(
+        DialexityInputResolver
+    )
+
+    input_resolver: providers.Singleton[InputResolver] = providers.Singleton(
+        CompositeInputResolver,
+        verbatim_resolver=verbatim_resolver,
+        dialexity_resolver=dialexity_resolver
     )
 
     # -- Scope Context for Portable Identifiers --

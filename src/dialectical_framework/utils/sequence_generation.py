@@ -103,14 +103,14 @@ def generate_compatible_sequences(
         if t_result:
             ts.append(t_result[0])  # Extract component from tuple
         else:
-            raise ValueError(f"WisdomUnit {u.uid} missing T component")
+            raise ValueError(f"WisdomUnit {u.hash} missing T component")
 
         # Get A component (returns tuple of (component, relationship) or None)
         a_result = u.a.get()
         if a_result:
             as_.append(a_result[0])  # Extract component from tuple
         else:
-            raise ValueError(f"WisdomUnit {u.uid} missing A component")
+            raise ValueError(f"WisdomUnit {u.hash} missing A component")
 
     size = 2 * n
 

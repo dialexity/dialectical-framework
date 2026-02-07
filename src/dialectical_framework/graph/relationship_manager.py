@@ -16,7 +16,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Generic, Optional, Type, TypeVar, Union, overload
+from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, overload
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j, Node
@@ -24,7 +24,10 @@ from gqlalchemy import Relationship as GQLRelationship
 
 from dialectical_framework.enums.di import DI
 
-T = TypeVar("T", bound=Node)
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.base_node import BaseNode
+
+T = TypeVar("T", bound="BaseNode")
 
 # Cache for inverse relationship lookup
 # Key: (source_class_name, target_class_name, relationship_type)
@@ -68,6 +71,39 @@ def _get_label_for_class_name(class_name: str) -> str:
     if node_class is not None:
         return getattr(node_class, 'label', class_name)
     return class_name  # Fallback to class name if not found
+
+
+def _get_all_labels_for_class_name(class_name: str) -> list[str]:
+    """
+    Get database labels for a class AND all its subclasses.
+
+    Handles polymorphic relationships where the target might be any subclass.
+    For example, 'Estimation' returns ['Estimation', 'Probability', 'Relevance',
+    'CalculatedProbability', 'CalculatedRelevance', 'Feasibility'].
+
+    Args:
+        class_name: The class name to resolve
+
+    Returns:
+        List of all applicable database labels
+    """
+    node_class = _get_node_class_by_name(class_name)
+    if node_class is None:
+        return [class_name]
+
+    labels = []
+
+    # Add the class's own label
+    own_label = getattr(node_class, 'label', class_name)
+    labels.append(own_label)
+
+    # Add labels of all subclasses
+    for subclass in _get_all_subclasses(node_class).values():
+        subclass_label = getattr(subclass, 'label', subclass.__name__)
+        if subclass_label not in labels:
+            labels.append(subclass_label)
+
+    return labels
 
 
 def _is_class_compatible(source_class_name: str, target_class_names: list[str]) -> bool:
@@ -276,7 +312,7 @@ class BoundRelationshipManager(Generic[T]):
 
     def __init__(
         self,
-        source_node: Node,
+        source_node: BaseNode,
         target_class_name: str,
         relationship_type: str,
         relationship_model: Optional[Type[GQLRelationship]],
@@ -290,7 +326,7 @@ class BoundRelationshipManager(Generic[T]):
         self.direction = direction
         self.cardinality = cardinality
 
-    def _validate_scope_compatibility(self, target_node: Node) -> None:
+    def _validate_scope_compatibility(self, target_node: BaseNode) -> None:
         """
         Validate that connected nodes belong to the same scope (Brainstorm).
 
@@ -305,8 +341,8 @@ class BoundRelationshipManager(Generic[T]):
         Raises:
             ValueError: If nodes have different non-None sids
         """
-        source_sid = getattr(self.source_node, 'sid', None)
-        target_sid = getattr(target_node, 'sid', None)
+        source_sid = self.source_node.sid
+        target_sid = target_node.sid
 
         # Allow if either is None (orphan/unsaved node)
         if source_sid is None or target_sid is None:
@@ -317,14 +353,16 @@ class BoundRelationshipManager(Generic[T]):
             return
 
         # Different scopes - not allowed
+        source_id = self.source_node.hash or self.source_node._id or '?'
+        target_id = target_node.hash or target_node._id or '?'
         raise ValueError(
             f"Cannot connect nodes from different scopes. "
-            f"Source node (uid={getattr(self.source_node, 'uid', '?')}) has sid={source_sid}, "
-            f"target node (uid={getattr(target_node, 'uid', '?')}) has sid={target_sid}. "
+            f"Source node (id={source_id}) has sid={source_sid}, "
+            f"target node (id={target_id}) has sid={target_sid}. "
             f"Nodes in the same graph must belong to the same scope (Brainstorm)."
         )
 
-    def _validate_wisdom_unit_vocabulary(self, target_node: Node) -> None:
+    def _validate_wisdom_unit_vocabulary(self, target_node: BaseNode) -> None:
         """
         Validate that components connected to a WisdomUnit belong to the same vocabulary.
 
@@ -362,24 +400,16 @@ class BoundRelationshipManager(Generic[T]):
         nexus_result = wu.nexus.get()
         if nexus_result:
             nexus, _ = nexus_result
-            # Gen-1 mode: validate against Nexus vocabulary
-            vocabulary = repo.get_vocabulary(nexus)
-            vocabulary_uids = {c.uid for c in vocabulary}
-
-            if new_component.uid in vocabulary_uids:
-                return  # Component is in Nexus vocabulary, OK
-
-            # Check if it's a derived component (no context)
-            new_context = repo.get_vocabulary_context(new_component)
-            if new_context is None:
-                return  # Derived component with no context, allow
+            # Gen-1 mode: validate against Nexus vocabulary using is_in_vocabulary
+            if repo.is_in_vocabulary(new_component, nexus):
+                return  # Component is in Nexus vocabulary or is derived, OK
 
             # Component has a context but is not in Nexus vocabulary
             stmt_preview = new_component.statement[:50] if new_component.statement else ""
             raise ValueError(
                 f"Cannot connect component to WisdomUnit: component not in Nexus vocabulary. "
-                f"Component '{stmt_preview}...' (uid={new_component.uid}) "
-                f"is not in Nexus '{nexus.uid}' vocabulary. "
+                f"Component '{stmt_preview}...' (id={new_component.hash}) "
+                f"is not in Nexus '{nexus.hash}' vocabulary. "
                 f"In Gen-1 mode (WU in Nexus), all components must be from the Nexus vocabulary "
                 f"or be derived components without prior context."
             )
@@ -392,60 +422,57 @@ class BoundRelationshipManager(Generic[T]):
             if result:
                 comp, _ = result
                 # Don't include the new component if it's already connected
-                if comp.uid != new_component.uid:
+                if comp.hash != new_component.hash:
                     existing_components.append(comp)
 
         # If no existing components, any component is valid (first one sets the context)
         if not existing_components:
             return
 
-        # Get vocabulary context for the first existing component (they should all match)
-        existing_context = repo.get_vocabulary_context(existing_components[0])
+        # Get vocabulary contexts for the first existing component
+        existing_contexts = repo.get_vocabulary_contexts(existing_components[0])
 
-        if existing_context is None:
+        if not existing_contexts:
             # Existing components have no context - allow the connection
             return
 
-        # Check if new component has its own vocabulary context
-        new_component_context = repo.get_vocabulary_context(new_component)
+        # New component must share at least one context with existing components
+        # This allows components that belong to multiple vocabularies to join
+        # a WU from any of those vocabularies
+        for ctx in existing_contexts:
+            if repo.is_in_vocabulary(new_component, ctx):
+                return  # Shares at least one vocabulary context - OK
 
-        if new_component_context is None:
-            # New component has no context (derived/generated component)
-            # Allow it - we only block mixing components from DIFFERENT contexts
+        # No shared context - build error message
+        from dialectical_framework.graph.nodes.input import Input
+
+        new_contexts = repo.get_vocabulary_contexts(new_component)
+        if not new_contexts:
+            # New component has no context (derived) - should have been caught by is_in_vocabulary
             return
 
-        # Both have contexts - they must match
-        if existing_context.uid != new_component_context.uid:
-            from dialectical_framework.graph.nodes.input import Input
+        existing_ctx = existing_contexts[0]
+        new_ctx = new_contexts[0]
+        existing_type = "Input" if isinstance(existing_ctx, Input) else "Nexus"
+        new_type = "Input" if isinstance(new_ctx, Input) else "Nexus"
+        existing_id = getattr(existing_ctx, 'content', None) or existing_ctx.hash
+        new_id = getattr(new_ctx, 'content', None) or new_ctx.hash
+        stmt_preview = new_component.statement[:50] if new_component.statement else ""
 
-            existing_type = "Input" if isinstance(existing_context, Input) else "Nexus"
-            new_type = "Input" if isinstance(new_component_context, Input) else "Nexus"
-            existing_id = (
-                getattr(existing_context, 'content', None) or
-                getattr(existing_context, 'handle', None) or
-                existing_context.uid
-            )
-            new_id = (
-                getattr(new_component_context, 'content', None) or
-                getattr(new_component_context, 'handle', None) or
-                new_component_context.uid
-            )
-            stmt_preview = new_component.statement[:50] if new_component.statement else ""
+        raise ValueError(
+            f"Cannot connect component to WisdomUnit: vocabulary context mismatch. "
+            f"Component '{stmt_preview}...' belongs to {new_type} '{new_id}', "
+            f"but WisdomUnit's existing components belong to {existing_type} '{existing_id}'. "
+            f"All components in a WisdomUnit must share at least one vocabulary context."
+        )
 
-            raise ValueError(
-                f"Cannot connect component to WisdomUnit: vocabulary context mismatch. "
-                f"Component '{stmt_preview}...' belongs to {new_type} '{new_id}', "
-                f"but WisdomUnit's existing components belong to {existing_type} '{existing_id}'. "
-                f"All components in a WisdomUnit must belong to the same vocabulary context."
-            )
-
-    def _validate_nexus_frozen_after_cycle(self, target_node: Node) -> None:
+    def _validate_nexus_frozen_after_cycle(self, target_node: BaseNode) -> None:
         """
         Validate that WisdomUnits cannot be added to a Nexus that already has Cycles.
 
         Once a Nexus has been "crystallized" into one or more Cycles, its WisdomUnit
-        membership is frozen. To add more WUs, use the evolution pattern (shrunk_to/expanded_to)
-        to create a new Nexus.
+        membership is frozen. To add more WUs, clone the Nexus to create a new one
+        (lineage tracked via origin_hash).
 
         This is called automatically by connect() for BELONGS_TO_NEXUS relationships.
 
@@ -479,11 +506,11 @@ class BoundRelationshipManager(Generic[T]):
             raise ValueError(
                 f"Cannot add WisdomUnit to Nexus: Nexus already has {cycle_count} Cycle(s). "
                 f"Once a Nexus has Cycles, its WisdomUnit membership is frozen. "
-                f"To evolve the Nexus, use shrunk_to/expanded_to to create a new Nexus "
-                f"with different WisdomUnits."
+                f"To evolve the Nexus, clone it to create a new Nexus with different WisdomUnits "
+                f"(lineage tracked via origin_hash)."
             )
 
-    def _validate_cycle_wheel_connection(self, target_node: Node) -> None:
+    def _validate_cycle_wheel_connection(self, target_node: BaseNode) -> None:
         """
         Validate Cycle <-> Wheel connections.
 
@@ -517,8 +544,8 @@ class BoundRelationshipManager(Generic[T]):
                 "Connect the cycle to a Nexus first."
             )
 
-        nexus_wu_uids = {wu.uid for wu, _ in nexus.wisdom_units.all()}
-        if not nexus_wu_uids:
+        nexus_wu_ids = {wu.hash for wu, _ in nexus.wisdom_units.all()}
+        if not nexus_wu_ids:
             raise ValueError(
                 "Cannot connect cycle to wheel: cycle's Nexus has no WisdomUnits. "
                 "Connect WisdomUnits to the Nexus first."
@@ -534,42 +561,42 @@ class BoundRelationshipManager(Generic[T]):
 
         # Collect all unique components from wheel's transitions
         from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
-        components_by_uid: dict[str, Node] = {}
+        components_by_id: dict[str, Node] = {}
         for transition in wheel_transitions:
             source_result = transition.source.get()
             if source_result:
                 comp = source_result[0]
-                components_by_uid[comp.uid] = comp
+                components_by_id[comp.hash] = comp
             target_result = transition.target.get()
             if target_result:
                 comp = target_result[0]
-                components_by_uid[comp.uid] = comp
+                components_by_id[comp.hash] = comp
 
         # For each component, verify it belongs to a WU that's in the cycle's Nexus
         repo = WisdomUnitRepository()
-        for component in components_by_uid.values():
+        for component in components_by_id.values():
             from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
             assert isinstance(component, DialecticalComponent)
             component_wus = repo.find_by_dialectical_component(component)
 
             if not component_wus:
-                stmt = getattr(component, 'statement', str(component.uid))[:50]
+                stmt = getattr(component, 'statement', str(component.hash))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
-                    f"(uid={component.uid}) does not belong to any WisdomUnit."
+                    f"(id={component.hash}) does not belong to any WisdomUnit."
                 )
 
             # Check if at least one of the component's WUs is in the cycle's Nexus
-            component_wu_uids = {wu.uid for wu, _ in component_wus}
-            if not component_wu_uids.intersection(nexus_wu_uids):
-                stmt = getattr(component, 'statement', str(component.uid))[:50]
+            component_wu_ids = {wu.hash for wu, _ in component_wus}
+            if not component_wu_ids.intersection(nexus_wu_ids):
+                stmt = getattr(component, 'statement', str(component.hash))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
-                    f"(uid={component.uid}) belongs to WisdomUnit(s) not in the cycle's Nexus. "
+                    f"(id={component.hash}) belongs to WisdomUnit(s) not in the cycle's Nexus. "
                     f"Connect the WisdomUnit to the Nexus first."
                 )
 
-    def _create_wisdom_unit_semantic_relationships(self, target_node: Node) -> None:
+    def _create_wisdom_unit_semantic_relationships(self, target_node: BaseNode) -> None:
         """
         Auto-create semantic relationships when connecting components to WisdomUnit positions.
 
@@ -704,7 +731,7 @@ class BoundRelationshipManager(Generic[T]):
                 a_minus_comp, _ = a_minus_result
                 safe_connect_semantic(a_minus_comp, 'negative_side_of', new_comp)
 
-    def _validate_semantic_relationship_consistency(self, target_node: Node) -> None:
+    def _validate_semantic_relationship_consistency(self, target_node: BaseNode) -> None:
         """
         Validate that manual semantic relationships don't contradict WisdomUnit structure.
 
@@ -740,8 +767,8 @@ class BoundRelationshipManager(Generic[T]):
         from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
         repo = WisdomUnitRepository()
 
-        source_wus = {wu.uid: (wu, pos) for wu, pos in repo.find_by_dialectical_component(source_comp)}
-        target_wus = {wu.uid: (wu, pos) for wu, pos in repo.find_by_dialectical_component(target_comp)}
+        source_wus = {wu.hash: (wu, pos) for wu, pos in repo.find_by_dialectical_component(source_comp)}
+        target_wus = {wu.hash: (wu, pos) for wu, pos in repo.find_by_dialectical_component(target_comp)}
 
         # Find common WisdomUnits
         common_wu_uids = set(source_wus.keys()) & set(target_wus.keys())
@@ -807,6 +834,91 @@ class BoundRelationshipManager(Generic[T]):
                         f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
                     )
 
+    def _validate_structural_immutability(self, target_node: Node, operation: str = "connect") -> None:
+        """
+        Validate that structural layer relationships aren't modified after commit.
+
+        Three types of structural relationships with different validation:
+
+        1. IdentityRelationship (IS_SOURCE_OF, IS_TARGET_OF, Polarity):
+           - Defines what a node IS (its identity)
+           - Blocked if SOURCE is committed (would change source's hash)
+
+        2. ContainerMembership (BELONGS_TO_NEXUS, BELONGS_TO_CYCLE):
+           - Defines container composition (incoming edges: child→container)
+           - Blocked if TARGET (container) is committed
+           - Committed children CAN be added to uncommitted containers
+
+        3. OutgoingContainerMembership (HAS_STATEMENT):
+           - Defines container composition (outgoing edges: container→children)
+           - Blocked if SOURCE (container) is committed
+           - Only applies to IncrementalBuildMixin containers
+
+        MutableAnalyticalStructure relationships are never blocked.
+
+        Args:
+            target_node: The target node of the relationship
+            operation: "connect" or "disconnect" for error message
+
+        Raises:
+            ImmutableNodeError: If trying to modify structural relationship illegally
+        """
+        from dialectical_framework.graph.relationships.immutable_structure import (
+            IdentityRelationship,
+            ContainerMembership,
+            OutgoingContainerMembership,
+            ImmutableStructure,
+        )
+        from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
+        from dialectical_framework.graph.nodes.base_node import ImmutableNodeError
+
+        if self.relationship_model is None:
+            return  # No model, no validation
+
+        # IdentityRelationship: block if SOURCE is committed
+        if issubclass(self.relationship_model, IdentityRelationship):
+            owner = self.source_node
+            if hasattr(owner, 'is_committed') and owner.is_committed:
+                raise ImmutableNodeError(
+                    f"Cannot {operation} identity relationship on committed "
+                    f"{owner.__class__.__name__} (hash: {owner.hash[:7]}...). "
+                    f"Create a new node if you need different identity."
+                )
+            return
+
+        # ContainerMembership: block if TARGET (container) is committed
+        if issubclass(self.relationship_model, ContainerMembership):
+            if hasattr(target_node, 'is_committed') and target_node.is_committed:
+                raise ImmutableNodeError(
+                    f"Cannot {operation} membership relationship to committed "
+                    f"{target_node.__class__.__name__} (hash: {target_node.hash[:7]}...). "
+                    f"Create a new container if you need different composition."
+                )
+            return
+
+        # OutgoingContainerMembership: block if SOURCE (container) is committed
+        # Only applies to IncrementalBuildMixin containers (e.g., Ideas)
+        if issubclass(self.relationship_model, OutgoingContainerMembership):
+            owner = self.source_node
+            if isinstance(owner, IncrementalBuildMixin):
+                if hasattr(owner, 'is_committed') and owner.is_committed:
+                    raise ImmutableNodeError(
+                        f"Cannot {operation} membership relationship from committed "
+                        f"{owner.__class__.__name__} (hash: {owner.hash[:7]}...). "
+                        f"Create a new container if you need different composition."
+                    )
+            return
+
+        # Other ImmutableStructure subclasses: default to blocking on source commit
+        if issubclass(self.relationship_model, ImmutableStructure):
+            owner = self.source_node
+            if hasattr(owner, 'is_committed') and owner.is_committed:
+                raise ImmutableNodeError(
+                    f"Cannot {operation} structural relationship on committed "
+                    f"{owner.__class__.__name__} (hash: {owner.hash[:7]}...). "
+                    f"Create a new node if you need different structure."
+                )
+
     def connect(
         self,
         target_node: T,
@@ -850,8 +962,11 @@ class BoundRelationshipManager(Generic[T]):
 
         Raises:
             ValueError: If nodes haven't been saved or cardinality constraint violated
+            ImmutableNodeError: If modifying structural relationship on committed node
         """
         # Run all validations before connecting
+        # 0. Backbone immutability (structural relationships can't change after commit)
+        self._validate_structural_immutability(target_node, "connect")
         # 1. Scope compatibility (nodes must belong to same scope/Brainstorm)
         self._validate_scope_compatibility(target_node)
         # 2. WisdomUnit component vocabulary context validation
@@ -894,21 +1009,21 @@ class BoundRelationshipManager(Generic[T]):
 
         # Helper function to get node ID
         def get_node_id(node):
-            """Get node ID, querying by uid if _id not set."""
+            """Get node ID, querying by hash if _id not set."""
             if node._id is not None:
                 return node._id
 
-            # Query by uid to get _id
-            uid = getattr(node, "uid", None)
-            if uid is None:
-                raise ValueError(f"Node must be saved before creating relationships (no uid found)")
+            # Query by hash to get _id
+            hash = getattr(node, "hash", None)
+            if hash is None:
+                raise ValueError(f"Node must be committed and saved before creating relationships (no hash found)")
 
             labels = node._label  # Get node label(s) from GQLAlchemy
-            query = f"MATCH (n:{labels} {{uid: $uid}}) RETURN id(n) as node_id"
-            result = list(db.execute_and_fetch(query, {"uid": uid}))
+            query = f"MATCH (n:{labels} {{hash: $hash}}) RETURN id(n) as node_id"
+            result = list(db.execute_and_fetch(query, {"hash": hash}))
 
             if not result:
-                raise ValueError(f"Node with uid={uid} not found in database")
+                raise ValueError(f"Node with hash={hash[:7]}... not found in database")
 
             node_id = result[0]["node_id"]
             # Cache the ID on the node for future use
@@ -1048,6 +1163,9 @@ class BoundRelationshipManager(Generic[T]):
         if self.source_node._id is None or target_node._id is None:
             return False
 
+        # Block disconnection of structural relationships on committed nodes
+        self._validate_structural_immutability(target_node, "disconnect")
+
         # Determine direction
         if self.direction == "outgoing":
             query = f"""
@@ -1155,12 +1273,14 @@ class BoundRelationshipManager(Generic[T]):
         if self.source_node._id is None:
             return []
 
-        # Resolve class names to labels (handles classes defined with label="...")
+        # Resolve class names to labels, including subclass labels for polymorphic queries
         # target_class_name may be pipe-separated for union types
         class_names = self.target_class_name.split("|")
-        resolved_labels = "|".join(
-            _get_label_for_class_name(cn) for cn in class_names
-        )
+        all_labels = []
+        for cn in class_names:
+            all_labels.extend(_get_all_labels_for_class_name(cn))
+        # Deduplicate while preserving order
+        resolved_labels = "|".join(dict.fromkeys(all_labels))
 
         # Build query based on direction
         if self.direction == "outgoing":
@@ -1237,11 +1357,13 @@ class BoundRelationshipManager(Generic[T]):
         if self.source_node._id is None:
             return 0
 
-        # Resolve class names to labels
+        # Resolve class names to labels, including subclass labels for polymorphic queries
         class_names = self.target_class_name.split("|")
-        resolved_labels = "|".join(
-            _get_label_for_class_name(cn) for cn in class_names
-        )
+        all_labels = []
+        for cn in class_names:
+            all_labels.extend(_get_all_labels_for_class_name(cn))
+        # Deduplicate while preserving order
+        resolved_labels = "|".join(dict.fromkeys(all_labels))
 
         if self.direction == "outgoing":
             pattern = f"(source)-[:{self.relationship_type}]->(:{resolved_labels})"

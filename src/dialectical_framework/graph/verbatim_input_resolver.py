@@ -102,7 +102,7 @@ class VerbatimInputResolver(InputResolver):
             if not input_node.content:
                 continue  # Skip inputs with None/empty content
             resolved_text = await self.resolve(input_node)
-            parts.append(f'<Input uid="{input_node.uid}">\n{resolved_text}\n</Input>')
+            parts.append(f'<Input id="{input_node.hash}">\n{resolved_text}\n</Input>')
 
         return "\n\n".join(parts)
 

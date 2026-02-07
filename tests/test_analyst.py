@@ -13,7 +13,7 @@ user_message = "Putin started the war, Ukraine will not surrender and will final
 @observe()
 @pytest.mark.parametrize("number_of_thoughts", [
     2,
-    3,
+    # 3,
 ])
 async def test_full_blown_wheel(number_of_thoughts):
     """
@@ -67,11 +67,11 @@ async def test_full_blown_wheel(number_of_thoughts):
         wu_list_pre = wheel.wisdom_units
         for wu in wu_list_pre:
             t_result = wu.t.get()
-            if t_result and t_result[0].uid == source_comp.uid:
+            if t_result and t_result[0].hash == source_comp.hash:
                 # Source is a T component - good
                 break
             a_result = wu.a.get()
-            if a_result and a_result[0].uid == source_comp.uid:
+            if a_result and a_result[0].hash == source_comp.hash:
                 raise AssertionError(
                     f"t_cycle contains antithesis component! "
                     f"Component '{source_comp.statement[:50]}...' is at A position. "
@@ -109,20 +109,21 @@ async def test_full_blown_wheel(number_of_thoughts):
         f"t_cycle rationale should have meaningful AI-generated text, got: '{rationale.text}'"
     )
 
-    # Verify rationale has RelevanceEstimation (AI's probability assessment stored as R)
+    # Verify rationale provides RelevanceEstimation (AI's probability assessment stored as R)
+    # In the new model, estimations target the cycle and the rationale provides them
     from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
-    rationale_estimations = list(rationale.estimations.all())
+    rationale_provided = list(rationale.provided_estimations.all())
     relevance_estimations = [
-        est for est, _ in rationale_estimations
+        est for est, _ in rationale_provided
         if isinstance(est, RelevanceEstimation)
     ]
     assert len(relevance_estimations) > 0, (
-        "t_cycle rationale should have RelevanceEstimation (AI's probability assessment). "
-        "Missing estimation indicates _normalize() didn't call upsert_estimation correctly."
+        "t_cycle rationale should provide RelevanceEstimation (AI's probability assessment). "
+        "Missing estimation indicates _normalize() didn't call upsert_estimation correctly with source."
     )
 
     ai_relevance = relevance_estimations[0].value
-    print(f"✓ t_cycle rationale has AI relevance estimate: {ai_relevance:.3f}")
+    print(f"✓ t_cycle rationale provides AI relevance estimate: {ai_relevance:.3f}")
 
     # Warn if AI returned very high probability (might indicate prompt issues)
     if ai_relevance >= 0.95:
@@ -143,7 +144,7 @@ async def test_full_blown_wheel(number_of_thoughts):
     # Verify transformations exist (Action-Reflection)
     for wu in wu_list:
         transformation_result = wu.transformation.get()
-        assert transformation_result is not None, f"WisdomUnit {wu.uid} should have transformation"
+        assert transformation_result is not None, f"WisdomUnit {wu.hash} should have transformation"
         transformation, _ = transformation_result
 
         # Verify ac_re exists

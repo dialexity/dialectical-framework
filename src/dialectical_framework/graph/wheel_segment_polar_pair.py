@@ -441,7 +441,7 @@ class WheelSegmentPolarPair:
         return (
             f"WheelSegmentPolarPair("
             f"polarity={self._polarity}, "
-            f"wisdom_unit={self._wisdom_unit.uid}, "
+            f"wisdom_unit={self._wisdom_unit.hash}, "
             f"left={self._left.side}, "
             f"right={self._right.side})"
         )

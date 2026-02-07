@@ -98,8 +98,8 @@ class PolarityFinderBasic(PolarityFinder):
                 f"Incorrect number of polarities requested. Max 4 are supported."
             )
 
-        # Pre-compute connected UIDs for O(1) lookup (avoid O(n) query per component)
-        connected_uids: set[str] = {comp.uid for comp, _ in source.statements.all()}
+        # Pre-compute connected identities for O(1) lookup (avoid O(n) query per component)
+        connected_ids: set[str] = {comp.hash for comp, _ in source.statements.all()}
 
         # Normalize given parameter into tuples
         normalized: list[GivenTuple]
@@ -177,15 +177,15 @@ class PolarityFinderBasic(PolarityFinder):
 
                 if isinstance(thesis_item, DialecticalComponent):
                     t_node = thesis_item
-                    self._ensure_connected(thesis_item, source, connected_uids)
+                    self._ensure_connected(thesis_item, source, connected_ids)
                 elif self._has_content(thesis_item):
-                    t_node = self._ensure_component(thesis_item, source, connected_uids)
+                    t_node = self._ensure_component(thesis_item, source, connected_ids)
 
                 if isinstance(antithesis_item, DialecticalComponent):
                     a_node = antithesis_item
-                    self._ensure_connected(antithesis_item, source, connected_uids)
+                    self._ensure_connected(antithesis_item, source, connected_ids)
                 elif self._has_content(antithesis_item):
-                    a_node = self._ensure_component(antithesis_item, source, connected_uids)
+                    a_node = self._ensure_component(antithesis_item, source, connected_ids)
 
                 result[i] = (t_node, a_node)
                 continue
@@ -196,16 +196,16 @@ class PolarityFinderBasic(PolarityFinder):
 
             if has_thesis and has_antithesis:
                 # Both provided with content
-                t_node = self._ensure_component(thesis_item, source, connected_uids)
-                a_node = self._ensure_component(antithesis_item, source, connected_uids)
+                t_node = self._ensure_component(thesis_item, source, connected_ids)
+                a_node = self._ensure_component(antithesis_item, source, connected_ids)
                 result[i] = (t_node, a_node)
             elif has_thesis:
                 # Thesis provided, antithesis needs generation
-                t_node = self._ensure_component(thesis_item, source, connected_uids)
+                t_node = self._ensure_component(thesis_item, source, connected_ids)
                 result[i] = (t_node, None)
             elif has_antithesis:
                 # Antithesis provided, thesis needs generation (opposite)
-                a_node = self._ensure_component(antithesis_item, source, connected_uids)
+                a_node = self._ensure_component(antithesis_item, source, connected_ids)
                 result[i] = (None, a_node)
             elif i in theses_indices:
                 # Both empty/missing - use generated thesis
@@ -271,24 +271,24 @@ class PolarityFinderBasic(PolarityFinder):
         self,
         component: DialecticalComponent,
         source: Union[Input, Ideas],
-        connected_uids: set[str],
+        connected_ids: set[str],
     ) -> None:
         """Ensure component is connected to source via HAS_STATEMENT.
 
         Args:
             component: The component to connect
             source: The Input/Ideas source node
-            connected_uids: Pre-computed set of already-connected UIDs (mutated on connect)
+            connected_ids: Pre-computed set of already-connected identities (mutated on connect)
         """
-        if component.uid not in connected_uids:
+        if component.hash not in connected_ids:
             source.statements.connect(component)
-            connected_uids.add(component.uid)
+            connected_ids.add(component.hash)
 
     def _ensure_component(
         self,
         item: GivenItem,
         source: Union[Input, Ideas],
-        connected_uids: set[str],
+        connected_ids: set[str],
     ) -> DialecticalComponent:
         """
         Ensure item is a graph node connected to source.
@@ -299,19 +299,19 @@ class PolarityFinderBasic(PolarityFinder):
         Args:
             item: String or DialecticalComponent
             source: The Input/Ideas source node
-            connected_uids: Pre-computed set of already-connected UIDs (mutated on connect)
+            connected_ids: Pre-computed set of already-connected identities (mutated on connect)
 
         Raises:
             ValueError: If item is None, empty string, or unexpected type
         """
         if isinstance(item, DialecticalComponent):
-            self._ensure_connected(item, source, connected_uids)
+            self._ensure_connected(item, source, connected_ids)
             return item
         elif isinstance(item, str) and item:  # Non-empty string
             component = DialecticalComponent(statement=item)
-            component.save()
+            component.commit()
             source.statements.connect(component)
-            connected_uids.add(component.uid)
+            connected_ids.add(component.hash)
             return component
         else:
             raise ValueError(f"Cannot create component from: {item!r}")

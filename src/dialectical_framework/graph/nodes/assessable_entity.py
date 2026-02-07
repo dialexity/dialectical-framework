@@ -7,25 +7,22 @@ nodes that can be assessed/scored (Components, WisdomUnits, Wheels, Cycles, etc.
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import ClassVar, Optional, TYPE_CHECKING, Union
+from typing import ClassVar, Optional, TYPE_CHECKING
 
-from dependency_injector.wiring import inject, Provide
-from gqlalchemy import Memgraph, Neo4j
-
-from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.explains_relationship import (
     ExplainsRelationship,
 )
-from dialectical_framework.graph.relationships.has_estimation_relationship import (
-    HasEstimationRelationship,
+from dialectical_framework.graph.relationships.estimates_relationship import (
+    EstimatesRelationship,
 )
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.estimation import (
         Estimation,
+        CalculatedEstimation,
+        CalculatedScoreEstimation,
         ProbabilityEstimation,
         RelevanceEstimation,
         CalculatedProbabilityEstimation,
@@ -39,7 +36,7 @@ class AssessableEntity(BaseNode, label="Assessable"):
     Base class for all assessable (scoreable) entities in the dialectical graph.
 
     Assessable nodes can have:
-    - A score (computed by external TaroRank algorithm)
+    - A score (computed by external TaroRank algorithm, stored as CalculatedScoreEstimation)
     - Rationales (explanations for assessments)
     - Estimations (probability, relevance, feasibility, cost)
 
@@ -47,14 +44,10 @@ class AssessableEntity(BaseNode, label="Assessable"):
     where P is probability and R is relevance.
 
     Score Provenance:
-    Scores are analytical artifacts (like BI dashboard metrics or materialized views)
-    computed at a point in time. They don't auto-update when knowledge graph changes.
+    Scores are analytical artifacts stored as CalculatedScoreEstimation nodes.
+    Computed at a point in time, they don't auto-update when knowledge graph changes.
     Users explicitly refresh scores when needed (snapshot model, not reactive cache).
     """
-
-    score: Optional[float] = None
-    score_computed_at: Optional[datetime] = None
-    score_invalidated_at: Optional[datetime] = None
 
     # Declarative relationships
     # Rationales explain this assessable entity
@@ -64,10 +57,10 @@ class AssessableEntity(BaseNode, label="Assessable"):
         cardinality=(0, None)  # Zero or more rationales
     )
 
-    # Estimations for this assessable entity
-    estimations: ClassVar[RelationshipManager[Estimation]] = RelationshipTo(
+    # Estimations for this assessable entity (Estimation points TO this entity)
+    estimations: ClassVar[RelationshipManager[Estimation]] = RelationshipFrom(
         "Estimation",
-        model=HasEstimationRelationship,
+        model=EstimatesRelationship,
         cardinality=(0, None)  # Zero or more estimations
     )
 
@@ -127,7 +120,22 @@ class AssessableEntity(BaseNode, label="Assessable"):
         if not manual:
             return None
 
-        values = [est.value for est in manual]
+        # Separate direct (non-sourced) vs rationale-provided (sourced) estimations
+        # Hard veto: if any direct estimation has P=0, return 0
+        # Soft exclusion: filter out sourced estimations with P=0
+        values = []
+        for est in manual:
+            has_source = est.provider.count() > 0  # Check PROVIDES relationship
+            if est.value == 0:
+                if not has_source:
+                    # Direct P=0 → hard veto
+                    return 0.0
+                # else: sourced P=0 → soft exclusion (skip)
+            else:
+                values.append(est.value)
+
+        if not values:
+            return None
         return gm_with_zeros_and_nones_handled(values)
 
     @property
@@ -146,7 +154,9 @@ class AssessableEntity(BaseNode, label="Assessable"):
         2. RelevanceEstimation (manual)
         3. FeasibilityEstimation (manual fallback - semantically same as relevance)
 
-        If any manual estimation is 0, returns 0 (veto semantics).
+        Veto semantics:
+        - Direct (non-sourced) estimation with R=0: hard veto (returns 0)
+        - Sourced (rationale-provided) estimation with R=0: soft exclusion (filtered out)
 
         Returns:
             Relevance value (0.0-1.0) or None if no estimations exist
@@ -190,7 +200,23 @@ class AssessableEntity(BaseNode, label="Assessable"):
             if isinstance(est, RelevanceEstimation)
         ]
         if manual_relevance:
-            values = [est.value for est in manual_relevance]
+            # Separate direct (non-sourced) vs rationale-provided (sourced) estimations
+            # Hard veto: if any direct estimation has R=0, return 0
+            # Soft exclusion: filter out sourced estimations with R=0
+            direct_zeros = []
+            values = []
+            for est in manual_relevance:
+                has_source = est.provider.count() > 0  # Check PROVIDES relationship
+                if est.value == 0:
+                    if not has_source:
+                        # Direct R=0 → hard veto
+                        return 0.0
+                    # else: sourced R=0 → soft exclusion (skip)
+                else:
+                    values.append(est.value)
+
+            if not values:
+                return None
             return gm_with_zeros_and_nones_handled(values)
 
         # 3. Fallback to FeasibilityEstimation - third priority
@@ -199,7 +225,18 @@ class AssessableEntity(BaseNode, label="Assessable"):
             if isinstance(est, FeasibilityEstimation)
         ]
         if manual_feasibility:
-            values = [est.value for est in manual_feasibility]
+            # Same logic: hard veto on direct R=0, soft exclusion on sourced R=0
+            values = []
+            for est in manual_feasibility:
+                has_source = est.provider.count() > 0
+                if est.value == 0:
+                    if not has_source:
+                        return 0.0
+                else:
+                    values.append(est.value)
+
+            if not values:
+                return None
             return gm_with_zeros_and_nones_handled(values)
 
         # 4. No estimations found
@@ -248,23 +285,66 @@ class AssessableEntity(BaseNode, label="Assessable"):
         return False
 
     @property
-    def best_rationale(self) -> Optional[Rationale]:
+    def score(self) -> Optional[float]:
         """
-        Get the highest-scoring rationale explaining this entity.
-
-        Rationales are ranked by their score field. If no rationales have
-        scores, returns the first rationale. If no rationales exist, returns None.
+        Get score from CalculatedScoreEstimation.
 
         Returns:
-            Rationale with highest score, or first rationale, or None
+            Score value (0.0-1.0) or None if not computed
 
         Example:
-            r1 = Rationale(text="Good reason", score=0.8)
-            r2 = Rationale(text="Better reason", score=0.9)
+            scorer = TaroRank()
+            scorer.score_node(wheel)
+            print(wheel.score)  # Returns computed score
+        """
+        estimation = self._get_calculated_score_estimation()
+        return estimation.value if estimation else None
+
+    @property
+    def is_score_calculated(self) -> bool:
+        """
+        Check if score has been calculated (CalculatedScoreEstimation exists).
+
+        Returns:
+            True if CalculatedScoreEstimation exists, False otherwise
+        """
+        return self.score is not None
+
+    def _get_calculated_score_estimation(self) -> Optional[CalculatedScoreEstimation]:
+        """
+        Get the CalculatedScoreEstimation for this entity.
+
+        Returns:
+            CalculatedScoreEstimation or None if not computed
+        """
+        from dialectical_framework.graph.nodes.estimation import CalculatedScoreEstimation
+
+        for est, _ in self.estimations.all():
+            if isinstance(est, CalculatedScoreEstimation):
+                return est
+        return None
+
+    @property
+    def best_rationale(self) -> Optional[Rationale]:
+        """
+        Get the highest-rated rationale explaining this entity.
+
+        Rationales are ranked by their rating field (0.0-1.0). If no rationales have
+        ratings, returns the first rationale. If no rationales exist, returns None.
+
+        Note: Rationale no longer extends AssessableEntity and doesn't have a score.
+        The rating field is used for ranking instead.
+
+        Returns:
+            Rationale with highest rating, or first rationale, or None
+
+        Example:
+            r1 = Rationale(text="Good reason", rating=0.8)
+            r2 = Rationale(text="Better reason", rating=0.9)
             component.rationales.connect(r1)
             component.rationales.connect(r2)
 
-            best = component.best_rationale  # Returns r2 (higher score)
+            best = component.best_rationale  # Returns r2 (higher rating)
         """
         from dialectical_framework.graph.nodes.rationale import Rationale
 
@@ -274,31 +354,23 @@ class AssessableEntity(BaseNode, label="Assessable"):
 
         rationales = [rat for rat, _ in rationales_with_props]
 
-        # Get rationales with scores
-        scored_rationales = [r for r in rationales if r.score is not None]
+        # Get rationales with ratings
+        rated_rationales = [r for r in rationales if r.rating is not None]
 
-        if scored_rationales:
-            # Return rationale with highest score
-            return max(scored_rationales, key=lambda r: r.score)
+        if rated_rationales:
+            # Return rationale with highest rating
+            return max(rated_rationales, key=lambda r: r.rating)
 
-        # Fallback: return first rationale if none have scores
+        # Fallback: return first rationale if none have ratings
         return rationales[0] if rationales else None
 
-    @inject
-    def is_score_valid(
-        self,
-        graph_db: Optional[Union[Memgraph, Neo4j]] = Provide[DI.graph_db]
-    ) -> bool:
+    def is_score_valid(self) -> bool:
         """
         Check if the score is still valid (data hasn't changed since computation).
 
-        A score is valid if:
-        - Score exists
-        - Score was computed (has timestamp)
-        - Either never invalidated OR computed after last invalidation
-
-        This method queries the DB for the current invalidation timestamp to handle
-        cases where in-memory objects are stale after DB modifications.
+        A score is valid if CalculatedScoreEstimation exists and:
+        - Either never invalidated (invalidated_at is None)
+        - OR computed after last invalidation (committed_at > invalidated_at)
 
         Returns:
             True if score is valid and doesn't need recalculation
@@ -308,48 +380,13 @@ class AssessableEntity(BaseNode, label="Assessable"):
             if not wheel.is_score_valid():
                 scorer.score_node(wheel)
         """
-        if self.score is None:
+        estimation = self._get_calculated_score_estimation()
+        if estimation is None:
             return False
-
-        if self.score_computed_at is None:
-            return False
-
-        # Query DB for current invalidation timestamp (in-memory may be stale)
-        db_invalidated_at = self._get_db_invalidated_at(graph_db)
-
-        if db_invalidated_at is None:
-            return True  # Never invalidated
-
-        # Valid if computed AFTER invalidation
-        return self.score_computed_at > db_invalidated_at
-
-    def _get_db_invalidated_at(
-        self,
-        graph_db: Union[Memgraph, Neo4j]
-    ) -> Optional[datetime]:
-        """
-        Query DB for current score_invalidated_at value.
-
-        This ensures we check against the actual DB state, not stale in-memory state.
-        """
-        if self._id is None:
-            return self.score_invalidated_at  # Not persisted, use in-memory
-
-        try:
-            query = """
-                MATCH (n)
-                WHERE id(n) = $node_id
-                RETURN n.score_invalidated_at as invalidated_at
-            """
-            results = list(graph_db.execute_and_fetch(query, {"node_id": self._id}))
-            if results:
-                return results[0]["invalidated_at"]
-        except Exception:
-            pass  # Fall back to in-memory value
-
-        return self.score_invalidated_at
+        return estimation.is_valid()
 
     def __repr__(self) -> str:
         """String representation of the assessable entity."""
         score_str = f"{self.score:.3f}" if self.score is not None else "None"
-        return f"{self.__class__.__name__}(uid={self.uid}, score={score_str})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"{self.__class__.__name__}({hash_str}, score={score_str})"

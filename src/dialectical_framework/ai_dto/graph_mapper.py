@@ -25,7 +25,8 @@ if TYPE_CHECKING:
 
 @inject
 def component_from_dto(
-    dto: DialecticalComponentDto
+    dto: DialecticalComponentDto,
+    graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
 ) -> DialecticalComponent:
     """
     Convert DialecticalComponentDto to graph-native DialecticalComponent.
@@ -33,12 +34,15 @@ def component_from_dto(
     This function handles the conversion from AI-returned DTOs to persisted graph nodes.
     If the DTO includes an explanation, a Rationale node is created and linked.
 
+    DialecticalComponents are content-addressable - same statement = same hash.
+    This function looks up by hash first to reuse existing components.
+
     Args:
         dto: DialecticalComponentDto from AI call
         graph_db: Injected graph database connection
 
     Returns:
-        Saved DialecticalComponent graph node
+        DialecticalComponent graph node (existing or newly created)
 
     Example:
         # After AI call returns DTO
@@ -51,20 +55,39 @@ def component_from_dto(
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.rationale import Rationale
 
-    # Create component node
-    component = DialecticalComponent(statement=dto.statement)
-    component.save()
+    # Look up by statement - DialecticalComponents are content-addressable
+    # We query by statement directly rather than hash because hash includes
+    # committed_at (for temporal ordering), making pre-save hash computation impossible
+    query = """
+        MATCH (c:DialecticalComponent {statement: $statement})
+        RETURN c
+        LIMIT 1
+    """
+    result = list(graph_db.execute_and_fetch(query, {"statement": dto.statement}))
 
-    # Add rationale if explanation provided
+    if result:
+        # Return existing component
+        existing = result[0]["c"]
+        # Still add rationale if explanation provided (context-specific, always new)
+        if dto.explanation:
+            rationale = Rationale(text=dto.explanation)
+            rationale.set_explanation(existing)
+            rationale.commit()
+        return existing
+
+    # Create new component
+    component = DialecticalComponent(statement=dto.statement)
+    component.commit()
+
+    # Add rationale if explanation provided (context-specific, always new)
     if dto.explanation:
         rationale = Rationale(text=dto.explanation)
-        rationale.save()
-        component.rationales.connect(rationale)
+        rationale.set_explanation(component)
+        rationale.commit()
 
     return component
 
 
-@inject
 def components_from_dtos(
     dtos: list[DialecticalComponentDto]
 ) -> list[DialecticalComponent]:
@@ -75,7 +98,6 @@ def components_from_dtos(
 
     Args:
         dtos: List of DialecticalComponentDto from AI call
-        graph_db: Injected graph database connection
 
     Returns:
         List of saved DialecticalComponent graph nodes

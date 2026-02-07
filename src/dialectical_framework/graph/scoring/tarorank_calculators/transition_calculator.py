@@ -38,10 +38,12 @@ class TransitionCalculator(BaseCalculator):
         Calculate P for a Transition.
 
         Algorithm:
-        1. Get transition's own P (from property, which returns manual since calculated was cleared)
-        2. Collect rationale probabilities
-        3. Aggregate via GM
-        4. Fallback to scorer.default_transition_probability if no values
+        1. Get transition's P (from property, which aggregates all P estimations)
+        2. Hard veto: if P=0, return 0
+        3. Fallback to scorer.default_transition_probability if no values
+
+        Note: In the new model, rationale-provided estimations target the transition
+        directly, so they're already included in transition.probability.
 
         Args:
             transition: Transition to calculate P for
@@ -49,47 +51,28 @@ class TransitionCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or None if no evidence and no default
         """
-        from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
-
-        values = []
-
-        # Transition's own probability (manual, since calculated was cleared before this)
-        if transition.probability is not None:
-            # Hard veto: if transition P=0, return 0 immediately (matches legacy _hard_veto_on_own_zero)
-            if transition.probability == 0:
+        # Transition's probability (aggregates all P estimations including rationale-provided)
+        p = transition.probability
+        if p is not None:
+            # Hard veto: if transition P=0, return 0 immediately
+            if p == 0:
                 return 0.0
-            # If we're here, probability is not None and not 0, so must be positive
-            values.append(transition.probability)
+            return p
 
-        # Rationale probabilities
-        # Apply rationale.rating as per scoring.md (parent applies rating)
-        auditor = RationaleAuditor(self.scorer)
-        rationales = [rat for rat, _ in transition.rationales.all()]
-
-        for rationale in rationales:
-            rat_p = auditor.get_probability(rationale)
-            if rat_p is not None and rat_p > 0.0:
-                rating = rationale.rating if rationale.rating is not None else 1.0
-                weighted_p = rat_p * rating
-                if weighted_p > 0.0:  # Filter after rating application
-                    values.append(weighted_p)
-
-        if not values:
-            # Fallback to global default (intentionally global, not instance-level)
-            return self.scorer.default_transition_probability
-
-        return gm_with_zeros_and_nones_handled(values)
+        # Fallback to global default (intentionally global, not instance-level)
+        return self.scorer.default_transition_probability
 
     def calculate_relevance(self, transition: Transition) -> Optional[float]:
         """
         Calculate R for a Transition.
 
         Algorithm:
-        1. Get transition's own R (from property, which returns manual since calculated was cleared)
-        2. Hard veto: if transition R=0, return 0
-        3. Collect rationale R values (using audit-wins)
-        4. Aggregate via GM
-        5. Return None if no evidence
+        1. Get transition's R (from property, which aggregates all R estimations)
+        2. Hard veto: if R=0, return 0
+        3. Return None if no evidence
+
+        Note: In the new model, rationale-provided estimations target the transition
+        directly, so they're already included in transition.relevance.
 
         Args:
             transition: Transition to calculate R for
@@ -97,34 +80,12 @@ class TransitionCalculator(BaseCalculator):
         Returns:
             R value (0.0-1.0) or None if no evidence
         """
-        from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
-
-        values = []
-
-        # Transition's own relevance (manual, since calculated was cleared before this)
-        if transition.relevance is not None:
+        # Transition's relevance (aggregates all R estimations including rationale-provided)
+        r = transition.relevance
+        if r is not None:
             # Hard veto: if transition R=0, return 0 immediately
-            if transition.relevance == 0:
+            if r == 0:
                 return 0.0
-            # If we're here, relevance is not None and not 0, so must be positive
-            # (relevance is constrained to [0, 1])
-            # Note: Transition's own value has no rating (only Rationale.rating exists)
-            values.append(transition.relevance)
+            return r
 
-        # Rationale relevances
-        # Apply rationale.rating as per scoring.md (parent applies rating)
-        auditor = RationaleAuditor(self.scorer)
-        rationales = [rat for rat, _ in transition.rationales.all()]
-
-        for rationale in rationales:
-            rat_r = auditor.get_relevance(rationale)
-            if rat_r is not None and rat_r > 0.0:
-                rating = rationale.rating if rationale.rating is not None else 1.0
-                weighted_r = rat_r * rating
-                if weighted_r > 0.0:  # Filter after rating application
-                    values.append(weighted_r)
-
-        if not values:
-            return None
-
-        return gm_with_zeros_and_nones_handled(values)
+        return None

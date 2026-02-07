@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import final
 
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 from mirascope import BaseMessageParam, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
@@ -62,11 +62,9 @@ class PolarReasoner(HasBrain):
         self,
         polarity_finder: PolarityFinder = Provide[DI.polarity_finder],
         antithesis_extractor: AntithesisExtractor = Provide[DI.antithesis_extractor],
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ):
         self._polarity_finder = polarity_finder
         self._antithesis_extractor = antithesis_extractor
-        self._graph_db = graph_db
 
     @prompt_template(
         """
@@ -508,13 +506,17 @@ class PolarReasoner(HasBrain):
         except StopIteration:
             pass
 
+        # Commit the WU now that all components are connected
+        wu.commit()
         return wu
 
+    @inject
     async def redefine(
         self,
         *,  # ← everything after * is keyword-only
         original: WisdomUnit,
         text: str = "",
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         **modified_dialectical_components,
     ) -> WisdomUnit:
         """
@@ -576,12 +578,12 @@ class PolarReasoner(HasBrain):
                     component = DialecticalComponent(
                         statement=new_statement
                     )
-                    component.save()
+                    component.commit()
 
                     # Add rationale
                     rationale = Rationale(text=f"{position} redefined.")
-                    rationale.save()
-                    component.rationales.connect(rationale)
+                    rationale.set_explanation(component)
+                    rationale.commit()  # Auto-connects to component
 
                     # Connect to new WU with typed relationship
                     manager = new_wu.get_relationship_manager_by_position(position)
@@ -618,7 +620,7 @@ class PolarReasoner(HasBrain):
                     if orig_other and orig_other.statement == o_dto.statement:
                         # Statement unchanged - reuse original component (keep same UID)
                         manager = new_wu.get_relationship_manager_by_position(other_alias)
-                        rel = _create_polarity_relationship(other_alias, other_alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(other_alias)(alias=other_alias)
                         manager.connect(orig_other, relationship=rel)
                         changed[other_pos] = orig_other.statement
                     else:
@@ -627,7 +629,7 @@ class PolarReasoner(HasBrain):
                         if o.best_rationale and o.best_rationale.text:
                             o.best_rationale.text = f"REGENERATED. {o.best_rationale.text}"
                         manager = new_wu.get_relationship_manager_by_position(other_alias)
-                        rel = _create_polarity_relationship(other_alias, other_alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(other_alias)(alias=other_alias)
                         manager.connect(o, relationship=rel)
                         changed[other_pos] = o.statement
                     check1.valid = 1
@@ -641,7 +643,7 @@ class PolarReasoner(HasBrain):
                     if orig_base and orig_base.statement == bm_dto.statement:
                         # Statement unchanged - reuse original component (keep same UID)
                         manager = new_wu.get_relationship_manager_by_position(base_alias)
-                        rel = _create_polarity_relationship(base_alias, base_alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(base_alias)(alias=base_alias)
                         manager.connect(orig_base, relationship=rel)
                         changed[base_pos] = orig_base.statement
                     else:
@@ -650,7 +652,7 @@ class PolarReasoner(HasBrain):
                         if bm.best_rationale and bm.best_rationale.text:
                             bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
                         manager = new_wu.get_relationship_manager_by_position(base_alias)
-                        rel = _create_polarity_relationship(base_alias, base_alias)
+                        rel = WisdomUnit.get_relationship_class_for_position(base_alias)(alias=base_alias)
                         manager.connect(bm, relationship=rel)
                         changed[base_pos] = bm.statement
                     check1.valid = 1
@@ -662,10 +664,10 @@ class PolarReasoner(HasBrain):
                 other_comp = new_wu.get_component(other_alias)
                 if base_comp:
                     base_comp.statement = f"ERROR: {base_comp.statement}"
-                    base_comp.save()
+                    base_comp.commit()
                 if other_comp:
                     other_comp.statement = f"ERROR: {other_comp.statement}"
-                    other_comp.save()
+                    other_comp.commit()
                 warnings.setdefault(base_alias, []).append(check1.explanation)
                 warnings.setdefault(other_alias, []).append(check1.explanation)
                 raise AssertionError(f"{base_alias}, {other_alias}", warnings, new_wu)
@@ -719,12 +721,12 @@ class PolarReasoner(HasBrain):
                         component = DialecticalComponent(
                             statement=new_statement
                         )
-                        component.save()
+                        component.commit()
 
                         # Add rationale
                         rationale = Rationale(text=f"{alias} redefined.")
-                        rationale.save()
-                        component.rationales.connect(rationale)
+                        rationale.set_explanation(component)
+                        rationale.commit()  # Auto-connects to component
 
                         # Connect to new WU with typed relationship
                         manager = new_wu.get_relationship_manager_by_position(alias)
@@ -791,7 +793,7 @@ class PolarReasoner(HasBrain):
                         base_minus_comp = new_wu.get_component(base_minus_alias)
                         if base_minus_comp:
                             base_minus_comp.statement = f"ERROR: {base_minus_comp.statement}"
-                            base_minus_comp.save()
+                            base_minus_comp.commit()
                         warnings.setdefault(alias_base_minus, []).append(
                             check2.explanation
                         )
@@ -849,7 +851,7 @@ class PolarReasoner(HasBrain):
                         other_plus_comp = new_wu.get_component(other_plus_alias)
                         if other_plus_comp:
                             other_plus_comp.statement = f"ERROR: {other_plus_comp.statement}"
-                            other_plus_comp.save()
+                            other_plus_comp.commit()
                         warnings.setdefault(alias_other_plus, []).append(
                             check3.explanation
                         )
@@ -889,7 +891,7 @@ class PolarReasoner(HasBrain):
                             if op.best_rationale and op.best_rationale.text:
                                 op.best_rationale.text = f"REGENERATED. {op.best_rationale.text}"
                             manager = new_wu.get_relationship_manager_by_position(other_plus_alias)
-                            rel = _create_polarity_relationship(other_plus_alias, other_plus_alias)
+                            rel = WisdomUnit.get_relationship_class_for_position(other_plus_alias)(alias=other_plus_alias)
                             manager.connect(op, relationship=rel)
                             changed[other_plus] = op.statement
                             check4.valid = True
@@ -912,7 +914,7 @@ class PolarReasoner(HasBrain):
                             if bm.best_rationale and bm.best_rationale.text:
                                 bm.best_rationale.text = f"REGENERATED. {bm.best_rationale.text}"
                             manager = new_wu.get_relationship_manager_by_position(base_minus_alias)
-                            rel = _create_polarity_relationship(base_minus_alias, base_minus_alias)
+                            rel = WisdomUnit.get_relationship_class_for_position(base_minus_alias)(alias=base_minus_alias)
                             manager.connect(bm, relationship=rel)
                             changed[base_minus] = bm.statement
                             check4.valid = True
@@ -923,10 +925,10 @@ class PolarReasoner(HasBrain):
                         other_plus_comp = new_wu.get_component(other_plus_alias)
                         if base_minus_comp:
                             base_minus_comp.statement = f"ERROR: {base_minus_comp.statement}"
-                            base_minus_comp.save()
+                            base_minus_comp.commit()
                         if other_plus_comp:
                             other_plus_comp.statement = f"ERROR: {other_plus_comp.statement}"
-                            other_plus_comp.save()
+                            other_plus_comp.commit()
                         warnings.setdefault(alias_base_minus, []).append(
                             check4.explanation
                         )
@@ -955,7 +957,9 @@ class PolarReasoner(HasBrain):
             # Delete the new_wu we created to avoid orphaned nodes in the graph
             if new_wu._id:
                 query = "MATCH (n) WHERE id(n) = $node_id DETACH DELETE n"
-                self._graph_db.execute(query, {"node_id": new_wu._id})
+                graph_db.execute(query, {"node_id": new_wu._id})
             return original
 
+        # Commit the WU now that all components are connected
+        new_wu.commit()
         return new_wu

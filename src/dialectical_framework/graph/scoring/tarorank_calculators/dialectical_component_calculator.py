@@ -39,10 +39,12 @@ class ComponentCalculator(BaseCalculator):
         Calculate P for a DialecticalComponent.
 
         Algorithm:
-        1. Get component's own P (from property, which returns manual since calculated was cleared)
-        2. Collect rationale P values (using audit-wins for critiques)
+        1. Get component's P (from property, which aggregates all P estimations)
+        2. Hard veto: if P=0, return 0
         3. If no values: return 1.0 (default for components = facts)
-        4. Aggregate via GM
+
+        Note: In the new model, rationale-provided estimations target the component
+        directly, so they're already included in component.probability.
 
         Args:
             component: DialecticalComponent to calculate P for
@@ -50,47 +52,28 @@ class ComponentCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or 1.0 if no evidence (fact default)
         """
-        from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
-
-        values = []
-
-        # Component's own probability (manual, since calculated was cleared before this)
-        if component.probability is not None:
-            # Hard veto: if component P=0, return 0 immediately (matches legacy _hard_veto_on_own_zero)
-            if component.probability == 0:
+        # Component's probability (aggregates all P estimations including rationale-provided)
+        p = component.probability
+        if p is not None:
+            # Hard veto: if component P=0, return 0 immediately
+            if p == 0:
                 return 0.0
-            # If we're here, probability is not None and not 0, so must be positive
-            values.append(component.probability)
-
-        # Rationale probabilities (with audit-wins)
-        # Apply rationale.rating as per scoring.md (parent applies rating)
-        auditor = RationaleAuditor(self.scorer)
-        rationales = [rat for rat, _ in component.rationales.all()]
-
-        for rationale in rationales:
-            rat_p = auditor.get_probability(rationale)
-            if rat_p is not None and rat_p > 0.0:
-                rating = rationale.rating if rationale.rating is not None else 1.0
-                weighted_p = rat_p * rating
-                if weighted_p > 0.0:  # Filter after rating application
-                    values.append(weighted_p)
+            return p
 
         # Default: 1.0 for components (facts)
-        if not values:
-            return 1.0
-
-        return gm_with_zeros_and_nones_handled(values)
+        return 1.0
 
     def calculate_relevance(self, component: DialecticalComponent) -> Optional[float]:
         """
         Calculate R for a DialecticalComponent.
 
         Algorithm:
-        1. Get component's own R (from property, which returns manual since calculated was cleared)
-        2. Hard veto: if component R=0, return 0
-        3. Collect rationale R values (using audit-wins)
-        4. Aggregate via GM
-        5. Return None if no evidence
+        1. Get component's R (from property, which aggregates all R estimations)
+        2. Hard veto: if R=0, return 0
+        3. Return None if no evidence
+
+        Note: In the new model, rationale-provided estimations target the component
+        directly, so they're already included in component.relevance.
 
         Args:
             component: DialecticalComponent to calculate R for
@@ -98,35 +81,13 @@ class ComponentCalculator(BaseCalculator):
         Returns:
             R value (0.0-1.0) or None if no evidence
         """
-        from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
-
-        values = []
-
-        # Component's own relevance (manual, since calculated was cleared before this)
-        if component.relevance is not None:
+        # Component's relevance (aggregates all R estimations including rationale-provided)
+        r = component.relevance
+        if r is not None:
             # Hard veto: if component R=0, return 0 immediately
-            if component.relevance == 0:
+            if r == 0:
                 return 0.0
-            # If we're here, relevance is not None and not 0, so must be positive
-            # (relevance is constrained to [0, 1])
-            # Note: Component's own value has no rating (only Rationale.rating exists)
-            values.append(component.relevance)
-
-        # Rationale relevances (with audit-wins)
-        # Apply rationale.rating as per scoring.md (parent applies rating)
-        auditor = RationaleAuditor(self.scorer)
-        rationales = [rat for rat, _ in component.rationales.all()]
-
-        for rationale in rationales:
-            rat_r = auditor.get_relevance(rationale)
-            if rat_r is not None and rat_r > 0.0:
-                rating = rationale.rating if rationale.rating is not None else 1.0
-                weighted_r = rat_r * rating
-                if weighted_r > 0.0:  # Filter after rating application
-                    values.append(weighted_r)
+            return r
 
         # No free lunch: return None if no evidence
-        if not values:
-            return None
-
-        return gm_with_zeros_and_nones_handled(values)
+        return None

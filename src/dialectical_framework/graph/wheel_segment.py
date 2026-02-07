@@ -236,18 +236,18 @@ class WheelSegment:
 
         if (self_t is None) != (other_t is None):
             return False
-        if self_t and other_t and self_t[0].uid != other_t[0].uid:
+        if self_t and other_t and self_t[0].hash != other_t[0].hash:
             return False
 
         # Compare t_plus components
-        self_t_plus = [c.uid for c, _ in self.t_plus.all()]
-        other_t_plus = [c.uid for c, _ in other.t_plus.all()]
+        self_t_plus = [c.hash for c, _ in self.t_plus.all()]
+        other_t_plus = [c.hash for c, _ in other.t_plus.all()]
         if set(self_t_plus) != set(other_t_plus):
             return False
 
         # Compare t_minus components
-        self_t_minus = [c.uid for c, _ in self.t_minus.all()]
-        other_t_minus = [c.uid for c, _ in other.t_minus.all()]
+        self_t_minus = [c.hash for c, _ in self.t_minus.all()]
+        other_t_minus = [c.hash for c, _ in other.t_minus.all()]
         if set(self_t_minus) != set(other_t_minus):
             return False
 
@@ -275,15 +275,15 @@ class WheelSegment:
             # Check by component (DialecticalComponent)
             # Search all components in this segment
             t_result = self.t.get()
-            if t_result and t_result[0].uid == key.uid:
+            if t_result and t_result[0].hash == key.hash:
                 return True
 
             for comp, _ in self.t_plus.all():
-                if comp.uid == key.uid:
+                if comp.hash == key.hash:
                     return True
 
             for comp, _ in self.t_minus.all():
-                if comp.uid == key.uid:
+                if comp.hash == key.hash:
                     return True
 
             return False
@@ -398,5 +398,5 @@ class WheelSegment:
     def __repr__(self) -> str:
         """Debug representation of the segment."""
         t_result = self.t.get()
-        t_uid = t_result[0].uid if t_result else "None"
-        return f"WheelSegment(side={self._side}, wisdom_unit={self._wisdom_unit.uid}, t={t_uid})"
+        t_id = t_result[0].hash if t_result else "None"
+        return f"WheelSegment(side={self._side}, wisdom_unit={self._wisdom_unit.hash}, t={t_id})"

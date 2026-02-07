@@ -7,7 +7,7 @@ implemented in graph/scoring/, mirroring test_scoring.py for comparison.
 **Key Differences from Domain Implementation:**
 - Uses Estimation nodes (ProbabilityEstimation, RelevanceEstimation) instead of manual fields
 - Simplified rationale audit-wins: GM aggregation without rating/confidence weighting
-- Score invalidation tracking (score_invalidated_at)
+- Score stored as CalculatedScoreEstimation with invalidated_at tracking
 - Graph database persistence (nodes saved to Memgraph/Neo4j)
 
 **Test Coverage:**
@@ -27,12 +27,14 @@ vs graph-native (new) implementations on the same scenarios.
 """
 
 import pytest
+import random
 from datetime import datetime, timedelta
 
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.spiral import Spiral
 from dialectical_framework.graph.nodes.transformation import Transformation
@@ -47,13 +49,30 @@ from dialectical_framework.graph.scoring.tarorank import TaroRank
 class TestDialecticalComponentScoring:
     """Test scoring for basic dialectical components (leaves in the hierarchy)."""
 
+    def test_uncommitted_node_raises_error(self, graph_db_available):
+        """Scoring an uncommitted node should raise ValueError."""
+        if not graph_db_available:
+            pytest.skip("Graph database not available")
+
+        # Create component but don't commit
+        component = DialecticalComponent(statement=f"Uncommitted test {random.random()}")
+        # Note: not calling component.commit()
+
+        scorer = TaroRank(alpha=1.0)
+
+        with pytest.raises(ValueError) as exc_info:
+            scorer.calculate_score(component)
+
+        assert "uncommitted" in str(exc_info.value).lower()
+        assert "commit()" in str(exc_info.value)
+
     def test_component_no_estimations_returns_none(self, graph_db_available):
         """Component with no estimations should return None (no evidence)."""
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test thesis")
-        component.save()
+        component = DialecticalComponent(statement=f"Test thesis {random.random()}")
+        component.commit()
 
         # No estimations connected
         assert component.probability is None
@@ -69,17 +88,17 @@ class TestDialecticalComponentScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test thesis")
-        component.save()
+        component = DialecticalComponent(statement=f"Test thesis {random.random()}")
+        component.commit()
 
-        # Add manual estimations
+        # Add manual estimations (set_target before save - hash includes target)
         prob_est = ProbabilityEstimation(value=0.9)
-        prob_est.save()
-        component.estimations.connect(prob_est)
+        prob_est.set_target(component)
+        prob_est.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         # Check properties
         assert component.probability == 0.9
@@ -97,17 +116,17 @@ class TestDialecticalComponentScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test thesis")
-        component.save()
+        component = DialecticalComponent(statement=f"Test thesis {random.random()}")
+        component.commit()
 
-        # R=0 (hard veto)
+        # R=0 (hard veto) - set_target before save (hash includes target)
         prob_est = ProbabilityEstimation(value=0.8)
-        prob_est.save()
-        component.estimations.connect(prob_est)
+        prob_est.set_target(component)
+        prob_est.commit()
 
         rel_est = RelevanceEstimation(value=0.0)  # Veto
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         assert component.relevance == 0.0
 
@@ -123,27 +142,29 @@ class TestDialecticalComponentScoring:
             pytest.skip("Graph database not available")
 
         # Create component with own R
-        component = DialecticalComponent(statement="Test thesis")
-        component.save()
+        component = DialecticalComponent(statement=f"Test thesis {random.random()}")
+        component.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
-        # Create rationales with R
-        rationale1 = Rationale(text="Supporting rationale")
-        rationale1.save()
+        # Create rationales with R (estimations target component, rationale is source)
+        rationale1 = Rationale(text=f"Supporting rationale {random.random()}")
+        rationale1.set_explanation(component)
+        rationale1.commit()
         r1_est = RelevanceEstimation(value=0.9)
-        r1_est.save()
-        rationale1.estimations.connect(r1_est)
-        component.rationales.connect(rationale1)
+        r1_est.set_target(component)
+        r1_est.set_provider(rationale1)
+        r1_est.commit()
 
-        rationale2 = Rationale(text="Another rationale")
-        rationale2.save()
+        rationale2 = Rationale(text=f"Another rationale {random.random()}")
+        rationale2.set_explanation(component)
+        rationale2.commit()
         r2_est = RelevanceEstimation(value=0.7)
-        r2_est.save()
-        rationale2.estimations.connect(r2_est)
-        component.rationales.connect(rationale2)
+        r2_est.set_target(component)
+        r2_est.set_provider(rationale2)
+        r2_est.commit()
 
         # Score component
         scorer = TaroRank(alpha=1.0, default_transition_probability=None)
@@ -166,20 +187,20 @@ class TestTransitionScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="Source")
-        source.save()
-        target = DialecticalComponent(statement="Target")
-        target.save()
+        source = DialecticalComponent(statement=f"Source {random.random()}")
+        source.commit()
+        target = DialecticalComponent(statement=f"Target {random.random()}")
+        target.commit()
 
         transition = Transition()
-        transition.save()
-        source.source_of.connect(transition)
-        transition.target.connect(target)
+        transition.set_source(source)
+        transition.set_target(target)
+        transition.commit()
 
         # Add manual probability
         prob_est = ProbabilityEstimation(value=0.8)
-        prob_est.save()
-        transition.estimations.connect(prob_est)
+        prob_est.set_target(transition)
+        prob_est.commit()
 
         assert transition.probability == 0.8
 
@@ -188,28 +209,29 @@ class TestTransitionScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="Source")
-        source.save()
-        target = DialecticalComponent(statement="Target")
-        target.save()
+        source = DialecticalComponent(statement=f"Source {random.random()}")
+        source.commit()
+        target = DialecticalComponent(statement=f"Target {random.random()}")
+        target.commit()
 
         transition = Transition()
-        transition.save()
-        source.source_of.connect(transition)
-        transition.target.connect(target)
+        transition.set_source(source)
+        transition.set_target(target)
+        transition.commit()
 
         # Transition own P
         prob_est = ProbabilityEstimation(value=0.8)
-        prob_est.save()
-        transition.estimations.connect(prob_est)
+        prob_est.set_target(transition)
+        prob_est.commit()
 
-        # Rationale with P
-        rationale = Rationale(text="Supporting evidence")
-        rationale.save()
+        # Rationale with P (estimation targets transition, rationale is source)
+        rationale = Rationale(text=f"Supporting evidence {random.random()}")
+        rationale.set_explanation(transition)
+        rationale.commit()
         rat_prob_est = ProbabilityEstimation(value=0.9)
-        rat_prob_est.save()
-        rationale.estimations.connect(rat_prob_est)
-        transition.rationales.connect(rationale)
+        rat_prob_est.set_target(transition)
+        rat_prob_est.set_provider(rationale)
+        rat_prob_est.commit()
 
         # Score transition
         scorer = TaroRank(alpha=1.0, default_transition_probability=None)
@@ -224,15 +246,15 @@ class TestTransitionScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="Source")
-        source.save()
-        target = DialecticalComponent(statement="Target")
-        target.save()
+        source = DialecticalComponent(statement=f"Source {random.random()}")
+        source.commit()
+        target = DialecticalComponent(statement=f"Target {random.random()}")
+        target.commit()
 
         transition = Transition()
-        transition.save()
-        source.source_of.connect(transition)
-        transition.target.connect(target)
+        transition.set_source(source)
+        transition.set_target(target)
+        transition.commit()
 
         # No probability estimations
         assert transition.probability is None
@@ -248,111 +270,227 @@ class TestTransitionScoring:
 class TestInvalidationTracking:
     """Test score invalidation and validity checking."""
 
-    def test_invalidation_propagates_to_parents(self, graph_db_available, di_container):
-        """When child estimation changes, parent scores should be invalidated."""
+    def test_node_invalidated_when_own_estimation_changes(self, graph_db_available, di_container):
+        """When a node's own estimation changes, its score should be invalidated."""
         from dialectical_framework.graph.estimation_manager import EstimationManager
 
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        graph_db = di_container.graph_db()
+        # Create component with estimation
+        component = DialecticalComponent(statement=f"Component {random.random()}")
+        component.commit()
 
-        # Create a hierarchy: Component has Rationale
-        component = DialecticalComponent(statement="Component")
-        component.save()
+        rel_est = RelevanceEstimation(value=0.8)
+        rel_est.set_target(component)
+        rel_est.commit()
 
-        # Create rationale for component
-        rationale = Rationale(text="Supporting rationale")
-        rationale.save()
-        component.rationales.connect(rationale)
-
-        # Add some estimations first so we get valid scores
-        rat_est = RelevanceEstimation(value=0.8)
-        rat_est.save()
-        rationale.estimations.connect(rat_est)
-
-        # Score everything
-        scorer = TaroRank(alpha=1.0, default_transition_probability=None)
+        # Score component
+        scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(component)
 
-        # Store original invalidated_at timestamps (before modification)
+        # Verify component has valid score
+        assert component.is_score_valid(), "Component should have valid score"
 
-        query = "MATCH (n) WHERE id(n) = $node_id RETURN n.score_invalidated_at as ts"
-        component_ts_before = list(graph_db.execute_and_fetch(query, {"node_id": component._id}))[0]["ts"]
-        rationale_ts_before = list(graph_db.execute_and_fetch(query, {"node_id": rationale._id}))[0]["ts"]
-
-        # Modify child rationale estimation
+        # Modify component's own estimation
         manager = EstimationManager()
-        manager.upsert_estimation(rationale, RelevanceEstimation, 0.9)
+        manager.upsert_estimation(component, RelevanceEstimation, 0.7)
 
-        # Check timestamps changed (both child and parent)
-        component_ts_after = list(graph_db.execute_and_fetch(query, {"node_id": component._id}))[0]["ts"]
-        rationale_ts_after = list(graph_db.execute_and_fetch(query, {"node_id": rationale._id}))[0]["ts"]
+        # Component should be invalidated
+        assert not component.is_score_valid(), "Component should be invalidated when its estimation changes"
 
-        # Child (rationale) should be invalidated
-        assert rationale_ts_after != rationale_ts_before, "Rationale should be invalidated"
+    def test_invalidation_propagates_component_to_wisdom_unit(self, graph_db_available, di_container):
+        """When a Component's estimation changes, the WisdomUnit containing it should be invalidated."""
+        from dialectical_framework.graph.estimation_manager import EstimationManager
+        from dialectical_framework.graph.nodes.input import Input
 
-        # Parent should ALSO be invalidated (propagation!)
-        assert component_ts_after != component_ts_before, "Parent component should be invalidated"
+        if not graph_db_available:
+            pytest.skip("Graph database not available")
+
+        # Create Input (provides vocabulary context for components)
+        input_node = Input(content=f"Test content {random.random()}")
+        input_node.commit()
+
+        # Create components for T and A positions
+        t_component = DialecticalComponent(statement=f"Thesis {random.random()}")
+        t_component.commit()
+        input_node.statements.connect(t_component)
+
+        a_component = DialecticalComponent(statement=f"Antithesis {random.random()}")
+        a_component.commit()
+        input_node.statements.connect(a_component)
+
+        # Add estimations to components
+        t_rel = RelevanceEstimation(value=0.8)
+        t_rel.set_target(t_component)
+        t_rel.commit()
+
+        a_rel = RelevanceEstimation(value=0.7)
+        a_rel.set_target(a_component)
+        a_rel.commit()
+
+        # Create WisdomUnit, connect components, and commit
+        wu = WisdomUnit()
+        wu.save()
+        wu.t.connect(t_component, properties={'alias': 'T'})
+        wu.a.connect(a_component, properties={'alias': 'A'})
+        wu.commit()
+
+        # Score the hierarchy
+        scorer = TaroRank(alpha=1.0)
+        scorer.calculate_score(wu)
+
+        # Verify both have valid scores
+        assert t_component.is_score_valid(), "Component should have valid score"
+        assert wu.is_score_valid(), "WisdomUnit should have valid score"
+
+        # Modify component's estimation
+        manager = EstimationManager()
+        manager.upsert_estimation(t_component, RelevanceEstimation, 0.5)
+
+        # Component should be invalidated
+        assert not t_component.is_score_valid(), "Component should be invalidated"
+
+        # WisdomUnit (parent) should also be invalidated due to propagation
+        assert not wu.is_score_valid(), "WisdomUnit should be invalidated when child Component changes"
+
+    def test_invalidation_propagates_wu_to_nexus(self, graph_db_available, di_container):
+        """When a WisdomUnit's component estimation changes, the Nexus containing it should be invalidated."""
+        from dialectical_framework.graph.estimation_manager import EstimationManager
+        from dialectical_framework.graph.nodes.input import Input
+
+        if not graph_db_available:
+            pytest.skip("Graph database not available")
+
+        # Create Input (provides vocabulary context for components)
+        input_node = Input(content=f"Test content {random.random()}")
+        input_node.commit()
+
+        # Create components
+        t_comp = DialecticalComponent(statement=f"T {random.random()}")
+        t_comp.commit()
+        input_node.statements.connect(t_comp)
+
+        a_comp = DialecticalComponent(statement=f"A {random.random()}")
+        a_comp.commit()
+        input_node.statements.connect(a_comp)
+
+        # Add estimations to components
+        t_rel = RelevanceEstimation(value=0.8)
+        t_rel.set_target(t_comp)
+        t_rel.commit()
+
+        a_rel = RelevanceEstimation(value=0.7)
+        a_rel.set_target(a_comp)
+        a_rel.commit()
+
+        # Create WU, connect, and commit
+        wu = WisdomUnit()
+        wu.save()
+        wu.t.connect(t_comp, properties={'alias': 'T'})
+        wu.a.connect(a_comp, properties={'alias': 'A'})
+        wu.commit()
+
+        # Create Nexus, connect WU, and commit
+        nexus = Nexus()
+        nexus.save()
+        wu.nexus.connect(nexus)
+        nexus.commit()
+
+        # Score hierarchy
+        scorer = TaroRank(alpha=1.0)
+        scorer.calculate_score(nexus)
+
+        # Verify scores are valid
+        assert wu.is_score_valid(), "WU should have valid score"
+        assert nexus.is_score_valid(), "Nexus should have valid score"
+
+        # Modify component's estimation (propagates: Component → WU → Nexus)
+        manager = EstimationManager()
+        manager.upsert_estimation(t_comp, RelevanceEstimation, 0.5)
+
+        # Component should be invalidated
+        assert not t_comp.is_score_valid(), "Component should be invalidated"
+
+        # WU should be invalidated (parent of Component)
+        assert not wu.is_score_valid(), "WU should be invalidated when child Component changes"
+
+        # Nexus (parent of WU) should also be invalidated
+        assert not nexus.is_score_valid(), "Nexus should be invalidated when descendant changes"
+
+    # Note: Transition → Transformation/Cycle/Wheel invalidation uses the same
+    # invalidate_node_and_parents mechanism tested above. The graph traversal logic
+    # is identical - only the edge types differ. Additional tests for these hierarchies
+    # would require complex setup (WisdomUnit for Transformation, Nexus for Cycle, etc.)
+    # without testing new code paths.
 
     def test_score_invalidated_when_estimation_changes(self, graph_db_available):
         """Score should be invalidated when estimations are modified."""
         from dialectical_framework.graph.estimation_manager import EstimationManager
+        from dialectical_framework.graph.nodes.estimation import CalculatedScoreEstimation
 
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         # Add estimation and score
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(component)
 
         # Score should be valid
         assert component.is_score_valid()
-        assert component.score_invalidated_at is None
+        # Check CalculatedScoreEstimation.invalidated_at is None
+        score_est = component._get_calculated_score_estimation()
+        assert score_est is not None
+        assert score_est.invalidated_at is None
 
         # Modify estimation (this should invalidate)
         manager = EstimationManager()
         manager.upsert_estimation(component, RelevanceEstimation, 0.9)
 
-        # Score should now be invalid
+        # Score should now be invalid - reload the estimation to see updated invalidated_at
+        # Need to re-fetch since in-memory object is stale
+        score_est_updated = component._get_calculated_score_estimation()
         assert not component.is_score_valid()
-        assert component.score_invalidated_at is not None
+        assert score_est_updated.invalidated_at is not None
 
     def test_skip_valid_scores_during_batch_scoring(self, graph_db_available):
         """TaroRank should skip valid scores when skip_valid=True."""
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         scorer = TaroRank(alpha=1.0)
 
         # First scoring
         score1 = scorer.calculate_score(component)
-        computed_at1 = component.score_computed_at
+        score_est1 = component._get_calculated_score_estimation()
+        computed_at1 = score_est1.committed_at
 
         # Second scoring should return cached score (always skips valid)
         score2 = scorer.calculate_score(component)
-        computed_at2 = component.score_computed_at
+        score_est2 = component._get_calculated_score_estimation()
+        computed_at2 = score_est2.committed_at
 
         assert score1 == score2
         assert computed_at1 == computed_at2  # Not recomputed
 
         # Third scoring should also return cached score (always skips valid)
         score3 = scorer.calculate_score(component)
-        computed_at3 = component.score_computed_at
+        score_est3 = component._get_calculated_score_estimation()
+        computed_at3 = score_est3.committed_at
 
         assert score1 == score3  # Same value
         assert computed_at3 == computed_at2  # Not recomputed (valid)
@@ -366,16 +504,16 @@ class TestScoringAlphaParameter:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         prob_est = ProbabilityEstimation(value=0.6)
-        prob_est.save()
-        component.estimations.connect(prob_est)
+        prob_est.set_target(component)
+        prob_est.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         scorer = TaroRank(alpha=0.0)
         score = scorer.calculate_score(component)
@@ -388,16 +526,16 @@ class TestScoringAlphaParameter:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         prob_est = ProbabilityEstimation(value=0.6)
-        prob_est.save()
-        component.estimations.connect(prob_est)
+        prob_est.set_target(component)
+        prob_est.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         scorer = TaroRank(alpha=1.0)
         score = scorer.calculate_score(component)
@@ -410,16 +548,16 @@ class TestScoringAlphaParameter:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         prob_est = ProbabilityEstimation(value=0.6)
-        prob_est.save()
-        component.estimations.connect(prob_est)
+        prob_est.set_target(component)
+        prob_est.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         scorer = TaroRank(alpha=2.0)
         score = scorer.calculate_score(component)
@@ -436,20 +574,27 @@ class TestRationaleAuditWins:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        # Original rationale
-        rationale = Rationale(text="Original assessment")
-        rationale.save()
-        r_est = RelevanceEstimation(value=0.9)
-        r_est.save()
-        rationale.estimations.connect(r_est)
+        # Create a dummy component as explanation target
+        dummy_component = DialecticalComponent(statement=f"dummy {random.random()}")
+        dummy_component.commit()
 
-        # Critique (auditor)
-        critique = Rationale(text="Audit findings")
-        critique.save()
+        # Original rationale with R estimation it provides
+        rationale = Rationale(text=f"Original assessment {random.random()}")
+        rationale.set_explanation(dummy_component)
+        rationale.commit()
+        r_est = RelevanceEstimation(value=0.9)
+        r_est.set_target(dummy_component)
+        r_est.set_provider(rationale)
+        r_est.commit()
+
+        # Critique (auditor) provides revised R estimation
+        critique = Rationale(text=f"Audit findings {random.random()}")
+        critique.set_critiques_target(rationale)
+        critique.commit()
         c_est = RelevanceEstimation(value=0.5)
-        c_est.save()
-        critique.estimations.connect(c_est)
-        rationale.critiques.connect(critique)
+        c_est.set_target(dummy_component)
+        c_est.set_provider(critique)
+        c_est.commit()
 
         # Rationale should aggregate via audit-wins (GM of deepest critiques)
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
@@ -469,28 +614,36 @@ class TestRationaleAuditWins:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        # Original rationale
-        rationale = Rationale(text="Original")
-        rationale.save()
+        # Create a dummy component as explanation target
+        dummy_component = DialecticalComponent(statement=f"dummy {random.random()}")
+        dummy_component.commit()
+
+        # Original rationale provides R estimation
+        rationale = Rationale(text=f"Original {random.random()}")
+        rationale.set_explanation(dummy_component)
+        rationale.commit()
         r_est = RelevanceEstimation(value=0.9)
-        r_est.save()
-        rationale.estimations.connect(r_est)
+        r_est.set_target(dummy_component)
+        r_est.set_provider(rationale)
+        r_est.commit()
 
-        # First audit
-        audit1 = Rationale(text="First audit")
-        audit1.save()
+        # First audit provides revised R estimation
+        audit1 = Rationale(text=f"First audit {random.random()}")
+        audit1.set_critiques_target(rationale)
+        audit1.commit()
         a1_est = RelevanceEstimation(value=0.7)
-        a1_est.save()
-        audit1.estimations.connect(a1_est)
-        rationale.critiques.connect(audit1)
+        a1_est.set_target(dummy_component)
+        a1_est.set_provider(audit1)
+        a1_est.commit()
 
-        # Second audit (auditing the auditor)
-        audit2 = Rationale(text="Second audit")
-        audit2.save()
+        # Second audit (auditing the auditor) provides another revised R
+        audit2 = Rationale(text=f"Second audit {random.random()}")
+        audit2.set_critiques_target(audit1)
+        audit2.commit()
         a2_est = RelevanceEstimation(value=0.4)
-        a2_est.save()
-        audit2.estimations.connect(a2_est)
-        audit1.critiques.connect(audit2)
+        a2_est.set_target(dummy_component)
+        a2_est.set_provider(audit2)
+        a2_est.commit()
 
         # Calculate - should use deepest audit (audit2)
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
@@ -513,8 +666,8 @@ class TestFallbackBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         # No estimations
         assert component.relevance is None
@@ -529,13 +682,13 @@ class TestFallbackBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         # Only R, no P
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         scorer = TaroRank(alpha=1.0)
         score = scorer.calculate_score(component)
@@ -553,27 +706,29 @@ class TestDialecticalComponentScoringAdditional:
             pytest.skip("Graph database not available")
 
         # Create component
-        component = DialecticalComponent(statement="Test thesis")
-        component.save()
+        component = DialecticalComponent(statement=f"Test thesis {random.random()}")
+        component.commit()
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
-        # Good rationale
-        rationale1 = Rationale(text="Good rationale")
-        rationale1.save()
+        # Good rationale provides R estimation
+        rationale1 = Rationale(text=f"Good rationale {random.random()}")
+        rationale1.set_explanation(component)
+        rationale1.commit()
         r1_est = RelevanceEstimation(value=0.9)
-        r1_est.save()
-        rationale1.estimations.connect(r1_est)
-        component.rationales.connect(rationale1)
+        r1_est.set_target(component)
+        r1_est.set_provider(rationale1)
+        r1_est.commit()
 
         # Bad rationale with R=0 (should be excluded via soft exclusion)
-        rationale2 = Rationale(text="Vetoed rationale")
-        rationale2.save()
+        rationale2 = Rationale(text=f"Vetoed rationale {random.random()}")
+        rationale2.set_explanation(component)
+        rationale2.commit()
         r2_est = RelevanceEstimation(value=0.0)
-        r2_est.save()
-        rationale2.estimations.connect(r2_est)
-        component.rationales.connect(rationale2)
+        r2_est.set_target(component)
+        r2_est.set_provider(rationale2)
+        r2_est.commit()
 
         scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(component)
@@ -590,26 +745,26 @@ class TestDialecticalComponentScoringAdditional:
             pytest.skip("Graph database not available")
 
         # Component without rationale
-        component_alone = DialecticalComponent(statement="Test component")
-        component_alone.save()
+        component_alone = DialecticalComponent(statement=f"Test component {random.random()}")
+        component_alone.commit()
         rel1 = RelevanceEstimation(value=0.8)
-        rel1.save()
-        component_alone.estimations.connect(rel1)
+        rel1.set_target(component_alone)
+        rel1.commit()
 
         scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(component_alone)
         cf_alone = component_alone.relevance
 
         # Component with empty rationale (text only)
-        component_with_empty = DialecticalComponent(statement="Test component 2")
-        component_with_empty.save()
+        component_with_empty = DialecticalComponent(statement=f"Test component 2 {random.random()}")
+        component_with_empty.commit()
         rel2 = RelevanceEstimation(value=0.8)
-        rel2.save()
-        component_with_empty.estimations.connect(rel2)
+        rel2.set_target(component_with_empty)
+        rel2.commit()
 
-        empty_rationale = Rationale(text="Just some text")  # No estimations
-        empty_rationale.save()
-        component_with_empty.rationales.connect(empty_rationale)
+        empty_rationale = Rationale(text=f"Just some text {random.random()}")  # No estimations
+        empty_rationale.set_explanation(component_with_empty)
+        empty_rationale.commit()
 
         scorer.calculate_score(component_with_empty)
         cf_with_empty = component_with_empty.relevance
@@ -623,19 +778,20 @@ class TestDialecticalComponentScoringAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test component")
-        component.save()
+        component = DialecticalComponent(statement=f"Test component {random.random()}")
+        component.commit()
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
-        # Rationale with actual R value (evidence)
-        evidence_rationale = Rationale(text="Real evidence")
-        evidence_rationale.save()
+        # Rationale with actual R value (evidence) - targets component
+        evidence_rationale = Rationale(text=f"Real evidence {random.random()}")
+        evidence_rationale.set_explanation(component)
+        evidence_rationale.commit()
         rat_rel = RelevanceEstimation(value=0.9)
-        rat_rel.save()
-        evidence_rationale.estimations.connect(rat_rel)
-        component.rationales.connect(evidence_rationale)
+        rat_rel.set_target(component)
+        rat_rel.set_provider(evidence_rationale)
+        rat_rel.commit()
 
         scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(component)
@@ -653,26 +809,26 @@ class TestTransitionScoringAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="Source")
-        source.save()
+        source = DialecticalComponent(statement=f"Source {random.random()}")
+        source.commit()
         src_rel = RelevanceEstimation(value=0.9)
-        src_rel.save()
-        source.estimations.connect(src_rel)
+        src_rel.set_target(source)
+        src_rel.commit()
 
-        target = DialecticalComponent(statement="Target")
-        target.save()
+        target = DialecticalComponent(statement=f"Target {random.random()}")
+        target.commit()
         tgt_rel = RelevanceEstimation(value=0.8)
-        tgt_rel.save()
-        target.estimations.connect(tgt_rel)
+        tgt_rel.set_target(target)
+        tgt_rel.commit()
 
         transition = Transition()
-        transition.save()
-        source.source_of.connect(transition)
-        transition.target.connect(target)
+        transition.set_source(source)
+        transition.set_target(target)
+        transition.commit()
 
         trans_rel = RelevanceEstimation(value=0.6)
-        trans_rel.save()
-        transition.estimations.connect(trans_rel)
+        trans_rel.set_target(transition)
+        trans_rel.commit()
 
         scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(transition)
@@ -689,16 +845,16 @@ class TestScoringFallbackBehaviorAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
-        rel_est.save()
-        component.estimations.connect(rel_est)
+        rel_est.set_target(component)
+        rel_est.commit()
 
         prob_est = ProbabilityEstimation(value=0.0)
-        prob_est.save()
-        component.estimations.connect(prob_est)
+        prob_est.set_target(component)
+        prob_est.commit()
 
         scorer = TaroRank(alpha=1.0)
         score = scorer.calculate_score(component)
@@ -710,13 +866,13 @@ class TestScoringFallbackBehaviorAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
 
         # Only P, no R
         prob_est = ProbabilityEstimation(value=0.6)
-        prob_est.save()
-        component.estimations.connect(prob_est)
+        prob_est.set_target(component)
+        prob_est.commit()
 
         scorer = TaroRank(alpha=1.0)
         score = scorer.calculate_score(component)
@@ -728,83 +884,98 @@ class TestScoringFallbackBehaviorAdditional:
 class TestRationaleFallbacks:
     """Test rationale-specific scoring fallbacks."""
 
-    def test_rationale_no_estimations_returns_none(self, graph_db_available):
-        """Rationale with no estimations should return None."""
+    def test_rationale_provides_no_estimations(self, graph_db_available):
+        """Rationale with no provided estimations should not contribute to component scoring."""
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        rationale = Rationale(text="Simple rationale")
-        rationale.save()
+        # Create a component
+        component = DialecticalComponent(statement=f"Test component {random.random()}")
+        component.commit()
 
-        # No estimations
-        assert rationale.relevance is None
-        assert rationale.probability is None
+        # Component has its own R
+        comp_rel = RelevanceEstimation(value=0.8)
+        comp_rel.set_target(component)
+        comp_rel.commit()
 
-    def test_rationale_uses_own_when_provided(self, graph_db_available):
-        """Rationale should use its own R when provided."""
+        # Rationale explains component but provides no estimations
+        rationale = Rationale(text=f"Simple rationale {random.random()}")
+        rationale.set_explanation(component)
+        rationale.commit()
+
+        # Score component - should use only its own R
+        scorer = TaroRank(alpha=1.0)
+        scorer.calculate_score(component)
+
+        # Component relevance should be just 0.8 (no rationale contribution)
+        assert component.relevance == 0.8
+
+    def test_rationale_provides_estimation_contributes(self, graph_db_available):
+        """Rationale that provides estimation should contribute to component scoring."""
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        rationale = Rationale(text="Simple rationale")
-        rationale.save()
+        # Create a component
+        component = DialecticalComponent(statement=f"Test component {random.random()}")
+        component.commit()
 
-        rel_est = RelevanceEstimation(value=0.7)
-        rel_est.save()
-        rationale.estimations.connect(rel_est)
+        # Component has its own R
+        comp_rel = RelevanceEstimation(value=0.8)
+        comp_rel.set_target(component)
+        comp_rel.commit()
 
-        assert rationale.relevance == 0.7
+        # Rationale provides R estimation for component
+        rationale = Rationale(text=f"Supporting rationale {random.random()}")
+        rationale.set_explanation(component)
+        rationale.commit()
 
-    def test_rationale_zero_relevance_returns_none(self, graph_db_available):
-        """Rationale with R=0 should return None (soft exclusion, not veto)."""
-        if not graph_db_available:
-            pytest.skip("Graph database not available")
+        rat_rel = RelevanceEstimation(value=0.9)
+        rat_rel.set_target(component)
+        rat_rel.set_provider(rationale)
+        rat_rel.commit()
 
-        rationale = Rationale(text="Bad rationale")
-        rationale.save()
+        # Score component - should aggregate both R values
+        scorer = TaroRank(alpha=1.0)
+        scorer.calculate_score(component)
 
-        rel_est = RelevanceEstimation(value=0.0)
-        rel_est.save()
-        rationale.estimations.connect(rel_est)
-
-        # Graph implementation: component/transition hard veto R=0, rationale soft exclusion returns None
-        # But the property itself returns 0.0 from the estimation
-        assert rationale.relevance == 0.0
-
-        # When used in aggregation, it should be excluded (soft exclusion semantics)
-        # This is tested in the component tests above
+        # Expected: GM(0.8, 0.9) ≈ 0.849
+        expected_r = (0.8 * 0.9) ** 0.5
+        assert abs(component.relevance - expected_r) < 0.01
 
     def test_rationale_zero_relevance_excluded_from_aggregation(self, graph_db_available):
-        """Rationale with R=0 should NOT contribute (soft exclusion)."""
+        """Rationale providing R=0 estimation should NOT contribute (soft exclusion)."""
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement="Test")
-        component.save()
+        component = DialecticalComponent(statement=f"Test {random.random()}")
+        component.commit()
         comp_rel = RelevanceEstimation(value=0.8)
-        comp_rel.save()
-        component.estimations.connect(comp_rel)
+        comp_rel.set_target(component)
+        comp_rel.commit()
 
-        # Bad rationale (R=0)
-        rationale_bad = Rationale(text="Bad rationale")
-        rationale_bad.save()
+        # Bad rationale provides R=0
+        rationale_bad = Rationale(text=f"Bad rationale {random.random()}")
+        rationale_bad.set_explanation(component)
+        rationale_bad.commit()
         bad_rel = RelevanceEstimation(value=0.0)
-        bad_rel.save()
-        rationale_bad.estimations.connect(bad_rel)
-        component.rationales.connect(rationale_bad)
+        bad_rel.set_target(component)
+        bad_rel.set_provider(rationale_bad)
+        bad_rel.commit()
 
-        # Good rationale
-        rationale_good = Rationale(text="Good rationale")
-        rationale_good.save()
+        # Good rationale provides R=0.9
+        rationale_good = Rationale(text=f"Good rationale {random.random()}")
+        rationale_good.set_explanation(component)
+        rationale_good.commit()
         good_rel = RelevanceEstimation(value=0.9)
-        good_rel.save()
-        rationale_good.estimations.connect(good_rel)
-        component.rationales.connect(rationale_good)
+        good_rel.set_target(component)
+        good_rel.set_provider(rationale_good)
+        good_rel.commit()
 
         scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(component)
 
         # Graph implementation: Rationales follow soft exclusion semantics
-        # R=0 rationale is excluded from aggregation (not a hard veto)
+        # R=0 estimation is excluded from aggregation (not a hard veto)
         # Expected: GM(0.8, 0.9) = (0.8 * 0.9)^0.5 ≈ 0.849
         # This differs from domain implementation where R=0 in GM triggers hard veto
         expected_r = (0.8 * 0.9) ** 0.5
@@ -815,30 +986,31 @@ class TestComplexScoringScenarios:
     """Test complex scenarios combining multiple elements."""
 
     def test_mixed_rationale_presence(self, graph_db_available):
-        """Test elements where some have rationales and others don't."""
+        """Test elements where some have rationales providing estimations and others don't."""
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        # Component with rationale
-        rationale = Rationale(text="Supporting evidence")
-        rationale.save()
-        rat_rel = RelevanceEstimation(value=0.9)
-        rat_rel.save()
-        rationale.estimations.connect(rat_rel)
-
+        # Component with rationale that provides estimation
         comp_with_rationale = DialecticalComponent(statement="Has rationale")
-        comp_with_rationale.save()
+        comp_with_rationale.commit()
         comp1_rel = RelevanceEstimation(value=0.7)
-        comp1_rel.save()
-        comp_with_rationale.estimations.connect(comp1_rel)
-        comp_with_rationale.rationales.connect(rationale)
+        comp1_rel.set_target(comp_with_rationale)
+        comp1_rel.commit()
+
+        rationale = Rationale(text=f"Supporting evidence {random.random()}")
+        rationale.set_explanation(comp_with_rationale)
+        rationale.commit()
+        rat_rel = RelevanceEstimation(value=0.9)
+        rat_rel.set_target(comp_with_rationale)
+        rat_rel.set_provider(rationale)
+        rat_rel.commit()
 
         # Component without rationale
         comp_without_rationale = DialecticalComponent(statement="No rationale")
-        comp_without_rationale.save()
+        comp_without_rationale.commit()
         comp2_rel = RelevanceEstimation(value=0.8)
-        comp2_rel.save()
-        comp_without_rationale.estimations.connect(comp2_rel)
+        comp2_rel.set_target(comp_without_rationale)
+        comp2_rel.commit()
 
         scorer = TaroRank(alpha=1.0)
         scorer.calculate_score(comp_with_rationale)
@@ -847,7 +1019,7 @@ class TestComplexScoringScenarios:
         cf1 = comp_with_rationale.relevance
         cf2 = comp_without_rationale.relevance
 
-        assert cf1 > 0  # Should aggregate own + rationale
+        assert cf1 > 0  # Should aggregate own + rationale-provided estimation
         assert cf2 == 0.8  # Should be own only
 
     def test_audit_wins_over_original_rationale(self, graph_db_available):
@@ -855,26 +1027,35 @@ class TestComplexScoringScenarios:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        # Original rationale
-        rationale = Rationale(text="Original assessment")
-        rationale.save()
-        orig_rel = RelevanceEstimation(value=0.9)
-        orig_rel.save()
-        rationale.estimations.connect(orig_rel)
-        orig_prob = ProbabilityEstimation(value=0.8)
-        orig_prob.save()
-        rationale.estimations.connect(orig_prob)
+        # Create a dummy component as explanation target
+        dummy_component = DialecticalComponent(statement=f"dummy {random.random()}")
+        dummy_component.commit()
 
-        # Auditor disagrees
-        audit = Rationale(text="Audit findings")
-        audit.save()
+        # Original rationale provides estimations
+        rationale = Rationale(text=f"Original assessment {random.random()}")
+        rationale.set_explanation(dummy_component)
+        rationale.commit()
+        orig_rel = RelevanceEstimation(value=0.9)
+        orig_rel.set_target(dummy_component)
+        orig_rel.set_provider(rationale)
+        orig_rel.commit()
+        orig_prob = ProbabilityEstimation(value=0.8)
+        orig_prob.set_target(dummy_component)
+        orig_prob.set_provider(rationale)
+        orig_prob.commit()
+
+        # Auditor disagrees - provides revised estimations
+        audit = Rationale(text=f"Audit findings {random.random()}")
+        audit.set_critiques_target(rationale)
+        audit.commit()
         audit_rel = RelevanceEstimation(value=0.5)
-        audit_rel.save()
-        audit.estimations.connect(audit_rel)
+        audit_rel.set_target(dummy_component)
+        audit_rel.set_provider(audit)
+        audit_rel.commit()
         audit_prob = ProbabilityEstimation(value=0.6)
-        audit_prob.save()
-        audit.estimations.connect(audit_prob)
-        rationale.critiques.connect(audit)
+        audit_prob.set_target(dummy_component)
+        audit_prob.set_provider(audit)
+        audit_prob.commit()
 
         from dialectical_framework.graph.scoring.tarorank_calculators.rationale_auditor import RationaleAuditor
         scorer = TaroRank(alpha=1.0)
@@ -896,19 +1077,19 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="A")
-        source.save()
-        target = DialecticalComponent(statement="B")
-        target.save()
+        source = DialecticalComponent(statement=f"A {random.random()}")
+        source.commit()
+        target = DialecticalComponent(statement=f"B {random.random()}")
+        target.commit()
 
         trans = Transition()
-        trans.save()
-        source.source_of.connect(trans)
-        trans.target.connect(target)
+        trans.set_source(source)
+        trans.set_target(target)
+        trans.commit()
 
         trans_rel = RelevanceEstimation(value=0.7)
-        trans_rel.save()
-        trans.estimations.connect(trans_rel)
+        trans_rel.set_target(trans)
+        trans_rel.commit()
 
         # No probability, no default
         assert trans.probability is None
@@ -923,19 +1104,19 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="A")
-        source.save()
-        target = DialecticalComponent(statement="B")
-        target.save()
+        source = DialecticalComponent(statement=f"A {random.random()}")
+        source.commit()
+        target = DialecticalComponent(statement=f"B {random.random()}")
+        target.commit()
 
         trans = Transition()
-        trans.save()
-        source.source_of.connect(trans)
-        trans.target.connect(target)
+        trans.set_source(source)
+        trans.set_target(target)
+        trans.commit()
 
         trans_rel = RelevanceEstimation(value=0.7)
-        trans_rel.save()
-        trans.estimations.connect(trans_rel)
+        trans_rel.set_target(trans)
+        trans_rel.commit()
 
         scorer = TaroRank(alpha=1.0, default_transition_probability=1.0)
         score = scorer.calculate_score(trans)
@@ -949,23 +1130,23 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="A")
-        source.save()
-        target = DialecticalComponent(statement="B")
-        target.save()
+        source = DialecticalComponent(statement=f"A {random.random()}")
+        source.commit()
+        target = DialecticalComponent(statement=f"B {random.random()}")
+        target.commit()
 
         trans = Transition()
-        trans.save()
-        source.source_of.connect(trans)
-        trans.target.connect(target)
+        trans.set_source(source)
+        trans.set_target(target)
+        trans.commit()
 
         trans_rel = RelevanceEstimation(value=0.7)
-        trans_rel.save()
-        trans.estimations.connect(trans_rel)
+        trans_rel.set_target(trans)
+        trans_rel.commit()
 
         trans_prob = ProbabilityEstimation(value=0.9)
-        trans_prob.save()
-        trans.estimations.connect(trans_prob)
+        trans_prob.set_target(trans)
+        trans_prob.commit()
 
         scorer = TaroRank(alpha=1.0)
         score = scorer.calculate_score(trans)
@@ -978,23 +1159,23 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement="A")
-        source.save()
-        target = DialecticalComponent(statement="B")
-        target.save()
+        source = DialecticalComponent(statement=f"A {random.random()}")
+        source.commit()
+        target = DialecticalComponent(statement=f"B {random.random()}")
+        target.commit()
 
         trans = Transition()
-        trans.save()
-        source.source_of.connect(trans)
-        trans.target.connect(target)
+        trans.set_source(source)
+        trans.set_target(target)
+        trans.commit()
 
         trans_rel = RelevanceEstimation(value=0.7)
-        trans_rel.save()
-        trans.estimations.connect(trans_rel)
+        trans_rel.set_target(trans)
+        trans_rel.commit()
 
         trans_prob = ProbabilityEstimation(value=1.0)
-        trans_prob.save()
-        trans.estimations.connect(trans_prob)
+        trans_prob.set_target(trans)
+        trans_prob.commit()
 
         scorer = TaroRank(alpha=1.0)
         score = scorer.calculate_score(trans)
@@ -1023,8 +1204,8 @@ class TestManualVsCalculatedSeparation:
         )
         from dialectical_framework.graph.estimation_manager import EstimationManager
 
-        comp = DialecticalComponent(statement="test")
-        comp.save()
+        comp = DialecticalComponent(statement=f"test {random.random()}")
+        comp.commit()
 
         manager = EstimationManager()
 
@@ -1068,18 +1249,18 @@ class TestManualVsCalculatedSeparation:
         )
         from dialectical_framework.graph.estimation_manager import EstimationManager
 
-        comp = DialecticalComponent(statement="test")
-        comp.save()
+        comp = DialecticalComponent(statement=f"test {random.random()}")
+        comp.commit()
 
         # Agent 1 creates first estimation node
         prob1 = ProbabilityEstimation(value=0.8)
-        prob1.save()
-        comp.estimations.connect(prob1)
+        prob1.set_target(comp)
+        prob1.commit()
 
         # Agent 2 creates second estimation node
         prob2 = ProbabilityEstimation(value=0.9)
-        prob2.save()
-        comp.estimations.connect(prob2)
+        prob2.set_target(comp)
+        prob2.commit()
 
         # Both manual estimations exist
         manual_estimations = [
@@ -1117,22 +1298,22 @@ class TestManualVsCalculatedSeparation:
             CalculatedProbabilityEstimation
         )
 
-        comp = DialecticalComponent(statement="test")
-        comp.save()
+        comp = DialecticalComponent(statement=f"test {random.random()}")
+        comp.commit()
 
         # No estimations: property returns None
         assert comp.probability is None
 
         # Manual only: property returns manual
         prob_manual = ProbabilityEstimation(value=0.8)
-        prob_manual.save()
-        comp.estimations.connect(prob_manual)
+        prob_manual.set_target(comp)
+        prob_manual.commit()
         assert abs(comp.probability - 0.8) < 0.01
 
         # Add calculated: property returns calculated (ignores manual)
         prob_calc = CalculatedProbabilityEstimation(value=0.6)
-        prob_calc.save()
-        comp.estimations.connect(prob_calc)
+        prob_calc.set_target(comp)
+        prob_calc.commit()
         assert abs(comp.probability - 0.6) < 0.01  # Returns calculated, NOT GM!
 
     def test_calculators_read_only_manual_not_calculated(self, graph_db_available):
@@ -1144,17 +1325,17 @@ class TestManualVsCalculatedSeparation:
             CalculatedRelevanceEstimation
         )
 
-        comp = DialecticalComponent(statement="test")
-        comp.save()
+        comp = DialecticalComponent(statement=f"test {random.random()}")
+        comp.commit()
 
         # Set manual estimations
         prob_manual = ProbabilityEstimation(value=0.8)
-        prob_manual.save()
-        comp.estimations.connect(prob_manual)
+        prob_manual.set_target(comp)
+        prob_manual.commit()
 
         rel_manual = RelevanceEstimation(value=0.9)
-        rel_manual.save()
-        comp.estimations.connect(rel_manual)
+        rel_manual.set_target(comp)
+        rel_manual.commit()
 
         # First scoring run
         scorer = TaroRank(alpha=1.0)
@@ -1190,8 +1371,8 @@ class TestManualVsCalculatedSeparation:
         )
         from dialectical_framework.graph.estimation_manager import EstimationManager
 
-        comp = DialecticalComponent(statement="test")
-        comp.save()
+        comp = DialecticalComponent(statement=f"test {random.random()}")
+        comp.commit()
 
         manager = EstimationManager()
 
@@ -1228,13 +1409,13 @@ class TestManualVsCalculatedSeparation:
             CalculatedProbabilityEstimation
         )
 
-        comp = DialecticalComponent(statement="test")
-        comp.save()
+        comp = DialecticalComponent(statement=f"test {random.random()}")
+        comp.commit()
 
         # Manual estimation
         prob = ProbabilityEstimation(value=0.8)
-        prob.save()
-        comp.estimations.connect(prob)
+        prob.set_target(comp)
+        prob.commit()
 
         scorer = TaroRank(alpha=1.0)
 
@@ -1266,17 +1447,17 @@ class TestManualVsCalculatedSeparation:
             CalculatedRelevanceEstimation
         )
 
-        comp = DialecticalComponent(statement="test")
-        comp.save()
+        comp = DialecticalComponent(statement=f"test {random.random()}")
+        comp.commit()
 
         # Add manual estimations
         prob_manual = ProbabilityEstimation(value=0.8)
-        prob_manual.save()
-        comp.estimations.connect(prob_manual)
+        prob_manual.set_target(comp)
+        prob_manual.commit()
 
         rel_manual = RelevanceEstimation(value=0.9)
-        rel_manual.save()
-        comp.estimations.connect(rel_manual)
+        rel_manual.set_target(comp)
+        rel_manual.commit()
 
         # Score (creates calculated estimations)
         scorer = TaroRank(alpha=1.0)

@@ -166,7 +166,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         next_ws = transition.get_target_wheel_segment()
 
         if not focus or not next_ws:
-            raise ValueError(f"Cannot extract wheel segments from transition {transition.uid}")
+            raise ValueError(f"Cannot extract wheel segments from transition {transition.hash}")
 
         return {
             "computed_fields": {
@@ -253,34 +253,27 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         # Check for duplicate using shared helper
         transition = self.find_duplicate_transition(spiral_transitions, source_comp, target_comp)
 
-        # Create rationale
-        rationale = GraphRationale(
-            text=action_plan_dto.action_plan,
-        )
-        rationale.save()
-
         if transition is None:
-            # Create new transition
+            # Create new transition first (rationale needs target before saving)
             transition = GraphTransition()
-            transition.save()
-
-            # Connect representative components (minus → plus)
-            transition.source.connect(source_comp)
-            transition.target.connect(target_comp)
-
-            # Connect rationale to transition
-            transition.rationales.connect(rationale)
+            transition.set_source(source_comp)
+            transition.set_target(target_comp)
+            transition.commit()  # Auto-connects source/target
 
             # Connect transition to spiral
             transition.cycle.connect(spiral)
-        else:
-            # Add rationale to existing transition
-            transition.rationales.connect(rationale)
+
+        # Create rationale with transition as target
+        rationale = GraphRationale(
+            text=action_plan_dto.action_plan,
+        )
+        rationale.set_explanation(transition)
+        rationale.commit()  # Auto-connects to transition
 
         # noinspection PyArgumentList
         summary = await self.summarize(transition=transition)
 
-        # Update rationale properties
+        # Update rationale metadata properties (rationale is already committed)
         rationale.summary = summary.one_liner
         rationale.headline = summary.action_phrase
         rationale.save()

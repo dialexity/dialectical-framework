@@ -166,9 +166,43 @@ Level 1: Transition (leaf for probability)
 4. **Selective Veto Power**: Different element types have different veto behaviors for robustness
 5. **Local Score Computation**: P and R aggregate hierarchically; the final Score is computed locally from that node's own P and R
 
+### Scoring Prerequisites
+
+**Committed Node Requirement**: Nodes must be committed before scoring. TaroRank raises `ValueError` if you attempt to score an uncommitted node. This is because:
+- Uncommitted nodes have no stable identity (hash)
+- Cycle detection relies on node hashes to track scoring progress
+- Invalidation propagation requires persisted graph relationships
+
+```python
+# Correct usage
+component = DialecticalComponent(statement="Example")
+component.commit()  # Required before scoring
+scorer.calculate_score(component)
+
+# This raises ValueError
+uncommitted = DialecticalComponent(statement="Not committed")
+scorer.calculate_score(uncommitted)  # ValueError: Cannot score uncommitted node
+```
+
+### Score Storage as Estimation Nodes
+
+Scores are stored as **CalculatedScoreEstimation** nodes, not as fields on the assessable entity. This architecture:
+- Keeps all scoring artifacts as separate Estimation nodes
+- Enables invalidation tracking via `invalidated_at` timestamp on CalculatedEstimation
+- Separates algorithm outputs (Calculated*) from user/agent inputs (manual estimations)
+
+**Estimation Types:**
+- `ProbabilityEstimation`, `RelevanceEstimation` - Manual inputs from users/agents
+- `CalculatedProbabilityEstimation`, `CalculatedRelevanceEstimation` - TaroRank aggregation outputs
+- `CalculatedScoreEstimation` - Final Score = P × R^α
+
+**Validity Check**: `node.is_score_valid()` returns True if the node has a CalculatedScoreEstimation that hasn't been invalidated (or was recomputed after invalidation).
+
 ### Score Invalidation and Edge Directions
 
-When an element's estimation changes, all dependent (parent) nodes must be invalidated so they get rescored. The graph edges support this by pointing from **scoring children** to **scoring parents**.
+When an element's estimation changes, all dependent (parent) nodes must be invalidated so they get rescored. Invalidation sets `invalidated_at` on all CalculatedEstimation nodes connected to affected nodes.
+
+The graph edges support this by pointing from **scoring children** to **scoring parents**.
 
 **Edge Direction Convention:**
 
@@ -341,6 +375,30 @@ These implementation differences are expected and the key behaviors (leaves not 
 ---
 
 ## Implementation Details
+
+### Estimation Identity and Deduplication
+
+Estimation nodes are **content-addressed** by `(type, value, target)`:
+- **Hash** = `sha256(type_name + value + target_hash)`
+- Same (type, value, target) = same hash = same node (deduplication)
+- Different value = different hash = new node
+
+**What this means in practice:**
+- If you set the same estimation value twice, the existing node is reused
+- If you change an estimation value, the old node is deleted and a new one created
+- Estimation nodes themselves are never mutated (except `invalidated_at` metadata)
+
+**Provider (Rationale) is NOT in the hash:**
+- Provenance tracking is optional metadata
+- Same estimation from different rationales resolves to one node
+- First provider is connected; subsequent providers reuse the existing estimation
+
+```python
+# Setting estimation (via EstimationManager)
+manager.upsert_estimation(component, RelevanceEstimation, 0.8)  # Creates new
+manager.upsert_estimation(component, RelevanceEstimation, 0.8)  # Reuses existing
+manager.upsert_estimation(component, RelevanceEstimation, 0.7)  # Deletes old, creates new
+```
 
 ### Rationale Semantics: Evidence vs Audits
 

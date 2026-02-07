@@ -7,7 +7,14 @@ between dialectical components (causal, convergence, transformation).
 
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING, Literal
+import time
+import uuid
+from typing import ClassVar, TYPE_CHECKING, Literal, Optional, Any, Union
+
+from dependency_injector.wiring import Provide, inject
+from gqlalchemy import Memgraph, Neo4j
+
+from dialectical_framework.enums.di import DI
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
@@ -19,9 +26,6 @@ from dialectical_framework.graph.relationships.is_target_of_relationship import 
 )
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
-)
-from dialectical_framework.graph.relationships.has_statement_relationship import (
-    HasStatementRelationship,
 )
 
 if TYPE_CHECKING:
@@ -62,7 +66,38 @@ class Transition(AssessableEntity, label="Transition"):
 
     Note: Default probability fallback is handled by the scorer (TaroRank.default_transition_probability)
     from settings, not stored on individual transition nodes.
+
+    Nonce Field:
+        Transitions include a `nonce` (number used once) in their hash computation.
+        This is necessary because:
+
+        1. Transition hash = source_hash + target_hash + nonce
+        2. Without nonce, all A→B transitions would have identical hashes
+        3. Container hash can't be included (circular dependency: container hash
+           is computed FROM transition hashes via IncrementalBuildMixin)
+        4. Each Transition belongs to exactly one container (1:1 cardinality),
+           so they can't be shared - each needs a unique hash
+
+        The nonce has no semantic meaning; it exists solely to ensure hash uniqueness
+        across transitions with identical source→target pairs in different containers.
     """
+
+    # Nonce for hash uniqueness - see class docstring for explanation
+    nonce: str
+
+    def __init__(self, **data: Any) -> None:
+        # Auto-generate nonce if not provided
+        if "nonce" not in data:
+            data["nonce"] = str(uuid.uuid4())
+        super().__init__(**data)
+
+    # Hash inputs - set these before save() to include in hash
+    # These are used for hash computation; actual relationships are created post-save
+    _source_hash: Optional[str] = None
+    _target_hash: Optional[str] = None
+    # Transient refs for auto-connecting after save (not persisted)
+    _source_ref: Optional[DialecticalComponent] = None
+    _target_ref: Optional[DialecticalComponent] = None
 
     source: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
@@ -82,11 +117,44 @@ class Transition(AssessableEntity, label="Transition"):
         cardinality=(1, 1)  # Exactly one container
     )
 
-    derived_statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
-        model=HasStatementRelationship,
-        cardinality=(0, None)
-    )
+
+    def set_source(self, component: DialecticalComponent) -> Transition:
+        """
+        Set the source component for this transition (before save).
+
+        This stores the reference for hash computation and auto-connection after save.
+        The component must already be saved (have hash).
+
+        Args:
+            component: The saved source component
+
+        Returns:
+            Self for chaining
+        """
+        if not component.is_committed:
+            raise ValueError("Source component must be saved before setting on transition")
+        self._source_hash = component.hash
+        self._source_ref = component
+        return self
+
+    def set_target(self, component: DialecticalComponent) -> Transition:
+        """
+        Set the target component for this transition (before save).
+
+        This stores the reference for hash computation and auto-connection after save.
+        The component must already be saved (have hash).
+
+        Args:
+            component: The saved target component
+
+        Returns:
+            Self for chaining
+        """
+        if not component.is_committed:
+            raise ValueError("Target component must be saved before setting on transition")
+        self._target_hash = component.hash
+        self._target_ref = component
+        return self
 
     def get_nexus(self) -> Nexus | None:
         """
@@ -101,6 +169,107 @@ class Transition(AssessableEntity, label="Transition"):
 
         container, _ = cycle_result
         return container.get_nexus()
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this Transition.
+
+        Parts: source hash, target hash, nonce.
+        The nonce ensures each Transition instance is unique even with
+        the same source→target pair.
+
+        Returns:
+            List of strings: [source_hash, target_hash, nonce]
+
+        Raises:
+            ValueError: If source or target is not set/committed
+        """
+        parts = []
+
+        # Get source hash - prefer stored hash, fall back to relationship
+        source_hash = self._source_hash
+        if not source_hash:
+            source_result = self.source.get()
+            if source_result:
+                comp, _ = source_result
+                if not comp.is_committed:
+                    raise ValueError(
+                        "Source component must be saved before computing Transition hash"
+                    )
+                source_hash = comp.hash
+        if source_hash:
+            parts.append(source_hash)
+
+        # Get target hash - prefer stored hash, fall back to relationship
+        target_hash = self._target_hash
+        if not target_hash:
+            target_result = self.target.get()
+            if target_result:
+                comp, _ = target_result
+                if not comp.is_committed:
+                    raise ValueError(
+                        "Target component must be saved before computing Transition hash"
+                    )
+                target_hash = comp.hash
+        if target_hash:
+            parts.append(target_hash)
+
+        # Require source + target for a meaningful hash
+        if len(parts) < 2:
+            raise ValueError(
+                "Transition requires source and target to be set before save. "
+                "Use set_source() and set_target()."
+            )
+
+        # Include nonce to ensure each Transition instance is unique
+        parts.append(self.nonce)
+
+        return parts
+
+    @inject
+    def commit(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> Transition:
+        """
+        Commit this transition: save (if needed), create relationships, compute hash.
+
+        If source/target were set via set_source()/set_target(), relationships
+        are created BEFORE computing the hash (since they are structural).
+        The hash includes source_hash and target_hash stored from set_source()/set_target().
+
+        Returns:
+            Self for chaining
+        """
+        if self.is_committed:
+            from dialectical_framework.graph.nodes.base_node import ImmutableNodeError
+            raise ImmutableNodeError(
+                f"Node already committed with hash {self.hash[:7]}..."
+            )
+
+        # Ensure node is saved (has _id) before connecting relationships
+        if self._id is None:
+            result = graph_db.save_node(self)
+            if result is not None and result._id is not None:
+                self._id = result._id
+
+        # Connect structural relationships BEFORE computing hash (while node is still mutable)
+        # The stored _source_hash/_target_hash will be used for hash computation
+        if self._source_ref:
+            self.source.connect(self._source_ref)
+            self._source_ref = None  # Clear transient ref
+        if self._target_ref:
+            self.target.connect(self._target_ref)
+            self._target_ref = None  # Clear transient ref
+
+        # Set committed_at BEFORE computing hash (it's part of the hash)
+        self.committed_at = time.time()
+        self.hash = self.compute_hash()
+
+        # Update in DB with hash
+        graph_db.save_node(self)
+
+        return self
 
     def _find_wu_for_component(self, component: DialecticalComponent) -> WisdomUnit | None:
         """
@@ -226,8 +395,8 @@ class Transition(AssessableEntity, label="Transition"):
             if alias:
                 return alias
             else:
-                # Fallback to truncated UID if no alias found
-                return comp.uid[:8]
+                # Fallback to truncated identity if no alias found
+                return comp.hash[:8]
 
     def _is_segment_transition(self) -> bool:
         """
@@ -324,7 +493,7 @@ class Transition(AssessableEntity, label="Transition"):
         target_result = self.target.get()
 
         if not source_result or not target_result:
-            return f"Transition(uid={self.uid})"
+            return f"Transition(id={self.hash})"
 
         source_comp, _ = source_result
         target_comp, _ = target_result
@@ -392,4 +561,5 @@ class Transition(AssessableEntity, label="Transition"):
 
     def __repr__(self) -> str:
         """Debug representation of the transition."""
-        return f"Transition(uid={self.uid})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Transition({hash_str})"

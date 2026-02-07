@@ -83,7 +83,7 @@ async def test_reasoner(di_container, reasoner_cls):
     ):
         # Create Input node for SOA-ready extractors
         input_node = Input(content=user_message)
-        input_node.save()
+        input_node.commit()
 
         reasoner = di_container.polar_reasoner()
         wu = await reasoner.think(source=input_node, text=user_message)
@@ -96,22 +96,22 @@ async def test_redefine(di_container):
     """Test redefine with graph-native models - simple modification test."""
     # Create graph-native components with simple, clear dialectical opposites
     t_minus = GraphDialecticalComponent(statement="Recklessness")
-    t_minus.save()
+    t_minus.commit()
 
     t = GraphDialecticalComponent(statement="Courage")
-    t.save()
+    t.commit()
 
     t_plus = GraphDialecticalComponent(statement="Wisdom")
-    t_plus.save()
+    t_plus.commit()
 
     a_minus = GraphDialecticalComponent(statement="Paralysis")
-    a_minus.save()
+    a_minus.commit()
 
     a = GraphDialecticalComponent(statement="Fear")
-    a.save()
+    a.commit()
 
     a_plus = GraphDialecticalComponent(statement="Prudence")
-    a_plus.save()
+    a_plus.commit()
 
     # Create graph-native WisdomUnit
     wu = GraphWisdomUnit(reasoning_mode="general_concepts")
@@ -137,7 +137,7 @@ async def test_redefine(di_container):
     assert redefined_wu.is_complete()
 
     # Optimization: redefine with same values returns original WU (same UID)
-    assert wu.uid == redefined_wu.uid, "Should return original WU when nothing changes"
+    assert wu.hash == redefined_wu.hash, "Should return original WU when nothing changes"
 
     # Test redefine with different value - should create new WU
     redefined_wu2 = await reasoner.redefine(
@@ -147,7 +147,7 @@ async def test_redefine(di_container):
     )
 
     assert redefined_wu2.is_complete()
-    assert wu.uid != redefined_wu2.uid, "Should create new WU when components change"
+    assert wu.hash != redefined_wu2.hash, "Should create new WU when components change"
 
     # Verify all positions are set in the new WU
     assert redefined_wu2.t.count() == 1
@@ -176,14 +176,14 @@ async def test_causality_sequencer(di_container):
 
     # Create graph-native components
     t1 = GraphDialecticalComponent(statement="Remote work increases flexibility")
-    t1.save()
+    t1.commit()
     a1 = GraphDialecticalComponent(statement="Remote work reduces collaboration")
-    a1.save()
+    a1.commit()
 
     t2 = GraphDialecticalComponent(statement="Async communication enables focus")
-    t2.save()
+    t2.commit()
     a2 = GraphDialecticalComponent(statement="Async communication creates delays")
-    a2.save()
+    a2.commit()
 
     # Create two graph-native WisdomUnits
     wu1 = GraphWisdomUnit(reasoning_mode="work_context")
@@ -247,18 +247,18 @@ async def test_redefine_is_dirty_optimization():
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     wheels = await factory.build_wheel_permutations(theses=[None, None])
 
-    original_wheel_uid = wheels[0].uid
-    original_wu_uids = [wu.uid for wu in wheels[0].wisdom_units]  # wisdom_units is a list property
+    original_wheel_uid = wheels[0].hash
+    original_wu_uids = [wu.hash for wu in wheels[0].wisdom_units]  # wisdom_units is a list property
 
     # Test 1: Empty dict - should preserve originals (first-level optimization)
     new_wheels = await factory.redefine(modified_statement_per_alias={})
 
-    assert new_wheels[0].uid == original_wheel_uid, "Empty redefine should preserve original wheel"
+    assert new_wheels[0].hash == original_wheel_uid, "Empty redefine should preserve original wheel"
     assert len(new_wheels) == len(wheels), "Should return same number of wheels"
 
     print("\n=== First-level is_dirty optimization test passed ===")
     print(f"Original wheel UID: {original_wheel_uid}")
-    print(f"Returned wheel UID: {new_wheels[0].uid}")
+    print(f"Returned wheel UID: {new_wheels[0].hash}")
     print("Wheels were preserved without calling redefine()")
 
     # Test 2: Redefine with same statements - should preserve originals (second-level optimization)
@@ -271,10 +271,10 @@ async def test_redefine_is_dirty_optimization():
         new_wheels2 = await factory.redefine(modified_statement_per_alias={"T1": original_t1_statement})
 
         # Wheel should be preserved (second-level optimization)
-        assert new_wheels2[0].uid == original_wheel_uid, "Redefine with same statement should preserve original wheel"
+        assert new_wheels2[0].hash == original_wheel_uid, "Redefine with same statement should preserve original wheel"
 
         # WU should be the same (reasoner returned original)
-        new_wu_uids = [wu.uid for wu in new_wheels2[0].wisdom_units]
+        new_wu_uids = [wu.hash for wu in new_wheels2[0].wisdom_units]
         assert new_wu_uids == original_wu_uids, "WUs should be unchanged when statement is identical"
 
         print("\n=== Second-level is_dirty optimization test passed ===")

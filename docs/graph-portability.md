@@ -76,7 +76,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
   - For a node created "from scratch": `origin_hash = None`.
   - For a forked node: `origin_hash = source.hash`.
 - **Note**: origin_hash affects the computed hash, so forks have different identities than originals.
-- **Not used by**: Atoms (DialecticalComponent, Input, Ideas, Transition, Rationale, Estimation, Synthesis) and derived structures (Cycle, Wheel, Transformation, Spiral).
+- **Not used by**: Atoms (DialecticalComponent, Input, Transition, Rationale, Estimation, Synthesis) and derived structures (Ideas, Cycle, Wheel, Transformation, Spiral).
 
 ### 4) `branch` — Alternative Interpretation (Optional)
 - **Type**: String or None
@@ -188,18 +188,25 @@ Global facts. Same content = same identity everywhere. No lineage tracking.
 |------|-------------------|------|
 | **DialecticalComponent** | statement | Content |
 | **Input** | content | Content |
-| **Ideas** | input.hash, sorted(statement_hashes), [intent] | Content |
 
-### Atoms — Effect
+### Atoms — Effect (Content-Addressable)
 
 Computed outcomes attached to structures. Same effect = same identity. No lineage tracking.
+Designed for deduplication: same content on same target resolves to the same node.
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
-| **Transition** | source.hash, target.hash, nonce | Effect |
-| **Rationale** | text, target.hash | Effect |
-| **Estimation** | type_name, value, target.hash | Effect |
-| **Synthesis** | s+.hash, s-.hash, [intent] | Effect |
+| **Rationale** | text, target.hash | Evidence |
+| **Estimation** | type_name, value, target.hash | Measurement |
+
+### Atoms — Effect (Instance-Unique)
+
+Computed outcomes where each instance is unique. No lineage tracking.
+
+| Node | hash = sha256(...) | Role |
+|------|-------------------|------|
+| **Transition** | source.hash, target.hash, nonce, committed_at | Effect |
+| **Synthesis** | s+.hash, s-.hash, [intent], committed_at | Effect |
 
 ### Forking Points
 
@@ -213,10 +220,12 @@ when you want to explore alternative framings or collections.
 
 ### Derived Structures
 
-Computed from forking points. No lineage tracking — fork upstream instead.
+Computed from forking points or inputs. No lineage tracking — fork upstream instead.
+Uses `IncrementalBuildMixin` for staged building (save → add children → commit).
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
+| **Ideas** | input.hash, sorted(statement_hashes), [intent], committed_at | Extraction (from Input) |
 | **Cycle** | nexus.hash, sorted(transition_hashes), [intent], committed_at | Ordering (from Nexus) |
 | **Wheel** | cycle.hash, sorted(transition_hashes), [intent], committed_at | Detail (from Cycle) |
 | **Transformation** | wu.hash, ordered(transition_hashes), [intent], committed_at | Resolution (from WU) |
@@ -342,10 +351,10 @@ The following indexes support efficient lookups:
 | Category | Nodes | origin_hash | Role |
 |----------|-------|-------------|------|
 | Container | Brainstorm | No | Scope root |
-| Atoms (Content) | DialecticalComponent, Input, Ideas | No | Global facts |
+| Atoms (Content) | DialecticalComponent, Input | No | Global facts |
 | Atoms (Effect) | Transition, Rationale, Estimation, Synthesis | No | Computed outcomes |
 | Forking Points | WisdomUnit, Nexus | **Yes** | Reasoning foundations |
-| Derived | Cycle, Wheel, Transformation, Spiral | No | Computed from forking points |
+| Derived | Ideas, Cycle, Wheel, Transformation, Spiral | No | Computed from inputs/forking points |
 
 ### Key Properties
 

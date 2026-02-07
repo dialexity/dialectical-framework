@@ -6,7 +6,8 @@ This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional, Union, TYPE_CHECKING
+import hashlib
+from typing import Any, ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import (
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.rationale import Rationale
+    from dialectical_framework.graph.nodes.ideas import Ideas
 
 
 class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
@@ -120,16 +121,19 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         model=IsTargetOfRelationship,
     )
 
-    # Reverse relationship - find the source node that created this statement
-    # HAS_STATEMENT can come from different node types:
-    # - Input: statement extracted from external source
-    # - Transition: statement derived from dialectical transition
-    # - Rationale: key point extracted from rationale
-    # Each statement has at most one source (same text in different sources = different nodes)
-    input: ClassVar[RelationshipManager[Union[Input, Transition, Rationale]]] = RelationshipFrom(
-        ("Input", "Transition", "Rationale"),  # Match any of these node types
+    # Reverse relationships - find sources that created this statement via HAS_STATEMENT.
+    # A component can be extracted from multiple sources (same insight from different texts).
+    # Use is_in_vocabulary() to check if component belongs to a specific vocabulary context.
+    inputs: ClassVar[RelationshipManager[Input]] = RelationshipFrom(
+        "Input",
         model=HasStatementRelationship,
-        cardinality=(0, 1),  # Zero (self-originated) or one source
+        cardinality=(0, None),  # Zero or more source Inputs
+    )
+
+    ideas: ClassVar[RelationshipManager[Ideas]] = RelationshipFrom(
+        "Ideas",
+        model=HasStatementRelationship,
+        cardinality=(0, None),  # Zero or more source Ideas
     )
 
     # Note: Inverse relationships for polarity positions (T, T+, T-, A, A+, A-)
@@ -137,12 +141,41 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     # constraints - the same component can be used in unlimited WisdomUnits.
     # No inverse = implicit (0, None) cardinality.
 
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this component.
+
+        Parts: statement text.
+
+        Returns:
+            List with the statement
+        """
+        return [self.statement]
+
+    def compute_hash(self) -> str:
+        """
+        Compute content hash for this DialecticalComponent.
+
+        DialecticalComponent is purely content-addressable: same statement = same hash.
+        Unlike structural nodes, committed_at is NOT included because:
+        - Deduplication is desirable (same concept should have same identity)
+        - No temporal ordering needed (components don't critique each other)
+        - Multiple users creating the same statement should get the same component
+
+        Returns:
+            sha256 hex string of statement
+        """
+        parts = self._collect_structure_hash_parts()
+        combined = "\n".join(parts)
+        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
     def __repr__(self) -> str:
         """String representation of the component."""
         statement_preview = (
             self.statement[:47] + "..." if len(self.statement) > 50 else self.statement
         )
-        return f"DialecticalComponent(uid={self.uid}, statement='{statement_preview}')"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"DialecticalComponent({hash_str}, statement='{statement_preview}')"
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -260,7 +293,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         # Get position first to use as fallback
         position = self.get_position(wisdom_unit)
         if not position:
-            raise ValueError(f"Component {self.uid} is not connected to WisdomUnit {wisdom_unit.uid}")
+            raise ValueError(f"Component {self.hash} is not connected to WisdomUnit {wisdom_unit.hash}")
 
         # Search through all 6 core position relationship managers on the wisdom unit
         rel_managers = [
@@ -277,7 +310,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
 
             for comp, rel in components:
                 # Check if this is the component we're looking for
-                if comp.uid == self.uid:
+                if comp.hash == self.hash:
                     # Use isinstance for type-safe property access
                     if isinstance(rel, PolarityRelationship):
                         # Return custom alias if set, otherwise position constant
@@ -293,7 +326,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
                 for manager in [synthesis.s_plus, synthesis.s_minus]:
                     components = manager.all()
                     for comp, rel in components:
-                        if comp.uid == self.uid:
+                        if comp.hash == self.hash:
                             # Use isinstance for type-safe property access
                             if isinstance(rel, PolarityRelationship):
                                 # Return custom alias if set, otherwise position constant
@@ -352,7 +385,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
 
             for comp, rel in components:
                 # Check if this is the component we're looking for
-                if comp.uid == self.uid:
+                if comp.hash == self.hash:
                     return position_name
 
         # Also check synthesis via Transformation if present
@@ -368,7 +401,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
                 for position_name, manager in synth_positions:
                     components = manager.all()
                     for comp, rel in components:
-                        if comp.uid == self.uid:
+                        if comp.hash == self.hash:
                             return position_name
 
         return None

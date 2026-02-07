@@ -11,6 +11,7 @@ from typing import ClassVar, Union, TYPE_CHECKING, Literal, Any
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
     WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
 
 
-class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel"):
+class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel"):
     """
     Represents a detailed dialectical arrangement belonging to a Cycle.
 
@@ -140,9 +141,11 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
                 try:
                     source_component.get_alias(wu)
                     # Found it - add if not already seen
-                    if wu.uid not in seen_wisdom_units:
+                    # Use _id for tracking since uncommitted nodes have hash=None
+                    wu_key = wu._id if wu._id is not None else id(wu)
+                    if wu_key not in seen_wisdom_units:
                         wisdom_units_list.append(wu)
-                        seen_wisdom_units.add(wu.uid)
+                        seen_wisdom_units.add(wu_key)
                     break
                 except ValueError:
                     continue  # Not in this WU
@@ -167,6 +170,61 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
 
         cycle_obj, _ = cycle_result
         return cycle_obj.get_nexus()
+
+    def _get_commit_dependents(self):
+        """
+        Get transitions for hash computation.
+
+        Yields:
+            Transition nodes
+        """
+        for trans in self.transitions:
+            yield trans
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this Wheel.
+
+        Parts: cycle hash, sorted transition hashes.
+        The intent is added separately by BaseNode.compute_hash().
+
+        Returns:
+            List of strings: [cycle_hash, trans_hash1, trans_hash2, ...]
+
+        Raises:
+            ValueError: If Cycle is not connected/committed or transitions not committed
+        """
+        parts = []
+
+        # Get and verify parent Cycle
+        cycle_result = self.cycle.get()
+        if cycle_result:
+            cycle_obj, _ = cycle_result
+            if not cycle_obj.is_committed:
+                raise ValueError(
+                    "Cycle must be committed before computing Wheel structure hash. "
+                    "Commit the parent Cycle first."
+                )
+            parts.append(cycle_obj.hash)
+        else:
+            raise ValueError(
+                "Wheel must be connected to a Cycle before computing structure hash."
+            )
+
+        # Get transition hashes and sort for deterministic ordering
+        trans_hashes = []
+        for trans in self.transitions:
+            if not trans.is_committed:
+                raise ValueError(
+                    "Transition must be committed before computing "
+                    "Wheel structure hash"
+                )
+            trans_hashes.append(trans.hash)
+
+        trans_hashes.sort()
+        parts.extend(trans_hashes)
+
+        return parts
 
     @property
     def polarity_count(self) -> int:
@@ -240,11 +298,13 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
         wus = self.wisdom_units
 
         if isinstance(key, WUClass):
-            # Match by UID
+            # Match by identity (use _id if hash is None)
             for wu in wus:
-                if wu.uid == key.uid:
+                if key.hash and wu.hash == key.hash:
                     return wu
-            raise ValueError(f"WisdomUnit {key.uid} not found in wheel")
+                elif key._id is not None and wu._id == key._id:
+                    return wu
+            raise ValueError(f"WisdomUnit {key.hash or key._id} not found in wheel")
 
         elif isinstance(key, WheelSegment):
             # Match by segment
@@ -260,21 +320,21 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
             raise ValueError(f"Cannot find wisdom unit containing segment")
 
         elif isinstance(key, str):
-            # Try string as three possibilities: WU UID, component UID, or component alias
+            # Try string as three possibilities: WU identity, component identity, or component alias
 
-            # 1. Try as WisdomUnit UID (fast, direct lookup)
+            # 1. Try as WisdomUnit identity (fast, direct lookup by hash or _id)
             for wu in wus:
-                if wu.uid == key:
+                if wu.hash == key or str(wu._id) == key:
                     return wu
 
-            # 2. Try as component UID (iterate through all components in all WUs)
+            # 2. Try as component identity (iterate through all components in all WUs)
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
             for wu in wus:
                 components_with_aliases = repo.find_by_wisdom_unit(wu)
                 for comp, alias in components_with_aliases:
-                    if comp.uid == key:
+                    if comp.hash == key:
                         return wu
 
             # 3. Finally try as component alias
@@ -284,7 +344,7 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
                     if alias == key:
                         return wu
 
-            raise ValueError(f"Cannot find wisdom unit with key: {key} (tried as WU UID, component UID, and component alias)")
+            raise ValueError(f"Cannot find wisdom unit with key: {key} (tried as WU identity, component identity, and component alias)")
 
         elif isinstance(key, DCClass):
             # Search by component
@@ -294,7 +354,7 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
                     return wu  # Found it
                 except ValueError:
                     continue  # Not in this WU
-            raise ValueError(f"Cannot find wisdom unit containing component: {key.uid}")
+            raise ValueError(f"Cannot find wisdom unit containing component: {key.hash}")
 
         raise ValueError(f"Cannot find wisdom unit with key: {key}")
 
@@ -352,21 +412,21 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
                 if a_seg.is_set(key):
                     return a_seg
 
-            raise ValueError(f"Cannot find wheel segment containing component: {key.uid}")
+            raise ValueError(f"Cannot find wheel segment containing component: {key.hash}")
 
-        # If key is a string, try as component UID first, then alias
+        # If key is a string, try as component identity first, then alias
         elif isinstance(key, str):
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
             wus = self.wisdom_units
 
-            # 1. Try as component UID
+            # 1. Try as component identity
             for wu in wus:
                 components_with_aliases = repo.find_by_wisdom_unit(wu)
                 for comp, alias in components_with_aliases:
-                    if comp.uid == key:
-                        # Found component by UID, now find which segment it's in
+                    if comp.hash == key:
+                        # Found component by identity, now find which segment it's in
                         t_seg = wu.segment_t
                         if t_seg.is_set(comp):
                             return t_seg
@@ -468,7 +528,7 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
             ]
             for position, manager in positions:
                 for comp, _ in manager.all():
-                    component_to_wu_map[comp.uid] = (wu, position)
+                    component_to_wu_map[comp.hash] = (wu, position)
 
         # Track which wisdom units we've seen
         seen_wisdom_units = set()
@@ -484,13 +544,15 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
             source_component, _ = source_result
 
             # Look up wisdom unit and position from map
-            wu_info = component_to_wu_map.get(source_component.uid)
+            wu_info = component_to_wu_map.get(source_component.hash)
             if wu_info is None:
                 continue
 
             wu, position = wu_info
 
-            if wu.uid in seen_wisdom_units:
+            # Use _id for tracking since uncommitted nodes have hash=None
+            wu_key = wu._id if wu._id is not None else id(wu)
+            if wu_key in seen_wisdom_units:
                 continue
 
             # Determine polarity based on which side appears first
@@ -503,14 +565,14 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
                 # Skip synthesis positions
                 continue
 
-            # Get or create cached pair
-            cache_key = f"{wu.uid}:{polarity}"
+            # Get or create cached pair (use _id or hash for cache key)
+            cache_key = f"{wu_key}:{polarity}"
             if cache_key not in self._polar_pair_cache:
                 self._polar_pair_cache[cache_key] = WheelSegmentPolarPair(wu, polarity)
 
             pair = self._polar_pair_cache[cache_key]
             pairs.append(pair)
-            seen_wisdom_units.add(wu.uid)
+            seen_wisdom_units.add(wu_key)
 
         return pairs
 
@@ -558,10 +620,13 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
 
             # Find which segment this component belongs to
             for wu in self.wisdom_units:
+                # Use _id for tracking since uncommitted nodes have hash=None
+                wu_key = wu._id if wu._id is not None else id(wu)
+
                 # Try to get segment containing this component
                 t_seg = wu.segment_t
                 if t_seg.is_set(source_component):
-                    seg_key = (wu.uid, t_seg.side)
+                    seg_key = (wu_key, t_seg.side)
                     if seg_key not in seen_segments:
                         segments.append(t_seg)
                         seen_segments.add(seg_key)
@@ -569,7 +634,7 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
 
                 a_seg = wu.segment_a
                 if a_seg.is_set(source_component):
-                    seg_key = (wu.uid, a_seg.side)
+                    seg_key = (wu_key, a_seg.side)
                     if seg_key not in seen_segments:
                         segments.append(a_seg)
                         seen_segments.add(seg_key)
@@ -608,7 +673,8 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
             polarity_count = len(wus) if wus else 0
         except (ValueError, AttributeError):
             polarity_count = 0
-        return f"Wheel(uid={self.uid}, polarity_count={polarity_count})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Wheel({hash_str}, polarity_count={polarity_count})"
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -822,16 +888,39 @@ class Wheel(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel")
                     cycles_to_check.append((f"WU{idx} Trans", transformation))
 
             def format_rationale_tree(rationales: list, indent: int = 0) -> list[str]:
-                """Format rationale hierarchy with scores."""
+                """Format rationale hierarchy with provided P/R values and rating."""
+                from dialectical_framework.graph.nodes.estimation import (
+                    ProbabilityEstimation,
+                    RelevanceEstimation,
+                    FeasibilityEstimation
+                )
                 lines = []
                 prefix = "  " * indent + "- " if indent > 0 else "- "
                 for rat in rationales:
-                    # Format rationale line with scores
+                    # Format rationale line with provided P/R values and rating
                     text_preview = rat.text[:40] + "..." if rat.text and len(rat.text) > 40 else (rat.text or "Unnamed rationale")
-                    s_str = f"S={fmt_score(rat.score, colorize=False)}"
-                    r_str = f"R={fmt_relevance(rat, colorize=False)}"
-                    p_str = f"P={fmt_probability(rat, colorize=False)}"
-                    lines.append(f"{prefix}{text_preview} [{s_str} | {r_str} | {p_str}]")
+
+                    # Get P/R values from provided estimations
+                    provided = list(rat.provided_estimations.all())
+                    p_val = None
+                    r_val = None
+                    for est, _ in provided:
+                        if isinstance(est, ProbabilityEstimation):
+                            p_val = est.value
+                        elif isinstance(est, (RelevanceEstimation, FeasibilityEstimation)):
+                            r_val = est.value
+
+                    # Format the values
+                    parts = []
+                    if r_val is not None:
+                        parts.append(f"R={r_val:.2f}")
+                    if p_val is not None:
+                        parts.append(f"P={p_val:.2f}")
+                    if rat.rating is not None:
+                        parts.append(f"rating={rat.rating:.2f}")
+
+                    info_str = " | ".join(parts) if parts else "no values"
+                    lines.append(f"{prefix}{text_preview} [{info_str}]")
 
                     # Get critiques (audit rationales)
                     critiques = [c for c, _ in rat.critiques.all()]

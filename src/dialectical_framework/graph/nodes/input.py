@@ -8,6 +8,7 @@ resolution happens via InputResolver at the application layer.
 
 from __future__ import annotations
 
+import hashlib
 from typing import ClassVar, Optional, TYPE_CHECKING
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
@@ -58,14 +59,14 @@ class Input(BaseNode, label="Input"):
     Example:
         # Plain text content
         input_node = Input(content="The quick brown fox...")
-        input_node.save()
+        input_node.commit()
 
         # URI pointer
         input_node = Input(
             content="https://bbc.com/article/123",
             handle="bbc-ukraine-article"
         )
-        input_node.save()
+        input_node.commit()
 
         # After extracting statements from content:
         input_node.statements.connect(component1)
@@ -98,9 +99,38 @@ class Input(BaseNode, label="Input"):
         cardinality=(0, None),  # Zero or more Brainstorms
     )
 
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this input.
+
+        Parts: content field.
+
+        Returns:
+            List with the content
+        """
+        return [self.content or ""]
+
+    def compute_hash(self) -> str:
+        """
+        Compute content hash for this Input.
+
+        Input is purely content-addressable: same content = same hash.
+        Unlike structural nodes, committed_at is NOT included because:
+        - Deduplication is desirable (same URL/content should have same identity)
+        - No temporal ordering needed (inputs don't critique each other)
+        - Multiple references to the same source should resolve to the same Input
+
+        Returns:
+            sha256 hex string of content
+        """
+        parts = self._collect_structure_hash_parts()
+        combined = "\n".join(parts)
+        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
     def __repr__(self) -> str:
         """String representation of the input."""
-        return f"Input(uid={self.uid}, content={self.content})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Input({hash_str}, content={self.content})"
 
     def __str__(self) -> str:
         """Human-readable string representation."""

@@ -11,6 +11,8 @@ from typing import Any, ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
+from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager, BoundRelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
@@ -23,9 +25,6 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 )
 from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
     BelongsToNexusRelationship,
-)
-from dialectical_framework.graph.relationships.changed_to_relationship import (
-    ChangedToRelationship,
 )
 from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
     IsSpiralOfRelationship,
@@ -47,7 +46,7 @@ POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
 
 
-class WisdomUnit(IntentMixin, AssessableEntity, label="WisdomUnit"):
+class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEntity, label="WisdomUnit"):
     """
     Represents ONE coherent dialectical analysis with enforced cardinality.
 
@@ -130,22 +129,6 @@ class WisdomUnit(IntentMixin, AssessableEntity, label="WisdomUnit"):
         cardinality=(0, None)  # Zero or more Nexuses
     )
 
-    # Evolution relationships (direct, no intermediate nodes)
-    # WU → CHANGED_TO → WU (evolved version)
-    changed_to: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
-        "WisdomUnit",
-        model=ChangedToRelationship,
-        cardinality=(0, None)
-    )
-
-    # Reverse: WU ← CHANGED_TO ← WU (source of evolution)
-    # Single lineage: a WU can only evolve from one predecessor
-    changed_from: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
-        "WisdomUnit",
-        model=ChangedToRelationship,
-        cardinality=(0, 1)
-    )
-
     # Internal transformation spiral (T- → A+, A- → T+)
     transformation: ClassVar[RelationshipManager[Transformation]] = RelationshipFrom(
         "Transformation",
@@ -157,9 +140,58 @@ class WisdomUnit(IntentMixin, AssessableEntity, label="WisdomUnit"):
     # No inverse defined here - a WU can be the ac_re for unlimited transformations.
     # No inverse = implicit (0, None) cardinality.
 
+    # Note: Evolution relationships (CHANGED_TO) have been removed.
+    # History tracking now uses origin_hash chain (set during clone).
+
+    def _get_commit_dependents(self):
+        """
+        Get all committed children for hash computation.
+
+        For WisdomUnit, yields all 6 polarity components.
+
+        Yields:
+            Component nodes that should be included in hash computation
+        """
+        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+            result = manager.get()
+            if result:
+                comp, _ = result
+                yield comp
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this WisdomUnit.
+
+        Parts: hashes of all 6 polarity components (t, t+, t-, a, a+, a-).
+
+        Returns:
+            List of strings: [t_hash, t+_hash, t-_hash, a_hash, a+_hash, a-_hash]
+
+        Note:
+            All connected components must be committed.
+        """
+        parts = []
+
+        # Get hashes for all 6 positions in order
+        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+            result = manager.get()
+            if result:
+                comp, _ = result
+                if not comp.is_committed:
+                    raise ValueError(
+                        "Component must be committed before computing "
+                        "WisdomUnit structure hash"
+                    )
+                parts.append(comp.hash)
+            else:
+                parts.append("")  # Empty placeholder for missing positions
+
+        return parts
+
     def __repr__(self) -> str:
         """String representation of the wisdom unit."""
-        return f"WisdomUnit(uid={self.uid}, intent={self.intent})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"WisdomUnit({hash_str}, intent={self.intent})"
 
     def is_complete(self) -> bool:
         """

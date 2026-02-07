@@ -162,18 +162,11 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         reciprocal_sol_dto: ReciprocalSolutionDto
         dc_deck_dto, reciprocal_sol_dto  = await asyncio.gather(*async_reasoning_threads)
 
-        # Create rationale for the AC/RE wisdom unit
-        problem_rationale = Rationale(text=reciprocal_sol_dto.problem)
-        problem_rationale.save()
-
-        # Create AC/RE wisdom unit
+        # Create AC/RE wisdom unit (IncrementalBuildMixin: save → connect → commit)
         ac_re_wu = WisdomUnit(
             intent="action_reflection",
         )
-        ac_re_wu.save()
-
-        # Connect rationale to wisdom unit
-        ac_re_wu.rationales.connect(problem_rationale)
+        ac_re_wu.save()  # HEAD state - no hash yet
 
         # Get the current wu's human friendly index
         human_friendly_index = wu.get_human_friendly_index()
@@ -200,6 +193,14 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             rel_class = WisdomUnit.get_relationship_class_for_position(position)
             manager.connect(component, relationship=rel_class(alias=dto.alias))
 
+        # Commit WU now that components are connected (required before rationale can target it)
+        ac_re_wu.commit()
+
+        # Create rationale for the AC/RE wisdom unit (now that WU is committed)
+        problem_rationale = Rationale(text=reciprocal_sol_dto.problem)
+        problem_rationale.set_explanation(ac_re_wu)
+        problem_rationale.commit()  # Auto-connects to ac_re_wu
+
         # Get components for transitions
         wu_t_minus_result = wu.t_minus.get()
         wu_a_plus_result = wu.a_plus.get()
@@ -209,7 +210,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
         if not (wu_t_minus_result and wu_a_plus_result and wu_a_minus_result and wu_t_plus_result):
             # Missing required components - this shouldn't happen for a complete WU
             raise ValueError(
-                f"WisdomUnit {wu.uid} is missing required components for transformation. "
+                f"WisdomUnit {wu.hash} is missing required components for transformation. "
                 f"Has T-: {wu_t_minus_result is not None}, A+: {wu_a_plus_result is not None}, "
                 f"A-: {wu_a_minus_result is not None}, T+: {wu_t_plus_result is not None}"
             )
@@ -248,8 +249,8 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             if duplicate1:
                 # Create and add rationale to existing transition
                 rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
-                rationale1.save()
-                duplicate1.rationales.connect(rationale1)
+                rationale1.set_explanation(duplicate1)
+                rationale1.commit()  # Auto-connects to transition
                 transitions_updated.append(duplicate1)
             # If no duplicate, transformation already has 2 transitions (cardinality 2,2), skip
 
@@ -258,8 +259,8 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             if duplicate2:
                 # Create and add rationale to existing transition
                 rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
-                rationale2.save()
-                duplicate2.rationales.connect(rationale2)
+                rationale2.set_explanation(duplicate2)
+                rationale2.commit()  # Auto-connects to transition
                 transitions_updated.append(duplicate2)
             # If no duplicate, transformation already has 2 transitions (cardinality 2,2), skip
 
@@ -267,39 +268,42 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             return transitions_updated
         else:
             # No transformation exists - create new transformation with both transitions
-            # Create transformation first
+            # IncrementalBuildMixin pattern: save() → add members → commit()
             transformation = Transformation()
-            transformation.save()
+            transformation.set_wisdom_unit(wu)  # WU hash included in transformation hash
+            transformation.save()  # HEAD state - no hash yet, allows adding members
 
-            # Connect ac_re wisdom unit to transformation
+            # Connect ac_re wisdom unit to transformation (AnalyticalStructure - fine before commit)
             transformation.ac_re.connect(ac_re_wu)
 
-            # Connect transformation to wisdom unit
-            wu.transformation.connect(transformation)
-
             # Transition 1: T- → A+
-            rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
-            rationale1.save()
-
             transition1 = Transition()
-            transition1.save()
-            transition1.source.connect(t_minus_comp)
-            transition1.target.connect(a_plus_comp)
-            transition1.rationales.connect(rationale1)
+            transition1.set_source(t_minus_comp)
+            transition1.set_target(a_plus_comp)
+            transition1.commit()  # Auto-connects source/target
 
+            rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
+            rationale1.set_explanation(transition1)
+            rationale1.commit()  # Auto-connects to transition
+
+            # Connect transition to uncommitted transformation
             transition1.cycle.connect(transformation)
 
             # Transition 2: A- → T+
-            rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
-            rationale2.save()
-
             transition2 = Transition()
-            transition2.save()
-            transition2.source.connect(a_minus_comp)
-            transition2.target.connect(t_plus_comp)
-            transition2.rationales.connect(rationale2)
+            transition2.set_source(a_minus_comp)
+            transition2.set_target(t_plus_comp)
+            transition2.commit()  # Auto-connects source/target
 
+            rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
+            rationale2.set_explanation(transition2)
+            rationale2.commit()  # Auto-connects to transition
+
+            # Connect transition to uncommitted transformation
             transition2.cycle.connect(transformation)
+
+            # Commit transformation after all transitions are connected
+            transformation.commit()  # Auto-connects to WU
 
             # Return both newly created transitions
             return [transition1, transition2]

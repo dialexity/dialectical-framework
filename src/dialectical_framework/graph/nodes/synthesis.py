@@ -12,6 +12,7 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
@@ -32,7 +33,7 @@ POSITION_S_PLUS = "S+"
 POSITION_S_MINUS = "S-"
 
 
-class Synthesis(IntentMixin, AssessableEntity, label="Synthesis"):
+class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Synthesis"):
     """
     Represents ONE synthesis interpretation of a dialectical transformation.
 
@@ -83,9 +84,76 @@ class Synthesis(IntentMixin, AssessableEntity, label="Synthesis"):
             return type(result[0]).__name__.lower()
         return "none"
 
+    def _get_commit_dependents(self):
+        """
+        Yield committed S+ and S- components for IncrementalBuildMixin.
+
+        Required by IncrementalBuildMixin to verify all children are committed
+        before computing hash.
+        """
+        sp_result = self.s_plus.get()
+        if sp_result:
+            yield sp_result[0]
+
+        sm_result = self.s_minus.get()
+        if sm_result:
+            yield sm_result[0]
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this Synthesis.
+
+        Parts: S+ component hash, S- component hash.
+
+        Returns:
+            List of strings: [s+_hash, s-_hash]
+
+        Note:
+            Target (Transformation/Spiral) and S+/S- components must be committed.
+        """
+        # Verify target is committed - Synthesis only makes sense for finalized structures
+        target_result = self.target.get()
+        if target_result:
+            target_node, _ = target_result
+            if not target_node.is_committed:
+                raise ValueError(
+                    f"Target {target_node.__class__.__name__} must be committed before "
+                    "computing Synthesis structure hash. Commit the target first."
+                )
+        else:
+            raise ValueError(
+                "Synthesis must be connected to a target (Transformation/Spiral) "
+                "before computing structure hash."
+            )
+
+        parts = []
+
+        # Get S+ hash
+        sp_result = self.s_plus.get()
+        if sp_result:
+            comp, _ = sp_result
+            if not comp.is_committed:
+                raise ValueError(
+                    "S+ component must be committed before computing Synthesis structure hash"
+                )
+            parts.append(comp.hash)
+
+        # Get S- hash
+        sm_result = self.s_minus.get()
+        if sm_result:
+            comp, _ = sm_result
+            if not comp.is_committed:
+                raise ValueError(
+                    "S- component must be committed before computing Synthesis structure hash"
+                )
+            parts.append(comp.hash)
+
+        return parts
+
     def __repr__(self) -> str:
         """String representation of the synthesis."""
-        return f"Synthesis(uid={self.uid}, target_type={self.target_type})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Synthesis({hash_str}, target_type={self.target_type})"
 
     def get_human_friendly_index(self) -> int:
         """
@@ -207,7 +275,7 @@ class Synthesis(IntentMixin, AssessableEntity, label="Synthesis"):
 
         if (self_sp is None) != (other_sp is None):
             return False
-        if self_sp and other_sp and self_sp[0].uid != other_sp[0].uid:
+        if self_sp and other_sp and self_sp[0].hash != other_sp[0].hash:
             return False
 
         # Compare S- components (exactly one each)
@@ -216,7 +284,7 @@ class Synthesis(IntentMixin, AssessableEntity, label="Synthesis"):
 
         if (self_sm is None) != (other_sm is None):
             return False
-        if self_sm and other_sm and self_sm[0].uid != other_sm[0].uid:
+        if self_sm and other_sm and self_sm[0].hash != other_sm[0].hash:
             return False
 
         return True

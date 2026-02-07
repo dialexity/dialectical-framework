@@ -263,7 +263,7 @@ class CircularTopologyMixin(ABC):
                     except ValueError:
                         continue  # Not in this WU
                 if not alias:
-                    raise ValueError(f"Component {comp.uid} has no alias in nexus context")
+                    raise ValueError(f"Component {comp.hash} has no alias in nexus context")
                 self_aliases.append(alias)
 
             other_aliases = []
@@ -276,7 +276,7 @@ class CircularTopologyMixin(ABC):
                     except ValueError:
                         continue  # Not in this WU
                 if not alias:
-                    raise ValueError(f"Component {comp.uid} has no alias in nexus context")
+                    raise ValueError(f"Component {comp.hash} has no alias in nexus context")
                 other_aliases.append(alias)
 
             # Convert to sets for same elements check

@@ -26,9 +26,12 @@ class ScopeContext:
 
     Usage:
         # Option 1: Context manager (recommended for workflows)
-        with scope_context.scope(brainstorm.uid):
+        brainstorm = Brainstorm()  # sid is auto-generated UUID
+        brainstorm.commit()
+
+        with scope_context.scope(brainstorm.sid):
             input_node = Input(content="...")
-            input_node.save()  # Automatically gets sid from context
+            input_node.commit()  # Automatically gets sid from context
 
         # Option 2: Direct get
         current_sid = scope_context.get_current_scope()
@@ -49,7 +52,7 @@ class ScopeContext:
         Set the current scope ID.
 
         Args:
-            sid: The scope ID (Brainstorm uid) to set
+            sid: The scope ID (Brainstorm's UUID sid) to set
 
         Returns:
             Token that can be used to reset to previous value
@@ -61,19 +64,19 @@ class ScopeContext:
         Context manager for scoped node creation.
 
         Args:
-            sid: The scope ID (Brainstorm uid) for the context
+            sid: The scope ID (Brainstorm's UUID sid) for the context
 
         Returns:
             Context manager that sets/restores the scope
 
         Example:
-            brainstorm = Brainstorm()
-            brainstorm.save()
+            brainstorm = Brainstorm()  # sid is auto-generated UUID
+            brainstorm.commit()
 
-            with scope_context.scope(brainstorm.uid):
+            with scope_context.scope(brainstorm.sid):
                 # All nodes created here inherit sid
                 input_node = Input(content="...")
-                input_node.save()  # input_node.sid == brainstorm.uid
+                input_node.commit()  # input_node.sid == brainstorm.sid
         """
         return _ScopeContextManager(sid)
 

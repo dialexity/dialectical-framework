@@ -11,6 +11,8 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
+from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
     RelationshipTo,
@@ -22,19 +24,13 @@ from dialectical_framework.graph.relationships.belongs_to_nexus_relationship imp
 from dialectical_framework.graph.relationships.has_cycle_relationship import (
     HasCycleRelationship,
 )
-from dialectical_framework.graph.relationships.shrunk_to_relationship import (
-    ShrunkToRelationship,
-)
-from dialectical_framework.graph.relationships.expanded_to_relationship import (
-    ExpandedToRelationship,
-)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.cycle import Cycle
 
 
-class Nexus(IntentMixin, AssessableEntity, label="Nexus"):
+class Nexus(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEntity, label="Nexus"):
     """
     A pool of WisdomUnits where collective insights emerge.
 
@@ -64,10 +60,10 @@ class Nexus(IntentMixin, AssessableEntity, label="Nexus"):
         cycle.save()
         nexus.cycles.connect(cycle)
 
-        # Evolve the Nexus
-        nexus2 = Nexus()
-        nexus2.save()
-        nexus.shrunk_to.connect(nexus2)  # Reduced version
+        # Evolve the Nexus via clone:
+        nexus2 = nexus.clone()
+        # ... modify nexus2 ...
+        nexus2.save()  # nexus2.origin_hash == nexus.hash
     """
 
     # WisdomUnits in this pool (incoming edges from WUs)
@@ -86,39 +82,49 @@ class Nexus(IntentMixin, AssessableEntity, label="Nexus"):
         cardinality=(0, None)  # Zero or more cycles can be derived
     )
 
-    # Evolution relationships (direct, no intermediate nodes)
-    # Nexus → SHRUNK_TO → Nexus (reduced version)
-    shrunk_to: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
-        "Nexus",
-        model=ShrunkToRelationship,
-        cardinality=(0, None)
-    )
+    # Note: Evolution relationships (SHRUNK_TO, EXPANDED_TO) have been removed.
+    # History tracking now uses origin_hash chain (set during clone).
 
-    # Nexus → EXPANDED_TO → Nexus (expanded version)
-    expanded_to: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
-        "Nexus",
-        model=ExpandedToRelationship,
-        cardinality=(0, None)
-    )
+    def _get_commit_dependents(self):
+        """
+        Get wisdom units for hash computation.
 
-    # Reverse relationships for evolution tracking
-    # A Nexus can have at most one parent per evolution type
-    shrunk_from: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
-        "Nexus",
-        model=ShrunkToRelationship,
-        cardinality=(0, 1)
-    )
+        Yields:
+            WisdomUnit nodes
+        """
+        for wu, _ in self.wisdom_units.all():
+            yield wu
 
-    expanded_from: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
-        "Nexus",
-        model=ExpandedToRelationship,
-        cardinality=(0, 1)
-    )
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this Nexus.
+
+        Parts: sorted hashes of contained WisdomUnits.
+
+        Returns:
+            List of WisdomUnit hashes (sorted)
+
+        Note:
+            All connected WisdomUnits must be committed.
+        """
+        wu_hashes = []
+        for wu, _ in self.wisdom_units.all():
+            if not wu.is_committed:
+                raise ValueError(
+                    "WisdomUnit must be committed before computing "
+                    "Nexus structure hash"
+                )
+            wu_hashes.append(wu.hash)
+
+        # Sort for deterministic ordering
+        wu_hashes.sort()
+        return wu_hashes
 
     def __repr__(self) -> str:
         """String representation of the nexus."""
         wu_count = self.wisdom_units.count()
-        return f"Nexus(uid={self.uid}, wisdom_units={wu_count})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Nexus({hash_str}, wisdom_units={wu_count})"
 
     def __str__(self) -> str:
         """Human-readable string representation."""

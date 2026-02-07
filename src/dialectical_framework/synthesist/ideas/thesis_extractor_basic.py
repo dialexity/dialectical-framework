@@ -174,7 +174,7 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         components: list[DialecticalComponent] = []
         for dto in deck_dto.dialectical_components:
             component = component_from_dto(dto)
-            component.input.connect(source)
+            source.statements.connect(component)
             components.append(component)
 
         return components
@@ -202,6 +202,6 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
 
         # Convert DTO to graph node and connect to source
         component = component_from_dto(dto)
-        component.input.connect(source)
+        source.statements.connect(component)
 
         return component

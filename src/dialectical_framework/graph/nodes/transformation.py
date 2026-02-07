@@ -7,10 +7,15 @@ patterns within a WisdomUnit with action-reflection components.
 
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING
+from typing import ClassVar, Optional, TYPE_CHECKING, Union
 
+from dependency_injector.wiring import Provide, inject
+from gqlalchemy import Memgraph, Neo4j
+
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
@@ -33,7 +38,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
-class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Transformation"):
+class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Transformation"):
     """
     Internal transformation within a WisdomUnit.
 
@@ -47,6 +52,13 @@ class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity, label
     - T- to A+ (thesis negative to antithesis positive)
     - A- to T+ (antithesis negative to thesis positive)
 
+    Lifecycle (IncrementalBuildMixin pattern):
+        1. Create: transformation = Transformation()
+        2. Set parent: transformation.set_wisdom_unit(wu)
+        3. Save (HEAD state): transformation.save()
+        4. Add children: transition.cycle.connect(transformation)
+        5. Commit (immutable): transformation.commit()
+
     Relationships:
     - Transformations are internal to WisdomUnit (accessed via wisdom_unit.transformation)
     - They reference an action-reflection WisdomUnit via ac_re
@@ -57,6 +69,36 @@ class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity, label
     not parent-child. This prevents Transformation from inheriting Spiral's
     Wheel relationship, which would be semantically incorrect.
     """
+
+    # Hash inputs - set before save() to include in hash
+    _wisdom_unit_hash: Optional[str] = None
+    # Transient ref for auto-connecting after save
+    _wisdom_unit_ref: Optional[WisdomUnit] = None
+
+    def set_wisdom_unit(self, wu: WisdomUnit) -> Transformation:
+        """
+        Set the containing WisdomUnit for this transformation (before save).
+
+        This stores the reference for hash computation and auto-connection after save.
+        The WisdomUnit must already be committed (have hash).
+
+        Args:
+            wu: The committed WisdomUnit this transformation belongs to
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ValueError: If WisdomUnit is not committed
+        """
+        if not wu.is_committed:
+            raise ValueError(
+                "WisdomUnit must be committed before setting on transformation. "
+                "Call wu.commit() first."
+            )
+        self._wisdom_unit_hash = wu.hash
+        self._wisdom_unit_ref = wu
+        return self
 
     # Override _transitions from CircularTopologyMixin with exact cardinality
     # Exactly two transitions for internal transformation: T- → A+, A- → T+
@@ -122,6 +164,102 @@ class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity, label
 
         return None
 
+    def _get_commit_dependents(self):
+        """
+        Get transitions for hash computation.
+
+        Required by IncrementalBuildMixin for commit() validation.
+
+        Yields:
+            Transition nodes
+        """
+        for trans in self.transitions:
+            yield trans
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this Transformation.
+
+        Parts: WisdomUnit hash, ordered transition hashes.
+        The WU hash ensures uniqueness since each WU has at most one transformation.
+
+        Returns:
+            List of strings: [wu_hash, trans_hash1, trans_hash2, ...]
+
+        Raises:
+            ValueError: If WisdomUnit not set or not committed
+        """
+        parts = []
+
+        # Get containing WisdomUnit hash - prefer stored hash, fall back to relationship
+        wu_hash = self._wisdom_unit_hash
+        if not wu_hash:
+            wu_result = self.wisdom_unit.get()
+            if wu_result:
+                wu, _ = wu_result
+                if not wu.is_committed:
+                    raise ValueError(
+                        "WisdomUnit must be committed before computing Transformation structure hash"
+                    )
+                wu_hash = wu.hash
+
+        if not wu_hash:
+            raise ValueError(
+                "Transformation must have a WisdomUnit set before computing hash. "
+                "Use set_wisdom_unit() first."
+            )
+        parts.append(wu_hash)
+
+        # Get transition hashes in order (may be empty for new transformations)
+        for trans in self.transitions:
+            if not trans.is_committed:
+                raise ValueError(
+                    "Transition must be committed before computing "
+                    "Transformation structure hash"
+                )
+            parts.append(trans.hash)
+
+        return parts
+
+    @inject
+    def commit(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> Transformation:
+        """
+        Commit this transformation: save (if needed), compute hash, persist, and create relationships.
+
+        Lifecycle:
+        1. Create transformation and set_wisdom_unit()
+        2. (Optional) save() and add transitions explicitly
+        3. commit() - auto-saves if needed, computes hash from transitions, makes immutable
+
+        If wisdom_unit was set via set_wisdom_unit(), the relationship is
+        automatically created after the node is committed.
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ImmutableNodeError: If already committed
+            ValueError: If any child transition is not committed
+        """
+        # Auto-save if not already saved (allows calling commit() directly)
+        if self._id is None:
+            result = graph_db.save_node(self)
+            if result is not None and result._id is not None:
+                self._id = result._id
+
+        # Call IncrementalBuildMixin.commit() which validates children and computes hash
+        super().commit()
+
+        # Auto-connect wisdom_unit if ref was stored AND not already connected
+        if self._wisdom_unit_ref and self.wisdom_unit.count() == 0:
+            self.wisdom_unit.connect(self._wisdom_unit_ref)
+            self._wisdom_unit_ref = None  # Clear transient ref
+
+        return self
+
     def __format__(self, format_spec: str) -> str:
         """
         Format this Transformation by displaying its ac_re WisdomUnit.
@@ -166,4 +304,5 @@ class Transformation(IntentMixin, CircularTopologyMixin, AssessableEntity, label
 
     def __repr__(self) -> str:
         """String representation of the transformation."""
-        return f"Transformation(uid={self.uid})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Transformation({hash_str})"

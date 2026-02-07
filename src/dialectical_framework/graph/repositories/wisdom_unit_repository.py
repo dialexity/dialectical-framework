@@ -36,9 +36,9 @@ class WisdomUnitRepository:
         repo = WisdomUnitRepository()
         deleted = repo.safe_delete(wu)
         if deleted:
-            print(f"WisdomUnit {wu.uid} and its isolated subgraph deleted")
+            print(f"WisdomUnit {wu.hash} and its isolated subgraph deleted")
         else:
-            print(f"WisdomUnit {wu.uid} is shared, kept as orphan")
+            print(f"WisdomUnit {wu.hash} is shared, kept as orphan")
     """
 
     @inject
@@ -60,12 +60,12 @@ class WisdomUnitRepository:
 
         Example:
             component = DialecticalComponent(statement="Democracy")
-            component.save()
+            component.commit()
 
             repo = WisdomUnitRepository()
             wisdom_units = repo.find_by_dialectical_component(component)
             for wu, rel_type in wisdom_units:
-                print(f"Component belongs to {wu.uid} as {rel_type}")
+                print(f"Component belongs to {wu.hash} as {rel_type}")
         """
         if component._id is None:
             return []
@@ -169,58 +169,21 @@ class WisdomUnitRepository:
         if force_gc:
             # AGGRESSIVE GC MODE: Only check Level 2 (WU usage)
             # Allow deletion if WU is not in use (ignore component sharing)
-            if self.in_use(wisdom_unit, graph_db=graph_db):
+            if self.in_use(wisdom_unit):
                 # WU is in a wheel or used as ac_re - keep it
                 return False
             # Otherwise proceed with deletion (components still handled smartly)
         else:
             # CONSERVATIVE MODE: Full vocabulary check (both levels)
-            if not self.is_isolated(wisdom_unit, graph_db=graph_db):
+            if not self.is_isolated(wisdom_unit):
                 # WU or its components are in vocabulary - keep as provenance
                 return False
 
         # Subgraph is fully isolated - safe to recursively delete everything
         # HAS_STATEMENT is a boundary: disconnect link, delete component only if orphaned
 
-        # Step 1: Handle HAS_STATEMENT boundary (do this BEFORE deleting rationales/transitions)
-        # Disconnect HAS_STATEMENT links from rationales and transitions
-        disconnect_has_statement_query = """
-        MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
-
-        // Find all rationales in subgraph (including critiques - recursive)
-        OPTIONAL MATCH (wu)<-[:EXPLAINS]-(wu_rationale)
-        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component)
-        OPTIONAL MATCH (component)<-[:EXPLAINS]-(comp_rationale)
-        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
-        OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
-        OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
-        OPTIONAL MATCH (transition)<-[:EXPLAINS]-(transit_rationale)
-        OPTIONAL MATCH (transformation)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
-        OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
-
-        WITH collect(DISTINCT wu_rationale) + collect(DISTINCT comp_rationale) +
-             collect(DISTINCT trans_rationale) + collect(DISTINCT transit_rationale) +
-             collect(DISTINCT synth_rationale) AS all_rationales,
-             collect(DISTINCT transition) AS transitions
-
-        // Disconnect HAS_STATEMENT from rationales (including recursive critiques)
-        UNWIND all_rationales AS rat
-        OPTIONAL MATCH (rat)-[:CRITIQUES*0..10]->(child_rat:Rationale)
-        OPTIONAL MATCH (child_rat)-[has_stmt_r:HAS_STATEMENT]->(:DialecticalComponent)
-        WHERE has_stmt_r IS NOT NULL
-        DELETE has_stmt_r
-
-        WITH transitions
-
-        // Disconnect HAS_STATEMENT from transitions (derived_statements)
-        UNWIND transitions AS trans
-        OPTIONAL MATCH (trans)-[has_stmt_t:HAS_STATEMENT]->(:DialecticalComponent)
-        WHERE has_stmt_t IS NOT NULL
-        DELETE has_stmt_t
-        """
-        graph_db.execute(disconnect_has_statement_query, {"wu_id": wisdom_unit._id})
-
-        # Step 2: Delete orphaned HAS_STATEMENT components (not in any WU or Synthesis)
+        # Step 1: Delete orphaned HAS_STATEMENT components (not in any WU or Synthesis)
+        # Note: HAS_STATEMENT now only exists on Input nodes, not on Rationales/Transitions
         delete_orphaned_stmt_query = """
         MATCH (stmt_comp:DialecticalComponent)
         WHERE NOT exists((stmt_comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]->())
@@ -229,11 +192,11 @@ class WisdomUnitRepository:
         """
         graph_db.execute(delete_orphaned_stmt_query)
 
-        # Step 3: Delete the complete WU subgraph
+        # Step 2: Delete the complete WU subgraph
         delete_subgraph_query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        // Find all nodes in subgraph
+        // Find all nodes in subgraph (direct relationships)
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component)
         OPTIONAL MATCH (wu)<-[:EXPLAINS]-(wu_rationale)
         OPTIONAL MATCH (component)<-[:EXPLAINS]-(comp_rationale)
@@ -245,24 +208,31 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
         OPTIONAL MATCH (synthesis)<-[:S_PLUS|S_MINUS]-(synth_component)
 
-        // Collect nodes for deletion (DETACH DELETE will handle estimations automatically)
+        // Collect direct rationales first
         WITH wu,
              collect(DISTINCT component) AS components,
-             collect(DISTINCT wu_rationale) AS wu_rationales,
-             collect(DISTINCT comp_rationale) AS comp_rationales,
+             collect(DISTINCT wu_rationale) + collect(DISTINCT comp_rationale) +
+             collect(DISTINCT trans_rationale) + collect(DISTINCT transit_rationale) +
+             collect(DISTINCT synth_rationale) AS direct_rationales,
              collect(DISTINCT transformation) AS transformations,
-             collect(DISTINCT trans_rationale) AS trans_rationales,
              collect(DISTINCT transition) AS transitions,
-             collect(DISTINCT transit_rationale) AS transit_rationales,
              collect(DISTINCT synthesis) AS syntheses,
-             collect(DISTINCT synth_rationale) AS synth_rationales,
              collect(DISTINCT synth_component) AS synth_components
 
-        // Combine all rationales for deletion (DETACH DELETE handles recursive critiques)
-        WITH wu, components, transformations, transitions, syntheses, synth_components,
-             wu_rationales + comp_rationales + trans_rationales + transit_rationales + synth_rationales AS rationales
+        // Expand to include critique chains (rationales that critique the direct rationales)
+        // Direction: critique -[:CRITIQUES]-> target, so traverse INCOMING edges
+        UNWIND CASE WHEN size(direct_rationales) > 0 THEN direct_rationales ELSE [null] END AS rat
+        OPTIONAL MATCH (rat)<-[:CRITIQUES*0..10]-(critique_chain:Rationale)
+        WHERE rat IS NOT NULL
 
-        // Delete in proper order (DETACH DELETE removes all relationships including estimations)
+        WITH wu, components, transformations, transitions, syntheses, synth_components,
+             direct_rationales, collect(DISTINCT critique_chain) AS critique_rationales
+
+        // Combine all rationales (direct + critique chains)
+        WITH wu, components, transformations, transitions, syntheses, synth_components,
+             direct_rationales + critique_rationales AS rationales
+
+        // Delete rationales first (including critique chains)
         FOREACH (rat IN rationales | DETACH DELETE rat)
         FOREACH (trans IN transitions | DETACH DELETE trans)
         FOREACH (transformation IN transformations | DETACH DELETE transformation)
@@ -515,7 +485,7 @@ class WisdomUnitRepository:
                 # WU is orphaned - candidate for GC
                 repo.safe_delete(wu)  # Default GC mode deletes it
         """
-        return self.count_usage(wisdom_unit, graph_db=graph_db) > 0
+        return self.count_usage(wisdom_unit) > 0
 
     @inject
     def is_shared(

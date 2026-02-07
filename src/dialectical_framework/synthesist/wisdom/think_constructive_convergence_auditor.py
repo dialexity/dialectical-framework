@@ -66,7 +66,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         next_ws = transition.get_target_wheel_segment()
 
         if not focus or not next_ws:
-            raise ValueError(f"Cannot extract wheel segments from transition {transition.uid}")
+            raise ValueError(f"Cannot extract wheel segments from transition {transition.hash}")
 
         return {
             "computed_fields": {
@@ -196,14 +196,12 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
             audit_rationale = GraphRationale(
                 text=f"**Key Factors:** {audit.key_factors}\n\n**Argumentation:** {audit.argumentation}\n\n**Conditions for Success:** {audit.success_conditions}",
             )
-            audit_rationale.save()
+            audit_rationale.set_critiques_target(rationale)
+            audit_rationale.commit()  # Auto-connects as critique
 
-            # Connect as critique FIRST so the graph structure exists
-            rationale.critiques.connect(audit_rationale)
-
-            # Store feasibility - this triggers invalidation that now propagates through parents
-            # (rationale → transition → spiral → wheel) because the relationship exists
+            # Store feasibility - estimation targets the transition, audit_rationale is the provider
+            # This triggers invalidation that propagates through parents
             manager = EstimationManager()
-            manager.upsert_estimation(audit_rationale, FeasibilityEstimation, audit.feasibility)
+            manager.upsert_estimation(transition, FeasibilityEstimation, audit.feasibility, provider=audit_rationale)
 
         return transitions

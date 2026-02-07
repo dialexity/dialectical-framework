@@ -7,10 +7,14 @@ providing a vocabulary of components for downstream dialectical analysis.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, TYPE_CHECKING
+import uuid
+from typing import Any, ClassVar, Union, TYPE_CHECKING
 
+from dependency_injector.wiring import Provide, inject
+from gqlalchemy import Memgraph, Neo4j
+
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
     RelationshipTo,
@@ -22,10 +26,9 @@ from dialectical_framework.graph.relationships.has_input_relationship import (
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
 
-class Brainstorm(IntentMixin, AssessableEntity, label="Brainstorm"):
+class Brainstorm(AssessableEntity, label="Brainstorm"):
     """
     A portable discovery artifact grouping Inputs and Ideas.
 
@@ -33,8 +36,8 @@ class Brainstorm(IntentMixin, AssessableEntity, label="Brainstorm"):
     Input sources and providing a unified vocabulary of components extracted
     from those inputs via Ideas.
 
-    The intent field (from IntentMixin) captures the overall purpose of
-    this brainstorming session (e.g., "Explore remote work dynamics").
+    Note: Brainstorm does not have intent - the intent about what to explore
+    is "outside the system" and belongs to the user/context, not the artifact.
 
     Graph structure:
         Brainstorm
@@ -50,23 +53,28 @@ class Brainstorm(IntentMixin, AssessableEntity, label="Brainstorm"):
     - Vocabulary includes all components reachable via HAS_STATEMENT
 
     Example:
-        brainstorm = Brainstorm(intent="Explore remote work dynamics")
-        brainstorm.save()
+        from dialectical_framework.graph.repositories.dialectical_component_repository import (
+            DialecticalComponentRepository
+        )
+
+        brainstorm = Brainstorm()
+        brainstorm.commit()
 
         input_node = Input(content="https://article.com")
-        input_node.save()
+        input_node.commit()
         brainstorm.inputs.connect(input_node)
 
         ideas = Ideas(intent="Extract productivity claims")
-        ideas.save()
+        ideas.commit()
         input_node.ideas.connect(ideas)
 
         comp = DialecticalComponent(statement="Remote work improves focus")
-        comp.save()
+        comp.commit()
         ideas.statements.connect(comp)
 
         # Vocabulary includes all components from inputs and ideas
-        vocab = brainstorm.get_vocabulary()
+        repo = DialecticalComponentRepository()
+        vocab = repo.get_vocabulary(brainstorm)
         assert comp in vocab
     """
 
@@ -83,61 +91,55 @@ class Brainstorm(IntentMixin, AssessableEntity, label="Brainstorm"):
 
     def __init__(self, **data: Any) -> None:
         """
-        Initialize a Brainstorm as a scope root.
+        Initialize a Brainstorm.
 
-        Brainstorm is its own scope root, meaning sid == uid.
-        This establishes the Brainstorm as the top-level container for
-        all descendant nodes in the graph (Inputs, Ideas, Components, etc.).
+        Brainstorm is a scope root. It generates a UUID for sid on creation,
+        which serves as the scope identifier for all children.
 
         Args:
             **data: Field values for the brainstorm
         """
+        # Generate UUID for sid if not provided - this IS the scope identity
+        if "sid" not in data or data["sid"] is None:
+            data["sid"] = str(uuid.uuid4())
         super().__init__(**data)
-        # Brainstorm is its own scope root: sid = uid
-        if self.sid is None:
-            self.sid = self.uid
 
-    def get_vocabulary(self) -> list[DialecticalComponent]:
+    @property
+    def is_committed(self) -> bool:
+        """Check if this Brainstorm has been saved (has database _id)."""
+        return self._id is not None
+
+    @inject
+    def commit(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> Brainstorm:
         """
-        Get all DialecticalComponents accessible from this Brainstorm.
+        Commit this Brainstorm to the database.
 
-        The vocabulary includes:
-        1. Components directly linked to Inputs (via HAS_STATEMENT)
-        2. Components linked to Ideas (via Input → Ideas → HAS_STATEMENT)
+        Brainstorm is a scope root with UUID-based identity (sid).
+        It never computes a hash - hash remains None.
 
         Returns:
-            List of unique DialecticalComponent nodes in this Brainstorm's vocabulary
-
-        Example:
-            vocab = brainstorm.get_vocabulary()
-            for comp in vocab:
-                print(f"- {comp.statement}")
+            Self for chaining
         """
-        components: dict[str, DialecticalComponent] = {}
-
-        # Iterate through all Inputs
-        for input_node, _ in self.inputs.all():
-            # Get components directly from Input
-            for comp, _ in input_node.statements.all():
-                if comp.uid not in components:
-                    components[comp.uid] = comp
-
-            # Get components from Ideas
-            for ideas, _ in input_node.ideas.all():
-                for comp, _ in ideas.statements.all():
-                    if comp.uid not in components:
-                        components[comp.uid] = comp
-
-        return list(components.values())
+        result = graph_db.save_node(self)
+        if result is not None and result._id is not None:
+            self._id = result._id
+        return self
 
     def __repr__(self) -> str:
         """String representation of the brainstorm."""
         input_count = self.inputs.count()
-        return f"Brainstorm(uid={self.uid}, inputs={input_count}, intent={self.intent})"
+        sid_str = self.sid[:8] if self.sid else "no-sid"
+        return f"Brainstorm({sid_str}, inputs={input_count})"
 
     def __str__(self) -> str:
         """Human-readable string representation."""
+        from dialectical_framework.graph.repositories.dialectical_component_repository import (
+            DialecticalComponentRepository
+        )
         input_count = self.inputs.count()
-        vocab_count = len(self.get_vocabulary())
-        intent_preview = self.intent[:30] + "..." if self.intent and len(self.intent) > 30 else self.intent
-        return f"Brainstorm: {intent_preview or 'No intent'} ({input_count} inputs, {vocab_count} components)"
+        repo = DialecticalComponentRepository()
+        vocab_count = len(repo.get_vocabulary(self))
+        return f"Brainstorm ({input_count} inputs, {vocab_count} components)"

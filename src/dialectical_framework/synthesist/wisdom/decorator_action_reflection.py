@@ -55,7 +55,7 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
         wu = wheel.wisdom_unit_at(at)
 
         # Skip if already processed in this call
-        if wu.uid in self._processed_wus_this_call:
+        if wu.hash in self._processed_wus_this_call:
             # Return existing transitions (no new LLM call)
             transformation_result = wu.transformation.get()
             if transformation_result:
@@ -64,7 +64,7 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
             return []
 
         # Mark as processed
-        self._processed_wus_this_call.add(wu.uid)
+        self._processed_wus_this_call.add(wu.hash)
 
         # Create both transitions (action-reflection is a single unit of work)
         consultant = ThinkActionReflection(

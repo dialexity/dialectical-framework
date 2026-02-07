@@ -11,6 +11,7 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
     IsSpiralOfRelationship,
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
-class Spiral(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Spiral"):
+class Spiral(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Spiral"):
     """
     Represents a transformational spiral in the dialectical framework.
 
@@ -79,6 +80,62 @@ class Spiral(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Spiral
             return None
         wheel_obj, _ = wheel_result
         return wheel_obj.get_nexus()
+
+    def _get_commit_dependents(self):
+        """
+        Get transitions for hash computation.
+
+        Yields:
+            Transition nodes
+        """
+        for trans in self.transitions:
+            yield trans
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this Spiral.
+
+        Parts: wheel hash, sorted transition hashes.
+        This makes the same spiral (same transitions) on the same wheel
+        produce the same hash (content-addressable analytical artifact).
+
+        Returns:
+            List of strings: [wheel_hash, trans_hash1, trans_hash2, ...]
+
+        Raises:
+            ValueError: If wheel or transitions are not committed
+        """
+        parts = []
+
+        # Get parent Wheel hash (required)
+        wheel_result = self.wheel.get()
+        if wheel_result:
+            wheel_obj, _ = wheel_result
+            if not wheel_obj.is_committed:
+                raise ValueError(
+                    "Wheel must be committed before computing Spiral structure hash. "
+                    "Commit the parent Wheel first."
+                )
+            parts.append(wheel_obj.hash)
+        else:
+            raise ValueError(
+                "Spiral must be connected to a Wheel before computing structure hash."
+            )
+
+        # Get transition hashes and sort for deterministic ordering
+        trans_hashes = []
+        for trans in self.transitions:
+            if not trans.is_committed:
+                raise ValueError(
+                    "Transition must be committed before computing "
+                    "Spiral structure hash"
+                )
+            trans_hashes.append(trans.hash)
+
+        trans_hashes.sort()
+        parts.extend(trans_hashes)
+
+        return parts
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -165,9 +222,9 @@ class Spiral(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Spiral
 
                 # Use alias or fallback
                 if mode == "explicit":
-                    return f"{alias or comp.uid[:8]} ({comp.statement})"
+                    return f"{alias or comp.hash[:8]} ({comp.statement})"
                 else:
-                    return alias or comp.uid[:8]
+                    return alias or comp.hash[:8]
             elif mode == "statements":
                 return comp.statement
             else:
@@ -215,4 +272,5 @@ class Spiral(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Spiral
 
     def __repr__(self) -> str:
         """Debug representation of the spiral."""
-        return f"Spiral(uid={self.uid})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Spiral({hash_str})"

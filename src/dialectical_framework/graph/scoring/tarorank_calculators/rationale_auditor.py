@@ -233,9 +233,10 @@ class RationaleAuditor:
 
     def _get_manual_value(self, rationale: Rationale, estimation_type: Type[T]) -> Optional[float]:
         """
-        Get MANUAL estimation value from rationale (not calculated).
+        Get MANUAL estimation value provided by this rationale (not calculated).
 
-        This matches legacy behavior where calculators read manual_* fields.
+        This reads from rationale.provided_estimations which contains
+        estimations that this rationale provides as evidence.
 
         Args:
             rationale: Rationale to get value from
@@ -244,10 +245,10 @@ class RationaleAuditor:
         Returns:
             GM of manual estimations or None
         """
-        # Get only manual estimations (not calculated)
-        estimations = rationale.estimations.all()
+        # Get estimations PROVIDED by this rationale (not calculated)
+        provided = rationale.provided_estimations.all()
         manual_estimations = [
-            est for est, _ in estimations
+            est for est, _ in provided
             if isinstance(est, estimation_type)
             and not est.__class__.__name__.startswith('Calculated')
         ]

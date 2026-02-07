@@ -11,6 +11,7 @@ from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalCo
 from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
+from dialectical_framework.synthesist.causality.causality_sequencer_balanced import CausalitySequencerBalanced
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.protocols.polarity_finder import PolarityFinder
@@ -105,18 +106,18 @@ class WheelBuilder(SettingsAware):
             else:
                 # No inputs in brainstorm - create one
                 input_node = Input(content=self.__text or "")
-                input_node.save()
+                input_node.commit()
                 self.__source.inputs.connect(input_node)
                 self.__input_source = input_node
         elif self.__text is not None:
             # Create Input from text
             input_node = Input(content=self.__text)
-            input_node.save()
+            input_node.commit()
             self.__input_source = input_node
         else:
             # No source and no text - create empty Input
             input_node = Input(content="")
-            input_node.save()
+            input_node.commit()
             self.__input_source = input_node
 
         return self.__input_source
@@ -230,7 +231,7 @@ class WheelBuilder(SettingsAware):
                     if isinstance(thesis, str):
                         # Create graph node from string and connect to source
                         provided_thesis = DialecticalComponent(statement=thesis)
-                        provided_thesis.save()
+                        provided_thesis.commit()
                         source.statements.connect(provided_thesis)
                     else:  # thesis is already DialecticalComponent (graph node)
                         provided_thesis = thesis
@@ -307,8 +308,8 @@ class WheelBuilder(SettingsAware):
                     for t in theses:
                         if isinstance(t, tuple):
                             if isinstance(t[0], DialecticalComponent):
-                                # Compare by UID (graph-native components are same if UIDs match)
-                                if dc.uid == t[0].uid:
+                                # Compare by identity (graph-native components are same if identities match)
+                                if dc.hash == t[0].hash:
                                     antithesis = t[1]
                                     break
                             elif isinstance(t[0], str) and dc.statement == t[0]:
@@ -335,6 +336,19 @@ class WheelBuilder(SettingsAware):
         # Connect each wheel to the t_cycle
         for wheel in wheels:
             t_cycle.wheels.connect(wheel)
+
+        # Commit chain: Nexus → Cycle → Wheel
+        # IncrementalBuildMixin nodes need commit() after children are connected
+        if not nexus.is_committed:
+            nexus.commit()
+        if not t_cycle.is_committed:
+            t_cycle.commit()
+        for wheel in wheels:
+            if not wheel.is_committed:
+                wheel.commit()
+
+        # Finalize pending rationales (now that nodes are committed)
+        CausalitySequencerBalanced.finalize_pending_rationales([t_cycle] + wheels)
 
         # Score all wheels
         for wheel in wheels:
@@ -432,7 +446,7 @@ class WheelBuilder(SettingsAware):
                     s_minus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_MINUS)
                 except KeyError as e:
                     # Skip if S+ or S- not found in the synthesis deck
-                    logger.warning(f"Skipping synthesis for WU {wu.uid}: {e}")
+                    logger.warning(f"Skipping synthesis for WU {wu.hash}: {e}")
                     continue
 
             s_plus_comp = component_from_dto(s_plus_dto)
@@ -457,7 +471,10 @@ class WheelBuilder(SettingsAware):
                 transformation = trans_result[0]
                 synthesis.target.connect(transformation)
             else:
-                logger.warning(f"WU {wu.uid} has no transformation - skipping synthesis connection")
+                logger.warning(f"WU {wu.hash} has no transformation - skipping synthesis connection")
+
+            # Commit the synthesis now that all children are connected
+            synthesis.commit()
 
             # Set human-friendly index if WU has one
             if wu_index > 0:
@@ -580,7 +597,7 @@ class WheelBuilder(SettingsAware):
                 # Get the original t_cycle from the wheel (thesis-level arrangement)
                 cycle_result = wheel.cycle.get()
                 if not cycle_result:
-                    raise ValueError(f"Wheel {wheel.uid} has no parent cycle")
+                    raise ValueError(f"Wheel {wheel.hash} has no parent cycle")
                 original_t_cycle, _ = cycle_result
 
                 # Create new wheels directly via sequencer

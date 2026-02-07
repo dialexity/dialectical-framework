@@ -5,45 +5,8 @@ These tests verify that DTOs from AI calls are correctly converted
 to graph-native models.
 """
 
-import pytest
-
 from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
 from dialectical_framework.ai_dto.graph_mapper import component_from_dto, components_from_dtos
-
-
-# Module-level autouse fixture for graph tests only
-@pytest.fixture(autouse=True)
-def cleanup_graph_db(graph_db_available, di_container):
-    """
-    Auto-cleanup fixture that runs for every test in this module.
-
-    Automatically skips tests if the configured graph database is not available.
-    Cleans up test data before and after each test.
-
-    SAFETY: Only deletes nodes labeled with :___DIALEXITY_TEST___
-    """
-    from tests.conftest import cleanup_test_data
-
-    settings = di_container.settings()
-    if not graph_db_available:
-        pytest.skip(
-            f"{settings.graph_db_vendor} is not available. "
-            f"Please start the database and try again."
-        )
-
-    # Get graph_db from container (already overridden with Test wrapper)
-    db = di_container.graph_db()
-
-    # Clear only test data before each test
-    cleanup_test_data(db)
-
-    yield
-
-    # Cleanup only test data after test
-    try:
-        cleanup_test_data(db)
-    except Exception:
-        pass  # Ignore cleanup errors
 
 
 def test_component_from_dto_basic():

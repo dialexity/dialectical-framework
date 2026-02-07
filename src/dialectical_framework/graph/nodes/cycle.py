@@ -11,6 +11,7 @@ from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.has_cycle_relationship import (
     HasCycleRelationship,
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
 
 
-class Cycle(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Cycle"):
+class Cycle(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Cycle"):
     """
     Represents a causal arrangement of WisdomUnits from a Nexus.
 
@@ -84,6 +85,59 @@ class Cycle(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Cycle")
         if result:
             return result[0]
         return None
+
+    def _get_commit_dependents(self):
+        """
+        Get transitions for hash computation.
+
+        Yields:
+            Transition nodes
+        """
+        for trans in self.transitions:
+            yield trans
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect structure hash parts for this Cycle.
+
+        Parts: nexus hash, sorted transition hashes.
+        The intent is added separately by BaseNode.compute_hash().
+
+        Returns:
+            List of strings: [nexus_hash, trans_hash1, trans_hash2, ...]
+
+        Raises:
+            ValueError: If Nexus is not connected/committed or transitions not committed
+        """
+        parts = []
+
+        # Get and verify parent Nexus
+        nexus = self.get_nexus()
+        if not nexus:
+            raise ValueError(
+                "Cycle must be connected to a Nexus before computing structure hash."
+            )
+        if not nexus.is_committed:
+            raise ValueError(
+                "Nexus must be committed before computing Cycle structure hash. "
+                "Commit the parent Nexus first."
+            )
+        parts.append(nexus.hash)
+
+        # Get transition hashes and sort for deterministic ordering
+        trans_hashes = []
+        for trans in self.transitions:
+            if not trans.is_committed:
+                raise ValueError(
+                    "Transition must be committed before computing "
+                    "Cycle structure hash"
+                )
+            trans_hashes.append(trans.hash)
+
+        trans_hashes.sort()
+        parts.extend(trans_hashes)
+
+        return parts
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -153,4 +207,5 @@ class Cycle(IntentMixin, CircularTopologyMixin, AssessableEntity, label="Cycle")
 
     def __repr__(self) -> str:
         """Debug representation of the cycle."""
-        return f"Cycle(uid={self.uid}, intent={self.intent})"
+        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        return f"Cycle({hash_str}, intent={self.intent})"

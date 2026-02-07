@@ -154,7 +154,7 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
 
         # Convert DTO to graph node and connect to source
         component = component_from_dto(dto)
-        component.input.connect(source)
+        source.statements.connect(component)
 
         # Create OPPOSITE_OF relationship if thesis is a graph node
         if isinstance(thesis, DialecticalComponent):
@@ -206,7 +206,7 @@ class AntithesisExtractorBasic(AntithesisExtractor, HasBrain, SettingsAware):
         components: list[DialecticalComponent] = []
         for i, dto in enumerate(antithesis_dtos):
             component = component_from_dto(dto)
-            component.input.connect(source)
+            source.statements.connect(component)
 
             # Create OPPOSITE_OF relationship if thesis is a graph node
             if i < len(theses) and isinstance(theses[i], DialecticalComponent):
