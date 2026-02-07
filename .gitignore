@@ -62,3 +62,4 @@ logs/
 # Dialexity custom
 .claude/
 tests/play.py
+docs/r&d/

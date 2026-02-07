@@ -105,7 +105,7 @@ Level 3: Nexus (pool of WisdomUnits)
 
 Level 2: WisdomUnit
          ├─ Aggregates both WheelSegment Rs (T-side + A-side)
-         ├─ Includes Transformation R (internal spiral, includes Synthesis R)
+         ├─ Includes Transformation R (internal spiral, includes ac_re R and Synthesis R)
          └─ Includes unit-level Rationale Rs
 
 Level 1: WheelSegment
@@ -132,17 +132,17 @@ Level 0: DialecticalComponent (leaf)
 **P tracks "Could this structural arrangement work?"**
 
 ```
-Level 4: Wheel
+Level 4: Wheel (Product of all terms - conjunctive requirements)
          ├─ Parent Cycle P
          ├─ Nexus P (via Cycle → Nexus)
          ├─ Wheel-level Transitions P (product)
          └─ Spiral P (if present)
 
-Level 3: Cycle
+Level 3: Cycle (Product of transitions - sequential)
          ├─ Product of member Transition probabilities (in sequence)
          └─ Does NOT include Nexus P (Nexus feeds into Wheel, not Cycle)
 
-Level 2: Nexus
+Level 2: Nexus (GM of WUs - parallel/independent pool)
          └─ GM of WisdomUnit transformation probabilities
 
 Level 1: Transition (leaf for probability)
@@ -335,11 +335,12 @@ External Transitions (wheel-level cycles):
 - **T ↔ A pair**: PowerMean(0.72, 0.56, p=4) = 0.66
 - **T+ ↔ A- pair**: PowerMean(0.67, 0.20, p=4) = 0.57
 - **T- ↔ A+ pair**: PowerMean(0.32, 0.48, p=4) = 0.43
-- **Transformation R** (includes Synthesis S+ ↔ S-):
+- **Transformation R** (includes ac_re WU and Synthesis S+ ↔ S-):
   - Transition Rs: GM(0.8, 0.7) = 0.75
+  - ac_re WisdomUnit R: 0.58 (action-reflection context)
   - Synthesis pair: PowerMean(0.61, 0.12, p=4) = 0.51
-  - **Transformation R** = GM(0.75, 0.51) = 0.62
-- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.62) = 0.56
+  - **Transformation R** = GM(0.75, 0.58, 0.51) = 0.61
+- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.61) = 0.56
 
 **Step 3: WisdomUnit P** (from Transformation)
 - **Transformation P** = Product(0.7, 0.6) = 0.42
@@ -552,7 +553,7 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
     * **T ↔ A**: Power mean of thesis and antithesis Rs
     * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis Rs
     * **T- ↔ A+**: Power mean of negative thesis and positive antithesis Rs
-  * **Transformation R** (internal spiral transitions between segments, includes Synthesis S+ ↔ S-),
+  * **Transformation R** (internal spiral transitions, ac_re WisdomUnit R, and Synthesis S+ ↔ S-),
   * **rated unit-level rationales**,
 
 *Note: WisdomUnit R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis R to 0.0.*
@@ -573,8 +574,11 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 * R = GM of:
 
   * **Nexus R** (accessed via parent Cycle → Nexus, summarizes all WisdomUnit Rs),
-  * **deduplicated Transition Rs** (with specificity preference: Spiral > Wheel > Cycle),
+  * **Wheel-level Transition Rs** (wheel's own ta-cycle transitions only, not cycle's),
+  * **Spiral R** (aggregated, if present - includes spiral transitions, synthesis, and rationales),
   * **rated wheel-level rationales**.
+
+* Note: Cycle transitions are NOT included in Wheel R - they belong to Cycle R. R measures content relevance at each level independently.
 
 ### Using alpha with R
 
@@ -634,11 +638,13 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 
 **Wheel**
 
-* P = **geometric mean** of:
+* P = **product** of (conjunctive - all must work for Wheel to be feasible):
   * **Parent Cycle P** (product of cycle-level transitions)
   * **Nexus P** (accessed via Cycle → Nexus, GM of WU transformation Ps)
   * **Wheel-level Transitions P** (product of wheel's own transitions)
   * **Spiral P** (if present)
+* Uses Product (not GM) because these are conjunctive requirements following causal/Markovian semantics
+* Nexus P uses GM internally because WUs are independent units in a pool (parallel), but at the Wheel level these components are sequential requirements
 * Keep zeros (hard constraints); skip unknowns (insufficient data)
 * If all terms are unknown → wheel P = unknown
 

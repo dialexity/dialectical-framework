@@ -21,16 +21,15 @@ class WheelCalculator(BaseCalculator):
 
     Wheel is the top-level composite. WisdomUnits are accessed via Cycle→Nexus.
 
-    R calculation:
-    - Nexus R (which is GM of all WisdomUnit Rs)
-    - GM of deduplicated external Transition Rs (Spiral > Wheel > Cycle)
-    - Includes wheel-level rationale Rs (with rating)
+    R calculation (content relevance):
+    - Nexus R (GM of all WisdomUnit Rs - the main content)
+    - Wheel-level Transition Rs (wheel's own transitions only, not cycle's)
+    - Spiral R (aggregated, includes spiral synthesis and rationales)
+    - Wheel-level rationale Rs (with rating)
 
-    P calculation:
-    - Parent Cycle P
-    - Nexus P (which is GM of WU transformation Ps)
-    - Wheel's own transitions P (product)
-    - Spiral P
+    P calculation (structural feasibility, Markovian):
+    - Product of: Cycle P × Nexus P × Wheel trans P × Spiral P
+    - All terms are conjunctive requirements (all must work)
     - Skip None values (unknown), keep zeros (hard constraints)
     """
 
@@ -56,11 +55,16 @@ class WheelCalculator(BaseCalculator):
 
     def calculate_relevance(self, wheel: Wheel) -> Optional[float]:
         """
-        Calculate R for Wheel as GM of Nexus R and external transitions.
+        Calculate R for Wheel as GM of content relevance signals.
 
-        Leverages Nexus R (which is GM of WisdomUnit Rs) instead of
-        iterating WUs directly. Deduplicates transitions across cycles
-        with specificity preference: Spiral > Wheel > Cycle.
+        Per scoring.md, Wheel R includes:
+        - Nexus R (summarizes all WisdomUnit Rs - the main content)
+        - Wheel-level Transition Rs (ta-cycle detail - wheel's own transitions only)
+        - Spiral R (aggregated, if present - includes spiral synthesis and rationales)
+        - Wheel-level Rationale Rs
+
+        Note: Cycle transitions are NOT included - they belong to Cycle R.
+        R measures content relevance, not structural dependencies.
 
         Args:
             wheel: Wheel to calculate R for
@@ -72,50 +76,26 @@ class WheelCalculator(BaseCalculator):
 
         values = []
 
-        # Get Nexus R (summarized WisdomUnit relevances)
+        # Nexus R (summarized WisdomUnit relevances - the main content)
         nexus = wheel.get_nexus()
         if nexus:
             nexus_r = nexus.relevance
             if nexus_r is not None:
                 values.append(nexus_r)
 
-        # Collect transitions from cycles with deduplication
-        # Key: transition.hash, Value: transition node
-        unique_transitions = {}
-
-        # Get transitions from parent Cycle (most generic)
-        cycle_result = wheel.cycle.get()
-        if cycle_result:
-            cycle = cycle_result[0]
-            for trans in cycle.transitions:
-                unique_transitions[trans.hash] = trans
-
-        # Get transitions from Wheel itself (more specific, prefer over Cycle)
+        # Wheel-level Transition Rs (wheel's own transitions only, not cycle's)
         for trans in wheel.transitions:
-            if trans.hash in unique_transitions:
-                # Calculate the one being overwritten (legacy behavior)
-                old_trans = unique_transitions[trans.hash]
-                _ = old_trans.relevance  # Trigger calculation
-            # Prefer Wheel version
-            unique_transitions[trans.hash] = trans
+            trans_r = trans.relevance
+            if trans_r is not None and trans_r > 0.0:
+                values.append(trans_r)
 
-        # Get transitions from spiral (most specific, prefer over all)
+        # Spiral R (aggregated - includes spiral transitions, synthesis, rationales)
         spiral_result = wheel.spiral.get()
         if spiral_result:
             spiral = spiral_result[0]
-            for trans in spiral.transitions:
-                if trans.hash in unique_transitions:
-                    # Calculate the one being overwritten (legacy behavior)
-                    old_trans = unique_transitions[trans.hash]
-                    _ = old_trans.relevance  # Trigger calculation
-                # Prefer spiral version
-                unique_transitions[trans.hash] = trans
-
-        # Extract relevance scores from unique transitions
-        for transition in unique_transitions.values():
-            trans_r = transition.relevance
-            if trans_r is not None and trans_r > 0.0:
-                values.append(trans_r)
+            spiral_r = spiral.relevance
+            if spiral_r is not None:
+                values.append(spiral_r)
 
         # Wheel-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
@@ -137,12 +117,16 @@ class WheelCalculator(BaseCalculator):
 
     def calculate_probability(self, wheel: Wheel) -> Optional[float]:
         """
-        Calculate P for Wheel as GM of Cycle P, Nexus P, Wheel transitions, and Spiral P.
+        Calculate P for Wheel as product of Cycle P, Nexus P, Wheel transitions, and Spiral P.
 
-        Wheel P = GM(Cycle P, Nexus P, Wheel transitions product, Spiral P)
+        Wheel P = Cycle P × Nexus P × Wheel_transitions_product × Spiral P
 
-        Nexus P is already a summary of WU transformation Ps, so we use it
-        directly instead of iterating WUs.
+        Uses Product (not GM) because these are conjunctive requirements - all must
+        work for the Wheel to be structurally feasible. This follows causal/Markovian
+        semantics where the Wheel's feasibility is limited by its weakest link.
+
+        Nexus P is already a summary of WU transformation Ps (via GM, since WUs are
+        independent units in a pool), so we use it directly.
 
         Args:
             wheel: Wheel to calculate P for
@@ -155,14 +139,14 @@ class WheelCalculator(BaseCalculator):
 
         all_terms = []
 
-        # Parent Cycle P
+        # Parent Cycle P (thesis ordering feasibility)
         cycle_result = wheel.cycle.get()
         if cycle_result:
             cycle_p = cycle_result[0].probability
             if cycle_p is not None:
                 all_terms.append(cycle_p)
 
-        # Nexus P (summarized WU transformation Ps)
+        # Nexus P (summarized WU transformation Ps - GM of independent WUs)
         nexus = wheel.get_nexus()
         if nexus:
             nexus_p = nexus.probability
@@ -181,7 +165,7 @@ class WheelCalculator(BaseCalculator):
                 wheel_trans_p = reduce(operator.mul, trans_probs, 1.0)
                 all_terms.append(wheel_trans_p)
 
-        # Spiral P
+        # Spiral P (transformation path feasibility)
         spiral_result = wheel.spiral.get()
         if spiral_result:
             spiral_p = spiral_result[0].probability
@@ -191,7 +175,9 @@ class WheelCalculator(BaseCalculator):
         if not all_terms:
             return None
 
-        return gm_with_zeros_and_nones_handled(all_terms)
+        # Product of all terms (conjunctive - all must work)
+        # Skip None values (unknown), but any 0 will result in 0 (hard constraint)
+        return reduce(operator.mul, all_terms, 1.0)
 
     def clear_children(self, wheel: Wheel) -> None:
         """
