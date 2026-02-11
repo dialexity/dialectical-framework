@@ -27,20 +27,23 @@ def generate_permutation_sequences(
 
     Args:
         dialectical_components: Components to arrange into sequences.
-            Must contain at least 2 components.
 
     Returns:
-        List of component sequences. Each sequence starts with the first
-        input component followed by a unique permutation of remaining components.
-        Returns empty list if fewer than 2 components provided.
+        List of component sequences. For a single component, returns [[component]].
+        For multiple components, each sequence starts with the first input
+        component followed by a unique permutation of remaining components.
+        Returns empty list if no components provided.
 
     Example:
         Given components [A, B, C]:
         - Returns [[A, B, C], [A, C, B]]
         - First element A is fixed, B and C are permuted
     """
-    if len(dialectical_components) < 2:
+    if len(dialectical_components) == 0:
         return []
+
+    if len(dialectical_components) == 1:
+        return [dialectical_components]
 
     first, rest = dialectical_components[0], dialectical_components[1:]
     sequences = list([first, *p] for p in permutations(rest))

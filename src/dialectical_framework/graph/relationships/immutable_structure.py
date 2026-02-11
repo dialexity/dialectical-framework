@@ -14,8 +14,6 @@ The Dialectical Framework has two main relationship layers:
    b) **ContainerMembership** - Defines container composition:
       - BELONGS_TO_NEXUS: WisdomUnit → Nexus
       - BELONGS_TO_CYCLE: Transition → Cycle/Wheel/Spiral/Transformation
-      - HAS_CYCLE: Nexus → Cycle
-      - HAS_WHEEL: Cycle → Wheel
       Blocked if TARGET (container) is committed.
       Committed children can be added to uncommitted containers.
 
