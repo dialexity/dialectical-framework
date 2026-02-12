@@ -660,14 +660,39 @@ class PolarReasoner(HasBrain):
 
             if not check1.valid:
                 # Mark components with ERROR prefix
+                # If component is already committed, create new error-marked component
                 base_comp = new_wu.get_component(base_alias)
                 other_comp = new_wu.get_component(other_alias)
                 if base_comp:
-                    base_comp.statement = f"ERROR: {base_comp.statement}"
-                    base_comp.commit()
+                    if base_comp.is_committed:
+                        # Create new component with ERROR prefix
+                        error_comp = DialecticalComponent(
+                            statement=f"ERROR: {base_comp.statement}"
+                        )
+                        error_comp.commit()
+                        # Disconnect old and connect new
+                        manager = new_wu.get_relationship_manager_by_position(base_alias)
+                        manager.disconnect(base_comp)
+                        rel = WisdomUnit.get_relationship_class_for_position(base_alias)(alias=base_alias)
+                        manager.connect(error_comp, relationship=rel)
+                    else:
+                        base_comp.statement = f"ERROR: {base_comp.statement}"
+                        base_comp.commit()
                 if other_comp:
-                    other_comp.statement = f"ERROR: {other_comp.statement}"
-                    other_comp.commit()
+                    if other_comp.is_committed:
+                        # Create new component with ERROR prefix
+                        error_comp = DialecticalComponent(
+                            statement=f"ERROR: {other_comp.statement}"
+                        )
+                        error_comp.commit()
+                        # Disconnect old and connect new
+                        manager = new_wu.get_relationship_manager_by_position(other_alias)
+                        manager.disconnect(other_comp)
+                        rel = WisdomUnit.get_relationship_class_for_position(other_alias)(alias=other_alias)
+                        manager.connect(error_comp, relationship=rel)
+                    else:
+                        other_comp.statement = f"ERROR: {other_comp.statement}"
+                        other_comp.commit()
                 warnings.setdefault(base_alias, []).append(check1.explanation)
                 warnings.setdefault(other_alias, []).append(check1.explanation)
                 raise AssertionError(f"{base_alias}, {other_alias}", warnings, new_wu)

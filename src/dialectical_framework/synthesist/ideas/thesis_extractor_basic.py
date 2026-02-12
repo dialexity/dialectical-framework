@@ -110,7 +110,9 @@ class ThesisExtractorBasic(ThesisExtractor, HasBrain, SettingsAware):
         Explanation: [The explanation how it was derived in the passive voice]
 
         **Rules**
-        Make sure to output {count} concepts, no more no less.
+        - Make sure to output {count} concepts, no more no less.
+        - Each concept must be **semantically distinct** from the others - not paraphrases or restatements of the same idea.
+        - If the source text only contains one core idea, extract different **aspects, perspectives, or implications** of that idea rather than restating it.
         {rule_out}
         """
     )

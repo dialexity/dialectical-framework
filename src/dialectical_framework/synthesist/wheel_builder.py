@@ -11,7 +11,6 @@ from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalCo
 from dialectical_framework.ai_dto.graph_mapper import component_from_dto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
-from dialectical_framework.synthesist.causality.causality_sequencer_balanced import CausalitySequencerBalanced
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.protocols.polarity_finder import PolarityFinder
@@ -271,44 +270,113 @@ class WheelBuilder(SettingsAware):
 
             theses = final_theses
 
-        cycles: list[Cycle] = await self.__sequencer.arrange(theses, text=text)
+        # Create Nexus for the cycles
+        nexus = Nexus()
+        nexus.save()
+
+        # Create temporary WisdomUnits from theses (just T components)
+        # This is needed because arrange() works from WisdomUnits
+        source = await self._get_input_source()
+        text = await self._get_text()
+        for thesis in theses:
+            await self.reasoner.think(source=source, text=text, thesis=thesis, nexus=nexus)
+        nexus.commit()
+
+        # Arrange creates cycles and wheels from the Nexus (uncommitted since Nexus is uncommitted)
+        cycles: list[Cycle] = self.__sequencer.arrange(nexus, self.settings.cycle_intent)
+
         return cycles
 
-    async def build_wheel_permutations(
-        self, *, theses: Union[list[str | DialecticalComponent | None], list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]] = None, t_cycle: Cycle = None
-    ) -> list[Wheel]:
+    async def build_wheel_structures_only(
+        self,
+        *,
+        theses: Union[list[str | DialecticalComponent | None], list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]] = None,
+        t_cycle: Cycle = None,
+    ) -> tuple[Nexus, list[Wheel]]:
         """
-        IMPORTANT: t_cycle is the "path" we take for permutations. If not provided, we'll take the most likely path.
-        Do not confuse it with building all wheels for all "paths"
+        Build Wheel structures without AI estimation (Phase 1).
 
-        The tuple in the thesis list is used to provide antithesis for the thesis, where the first element is the thesis, the second is the antithesis.
+        Creates Nexus, WisdomUnits, Cycles, and Wheel structures. All structures
+        are committed and ready for estimation.
+
+        This is Phase 1 of the two-phase workflow. Use `estimate_wheel_structures()`
+        to attach AI-generated estimations in Phase 2.
+
+        Args:
+            theses: List of thesis inputs (strings, graph components, or None for auto-generation).
+                   Can also be list of (thesis, antithesis) tuples.
+            t_cycle: Optional pre-computed thesis Cycle. If None, will be generated.
+
+        Returns:
+            Tuple of (Nexus, list[Wheel]) - committed structures
+
+        Example:
+            # Phase 1: Build and commit structures
+            nexus, wheels = await builder.build_wheel_structures_only(theses=["thesis1", "thesis2"])
+
+            # Phase 2: Attach AI estimations (can be retried)
+            await builder.estimate_wheel_structures(nexus, wheels)
         """
         source = await self._get_input_source()
         text = await self._get_text()
 
-        if t_cycle is None:
-            cycles: list[Cycle] = await self.t_cycles(theses=[t[0] if isinstance(t, tuple) else t for t in theses])
-            # The first one is the highest probability
-            t_cycle = cycles[0]
-
-        # Create Nexus BEFORE building WUs so they can query sibling context
+        # Create Nexus first (save, not commit - we need to add WUs first)
         nexus = Nexus()
         nexus.save()
 
+        # Determine thesis components (either from provided t_cycle or generated)
+        thesis_components: list[DialecticalComponent] = []
+        if t_cycle is not None:
+            # Use components from provided cycle
+            thesis_components = t_cycle.dialectical_components
+        else:
+            # Extract thesis components from theses parameter
+            thesis_inputs = [t[0] if isinstance(t, tuple) else t for t in theses]
+
+            # First pass: collect provided theses and identify positions needing generation
+            none_positions = []
+            for i, thesis_input in enumerate(thesis_inputs):
+                if thesis_input is None or (isinstance(thesis_input, str) and not thesis_input.strip()):
+                    none_positions.append(i)
+                    thesis_components.append(None)  # Placeholder
+                elif isinstance(thesis_input, str):
+                    comp = DialecticalComponent(statement=thesis_input)
+                    comp.commit()
+                    source.statements.connect(comp)
+                    thesis_components.append(comp)
+                else:
+                    thesis_components.append(thesis_input)
+
+            # Batch generate missing theses (more efficient + ensures distinctness)
+            if none_positions:
+                known = [c.statement for c in thesis_components if c is not None]
+                if len(none_positions) == 1:
+                    # Single thesis case
+                    generated = await self.thesis_extractor.extract_single_thesis(
+                        source=source, not_like_these=known
+                    )
+                    thesis_components[none_positions[0]] = generated
+                else:
+                    # Multiple theses - batch extract for distinctness
+                    generated_list = await self.thesis_extractor.extract_multiple_theses(
+                        source=source, count=len(none_positions), not_like_these=known
+                    )
+                    for i, pos in enumerate(none_positions):
+                        if i < len(generated_list):
+                            thesis_components[pos] = generated_list[i]
+
+        # Build WisdomUnits from thesis components (connects them to Nexus)
+        # This MUST happen before connecting Cycles to Nexus (Nexus freezes after Cycle connection)
         wheel_wisdom_units = []
-        for dc in t_cycle.dialectical_components:
-            # Find antithesis from tuples if provided
+        for dc in thesis_components:
             antithesis = None
             if isinstance(theses, list):
-                # Handle special case: single tuple with (None, xxx)
                 if len(theses) == 1 and isinstance(theses[0], tuple) and theses[0][0] is None:
                     antithesis = theses[0][1]
                 else:
-                    # Regular case: search for matching thesis in tuples
                     for t in theses:
                         if isinstance(t, tuple):
                             if isinstance(t[0], DialecticalComponent):
-                                # Compare by identity (graph-native components are same if identities match)
                                 if dc.hash == t[0].hash:
                                     antithesis = t[1]
                                     break
@@ -316,43 +384,157 @@ class WheelBuilder(SettingsAware):
                                 antithesis = t[1]
                                 break
 
-            # Pass nexus for sibling context - WU will be connected to it
             wu = await self.reasoner.think(source=source, text=text, thesis=dc, antithesis=antithesis, nexus=nexus)
             wheel_wisdom_units.append(wu)
 
-        # Set human-friendly indices on wisdom units if multiple WUs
         if len(wheel_wisdom_units) > 1:
             for idx, wu in enumerate(wheel_wisdom_units, start=1):
                 wu.set_human_friendly_index(idx)
 
-        # Connect t_cycle to Nexus (parent→child: Nexus has cycles)
-        # Only the t_cycle belongs to Nexus - wheels are detailed arrangements
-        nexus.cycles.connect(t_cycle)
-
-        # Create wheels directly via sequencer (no temporary Cycles)
-        # Each wheel has AI-assessed probabilities for its arrangement
-        wheels: list[Wheel] = await self.__sequencer.arrange(wheel_wisdom_units, text=text)
-
-        # Connect each wheel to the t_cycle
-        for wheel in wheels:
-            t_cycle.wheels.connect(wheel)
-
-        # Commit chain: Nexus → Cycle → Wheel
-        # IncrementalBuildMixin nodes need commit() after children are connected
-        if not nexus.is_committed:
+        # Arrange creates cycles and wheels from the Nexus (uncommitted since Nexus is uncommitted)
+        if t_cycle is None:
+            cycles: list[Cycle] = self.__sequencer.arrange(nexus, self.settings.cycle_intent)
+            # Commit: Nexus first, then Cycles, then Wheels
             nexus.commit()
-        if not t_cycle.is_committed:
-            t_cycle.commit()
-        for wheel in wheels:
-            if not wheel.is_committed:
+            for cycle in cycles:
+                cycle.commit()
+                for wheel, _ in cycle.wheels.all():
+                    wheel.commit()
+            t_cycle = cycles[0]
+        else:
+            # If t_cycle is provided, connect and commit Nexus, then add wheels
+            nexus.cycles.connect(t_cycle)
+            nexus.commit()
+            # Build wheels for the provided cycle
+            wu_sequences = self.__sequencer._get_sequences(wheel_wisdom_units)
+            wheels_list = self.__sequencer._build_structures(wu_sequences, node_type=Wheel)
+            for wheel in wheels_list:
+                t_cycle.wheels.connect(wheel)
                 wheel.commit()
 
-        # Finalize pending rationales (now that nodes are committed)
-        CausalitySequencerBalanced.finalize_pending_rationales([t_cycle] + wheels)
+        # Get wheels from the first cycle
+        wheels = [w for w, _ in t_cycle.wheels.all()]
+
+        # Store t_cycle reference for later
+        for wheel in wheels:
+            wheel._t_cycle = t_cycle
+
+        return nexus, wheels
+
+    async def estimate_wheel_structures(
+        self,
+        nexus: Nexus,
+        wheels: list[Wheel],
+        *,
+        t_cycle: Cycle = None,
+    ) -> list[Wheel]:
+        """
+        Attach AI estimations to existing skeleton wheel structures (Phase 2).
+
+        This is Phase 2 of the two-phase workflow. Wheels must have been created
+        via `build_wheel_structures_only()` first.
+
+        Estimates both cycles and wheels (idempotent - skips if already estimated).
+
+        Args:
+            nexus: Nexus containing the WisdomUnits
+            wheels: List of skeleton Wheel nodes created via build_wheel_structures_only()
+            t_cycle: Optional thesis Cycle (retrieved from wheels if not provided)
+
+        Returns:
+            The same wheels list, now with AI estimations attached
+
+        Note:
+            - Modifies wheels in-place (updates _pending_rationale)
+            - Does NOT commit wheels - caller must commit after estimation
+            - Can be called multiple times to retry estimation
+        """
+        if not wheels:
+            return wheels
+
+        # Get all cycles from nexus and estimate them (idempotent)
+        all_cycles = [c for c, _ in nexus.cycles.all()]
+        if all_cycles:
+            await self.__sequencer.estimate(all_cycles)
+
+        # Attach AI estimations to wheels (idempotent)
+        await self.__sequencer.estimate(wheels)
+
+        return wheels
+
+    async def build_wheel_permutations(
+        self,
+        *,
+        theses: Union[list[str | DialecticalComponent | None], list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]] = None,
+        t_cycle: Cycle = None,
+    ) -> list[Wheel]:
+        """
+        Build wheel permutations with AI estimation (backwards-compatible convenience method).
+
+        This method combines the two-phase workflow into a single call:
+        1. Builds and commits structures via build_wheel_structures_only()
+        2. Attaches AI estimations via estimate_wheel_structures()
+        3. Scores the wheels
+
+        IMPORTANT: t_cycle is the "path" we take for permutations. If not provided,
+        we'll take the most likely path. Do not confuse it with building all wheels
+        for all "paths".
+
+        For more control, use the two-phase methods directly:
+        - build_wheel_structures_only() for Phase 1 (structure creation + commit)
+        - estimate_wheel_structures() for Phase 2 (AI estimation)
+
+        Args:
+            theses: List of thesis inputs (strings, graph components, or None for auto-generation).
+                   Can also be list of (thesis, antithesis) tuples.
+            t_cycle: Optional pre-computed thesis Cycle. If None, will be generated.
+
+        Returns:
+            List of Wheel objects with AI-estimated probabilities, committed and scored.
+        """
+        # Phase 1: Build and commit structures
+        nexus, wheels = await self.build_wheel_structures_only(theses=theses, t_cycle=t_cycle)
+
+        # Get t_cycle reference
+        if t_cycle is None and wheels:
+            t_cycle = getattr(wheels[0], '_t_cycle', None)
+            if t_cycle is None:
+                cycle_result = wheels[0].cycle.get() if wheels else None
+                t_cycle = cycle_result[0] if cycle_result else None
+
+        # Phase 2: Attach AI estimations (only if multiple wheels need comparison)
+        if len(wheels) > 1 or (wheels and len(wheels[0].transitions) > 2):
+            await self.estimate_wheel_structures(nexus, wheels)
+        else:
+            # For trivial cases (1 wheel, ≤2 transitions), set default P=1.0, R=1.0
+            # This is the only possible arrangement, so probability is 1.0
+            from dialectical_framework.graph.estimation_manager import EstimationManager
+            from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
+            estimation_manager = EstimationManager()
+            for wheel in wheels:
+                # Set wheel-level estimations
+                estimation_manager.upsert_estimation(wheel, ProbabilityEstimation, 1.0)
+                estimation_manager.upsert_estimation(wheel, RelevanceEstimation, 1.0)
+                # Set transition-level estimations (TaroRank calculates from children)
+                for trans in wheel.transitions:
+                    estimation_manager.upsert_estimation(trans, ProbabilityEstimation, 1.0)
+                    estimation_manager.upsert_estimation(trans, RelevanceEstimation, 1.0)
+            # Also set Cycle estimations
+            if t_cycle:
+                estimation_manager.upsert_estimation(t_cycle, ProbabilityEstimation, 1.0)
+                estimation_manager.upsert_estimation(t_cycle, RelevanceEstimation, 1.0)
+                for trans in t_cycle.transitions:
+                    estimation_manager.upsert_estimation(trans, ProbabilityEstimation, 1.0)
+                    estimation_manager.upsert_estimation(trans, RelevanceEstimation, 1.0)
 
         # Score all wheels
         for wheel in wheels:
             self.scorer.calculate_score(wheel)
+
+        # Clean up temporary attributes
+        for wheel in wheels:
+            if hasattr(wheel, '_t_cycle'):
+                delattr(wheel, '_t_cycle')
 
         # Save results for reference
         self.__wheels = wheels
@@ -470,11 +652,12 @@ class WheelBuilder(SettingsAware):
             if trans_result:
                 transformation = trans_result[0]
                 synthesis.target.connect(transformation)
+                # Commit the synthesis now that all children are connected
+                synthesis.commit()
             else:
-                logger.warning(f"WU {wu.hash} has no transformation - skipping synthesis connection")
-
-            # Commit the synthesis now that all children are connected
-            synthesis.commit()
+                # Cannot commit Synthesis without a target - skip this WU
+                logger.warning(f"WU {wu.hash} has no transformation - cannot create Synthesis")
+                continue
 
             # Set human-friendly index if WU has one
             if wu_index > 0:
@@ -600,14 +783,21 @@ class WheelBuilder(SettingsAware):
                     raise ValueError(f"Wheel {wheel.hash} has no parent cycle")
                 original_t_cycle, _ = cycle_result
 
-                # Create new wheels directly via sequencer
-                redefined_wheels: list[Wheel] = await self.__sequencer.arrange(new_wus, text=text)
+                # Build new wheels from modified WUs
+                wu_sequences = self.__sequencer._get_sequences(new_wus)
+                redefined_wheels: list[Wheel] = self.__sequencer._build_structures(wu_sequences, node_type=Wheel)
+
+                # Connect and commit wheels
+                for w in redefined_wheels:
+                    original_t_cycle.wheels.connect(w)
+                    w.commit()
+
+                # Estimate if multiple wheels
+                if len(new_wus) > 1:
+                    await self.__sequencer.estimate(redefined_wheels)
 
                 for w in redefined_wheels:
-                    # Connect to original t_cycle (thesis-level ordering preserved)
-                    original_t_cycle.wheels.connect(w)
                     new_wheels.append(w)
-
                     # Score the wheel
                     self.scorer.calculate_score(w)
             else:
