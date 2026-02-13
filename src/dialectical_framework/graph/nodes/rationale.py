@@ -8,7 +8,7 @@ and evidence for assessments in the dialectical system.
 from __future__ import annotations
 
 import hashlib
-from typing import Any, ClassVar, Optional, TYPE_CHECKING, Union
+from typing import Any, ClassVar, Optional, TYPE_CHECKING, Union, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -273,7 +273,7 @@ class Rationale(BaseNode, label="Rationale"):
     def commit(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Rationale:
+    ) -> Self:
         """
         Commit this rationale: compute hash, persist, and create relationships.
 

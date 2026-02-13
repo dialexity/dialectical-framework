@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j, Node
@@ -139,7 +139,7 @@ class BaseNode(Node, label="Node"):
     def save(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> BaseNode:
+    ) -> Self:
         """
         Persist this node to the database.
 
@@ -193,7 +193,7 @@ class BaseNode(Node, label="Node"):
     def commit(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> BaseNode:
+    ) -> Self:
         """
         Commit this node: compute hash and persist to database.
 
@@ -234,7 +234,7 @@ class BaseNode(Node, label="Node"):
         self,
         destination_sid: Optional[str] = None,
         branch: Optional[str] = None
-    ) -> BaseNode:
+    ) -> Self:
         """
         Clone this node, creating a new uncommitted copy.
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import ClassVar, TYPE_CHECKING, Literal, Optional, Any, Union
+from typing import ClassVar, TYPE_CHECKING, Literal, Optional, Any, Union, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -230,7 +230,7 @@ class Transition(AssessableEntity, label="Transition"):
     def commit(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Transition:
+    ) -> Self:
         """
         Commit this transition: save (if needed), create relationships, compute hash.
 

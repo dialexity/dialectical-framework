@@ -7,8 +7,12 @@ This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 from __future__ import annotations
 
 import hashlib
-from typing import Any, ClassVar, Optional, TYPE_CHECKING
+from typing import Any, ClassVar, Optional, TYPE_CHECKING, Union, Self
 
+from dependency_injector.wiring import Provide, inject
+from gqlalchemy import Memgraph, Neo4j
+
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
@@ -65,9 +69,20 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     Components are connected via PolarityRelationship, which stores
     the contextual alias (e.g., "T1+", "A2-") on the relationship edge.
     This allows the same component to have different positions in different contexts.
+
+    Brainstorming:
+    - Components can be marked as rejected during brainstorming via the `rejected` field
+    - Rejected components are excluded from suggestions but remain in vocabulary
+    - The rejection reason (if provided) can be used for UX feedback
     """
 
     statement: str
+
+    # Optional rejection marker for brainstorming suggestions
+    # When set, this component is excluded from future suggestions
+    # The value can be a reason string or just "rejected" to indicate rejection
+    # Does NOT affect hash computation (analytical metadata)
+    rejected: Optional[str] = None
 
     # Symmetric relationship: if A opposes B, then B opposes A
     oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipBoth(
@@ -168,6 +183,43 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         parts = self._collect_structure_hash_parts()
         combined = "\n".join(parts)
         return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
+    @inject
+    def commit(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> Self:
+        """
+        Commit this DialecticalComponent: compute hash and persist.
+
+        Before committing, checks for hash collision with Input nodes.
+        If an Input exists with the same hash (same content as this statement),
+        raises an error - the Input should be cleaned up or transformed first.
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ImmutableNodeError: If already committed
+            ValueError: If hash collision with existing Input node
+        """
+        # Compute what hash will be
+        potential_hash = self.compute_hash()
+
+        # Check for Input collision
+        from dialectical_framework.graph.repositories.node_repository import NodeRepository
+        repo = NodeRepository()
+        existing = repo.find_by_hash(potential_hash)
+
+        if existing is not None:
+            raise ValueError(
+                f"Hash collision: Node already exists with content matching this statement. "
+                f"Hash: {potential_hash[:8]}... "
+                f"The Input should use dx:// reference instead of raw text content."
+            )
+
+        # Delegate to parent commit
+        return super().commit()
 
     def __repr__(self) -> str:
         """String representation of the component."""

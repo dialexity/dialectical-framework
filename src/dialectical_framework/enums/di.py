@@ -15,6 +15,9 @@ class DI(str, Enum):
     antithesis_extractor = "antithesis_extractor"
     polarity_finder = "polarity_finder"
 
+    # Context-aware brainstorming agent
+    brainstorming_agent = "brainstorming_agent"
+
     tarorank = "tarorank"
 
     # Content resolution (app provides implementation)

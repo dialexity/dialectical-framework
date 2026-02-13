@@ -26,6 +26,7 @@ from dialectical_framework.synthesist.ideas.thesis_extractor_basic import Thesis
 from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
+from dialectical_framework.synthesist.brainstorming_agent import BrainstormingAgent
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
@@ -225,6 +226,11 @@ class DialecticalReasoning(containers.DeclarativeContainer):
 
     polarity_finder: providers.Factory[PolarityFinder] = providers.Factory(
         PolarityFinderBasic,
+    )
+
+    # Context-aware brainstorming agent
+    brainstorming_agent: providers.Factory[BrainstormingAgent] = providers.Factory(
+        BrainstormingAgent,
     )
 
     wheel_builder: providers.Factory[WheelBuilder] = providers.Factory(WheelBuilder)

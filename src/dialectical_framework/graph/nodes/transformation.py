@@ -7,7 +7,7 @@ patterns within a WisdomUnit with action-reflection components.
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional, TYPE_CHECKING, Union
+from typing import ClassVar, Optional, TYPE_CHECKING, Union, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -225,7 +225,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
     def commit(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Transformation:
+    ) -> Self:
         """
         Commit this transformation: save (if needed), compute hash, persist, and create relationships.
 

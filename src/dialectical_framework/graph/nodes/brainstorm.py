@@ -8,13 +8,13 @@ providing a vocabulary of components for downstream dialectical analysis.
 from __future__ import annotations
 
 import uuid
-from typing import Any, ClassVar, Union, TYPE_CHECKING
+from typing import Any, ClassVar, Union, TYPE_CHECKING, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
+from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
     RelationshipTo,
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.input import Input
 
 
-class Brainstorm(AssessableEntity, label="Brainstorm"):
+class Brainstorm(BaseNode, label="Brainstorm"):
     """
     A portable discovery artifact grouping Inputs and Ideas.
 
@@ -113,7 +113,7 @@ class Brainstorm(AssessableEntity, label="Brainstorm"):
     def commit(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Brainstorm:
+    ) -> Self:
         """
         Commit this Brainstorm to the database.
 

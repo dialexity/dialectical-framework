@@ -8,7 +8,7 @@ quantitative measurements associated with assessable entities.
 from __future__ import annotations
 
 import hashlib
-from typing import ClassVar, Optional, TYPE_CHECKING, Union
+from typing import ClassVar, Optional, TYPE_CHECKING, Union, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -206,7 +206,7 @@ class Estimation(BaseNode, label="Estimation"):
     def commit(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Estimation:
+    ) -> Self:
         """
         Commit this estimation: compute hash, persist, and create relationships.
 

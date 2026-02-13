@@ -9,7 +9,12 @@ resolution happens via InputResolver at the application layer.
 from __future__ import annotations
 
 import hashlib
-from typing import ClassVar, Optional, TYPE_CHECKING
+from typing import ClassVar, Optional, TYPE_CHECKING, Union, Self
+
+from dependency_injector.wiring import Provide, inject
+from gqlalchemy import Memgraph, Neo4j
+
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
@@ -126,6 +131,99 @@ class Input(BaseNode, label="Input"):
         parts = self._collect_structure_hash_parts()
         combined = "\n".join(parts)
         return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
+    def _is_uri(self) -> bool:
+        """Check if content looks like a URI (not plain text).
+
+        Accepts ANY RFC-ish URI that starts with a valid scheme prefix, e.g.:
+          - https://example.com
+          - mailto:me@example.com
+          - urn:uuid:...
+          - dx://...
+          - data:... (special-cased)
+
+        Note: This is a *detection* heuristic, not full validation of each scheme.
+        """
+        if not self.content:
+            return False
+
+        s = self.content.strip()
+        if not s:
+            return False
+
+        # data: is explicitly supported; (optional) require comma to reduce false positives
+        if s.startswith("data:"):
+            return True
+
+        # RFC 3986 scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+        # We only need to know if it *starts* like a URI.
+        import re
+        return re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", s) is not None
+
+    def _change_content_to_pointer_if_exists(self) -> bool:
+        """
+        If content matches an existing node, transform to dx:// reference.
+
+        This prevents hash collision between Input and other content-addressable
+        nodes. The Input becomes a reference to the canonical node.
+
+        Returns:
+            True if content was transformed, False otherwise
+        """
+        if not self.content or self._is_uri():
+            return False
+
+        # Compute what hash would be for this content
+        potential_hash = hashlib.sha256(self.content.encode('utf-8')).hexdigest()
+
+        # Check if a node with this hash exists
+        from dialectical_framework.graph.repositories.node_repository import NodeRepository
+        repo = NodeRepository()
+        existing = repo.find_by_hash(potential_hash)
+
+        if existing is None:
+            return False
+
+        # If existing is also an Input, let normal dedup handle it
+        if isinstance(existing, Input):
+            return False
+
+        # Transform content to dx:// reference
+        # Use the existing node's sid for the reference
+        node_sid = existing.sid or self.sid
+        if not node_sid:
+            raise ValueError(
+                f"Cannot transform Input to dx:// reference: no sid available. "
+                f"Both Input and matching node have sid=None. "
+                f"Node hash: {existing.hash[:8]}..."
+            )
+
+        self.content = f"dx://{node_sid}/{existing.hash}"
+        return True
+
+    @inject
+    def commit(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> Self:
+        """
+        Commit this Input: check for component collision, compute hash, and persist.
+
+        If content is plain text that matches an existing DialecticalComponent's
+        statement, the content is transformed to a dx:// reference to avoid
+        hash collision. This makes Input a pointer to the canonical component.
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ImmutableNodeError: If already committed
+        """
+        # Transform plain text to dx:// reference if it matches an existing component
+        self._change_content_to_pointer_if_exists()
+
+        # Delegate to parent commit
+        return super().commit()
 
     def __repr__(self) -> str:
         """String representation of the input."""
