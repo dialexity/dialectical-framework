@@ -1,6 +1,6 @@
 import importlib
 import pkgutil
-from typing import Union
+from typing import Optional, Union
 
 from dependency_injector import containers, providers
 from gqlalchemy import Memgraph, Neo4j
@@ -31,7 +31,7 @@ from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
 from dialectical_framework.graph.composite_input_resolver import CompositeInputResolver
-from dialectical_framework.graph.scope_context import ScopeContext
+from dialectical_framework.graph.scope_context import get_current_sid
 
 
 class DialecticalReasoning(containers.DeclarativeContainer):
@@ -280,11 +280,13 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         dialexity_resolver=dialexity_resolver
     )
 
-    # -- Scope Context for Portable Identifiers --
-    # Manages current scope (sid) for node creation using contextvars.
-    # All nodes created within a scope context inherit the sid.
-    scope_context: providers.Singleton[ScopeContext] = providers.Singleton(
-        ScopeContext
+    # -- Scope ID (sid) --
+    # Injectable provider that reads from contextvar.
+    # Application layer sets scope via `with scope(brainstorm.sid):`,
+    # framework code injects sid via `sid: Optional[str] = Provide[DI.sid]`
+    # Framework should ONLY read sid, never set it.
+    sid: providers.Callable[Optional[str]] = providers.Callable(
+        get_current_sid
     )
 
     # -- Wiring --

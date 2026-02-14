@@ -54,20 +54,17 @@ class BaseNode(Node, label="Node"):
         Initialize a node.
 
         Auto-population:
-        - sid: If not provided, attempts to get from ScopeContext (via DI).
-               If DI not configured or no scope set, remains None.
+        - sid: If not provided, reads from scope contextvar (set by app layer).
+               If no scope set, remains None.
 
         Args:
             **data: Field values for the node
         """
         # Auto-populate sid from context if not provided
+        # Reads directly from contextvar (set by app layer)
         if "sid" not in data or data["sid"] is None:
-            try:
-                from dialectical_framework.graph.scope_context import di_scope_context
-                data["sid"] = di_scope_context().get_current_scope()
-            except Exception:
-                # DI not configured (e.g., in some tests) - leave as None
-                pass
+            from dialectical_framework.graph.scope_context import get_current_sid
+            data["sid"] = get_current_sid()
 
         super().__init__(**data)
 
@@ -284,9 +281,9 @@ class BaseNode(Node, label="Node"):
         if destination_sid is not None:
             data['sid'] = destination_sid
 
-        # Handle forking points (WisdomUnit, Nexus)
+        # Handle forking points (WisdomUnit, Nexus) - only ForkableMixin nodes get lineage
         from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
-        if isinstance(self, (ForkableMixin, BaseNode)):
+        if isinstance(self, ForkableMixin):
             # Set lineage: origin_hash = source's hash
             data['origin_hash'] = self.hash
             # Branch is mutable metadata - set if provided, otherwise None

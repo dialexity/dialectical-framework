@@ -102,7 +102,7 @@ Brainstorm (multi-input exploration)
 │                                └── HAS_STATEMENT → Components...
 ├── HAS_INPUT → Input₂
 │              └── DISTILLED_TO → Ideas₂ (intent: "antithesis_extraction")
-└── get_vocabulary() → All components from all inputs/ideas
+└── get_vocabulary() → All components in scope (uses DI scope)
 ```
 
 ### Key Concepts
@@ -114,7 +114,7 @@ Brainstorm (multi-input exploration)
 
 **Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
 
-**Brainstorm vocabulary:** `repo.get_vocabulary(brainstorm)` returns the union of all components from connected Inputs and their Ideas nodes. This enables cross-input WisdomUnit construction.
+**Vocabulary:** `repo.get_vocabulary()` returns all DialecticalComponents in the current scope. This enables cross-input WisdomUnit construction.
 
 ### Usage
 
@@ -125,27 +125,29 @@ from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository
 )
+from dialectical_framework.graph.scope_context import scope
 
-# Create inputs
-input_a = Input(content="https://article.com/pro")
-input_b = Input(content="https://article.com/con")
-input_a.save()
-input_b.save()
+# Create brainstorm (scope root)
+brainstorm = Brainstorm()
+brainstorm.commit()
 
-# Create ideas (distilled concepts)
-ideas_thesis = Ideas(intent="thesis_extraction")
-ideas_thesis.save()
-input_a.ideas.connect(ideas_thesis)  # Input → Ideas via DISTILLED_TO
+with scope(brainstorm.sid):
+    # Create inputs (inherit sid from scope)
+    input_a = Input(content="https://article.com/pro")
+    input_b = Input(content="https://article.com/con")
+    input_a.commit()
+    input_b.commit()
+    brainstorm.inputs.connect(input_a)
+    brainstorm.inputs.connect(input_b)
 
-# Create brainstorm combining multiple inputs
-brainstorm = Brainstorm(intent="economic_debate")
-brainstorm.save()
-brainstorm.inputs.connect(input_a)
-brainstorm.inputs.connect(input_b)
+    # Create ideas
+    ideas_thesis = Ideas(intent="thesis_extraction")
+    ideas_thesis.save()
+    input_a.ideas.connect(ideas_thesis)
 
-# Get unified vocabulary for WisdomUnit construction
-repo = DialecticalComponentRepository()
-vocab = repo.get_vocabulary(brainstorm)
+    # Get vocabulary (inside scope context)
+    repo = DialecticalComponentRepository()
+    vocab = repo.get_vocabulary()
 ```
 
 ## Branching and Cardinality Rationale
@@ -222,28 +224,6 @@ Spiral (0, 1)
 ```
 
 This allows exploring different synthesis outcomes (S+/S-) without duplicating the structural path.
-
-## Provenance Tracing
-
-Wheels trace back to their source Inputs via the Nexus hierarchy:
-
-```python
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository
-)
-
-repo = DialecticalComponentRepository()
-
-# Trace all root Inputs that contributed to a Wheel
-roots = repo.get_root_inputs(wheel)
-for input_node in roots:
-    print(f"Source: {input_node.content}")
-```
-
-**Key concepts:**
-- Gen-0 WUs trace to a single Input
-- Gen-1+ WUs trace to multiple Inputs (multi-root provenance via Nexus synthesis)
-- `get_root_inputs()` recursively collects all contributing sources
 
 ## Structural vs Analytical Layers
 
@@ -394,63 +374,9 @@ class Nexus:
 
 **Convention:** Child → Parent edges use `RelationshipTo` on child.
 
-## Vocabulary and WisdomUnit Purity
+## Vocabulary
 
-Components are born via `HAS_STATEMENT` relationships from different sources. The **vocabulary** determines which components can be combined in a WisdomUnit.
-
-### Component Birth Sources
-
-| Source | Relationship | Generation |
-|--------|--------------|------------|
-| **Input** | `Input -[HAS_STATEMENT]-> Component` | Gen-0 (primary) |
-| **Synthesis** | `Synthesis.s_plus/s_minus -> Component` | Gen-1+ (synthesis) |
-
-### Vocabulary Boundaries
-
-```
-Gen-0 Vocabulary: Input
-────────────────────────
-Input_A ──HAS_STATEMENT──> [Component_1, Component_2, ...]
-                                    │
-                                    ▼
-                            WisdomUnit (Gen-0)
-                            All components from same Input
-
-Gen-1+ Vocabulary: Nexus
-────────────────────────
-Nexus_1
-├── WU position components (Input-born, pulled into vocabulary)
-├── Synthesis S+/S- components
-└── dx:// referenced Input components (via DialexityInputResolver)
-                                    │
-                                    ▼
-                            WisdomUnit (Gen-1)
-                            All components from same Nexus vocabulary
-```
-
-### WisdomUnit Purity Rule
-
-**All components in a WisdomUnit must belong to the same vocabulary:**
-- **Gen-0 WU**: All 6 components from the same Input
-- **Gen-1+ WU**: All 6 components from the same Nexus's vocabulary
-
-This is **enforced at connect time**. Attempting to connect a component from a different vocabulary raises `ValueError`.
-
-```python
-# Gen-0: Components from same Input
-input_a = Input(content="https://article.com/x")
-input_a.save()
-comp1 = DialecticalComponent(statement="Thesis from A")
-comp1.save()
-input_a.statements.connect(comp1)
-
-# This works - same Input vocabulary
-wu.t.connect(comp1)
-wu.a.connect(comp2_from_input_a)  # OK
-
-# This fails - different Input vocabulary
-wu.t_plus.connect(comp_from_input_b)  # ValueError!
-```
+**Vocabulary** is simply all DialecticalComponents within a scope (by `sid`). Components can be combined freely within the same scope.
 
 ### Querying Vocabulary
 
@@ -458,47 +384,13 @@ wu.t_plus.connect(comp_from_input_b)  # ValueError!
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository
 )
+from dialectical_framework.graph.scope_context import scope
 
 repo = DialecticalComponentRepository()
 
-# Get vocabulary for a context
-input_vocab = repo.get_vocabulary(input_node)   # Gen-0 components
-nexus_vocab = repo.get_vocabulary(nexus)        # Gen-1+ components
-
-# Find all contexts for a node (component can belong to multiple vocabularies)
-contexts = repo.get_vocabulary_contexts(component)  # Returns list of Input/Nexus
-
-# Check if component belongs to a specific vocabulary
-if repo.is_in_vocabulary(component, target_input):
-    print("Component can be used in this vocabulary")
-
-# Trace all root Inputs
-roots = repo.get_root_inputs(wheel)  # All Inputs that contributed
-```
-
-### Multi-Context Components
-
-A component can belong to **multiple vocabulary contexts** when the same statement is extracted from different Inputs. Since components are content-addressable (same statement = same hash), multiple HAS_STATEMENT relationships can point to the same component.
-
-Use `is_in_vocabulary(component, context)` to check membership rather than comparing contexts directly. This handles:
-- Components with multiple source Inputs
-- Derived components (no context = allowed anywhere)
-- Nexus vocabulary membership
-
-### Multi-Root Provenance
-
-Gen-1+ components have **multi-root provenance** - they trace back to multiple original Inputs via the Nexus that produced them. This is by design: synthesis combines perspectives from different sources.
-
-```
-Wheel_2
-  └── Cycle_2
-        └── Nexus_2 (Gen-1 WUs)
-              │
-              └── birth_nexus = Nexus_1
-                    ├── WU_A (from Input_A)
-                    └── WU_B (from Input_B)
-
-get_root_inputs(Wheel_2) → [Input_A, Input_B]
+# Get vocabulary (always uses current DI scope)
+with scope(brainstorm.sid):
+    vocab = repo.get_vocabulary()
 ```
 
 ## Polarity Relationships

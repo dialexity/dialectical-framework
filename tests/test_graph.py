@@ -2760,768 +2760,132 @@ def test_transformation_max_cardinality_enforced():
     print("✓ Transformation max cardinality (2) is enforced at connect time")
 
 
-def test_wisdom_unit_vocabulary_validation():
+def test_input_transforms_to_dx_reference_when_component_exists():
     """
-    Test that WisdomUnit components must all come from the same vocabulary context.
+    Test that Input transforms plain text content to dx:// reference
+    when a DialecticalComponent with the same statement already exists.
 
-    Gen-0 WU: All components must come from the same Input.
-    Gen-1+ WU: All components must come from the same Nexus vocabulary.
-    """
-    from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.relationships.polarity_relationship import (
-        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
-        APlusRelationship, AMinusRelationship
-    )
-
-    # === Gen-0 Test: Components must come from the same Input ===
-
-    # Create two separate Inputs
-    input_a = Input(content="https://example.com/article-a")
-    input_a.commit()
-
-    input_b = Input(content="https://example.com/article-b")
-    input_b.commit()
-
-    # Create components for Input A
-    t_a = DialecticalComponent(statement="Thesis from A")
-    t_a.commit()
-    input_a.statements.connect(t_a)
-
-    a_a = DialecticalComponent(statement="Antithesis from A")
-    a_a.commit()
-    input_a.statements.connect(a_a)
-
-    t_plus_a = DialecticalComponent(statement="T+ from A")
-    t_plus_a.commit()
-    input_a.statements.connect(t_plus_a)
-
-    t_minus_a = DialecticalComponent(statement="T- from A")
-    t_minus_a.commit()
-    input_a.statements.connect(t_minus_a)
-
-    a_plus_a = DialecticalComponent(statement="A+ from A")
-    a_plus_a.commit()
-    input_a.statements.connect(a_plus_a)
-
-    a_minus_a = DialecticalComponent(statement="A- from A")
-    a_minus_a.commit()
-    input_a.statements.connect(a_minus_a)
-
-    # Create a component for Input B
-    t_b = DialecticalComponent(statement="Thesis from B")
-    t_b.commit()
-    input_b.statements.connect(t_b)
-
-    # Create WisdomUnit and connect first component from Input A
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-    wu.t.connect(t_a, relationship=TRelationship(alias="T"))
-
-    # Connecting another component from Input A should work
-    wu.a.connect(a_a, relationship=ARelationship(alias="A"))
-    wu.t_plus.connect(t_plus_a, relationship=TPlusRelationship(alias="T+"))
-    wu.t_minus.connect(t_minus_a, relationship=TMinusRelationship(alias="T-"))
-    wu.a_plus.connect(a_plus_a, relationship=APlusRelationship(alias="A+"))
-
-    # Trying to connect a component from Input B should FAIL
-    with pytest.raises(ValueError, match="vocabulary context mismatch"):
-        wu.a_minus.connect(t_b, relationship=AMinusRelationship(alias="A-"))
-
-    # Complete with correct component
-    wu.a_minus.connect(a_minus_a, relationship=AMinusRelationship(alias="A-"))
-
-    print("✓ Gen-0 vocabulary validation: components from different Inputs rejected")
-
-    # === Gen-1+ Test: Components from same Nexus vocabulary work ===
-
-    # Pool the WU into a Nexus
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu.nexus.connect(nexus)
-
-    # Create a second WU from Input B (valid on its own)
-    t_plus_b = DialecticalComponent(statement="T+ from B")
-    t_plus_b.commit()
-    input_b.statements.connect(t_plus_b)
-
-    t_minus_b = DialecticalComponent(statement="T- from B")
-    t_minus_b.commit()
-    input_b.statements.connect(t_minus_b)
-
-    a_b = DialecticalComponent(statement="Antithesis from B")
-    a_b.commit()
-    input_b.statements.connect(a_b)
-
-    a_plus_b = DialecticalComponent(statement="A+ from B")
-    a_plus_b.commit()
-    input_b.statements.connect(a_plus_b)
-
-    a_minus_b = DialecticalComponent(statement="A- from B")
-    a_minus_b.commit()
-    input_b.statements.connect(a_minus_b)
-
-    wu_b = WisdomUnit(intent=f"wu_b_{random.random()}")
-    wu_b.save()
-    wu_b.t.connect(t_b, relationship=TRelationship(alias="T"))
-    wu_b.a.connect(a_b, relationship=ARelationship(alias="A"))
-    wu_b.t_plus.connect(t_plus_b, relationship=TPlusRelationship(alias="T+"))
-    wu_b.t_minus.connect(t_minus_b, relationship=TMinusRelationship(alias="T-"))
-    wu_b.a_plus.connect(a_plus_b, relationship=APlusRelationship(alias="A+"))
-    wu_b.a_minus.connect(a_minus_b, relationship=AMinusRelationship(alias="A-"))
-
-    # Both WUs can be pooled into the same Nexus (mixing Inputs at Nexus level is OK)
-    wu_b.nexus.connect(nexus)
-
-    assert nexus.wisdom_units.count() == 2, "Nexus should have 2 WUs from different Inputs"
-
-    print("✓ Gen-1+ vocabulary: WUs from different Inputs can be pooled in same Nexus")
-
-    # === Gen-1+ Test: Create new WU mixing components from different original Inputs ===
-
-    # Create a new WU and connect it to the Nexus FIRST (Gen-1 mode)
-    wu_gen1 = WisdomUnit(intent="gen1_mixed_inputs")
-    wu_gen1.save()
-    wu_gen1.nexus.connect(nexus)  # Connect to Nexus first = Gen-1 mode
-
-    # Now we can mix components from different original Inputs
-    # because they're all in the same Nexus vocabulary
-    wu_gen1.t.connect(t_a, relationship=TRelationship(alias="T-Gen1"))  # From Input A
-    wu_gen1.a.connect(t_b, relationship=ARelationship(alias="A-Gen1"))  # From Input B!
-
-    # Add derived components (no HAS_STATEMENT) - should also work
-    derived_t_plus = DialecticalComponent(statement="Derived T+ for Gen1")
-    derived_t_plus.commit()
-    wu_gen1.t_plus.connect(derived_t_plus, relationship=TPlusRelationship(alias="T+-Gen1"))
-
-    derived_t_minus = DialecticalComponent(statement="Derived T- for Gen1")
-    derived_t_minus.commit()
-    wu_gen1.t_minus.connect(derived_t_minus, relationship=TMinusRelationship(alias="T--Gen1"))
-
-    derived_a_plus = DialecticalComponent(statement="Derived A+ for Gen1")
-    derived_a_plus.commit()
-    wu_gen1.a_plus.connect(derived_a_plus, relationship=APlusRelationship(alias="A+-Gen1"))
-
-    derived_a_minus = DialecticalComponent(statement="Derived A- for Gen1")
-    derived_a_minus.commit()
-    wu_gen1.a_minus.connect(derived_a_minus, relationship=AMinusRelationship(alias="A--Gen1"))
-
-    assert wu_gen1.t.count() == 1
-    assert wu_gen1.a.count() == 1
-    assert nexus.wisdom_units.count() == 3
-
-    print("✓ Gen-1+ vocabulary: Can mix components from different Inputs when WU is in Nexus")
-
-    # === Gen-1+ Test: Create WU "in the air" using Nexus vocabulary ===
-    # This tests the scenario where we create a new WU without connecting to Nexus first,
-    # but use components that are already in the same Nexus vocabulary
-
-    wu_air = WisdomUnit(intent="wu_in_the_air")
-    wu_air.save()
-    # NOT connected to any Nexus yet!
-
-    # Both t_a and t_b are in the same Nexus vocabulary (via wu and wu_b)
-    # Even though they came from different original Inputs, their context is now Nexus
-    wu_air.t.connect(t_a, relationship=TRelationship(alias="T-Air"))  # From Input A, but in Nexus
-    wu_air.a.connect(a_b, relationship=ARelationship(alias="A-Air"))  # From Input B, but in same Nexus!
-
-    # Add derived components
-    air_t_plus = DialecticalComponent(statement="Air T+")
-    air_t_plus.commit()
-    wu_air.t_plus.connect(air_t_plus, relationship=TPlusRelationship(alias="T+-Air"))
-
-    air_t_minus = DialecticalComponent(statement="Air T-")
-    air_t_minus.commit()
-    wu_air.t_minus.connect(air_t_minus, relationship=TMinusRelationship(alias="T--Air"))
-
-    air_a_plus = DialecticalComponent(statement="Air A+")
-    air_a_plus.commit()
-    wu_air.a_plus.connect(air_a_plus, relationship=APlusRelationship(alias="A+-Air"))
-
-    air_a_minus = DialecticalComponent(statement="Air A-")
-    air_a_minus.commit()
-    wu_air.a_minus.connect(air_a_minus, relationship=AMinusRelationship(alias="A--Air"))
-
-    assert wu_air.t.count() == 1
-    assert wu_air.a.count() == 1
-    # WU is still not in any Nexus
-    assert wu_air.nexus.count() == 0
-
-    print("✓ Gen-1+ vocabulary: Can create WU 'in the air' with components from same Nexus")
-    print("✓ WisdomUnit vocabulary validation works correctly")
-
-
-def test_nexus_vocabulary_validation():
-    """
-    Test Gen-1+ vocabulary validation: components in a Nexus-based WU must come from
-    the Nexus vocabulary (components from WUs already in the Nexus).
-
-    This tests the Nexus branch of get_vocabulary() which had a Cypher syntax bug.
+    This prevents hash collision between Input and DialecticalComponent
+    when content == statement.
     """
     from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.synthesis import Synthesis
-    from dialectical_framework.graph.relationships.polarity_relationship import (
-        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
-        APlusRelationship, AMinusRelationship, SPlusRelationship, SMinusRelationship
-    )
-    from dialectical_framework.graph.repositories.dialectical_component_repository import (
-        DialecticalComponentRepository
-    )
 
-    repo = DialecticalComponentRepository()
+    uid = random.random()
+    statement = f"Democracy empowers citizens {uid}"
+
+    # First, create a DialecticalComponent
+    comp = DialecticalComponent(statement=statement, sid="test-sid")
+    comp.commit()
+
+    # Now create Input with the same content
+    input_node = Input(content=statement, sid="test-sid")
+    input_node.commit()
+
+    # Input content should have been transformed to dx:// reference
+    assert input_node.content.startswith("dx://"), \
+        f"Input content should be dx:// reference, got: {input_node.content}"
+    assert comp.hash in input_node.content, \
+        f"dx:// reference should contain component hash {comp.hash[:8]}"
+
+    # Hashes should be different (no collision)
+    assert input_node.hash != comp.hash, \
+        "Input hash should differ from Component hash after transformation"
+
+    print(f"✅ Input content transformed: {input_node.content[:50]}...")
+
+
+def test_input_keeps_plain_text_when_no_component_collision():
+    """
+    Test that Input keeps plain text content when no matching
+    DialecticalComponent exists (no collision risk).
+    """
+    from dialectical_framework.graph.nodes.input import Input
+
+    uid = random.random()
+    content = f"Some unique content that has no matching component {uid}"
+
+    input_node = Input(content=content, sid="test-sid")
+    input_node.commit()
+
+    # Content should remain as plain text
+    assert input_node.content == content, \
+        f"Input content should remain unchanged, got: {input_node.content}"
+    assert not input_node.content.startswith("dx://"), \
+        "Content should not be transformed when no collision risk"
+
+    print("✅ Input content kept as plain text (no collision)")
+
+
+def test_input_keeps_uri_content_unchanged():
+    """
+    Test that Input keeps URI content unchanged (no transformation).
+    """
+    from dialectical_framework.graph.nodes.input import Input
+
     uid = random.random()
 
-    # === Setup: Create Input with components and pool into Nexus ===
+    # Test various URI schemes
+    uri_contents = [
+        f"https://example.com/article-{uid}",
+        f"http://example.com/page-{uid}",
+        f"dx://test-sid/abc123def456",
+        f"ipfs://QmTest{uid}",
+        f"data:text/plain,test-{uid}",
+    ]
 
-    input_source = Input(content=f"https://example.com/nexus-test-{uid}")
-    input_source.commit()
+    for content in uri_contents:
+        input_node = Input(content=content, sid="test-sid")
+        input_node.commit()
 
-    # Create 6 components for the first WU
-    components_wu1 = {}
-    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        comp = DialecticalComponent(statement=f"NexVocab WU1 {pos} {uid}")
-        comp.commit()
-        input_source.statements.connect(comp)
-        components_wu1[pos] = comp
+        assert input_node.content == content, \
+            f"URI content should remain unchanged: {content}"
 
-    # Create WU1 and connect all components
-    wu1 = WisdomUnit(intent="nexus_vocab_test_wu1")
-    wu1.save()
-    wu1.t.connect(components_wu1['t'], relationship=TRelationship(alias="T"))
-    wu1.a.connect(components_wu1['a'], relationship=ARelationship(alias="A"))
-    wu1.t_plus.connect(components_wu1['t_plus'], relationship=TPlusRelationship(alias="T+"))
-    wu1.t_minus.connect(components_wu1['t_minus'], relationship=TMinusRelationship(alias="T-"))
-    wu1.a_plus.connect(components_wu1['a_plus'], relationship=APlusRelationship(alias="A+"))
-    wu1.a_minus.connect(components_wu1['a_minus'], relationship=AMinusRelationship(alias="A-"))
-
-    # Create Nexus and pool WU1
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu1.nexus.connect(nexus)
-
-    # === Test 1: get_vocabulary() returns components from Nexus ===
-
-    vocabulary = repo.get_vocabulary(nexus)
-    assert len(vocabulary) == 6, f"Nexus vocabulary should have 6 components, got {len(vocabulary)}"
-
-    vocab_uids = {c.hash for c in vocabulary}
-    for pos, comp in components_wu1.items():
-        assert comp.hash in vocab_uids, f"Component {pos} should be in Nexus vocabulary"
-
-    print("✓ Test 1: get_vocabulary() correctly returns Nexus components")
-
-    # === Test 2: Add Synthesis components to Nexus vocabulary ===
-
-    # Commit WU1 before creating Transformation
-    wu1.commit()
-
-    # Create Transformation for the WU
-    trans = Transformation(intent="test_transformation")
-    trans.set_wisdom_unit(wu1)
-    trans.commit()
-
-    # Create Synthesis connected to Transformation
-    # Synthesis uses IncrementalBuildMixin: save() first (HEAD), connect, then commit()
-    synth = Synthesis()
-    synth.save()  # HEAD state (hash=None)
-
-    s_plus = DialecticalComponent(statement=f"NexVocab Synthesis S+ {uid}")
-    s_plus.commit()
-    synth.s_plus.connect(s_plus, relationship=SPlusRelationship(alias="S+"))
-
-    s_minus = DialecticalComponent(statement=f"NexVocab Synthesis S- {uid}")
-    s_minus.commit()
-    synth.s_minus.connect(s_minus, relationship=SMinusRelationship(alias="S-"))
-
-    synth.target.connect(trans)
-    synth.commit()  # Now compute hash
-
-    # Vocabulary should now include synthesis components
-    vocabulary = repo.get_vocabulary(nexus)
-    assert len(vocabulary) == 8, f"Nexus vocabulary should have 8 components (6 core + 2 synthesis), got {len(vocabulary)}"
-
-    vocab_uids = {c.hash for c in vocabulary}
-    assert s_plus.hash in vocab_uids, "S+ should be in Nexus vocabulary"
-    assert s_minus.hash in vocab_uids, "S- should be in Nexus vocabulary"
-
-    print("✓ Test 2: Synthesis components included in Nexus vocabulary")
-
-    # === Test 3: Create second WU reusing components from Nexus vocabulary ===
-
-    # Create a second WU that reuses some components from WU1 (valid - same Nexus)
-    wu2 = WisdomUnit(intent="nexus_vocab_test_wu2")
-    wu2.save()
-    wu2.nexus.connect(nexus)  # Pool into same Nexus first
-
-    # Reuse T from WU1 (should work - same vocabulary)
-    wu2.t.connect(components_wu1['t'], relationship=TRelationship(alias="T2"))
-
-    # Create new DERIVED components for remaining positions (no Input connection)
-    # In Gen-1 mode (WU in Nexus), new components must either be:
-    # 1. Already in the Nexus vocabulary (from other WUs)
-    # 2. Derived components with no prior context (no HAS_STATEMENT)
-    for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        comp = DialecticalComponent(statement=f"NexVocab WU2 {pos} {uid}")
-        comp.commit()
-        # NOTE: Not connecting to Input - these are derived components
-
-        rel_map = {
-            'a': ARelationship(alias="A2"),
-            't_plus': TPlusRelationship(alias="T2+"),
-            't_minus': TMinusRelationship(alias="T2-"),
-            'a_plus': APlusRelationship(alias="A2+"),
-            'a_minus': AMinusRelationship(alias="A2-"),
-        }
-        getattr(wu2, pos).connect(comp, relationship=rel_map[pos])
-
-    assert wu2.t.count() == 1, "WU2 should have T connected"
-    assert nexus.wisdom_units.count() == 2, "Nexus should have 2 WUs"
-
-    print("✓ Test 3: WU can reuse components from same Nexus vocabulary")
-
-    # === Test 4: Components from different Nexus should be rejected ===
-
-    # Create a separate Nexus with different components
-    input_other = Input(content=f"https://example.com/other-source-{uid}")
-    input_other.commit()
-
-    other_comp = DialecticalComponent(statement=f"NexVocab Component from other Input {uid}")
-    other_comp.commit()
-    input_other.statements.connect(other_comp)
-
-    wu_other = WisdomUnit(intent="other_nexus_wu")
-    wu_other.save()
-    wu_other.t.connect(other_comp, relationship=TRelationship(alias="T"))
-
-    # Create other components for wu_other
-    for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        comp = DialecticalComponent(statement=f"NexVocab Other {pos} {uid}")
-        comp.commit()
-        input_other.statements.connect(comp)
-        rel_map = {
-            'a': ARelationship(alias="A"),
-            't_plus': TPlusRelationship(alias="T+"),
-            't_minus': TMinusRelationship(alias="T-"),
-            'a_plus': APlusRelationship(alias="A+"),
-            'a_minus': AMinusRelationship(alias="A-"),
-        }
-        getattr(wu_other, pos).connect(comp, relationship=rel_map[pos])
-
-    nexus_other = Nexus(intent=f"nexus_other_{random.random()}")
-    nexus_other.save()
-    wu_other.nexus.connect(nexus_other)
-
-    # Now try to create a WU in the original Nexus but with a component from nexus_other
-    wu3 = WisdomUnit(intent="cross_nexus_test")
-    wu3.save()
-    wu3.nexus.connect(nexus)  # Pool into original Nexus
-
-    # First connect a valid component from the Nexus vocabulary
-    wu3.t.connect(components_wu1['a'], relationship=TRelationship(alias="T3"))
-
-    # Now try to connect a component from the OTHER Nexus - should FAIL
-    with pytest.raises(ValueError, match="not in Nexus vocabulary"):
-        wu3.a.connect(other_comp, relationship=ARelationship(alias="A3"))
-
-    print("✓ Test 4: Components from different Nexus rejected")
-
-    # Note: Test 5 (HAS_STATEMENT from Rationale) removed - derived_statements
-    # relationship was removed. All derived content now goes through Input nodes,
-    # which belong to Gen-0 vocabulary (Input context), not Nexus vocabulary.
-    #
-    # Note: Tests 6 and 7 (EXPANDED_TO/SHRUNK_TO) removed - evolution relationships
-    # replaced by origin_hash chain for lineage tracking
-
-    print("\n✅ All Nexus vocabulary validation tests passed!")
+    print("✅ URI content kept unchanged for all schemes")
 
 
-def test_input_vocabulary_includes_ideas():
+def test_scope_vocabulary():
     """
-    Test that get_vocabulary(input) includes components from Ideas.
+    Test that get_vocabulary(sid) includes all components in the scope.
 
-    Input vocabulary should include:
-    1. Direct HAS_STATEMENT components
-    2. Components from Ideas (via DISTILLED_TO → HAS_STATEMENT)
+    Vocabulary is simply all DialecticalComponents with matching sid.
     """
+    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
     from dialectical_framework.graph.nodes.input import Input
     from dialectical_framework.graph.nodes.ideas import Ideas
     from dialectical_framework.graph.repositories.dialectical_component_repository import (
         DialecticalComponentRepository
     )
+    from dialectical_framework.graph.scope_context import scope
 
     repo = DialecticalComponentRepository()
     uid = random.random()
 
-    # Create Input
-    input_node = Input(content=f"https://example.com/article-{uid}")
-    input_node.commit()
-
-    # Create direct HAS_STATEMENT component
-    direct_comp = DialecticalComponent(statement=f"Direct component {uid}")
-    direct_comp.commit()
-    input_node.statements.connect(direct_comp)
-
-    # Create Ideas with its own component
-    ideas = Ideas(intent=f"extraction_{uid}")
-    ideas.save()
-    input_node.ideas.connect(ideas)
-
-    ideas_comp = DialecticalComponent(statement=f"Ideas component {uid}")
-    ideas_comp.commit()
-    ideas.statements.connect(ideas_comp)
-    ideas.commit()
-
-    # Get vocabulary - should include both direct and Ideas components
-    vocab = repo.get_vocabulary(input_node)
-    vocab_hashes = {c.hash for c in vocab}
-
-    assert direct_comp.hash in vocab_hashes, "Direct HAS_STATEMENT component should be in Input vocabulary"
-    assert ideas_comp.hash in vocab_hashes, "Ideas component should be in Input vocabulary"
-    assert len(vocab) == 2, f"Expected 2 components, got {len(vocab)}"
-
-    print("✅ Input vocabulary correctly includes Ideas components")
-
-
-def test_nexus_vocabulary_context():
-    """
-    Test get_vocabulary_contexts() correctly identifies Nexus for Gen-1+ nodes.
-    """
-    from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.graph.nodes.wheel import Wheel
-    from dialectical_framework.graph.nodes.synthesis import Synthesis
-    from dialectical_framework.graph.relationships.polarity_relationship import (
-        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
-        APlusRelationship, AMinusRelationship, SPlusRelationship, SMinusRelationship
-    )
-    from dialectical_framework.graph.repositories.dialectical_component_repository import (
-        DialecticalComponentRepository
-    )
-
-    repo = DialecticalComponentRepository()
-
-    # Create Input
-    input_node = Input(content="https://example.com/context-test")
-    input_node.commit()
-
-    # Input is its own vocabulary context
-    contexts = repo.get_vocabulary_contexts(input_node)
-    assert len(contexts) == 1
-    assert contexts[0] == input_node
-    print("✓ Input is its own vocabulary context")
-
-    # Create component from Input
-    comp = DialecticalComponent(statement="Test component")
-    comp.commit()
-    input_node.statements.connect(comp)
-
-    # Component's context should be the Input
-    contexts = repo.get_vocabulary_contexts(comp)
-    assert len(contexts) >= 1
-    assert any(ctx.hash == input_node.hash for ctx in contexts)
-    print("✓ Input-born component has Input as vocabulary context")
-
-    # Also test is_in_vocabulary
-    assert repo.is_in_vocabulary(comp, input_node)
-    print("✓ is_in_vocabulary correctly identifies component in Input vocabulary")
-
-    # Create full WU and pool into Nexus
-    wu = WisdomUnit(intent="context_test")
-    wu.save()
-    wu.t.connect(comp, relationship=TRelationship(alias="T"))
-
-    for pos in ['a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        c = DialecticalComponent(statement=f"Context {pos}")
-        c.commit()
-        input_node.statements.connect(c)
-        rel_map = {
-            'a': ARelationship(alias="A"),
-            't_plus': TPlusRelationship(alias="T+"),
-            't_minus': TMinusRelationship(alias="T-"),
-            'a_plus': APlusRelationship(alias="A+"),
-            'a_minus': AMinusRelationship(alias="A-"),
-        }
-        getattr(wu, pos).connect(c, relationship=rel_map[pos])
-
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu.nexus.connect(nexus)
-
-    # Nexus is its own vocabulary context
-    contexts = repo.get_vocabulary_contexts(nexus)
-    assert len(contexts) == 1
-    assert contexts[0] == nexus
-    print("✓ Nexus is its own vocabulary context")
-
-    # WU's context should now be the Nexus
-    wu_contexts = repo.get_vocabulary_contexts(wu)
-    assert len(wu_contexts) >= 1
-    assert any(ctx.hash == nexus.hash for ctx in wu_contexts)
-    print("✓ WisdomUnit in Nexus has Nexus as vocabulary context")
-
-    # Commit WU before creating Transformation
-    wu.commit()
-
-    # Create Transformation for the WU
-    trans = Transformation(intent="test_transformation")
-    trans.set_wisdom_unit(wu)
-    trans.commit()
-
-    # Create Synthesis connected to Transformation - its context should be the Nexus
-    # Synthesis uses IncrementalBuildMixin: save() first (HEAD), connect, then commit()
-    synth = Synthesis()
-    synth.save()  # HEAD state (hash=None)
-
-    s_plus = DialecticalComponent(statement="S+")
-    s_plus.commit()
-    synth.s_plus.connect(s_plus, relationship=SPlusRelationship(alias="S+"))
-
-    s_minus = DialecticalComponent(statement="S-")
-    s_minus.commit()
-    synth.s_minus.connect(s_minus, relationship=SMinusRelationship(alias="S-"))
-
-    synth.target.connect(trans)
-    synth.commit()  # Now compute hash
-
-    synth_contexts = repo.get_vocabulary_contexts(synth)
-    assert len(synth_contexts) >= 1
-    assert any(ctx.hash == nexus.hash for ctx in synth_contexts)
-    print("✓ Synthesis has Nexus as vocabulary context")
-
-    print("\n✅ All vocabulary context tests passed!")
-
-
-def test_component_multiple_vocabulary_contexts():
-    """
-    Test that a component can belong to multiple vocabulary contexts.
-
-    When the same statement is extracted from multiple Inputs, the component
-    (being content-addressable) should belong to all of those vocabularies.
-    This allows the component to be used in WisdomUnits from any of those contexts.
-    """
-    from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.relationships.polarity_relationship import (
-        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
-        APlusRelationship, AMinusRelationship
-    )
-    from dialectical_framework.graph.repositories.dialectical_component_repository import (
-        DialecticalComponentRepository
-    )
-
-    repo = DialecticalComponentRepository()
-
-    # Create two different Inputs
-    input_a = Input(content="https://example.com/article-a")
-    input_a.commit()
-
-    input_b = Input(content="https://example.com/article-b")
-    input_b.commit()
-
-    # Create a component - same statement could be extracted from both sources
-    shared_statement = f"Shared insight {random.random()}"
-    comp = DialecticalComponent(statement=shared_statement)
-    comp.commit()
-
-    # Both Inputs extract this same component (content-addressable)
-    input_a.statements.connect(comp)
-    input_b.statements.connect(comp)
-
-    # Component should belong to both vocabularies
-    contexts = repo.get_vocabulary_contexts(comp)
-    assert len(contexts) == 2, f"Expected 2 contexts, got {len(contexts)}"
-    context_hashes = {ctx.hash for ctx in contexts}
-    assert input_a.hash in context_hashes
-    assert input_b.hash in context_hashes
-    print("✓ Component has multiple vocabulary contexts")
-
-    # is_in_vocabulary should return True for both
-    assert repo.is_in_vocabulary(comp, input_a)
-    assert repo.is_in_vocabulary(comp, input_b)
-    print("✓ is_in_vocabulary returns True for both contexts")
-
-    # Create a WU with component from Input A
-    wu = WisdomUnit(intent="multi_context_test")
-    wu.save()
-
-    # First component from Input A only
-    comp_a = DialecticalComponent(statement=f"Input A only {random.random()}")
-    comp_a.commit()
-    input_a.statements.connect(comp_a)
-    wu.t.connect(comp_a, relationship=TRelationship(alias="T"))
-
-    # The shared component (from both A and B) should be allowed
-    # because it shares Input A context with comp_a
-    wu.a.connect(comp, relationship=ARelationship(alias="A"))
-    print("✓ Shared component can join WU from Input A vocabulary")
-
-    # Fill remaining positions from Input A
-    for pos, rel_cls in [
-        ('t_plus', TPlusRelationship),
-        ('t_minus', TMinusRelationship),
-        ('a_plus', APlusRelationship),
-        ('a_minus', AMinusRelationship)
-    ]:
-        c = DialecticalComponent(statement=f"Input A {pos} {random.random()}")
-        c.commit()
-        input_a.statements.connect(c)
-        getattr(wu, pos).connect(c, relationship=rel_cls(alias=pos.upper().replace('_', '')))
-
-    wu.commit()
-
-    # Component from Input B only should NOT be allowed in this WU
-    # (no shared context with the WU's Input A vocabulary)
-    comp_b_only = DialecticalComponent(statement=f"Input B only {random.random()}")
-    comp_b_only.commit()
-    input_b.statements.connect(comp_b_only)
-
-    # Verify it's only in Input B vocabulary
-    assert repo.is_in_vocabulary(comp_b_only, input_b)
-    assert not repo.is_in_vocabulary(comp_b_only, input_a)
-    print("✓ Input B-only component correctly not in Input A vocabulary")
-
-    print("\n✅ Multi-context vocabulary tests passed!")
-
-
-def test_dx_uri_vocabulary_tracing():
-    """
-    Test that dx:// URIs in Input.content extend the Nexus vocabulary.
-
-    When an Input has content=dx://sid/hash pointing to a Rationale or Component
-    that's part of a Nexus, the Input's HAS_STATEMENT components should be
-    included in that Nexus's vocabulary.
-    """
-    from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.rationale import Rationale
-    from dialectical_framework.graph.repositories.dialectical_component_repository import (
-        DialecticalComponentRepository
-    )
-    from dialectical_framework.graph.relationships.polarity_relationship import (
-        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
-        APlusRelationship, AMinusRelationship
-    )
-
-    repo = DialecticalComponentRepository()
-    uid = random.random()
-    test_sid = f"test-sid-{uid}"
-
-    # === Setup: Create Input with components ===
-    input1 = Input(content=f"https://example.com/article-{uid}", sid=test_sid)
-    input1.commit()
-
-    # Create components for WU
-    components = {}
-    for pos in ["T", "A", "T+", "T-", "A+", "A-"]:
-        comp = DialecticalComponent(statement=f"Comp {pos} for {uid}", sid=test_sid)
-        comp.commit()
-        input1.statements.connect(comp)
-        components[pos] = comp
-
-    # Create WU with all components
-    wu = WisdomUnit(intent=f"wu_{uid}", sid=test_sid)
-    wu.save()
-
-    wu.t.connect(components["T"], relationship=TRelationship(alias="T"))
-    wu.a.connect(components["A"], relationship=ARelationship(alias="A"))
-    wu.t_plus.connect(components["T+"], relationship=TPlusRelationship(alias="T+"))
-    wu.t_minus.connect(components["T-"], relationship=TMinusRelationship(alias="T-"))
-    wu.a_plus.connect(components["A+"], relationship=APlusRelationship(alias="A+"))
-    wu.a_minus.connect(components["A-"], relationship=AMinusRelationship(alias="A-"))
-
-    wu.commit()
-
-    # Create Nexus and pool WU
-    nexus = Nexus(intent=f"nexus_{uid}", sid=test_sid)
-    nexus.save()
-    wu.nexus.connect(nexus)
-
-    # Baseline: Nexus vocabulary should have 6 components
-    baseline_vocab = repo.get_vocabulary(nexus)
-    assert len(baseline_vocab) == 6, f"Expected 6 components, got {len(baseline_vocab)}"
-    print("✓ Baseline: Nexus vocabulary has 6 components")
-
-    # === Create a Rationale explaining the WU ===
-    rationale = Rationale(text=f"Explanation for WU {uid}", sid=test_sid)
-    rationale.set_explanation(wu)
-    rationale.commit()
-
-    # === Create dx:// Input referencing the Rationale ===
-    dx_uri = f"dx://{test_sid}/{rationale.hash}"
-    dx_input = Input(content=dx_uri, sid=test_sid)
-    dx_input.commit()
-
-    # Create derived component from the dx:// Input
-    derived_comp = DialecticalComponent(
-        statement=f"Derived from rationale for {uid}",
-        sid=test_sid
-    )
-    derived_comp.commit()
-    dx_input.statements.connect(derived_comp)
-
-    # Connect the derived component to the WU (to create the link into Nexus)
-    # We need to use an existing position, so let's create a second WU
-    input2 = Input(content=f"https://example.com/source2-{uid}", sid=test_sid)
-    input2.commit()
-
-    # Create components for WU2
-    components2 = {}
-    for pos in ["T", "A", "T+", "T-", "A+", "A-"]:
-        comp = DialecticalComponent(statement=f"WU2 Comp {pos} for {uid}", sid=test_sid)
-        comp.commit()
-        # Link the derived component to WU2's T position via the dx Input
-        if pos == "T":
-            dx_input.statements.connect(comp)  # Also from dx_input
-        else:
-            input2.statements.connect(comp)
-        components2[pos] = comp
-
-    # For testing, we'll create a simpler scenario:
-    # Connect the dx_input's component to a WU that's in the Nexus
-    # Actually, the dx:// Input needs to be connected to components that are already in the Nexus
-
-    # Let me simplify: the dx_input's HAS_STATEMENT components should be in vocabulary
-    # when the dx:// URI points to something in the Nexus
-
-    # Get vocabulary - it should now include the derived component
-    extended_vocab = repo.get_vocabulary(nexus)
-
-    # The derived_comp should be in vocabulary because:
-    # 1. dx_input has content=dx://{sid}/{rationale.hash}
-    # 2. rationale EXPLAINS wu
-    # 3. wu is in nexus
-    # 4. Therefore dx_input's HAS_STATEMENT components are in nexus vocabulary
-    derived_in_vocab = derived_comp.hash in {c.hash for c in extended_vocab}
-    assert derived_in_vocab, "Derived component from dx:// Input should be in Nexus vocabulary"
-
-    print("✓ dx:// referenced Input's components are in Nexus vocabulary")
-
-    # === Test scope mismatch: dx:// URI with different sid should not add to vocabulary ===
-    wrong_sid = f"wrong-sid-{uid}"
-    wrong_dx_uri = f"dx://{wrong_sid}/{rationale.hash}"  # Wrong sid
-    wrong_dx_input = Input(content=wrong_dx_uri, sid=test_sid)
-    wrong_dx_input.commit()
-
-    wrong_derived = DialecticalComponent(
-        statement=f"Wrong scope derived for {uid}",
-        sid=test_sid
-    )
-    wrong_derived.commit()
-    wrong_dx_input.statements.connect(wrong_derived)
-
-    # Connect wrong_derived to make it "visible" - create another component from same input
-    # linked to a WU in the nexus
-    # Actually, the scope mismatch should prevent it from being included
-
-    # Vocabulary should NOT include the wrong scope derived component
-    final_vocab = repo.get_vocabulary(nexus)
-    wrong_in_vocab = wrong_derived.hash in {c.hash for c in final_vocab}
-    assert not wrong_in_vocab, "Component from dx:// Input with wrong sid should NOT be in vocabulary"
-
-    print("✓ dx:// Input with mismatched sid is NOT in Nexus vocabulary")
-
-    print("\n✅ All dx:// vocabulary tracing tests passed!")
+    # Create Brainstorm (scope root)
+    brainstorm = Brainstorm()
+    brainstorm.commit()
+
+    with scope(brainstorm.sid):
+        # Create Input
+        input_node = Input(content=f"https://example.com/article-{uid}")
+        input_node.commit()
+        brainstorm.inputs.connect(input_node)
+
+        # Create component (inherits sid from scope context)
+        comp1 = DialecticalComponent(statement=f"Component 1 {uid}")
+        comp1.commit()
+
+        comp2 = DialecticalComponent(statement=f"Component 2 {uid}")
+        comp2.commit()
+
+        # Get vocabulary - should include all components in scope
+        vocab = repo.get_vocabulary()
+        vocab_hashes = {c.hash for c in vocab}
+
+        assert comp1.hash in vocab_hashes, "Component 1 should be in vocabulary"
+        assert comp2.hash in vocab_hashes, "Component 2 should be in vocabulary"
+        assert len(vocab) == 2, f"Expected 2 components, got {len(vocab)}"
+
+    print("✅ Scope vocabulary correctly includes all components")
 
 
 def test_nexus_frozen_after_cycle():

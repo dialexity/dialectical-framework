@@ -362,110 +362,6 @@ class BoundRelationshipManager(Generic[T]):
             f"Nodes in the same graph must belong to the same scope (Brainstorm)."
         )
 
-    def _validate_wisdom_unit_vocabulary(self, target_node: BaseNode) -> None:
-        """
-        Validate that components connected to a WisdomUnit belong to the same vocabulary.
-
-        When connecting a DialecticalComponent to a WisdomUnit (via polarity relationships
-        T, A, T+, T-, A+, A-), validates that the component is in the same vocabulary
-        as any existing components in the WU.
-
-        Vocabulary rules:
-        - Gen-0 WU: All components must be in the same Input's vocabulary
-        - Gen-1+ WU: All components must be in the same Nexus's vocabulary
-
-        This is called automatically by connect() for polarity relationships.
-        """
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-
-        # Only validate WU -> Component polarity connections
-        polarity_types = {'T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS'}
-
-        # Check if this is a WU receiving a component (incoming direction)
-        if not (isinstance(self.source_node, WisdomUnit) and
-                isinstance(target_node, DialecticalComponent) and
-                self.relationship_type in polarity_types):
-            return  # Not a WU-component polarity connection
-
-        wu = self.source_node
-        new_component = target_node
-
-        from dialectical_framework.graph.repositories.dialectical_component_repository import (
-            DialecticalComponentRepository
-        )
-        repo = DialecticalComponentRepository()
-
-        # Check if WU is in a Nexus (Gen-1 mode)
-        nexus_result = wu.nexus.get()
-        if nexus_result:
-            nexus, _ = nexus_result
-            # Gen-1 mode: validate against Nexus vocabulary using is_in_vocabulary
-            if repo.is_in_vocabulary(new_component, nexus):
-                return  # Component is in Nexus vocabulary or is derived, OK
-
-            # Component has a context but is not in Nexus vocabulary
-            stmt_preview = new_component.statement[:50] if new_component.statement else ""
-            raise ValueError(
-                f"Cannot connect component to WisdomUnit: component not in Nexus vocabulary. "
-                f"Component '{stmt_preview}...' (id={new_component.hash}) "
-                f"is not in Nexus '{nexus.hash}' vocabulary. "
-                f"In Gen-1 mode (WU in Nexus), all components must be from the Nexus vocabulary "
-                f"or be derived components without prior context."
-            )
-
-        # Gen-0 mode: WU not in Nexus - validate against Input context
-        # Get existing components from the WU
-        existing_components: list[DialecticalComponent] = []
-        for manager in [wu.t, wu.a, wu.t_plus, wu.t_minus, wu.a_plus, wu.a_minus]:
-            result = manager.get()
-            if result:
-                comp, _ = result
-                # Don't include the new component if it's already connected
-                if comp.hash != new_component.hash:
-                    existing_components.append(comp)
-
-        # If no existing components, any component is valid (first one sets the context)
-        if not existing_components:
-            return
-
-        # Get vocabulary contexts for the first existing component
-        existing_contexts = repo.get_vocabulary_contexts(existing_components[0])
-
-        if not existing_contexts:
-            # Existing components have no context - allow the connection
-            return
-
-        # New component must share at least one context with existing components
-        # This allows components that belong to multiple vocabularies to join
-        # a WU from any of those vocabularies
-        for ctx in existing_contexts:
-            if repo.is_in_vocabulary(new_component, ctx):
-                return  # Shares at least one vocabulary context - OK
-
-        # No shared context - build error message
-        from dialectical_framework.graph.nodes.input import Input
-
-        new_contexts = repo.get_vocabulary_contexts(new_component)
-        if not new_contexts:
-            # New component has no context (derived) - should have been caught by is_in_vocabulary
-            return
-
-        existing_ctx = existing_contexts[0]
-        new_ctx = new_contexts[0]
-        existing_type = "Input" if isinstance(existing_ctx, Input) else "Nexus"
-        new_type = "Input" if isinstance(new_ctx, Input) else "Nexus"
-        existing_id = getattr(existing_ctx, 'content', None) or existing_ctx.hash
-        new_id = getattr(new_ctx, 'content', None) or new_ctx.hash
-        stmt_preview = new_component.statement[:50] if new_component.statement else ""
-
-        raise ValueError(
-            f"Cannot connect component to WisdomUnit: vocabulary context mismatch. "
-            f"Component '{stmt_preview}...' belongs to {new_type} '{new_id}', "
-            f"but WisdomUnit's existing components belong to {existing_type} '{existing_id}'. "
-            f"All components in a WisdomUnit must share at least one vocabulary context."
-        )
-
     def _validate_nexus_frozen_after_cycle(self, target_node: BaseNode) -> None:
         """
         Validate that WisdomUnits cannot be added to a Nexus that already has Cycles.
@@ -834,7 +730,7 @@ class BoundRelationshipManager(Generic[T]):
                         f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
                     )
 
-    def _validate_structural_immutability(self, target_node: Node, operation: str = "connect") -> None:
+    def _validate_structural_immutability(self, target_node: BaseNode, operation: str = "connect") -> None:
         """
         Validate that structural layer relationships aren't modified after commit.
 
@@ -969,9 +865,7 @@ class BoundRelationshipManager(Generic[T]):
         self._validate_structural_immutability(target_node, "connect")
         # 1. Scope compatibility (nodes must belong to same scope/Brainstorm)
         self._validate_scope_compatibility(target_node)
-        # 2. WisdomUnit component vocabulary context validation
-        self._validate_wisdom_unit_vocabulary(target_node)
-        # 3. Cycle <-> Wheel connections require WU validation
+        # 2. Cycle <-> Wheel connections require WU validation
         self._validate_cycle_wheel_connection(target_node)
         # 4. Nexus membership is frozen once Cycles exist
         self._validate_nexus_frozen_after_cycle(target_node)

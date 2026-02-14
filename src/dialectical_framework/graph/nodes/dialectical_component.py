@@ -206,14 +206,16 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         # Compute what hash will be
         potential_hash = self.compute_hash()
 
-        # Check for Input collision
+        # Check for Input collision (not DialecticalComponent - dedup is OK)
+        from dialectical_framework.graph.nodes.input import Input
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
         repo = NodeRepository()
         existing = repo.find_by_hash(potential_hash)
 
-        if existing is not None:
+        # TODO: we probably need to do the same check with Rationale (all content-addressable nodes)
+        if existing is not None and isinstance(existing, Input):
             raise ValueError(
-                f"Hash collision: Node already exists with content matching this statement. "
+                f"Hash collision with Input: An Input exists with content matching this statement. "
                 f"Hash: {potential_hash[:8]}... "
                 f"The Input should use dx:// reference instead of raw text content."
             )

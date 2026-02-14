@@ -432,65 +432,33 @@ origin = getattr(node, 'origin_hash', None)  # No IDE support, harder to refacto
 
 **When to use `getattr`:** For class-level attributes like `label` or `type` that aren't mixin-based, `getattr` with a default is acceptable. When unsure, ask whether `isinstance` or `getattr` is appropriate.
 
-### Vocabulary and WisdomUnit Purity
+### Vocabulary and Scope
 
-**WisdomUnits must only contain components from the same vocabulary context.** This is enforced at connect time.
+**Vocabulary** is all DialecticalComponents within a scope (by `sid`).
 
-**Vocabulary Contexts:**
-
-| Generation | Context | Components Include |
-|------------|---------|-------------------|
-| **Gen-0** | Input | Components born via `Input.HAS_STATEMENT` |
-| **Gen-1+** | Nexus | Position components + Synthesis S+/S- + HAS_STATEMENT from Nexus tree |
-
-**Purity Rule:** All 6 components in a WisdomUnit (T, A, T+, T-, A+, A-) must belong to the same vocabulary:
-- Gen-0 WU: All components from the same Input
-- Gen-1+ WU: All components from the same Nexus vocabulary
+**Scope (sid)** is the primary boundary. All nodes within the same analytical context share a `sid` inherited from their Brainstorm. This is enforced at connect time - nodes with different `sid` values cannot be connected.
 
 ```python
-# Gen-0: Components from same Input
-input_a = Input(content="https://article.com/x")
-input_a.save()
-comp1 = DialecticalComponent(statement="Thesis from A")
-comp1.save()
-input_a.statements.connect(comp1)
+from dialectical_framework.graph.scope_context import scope
 
-wu = WisdomUnit()
-wu.save()
-wu.t.connect(comp1)  # OK - first component sets vocabulary
-wu.a.connect(comp2_from_input_a)  # OK - same Input vocabulary
+# Brainstorm is the scope root
+brainstorm = Brainstorm()  # Generates UUID for sid
+brainstorm.commit()
 
-# This fails - different vocabulary!
-wu.t_plus.connect(comp_from_input_b)  # ValueError: component not in vocabulary
+# App layer sets scope (after authorization)
+with scope(brainstorm.sid):
+    # All nodes inherit sid automatically
+    input_node = Input(content="https://article.com")
+    input_node.commit()
+    brainstorm.inputs.connect(input_node)
+
+    comp = DialecticalComponent(statement="Main idea")
+    comp.commit()  # sid inherited from scope context
+
+    # Query vocabulary (framework reads sid from DI)
+    repo = DialecticalComponentRepository()
+    vocab = repo.get_vocabulary()
 ```
-
-**Query Helpers** (in `dialectical_component_repository.py`):
-
-```python
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository
-)
-
-repo = DialecticalComponentRepository()
-
-# Get vocabulary for a context
-input_vocab = repo.get_vocabulary(input_node)   # Gen-0 components
-nexus_vocab = repo.get_vocabulary(nexus)        # Gen-1+ components
-
-# Find all contexts for a node (component can belong to multiple vocabularies)
-contexts = repo.get_vocabulary_contexts(component)  # Returns list of Input/Nexus
-
-# Check if component belongs to a specific vocabulary
-if repo.is_in_vocabulary(component, target_input):
-    print("Component can be used in this vocabulary")
-
-# Trace all root Inputs (multi-root provenance)
-roots = repo.get_root_inputs(wheel)  # All Inputs that contributed
-```
-
-**Multi-Context Components:** A component can belong to multiple vocabularies when the same statement is extracted from multiple Inputs. Use `is_in_vocabulary()` to check membership rather than comparing contexts directly.
-
-**Multi-Root Provenance:** Gen-1+ components trace back to multiple original Inputs via the Nexus ancestry—this is by design for synthesis.
 
 ---
 

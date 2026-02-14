@@ -23,5 +23,5 @@ class DI(str, Enum):
     # Content resolution (app provides implementation)
     input_resolver = "input_resolver"
 
-    # Scope context for portable identifiers
-    scope_context = "scope_context"
+    # Scope id (sid) - reads from contextvar, set by app layer
+    sid = "sid"

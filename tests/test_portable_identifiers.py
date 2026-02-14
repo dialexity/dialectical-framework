@@ -17,59 +17,42 @@ from dialectical_framework.graph.nodes.dialectical_component import DialecticalC
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-from dialectical_framework.graph.scope_context import ScopeContext
+from dialectical_framework.graph.scope_context import scope, get_current_sid
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository
 )
 
 
 class TestScopeContext:
-    """Tests for the ScopeContext service."""
+    """Tests for the scope context functions."""
 
     def test_default_scope_is_none(self):
         """Default scope should be None."""
-        ctx = ScopeContext()
-        assert ctx.get_current_scope() is None
+        assert get_current_sid() is None
 
     def test_context_manager_sets_scope(self):
         """Context manager should set scope within the block."""
-        ctx = ScopeContext()
         test_sid = "test-scope-123"
 
-        with ctx.scope(test_sid):
-            assert ctx.get_current_scope() == test_sid
+        with scope(test_sid):
+            assert get_current_sid() == test_sid
 
         # After exiting, scope should be restored to None
-        assert ctx.get_current_scope() is None
+        assert get_current_sid() is None
 
     def test_nested_scopes(self):
         """Nested context managers should work correctly."""
-        ctx = ScopeContext()
+        with scope("outer"):
+            assert get_current_sid() == "outer"
 
-        with ctx.scope("outer"):
-            assert ctx.get_current_scope() == "outer"
-
-            with ctx.scope("inner"):
-                assert ctx.get_current_scope() == "inner"
+            with scope("inner"):
+                assert get_current_sid() == "inner"
 
             # After exiting inner, should be back to outer
-            assert ctx.get_current_scope() == "outer"
+            assert get_current_sid() == "outer"
 
         # After exiting outer, should be None
-        assert ctx.get_current_scope() is None
-
-    def test_set_and_reset(self):
-        """Direct set/reset via token should work."""
-        ctx = ScopeContext()
-
-        token = ctx.set_current_scope("test-sid")
-        assert ctx.get_current_scope() == "test-sid"
-
-        # Reset via contextvars directly
-        from dialectical_framework.graph.scope_context import _current_scope
-        _current_scope.reset(token)
-
-        assert ctx.get_current_scope() is None
+        assert get_current_sid() is None
 
 
 class TestCommitWorkflow:
@@ -173,7 +156,7 @@ class TestBrainstormIdentifiers:
 
 
 class TestNodeIdentifierInheritance:
-    """Tests for sid inheritance via ScopeContext."""
+    """Tests for sid inheritance via scope context."""
 
     def test_input_inherits_sid_from_context(self):
         """Input created within scope context should inherit sid."""
@@ -181,8 +164,7 @@ class TestNodeIdentifierInheritance:
         brainstorm = Brainstorm()
         brainstorm.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm.sid):
+        with scope(brainstorm.sid):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
@@ -194,8 +176,7 @@ class TestNodeIdentifierInheritance:
         brainstorm.commit()
 
         import random
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm.sid):
+        with scope(brainstorm.sid):
             comp = DialecticalComponent(statement=f"Test statement {random.random()}")
             comp.commit()
 
@@ -207,8 +188,7 @@ class TestNodeIdentifierInheritance:
         brainstorm = Brainstorm()
         brainstorm.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm.sid):
+        with scope(brainstorm.sid):
             ideas = Ideas(intent=f"Test extraction {random.random()}")
             ideas.save()
             ideas.commit()
@@ -224,8 +204,7 @@ class TestNodeIdentifierInheritance:
         brainstorm2 = Brainstorm()
         brainstorm2.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             # Explicit sid takes precedence
             comp = DialecticalComponent(statement=f"Test {random.random()}", sid=brainstorm2.sid)
             comp.commit()
@@ -264,8 +243,7 @@ class TestCloneOperation:
         brainstorm2 = Brainstorm()
         brainstorm2.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             original = DialecticalComponent(statement=f"Original statement {random.random()}")
             original.commit()
 
@@ -281,8 +259,7 @@ class TestCloneOperation:
         brainstorm1 = Brainstorm()
         brainstorm1.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
@@ -300,8 +277,7 @@ class TestCloneOperation:
         brainstorm2 = Brainstorm()
         brainstorm2.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
@@ -321,8 +297,7 @@ class TestCloneOperation:
         brainstorm2 = Brainstorm()
         brainstorm2.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             # Create a complete WisdomUnit (forking point)
             t = DialecticalComponent(statement=f"Thesis {random.random()}")
             t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}")
@@ -372,8 +347,7 @@ class TestCloneOperation:
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             original_wu = WisdomUnit()
             original_wu.save()
             original_wu.t.connect(t, properties={'alias': 'T'})
@@ -406,8 +380,7 @@ class TestCloneOperation:
         brainstorm1 = Brainstorm()
         brainstorm1.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
@@ -426,8 +399,7 @@ class TestCloneOperation:
         brainstorm2 = Brainstorm()
         brainstorm2.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             original = DialecticalComponent(statement=f"Test statement {random.random()}")
             original.commit()
 
@@ -445,8 +417,7 @@ class TestScopeValidationOnConnect:
         brainstorm = Brainstorm()
         brainstorm.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm.sid):
+        with scope(brainstorm.sid):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
@@ -464,8 +435,7 @@ class TestScopeValidationOnConnect:
         brainstorm2 = Brainstorm()
         brainstorm2.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm2.sid):
+        with scope(brainstorm2.sid):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
@@ -561,8 +531,7 @@ class TestLineageTracking:
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm1.sid):
+        with scope(brainstorm1.sid):
             original_wu = WisdomUnit(intent="original")
             original_wu.save()
             original_wu.t.connect(t, properties={'alias': 'T'})
@@ -605,8 +574,7 @@ class TestLineageTracking:
         brainstorm = Brainstorm()
         brainstorm.commit()
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm.sid):
+        with scope(brainstorm.sid):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
@@ -634,8 +602,7 @@ class TestIntegration:
         assert len(brainstorm.sid) == 36  # UUID format
         assert brainstorm.hash is None  # Brainstorm never commits
 
-        ctx = ScopeContext()
-        with ctx.scope(brainstorm.sid):
+        with scope(brainstorm.sid):
             # Create Input
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
@@ -665,7 +632,8 @@ class TestIntegration:
 
         # Verify vocabulary
         repo = DialecticalComponentRepository()
-        vocab = repo.get_vocabulary(brainstorm)
+        with scope(brainstorm.sid):
+            vocab = repo.get_vocabulary()
         assert comp in vocab
 
 

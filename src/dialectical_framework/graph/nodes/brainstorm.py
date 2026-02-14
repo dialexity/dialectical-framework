@@ -72,9 +72,11 @@ class Brainstorm(BaseNode, label="Brainstorm"):
         comp.commit()
         ideas.statements.connect(comp)
 
-        # Vocabulary includes all components from inputs and ideas
+        # Vocabulary includes all components in scope
+        from dialectical_framework.graph.scope_context import scope
         repo = DialecticalComponentRepository()
-        vocab = repo.get_vocabulary(brainstorm)
+        with scope(brainstorm.sid):
+            vocab = repo.get_vocabulary()
         assert comp in vocab
     """
 
@@ -139,7 +141,21 @@ class Brainstorm(BaseNode, label="Brainstorm"):
         from dialectical_framework.graph.repositories.dialectical_component_repository import (
             DialecticalComponentRepository
         )
+
         input_count = self.inputs.count()
         repo = DialecticalComponentRepository()
-        vocab_count = len(repo.get_vocabulary(self))
+        with self:
+            vocab_count = len(repo.get_vocabulary())
         return f"Brainstorm ({input_count} inputs, {vocab_count} components)"
+
+    def __enter__(self) -> Self:
+        """Enter scope context for this brainstorm."""
+        from dialectical_framework.graph.scope_context import scope
+        self._scope_cm = scope(self.sid)
+        self._scope_cm.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit scope context."""
+        if hasattr(self, '_scope_cm'):
+            self._scope_cm.__exit__(exc_type, exc_val, exc_tb)
