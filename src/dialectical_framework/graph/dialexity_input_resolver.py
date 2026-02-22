@@ -168,7 +168,7 @@ class DialexityInputResolver:
         if node is None:
             # Try prefix lookup
             try:
-                node = self._hash_repo.find_by_prefix(
+                node = self._hash_repo.find_by_hash(
                     hash_or_prefix,
                     min_length=self.MIN_HASH_PREFIX_LENGTH,
                 )
