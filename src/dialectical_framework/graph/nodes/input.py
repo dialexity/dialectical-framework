@@ -88,9 +88,9 @@ class Input(BaseNode, label="Input"):
         cardinality=(0, None),  # Zero or more statements
     )
 
-    # Ideas distilled from this input
-    # Parent→child: Input distills to Ideas
-    ideas: ClassVar[RelationshipManager[Ideas]] = RelationshipTo(
+    # Ideas distilled from this input (reverse relationship)
+    # Ideas→Input: Ideas connects to its source Input(s)
+    ideas: ClassVar[RelationshipManager[Ideas]] = RelationshipFrom(
         "Ideas",
         model=DistilledToRelationship,
         cardinality=(0, None),  # Zero or more Ideas

@@ -73,6 +73,11 @@ class BaseNode(Node, label="Node"):
         """Check if this node has been committed (has hash)."""
         return self.hash is not None
 
+    @property
+    def short_hash(self) -> Optional[str]:
+        """Get the first 7 characters of the hash, or None if not committed."""
+        return self.hash[:7] if self.hash else None
+
     def _collect_structure_hash_parts(self) -> list[str]:
         """
         Collect the parts that make up this node's structure hash.

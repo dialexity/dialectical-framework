@@ -1,11 +1,7 @@
 """
 DialecticalComponentRepository for complex query operations.
 
-This repository separates data access logic from the DialecticalComponent node model,
-keeping the model clean and declarative while centralizing complex queries.
-
-Key concepts:
-- **Vocabulary**: The set of DialecticalComponents available within a scope (sid)
+All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -26,25 +22,14 @@ class DialecticalComponentRepository:
     """
     Repository for DialecticalComponent query operations.
 
-    This class handles complex queries and traversals for DialecticalComponent nodes,
-    separating data access logic from domain models following the Repository pattern.
-
-    Example usage:
-        from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
-
-        wu = WisdomUnit()
-        wu.save()
-
-        repo = DialecticalComponentRepository()
-        components = repo.find_by_wisdom_unit(wu)
-        for comp, alias in components:
-            print(f"Component {comp.statement} has alias {alias}")
+    All queries are automatically scoped by sid (injected from DI context).
     """
 
     @inject
     def find_by_wisdom_unit(
         self,
         wisdom_unit: WisdomUnit,
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[tuple[DialecticalComponent, str]]:
         """
@@ -52,16 +37,18 @@ class DialecticalComponentRepository:
 
         Args:
             wisdom_unit: The WisdomUnit to query for
-            graph_db: Database connection (injected via DI)
+            sid: Scope ID (injected from DI context)
 
         Returns:
             List of tuples: (DialecticalComponent, alias)
-            Example: [(comp1, "T"), (comp2, "T+"), (comp3, "A-")]
         """
         if wisdom_unit._id is None:
             return []
 
-        # Two separate queries combined with UNION for Memgraph compatibility
+        # Validate WU belongs to current scope
+        if sid and wisdom_unit.sid != sid:
+            return []
+
         query = """
         // Core positions (T, T+, T-, A, A+, A-) directly on WU
         MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
@@ -90,22 +77,11 @@ class DialecticalComponentRepository:
         """
         Get all DialecticalComponents in the current scope.
 
-        The scope (sid) is injected from the current context. Application layer
-        sets scope via `with scope(brainstorm.sid):` before calling framework methods.
-
         Args:
-            sid: Current scope ID (injected via DI from contextvar)
-            graph_db: Database connection (injected via DI)
+            sid: Scope ID (injected from DI context)
 
         Returns:
             Set of DialecticalComponents with matching sid
-
-        Example:
-            repo = DialecticalComponentRepository()
-
-            # App layer sets scope:
-            with scope(brainstorm.sid):
-                vocab = repo.get_vocabulary()  # sid injected automatically
         """
         if not sid:
             return set()

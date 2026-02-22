@@ -7,10 +7,8 @@ from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.graph.scoring.tarorank import TaroRank
-from dialectical_framework.protocols.antithesis_extractor import AntithesisExtractor
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.polarity_finder import PolarityFinder
-from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
     CausalitySequencerBalanced
@@ -20,13 +18,10 @@ from dialectical_framework.synthesist.causality.causality_sequencer_feasible imp
     CausalitySequencerFeasible
 from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
     CausalitySequencerRealistic
-from dialectical_framework.synthesist.ideas.antithesis_extractor_basic import AntithesisExtractorBasic
 from dialectical_framework.synthesist.ideas.polarity_finder_basic import PolarityFinderBasic
-from dialectical_framework.synthesist.ideas.thesis_extractor_basic import ThesisExtractorBasic
 from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
-from dialectical_framework.synthesist.brainstorming_agent import BrainstormingAgent
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
@@ -215,22 +210,8 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         settings=settings,
     )
 
-    # Focused extractors for idea extraction
-    thesis_extractor: providers.Factory[ThesisExtractor] = providers.Factory(
-        ThesisExtractorBasic,
-    )
-
-    antithesis_extractor: providers.Factory[AntithesisExtractor] = providers.Factory(
-        AntithesisExtractorBasic,
-    )
-
     polarity_finder: providers.Factory[PolarityFinder] = providers.Factory(
         PolarityFinderBasic,
-    )
-
-    # Context-aware brainstorming agent
-    brainstorming_agent: providers.Factory[BrainstormingAgent] = providers.Factory(
-        BrainstormingAgent,
     )
 
     wheel_builder: providers.Factory[WheelBuilder] = providers.Factory(WheelBuilder)

@@ -1,12 +1,12 @@
 """
 Repository for content-hash based node lookups.
 
-Provides git-style short prefix lookup for nodes.
+All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
 
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Union, TYPE_CHECKING, TypeVar
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -17,102 +17,87 @@ from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.base_node import BaseNode
 
+T = TypeVar("T", bound="BaseNode")
+
 
 class NodeRepository:
     """
     Repository for content-hash based node lookups.
 
-    Provides methods to find nodes by their hash or a prefix thereof,
-    similar to how git allows short commit hashes.
+    All queries are automatically scoped by sid (injected from DI context).
 
     Example:
-        repo = NodeRepository()
+        from dialectical_framework.graph.scope_context import scope
 
-        # Full hash lookup
-        node = repo.find_by_hash("abc123def456...")
-
-        # Short prefix lookup (git-style)
-        node = repo.find_by_prefix("abc123d")  # At least 7 chars
+        with scope(brainstorm.sid):
+            repo = NodeRepository()
+            node = repo.find_by_hash("abc123...")  # Only searches within scope
     """
 
     @inject
     def find_by_hash(
         self,
         hash: str,
+        node_type: Optional[type[T]] = None,
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Optional[BaseNode]:
+    ) -> Optional[T]:
         """
-        Find a node by its exact hash.
+        Find a node by hash or hash prefix within the current scope.
+
+        Uses STARTS WITH matching, which works for both:
+        - Full hash: exact match (single result)
+        - Hash prefix: prefix match (may have multiple results)
 
         Args:
-            hash: The full hash to search for
+            hash: The hash or hash prefix to search for
+            node_type: If provided, validates the node is of this type
+            sid: Scope ID (injected from DI context)
 
         Returns:
-            The node if found, None otherwise
-        """
-        query = """
-            MATCH (n:Node {hash: $hash})
-            RETURN n
-        """
-        results = list(graph_db.execute_and_fetch(query, {"hash": hash}))
-        if results:
-            return results[0]["n"]
-        return None
-
-    @inject
-    def find_by_prefix(
-        self,
-        prefix: str,
-        min_length: int = 7,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Optional[BaseNode]:
-        """
-        Find a node by hash prefix (git-style short hash lookup).
-
-        Args:
-            prefix: The prefix of the hash (minimum 7 characters)
-            min_length: Minimum prefix length required (default 7, like git)
-
-        Returns:
-            The node if exactly one match found, None otherwise
+            The node if exactly one match found, None if no matches
 
         Raises:
-            ValueError: If prefix is too short
-            ValueError: If multiple nodes match the prefix (ambiguous)
-
-        Example:
-            # If node has hash "abc123def456789..."
-            node = repo.find_by_prefix("abc123d")  # Works
-            node = repo.find_by_prefix("abc")      # Raises ValueError (too short)
+            ValueError: If multiple nodes match (ambiguous prefix)
+            TypeError: If node_type is provided and the found node is not of that type
         """
-        if len(prefix) < min_length:
-            raise ValueError(
-                f"Prefix must be at least {min_length} characters, got {len(prefix)}"
-            )
-
-        # Use STARTS WITH for prefix matching
-        query = """
-            MATCH (n:Node)
-            WHERE n.hash STARTS WITH $prefix
-            RETURN n
-        """
-        results = list(graph_db.execute_and_fetch(query, {"prefix": prefix}))
+        if sid:
+            query = """
+                MATCH (n:Node)
+                WHERE n.hash STARTS WITH $hash AND n.sid = $sid
+                RETURN n
+            """
+            results = list(graph_db.execute_and_fetch(query, {"hash": hash, "sid": sid}))
+        else:
+            query = """
+                MATCH (n:Node)
+                WHERE n.hash STARTS WITH $hash
+                RETURN n
+            """
+            results = list(graph_db.execute_and_fetch(query, {"hash": hash}))
 
         if not results:
             return None
 
         if len(results) > 1:
             raise ValueError(
-                f"Ambiguous prefix '{prefix}': matches {len(results)} nodes. "
+                f"Ambiguous hash '{hash}': matches {len(results)} nodes. "
                 f"Use a longer prefix."
             )
 
-        return results[0]["n"]
+        node = results[0]["n"]
+        if node_type is not None and not isinstance(node, node_type):
+            raise TypeError(
+                f"Expected {node_type.__name__}, got {type(node).__name__}"
+            )
+        return node
 
     @inject
     def find_by_origin(
         self,
         origin_hash: str,
+        node_type: Optional[type[T]] = None,
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[BaseNode]:
         """
@@ -120,49 +105,74 @@ class NodeRepository:
 
         Args:
             origin_hash: The hash of the original node
+            node_type: If provided, validates all nodes are of this type
+            sid: Scope ID (injected from DI context)
 
         Returns:
             List of nodes that have this origin_hash
-        """
-        query = """
-            MATCH (n:Node {origin_hash: $origin})
-            RETURN n
-        """
-        results = list(graph_db.execute_and_fetch(query, {"origin": origin_hash}))
-        return [row["n"] for row in results]
 
-    @inject
+        Raises:
+            TypeError: If node_type is provided and any found node is not of that type
+        """
+        if sid:
+            query = """
+                MATCH (n:Node {origin_hash: $origin, sid: $sid})
+                RETURN n
+            """
+            results = list(graph_db.execute_and_fetch(query, {"origin": origin_hash, "sid": sid}))
+        else:
+            query = """
+                MATCH (n:Node {origin_hash: $origin})
+                RETURN n
+            """
+            results = list(graph_db.execute_and_fetch(query, {"origin": origin_hash}))
+
+        nodes = [row["n"] for row in results]
+        if node_type is not None:
+            for node in nodes:
+                if not isinstance(node, node_type):
+                    raise TypeError(
+                        f"Expected {node_type.__name__}, got {type(node).__name__}"
+                    )
+        return nodes
+
     def find_lineage(
         self,
         hash: str,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+        node_type: Optional[type[T]] = None,
     ) -> list[BaseNode]:
         """
         Find the full lineage chain for a node (all ancestors via origin_hash).
 
-        Traces back through origin_hash to find all ancestor nodes.
-
         Args:
             hash: The hash of the node to trace
+            node_type: If provided, validates all nodes in lineage are of this type
 
         Returns:
             List of nodes in lineage order (oldest first, node itself last)
+
+        Raises:
+            TypeError: If node_type is provided and any node in lineage is not of that type
         """
         lineage = []
         current_hash = hash
 
         while current_hash:
-            node = self.find_by_hash(current_hash)
+            node = self.find_by_hash(hash=current_hash)
             if node is None:
                 break
 
-            lineage.insert(0, node)  # Add to front (oldest first)
+            if node_type is not None and not isinstance(node, node_type):
+                raise TypeError(
+                    f"Expected {node_type.__name__}, got {type(node).__name__}"
+                )
 
-            # Move to parent - only ForkableMixin nodes have origin_hash
+            lineage.insert(0, node)
+
             if isinstance(node, ForkableMixin):
                 current_hash = node.origin_hash
                 if current_hash == hash:
-                    break  # Prevent infinite loop (shouldn't happen but be safe)
+                    break
             else:
                 break
 
@@ -178,12 +188,6 @@ class NodeRepository:
         """
         Check if a node is on a given branch.
 
-        Branch is a mutable pointer that only lives on the tip of a lineage chain.
-        To check if a node is "on" a branch, we need to:
-        1. Find the branch tip (node with branch == requested_branch)
-        2. Walk backward via origin_hash to collect the lineage
-        3. Check if the requested node's hash is in that lineage
-
         Args:
             node: The node to check (must be a ForkableMixin)
             branch: The branch name to verify
@@ -194,12 +198,13 @@ class NodeRepository:
         if not isinstance(node, ForkableMixin):
             return False
 
-        # Check if this node IS the branch tip
         if node.branch == branch:
             return True
 
-        # Node is not the tip - find the tip and check if node is an ancestor
-        # Find branch tip: node with this branch label in the same scope
+        # Use node's sid for scoped query
+        if not hasattr(node, 'sid') or not node.sid:
+            return False
+
         query = """
             MATCH (tip:Node {branch: $branch, sid: $sid})
             RETURN tip
@@ -207,12 +212,10 @@ class NodeRepository:
         results = list(graph_db.execute_and_fetch(query, {"branch": branch, "sid": node.sid}))
 
         if not results:
-            # No tip found with this branch - node cannot be on it
             return False
 
         tip = results[0]["tip"]
 
-        # Walk backward from tip via origin_hash to check if node is in lineage
         if not isinstance(tip, ForkableMixin):
             return False
 
@@ -223,7 +226,7 @@ class NodeRepository:
             if current_hash == node_hash:
                 return True
 
-            ancestor = self.find_by_hash(current_hash)
+            ancestor = self.find_by_hash(hash=current_hash)
             if ancestor is None or not isinstance(ancestor, ForkableMixin):
                 break
 

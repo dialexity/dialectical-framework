@@ -31,11 +31,11 @@ if TYPE_CHECKING:
 
 class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas"):
     """
-    A collection of extracted concepts from an Input source.
+    A collection of extracted concepts from one or more Input sources.
 
-    Ideas represents the distillation of raw content (from an Input) into
-    structured dialectical components (statements). Each Ideas node belongs
-    to exactly one Input and can have multiple extracted statements.
+    Ideas represents the distillation of raw content (from Inputs) into
+    structured dialectical components (statements). Each Ideas node can
+    have one or more source Inputs and multiple extracted statements.
 
     The intent field (from IntentMixin) captures what kind of extraction
     was performed (e.g., "Extract productivity claims", "Find ethical arguments").
@@ -47,7 +47,7 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
         Brainstorm → Input → Ideas → DialecticalComponent
 
     Relationships:
-    - Ideas comes from exactly one Input (via DISTILLED_TO)
+    - Ideas comes from one or more Inputs (via DISTILLED_TO)
     - Ideas can have multiple extracted statements (via HAS_STATEMENT)
 
     Example:
@@ -56,21 +56,23 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
 
         ideas = Ideas(intent="Extract key arguments")
         ideas.save()  # HEAD state - no hash yet
-        input_node.ideas.connect(ideas)
+        ideas.inputs.connect(input_node)
 
         comp = DialecticalComponent(statement="Remote work improves focus")
         comp.commit()
         ideas.statements.connect(comp)  # Add statements before commit
 
-        ideas.commit()  # Computes hash from input + intent + statements
+        ideas.commit()  # Computes hash from inputs + intent + statements
     """
 
-    # Source Input (required - Ideas comes from exactly one Input)
-    # Parent→child: Input distills to Ideas (Input.ideas connects to Ideas)
-    input: ClassVar[RelationshipManager[Input]] = RelationshipFrom(
+    # Source Inputs (optional - explicit provenance when needed)
+    # Ideas→Input: Ideas distilled from specific Input(s)
+    # When empty: Ideas uses all Inputs available in Brainstorm at creation time (inferred via timestamp)
+    # When specified: Ideas derived from these specific Inputs (e.g., Rationale-spawned Input)
+    inputs: ClassVar[RelationshipManager[Input]] = RelationshipTo(
         "Input",
         model=DistilledToRelationship,
-        cardinality=(1, 1),  # Exactly one source Input
+        cardinality=(0, None),  # Zero or more source Inputs
     )
 
     # Extracted statements/concepts
@@ -94,40 +96,25 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
         """
         Collect structure hash parts for this Ideas node.
 
-        Parts: source Input hash, sorted statement hashes.
+        Parts: sorted statement hashes only.
+        Inputs are NOT included - provenance is inferred via timestamps.
 
         Returns:
-            List of strings: [input_hash, stmt_hash1, stmt_hash2, ...]
+            List of strings: [stmt_hash1, stmt_hash2, ...]
 
         Note:
-            Source Input and all connected statements must be committed.
+            Connected statements must be committed.
         """
-        parts = []
-
-        # Get source Input hash
-        input_result = self.input.get()
-        if input_result:
-            input_node, _ = input_result
-            if not input_node.is_committed:
-                raise ValueError(
-                    f"Input must be committed before computing Ideas structure hash"
-                )
-            parts.append(input_node.hash)
-
-        # Get sorted statement hashes
         statement_hashes = []
         for comp, _ in self.statements.all():
             if not comp.is_committed:
                 raise ValueError(
-                    "Statement must be committed before computing "
-                    "Ideas structure hash"
+                    "Statement must be committed before computing Ideas structure hash"
                 )
             statement_hashes.append(comp.hash)
 
         statement_hashes.sort()
-        parts.extend(statement_hashes)
-
-        return parts
+        return statement_hashes
 
     # Ideas uses BaseNode.compute_hash() which includes committed_at.
     # This makes Ideas a structural node - each commit produces unique hash.

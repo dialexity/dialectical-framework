@@ -136,6 +136,7 @@ When connecting components to WisdomUnit positions, semantic relationships are a
 | Relationships | `src/dialectical_framework/graph/relationships/*.py` |
 | Relationship API | `src/dialectical_framework/graph/relationship_manager.py` |
 | Scoring (TaroRank) | `src/dialectical_framework/graph/scoring/tarorank.py` |
+| Agentic orchestration | `src/dialectical_framework/agents/` |
 | AI/LLM reasoning | `src/dialectical_framework/synthesist/` |
 | Wisdom reasoning | `src/dialectical_framework/synthesist/wisdom/` |
 | Configuration | `src/dialectical_framework/settings.py` |
@@ -193,10 +194,13 @@ src/dialectical_framework/
 │   ├── repositories/        # Data access layer
 │   └── relationship_manager.py    # RelationshipTo/From declarative API
 │
+├── agents/                  # LLM-driven agentic orchestrators
+│   └── brainstorming/      # Brainstorming agent for thesis/antithesis extraction
+│       ├── brainstorming_agent.py  # Agentic orchestrator using tool calling
+│       └── tools/          # Mirascope tools for extraction
+│
 ├── synthesist/              # Reasoning engines
-│   ├── ideas/              # Idea extraction (thesis, antithesis, polarity)
-│   │   ├── thesis_extractor_basic.py      # Extract thesis concepts
-│   │   ├── antithesis_extractor_basic.py  # Extract antithesis concepts
+│   ├── ideas/              # Idea extraction (polarity orchestration)
 │   │   └── polarity_finder_basic.py       # Orchestrate polarity extraction
 │   ├── polarity/           # Polar reasoning (PolarReasoner, WisdomUnit building)
 │   ├── causality/          # Order transitions (preset:balanced, preset:realistic, etc.)
@@ -390,9 +394,9 @@ Store these in a `.env` file in the project root.
 
 ## Critical Conventions
 
-### DO NOT modify `__init__.py` files
+### Keep `__init__.py` files empty
 
-These files handle critical import ordering and circular dependency resolution. Adding logic to `__init__.py` files can break imports. Put helper functions in separate modules instead.
+All `__init__.py` files must be empty. This project does not use `__init__.py` for module exports. When creating new packages, add an empty `__init__.py` file.
 
 ### Adding New Node Types
 
@@ -459,6 +463,42 @@ with scope(brainstorm.sid):
     repo = DialecticalComponentRepository()
     vocab = repo.get_vocabulary()
 ```
+
+### Query Safety: All Queries Must Be Scoped by sid
+
+**CRITICAL: All database queries must be scoped by `sid` to prevent cross-user data leaks.**
+
+Since different users/sessions have different `sid` values, unscoped queries could return data belonging to other users. Always use repository helper methods which automatically inject `sid` from DI:
+
+```python
+# GOOD - Use repository methods (sid auto-injected)
+from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+
+repo = NodeRepository()
+node = repo.find_by_hash("abc123...")       # Scoped by sid
+node = repo.find_by_prefix("abc123")        # Scoped by sid
+nodes = repo.find_by_origin("origin_hash")  # Scoped by sid
+
+comp_repo = DialecticalComponentRepository()
+vocab = comp_repo.get_vocabulary()                    # Scoped by sid
+comps = comp_repo.find_by_wisdom_unit(wu)             # Validates WU belongs to scope
+
+wu_repo = WisdomUnitRepository()
+wus = wu_repo.find_by_dialectical_component(comp)    # Validates component belongs to scope
+wu_repo.safe_delete(wu)                               # Validates WU belongs to scope
+
+# BAD - Raw queries without sid scoping (DATA LEAK RISK!)
+graph_db.execute_and_fetch("MATCH (n:Node {hash: $hash}) RETURN n", {"hash": hash})
+```
+
+**Repository method pattern:** All repository methods use `@inject` with `sid: Optional[str] = Provide[DI.sid]` to automatically scope queries. The `sid` is read from the DI context set by `with scope(brainstorm.sid):`.
+
+**Key repositories:**
+- `NodeRepository` - Hash lookups, lineage queries
+- `DialecticalComponentRepository` - Vocabulary queries
+- `WisdomUnitRepository` - WU lifecycle and usage queries
 
 ---
 

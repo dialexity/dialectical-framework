@@ -84,6 +84,11 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     # Does NOT affect hash computation (analytical metadata)
     rejected: Optional[str] = None
 
+    # Semantic meaning pointer - typically a taxonomy reference (e.g., "systemic:engineering:integrity")
+    # Can also be a verbatim meaning, but usually points to an agreed taxonomy.
+    # REQUIRED for commit - participates in hash computation.
+    meaning: Optional[str] = None
+
     # Symmetric relationship: if A opposes B, then B opposes A
     oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipBoth(
         "DialecticalComponent",
@@ -160,25 +165,26 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         """
         Collect structure hash parts for this component.
 
-        Parts: statement text.
+        Parts: statement text + meaning.
 
         Returns:
-            List with the statement
+            List with the statement and meaning
         """
-        return [self.statement]
+        # meaning is guaranteed to be set by commit() validation
+        return [self.statement, self.meaning or ""]
 
     def compute_hash(self) -> str:
         """
         Compute content hash for this DialecticalComponent.
 
-        DialecticalComponent is purely content-addressable: same statement = same hash.
+        DialecticalComponent is content-addressable: same statement + meaning = same hash.
         Unlike structural nodes, committed_at is NOT included because:
         - Deduplication is desirable (same concept should have same identity)
         - No temporal ordering needed (components don't critique each other)
         - Multiple users creating the same statement should get the same component
 
         Returns:
-            sha256 hex string of statement
+            sha256 hex string of statement + meaning
         """
         parts = self._collect_structure_hash_parts()
         combined = "\n".join(parts)
@@ -192,6 +198,9 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         """
         Commit this DialecticalComponent: compute hash and persist.
 
+        Requires `meaning` to be set before committing - this field participates
+        in the hash and provides semantic categorization for the component.
+
         Before committing, checks for hash collision with Input nodes.
         If an Input exists with the same hash (same content as this statement),
         raises an error - the Input should be cleaned up or transformed first.
@@ -201,8 +210,20 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
 
         Raises:
             ImmutableNodeError: If already committed
-            ValueError: If hash collision with existing Input node
+            ValueError: If meaning is not set, or hash collision with existing Input node
         """
+        # Require both statement and meaning before commit
+        if not self.statement:
+            raise ValueError(
+                "Cannot commit DialecticalComponent without 'statement'."
+            )
+        if not self.meaning:
+            raise ValueError(
+                f"Cannot commit DialecticalComponent without 'meaning'. "
+                f"Set meaning to a taxonomy pointer (e.g., 'systemic:engineering:integrity') "
+                f"or a verbatim meaning before committing."
+            )
+
         # Compute what hash will be
         potential_hash = self.compute_hash()
 
