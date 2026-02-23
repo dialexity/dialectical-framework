@@ -244,6 +244,22 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         # Delegate to parent commit
         return super().commit()
 
+    @property
+    def is_simple(self) -> bool:
+        """
+        Check if this component is considered "simple".
+
+        A component is simple if:
+        - meaning is not set (None or empty string), OR
+        - meaning starts with "dx://taxonomy/Simple"
+
+        Returns:
+            True if component is simple, False otherwise
+        """
+        if not self.meaning:
+            return True
+        return self.meaning.lower().startswith("dx://taxonomy/Simple".lower())
+
     def __repr__(self) -> str:
         """String representation of the component."""
         statement_preview = (
