@@ -105,7 +105,7 @@ class Rationale(BaseNode, label="Rationale"):
 
     # Declarative relationships
     # What this rationale explains
-    explanation: ClassVar[RelationshipManager[AssessableEntity]] = RelationshipTo(
+    explains: ClassVar[RelationshipManager[AssessableEntity]] = RelationshipTo(
         "AssessableEntity",
         model=ExplainsRelationship,
         cardinality=(0, 1)  # Zero or one (rationale explains one entity)
@@ -139,13 +139,13 @@ class Rationale(BaseNode, label="Rationale"):
 
     # Hash inputs - set these before save() to include in hash
     # These are used for hash computation; actual relationships are created post-save
-    _explanation_hash: Optional[str] = None
+    _explanation_target_hash: Optional[str] = None
     _critiques_target_hash: Optional[str] = None
     # Transient refs for auto-connecting after save (not persisted)
     _explanation_ref: Optional[AssessableEntity] = None
     _critiques_target_ref: Optional[Rationale] = None
 
-    def set_explanation(self, target: AssessableEntity) -> Rationale:
+    def set_explanation_target(self, target: AssessableEntity) -> Rationale:
         """
         Set the explanation target for this rationale (before save).
 
@@ -166,7 +166,7 @@ class Rationale(BaseNode, label="Rationale"):
                 "Explanation target must be committed before setting on rationale. "
                 "Call target.commit() first."
             )
-        self._explanation_hash = target.hash
+        self._explanation_target_hash = target.hash
         self._explanation_ref = target
         return self
 
@@ -215,10 +215,10 @@ class Rationale(BaseNode, label="Rationale"):
         target_hash = None
 
         # Check explanation target first (stored hash or relationship)
-        if self._explanation_hash:
-            target_hash = self._explanation_hash
+        if self._explanation_target_hash:
+            target_hash = self._explanation_target_hash
         else:
-            explanation_result = self.explanation.get()
+            explanation_result = self.explains.get()
             if explanation_result:
                 target_node, _ = explanation_result
                 if not target_node.is_committed:
@@ -313,8 +313,8 @@ class Rationale(BaseNode, label="Rationale"):
         super().commit()
 
         # Auto-connect explanation target if ref was stored AND not already connected
-        if self._explanation_ref and self.explanation.count() == 0:
-            self.explanation.connect(self._explanation_ref)
+        if self._explanation_ref and self.explains.count() == 0:
+            self.explains.connect(self._explanation_ref)
             self._explanation_ref = None  # Clear transient ref
         # Auto-connect critiques target if ref was stored AND not already connected
         if self._critiques_target_ref and self._critiques_target.count() == 0:
