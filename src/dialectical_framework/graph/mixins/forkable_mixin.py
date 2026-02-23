@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
+from dialectical_framework.graph.mixins.persistable_mixin import PersistableMixin
+
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.base_node import BaseNode
 
 
-class ForkableMixin:
+class ForkableMixin(PersistableMixin):
     """
     Mixin for forking points (WisdomUnit, Nexus).
 

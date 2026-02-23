@@ -176,6 +176,10 @@ class ExtractTheses(BaseTool, HasBrain, SettingsAware):
 
     async def _step2_identify_candidates(self, item: ContentItemDto) -> list[str]:
         """STEP 2: Check if content is thesis candidate, decompose if compound."""
+        # Direct input bypasses validation - it's explicitly provided as a thesis
+        if item.content_type.lower() == "direct":
+            return [item.content]
+
         @with_langfuse()
         @use_brain(brain=self.brain, response_model=CandidateCheckDto)
         async def _check():
@@ -371,7 +375,7 @@ class ExtractTheses(BaseTool, HasBrain, SettingsAware):
             if location:
                 rationale_text += f" Taxonomy: {location.taxonomy_type}/{location.branch}/{location.leaf}. {location.reasoning}"
             rationale = Rationale(text=rationale_text)
-            rationale.set_explanation(component)
+            rationale.set_explanation_target(component)
             rationale.commit()
 
             component_hashes.append(component.short_hash)

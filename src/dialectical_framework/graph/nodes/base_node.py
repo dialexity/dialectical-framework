@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import time
-from typing import Any, Optional, Union, Self
+from typing import Any, Optional, Union, Self, get_type_hints
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j, Node
+from gqlalchemy.models import NodeMetaclass
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
@@ -20,8 +21,50 @@ from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 # Re-export ImmutableNodeError for backward compatibility
 from dialectical_framework.exceptions.node_errors import ImmutableNodeError
 
+from dialectical_framework.graph.mixins.persistable_mixin import PersistableMixin
 
-class BaseNode(Node, label="Node"):
+
+class MixinAwareNodeMeta(NodeMetaclass):
+    """
+    Metaclass that extends GQLAlchemy's NodeMetaclass to collect fields from PersistableMixin classes.
+
+    This solves the problem where GQLAlchemy only sees fields from the Node inheritance chain,
+    missing fields defined in mixins.
+    """
+
+    def __new__(mcs, name: str, bases: tuple, namespace: dict, **kwargs):
+        # Collect field annotations from PersistableMixin bases
+        mixin_annotations = {}
+        mixin_defaults = {}
+
+        for base in bases:
+            if isinstance(base, type) and issubclass(base, PersistableMixin) and base is not PersistableMixin:
+                # Get annotations from this mixin
+                if hasattr(base, '__annotations__'):
+                    for field_name, field_type in base.__annotations__.items():
+                        if field_name not in namespace.get('__annotations__', {}):
+                            mixin_annotations[field_name] = field_type
+                            # Get default value if exists
+                            if hasattr(base, field_name):
+                                mixin_defaults[field_name] = getattr(base, field_name)
+
+        # Inject mixin fields into namespace before GQLAlchemy processes it
+        if mixin_annotations:
+            if '__annotations__' not in namespace:
+                namespace['__annotations__'] = {}
+            for field_name, field_type in mixin_annotations.items():
+                if field_name not in namespace['__annotations__']:
+                    # Use str type directly to avoid ForwardRef issues
+                    namespace['__annotations__'][field_name] = str if 'str' in str(field_type) else field_type
+                    if field_name in mixin_defaults:
+                        namespace[field_name] = mixin_defaults[field_name]
+                    else:
+                        namespace[field_name] = None
+
+        return super().__new__(mcs, name, bases, namespace, **kwargs)
+
+
+class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
     """
     Base class for all nodes in the dialectical graph.
 

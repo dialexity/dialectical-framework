@@ -23,12 +23,13 @@ from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import ImmutableNodeError
+from dialectical_framework.graph.mixins.persistable_mixin import PersistableMixin
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.base_node import BaseNode
 
 
-class IncrementalBuildMixin:
+class IncrementalBuildMixin(PersistableMixin):
     """
     Mixin for nodes that support incremental building before commit.
 

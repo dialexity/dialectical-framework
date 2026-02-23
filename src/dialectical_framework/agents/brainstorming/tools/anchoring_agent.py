@@ -42,6 +42,10 @@ class ParsedIntentDto(BaseModel):
     """Result of parsing the unstructured intent."""
 
     count: int = Field(default=4, description="Number of theses to surface (1-10)")
+    direct_theses: list[str] = Field(
+        default_factory=list,
+        description="Direct theses explicitly specified in intent (e.g., 'anchor thesis Trust' → ['Trust'])",
+    )
     constraints: list[str] = Field(
         default_factory=list,
         description="Things to avoid (e.g., 'not about security', 'exclude X')",
@@ -120,42 +124,63 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
 
         # 2. Get context
         input_text = await self._get_input_text()
-        if not input_text:
-            return "No inputs in scope. Add inputs first."
-
         vocab = self._get_vocabulary_with_rationales()
         not_like_these = [c["statement"] for c in vocab]  # Avoid all existing, including rejected
 
-        # 3. Extraction loop
-        extracted_hashes = await self._extraction_loop(
-            input_text=input_text,
-            parsed=parsed,
-            not_like_these=not_like_these,
-        )
+        # 3. Handle direct theses if specified in intent
+        direct_hashes: list[str] = []
+        if parsed.direct_theses:
+            direct_hashes = await self._anchor_direct_theses(parsed.direct_theses, parsed)
 
-        if not extracted_hashes:
+        # 4. Extraction loop (if we have inputs and need more theses)
+        extracted_hashes: list[str] = []
+        remaining_count = parsed.count - len(direct_hashes)
+
+        if remaining_count > 0 and input_text:
+            # Add direct thesis statements to not_like_these to avoid duplicates
+            for h in direct_hashes:
+                stmt = self._get_statement_by_hash(h)
+                if stmt and stmt not in not_like_these:
+                    not_like_these.append(stmt)
+
+            extracted_hashes = await self._extraction_loop(
+                input_text=input_text,
+                parsed=parsed,
+                not_like_these=not_like_these,
+            )
+
+        # Combine direct and extracted
+        all_hashes = direct_hashes + extracted_hashes
+
+        if not all_hashes:
+            if not input_text and not parsed.direct_theses:
+                return "No inputs in scope and no direct theses in intent. Add inputs or specify theses directly."
             return f"No theses extracted. Intent: {self.intent}"
 
-        # 4. Semantic dedup (if we have existing vocabulary)
+        # 5. Semantic dedup (if we have existing vocabulary)
         final_components: list[DialecticalComponent] = []
         deleted_count = 0
 
-        if vocab:
+        if vocab and extracted_hashes:
+            # Only dedup extracted (not direct theses - those are intentional)
             dedup_result = await self._semantic_dedup(extracted_hashes, vocab)
-            final_components, deleted_count = self._apply_dedup(
+            deduped_components, deleted_count = self._apply_dedup(
                 extracted_hashes, dedup_result
             )
+            # Add direct thesis components first
+            final_components = self._resolve_components(direct_hashes) + deduped_components
         else:
-            # No existing vocab - keep all extractions
-            final_components = self._resolve_components(extracted_hashes)
+            # No existing vocab or no extractions - keep all
+            final_components = self._resolve_components(all_hashes)
 
-        # 5. Create Ideas
+        # 6. Create Ideas
         ideas = self._create_ideas(final_components, parsed)
 
-        # 6. Report
+        # 7. Report
         return self._build_report(
             parsed=parsed,
             extracted_count=len(extracted_hashes),
+            direct_count=len(direct_hashes),
             deleted_count=deleted_count,
             final_components=final_components,
             ideas=ideas,
@@ -173,16 +198,39 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         **Available inputs preview:** {input_preview}
 
         Determine:
-        1. count: How many theses to surface (default 4, max 10)
-        2. constraints: What to avoid or exclude
-        3. preferences: What to prefer (e.g., "prefer existing", "focus on X")
-        4. domain_hint: Derive a contextual domain hint from intent and inputs
-           (e.g., "software architecture", "team dynamics", "security practices")
-        5. focus: Topic/theme to focus extraction on
 
-        If count isn't specified, use 4.
-        Derive domain_hint from the intent and input content - don't leave empty
-        if there's contextual signal.
+        1. **direct_theses** - CRITICAL: Identify if the intent IS, CONTAINS, or implies direct theses.
+
+           The intent might BE the thesis itself:
+           - "Sugar" → direct_theses: ["Sugar"]
+           - "Love" → direct_theses: ["Love"]
+           - "Trust, Integrity" → direct_theses: ["Trust", "Integrity"]
+
+           Or it might explicitly name theses to anchor:
+           - "anchor thesis 'Trust'" → direct_theses: ["Trust"]
+           - "add Love as thesis" → direct_theses: ["Love"]
+
+           Or it might ask ABOUT a topic (especially when no inputs are available):
+           - "give me the main idea about love" → direct_theses: ["Love"]
+           - "what about trust?" → direct_theses: ["Trust"]
+           - "explore data consistency" → direct_theses: ["Data Consistency"]
+
+           **IMPORTANT**: If no inputs are available (input_preview says "No inputs"),
+           and the intent mentions a topic/concept, extract that topic as a direct thesis.
+           The user wants to explore that concept even without source material.
+
+           Only leave direct_theses empty if:
+           - Inputs ARE available, AND
+           - Intent explicitly asks to "extract", "find", "surface" theses FROM those inputs
+
+        2. count: How many theses to surface (default 4, max 10)
+        3. constraints: What to avoid or exclude
+        4. preferences: What to prefer (e.g., "prefer existing", "focus on X")
+        5. domain_hint: Derive a contextual domain hint from intent
+        6. focus: Topic/theme to focus extraction on (only if extracting from inputs)
+
+        If direct_theses are found, count = len(direct_theses).
+        If no direct_theses and count isn't specified, use 4.
         """
     )
     def _parse_intent_prompt(self, input_preview: str) -> Messages.Type:
@@ -205,7 +253,42 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         result = await _parse()
         # Clamp count
         result.count = max(1, min(result.count, 10))
+
+        # If direct theses specified, adjust count
+        if result.direct_theses:
+            result.count = max(result.count, len(result.direct_theses))
         return result
+
+    # --- Direct Thesis Anchoring ---
+
+    async def _anchor_direct_theses(
+        self,
+        theses: list[str],
+        parsed: ParsedIntentDto,
+    ) -> list[str]:
+        """
+        Anchor direct theses specified in intent.
+
+        Uses ExtractTheses with each thesis as direct input (short text mode).
+        Returns list of component hashes.
+        """
+        from dialectical_framework.agents.brainstorming.tools.extract_theses import (
+            ExtractTheses,
+        )
+
+        hashes: list[str] = []
+        for thesis in theses:
+            # ExtractTheses handles short input as direct thesis
+            extract_tool = ExtractTheses(
+                text=thesis,  # Direct thesis as text
+                count=1,
+                domain_hint=parsed.domain_hint,
+            )
+            result = await extract_tool.call()
+            new_hashes = self._parse_hashes_from_result(result)
+            hashes.extend(new_hashes)
+
+        return hashes
 
     # --- Extraction Loop ---
 
@@ -246,8 +329,7 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
                     self._get_statement_by_hash(h) for h in extracted_hashes
                 ],
             )
-            extract_tool._brain = self._brain
-            extract_tool._settings = self._settings
+            # ExtractTheses gets brain/settings via DI (HasBrain, SettingsAware)
 
             result = await extract_tool.call()
 
@@ -310,7 +392,7 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         """Get statement text for a component by hash prefix."""
         repo = NodeRepository()
         try:
-            comp = repo.find_by_prefix(hash_prefix)
+            comp = repo.find_by_hash(hash_prefix)
             if comp and isinstance(comp, DialecticalComponent):
                 return comp.statement
         except ValueError:
@@ -501,7 +583,7 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         """Resolve hash prefix to component."""
         repo = NodeRepository()
         try:
-            comp = repo.find_by_prefix(hash_prefix)
+            comp = repo.find_by_hash(hash_prefix)
             if isinstance(comp, DialecticalComponent):
                 return comp
         except ValueError:
@@ -550,6 +632,7 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         deleted_count: int,
         final_components: list[DialecticalComponent],
         ideas: Optional[Ideas],
+        direct_count: int = 0,
     ) -> str:
         """Build the result report."""
         lines = ["**Anchoring Complete**", ""]
@@ -560,9 +643,14 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
             lines.append(f"**Domain:** {parsed.domain_hint}")
         if parsed.focus:
             lines.append(f"**Focus:** {parsed.focus}")
+        if parsed.direct_theses:
+            lines.append(f"**Direct theses:** {', '.join(parsed.direct_theses)}")
 
         lines.append("")
-        lines.append(f"**Extracted:** {extracted_count} theses")
+        if direct_count > 0:
+            lines.append(f"**Direct theses anchored:** {direct_count}")
+        if extracted_count > 0:
+            lines.append(f"**Extracted from inputs:** {extracted_count} theses")
         if deleted_count > 0:
             lines.append(f"**Deduplicated:** {deleted_count} (preferred existing DB versions)")
 

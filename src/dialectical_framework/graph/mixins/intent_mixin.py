@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from typing import Optional
 
+from dialectical_framework.graph.mixins.persistable_mixin import PersistableMixin
 
-class IntentMixin:
+
+class IntentMixin(PersistableMixin):
     """
     Mixin providing an intent field for reasoning nodes.
 

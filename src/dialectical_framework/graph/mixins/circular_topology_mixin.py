@@ -14,6 +14,7 @@ from dialectical_framework.graph.relationship_manager import RelationshipManager
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
 )
+from dialectical_framework.graph.mixins.persistable_mixin import PersistableMixin
 from dialectical_framework.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
 
 
-class CircularTopologyMixin(ABC):
+class CircularTopologyMixin(PersistableMixin, ABC):
     """
     Abstract mixin providing topology methods and transitions relationship for circular structures.
 
