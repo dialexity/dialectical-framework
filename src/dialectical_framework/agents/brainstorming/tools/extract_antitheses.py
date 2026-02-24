@@ -1,6 +1,9 @@
 """
 ExtractAntitheses: Work tool for generating antitheses for a SINGLE thesis.
 
+Uses conversational pattern: all steps share context through conversation history,
+enabling prompt caching. Composite DTO reduces 33 calls to 12 calls.
+
 This is the Phase 2 work tool, symmetric to ExtractTheses (Phase 1).
 - ExtractTheses: handles thesis extraction for one text/content
 - ExtractAntitheses: handles antithesis generation for one thesis
@@ -13,21 +16,80 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar, Optional
 
-from mirascope import BaseTool, Messages, prompt_template
-from mirascope.integrations.langfuse import with_langfuse
 from pydantic import BaseModel, Field
 
+from mirascope import Messages
+
+from dialectical_framework.agents.conversational_tool import ConversationalTool
 from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.estimation import ArousalEstimation, ModeEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
-from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
     pass
+
+
+# --- System Prompt ---
+
+SYSTEM_PROMPT = """You are a dialectical antithesis generator using the universal antithesis taxonomy.
+
+## Universal Antithesis Taxonomy Structure
+
+```
+                    APEX: [T]-lessness
+                           │
+        ┌──────────────────┴──────────────────┐
+        │                                     │
+   Anti-[T]                            Absence of [T]
+  (Violations)                          (Inhibition)
+        │                                     │
+┌───────┴───────┐                     ┌───────┴───────┐
+│               │                     │               │
+Corruption     Deformation            Inhibition      Privation
+```
+
+## Mode Scale (interaction mechanism from absence to negation)
+
+| Mode | Type | Description |
+|------|------|-------------|
+| 1.0 | Negation | Direct, active opposition to T |
+| 0.9 | Inversion | Reversal of T's meaning |
+| 0.8 | Devaluation | Diminishing T's worth |
+| 0.7 | Hollowing | Emptying T of substance |
+| 0.6 | Corruption | Degrading/perverting T |
+| 0.5 | Distortion | Twisting T's form |
+| 0.4 | Skew | Imbalancing T |
+| 0.3 | Blocking | Obstructing T |
+| 0.2 | Suppression | Holding T down |
+| 0.1 | Distancing | Drifting from T |
+| 0.0 | Privation | Complete absence of T |
+
+## Arousal Scale (activation from invisible to visible)
+
+| Arousal | Description |
+|---------|-------------|
+| dormant | Completely latent, invisible tension |
+| latent | Barely perceptible, nascent |
+| low | Mild, background tension |
+| mild | Noticeable but subdued |
+| moderate | Balanced, present tension |
+| elevated | Becoming prominent |
+| high | Strong, clearly visible |
+| intense | Very active, urgent |
+| active | Fully manifest, immediate |
+
+## HS (Heuristic Similarity) Scale
+
+HS measures how well the candidate represents the apex concept:
+- 0.0-0.3: Unrelated or tangentially related
+- 0.3-0.5: Somewhat related but different focus
+- 0.5-0.7: Related, captures some aspects of apex
+- 0.7-0.9: Very similar, captures most aspects of apex
+- 0.9-1.0: Equivalent or near-equivalent to apex
+
+Respond with structured output matching the requested format."""
 
 
 # --- DTOs for LLM structured outputs ---
@@ -81,27 +143,23 @@ class ContextualizedTaxonomyDto(BaseModel):
     privation: str = Field(description="Mode 0.0: Complete absence of T")
 
 
-class CandidateDto(BaseModel):
-    """Antithesis candidate at a Mode point."""
+class ModePointResultDto(BaseModel):
+    """
+    Composite result for antithesis generation at a Mode point.
 
-    statement: str = Field(description="Candidate antithesis statement (similar length to thesis)")
-    explanation: str = Field(description="How it fits the Mode branch")
+    Combines candidate generation, HS estimation, and arousal estimation
+    into a single LLM call to reduce API calls from 3 to 1 per mode point.
+    """
 
-
-class HSEstimationDto(BaseModel):
-    """HS estimation result."""
-
+    statement: str = Field(description="Antithesis candidate statement (similar length to thesis)")
     hs_value: float = Field(
-        ge=0.0, le=1.0, description="Heuristic Similarity (0.0-1.0)"
+        ge=0.0, le=1.0,
+        description="Heuristic Similarity to apex concept (0.0-1.0)"
     )
-    explanation: str = Field(description="Reasoning for the HS assessment")
-
-
-class ArousalEstimationDto(BaseModel):
-    """Arousal estimation result."""
-
-    arousal_label: str = Field(description="dormant/latent/low/mild/moderate/elevated/high/intense/active")
-    explanation: str = Field(description="Reasoning for the arousal assessment")
+    arousal_label: str = Field(
+        description="Arousal level: dormant/latent/low/mild/moderate/elevated/high/intense/active"
+    )
+    explanation: str = Field(description="Combined reasoning for statement, HS, and arousal")
 
 
 class SimpleNegationDto(BaseModel):
@@ -167,17 +225,21 @@ class AntithesisResult:
 # --- Main Work Tool ---
 
 
-class ExtractAntitheses(BaseTool, HasBrain, SettingsAware):
+class ExtractAntitheses(ConversationalTool):
     """
     Extract antitheses for a SINGLE thesis.
+
+    Uses conversational pattern where all steps share context through
+    conversation history, enabling prompt caching. Composite DTO reduces
+    calls from 33 (1 + 11 × 3) to 12 (1 contextualize + 11 composite).
 
     This is the work tool for Phase 2 of polarity-finder.
     Handles both simple and complex theses:
     - Simple: Direct negation with HS=1.0, Mode=1.0
     - Complex: Contextualized taxonomy with candidates at key Mode points
 
-    Does NOT create Ideas node. Returns report with hashes and HS values.    PolarityFindingAgent (orchestrator) creates Ideas and handles batching.
-
+    Does NOT create Ideas node. Returns report with hashes and HS values.
+    PolarityFindingAgent (orchestrator) creates Ideas and handles batching.
     """
 
     #TODO: The thesis's `meaning` field refers to its taxonomy location, which could be useful for narrowing down antithesis generation
@@ -190,6 +252,9 @@ class ExtractAntitheses(BaseTool, HasBrain, SettingsAware):
 
     async def call(self) -> str:
         """Extract antitheses for the thesis and return report with hashes + HS values."""
+        # Initialize conversation with system prompt
+        self._messages.append(Messages.System(SYSTEM_PROMPT))
+
         # 1. Resolve thesis
         thesis = self._resolve_thesis()
         if thesis is None:
@@ -219,49 +284,26 @@ class ExtractAntitheses(BaseTool, HasBrain, SettingsAware):
 
     # --- Simple Thesis Processing ---
 
-    @prompt_template(
-        """
-        USER:
-        {context_section}
+    def _simple_negation_prompt(self, thesis: str) -> str:
+        """Build user prompt for simple thesis negation."""
+        context_section = f"<context>\n{self.text}\n</context>\n\n" if self.text else ""
+        return f"""{context_section}Generate a direct negation for this simple thesis.
 
-        Generate a direct negation for this simple thesis.
+Thesis: "{thesis}"
 
-        Thesis: "{thesis}"
-
-        Generate:
-        1. A direct negation statement that is the logical opposite (similar length to thesis)
-        2. Assess the arousal level (activation from invisible to visible):
-           - dormant: Completely latent, invisible tension
-           - latent: Barely perceptible, nascent
-           - low: Mild, background tension
-           - mild: Noticeable but subdued
-           - moderate: Balanced, present tension
-           - elevated: Becoming prominent
-           - high: Strong, clearly visible
-           - intense: Very active, urgent
-           - active: Fully manifest, immediate
-        """
-    )
-    def _simple_negation_prompt(self, thesis: str) -> Messages.Type:
-        context_section = f"<context>\n{self.text}\n</context>" if self.text else ""
-        return {
-            "computed_fields": {
-                "thesis": thesis,
-                "context_section": context_section,
-            }
-        }
+Generate:
+1. A direct negation statement that is the logical opposite (similar length to thesis)
+2. Assess the arousal level using the scale from the system prompt
+3. Explain your arousal assessment"""
 
     async def _process_simple(
         self, thesis: DialecticalComponent
     ) -> list[AntithesisResult]:
         """Process a simple thesis: generate direct negation with HS=1.0, Mode=1.0."""
-
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=SimpleNegationDto)
-        async def _generate():
-            return self._simple_negation_prompt(thesis.statement)
-
-        result = await _generate()
+        result = await self._converse(
+            response_model=SimpleNegationDto,
+            user_content=self._simple_negation_prompt(thesis.statement),
+        )
 
         # Skip if matches not_like_these
         if result.negation in self.not_like_these:
@@ -301,175 +343,61 @@ class ExtractAntitheses(BaseTool, HasBrain, SettingsAware):
 
     # --- Complex Thesis Processing ---
 
-    @prompt_template(
-        """
-        USER:
-        {context_section}
+    def _contextualize_prompt(self, thesis: str, meaning: str) -> str:
+        """Build user prompt for taxonomy contextualization."""
+        context_section = f"<context>\n{self.text}\n</context>\n\n" if self.text else ""
+        return f"""{context_section}Contextualize the universal antithesis taxonomy for this thesis.
 
-        Contextualize the universal antithesis taxonomy for this thesis.
+Thesis: "{thesis}"
+Thesis meaning: {meaning or "unanchored"}
 
-        Thesis: "{thesis}"
-        Thesis meaning: {meaning}
+Using the taxonomy structure and Mode scale from the system prompt, generate specific contextualizations for each Mode level.
 
-        Universal taxonomy structure:
-        ```
-                            APEX: [T]-lessness
-                                   │
-                ┌──────────────────┴──────────────────┐
-                │                                     │
-           Anti-[T]                            Absence of [T]
-          (Violations)                          (Inhibition)
-                │                                     │
-        ┌───────┴───────┐                     ┌───────┴───────┐
-        │               │                     │               │
-   Corruption     Deformation            Inhibition      Privation
-        ```
+Each contextualization should be 2-5 words describing that type of opposition in the specific context of the thesis.
 
-        Mode scale (interaction mechanism from absence to negation):
-        | Mode | Type | Description |
-        |------|------|-------------|
-        | 1.0 | Negation | Direct, active opposition to T |
-        | 0.9 | Inversion | Reversal of T's meaning |
-        | 0.8 | Devaluation | Diminishing T's worth |
-        | 0.7 | Hollowing | Emptying T of substance |
-        | 0.6 | Corruption | Degrading/perverting T |
-        | 0.5 | Distortion | Twisting T's form |
-        | 0.4 | Skew | Imbalancing T |
-        | 0.3 | Blocking | Obstructing T |
-        | 0.2 | Suppression | Holding T down |
-        | 0.1 | Distancing | Drifting from T |
-        | 0.0 | Privation | Complete absence of T |
-
-        Generate specific contextualizations for each Mode level.
-        Each contextualization should be 2-5 words describing that type
-        of opposition in the specific context of the thesis.
-
-        Example for thesis "Love":
-        - apex: "Lovelessness"
-        - negation: "Hate"
-        - inversion: "Love as weapon"
-        - devaluation: "Love is weakness"
-        - hollowing: "Empty affection"
-        - corruption: "Possessive love"
-        - distortion: "Conditional love"
-        - skew: "Unbalanced devotion"
-        - blocking: "Walls against intimacy"
-        - suppression: "Buried feelings"
-        - distancing: "Emotional withdrawal"
-        - privation: "Complete indifference"
-        """
-    )
-    def _contextualize_prompt(self, thesis: str, meaning: str) -> Messages.Type:
-        context_section = f"<context>\n{self.text}\n</context>" if self.text else ""
-        return {
-            "computed_fields": {
-                "thesis": thesis,
-                "meaning": meaning or "unanchored",
-                "context_section": context_section,
-            }
-        }
+Example for thesis "Love":
+- apex: "Lovelessness"
+- negation: "Hate"
+- inversion: "Love as weapon"
+- devaluation: "Love is weakness"
+- hollowing: "Empty affection"
+- corruption: "Possessive love"
+- distortion: "Conditional love"
+- skew: "Unbalanced devotion"
+- blocking: "Walls against intimacy"
+- suppression: "Buried feelings"
+- distancing: "Emotional withdrawal"
+- privation: "Complete indifference" """
 
     async def _contextualize_taxonomy(
         self, thesis: DialecticalComponent
     ) -> ContextualizedTaxonomyDto:
         """Contextualize universal taxonomy for a complex thesis."""
+        return await self._converse(
+            response_model=ContextualizedTaxonomyDto,
+            user_content=self._contextualize_prompt(thesis.statement, thesis.meaning or ""),
+        )
 
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=ContextualizedTaxonomyDto)
-        async def _contextualize():
-            return self._contextualize_prompt(thesis.statement, thesis.meaning or "")
-
-        return await _contextualize()
-
-    @prompt_template(
-        """
-        USER:
-        Generate an antithesis candidate for this thesis at a specific Mode point.
-
-        Thesis: "{thesis}"
-
-        Contextualized taxonomy:
-        - Apex ({apex_label}): {apex}
-        - Target branch ({branch_name}): {branch_context}
-
-        Generate a candidate antithesis that fits the {branch_name} branch.
-        The candidate should represent {branch_name} of the thesis concept.
-        Keep the antithesis similar in length and abstraction level to the thesis.
-        """
-    )
-    def _candidate_prompt(
+    def _mode_point_prompt(
         self,
         thesis: str,
         apex: str,
         branch_name: str,
         branch_context: str,
-    ) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "thesis": thesis,
-                "apex": apex,
-                "apex_label": "complete absence",
-                "branch_name": branch_name,
-                "branch_context": branch_context,
-            }
-        }
+        mode_value: float,
+    ) -> str:
+        """Build user prompt for generating antithesis at a mode point."""
+        return f"""Generate an antithesis candidate for this thesis at Mode {mode_value:.1f} ({branch_name}).
 
-    @prompt_template(
-        """
-        USER:
-        Rate semantic similarity between this candidate and the apex concept.
+Thesis: "{thesis}"
+Apex ({apex}): represents complete [T]-lessness
+Target branch ({branch_name}): {branch_context}
 
-        Candidate: "{candidate}"
-        Apex ([T]-lessness concept): "{apex}"
-        Thesis being opposed: "{thesis}"
-
-        How well does the candidate represent the general concept of the apex?
-        Rate from 0.0 (unrelated) to 1.0 (equivalent).
-
-        Consider:
-        - 0.0-0.3: Unrelated or tangentially related
-        - 0.3-0.5: Somewhat related but different focus
-        - 0.5-0.7: Related, captures some aspects of apex
-        - 0.7-0.9: Very similar, captures most aspects of apex
-        - 0.9-1.0: Equivalent or near-equivalent to apex
-        """
-    )
-    def _hs_prompt(self, candidate: str, apex: str, thesis: str) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "candidate": candidate,
-                "apex": apex,
-                "thesis": thesis,
-            }
-        }
-
-    @prompt_template(
-        """
-        USER:
-        Assess the activation level of this dialectical tension.
-
-        Thesis: "{thesis}"
-        Antithesis: "{antithesis}"
-
-        Arousal describes how actively the opposition manifests (from invisible to visible):
-        - dormant: Completely latent, invisible tension
-        - latent: Barely perceptible, nascent
-        - low: Mild, background tension
-        - mild: Noticeable but subdued
-        - moderate: Balanced, present tension
-        - elevated: Becoming prominent
-        - high: Strong, clearly visible
-        - intense: Very active, urgent
-        - active: Fully manifest, immediate
-        """
-    )
-    def _arousal_prompt(self, thesis: str, antithesis: str) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "thesis": thesis,
-                "antithesis": antithesis,
-            }
-        }
+Generate:
+1. An antithesis statement that represents {branch_name} of the thesis concept (similar length to thesis)
+2. Rate its HS (Heuristic Similarity) to the apex concept using the scale from the system prompt
+3. Assess the arousal level of this T↔A tension using the arousal scale from the system prompt
+4. Provide combined reasoning for your choices"""
 
     async def _generate_with_taxonomy(
         self,
@@ -490,49 +418,27 @@ class ExtractAntitheses(BaseTool, HasBrain, SettingsAware):
 
             mode_name = field_name.capitalize()  # e.g., "negation" -> "Negation"
 
-            # Generate candidate at this Mode point
-            @with_langfuse()
-            @use_brain(brain=self.brain, response_model=CandidateDto)
-            async def _generate_candidate():
-                return self._candidate_prompt(
+            # Generate candidate with composite DTO (combines 3 calls into 1)
+            mode_result = await self._converse(
+                response_model=ModePointResultDto,
+                user_content=self._mode_point_prompt(
                     thesis.statement,
                     taxonomy.apex,
                     mode_name,
                     branch_context,
-                )
-
-            candidate_result = await _generate_candidate()
+                    mode_value,
+                ),
+            )
 
             # Skip if matches not_like_these
-            if candidate_result.statement in self.not_like_these:
+            if mode_result.statement in self.not_like_these:
                 continue
 
-            # Estimate HS for this candidate
-            @with_langfuse()
-            @use_brain(brain=self.brain, response_model=HSEstimationDto)
-            async def _estimate_hs():
-                return self._hs_prompt(
-                    candidate_result.statement,
-                    taxonomy.apex,
-                    thesis.statement,
-                )
-
-            hs_result = await _estimate_hs()
-
-            # Estimate Arousal
-            @with_langfuse()
-            @use_brain(brain=self.brain, response_model=ArousalEstimationDto)
-            async def _estimate_arousal():
-                return self._arousal_prompt(
-                    thesis.statement, candidate_result.statement
-                )
-
-            arousal_result = await _estimate_arousal()
-            arousal_value = arousal_label_to_value(arousal_result.arousal_label)
+            arousal_value = arousal_label_to_value(mode_result.arousal_label)
 
             # Create antithesis component
             antithesis = DialecticalComponent(
-                statement=candidate_result.statement,
+                statement=mode_result.statement,
                 meaning=antithesis_meaning,
             )
             antithesis.commit()
@@ -548,9 +454,8 @@ class ExtractAntitheses(BaseTool, HasBrain, SettingsAware):
             rationale = Rationale(
                 text=(
                     f"Generated at {mode_name} (Mode={mode_value:.1f}) branch. "
-                    f"{candidate_result.explanation} "
-                    f"HS={hs_result.hs_value:.2f}: {hs_result.explanation} "
-                    f"Arousal={arousal_result.arousal_label}: {arousal_result.explanation}"
+                    f"HS={mode_result.hs_value:.2f}, Arousal={mode_result.arousal_label}. "
+                    f"{mode_result.explanation}"
                 )
             )
             rationale.set_explanation_target(antithesis)
@@ -561,7 +466,7 @@ class ExtractAntitheses(BaseTool, HasBrain, SettingsAware):
                     component=antithesis,
                     mode_value=mode_value,
                     arousal_value=arousal_value,
-                    hs_value=hs_result.hs_value,
+                    hs_value=mode_result.hs_value,
                 )
             )
 

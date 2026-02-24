@@ -1,6 +1,9 @@
 """
 ExtractTheses tool - Step-by-step thesis extraction following polarity-finder algorithm.
 
+Uses conversational pattern: all steps share context through conversation history,
+enabling prompt caching and better coherence across steps.
+
 Handles both:
 - Direct thesis input: text="Love" → classify and anchor
 - Content extraction: text="Remote work improves..." → extract, classify, anchor
@@ -14,15 +17,58 @@ PHASE 1: CONTENT EXTRACTION
 
 from __future__ import annotations
 
-from mirascope import BaseTool, Messages, prompt_template
-from mirascope.integrations.langfuse import with_langfuse
 from pydantic import BaseModel, Field
 
+from mirascope import Messages
+
+from dialectical_framework.agents.conversational_tool import ConversationalTool
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.utils.use_brain import use_brain
+
+
+# --- System Prompt ---
+
+SYSTEM_PROMPT = """You are a dialectical thesis extractor following the polarity-finder algorithm.
+
+Your task is to extract, validate, classify, and anchor theses from source content.
+
+## Thesis Classification
+
+**SIMPLE/BINARY** - is_simple = true
+- Can be directly true/false, yes/no, present/absent
+- Has literal, binary nature
+- Examples: "The sky is blue", "Water boils at 100C", "API is stateless"
+
+**COMPLEX/SYSTEMIC** - is_simple = false
+- Involves relationships, processes, or functional roles
+- Concerns viability, health, or functioning of systems
+- Has trade-offs, tensions, or dynamic aspects
+- Examples: "Trust", "Data consistency", "Love", "User experience"
+
+Heuristic: If thesis involves relationship, process, or functional role → Complex
+
+## Taxonomy for Complex Theses
+
+### SYSTEMIC TAXONOMY
+
+| Branch | Question | General | Engineering | Ecology | Institutions | Love |
+|--------|----------|---------|-------------|---------|--------------|------|
+| Integrity | "Can it hold together?" | Cohesion | assembly | Symbiosis | Soc. cohesion | Bonding |
+| Fidelity | "Can it process accurately?" | Modeling | simulation | Sensing | knowledge | Understanding |
+| Exchange | "Can it exchange sustainably?" | Exchange | energy flow | Cyclicity | economy | Giving |
+| Flexibility | "Can it adapt?" | Exploration | control | plasticity | innovation | Openness |
+| Resilience | "Can it recover?" | Recovery | tolerance | resilience | crisis recovery | Repair |
+
+### ELEMENTAL TAXONOMY (alternative)
+
+| Element | Question | General T |
+|---------|----------|-----------|
+| Fire | "What energizes it?" | Activation |
+| Earth | "What holds it together?" | Cohesion |
+| Air | "How does it flow?" | Exchange |
+| Water | "How does it adapt?" | Reflection |
+
+Respond with structured output matching the requested format."""
 
 
 # --- Step 1 DTOs: Extract Assertable Content ---
@@ -70,9 +116,12 @@ class TaxonomyLocationDto(BaseModel):
     reasoning: str = Field(description="Brief explanation")
 
 
-class ExtractTheses(BaseTool, HasBrain, SettingsAware):
+class ExtractTheses(ConversationalTool):
     """
     Extract thesis concepts following polarity-finder Phase 1 algorithm.
+
+    Uses conversational pattern where all steps share context through
+    conversation history, enabling prompt caching.
 
     Handles both direct thesis and content extraction with the same workflow:
     - Short input ("Love") → treated as direct thesis
@@ -89,90 +138,62 @@ class ExtractTheses(BaseTool, HasBrain, SettingsAware):
 
     # --- STEP 1: Extract Assertable Content ---
 
-    @prompt_template(
-        """
-        USER:
-        <source_text>
-        {text}
-        </source_text>
-
-        STEP 1: Extract Assertable Content
-
-        From this text, extract content items that could be theses:
-        - Claims/Assertions: "The system should...", "We use X because..."
-        - Values/Principles: "Security is paramount", "User experience first"
-        - Goals/Objectives: Desired outcomes, success criteria
-        - Constraints: "Must not exceed...", "Cannot allow..."
-        - Design Decisions: Architecture choices, trade-offs made
-        - Assumptions: Implicit or explicit premises
-        - Direct: If the input is already a single concept/thesis, mark as "direct"
-
-        {focus_guidance}
-
-        Extract up to {count} most important content items.
-        If the input is very short (1-5 words), treat it as a single direct thesis.
-
-        {rule_out}
-        """
-    )
-    def _step1_prompt(self) -> Messages.Type:
-        focus_guidance = f"Focus on: {self.focus}" if self.focus else ""
+    def _step1_prompt(self) -> str:
+        """Build user prompt for Step 1."""
+        focus_guidance = f"\nFocus on: {self.focus}" if self.focus else ""
         rule_out = ""
         if self.not_like_these:
-            rule_out = "Avoid items similar to:\n- " + "\n- ".join(self.not_like_these)
+            rule_out = "\nAvoid items similar to:\n- " + "\n- ".join(self.not_like_these)
 
-        return {
-            "computed_fields": {
-                "text": self.text,
-                "count": min(self.count, 4) + 2,  # Extract more, filter later
-                "focus_guidance": focus_guidance,
-                "rule_out": rule_out,
-            }
-        }
+        return f"""<source_text>
+{self.text}
+</source_text>
+
+STEP 1: Extract Assertable Content
+
+From this text, extract content items that could be theses:
+- Claims/Assertions: "The system should...", "We use X because..."
+- Values/Principles: "Security is paramount", "User experience first"
+- Goals/Objectives: Desired outcomes, success criteria
+- Constraints: "Must not exceed...", "Cannot allow..."
+- Design Decisions: Architecture choices, trade-offs made
+- Assumptions: Implicit or explicit premises
+- Direct: If the input is already a single concept/thesis, mark as "direct"
+{focus_guidance}
+Extract up to {min(self.count, 4) + 2} most important content items.
+If the input is very short (1-5 words), treat it as a single direct thesis.
+{rule_out}"""
 
     async def _step1_extract_content(self) -> list[ContentItemDto]:
         """STEP 1: Extract assertable content from source."""
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=ExtractedContentDto)
-        async def _extract():
-            return self._step1_prompt()
-
-        result = await _extract()
+        result = await self._converse(
+            response_model=ExtractedContentDto,
+            user_content=self._step1_prompt(),
+        )
         return result.items
 
     # --- STEP 2: Thesis Candidate Identification ---
 
-    @prompt_template(
-        """
-        USER:
-        STEP 2: Thesis Candidate Identification
+    def _step2_prompt(self, content: str, content_type: str) -> str:
+        """Build user prompt for Step 2."""
+        return f"""STEP 2: Thesis Candidate Identification
 
-        Content item: "{content}"
-        Type: {content_type}
+Content item: "{content}"
+Type: {content_type}
 
-        Check if this is a valid thesis candidate:
-        1. Is it ASSERTABLE? (Can be evaluated as true/false, good/bad, present/absent)
-        2. Is it SUBSTANTIVE? (Not trivial or tautological)
-        3. Is it ATOMIC? (Single concept, not compound)
+Check if this is a valid thesis candidate:
+1. Is it ASSERTABLE? (Can be evaluated as true/false, good/bad, present/absent)
+2. Is it SUBSTANTIVE? (Not trivial or tautological)
+3. Is it ATOMIC? (Single concept, not compound)
 
-        If compound (multiple concepts joined), decompose into atomic theses.
-        Each atomic thesis should be 1-{component_length} words.
+If compound (multiple concepts joined), decompose into atomic theses.
+Each atomic thesis should be 1-{self.settings.component_length} words.
 
-        Return:
-        - is_assertable: true/false
-        - is_substantive: true/false
-        - is_atomic: true/false
-        - atomic_theses: list of atomic thesis statements
-        """
-    )
-    def _step2_prompt(self, content: str, content_type: str) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "content": content,
-                "content_type": content_type,
-                "component_length": self.settings.component_length,
-            }
-        }
+Return:
+- is_assertable: true/false
+- is_substantive: true/false
+- is_atomic: true/false
+- atomic_theses: list of atomic thesis statements"""
 
     async def _step2_identify_candidates(self, item: ContentItemDto) -> list[str]:
         """STEP 2: Check if content is thesis candidate, decompose if compound."""
@@ -180,12 +201,10 @@ class ExtractTheses(BaseTool, HasBrain, SettingsAware):
         if item.content_type.lower() == "direct":
             return [item.content]
 
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=CandidateCheckDto)
-        async def _check():
-            return self._step2_prompt(item.content, item.content_type)
-
-        result = await _check()
+        result = await self._converse(
+            response_model=CandidateCheckDto,
+            user_content=self._step2_prompt(item.content, item.content_type),
+        )
 
         if not result.is_assertable or not result.is_substantive:
             return []
@@ -194,101 +213,49 @@ class ExtractTheses(BaseTool, HasBrain, SettingsAware):
 
     # --- STEP 3: Thesis Classification ---
 
-    @prompt_template(
-        """
-        USER:
-        STEP 3: Thesis Classification
+    def _step3_prompt(self, thesis: str) -> str:
+        """Build user prompt for Step 3."""
+        return f"""STEP 3: Thesis Classification
 
-        Thesis: "{thesis}"
+Thesis: "{thesis}"
 
-        Classify this thesis:
+Using the classification criteria from the system prompt, classify this thesis as:
+- SIMPLE/BINARY (is_simple = true): literal, binary nature
+- COMPLEX/SYSTEMIC (is_simple = false): involves relationships, processes, functional roles
 
-        **SIMPLE/BINARY** - Answer: is_simple = true
-        - Can be directly true/false, yes/no, present/absent
-        - Has literal, binary nature
-        - Examples: "The sky is blue", "Water boils at 100C", "API is stateless"
-
-        **COMPLEX/SYSTEMIC** - Answer: is_simple = false
-        - Involves relationships, processes, or functional roles
-        - Concerns viability, health, or functioning of systems
-        - Has trade-offs, tensions, or dynamic aspects
-        - Examples: "Trust", "Data consistency", "Love", "User experience"
-
-        Heuristic: If T involves relationship, process, or functional role → Complex
-        """
-    )
-    def _step3_prompt(self, thesis: str) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "thesis": thesis,
-            }
-        }
+Provide your reasoning."""
 
     async def _step3_classify(self, thesis: str) -> tuple[bool, str]:
         """STEP 3: Classify thesis as Simple (True) or Complex (False)."""
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=ClassificationDto)
-        async def _classify():
-            return self._step3_prompt(thesis)
-
-        result = await _classify()
+        result = await self._converse(
+            response_model=ClassificationDto,
+            user_content=self._step3_prompt(thesis),
+        )
         return result.is_simple, result.reasoning
 
     # --- STEP 4: Taxonomy Location (for Complex theses) ---
 
-    # TODO: these aren't entiredly correct taxonomies, we need to improve
-    @prompt_template(
-        """
-        USER:
-        STEP 4: Locate this COMPLEX thesis in the taxonomy.
+    def _step4_prompt(self, thesis: str) -> str:
+        """Build user prompt for Step 4."""
+        domain_context = f"\nDomain hint: {self.domain_hint}" if self.domain_hint else ""
+        return f"""STEP 4: Locate this COMPLEX thesis in the taxonomy.
 
-        Thesis: "{thesis}"
-        {domain_context}
+Thesis: "{thesis}"
+{domain_context}
 
-        ## SYSTEMIC TAXONOMY
-
-        | Branch | Question | General | Engineering | Ecology | Institutions | Love |
-        |--------|----------|---------|-------------|---------|--------------|------|
-        | Integrity | "Can it hold together?" | Cohesion | assembly | Symbiosis | Soc. cohesion | Bonding |
-        | Fidelity | "Can it process accurately?" | Modeling | simulation | Sensing | knowledge | Understanding |
-        | Exchange | "Can it exchange sustainably?" | Exchange | energy flow | Cyclicity | economy | Giving |
-        | Flexibility | "Can it adapt?" | Exploration | control | plasticity | innovation | Openness |
-        | Resilience | "Can it recover?" | Recovery | tolerance | resilience | crisis recovery | Repair |
-
-        ## ELEMENTAL TAXONOMY (alternative)
-
-        | Element | Question | General T |
-        |---------|----------|-----------|
-        | Fire | "What energizes it?" | Activation |
-        | Earth | "What holds it together?" | Cohesion |
-        | Air | "How does it flow?" | Exchange |
-        | Water | "How does it adapt?" | Reflection |
-
-        Return:
-        - taxonomy_type: "systemic" or "elemental"
-        - domain: For systemic only (General, Engineering, Ecology, Institutions, Love)
-        - branch: Branch or Element name
-        - leaf: The T concept from the table
-        - reasoning: Brief explanation
-        """
-    )
-    def _step4_prompt(self, thesis: str) -> Messages.Type:
-        domain_context = f"Domain hint: {self.domain_hint}" if self.domain_hint else ""
-        return {
-            "computed_fields": {
-                "thesis": thesis,
-                "domain_context": domain_context,
-            }
-        }
+Using the taxonomy tables from the system prompt, determine:
+- taxonomy_type: "systemic" or "elemental"
+- domain: For systemic only (General, Engineering, Ecology, Institutions, Love)
+- branch: Branch or Element name
+- leaf: The T concept from the table
+- reasoning: Brief explanation"""
 
     async def _step4_locate_in_taxonomy(self, thesis: str) -> TaxonomyLocationDto:
         """STEP 4: Locate complex thesis in taxonomy."""
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=TaxonomyLocationDto)
-        async def _locate():
-            return self._step4_prompt(thesis)
-
-        return await _locate()
+        return await self._converse(
+            response_model=TaxonomyLocationDto,
+            user_content=self._step4_prompt(thesis),
+        )
 
     # --- Build Meaning URI ---
 
@@ -329,6 +296,9 @@ class ExtractTheses(BaseTool, HasBrain, SettingsAware):
 
         Returns list of component hashes. Does NOT create Ideas node.
         """
+        # Initialize conversation with system prompt
+        self._messages.append(Messages.System(SYSTEM_PROMPT))
+
         results = []
         component_hashes = []
 

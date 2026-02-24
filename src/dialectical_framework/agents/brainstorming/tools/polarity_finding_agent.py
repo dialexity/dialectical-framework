@@ -1,6 +1,9 @@
 """
 PolarityFindingAgent: Orchestrator for Phase 2 of polarity-finder.
 
+Uses conversational pattern: all steps share context through conversation history,
+enabling prompt caching. Forks conversation for child ExtractAntitheses tool.
+
 Symmetric to AnchoringAgent:
 - AnchoringAgent (orchestrator) calls ExtractTheses (work tool) → Ideas (all T)
 - PolarityFindingAgent (orchestrator) calls ExtractAntitheses (work tool) → Ideas (per T, all A)
@@ -21,13 +24,14 @@ import re
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
-from mirascope import BaseTool, Messages, prompt_template
-from mirascope.integrations.langfuse import with_langfuse
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.brainstorming.tools.extract_antitheses import (
     ExtractAntitheses,
 )
+from mirascope import Messages
+
+from dialectical_framework.agents.conversational_tool import ConversationalTool
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -37,12 +41,21 @@ from dialectical_framework.graph.repositories.dialectical_component_repository i
 )
 from dialectical_framework.graph.repositories.input_repository import InputRepository
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
-from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
+
+
+# --- System Prompt ---
+
+SYSTEM_PROMPT = """You are a polarity finding agent for dialectical brainstorming.
+
+Your task is to orchestrate antithesis generation for theses and perform semantic deduplication.
+
+For semantic deduplication:
+- Compare newly extracted antitheses against existing vocabulary
+- Only match if confidence >= 0.7 (clearly the same concept)
+- Consider same core concept even if worded differently"""
 
 
 # --- DTOs for semantic deduplication ---
@@ -87,9 +100,13 @@ class ThesisResult:
 # --- Main Orchestrator ---
 
 
-class PolarityFindingAgent(BaseTool, HasBrain, SettingsAware):
+class PolarityFindingAgent(ConversationalTool):
     """
     Orchestrate antithesis generation (Phase 2 of polarity-finder).
+
+    Uses conversational pattern where all steps share context through
+    conversation history, enabling prompt caching. Forks conversation
+    for child ExtractAntitheses tool.
 
     For each thesis hash:
     1. Call ExtractAntitheses (the work tool) to generate antitheses
@@ -106,6 +123,9 @@ class PolarityFindingAgent(BaseTool, HasBrain, SettingsAware):
 
     async def call(self) -> str:
         """Execute polarity finding: orchestrate ExtractAntitheses for each thesis."""
+        # Initialize conversation with system prompt
+        self._messages.append(Messages.System(SYSTEM_PROMPT))
+
         if not self.thesis_hashes:
             return "No thesis hashes provided"
 
@@ -190,6 +210,7 @@ class PolarityFindingAgent(BaseTool, HasBrain, SettingsAware):
         """
         Extract antitheses with retry logic.
 
+        Forks conversation for each ExtractAntitheses call.
         Goal: Find at least 1 antithesis per thesis.
         If first attempt with not_like_these yields nothing, retry with empty constraints.
 
@@ -216,7 +237,7 @@ class PolarityFindingAgent(BaseTool, HasBrain, SettingsAware):
         extract_tool_retry = ExtractAntitheses(
             thesis_hash=thesis_hash,
             text=text,
-            not_like_these=[],  # Empty - no constraints
+            not_like_these=[],
         )
         tool_result_retry = await extract_tool_retry.call()
 
@@ -271,34 +292,22 @@ class PolarityFindingAgent(BaseTool, HasBrain, SettingsAware):
 
     # --- Semantic Deduplication ---
 
-    @prompt_template(
-        """
-        USER:
-        Compare these newly extracted antitheses against existing vocabulary.
-        Find semantic equivalents (same concept, possibly different wording).
+    def _semantic_dedup_prompt(self, extractions: str, vocabulary: str) -> str:
+        """Build user prompt for semantic deduplication."""
+        return f"""Compare these newly extracted antitheses against existing vocabulary.
+Find semantic equivalents (same concept, possibly different wording).
 
-        **Newly Extracted Antitheses:**
-        {extractions}
+**Newly Extracted Antitheses:**
+{extractions}
 
-        **Existing Vocabulary:**
-        {vocabulary}
+**Existing Vocabulary:**
+{vocabulary}
 
-        For each extraction, determine if there's a semantically equivalent
-        component in the existing vocabulary. Consider same core concept (even if worded differently).
+For each extraction, determine if there's a semantically equivalent
+component in the existing vocabulary. Consider same core concept (even if worded differently).
 
-        Only match if confidence >= 0.7 (clearly the same concept).
-        If no match, set db_hash to null.
-        """
-    )
-    def _semantic_dedup_prompt(
-        self, extractions: str, vocabulary: str
-    ) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "extractions": extractions,
-                "vocabulary": vocabulary,
-            }
-        }
+Only match if confidence >= 0.7 (clearly the same concept).
+If no match, set db_hash to null."""
 
     async def _semantic_dedup(
         self,
@@ -327,15 +336,13 @@ class PolarityFindingAgent(BaseTool, HasBrain, SettingsAware):
         if not extraction_lines or not vocab_lines:
             return SemanticDedupDto(matches=[])
 
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=SemanticDedupDto)
-        async def _dedup():
-            return self._semantic_dedup_prompt(
+        return await self._converse(
+            response_model=SemanticDedupDto,
+            user_content=self._semantic_dedup_prompt(
                 extractions="\n".join(extraction_lines),
                 vocabulary="\n".join(vocab_lines),
-            )
-
-        return await _dedup()
+            ),
+        )
 
     def _apply_dedup(
         self,

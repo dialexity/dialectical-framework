@@ -1,6 +1,9 @@
 """
 AnchoringAgent: Surfaces theses for BrainstormingAgent (Phase 1 of polarity-finder).
 
+Uses conversational pattern: all steps share context through conversation history,
+enabling prompt caching. Forks conversation for child ExtractTheses tool.
+
 Extraction-centric approach:
 1. Parse intent → understand requirements
 2. Extract fresh theses (with retries on different params)
@@ -11,28 +14,46 @@ Extraction-centric approach:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
-from mirascope import BaseTool, Messages, prompt_template
-from mirascope.integrations.langfuse import with_langfuse
+from dependency_injector.wiring import Provide, inject
 from pydantic import BaseModel, Field
-from dependency_injector.wiring import inject, Provide
 
+from mirascope import Messages
+
+from dialectical_framework.agents.conversational_tool import ConversationalTool
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository,
 )
 from dialectical_framework.graph.repositories.input_repository import InputRepository
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
-from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.has_config import SettingsAware
-from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
+
+
+# --- System Prompt ---
+
+SYSTEM_PROMPT = """You are an anchoring agent for dialectical brainstorming.
+
+Your task is to:
+1. Parse unstructured intent into structured parameters
+2. Identify direct theses from intent or determine what to extract
+3. Perform semantic deduplication against existing vocabulary
+
+When parsing intent:
+- Look for direct thesis mentions (e.g., "anchor thesis Trust", "Love", single concepts)
+- Extract count, focus, constraints, domain hints
+- If no inputs available and intent mentions a topic, treat it as direct thesis
+
+For semantic deduplication:
+- Compare newly extracted statements against existing vocabulary
+- Only match if confidence >= 0.7 (clearly the same concept)
+- Consider same core concept even if worded differently"""
 
 
 # --- DTOs for LLM structured outputs ---
@@ -94,9 +115,13 @@ class SemanticDedupDto(BaseModel):
 # --- Main Agent ---
 
 
-class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
+class AnchoringAgent(ConversationalTool):
     """
     Surfaces theses for BrainstormingAgent by fulfilling anchoring intent.
+
+    Uses conversational pattern where all steps share context through
+    conversation history, enabling prompt caching. Forks conversation
+    for child ExtractTheses tool.
 
     Receives unstructured intent from BrainstormingAgent and:
     1. Parses intent to understand requirements (count, constraints, focus)
@@ -119,6 +144,9 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
 
     async def call(self) -> str:
         """Execute anchoring: extract, dedup, cleanup, create Ideas."""
+        # Initialize conversation with system prompt
+        self._messages.append(Messages.System(SYSTEM_PROMPT))
+
         # 1. Parse intent
         parsed = await self._parse_intent()
 
@@ -188,69 +216,58 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
 
     # --- Intent Parsing ---
 
-    @prompt_template(
-        """
-        USER:
-        Parse this anchoring intent and extract structured parameters.
+    def _parse_intent_prompt(self, input_preview: str) -> str:
+        """Build user prompt for parsing intent."""
+        return f"""Parse this anchoring intent and extract structured parameters.
 
-        **Intent:** {intent}
+**Intent:** {self.intent}
 
-        **Available inputs preview:** {input_preview}
+**Available inputs preview:** {input_preview if input_preview else "No inputs"}
 
-        Determine:
+Determine:
 
-        1. **direct_theses** - CRITICAL: Identify if the intent IS, CONTAINS, or implies direct theses.
+1. **direct_theses** - CRITICAL: Identify if the intent IS, CONTAINS, or implies direct theses.
 
-           The intent might BE the thesis itself:
-           - "Sugar" → direct_theses: ["Sugar"]
-           - "Love" → direct_theses: ["Love"]
-           - "Trust, Integrity" → direct_theses: ["Trust", "Integrity"]
+   The intent might BE the thesis itself:
+   - "Sugar" → direct_theses: ["Sugar"]
+   - "Love" → direct_theses: ["Love"]
+   - "Trust, Integrity" → direct_theses: ["Trust", "Integrity"]
 
-           Or it might explicitly name theses to anchor:
-           - "anchor thesis 'Trust'" → direct_theses: ["Trust"]
-           - "add Love as thesis" → direct_theses: ["Love"]
+   Or it might explicitly name theses to anchor:
+   - "anchor thesis 'Trust'" → direct_theses: ["Trust"]
+   - "add Love as thesis" → direct_theses: ["Love"]
 
-           Or it might ask ABOUT a topic (especially when no inputs are available):
-           - "give me the main idea about love" → direct_theses: ["Love"]
-           - "what about trust?" → direct_theses: ["Trust"]
-           - "explore data consistency" → direct_theses: ["Data Consistency"]
+   Or it might ask ABOUT a topic (especially when no inputs are available):
+   - "give me the main idea about love" → direct_theses: ["Love"]
+   - "what about trust?" → direct_theses: ["Trust"]
+   - "explore data consistency" → direct_theses: ["Data Consistency"]
 
-           **IMPORTANT**: If no inputs are available (input_preview says "No inputs"),
-           and the intent mentions a topic/concept, extract that topic as a direct thesis.
-           The user wants to explore that concept even without source material.
+   **IMPORTANT**: If no inputs are available (input_preview says "No inputs"),
+   and the intent mentions a topic/concept, extract that topic as a direct thesis.
+   The user wants to explore that concept even without source material.
 
-           Only leave direct_theses empty if:
-           - Inputs ARE available, AND
-           - Intent explicitly asks to "extract", "find", "surface" theses FROM those inputs
+   Only leave direct_theses empty if:
+   - Inputs ARE available, AND
+   - Intent explicitly asks to "extract", "find", "surface" theses FROM those inputs
 
-        2. count: How many theses to surface (default 4, max 10)
-        3. constraints: What to avoid or exclude
-        4. preferences: What to prefer (e.g., "prefer existing", "focus on X")
-        5. domain_hint: Derive a contextual domain hint from intent
-        6. focus: Topic/theme to focus extraction on (only if extracting from inputs)
+2. count: How many theses to surface (default 4, max 10)
+3. constraints: What to avoid or exclude
+4. preferences: What to prefer (e.g., "prefer existing", "focus on X")
+5. domain_hint: Derive a contextual domain hint from intent
+6. focus: Topic/theme to focus extraction on (only if extracting from inputs)
 
-        If direct_theses are found, count = len(direct_theses).
-        If no direct_theses and count isn't specified, use 4.
-        """
-    )
-    def _parse_intent_prompt(self, input_preview: str) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "intent": self.intent,
-                "input_preview": input_preview if input_preview else "No inputs",
-            }
-        }
+If direct_theses are found, count = len(direct_theses).
+If no direct_theses and count isn't specified, use 4."""
 
     async def _parse_intent(self) -> ParsedIntentDto:
         """Parse unstructured intent into structured parameters."""
         input_previews = await self._get_input_previews()
 
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=ParsedIntentDto)
-        async def _parse():
-            return self._parse_intent_prompt(input_previews)
+        result = await self._converse(
+            response_model=ParsedIntentDto,
+            user_content=self._parse_intent_prompt(input_previews),
+        )
 
-        result = await _parse()
         # Clamp count
         result.count = max(1, min(result.count, 10))
 
@@ -270,6 +287,7 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         Anchor direct theses specified in intent.
 
         Uses ExtractTheses with each thesis as direct input (short text mode).
+        Forks conversation to pass context to child tool.
         Returns list of component hashes.
         """
         from dialectical_framework.agents.brainstorming.tools.extract_theses import (
@@ -278,9 +296,8 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
 
         hashes: list[str] = []
         for thesis in theses:
-            # ExtractTheses handles short input as direct thesis
             extract_tool = ExtractTheses(
-                text=thesis,  # Direct thesis as text
+                text=thesis,
                 count=1,
                 domain_hint=parsed.domain_hint,
             )
@@ -301,6 +318,7 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         """
         Extract theses with retries on different parameters.
 
+        Forks conversation for each ExtractTheses call.
         Returns list of extracted component hash prefixes.
         """
         from dialectical_framework.agents.brainstorming.tools.extract_theses import (
@@ -329,7 +347,6 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
                     self._get_statement_by_hash(h) for h in extracted_hashes
                 ],
             )
-            # ExtractTheses gets brain/settings via DI (HasBrain, SettingsAware)
 
             result = await extract_tool.call()
 
@@ -401,34 +418,22 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
 
     # --- Semantic Deduplication ---
 
-    @prompt_template(
-        """
-        USER:
-        Compare these newly extracted theses against existing vocabulary.
-        Find semantic equivalents (same concept, possibly different wording).
+    def _semantic_dedup_prompt(self, extractions: str, vocabulary: str) -> str:
+        """Build user prompt for semantic deduplication."""
+        return f"""Compare these newly extracted theses against existing vocabulary.
+Find semantic equivalents (same concept, possibly different wording).
 
-        **Newly Extracted:**
-        {extractions}
+**Newly Extracted:**
+{extractions}
 
-        **Existing Vocabulary:**
-        {vocabulary}
+**Existing Vocabulary:**
+{vocabulary}
 
-        For each extraction, determine if there's a semantically equivalent
-        component in the existing vocabulary. Consider same core concept (even if worded differently)
+For each extraction, determine if there's a semantically equivalent
+component in the existing vocabulary. Consider same core concept (even if worded differently).
 
-        Only match if confidence >= 0.7 (clearly the same concept).
-        If no match, set db_hash to null.
-        """
-    )
-    def _semantic_dedup_prompt(
-        self, extractions: str, vocabulary: str
-    ) -> Messages.Type:
-        return {
-            "computed_fields": {
-                "extractions": extractions,
-                "vocabulary": vocabulary,
-            }
-        }
+Only match if confidence >= 0.7 (clearly the same concept).
+If no match, set db_hash to null."""
 
     async def _semantic_dedup(
         self,
@@ -447,10 +452,9 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
 
         # Build vocabulary descriptions (include rationale)
         vocab_lines = []
-        # TODO: Limit to avoid token explosion?
         non_rejected = [v for v in vocab if not v.get("rejected")]
         for v in non_rejected[:100]:
-            rationale_hint = f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
+            rationale_hint = f" - {v['rationale']}..." if v.get("rationale") else ""
             vocab_lines.append(
                 f"[{v['hash'][:7]}] {v['statement']} (meaning: {v.get('meaning', 'none')}){rationale_hint}"
             )
@@ -458,15 +462,13 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         if not extraction_lines or not vocab_lines:
             return SemanticDedupDto(matches=[])
 
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=SemanticDedupDto)
-        async def _dedup():
-            return self._semantic_dedup_prompt(
+        return await self._converse(
+            response_model=SemanticDedupDto,
+            user_content=self._semantic_dedup_prompt(
                 extractions="\n".join(extraction_lines),
                 vocabulary="\n".join(vocab_lines),
-            )
-
-        return await _dedup()
+            ),
+        )
 
     def _apply_dedup(
         self,
@@ -481,9 +483,6 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         final_components: list[DialecticalComponent] = []
         deleted_count = 0
         repo = DialecticalComponentRepository()
-
-        # Build match lookup
-        matches = {m.extraction_hash: m for m in dedup_result.matches}
 
         for ext_hash in extracted_hashes:
             # Find match for this extraction
