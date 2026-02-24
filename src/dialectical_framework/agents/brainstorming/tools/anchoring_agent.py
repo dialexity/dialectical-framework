@@ -414,10 +414,7 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         {vocabulary}
 
         For each extraction, determine if there's a semantically equivalent
-        component in the existing vocabulary. Consider:
-        - Same core concept (even if worded differently)
-        - Same taxonomy branch/meaning
-        - Rationale indicates same derivation
+        component in the existing vocabulary. Consider same core concept (even if worded differently)
 
         Only match if confidence >= 0.7 (clearly the same concept).
         If no match, set db_hash to null.
@@ -451,12 +448,12 @@ class AnchoringAgent(BaseTool, HasBrain, SettingsAware):
         # Build vocabulary descriptions (include rationale)
         vocab_lines = []
         # TODO: Limit to avoid token explosion?
-        for v in vocab[:100]:
-            if not v.get("rejected"):
-                rationale_hint = f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
-                vocab_lines.append(
-                    f"[{v['hash'][:7]}] {v['statement']} (meaning: {v.get('meaning', 'none')}){rationale_hint}"
-                )
+        non_rejected = [v for v in vocab if not v.get("rejected")]
+        for v in non_rejected[:100]:
+            rationale_hint = f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
+            vocab_lines.append(
+                f"[{v['hash'][:7]}] {v['statement']} (meaning: {v.get('meaning', 'none')}){rationale_hint}"
+            )
 
         if not extraction_lines or not vocab_lines:
             return SemanticDedupDto(matches=[])

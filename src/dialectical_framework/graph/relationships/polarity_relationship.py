@@ -7,6 +7,8 @@ but all store the contextual alias property.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from dialectical_framework.graph.relationships.immutable_structure import IdentityRelationship
 
 
@@ -56,7 +58,7 @@ class TMinusRelationship(PolarityRelationship, type="T_MINUS"):
 # A-side relationships
 class ARelationship(PolarityRelationship, type="A"):
     """Neutral antithesis relationship."""
-    pass
+    heuristic_similarity: Optional[float]
 
 
 class APlusRelationship(PolarityRelationship, type="A_PLUS"):
