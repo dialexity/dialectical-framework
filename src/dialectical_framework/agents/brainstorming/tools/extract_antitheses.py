@@ -14,6 +14,7 @@ Returns component hashes + HS values for the orchestrator to use.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, ClassVar, Optional
 
 from pydantic import BaseModel, Field
@@ -144,12 +145,7 @@ class ContextualizedTaxonomyDto(BaseModel):
 
 
 class ModePointResultDto(BaseModel):
-    """
-    Composite result for antithesis generation at a Mode point.
-
-    Combines candidate generation, HS estimation, and arousal estimation
-    into a single LLM call to reduce API calls from 3 to 1 per mode point.
-    """
+    """Antithesis candidate at a Mode point with HS and arousal estimation."""
 
     statement: str = Field(description="Antithesis candidate statement (similar length to thesis)")
     hs_value: float = Field(
@@ -353,8 +349,6 @@ Thesis meaning: {meaning or "unanchored"}
 
 Using the taxonomy structure and Mode scale from the system prompt, generate specific contextualizations for each Mode level.
 
-Each contextualization should be 2-5 words describing that type of opposition in the specific context of the thesis.
-
 Example for thesis "Love":
 - apex: "Lovelessness"
 - negation: "Hate"
@@ -387,6 +381,7 @@ Example for thesis "Love":
         mode_value: float,
     ) -> str:
         """Build user prompt for generating antithesis at a mode point."""
+        max_words = self.settings.component_length
         return f"""Generate an antithesis candidate for this thesis at Mode {mode_value:.1f} ({branch_name}).
 
 Thesis: "{thesis}"
@@ -394,7 +389,7 @@ Apex ({apex}): represents complete [T]-lessness
 Target branch ({branch_name}): {branch_context}
 
 Generate:
-1. An antithesis statement that represents {branch_name} of the thesis concept (similar length to thesis)
+1. An antithesis that represents {branch_name} of the thesis (1-{max_words} words, no explanations in the statement)
 2. Rate its HS (Heuristic Similarity) to the apex concept using the scale from the system prompt
 3. Assess the arousal level of this T↔A tension using the arousal scale from the system prompt
 4. Provide combined reasoning for your choices"""
@@ -404,32 +399,41 @@ Generate:
         thesis: DialecticalComponent,
         taxonomy: ContextualizedTaxonomyDto,
     ) -> list[AntithesisResult]:
-        """Generate antithesis candidates using contextualized taxonomy."""
-        results: list[AntithesisResult] = []
-        manager = EstimationManager()
-
-        # Build antithesis meaning from thesis meaning
-        antithesis_meaning = self._derive_antithesis_meaning(thesis.meaning)
-
+        """Generate antithesis candidates using contextualized taxonomy (parallel)."""
+        # Collect mode points to process
+        mode_points: list[tuple[str, float, str]] = []  # (field_name, mode_value, branch_context)
         for field_name, mode_value in ContextualizedTaxonomyDto.MODE_FIELDS.items():
             branch_context = getattr(taxonomy, field_name, "")
-            if not branch_context:
-                continue
+            if branch_context:
+                mode_points.append((field_name, mode_value, branch_context))
 
-            mode_name = field_name.capitalize()  # e.g., "negation" -> "Negation"
+        if not mode_points:
+            return []
 
-            # Generate candidate with composite DTO (combines 3 calls into 1)
-            mode_result = await self._converse(
+        # Generate all candidates in parallel using isolated calls to avoid
+        # race conditions on self._messages. These are terminal calls (no
+        # subsequent _converse calls depend on them), so we don't merge back.
+        tasks = [
+            self._converse_isolated(
                 response_model=ModePointResultDto,
                 user_content=self._mode_point_prompt(
                     thesis.statement,
                     taxonomy.apex,
-                    mode_name,
+                    field_name.capitalize(),
                     branch_context,
                     mode_value,
                 ),
             )
+            for field_name, mode_value, branch_context in mode_points
+        ]
+        mode_results = await asyncio.gather(*tasks)
 
+        # Process results
+        results: list[AntithesisResult] = []
+        manager = EstimationManager()
+        antithesis_meaning = self._derive_antithesis_meaning(thesis.meaning)
+
+        for (field_name, mode_value, _), mode_result in zip(mode_points, mode_results):
             # Skip if matches not_like_these
             if mode_result.statement in self.not_like_these:
                 continue
@@ -451,6 +455,7 @@ Generate:
             manager.upsert_estimation(antithesis, ArousalEstimation, arousal_value)
 
             # Add rationale
+            mode_name = field_name.capitalize()
             rationale = Rationale(
                 text=(
                     f"Generated at {mode_name} (Mode={mode_value:.1f}) branch. "

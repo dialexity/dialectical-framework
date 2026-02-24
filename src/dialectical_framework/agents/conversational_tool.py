@@ -88,3 +88,35 @@ class ConversationalTool(BaseTool, HasBrain, SettingsAware):
         self._messages.append(Messages.Assistant(str(result)))
 
         return result
+
+    async def _converse_isolated(
+        self,
+        response_model: type[T],
+        user_content: str,
+    ) -> T:
+        """
+        Make an isolated LLM call using a snapshot of current conversation context.
+
+        Use this for parallel calls (e.g., with asyncio.gather) to avoid race
+        conditions on self._messages. Each call gets its own copy of the message
+        history, so concurrent modifications don't interfere.
+
+        NOTE: Does NOT merge results back into self._messages. Use only when
+        these are terminal calls (no subsequent _converse calls depend on them).
+
+        Args:
+            response_model: Pydantic model for structured extraction
+            user_content: The user message content
+
+        Returns:
+            Extracted response matching response_model
+        """
+        # Snapshot current messages and append user content to the copy
+        messages = [*self._messages, Messages.User(user_content)]
+
+        @with_langfuse()
+        @use_brain(brain=self.brain, response_model=response_model)
+        async def _llm_call():
+            return {"messages": messages}
+
+        return await _llm_call()
