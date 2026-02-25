@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 from mirascope import BaseTool
 from pydantic import Field
 
-from dialectical_framework.agents.brainstorming.services.thesis_extractor import (
-    ThesisExtractor,
+from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import (
+    ThesisExtraction,
 )
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ class ExtractTheses(BaseTool):
     async def call(self) -> str:
         """Extract theses and return JSON report."""
         # Call service
-        service = ThesisExtractor()
+        service = ThesisExtraction()
         report = await service.extract(
             text=self.text,
             count=self.count,

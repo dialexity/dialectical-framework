@@ -20,6 +20,9 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
+from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
+    StatementDeduplication,
+)
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -85,29 +88,6 @@ class ParsedIntentDto(BaseModel):
     reasoning: str = Field(
         default="",
         description="Brief explanation of how intent was interpreted",
-    )
-
-
-class SemanticMatchDto(BaseModel):
-    """A single semantic match between extraction and DB component."""
-
-    extraction_hash: str = Field(description="Hash prefix of the extracted component")
-    db_hash: Optional[str] = Field(
-        default=None,
-        description="Hash prefix of semantically equivalent DB component, or null if no match",
-    )
-    confidence: float = Field(
-        default=0.0,
-        description="Confidence of the match (0.0-1.0)",
-    )
-
-
-class SemanticDedupDto(BaseModel):
-    """Result of batch semantic deduplication."""
-
-    matches: list[SemanticMatchDto] = Field(
-        default_factory=list,
-        description="List of matches between extractions and DB components",
     )
 
 
@@ -208,10 +188,20 @@ class AnchoringAgent(BaseTool):
 
         if vocab and extracted_hashes:
             # Only dedup extracted (not direct theses - those are intentional)
-            dedup_result = await self._semantic_dedup(extracted_hashes, vocab)
-            deduped_components, deleted_count = self._apply_dedup(
-                extracted_hashes, dedup_result
+            deduplicator = StatementDeduplication()
+            dedup_result = await deduplicator.deduplicate(
+                extracted_hashes=extracted_hashes,
+                vocabulary=vocab,
             )
+            deleted_count = dedup_result.deleted_count
+
+            # Resolve kept + replacement components
+            deduped_components = self._resolve_components(dedup_result.kept_hashes)
+            for db_hash in dedup_result.replacements.values():
+                comp = self._resolve_component(db_hash)
+                if comp and comp not in deduped_components:
+                    deduped_components.append(comp)
+
             # Add direct thesis components first
             final_components = self._resolve_components(direct_hashes) + deduped_components
         else:
@@ -445,101 +435,6 @@ If the output indicates an error or failure, set has_error=True.
         except ValueError:
             pass
         return ""
-
-    # --- Semantic Deduplication ---
-
-    def _semantic_dedup_prompt(self, extractions: str, vocabulary: str) -> str:
-        """Build user prompt for semantic deduplication."""
-        return f"""Compare these newly extracted theses against existing vocabulary.
-Find semantic equivalents (same concept, possibly different wording).
-
-**Newly Extracted:**
-{extractions}
-
-**Existing Vocabulary:**
-{vocabulary}
-
-For each extraction, determine if there's a semantically equivalent
-component in the existing vocabulary. Consider same core concept (even if worded differently).
-
-Only match if confidence >= 0.7 (clearly the same concept).
-If no match, set db_hash to null."""
-
-    async def _semantic_dedup(
-        self,
-        extracted_hashes: list[str],
-        vocab: list[dict],
-    ) -> SemanticDedupDto:
-        """Batch LLM call to find semantic equivalents."""
-        # Build extraction descriptions
-        extraction_lines = []
-        for h in extracted_hashes:
-            comp = self._resolve_component(h)
-            if comp:
-                extraction_lines.append(
-                    f"[{comp.short_hash}] {comp.statement} (meaning: {comp.meaning or 'none'})"
-                )
-
-        # Build vocabulary descriptions (include rationale)
-        vocab_lines = []
-        non_rejected = [v for v in vocab if not v.get("rejected")]
-        for v in non_rejected[:100]:
-            rationale_hint = f" - {v['rationale']}..." if v.get("rationale") else ""
-            vocab_lines.append(
-                f"[{v['hash'][:7]}] {v['statement']} (meaning: {v.get('meaning', 'none')}){rationale_hint}"
-            )
-
-        if not extraction_lines or not vocab_lines:
-            return SemanticDedupDto(matches=[])
-
-        return await self._conversation.submit(
-            response_model=SemanticDedupDto,
-            user_content=self._semantic_dedup_prompt(
-                extractions="\n".join(extraction_lines),
-                vocabulary="\n".join(vocab_lines),
-            ),
-        )
-
-    def _apply_dedup(
-        self,
-        extracted_hashes: list[str],
-        dedup_result: SemanticDedupDto,
-    ) -> tuple[list[DialecticalComponent], int]:
-        """
-        Apply dedup results: delete redundant extractions, keep DB versions.
-
-        Returns (final_components, deleted_count).
-        """
-        final_components: list[DialecticalComponent] = []
-        deleted_count = 0
-        repo = DialecticalComponentRepository()
-
-        for ext_hash in extracted_hashes:
-            # Find match for this extraction
-            match = None
-            for m in dedup_result.matches:
-                if ext_hash.startswith(m.extraction_hash) or m.extraction_hash.startswith(ext_hash):
-                    match = m
-                    break
-
-            if match and match.db_hash and match.confidence >= 0.7:
-                # Has equivalent in DB - delete extraction, use DB version
-                ext_comp = self._resolve_component(ext_hash)
-                if ext_comp:
-                    if repo.safe_delete(ext_comp):
-                        deleted_count += 1
-
-                # Add DB version to final set
-                db_comp = self._resolve_component(match.db_hash)
-                if db_comp and db_comp not in final_components:
-                    final_components.append(db_comp)
-            else:
-                # No equivalent - keep extraction
-                ext_comp = self._resolve_component(ext_hash)
-                if ext_comp and ext_comp not in final_components:
-                    final_components.append(ext_comp)
-
-        return final_components, deleted_count
 
     # --- Helpers ---
 

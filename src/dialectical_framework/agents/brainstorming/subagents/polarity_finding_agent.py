@@ -29,6 +29,10 @@ from pydantic import BaseModel, Field, PrivateAttr
 from dialectical_framework.agents.brainstorming.tools.extract_antitheses import (
     ExtractAntitheses,
 )
+from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
+    DedupResult,
+    StatementDeduplication,
+)
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -56,30 +60,7 @@ For semantic deduplication:
 - Consider same core concept even if worded differently"""
 
 
-# --- DTOs for semantic deduplication ---
-
-
-class SemanticMatchDto(BaseModel):
-    """A single semantic match between extraction and DB component."""
-
-    extraction_hash: str = Field(description="Hash of the extracted component")
-    db_hash: Optional[str] = Field(
-        default=None,
-        description="Hash of semantically equivalent DB component, or null if no match",
-    )
-    confidence: float = Field(
-        default=0.0,
-        description="Confidence of the match (0.0-1.0)",
-    )
-
-
-class SemanticDedupDto(BaseModel):
-    """Result of batch semantic deduplication."""
-
-    matches: list[SemanticMatchDto] = Field(
-        default_factory=list,
-        description="List of matches between extractions and DB components",
-    )
+# --- DTOs ---
 
 
 class AntithesisDataDto(BaseModel):
@@ -203,18 +184,23 @@ class PolarityFindingAgent(BaseTool):
         # Phase 2: Semantic deduplication against existing vocabulary
         deleted_count = 0
         if all_extracted_hashes and vocab:
-            dedup_result = await self._semantic_dedup(all_extracted_hashes, vocab)
-            hash_replacements, deleted_count = self._apply_dedup(
-                all_extracted_hashes, dedup_result, results
+            deduplicator = StatementDeduplication()
+            dedup_result = await deduplicator.deduplicate(
+                extracted_hashes=all_extracted_hashes,
+                vocabulary=vocab,
             )
+            deleted_count = dedup_result.deleted_count
+
+            # Reconnect OPPOSITE_OF: thesis -> DB version for replacements
+            self._reconnect_oppositions(results, dedup_result)
 
             # Update results with deduped hashes
             for result in results:
                 if result.error:
                     continue
                 for data in result.antithesis_data:
-                    if data["hash"] in hash_replacements:
-                        data["hash"] = hash_replacements[data["hash"]]
+                    if data["hash"] in dedup_result.replacements:
+                        data["hash"] = dedup_result.replacements[data["hash"]]
                         data["deduped"] = True
 
         # Phase 3: Create Ideas for each thesis with deduped components
@@ -317,79 +303,15 @@ class PolarityFindingAgent(BaseTool):
 
         return result
 
-    # --- Semantic Deduplication ---
+    # --- Deduplication Helpers ---
 
-    def _semantic_dedup_prompt(self, extractions: str, vocabulary: str) -> str:
-        """Build user prompt for semantic deduplication."""
-        return f"""Compare these newly extracted antitheses against existing vocabulary.
-Find semantic equivalents (same concept, possibly different wording).
-
-**Newly Extracted Antitheses:**
-{extractions}
-
-**Existing Vocabulary:**
-{vocabulary}
-
-For each extraction, determine if there's a semantically equivalent
-component in the existing vocabulary. Consider same core concept (even if worded differently).
-
-Only match if confidence >= 0.7 (clearly the same concept).
-If no match, set db_hash to null."""
-
-    async def _semantic_dedup(
+    def _reconnect_oppositions(
         self,
-        extracted_hashes: list[str],
-        vocab: list[dict],
-    ) -> SemanticDedupDto:
-        """Batch LLM call to find semantic equivalents."""
-        # Build extraction descriptions
-        extraction_lines = []
-        for h in extracted_hashes:
-            comp = self._resolve_component(h)
-            if comp:
-                extraction_lines.append(
-                    f"[{comp.short_hash}] {comp.statement} (meaning: {comp.meaning or 'none'})"
-                )
-
-        # Build vocabulary descriptions (exclude rejected, limit to avoid token explosion)
-        vocab_lines = []
-        non_rejected = [v for v in vocab if not v.get("rejected")]
-        for v in non_rejected[:100]:
-            rationale_hint = f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
-            vocab_lines.append(
-                f"[{v['hash'][:7]}] {v['statement']} (meaning: {v.get('meaning', 'none')}){rationale_hint}"
-            )
-
-        if not extraction_lines or not vocab_lines:
-            return SemanticDedupDto(matches=[])
-
-        return await self._conversation.submit(
-            response_model=SemanticDedupDto,
-            user_content=self._semantic_dedup_prompt(
-                extractions="\n".join(extraction_lines),
-                vocabulary="\n".join(vocab_lines),
-            ),
-        )
-
-    def _apply_dedup(
-        self,
-        extracted_hashes: list[str],
-        dedup_result: SemanticDedupDto,
         results: list[ThesisResult],
-    ) -> tuple[dict[str, str], int]:
-        """
-        Apply dedup results: delete redundant extractions, keep DB versions.
-
-        Also reconnects OPPOSITE_OF relationship from thesis to DB version.
-
-        Returns (hash_replacements, deleted_count) where hash_replacements maps
-        old extracted hash -> new DB hash for components that were replaced.
-        """
-        hash_replacements: dict[str, str] = {}
-        deleted_count = 0
-        repo = DialecticalComponentRepository()
-
-        # Build mapping: extracted_hash -> thesis (for reconnecting OPPOSITE_OF)
+        dedup_result: DedupResult,
+    ) -> None:
+        """Reconnect OPPOSITE_OF relationships from thesis to DB version for replacements."""
+        # Build mapping: extracted_hash -> thesis
         hash_to_thesis: dict[str, DialecticalComponent] = {}
         for result in results:
             if result.error:
@@ -397,31 +319,12 @@ If no match, set db_hash to null."""
             for data in result.antithesis_data:
                 hash_to_thesis[data["hash"]] = result.thesis
 
-        for ext_hash in extracted_hashes:
-            # Find match for this extraction
-            match = None
-            for m in dedup_result.matches:
-                if ext_hash.startswith(m.extraction_hash) or m.extraction_hash.startswith(ext_hash):
-                    match = m
-                    break
-
-            if match and match.db_hash and match.confidence >= 0.7:
-                # Has equivalent in DB - delete extraction, use DB version
-                ext_comp = self._resolve_component(ext_hash)
-                if ext_comp:
-                    if repo.safe_delete(ext_comp):
-                        deleted_count += 1
-
-                # Reconnect OPPOSITE_OF: thesis -> DB version
-                thesis = hash_to_thesis.get(ext_hash)
-                db_comp = self._resolve_component(match.db_hash)
-                if thesis and db_comp:
-                    thesis.oppositions.connect(db_comp)
-
-                # Record replacement
-                hash_replacements[ext_hash] = match.db_hash
-
-        return hash_replacements, deleted_count
+        # Connect thesis to DB version for each replacement
+        for ext_hash, db_hash in dedup_result.replacements.items():
+            thesis = hash_to_thesis.get(ext_hash)
+            db_comp = self._resolve_component(db_hash)
+            if thesis and db_comp:
+                thesis.oppositions.connect(db_comp)
 
     def _resolve_component(self, hash: str) -> Optional[DialecticalComponent]:
         """Resolve hash to component."""

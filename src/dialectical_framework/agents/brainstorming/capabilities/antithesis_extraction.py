@@ -212,7 +212,7 @@ class AntithesisResult:
 # --- Service ---
 
 
-class AntithesisExtractor(SettingsAware):
+class AntithesisExtraction(SettingsAware):
     """
     Service for extracting antitheses for a thesis.
 

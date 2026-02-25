@@ -134,7 +134,7 @@ class TaxonomyLocationDto(BaseModel):
 # --- Service ---
 
 
-class ThesisExtractor(SettingsAware):
+class ThesisExtraction(SettingsAware):
     """
     Service for extracting theses from content.
 

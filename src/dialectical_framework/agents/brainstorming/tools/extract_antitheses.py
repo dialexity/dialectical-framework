@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING, Optional
 from mirascope import BaseTool
 from pydantic import Field
 
-from dialectical_framework.agents.brainstorming.services.antithesis_extractor import (
-    AntithesisExtractor,
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
+    AntithesisExtraction,
 )
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
@@ -50,7 +50,7 @@ class ExtractAntitheses(BaseTool):
             return f"ERROR: Thesis with hash '{self.thesis_hash}' not found"
 
         # 2. Call service
-        service = AntithesisExtractor()
+        service = AntithesisExtraction()
         report = await service.extract(
             thesis=thesis,
             text=self.text,
