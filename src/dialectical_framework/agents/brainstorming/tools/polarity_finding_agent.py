@@ -62,10 +62,10 @@ For semantic deduplication:
 class SemanticMatchDto(BaseModel):
     """A single semantic match between extraction and DB component."""
 
-    extraction_hash: str = Field(description="Hash prefix of the extracted component")
+    extraction_hash: str = Field(description="Hash of the extracted component")
     db_hash: Optional[str] = Field(
         default=None,
-        description="Hash prefix of semantically equivalent DB component, or null if no match",
+        description="Hash of semantically equivalent DB component, or null if no match",
     )
     confidence: float = Field(
         default=0.0,
@@ -85,7 +85,7 @@ class SemanticDedupDto(BaseModel):
 class AntithesisDataDto(BaseModel):
     """Single antithesis extracted from tool output."""
 
-    hash_prefix: str = Field(description="Hash prefix of the antithesis (7-8 chars)")
+    hash: str = Field(description="Hash of the antithesis")
     heuristic_similarity: float = Field(
         ge=0.0, le=1.0,
         description="Heuristic Similarity value (0.0-1.0)"
@@ -143,7 +143,7 @@ class PolarityFindingAgent(BaseTool):
     """
 
     thesis_hashes: list[str] = Field(
-        description="Hash prefixes of theses to generate antitheses for"
+        description="Hashes of theses to generate antitheses for"
     )
 
     _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
@@ -168,7 +168,7 @@ class PolarityFindingAgent(BaseTool):
 
         # Phase 1: Extract antitheses for all theses (with retry if none found)
         for thesis_hash in self.thesis_hashes:
-            thesis = self._resolve_thesis(thesis_hash)
+            thesis = self._resolve_component(thesis_hash)
             if thesis is None:
                 result = ThesisResult(thesis=DialecticalComponent(statement=""))
                 result.error = f"Thesis with hash '{thesis_hash}' not found"
@@ -423,22 +423,11 @@ If no match, set db_hash to null."""
 
         return hash_replacements, deleted_count
 
-    def _resolve_thesis(self, hash_prefix: str) -> Optional[DialecticalComponent]:
-        """Resolve hash prefix to thesis component."""
+    def _resolve_component(self, hash: str) -> Optional[DialecticalComponent]:
+        """Resolve hash to component."""
         repo = NodeRepository()
         try:
-            comp = repo.find_by_hash(hash_prefix)
-            if isinstance(comp, DialecticalComponent):
-                return comp
-        except ValueError:
-            pass
-        return None
-
-    def _resolve_component(self, hash_prefix: str) -> Optional[DialecticalComponent]:
-        """Resolve hash prefix to component."""
-        repo = NodeRepository()
-        try:
-            comp = repo.find_by_hash(hash_prefix)
+            comp = repo.find_by_hash(hash)
             if isinstance(comp, DialecticalComponent):
                 return comp
         except ValueError:
@@ -457,7 +446,7 @@ If no match, set db_hash to null."""
             user_content=f"""Extract antithesis data from this tool output.
 
 Look for:
-- Antithesis hash prefixes (7-8 character hex strings)
+- Antithesis hash (hex strings)
 - Heuristic Similarity values (0.0-1.0)
 - Statement text for each antithesis
 
@@ -471,7 +460,7 @@ If the output indicates an error or failure, set has_error=True.
             return []
 
         return [
-            {"hash": a.hash_prefix, "heuristic_similarity": a.heuristic_similarity}
+            {"hash": a.hash, "heuristic_similarity": a.heuristic_similarity}
             for a in result.antitheses
         ]
 

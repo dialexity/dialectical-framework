@@ -72,7 +72,8 @@ class NodeRef(BaseModel):
 
     @classmethod
     def from_node(cls, node: BaseNode) -> NodeRef:
-        return cls(label=node.__class__.__name__, hash=node.hash)
+        # Short hash - to save tokens
+        return cls(label=node.__class__.__name__, hash=node.short_hash)
 
 
 class RelationshipRef(BaseModel):

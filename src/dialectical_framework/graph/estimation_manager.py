@@ -148,7 +148,7 @@ class EstimationManager:
         value: Optional[float],
         provider: Optional[Rationale] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> None:
+    ) -> Optional[T]:
         """
         Set an Estimation of specified type for a node (replacing any existing).
 
@@ -168,6 +168,9 @@ class EstimationManager:
             provider: Optional Rationale that provides this estimation (provenance)
             graph_db: Database connection (injected)
 
+        Returns:
+            The created/existing estimation node, or None if value was None (deletion)
+
         Example:
             manager.upsert_estimation(node, ProbabilityEstimation, 0.8)  # Invalidates parents
             manager.upsert_estimation(node, CalculatedProbabilityEstimation, 0.75)  # No invalidation
@@ -183,7 +186,7 @@ class EstimationManager:
             self._delete_estimations(node, estimation_type, graph_db)
             if should_invalidate:
                 invalidate_node_and_parents(node)
-            return
+            return None
 
         # Check for existing estimation of this type connected to this node
         existing = self._get_scoring_estimation(node, estimation_type, graph_db)
@@ -200,12 +203,17 @@ class EstimationManager:
                 estimation = self._get_or_create_estimation(estimation_type, value, node, graph_db, provider)
                 if should_invalidate:
                     invalidate_node_and_parents(node)
+            else:
+                # Value unchanged, reuse existing
+                estimation = existing
         else:
             # Get or create estimation (pass node as target)
             # Hash includes target, so each (type, value, target) tuple is unique
             estimation = self._get_or_create_estimation(estimation_type, value, node, graph_db, provider)
             if should_invalidate:
                 invalidate_node_and_parents(node)
+
+        return estimation
 
     @inject
     def clear_estimations(
