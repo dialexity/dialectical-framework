@@ -15,23 +15,21 @@ Flow:
            ↓
     One Ideas per T (containing all A for that T)
            ↓
-    BrainstormingAgent → Reviews T/A pairs, rejects low HS
+    BrainstormingAgent → Reviews T/A pairs, rejects low Heuristic Similarity
 """
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
-from pydantic import BaseModel, Field
+from mirascope import BaseTool
+from pydantic import BaseModel, Field, PrivateAttr
 
 from dialectical_framework.agents.brainstorming.tools.extract_antitheses import (
     ExtractAntitheses,
 )
-from mirascope import Messages
-
-from dialectical_framework.agents.conversational_tool import ConversationalTool
+from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -84,6 +82,34 @@ class SemanticDedupDto(BaseModel):
     )
 
 
+class AntithesisDataDto(BaseModel):
+    """Single antithesis extracted from tool output."""
+
+    hash_prefix: str = Field(description="Hash prefix of the antithesis (7-8 chars)")
+    heuristic_similarity: float = Field(
+        ge=0.0, le=1.0,
+        description="Heuristic Similarity value (0.0-1.0)"
+    )
+    statement: str = Field(description="The antithesis statement text")
+
+
+class ExtractedAntithesesDto(BaseModel):
+    """Result of extracting antithesis data from tool output."""
+
+    antitheses: list[AntithesisDataDto] = Field(
+        default_factory=list,
+        description="List of antitheses extracted from the report"
+    )
+    has_error: bool = Field(
+        default=False,
+        description="True if the tool output indicates an error"
+    )
+    error_message: str = Field(
+        default="",
+        description="Error message if has_error is True"
+    )
+
+
 # --- Result container for tracking ---
 
 
@@ -92,7 +118,7 @@ class ThesisResult:
 
     def __init__(self, thesis: DialecticalComponent):
         self.thesis = thesis
-        self.antithesis_data: list[dict] = []  # [{hash, hs}, ...]
+        self.antithesis_data: list[dict] = []  # [{hash, heuristic_similarity}, ...]
         self.ideas: Optional[Ideas] = None
         self.error: Optional[str] = None
 
@@ -100,17 +126,16 @@ class ThesisResult:
 # --- Main Orchestrator ---
 
 
-class PolarityFindingAgent(ConversationalTool):
+class PolarityFindingAgent(BaseTool):
     """
     Orchestrate antithesis generation (Phase 2 of polarity-finder).
 
     Uses conversational pattern where all steps share context through
-    conversation history, enabling prompt caching. Forks conversation
-    for child ExtractAntitheses tool.
+    conversation history, enabling prompt caching.
 
     For each thesis hash:
     1. Call ExtractAntitheses (the work tool) to generate antitheses
-    2. Parse results to get antithesis hashes + HS values
+    2. Parse results to get antithesis hashes + Heuristic Similarity values
     3. Create Ideas node per thesis with its antitheses
     4. Return summary report for BrainstormingAgent curation
 
@@ -121,10 +146,12 @@ class PolarityFindingAgent(ConversationalTool):
         description="Hash prefixes of theses to generate antitheses for"
     )
 
+    _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
+
     async def call(self) -> str:
         """Execute polarity finding: orchestrate ExtractAntitheses for each thesis."""
         # Initialize conversation with system prompt
-        self._messages.append(Messages.System(SYSTEM_PROMPT))
+        self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         if not self.thesis_hashes:
             return "No thesis hashes provided"
@@ -227,7 +254,7 @@ class PolarityFindingAgent(ConversationalTool):
         if tool_result.startswith("ERROR:"):
             return tool_result
 
-        antithesis_data = self._parse_antithesis_data(tool_result)
+        antithesis_data = await self._parse_antithesis_data(tool_result)
 
         # If we got results, return them
         if antithesis_data:
@@ -244,7 +271,7 @@ class PolarityFindingAgent(ConversationalTool):
         if tool_result_retry.startswith("ERROR:"):
             return tool_result_retry
 
-        return self._parse_antithesis_data(tool_result_retry)
+        return await self._parse_antithesis_data(tool_result_retry)
 
     # --- Helpers ---
 
@@ -336,7 +363,7 @@ If no match, set db_hash to null."""
         if not extraction_lines or not vocab_lines:
             return SemanticDedupDto(matches=[])
 
-        return await self._converse(
+        return await self._conversation.submit(
             response_model=SemanticDedupDto,
             user_content=self._semantic_dedup_prompt(
                 extractions="\n".join(extraction_lines),
@@ -418,37 +445,35 @@ If no match, set db_hash to null."""
             pass
         return None
 
-    def _parse_antithesis_data(self, result: str) -> list[dict]:
+    async def _parse_antithesis_data(self, tool_output: str) -> list[dict]:
         """
-        Parse antithesis hashes and HS values from ExtractAntitheses result.
+        Extract antithesis data from ExtractAntitheses tool output using LLM.
 
-        Looks for the machine-readable section:
-        **Antithesis hashes:**
-        hash1:HS=0.85, hash2:HS=0.72, ...
+        The tool output format may vary (JSON, error messages, etc.), so we use
+        an LLM to robustly extract the relevant information.
         """
-        data: list[dict] = []
+        result = await self._conversation.submit(
+            response_model=ExtractedAntithesesDto,
+            user_content=f"""Extract antithesis data from this tool output.
 
-        # Look for "Antithesis hashes:" section
-        match = re.search(r"\*\*Antithesis hashes:\*\*\s*\n(.+)", result, re.IGNORECASE)
-        if not match:
-            return data
+Look for:
+- Antithesis hash prefixes (7-8 character hex strings)
+- Heuristic Similarity values (0.0-1.0)
+- Statement text for each antithesis
 
-        hash_line = match.group(1).strip()
+If the output indicates an error or failure, set has_error=True.
 
-        # Parse "hash:HS=0.XX" entries
-        for entry in hash_line.split(","):
-            entry = entry.strip()
-            if ":HS=" in entry:
-                parts = entry.split(":HS=")
-                if len(parts) == 2:
-                    hash_val = parts[0].strip()
-                    try:
-                        hs_val = float(parts[1].strip())
-                    except ValueError:
-                        hs_val = 0.5
-                    data.append({"hash": hash_val, "hs": hs_val})
+**Tool Output:**
+{tool_output}""",
+        )
 
-        return data
+        if result.has_error:
+            return []
+
+        return [
+            {"hash": a.hash_prefix, "heuristic_similarity": a.heuristic_similarity}
+            for a in result.antitheses
+        ]
 
     def _create_ideas_for_thesis(
         self,
@@ -476,10 +501,10 @@ If no match, set db_hash to null."""
         ideas.commit()
 
         # Attach Rationale summarizing the generation
-        hs_values = [d["hs"] for d in antithesis_data]
+        hs_values = [d["heuristic_similarity"] for d in antithesis_data]
         max_hs = max(hs_values) if hs_values else 0.0
         rationale = Rationale(
-            text=f"Generated {len(antithesis_data)} antitheses for thesis '{thesis.statement}'. Max HS: {max_hs:.2f}"
+            text=f"Generated {len(antithesis_data)} antitheses for thesis '{thesis.statement}'. Max Heuristic Similarity: {max_hs:.2f}"
         )
         rationale.set_explanation_target(ideas)
         rationale.commit()
@@ -517,7 +542,7 @@ If no match, set db_hash to null."""
                 for a in antitheses:
                     comp = self._resolve_component(a["hash"])
                     stmt = comp.statement if comp else "?"
-                    lines.append(f"    [{a['hash']}] {stmt} (HS={a['hs']:.2f})")
+                    lines.append(f"    [{a['hash']}] {stmt} (Heuristic Similarity={a['heuristic_similarity']:.2f})")
                 total_antitheses += len(antitheses)
             else:
                 lines.append("  Antitheses: None generated")

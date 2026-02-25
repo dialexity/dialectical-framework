@@ -17,11 +17,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
-from pydantic import BaseModel, Field
+from mirascope import BaseTool
+from pydantic import BaseModel, Field, PrivateAttr
 
-from mirascope import Messages
-
-from dialectical_framework.agents.conversational_tool import ConversationalTool
+from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -112,16 +111,32 @@ class SemanticDedupDto(BaseModel):
     )
 
 
+class ExtractedThesesDto(BaseModel):
+    """Result of extracting thesis data from tool output."""
+
+    thesis_hashes: list[str] = Field(
+        default_factory=list,
+        description="List of thesis hash prefixes (7-8 character hex strings)",
+    )
+    has_error: bool = Field(
+        default=False,
+        description="True if the tool output indicates an error",
+    )
+    error_message: str = Field(
+        default="",
+        description="Error message if has_error is True",
+    )
+
+
 # --- Main Agent ---
 
 
-class AnchoringAgent(ConversationalTool):
+class AnchoringAgent(BaseTool):
     """
     Surfaces theses for BrainstormingAgent by fulfilling anchoring intent.
 
     Uses conversational pattern where all steps share context through
-    conversation history, enabling prompt caching. Forks conversation
-    for child ExtractTheses tool.
+    conversation history, enabling prompt caching.
 
     Receives unstructured intent from BrainstormingAgent and:
     1. Parses intent to understand requirements (count, constraints, focus)
@@ -142,10 +157,12 @@ class AnchoringAgent(ConversationalTool):
         )
     )
 
+    _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
+
     async def call(self) -> str:
         """Execute anchoring: extract, dedup, cleanup, create Ideas."""
         # Initialize conversation with system prompt
-        self._messages.append(Messages.System(SYSTEM_PROMPT))
+        self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         # 1. Parse intent
         parsed = await self._parse_intent()
@@ -263,7 +280,7 @@ If no direct_theses and count isn't specified, use 4."""
         """Parse unstructured intent into structured parameters."""
         input_previews = await self._get_input_previews()
 
-        result = await self._converse(
+        result = await self._conversation.submit(
             response_model=ParsedIntentDto,
             user_content=self._parse_intent_prompt(input_previews),
         )
@@ -302,7 +319,7 @@ If no direct_theses and count isn't specified, use 4."""
                 domain_hint=parsed.domain_hint,
             )
             result = await extract_tool.call()
-            new_hashes = self._parse_hashes_from_result(result)
+            new_hashes = await self._parse_hashes_from_result(result)
             hashes.extend(new_hashes)
 
         return hashes
@@ -351,7 +368,7 @@ If no direct_theses and count isn't specified, use 4."""
             result = await extract_tool.call()
 
             # Parse hashes from result
-            new_hashes = self._parse_hashes_from_result(result)
+            new_hashes = await self._parse_hashes_from_result(result)
             extracted_hashes.extend(new_hashes)
 
             # Update not_like_these for next iteration
@@ -394,16 +411,29 @@ If no direct_theses and count isn't specified, use 4."""
 
         return variations
 
-    def _parse_hashes_from_result(self, result: str) -> list[str]:
-        """Extract component hashes from ExtractTheses result."""
-        import re
+    async def _parse_hashes_from_result(self, result: str) -> list[str]:
+        """
+        Extract thesis hashes from ExtractTheses tool output using LLM.
 
-        # Look for "hashes in the graph: hash1, hash2, ..."
-        match = re.search(r"hashes in the graph:\s*(.+)", result, re.IGNORECASE)
-        if match:
-            hashes_str = match.group(1)
-            return [h.strip() for h in hashes_str.split(",") if h.strip()]
-        return []
+        The tool output format may vary (JSON, error messages, etc.), so we use
+        an LLM to robustly extract the relevant information.
+        """
+        extracted = await self._conversation.submit(
+            response_model=ExtractedThesesDto,
+            user_content=f"""Extract thesis hash prefixes from this tool output.
+
+Look for hash prefixes (7-8 character hex strings) that identify created thesis components.
+
+If the output indicates an error or failure, set has_error=True.
+
+**Tool Output:**
+{result}""",
+        )
+
+        if extracted.has_error:
+            return []
+
+        return extracted.thesis_hashes
 
     def _get_statement_by_hash(self, hash_prefix: str) -> str:
         """Get statement text for a component by hash prefix."""
@@ -462,7 +492,7 @@ If no match, set db_hash to null."""
         if not extraction_lines or not vocab_lines:
             return SemanticDedupDto(matches=[])
 
-        return await self._converse(
+        return await self._conversation.submit(
             response_model=SemanticDedupDto,
             user_content=self._semantic_dedup_prompt(
                 extractions="\n".join(extraction_lines),
