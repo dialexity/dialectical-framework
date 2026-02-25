@@ -2,11 +2,11 @@
 AnchoringAgent: Surfaces theses for BrainstormingAgent (Phase 1 of polarity-finder).
 
 Uses conversational pattern: all steps share context through conversation history,
-enabling prompt caching. Forks conversation for child ExtractTheses tool.
+enabling prompt caching.
 
 Extraction-centric approach:
 1. Parse intent → understand requirements
-2. Extract fresh theses (with retries on different params)
+2. Extract fresh theses via ThesisExtraction (with retries on different params)
 3. Semantic dedup against existing vocabulary
 4. Cleanup redundant extractions (prefer DB versions)
 5. Create Ideas with final set
@@ -22,6 +22,9 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
     StatementDeduplication,
+)
+from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import (
+    ThesisExtraction,
 )
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.enums.di import DI
@@ -91,23 +94,6 @@ class ParsedIntentDto(BaseModel):
     )
 
 
-class ExtractedThesesDto(BaseModel):
-    """Result of extracting thesis data from tool output."""
-
-    thesis_hashes: list[str] = Field(
-        default_factory=list,
-        description="List of thesis hash prefixes (7-8 character hex strings)",
-    )
-    has_error: bool = Field(
-        default=False,
-        description="True if the tool output indicates an error",
-    )
-    error_message: str = Field(
-        default="",
-        description="Error message if has_error is True",
-    )
-
-
 # --- Main Agent ---
 
 
@@ -120,7 +106,7 @@ class AnchoringAgent(BaseTool):
 
     Receives unstructured intent from BrainstormingAgent and:
     1. Parses intent to understand requirements (count, constraints, focus)
-    2. Extracts fresh theses via ExtractTheses (with retries)
+    2. Extracts fresh theses via ThesisExtraction (with retries)
     3. Deduplicates against existing vocabulary (prefers DB versions)
     4. Cleans up redundant extractions
     5. Creates Ideas node with final component set
@@ -293,23 +279,18 @@ If no direct_theses and count isn't specified, use 4."""
         """
         Anchor direct theses specified in intent.
 
-        Uses ExtractTheses with each thesis as direct input (short text mode).
-        Forks conversation to pass context to child tool.
+        Uses ThesisExtraction with each thesis as direct input (short text mode).
         Returns list of component hashes.
         """
-        from dialectical_framework.agents.brainstorming.tools.extract_theses import (
-            ExtractTheses,
-        )
-
         hashes: list[str] = []
         for thesis in theses:
-            extract_tool = ExtractTheses(
+            service = ThesisExtraction()
+            report = await service.extract(
                 text=thesis,
                 count=1,
                 domain_hint=parsed.domain_hint,
             )
-            result = await extract_tool.call()
-            new_hashes = await self._parse_hashes_from_result(result)
+            new_hashes = report.artifacts.get("thesis_hashes", [])
             hashes.extend(new_hashes)
 
         return hashes
@@ -325,13 +306,8 @@ If no direct_theses and count isn't specified, use 4."""
         """
         Extract theses with retries on different parameters.
 
-        Forks conversation for each ExtractTheses call.
         Returns list of extracted component hash prefixes.
         """
-        from dialectical_framework.agents.brainstorming.tools.extract_theses import (
-            ExtractTheses,
-        )
-
         extracted_hashes: list[str] = []
         max_attempts = 4
 
@@ -345,7 +321,8 @@ If no direct_theses and count isn't specified, use 4."""
             # How many more do we need?
             remaining = parsed.count - len(extracted_hashes)
 
-            extract_tool = ExtractTheses(
+            service = ThesisExtraction()
+            report = await service.extract(
                 text=input_text,
                 count=remaining,
                 focus=params.get("focus", ""),
@@ -355,10 +332,8 @@ If no direct_theses and count isn't specified, use 4."""
                 ],
             )
 
-            result = await extract_tool.call()
-
-            # Parse hashes from result
-            new_hashes = await self._parse_hashes_from_result(result)
+            # Get hashes directly from report artifacts
+            new_hashes = report.artifacts.get("thesis_hashes", [])
             extracted_hashes.extend(new_hashes)
 
             # Update not_like_these for next iteration
@@ -400,30 +375,6 @@ If no direct_theses and count isn't specified, use 4."""
         })
 
         return variations
-
-    async def _parse_hashes_from_result(self, result: str) -> list[str]:
-        """
-        Extract thesis hashes from ExtractTheses tool output using LLM.
-
-        The tool output format may vary (JSON, error messages, etc.), so we use
-        an LLM to robustly extract the relevant information.
-        """
-        extracted = await self._conversation.submit(
-            response_model=ExtractedThesesDto,
-            user_content=f"""Extract thesis hash prefixes from this tool output.
-
-Look for hash prefixes (7-8 character hex strings) that identify created thesis components.
-
-If the output indicates an error or failure, set has_error=True.
-
-**Tool Output:**
-{result}""",
-        )
-
-        if extracted.has_error:
-            return []
-
-        return extracted.thesis_hashes
 
     def _get_statement_by_hash(self, hash_prefix: str) -> str:
         """Get statement text for a component by hash prefix."""

@@ -1,5 +1,5 @@
 """
-Tests for AnchoringAgent, ExtractTheses, PolarityFindingAgent, and ExtractAntitheses.
+Tests for AnchoringAgent, ThesisExtraction, PolarityFindingAgent, and AntithesisExtraction.
 """
 
 from __future__ import annotations
@@ -13,9 +13,9 @@ from dialectical_framework.graph.nodes.dialectical_component import DialecticalC
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository
 )
-from dialectical_framework.agents.brainstorming.tools.anchoring_agent import AnchoringAgent
-from dialectical_framework.agents.brainstorming.tools.polarity_finding_agent import PolarityFindingAgent
-from dialectical_framework.agents.brainstorming.tools.extract_antitheses import ExtractAntitheses
+from dialectical_framework.agents.brainstorming.subagents.anchoring_agent import AnchoringAgent
+from dialectical_framework.agents.brainstorming.subagents.polarity_finding_agent import PolarityFindingAgent
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import AntithesisExtraction
 from dialectical_framework.graph.scope_context import scope
 
 
@@ -215,25 +215,13 @@ class TestPolarityFindingAgent:
             assert "Polarity Finding Complete" in result
 
 
-class TestExtractAntitheses:
-    """Tests for ExtractAntitheses - antithesis generation work tool."""
+class TestAntithesisExtraction:
+    """Tests for AntithesisExtraction capability - antithesis generation."""
 
     @pytest.mark.asyncio
     @observe()
-    async def test_extract_antitheses_invalid_hash(self):
-        """ExtractAntitheses returns error for invalid thesis hash."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
-
-        with scope(brainstorm.sid):
-            tool = ExtractAntitheses(thesis_hash="nonexistent123")
-            result = await tool.call()
-            assert "ERROR" in result
-
-    @pytest.mark.asyncio
-    @observe()
-    async def test_extract_antitheses_simple_thesis(self):
-        """ExtractAntitheses handles simple thesis with direct negation."""
+    async def test_antithesis_extraction_simple_thesis(self):
+        """AntithesisExtraction handles simple thesis with direct negation."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -245,16 +233,16 @@ class TestExtractAntitheses:
             )
             thesis.commit()
 
-            tool = ExtractAntitheses(thesis_hash=thesis.short_hash)
-            result = await tool.call()
+            service = AntithesisExtraction()
+            report = await service.extract(thesis=thesis)
 
-            assert "SIMPLE" in result
-            assert "Antitheses" in result
+            assert report.ok
+            assert len(report.artifacts.get("antithesis_hashes", [])) >= 1
 
     @pytest.mark.asyncio
     @observe()
-    async def test_extract_antitheses_complex_thesis(self):
-        """ExtractAntitheses handles complex thesis with taxonomy."""
+    async def test_antithesis_extraction_complex_thesis(self):
+        """AntithesisExtraction handles complex thesis with taxonomy."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -266,17 +254,17 @@ class TestExtractAntitheses:
             )
             thesis.commit()
 
-            tool = ExtractAntitheses(thesis_hash=thesis.short_hash)
-            result = await tool.call()
+            service = AntithesisExtraction()
+            report = await service.extract(thesis=thesis)
 
-            assert "COMPLEX" in result
-            assert "Apex" in result
-            assert "Antitheses" in result
+            assert report.ok
+            assert "apex" in report.artifacts
+            assert len(report.artifacts.get("antithesis_hashes", [])) >= 1
 
     @pytest.mark.asyncio
     @observe()
-    async def test_extract_antitheses_creates_opposite_of_relationship(self):
-        """ExtractAntitheses creates OPPOSITE_OF relationship between thesis and antithesis."""
+    async def test_antithesis_extraction_creates_opposite_of_relationship(self):
+        """AntithesisExtraction creates OPPOSITE_OF relationship between thesis and antithesis."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -287,8 +275,8 @@ class TestExtractAntitheses:
             )
             thesis.commit()
 
-            tool = ExtractAntitheses(thesis_hash=thesis.short_hash)
-            await tool.call()
+            service = AntithesisExtraction()
+            await service.extract(thesis=thesis)
 
             # Check OPPOSITE_OF relationship exists
             oppositions = list(thesis.oppositions.all())
@@ -296,8 +284,8 @@ class TestExtractAntitheses:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_extract_antitheses_with_context(self):
-        """ExtractAntitheses uses text context for generation."""
+    async def test_antithesis_extraction_with_context(self):
+        """AntithesisExtraction uses text context for generation."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -308,18 +296,16 @@ class TestExtractAntitheses:
             )
             thesis.commit()
 
-            tool = ExtractAntitheses(
-                thesis_hash=thesis.short_hash,
-                text=SAMPLE_INPUT_TEXT
-            )
-            result = await tool.call()
+            service = AntithesisExtraction()
+            report = await service.extract(thesis=thesis, text=SAMPLE_INPUT_TEXT)
 
-            assert "Antitheses" in result
+            assert report.ok
+            assert len(report.artifacts.get("antithesis_hashes", [])) >= 1
 
     @pytest.mark.asyncio
     @observe()
-    async def test_extract_antitheses_respects_not_like_these(self):
-        """ExtractAntitheses avoids generating statements in not_like_these."""
+    async def test_antithesis_extraction_respects_not_like_these(self):
+        """AntithesisExtraction avoids generating statements in not_like_these."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -331,22 +317,22 @@ class TestExtractAntitheses:
             thesis.commit()
 
             # Run twice - second time should avoid first result
-            tool1 = ExtractAntitheses(thesis_hash=thesis.short_hash)
-            result1 = await tool1.call()
+            service1 = AntithesisExtraction()
+            report1 = await service1.extract(thesis=thesis)
 
             # Get the antithesis statement from first run
             first_antitheses = list(thesis.oppositions.all())
             first_statements = [a.statement for a, _ in first_antitheses]
 
             # Second run with not_like_these
-            tool2 = ExtractAntitheses(
-                thesis_hash=thesis.short_hash,
+            service2 = AntithesisExtraction()
+            report2 = await service2.extract(
+                thesis=thesis,
                 not_like_these=first_statements
             )
-            result2 = await tool2.call()
 
-            # Should still generate (retry with relaxed constraints)
-            assert "Antitheses" in result2
+            # Should still generate
+            assert report2.ok
 
 
 class TestEndToEndPolarityFinder:

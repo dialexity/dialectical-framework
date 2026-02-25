@@ -122,15 +122,20 @@ class RunReport(BaseModel):
     def node_created(
         self,
         node: BaseNode,
+        patch: Optional[dict[str, Any]] = None,
         meta: Optional[dict[str, Any]] = None,
     ) -> None:
         """Record a node creation."""
+        # Default patch includes statement if present
+        default_patch = {"statement": getattr(node, "statement", None)}
+        if patch:
+            default_patch.update(patch)
         self.effects.append(
             Effect(
                 seq=self._next_seq(),
                 effect_type="node_created",
                 node=NodeRef.from_node(node),
-                patch={"statement": getattr(node, "statement", None)},
+                patch=default_patch,
                 meta=meta or {},
             )
         )

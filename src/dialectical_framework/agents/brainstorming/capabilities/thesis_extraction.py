@@ -13,6 +13,7 @@ Steps:
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
@@ -182,14 +183,33 @@ class ThesisExtraction(SettingsAware):
         # STEP 1: Extract assertable content
         content_items = await self._step1_extract_content()
 
-        # STEP 2: Identify thesis candidates
-        all_candidates: list[str] = []
+        # STEP 2: Identify thesis candidates (parallel for non-direct items)
+        direct_candidates: list[str] = []
+        items_to_check: list[ContentItemDto] = []
+
         for item in content_items:
-            candidates = await self._step2_identify_candidates(item)
-            all_candidates.extend(candidates)
+            if item.content_type.lower() == "direct":
+                direct_candidates.append(item.content)
+            else:
+                items_to_check.append(item)
+
+        # Process non-direct items in parallel using isolated conversations
+        if items_to_check:
+            tasks = [
+                self._conversation.isolate().submit(
+                    response_model=CandidateCheckDto,
+                    user_content=self._step2_prompt(item.content, item.content_type),
+                )
+                for item in items_to_check
+            ]
+            check_results = await asyncio.gather(*tasks)
+
+            for result in check_results:
+                if result.is_assertable and result.is_substantive:
+                    direct_candidates.extend(result.atomic_theses)
 
         # Deduplicate
-        all_candidates = list(dict.fromkeys(all_candidates))
+        all_candidates = list(dict.fromkeys(direct_candidates))
 
         if not all_candidates:
             self._report.ok = True
@@ -200,10 +220,39 @@ class ThesisExtraction(SettingsAware):
         # Limit to requested count
         candidates_to_process = all_candidates[: self._count]
 
-        # STEP 3 & 4: Classify and anchor each candidate
+        # STEP 3: Classify all candidates in parallel
+        classify_tasks = [
+            self._conversation.isolate().submit(
+                response_model=ClassificationDto,
+                user_content=self._step3_prompt(thesis_text),
+            )
+            for thesis_text in candidates_to_process
+        ]
+        classifications = await asyncio.gather(*classify_tasks)
+
+        # STEP 4: Locate complex theses in taxonomy (parallel)
+        complex_indices: list[int] = []
+        taxonomy_tasks = []
+        for i, (thesis_text, classification) in enumerate(zip(candidates_to_process, classifications)):
+            if not classification.is_simple:
+                complex_indices.append(i)
+                taxonomy_tasks.append(
+                    self._conversation.isolate().submit(
+                        response_model=TaxonomyLocationDto,
+                        user_content=self._step4_prompt(thesis_text),
+                    )
+                )
+
+        taxonomy_locations: list[Optional[TaxonomyLocationDto]] = [None] * len(candidates_to_process)
+        if taxonomy_tasks:
+            taxonomy_results = await asyncio.gather(*taxonomy_tasks)
+            for idx, location in zip(complex_indices, taxonomy_results):
+                taxonomy_locations[idx] = location
+
+        # Create nodes (sequential - graph operations)
         thesis_hashes: list[str] = []
-        for thesis_text in candidates_to_process:
-            component = await self._process_thesis(thesis_text)
+        for thesis_text, classification, location in zip(candidates_to_process, classifications, taxonomy_locations):
+            component = self._create_thesis_node(thesis_text, classification, location)
             if component:
                 thesis_hashes.append(component.hash)
 
@@ -256,22 +305,6 @@ If the input is very short (1-5 words), treat it as a single direct thesis.
 
     # --- STEP 2: Thesis Candidate Identification ---
 
-    async def _step2_identify_candidates(self, item: ContentItemDto) -> list[str]:
-        """STEP 2: Check if content is thesis candidate, decompose if compound."""
-        # Direct input bypasses validation
-        if item.content_type.lower() == "direct":
-            return [item.content]
-
-        result = await self._conversation.submit(
-            response_model=CandidateCheckDto,
-            user_content=self._step2_prompt(item.content, item.content_type),
-        )
-
-        if not result.is_assertable or not result.is_substantive:
-            return []
-
-        return result.atomic_theses
-
     def _step2_prompt(self, content: str, content_type: str) -> str:
         """Build user prompt for Step 2."""
         max_words = self.settings.component_length
@@ -294,35 +327,31 @@ Return:
 - is_atomic: true/false
 - atomic_theses: list of atomic thesis statements"""
 
-    # --- STEP 3 & 4: Classification and Anchoring ---
+    # --- Node Creation (after parallel LLM calls) ---
 
-    async def _process_thesis(self, thesis_text: str) -> Optional[DialecticalComponent]:
-        """Process a single thesis: classify and anchor."""
-        # STEP 3: Classify
-        is_simple, classification_reasoning = await self._step3_classify(thesis_text)
-        classification = "SIMPLE" if is_simple else "COMPLEX"
-
-        # STEP 4: Locate in taxonomy (if complex)
-        location = None
-        if not is_simple:
-            location = await self._step4_locate_in_taxonomy(thesis_text)
+    def _create_thesis_node(
+        self,
+        thesis_text: str,
+        classification: ClassificationDto,
+        location: Optional[TaxonomyLocationDto],
+    ) -> Optional[DialecticalComponent]:
+        """Create thesis component and rationale from classification results."""
+        classification_label = "SIMPLE" if classification.is_simple else "COMPLEX"
 
         # Build meaning URI
-        meaning = self._build_meaning_uri(is_simple, location)
+        meaning = self._build_meaning_uri(classification.is_simple, location)
 
         # Create and commit component
         component = DialecticalComponent(statement=thesis_text, meaning=meaning)
         component.commit()
         self._report.node_created(
             component,
-            meta={
-                "classification": classification,
-                "meaning": meaning,
-            },
+            patch={"meaning": meaning, "statement": thesis_text},
+            meta={"classification": classification_label},
         )
 
         # Add rationale
-        rationale_text = f"Classification: {classification}. {classification_reasoning}"
+        rationale_text = f"Classification: {classification_label}. {classification.reasoning}"
         if location:
             rationale_text += f" Taxonomy: {location.taxonomy_type}/{location.branch}/{location.leaf}. {location.reasoning}"
 
@@ -331,15 +360,13 @@ Return:
         rationale.commit()
         self._report.node_created(rationale)
 
-        return component
-
-    async def _step3_classify(self, thesis: str) -> tuple[bool, str]:
-        """STEP 3: Classify thesis as Simple (True) or Complex (False)."""
-        result = await self._conversation.submit(
-            response_model=ClassificationDto,
-            user_content=self._step3_prompt(thesis),
+        # Report the EXPLAINS relationship (auto-created by rationale.commit())
+        self._report.relationship_created(
+            rationale.explains, rationale, component,
+            meta={"auto_created": True}
         )
-        return result.is_simple, result.reasoning
+
+        return component
 
     def _step3_prompt(self, thesis: str) -> str:
         """Build user prompt for Step 3."""
@@ -352,13 +379,6 @@ Using the classification criteria from the system prompt, classify this thesis a
 - COMPLEX/SYSTEMIC (is_simple = false): involves relationships, processes, functional roles
 
 Provide your reasoning."""
-
-    async def _step4_locate_in_taxonomy(self, thesis: str) -> TaxonomyLocationDto:
-        """STEP 4: Locate complex thesis in taxonomy."""
-        return await self._conversation.submit(
-            response_model=TaxonomyLocationDto,
-            user_content=self._step4_prompt(thesis),
-        )
 
     def _step4_prompt(self, thesis: str) -> str:
         """Build user prompt for Step 4."""

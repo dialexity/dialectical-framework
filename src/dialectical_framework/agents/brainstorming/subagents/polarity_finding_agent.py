@@ -2,16 +2,16 @@
 PolarityFindingAgent: Orchestrator for Phase 2 of polarity-finder.
 
 Uses conversational pattern: all steps share context through conversation history,
-enabling prompt caching. Forks conversation for child ExtractAntitheses tool.
+enabling prompt caching.
 
 Symmetric to AnchoringAgent:
-- AnchoringAgent (orchestrator) calls ExtractTheses (work tool) → Ideas (all T)
-- PolarityFindingAgent (orchestrator) calls ExtractAntitheses (work tool) → Ideas (per T, all A)
+- AnchoringAgent (orchestrator) uses ThesisExtraction → Ideas (all T)
+- PolarityFindingAgent (orchestrator) uses AntithesisExtraction → Ideas (per T, all A)
 
 Flow:
     AnchoringAgent → Theses (Ideas with all T)
            ↓
-    PolarityFindingAgent → For each thesis, call ExtractAntitheses
+    PolarityFindingAgent → For each thesis, extract antitheses
            ↓
     One Ideas per T (containing all A for that T)
            ↓
@@ -26,8 +26,8 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
-from dialectical_framework.agents.brainstorming.tools.extract_antitheses import (
-    ExtractAntitheses,
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
+    AntithesisExtraction,
 )
 from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
     DedupResult,
@@ -60,37 +60,6 @@ For semantic deduplication:
 - Consider same core concept even if worded differently"""
 
 
-# --- DTOs ---
-
-
-class AntithesisDataDto(BaseModel):
-    """Single antithesis extracted from tool output."""
-
-    hash: str = Field(description="Hash of the antithesis")
-    heuristic_similarity: float = Field(
-        ge=0.0, le=1.0,
-        description="Heuristic Similarity value (0.0-1.0)"
-    )
-    statement: str = Field(description="The antithesis statement text")
-
-
-class ExtractedAntithesesDto(BaseModel):
-    """Result of extracting antithesis data from tool output."""
-
-    antitheses: list[AntithesisDataDto] = Field(
-        default_factory=list,
-        description="List of antitheses extracted from the report"
-    )
-    has_error: bool = Field(
-        default=False,
-        description="True if the tool output indicates an error"
-    )
-    error_message: str = Field(
-        default="",
-        description="Error message if has_error is True"
-    )
-
-
 # --- Result container for tracking ---
 
 
@@ -115,8 +84,8 @@ class PolarityFindingAgent(BaseTool):
     conversation history, enabling prompt caching.
 
     For each thesis hash:
-    1. Call ExtractAntitheses (the work tool) to generate antitheses
-    2. Parse results to get antithesis hashes + Heuristic Similarity values
+    1. Use AntithesisExtraction to generate antitheses
+    2. Get antithesis hashes + Heuristic Similarity values from report
     3. Create Ideas node per thesis with its antitheses
     4. Return summary report for BrainstormingAgent curation
 
@@ -130,7 +99,7 @@ class PolarityFindingAgent(BaseTool):
     _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
 
     async def call(self) -> str:
-        """Execute polarity finding: orchestrate ExtractAntitheses for each thesis."""
+        """Execute polarity finding: orchestrate AntithesisExtraction for each thesis."""
         # Initialize conversation with system prompt
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
@@ -223,41 +192,49 @@ class PolarityFindingAgent(BaseTool):
         """
         Extract antitheses with retry logic.
 
-        Forks conversation for each ExtractAntitheses call.
         Goal: Find at least 1 antithesis per thesis.
         If first attempt with not_like_these yields nothing, retry with empty constraints.
 
         Returns list of antithesis data dicts, or error string.
         """
+        # Resolve thesis first
+        thesis = self._resolve_component(thesis_hash)
+        if thesis is None:
+            return f"ERROR: Thesis with hash '{thesis_hash}' not found"
+
         # First attempt: with not_like_these constraints
-        extract_tool = ExtractAntitheses(
-            thesis_hash=thesis_hash,
+        service = AntithesisExtraction()
+        report = await service.extract(
+            thesis=thesis,
             text=text,
             not_like_these=not_like_these,
         )
-        tool_result = await extract_tool.call()
 
-        if tool_result.startswith("ERROR:"):
-            return tool_result
-
-        antithesis_data = await self._parse_antithesis_data(tool_result)
+        antithesis_data = self._extract_data_from_report(report)
 
         # If we got results, return them
         if antithesis_data:
             return antithesis_data
 
         # Retry with empty not_like_these (relax constraints)
-        extract_tool_retry = ExtractAntitheses(
-            thesis_hash=thesis_hash,
+        service_retry = AntithesisExtraction()
+        report_retry = await service_retry.extract(
+            thesis=thesis,
             text=text,
             not_like_these=[],
         )
-        tool_result_retry = await extract_tool_retry.call()
 
-        if tool_result_retry.startswith("ERROR:"):
-            return tool_result_retry
+        return self._extract_data_from_report(report_retry)
 
-        return await self._parse_antithesis_data(tool_result_retry)
+    def _extract_data_from_report(self, report) -> list[dict]:
+        """Extract antithesis data from RunReport artifacts."""
+        antithesis_hashes = report.artifacts.get("antithesis_hashes", [])
+        hs_by_hash = report.artifacts.get("heuristic_similarity_by_hash", {})
+
+        return [
+            {"hash": h, "heuristic_similarity": hs_by_hash.get(h, 0.5)}
+            for h in antithesis_hashes
+        ]
 
     # --- Helpers ---
 
@@ -336,36 +313,6 @@ class PolarityFindingAgent(BaseTool):
         except ValueError:
             pass
         return None
-
-    async def _parse_antithesis_data(self, tool_output: str) -> list[dict]:
-        """
-        Extract antithesis data from ExtractAntitheses tool output using LLM.
-
-        The tool output format may vary (JSON, error messages, etc.), so we use
-        an LLM to robustly extract the relevant information.
-        """
-        result = await self._conversation.submit(
-            response_model=ExtractedAntithesesDto,
-            user_content=f"""Extract antithesis data from this tool output.
-
-Look for:
-- Antithesis hash (hex strings)
-- Heuristic Similarity values (0.0-1.0)
-- Statement text for each antithesis
-
-If the output indicates an error or failure, set has_error=True.
-
-**Tool Output:**
-{tool_output}""",
-        )
-
-        if result.has_error:
-            return []
-
-        return [
-            {"hash": a.hash, "heuristic_similarity": a.heuristic_similarity}
-            for a in result.antitheses
-        ]
 
     def _create_ideas_for_thesis(
         self,
