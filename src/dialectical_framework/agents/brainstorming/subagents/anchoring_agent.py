@@ -85,7 +85,7 @@ For semantic deduplication:
 class ParsedIntentDto(BaseModel):
     """Result of parsing the unstructured intent."""
 
-    count: int = Field(default=4, description="Number of theses to surface (1-10)")
+    count: int = Field(default=3, description="Number of theses to surface (1-10)")
     direct_theses: list[str] = Field(
         default_factory=list,
         description="Direct theses explicitly specified in intent (e.g., 'anchor thesis Trust' → ['Trust'])",
@@ -191,15 +191,14 @@ class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]])
             extracted_components, extraction_reports = await self._extraction_loop(
                 input_text=input_text,
                 parsed=parsed,
+                target_count=remaining_count,
                 not_like_these=not_like_these,
             )
             for r in extraction_reports:
                 self._report = self._report.merge(r)
 
-        # Combine direct and extracted
-        all_components = direct_components + extracted_components
-
-        if not all_components:
+        # Check if we have anything
+        if not direct_components and not extracted_components:
             self._report.ok = True
             self._report.summary = "No theses extracted"
             if not input_text and not parsed.direct_theses:
@@ -207,23 +206,28 @@ class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]])
             self._report.artifacts["thesis_hashes"] = []
             return []
 
-        # 5. Semantic dedup against existing vocabulary
-        final_components: list[DialecticalComponent] = []
+        # 5. Semantic dedup ONLY for extracted components (not direct theses)
+        # Direct theses represent explicit user intent and should be preserved as-is.
+        # They already get hash-based dedup via commit (upsert behavior).
+        deduped_extracted: list[DialecticalComponent] = []
         deleted_count = 0
 
-        if vocab and all_components:
-            all_hashes = [c.hash for c in all_components]
+        if vocab and extracted_components:
+            extracted_hashes = [c.hash for c in extracted_components]
             deduplicator = StatementDeduplication()
             dedup_result = await deduplicator.execute(
-                extracted_hashes=all_hashes,
+                extracted_hashes=extracted_hashes,
                 vocabulary=vocab,
                 text=input_text,
             )
             deleted_count = dedup_result.deleted_count
-            final_components = dedup_result.components
+            deduped_extracted = dedup_result.components
         else:
-            # No existing vocab - keep all
-            final_components = all_components
+            # No existing vocab or no extracted - keep extracted as-is
+            deduped_extracted = extracted_components
+
+        # Combine: direct theses first (user intent wins), then deduped extracted
+        final_components = direct_components + deduped_extracted
 
         # 6. Create Ideas
         ideas = self._create_ideas(final_components, parsed)
@@ -242,7 +246,7 @@ class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]])
 
     def _parse_intent_prompt(self, input_preview: str) -> str:
         """Build user prompt for parsing intent."""
-        return f"""Parse this anchoring intent and extract structured parameters.
+        return f"""Parse this anchoring intent of the user, understand it and extract structured parameters. 
 
 **Intent:** {self.intent}
 
@@ -274,14 +278,14 @@ Determine:
    - Inputs ARE available, AND
    - Intent explicitly asks to "extract", "find", "surface" theses FROM those inputs
 
-2. count: How many theses to surface (default 4, max 10)
+2. **count**: Extract the number if specified in intent (e.g., "3 theses" → count: 3).
+   - If direct_theses found, count = len(direct_theses)
+   - If a number is specified in intent, use that number
+   - If nothing specified, default to 3
 3. constraints: What to avoid or exclude
 4. preferences: What to prefer (e.g., "prefer existing", "focus on X")
 5. domain_hint: Derive a contextual domain hint from intent
-6. focus: Topic/theme to focus extraction on (only if extracting from inputs)
-
-If direct_theses are found, count = len(direct_theses).
-If no direct_theses and count isn't specified, use 4."""
+6. focus: Topic/theme to focus extraction on (only if extracting from inputs)"""
 
     async def _parse_intent(self) -> ParsedIntentDto:
         """Parse unstructured intent into structured parameters."""
@@ -369,10 +373,17 @@ If no direct_theses and count isn't specified, use 4."""
         self,
         input_text: str,
         parsed: ParsedIntentDto,
+        target_count: int,
         not_like_these: list[str],
     ) -> tuple[list[DialecticalComponent], list[ExecutionReport]]:
         """
         Extract theses with retries on different parameters.
+
+        Args:
+            input_text: Text to extract from
+            parsed: Parsed intent (for focus, domain_hint)
+            target_count: Number of theses to extract (accounts for direct theses already added)
+            not_like_these: Statements to avoid
 
         Returns tuple of (extracted components, reports).
         """
@@ -384,11 +395,11 @@ If no direct_theses and count isn't specified, use 4."""
         param_variations = self._build_param_variations(parsed)
 
         for attempt, params in enumerate(param_variations[:max_attempts]):
-            if len(extracted_components) >= parsed.count:
+            if len(extracted_components) >= target_count:
                 break
 
             # How many more do we need?
-            remaining = parsed.count - len(extracted_components)
+            remaining = target_count - len(extracted_components)
 
             service = ThesisExtraction()
             new_components = await service.execute(
@@ -407,7 +418,7 @@ If no direct_theses and count isn't specified, use 4."""
                 if comp.statement not in not_like_these:
                     not_like_these.append(comp.statement)
 
-        return extracted_components[:parsed.count], reports
+        return extracted_components[:target_count], reports
 
     def _build_param_variations(self, parsed: ParsedIntentDto) -> list[dict]:
         """Build list of parameter variations to try."""
