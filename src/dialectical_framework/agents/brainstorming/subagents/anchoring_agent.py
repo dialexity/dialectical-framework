@@ -10,23 +10,41 @@ Extraction-centric approach:
 3. Semantic dedup against existing vocabulary
 4. Cleanup redundant extractions (prefer DB versions)
 5. Create Ideas with final set
+
+Usage:
+    # Programmatic (web app)
+    agent = AnchoringAgent(intent="extract theses about trust")
+    theses = await agent.execute()
+    for t in theses:
+        print(t.statement)
+
+    # LLM tool use (returns JSON)
+    agent = AnchoringAgent(intent="...")
+    json_result = await agent.call()
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
+from dialectical_framework.agents.executable_capability import ExecutableCapability
 from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
     StatementDeduplication,
+)
+from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
+    StatementClassification,
+    ClassificationResult,
 )
 from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import (
     ThesisExtraction,
 )
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -97,7 +115,7 @@ class ParsedIntentDto(BaseModel):
 # --- Main Agent ---
 
 
-class AnchoringAgent(BaseTool):
+class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]]):
     """
     Surfaces theses for BrainstormingAgent by fulfilling anchoring intent.
 
@@ -112,6 +130,10 @@ class AnchoringAgent(BaseTool):
     5. Creates Ideas node with final component set
 
     This is Phase 1 of the polarity-finder algorithm (Steps 1-4).
+
+    Dual interface:
+    - execute() returns list[DialecticalComponent] for programmatic use
+    - call() returns JSON string for LLM tool use
     """
 
     intent: str = Field(
@@ -124,9 +146,18 @@ class AnchoringAgent(BaseTool):
     )
 
     _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
+    _report: ExecutionReport = PrivateAttr()
 
     async def call(self) -> str:
-        """Execute anchoring: extract, dedup, cleanup, create Ideas."""
+        """Execute anchoring and return ExecutionReport as JSON (for LLM tool use)."""
+        await self.execute()
+        return str(self._report)
+
+    async def execute(self) -> list[DialecticalComponent]:
+        """Execute anchoring: extract, dedup, cleanup, create Ideas. Returns components."""
+        # Reset report on each execution (allows instance reuse)
+        self._report = ExecutionReport(tool="anchoring_agent")
+
         # Initialize conversation with system prompt
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
@@ -139,73 +170,73 @@ class AnchoringAgent(BaseTool):
         not_like_these = [c["statement"] for c in vocab]  # Avoid all existing, including rejected
 
         # 3. Handle direct theses if specified in intent
-        direct_hashes: list[str] = []
+        direct_components: list[DialecticalComponent] = []
         if parsed.direct_theses:
-            direct_hashes = await self._anchor_direct_theses(parsed.direct_theses, parsed)
+            direct_components, direct_reports = await self._anchor_direct_theses(
+                parsed.direct_theses, parsed, text=input_text
+            )
+            for r in direct_reports:
+                self._report = self._report.merge(r)
 
         # 4. Extraction loop (if we have inputs and need more theses)
-        extracted_hashes: list[str] = []
-        remaining_count = parsed.count - len(direct_hashes)
+        extracted_components: list[DialecticalComponent] = []
+        remaining_count = parsed.count - len(direct_components)
 
         if remaining_count > 0 and input_text:
             # Add direct thesis statements to not_like_these to avoid duplicates
-            for h in direct_hashes:
-                stmt = self._get_statement_by_hash(h)
-                if stmt and stmt not in not_like_these:
-                    not_like_these.append(stmt)
+            for comp in direct_components:
+                if comp.statement not in not_like_these:
+                    not_like_these.append(comp.statement)
 
-            extracted_hashes = await self._extraction_loop(
+            extracted_components, extraction_reports = await self._extraction_loop(
                 input_text=input_text,
                 parsed=parsed,
                 not_like_these=not_like_these,
             )
+            for r in extraction_reports:
+                self._report = self._report.merge(r)
 
         # Combine direct and extracted
-        all_hashes = direct_hashes + extracted_hashes
+        all_components = direct_components + extracted_components
 
-        if not all_hashes:
+        if not all_components:
+            self._report.ok = True
+            self._report.summary = "No theses extracted"
             if not input_text and not parsed.direct_theses:
-                return "No inputs in scope and no direct theses in intent. Add inputs or specify theses directly."
-            return f"No theses extracted. Intent: {self.intent}"
+                self._report.summary = "No inputs in scope and no direct theses in intent"
+            self._report.artifacts["thesis_hashes"] = []
+            return []
 
-        # 5. Semantic dedup (if we have existing vocabulary)
+        # 5. Semantic dedup against existing vocabulary
         final_components: list[DialecticalComponent] = []
         deleted_count = 0
 
-        if vocab and extracted_hashes:
-            # Only dedup extracted (not direct theses - those are intentional)
+        if vocab and all_components:
+            all_hashes = [c.hash for c in all_components]
             deduplicator = StatementDeduplication()
-            dedup_result = await deduplicator.deduplicate(
-                extracted_hashes=extracted_hashes,
+            dedup_result = await deduplicator.execute(
+                extracted_hashes=all_hashes,
                 vocabulary=vocab,
+                text=input_text,
             )
             deleted_count = dedup_result.deleted_count
-
-            # Resolve kept + replacement components
-            deduped_components = self._resolve_components(dedup_result.kept_hashes)
-            for db_hash in dedup_result.replacements.values():
-                comp = self._resolve_component(db_hash)
-                if comp and comp not in deduped_components:
-                    deduped_components.append(comp)
-
-            # Add direct thesis components first
-            final_components = self._resolve_components(direct_hashes) + deduped_components
+            final_components = dedup_result.components
         else:
-            # No existing vocab or no extractions - keep all
-            final_components = self._resolve_components(all_hashes)
+            # No existing vocab - keep all
+            final_components = all_components
 
         # 6. Create Ideas
         ideas = self._create_ideas(final_components, parsed)
 
-        # 7. Report
-        return self._build_report(
-            parsed=parsed,
-            extracted_count=len(extracted_hashes),
-            direct_count=len(direct_hashes),
-            deleted_count=deleted_count,
-            final_components=final_components,
-            ideas=ideas,
-        )
+        # 7. Build final artifacts
+        self._report.artifacts["thesis_hashes"] = [c.hash for c in final_components]
+        self._report.artifacts["ideas_hash"] = ideas.hash if ideas else None
+        self._report.artifacts["theses_count_found_in_intent"] = len(direct_components)
+        self._report.artifacts["extracted_theses_count"] = len(extracted_components)
+        self._report.artifacts["duplicates_found_and_deleted"] = deleted_count
+        self._report.summary = f"Anchored {len(final_components)} thesis(es)"
+
+        return final_components
 
     # --- Intent Parsing ---
 
@@ -275,25 +306,62 @@ If no direct_theses and count isn't specified, use 4."""
         self,
         theses: list[str],
         parsed: ParsedIntentDto,
-    ) -> list[str]:
+        text: str = "",
+    ) -> tuple[list[DialecticalComponent], list[ExecutionReport]]:
         """
         Anchor direct theses specified in intent.
 
-        Uses ThesisExtraction with each thesis as direct input (short text mode).
-        Returns list of component hashes.
+        Uses StatementClassification to classify each thesis, then creates components.
+        Returns tuple of (components, reports).
         """
-        hashes: list[str] = []
-        for thesis in theses:
-            service = ThesisExtraction()
-            report = await service.extract(
-                text=thesis,
-                count=1,
+        # Create classifiers and run in parallel
+        classifiers = [StatementClassification() for _ in theses]
+        tasks = [
+            classifier.execute(
+                statement=thesis,
+                text=text,
                 domain_hint=parsed.domain_hint,
             )
-            new_hashes = report.artifacts.get("thesis_hashes", [])
-            hashes.extend(new_hashes)
+            for classifier, thesis in zip(classifiers, theses)
+        ]
 
-        return hashes
+        results: list[ClassificationResult] = await asyncio.gather(*tasks)
+        reports = [classifier.report for classifier in classifiers]
+
+        # Create components from classification results
+        components: list[DialecticalComponent] = []
+        for result in results:
+            component = self._create_component_from_classification(result)
+            components.append(component)
+
+        return components, reports
+
+    def _create_component_from_classification(
+        self, result: ClassificationResult
+    ) -> DialecticalComponent:
+        """Create component and rationale from classification result."""
+        component = DialecticalComponent(statement=result.statement, meaning=result.meaning)
+        component.commit()
+
+        classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
+        self._report.node_created(
+            component,
+            patch={"meaning": result.meaning, "statement": result.statement},
+            meta={"classification": classification_label},
+        )
+
+        # Add rationale
+        rationale_text = f"Classification: {classification_label}. {result.classification_reasoning}"
+        if result.taxonomy_reasoning:
+            rationale_text += f" {result.taxonomy_reasoning}"
+
+        rationale = Rationale(text=rationale_text)
+        rationale.set_explanation_target(component)
+        rationale.commit()
+        self._report.node_created(rationale)
+        self._report.relationship_created(rationale.explains, rationale, component)
+
+        return component
 
     # --- Extraction Loop ---
 
@@ -302,47 +370,44 @@ If no direct_theses and count isn't specified, use 4."""
         input_text: str,
         parsed: ParsedIntentDto,
         not_like_these: list[str],
-    ) -> list[str]:
+    ) -> tuple[list[DialecticalComponent], list[ExecutionReport]]:
         """
         Extract theses with retries on different parameters.
 
-        Returns list of extracted component hash prefixes.
+        Returns tuple of (extracted components, reports).
         """
-        extracted_hashes: list[str] = []
+        extracted_components: list[DialecticalComponent] = []
+        reports: list[ExecutionReport] = []
         max_attempts = 4
 
         # Build parameter variations to try
         param_variations = self._build_param_variations(parsed)
 
         for attempt, params in enumerate(param_variations[:max_attempts]):
-            if len(extracted_hashes) >= parsed.count:
+            if len(extracted_components) >= parsed.count:
                 break
 
             # How many more do we need?
-            remaining = parsed.count - len(extracted_hashes)
+            remaining = parsed.count - len(extracted_components)
 
             service = ThesisExtraction()
-            report = await service.extract(
+            new_components = await service.execute(
                 text=input_text,
                 count=remaining,
                 focus=params.get("focus", ""),
                 domain_hint=params.get("domain_hint", ""),
-                not_like_these=not_like_these + [
-                    self._get_statement_by_hash(h) for h in extracted_hashes
-                ],
+                not_like_these=not_like_these + [c.statement for c in extracted_components],
             )
+            reports.append(service.report)
 
-            # Get hashes directly from report artifacts
-            new_hashes = report.artifacts.get("thesis_hashes", [])
-            extracted_hashes.extend(new_hashes)
+            extracted_components.extend(new_components)
 
             # Update not_like_these for next iteration
-            for h in new_hashes:
-                stmt = self._get_statement_by_hash(h)
-                if stmt and stmt not in not_like_these:
-                    not_like_these.append(stmt)
+            for comp in new_components:
+                if comp.statement not in not_like_these:
+                    not_like_these.append(comp.statement)
 
-        return extracted_hashes[:parsed.count]
+        return extracted_components[:parsed.count], reports
 
     def _build_param_variations(self, parsed: ParsedIntentDto) -> list[dict]:
         """Build list of parameter variations to try."""
@@ -376,11 +441,11 @@ If no direct_theses and count isn't specified, use 4."""
 
         return variations
 
-    def _get_statement_by_hash(self, hash_prefix: str) -> str:
-        """Get statement text for a component by hash prefix."""
+    def _get_statement_by_hash(self, hash: str) -> str:
+        """Get statement text for a component by hash."""
         repo = NodeRepository()
         try:
-            comp = repo.find_by_hash(hash_prefix)
+            comp = repo.find_by_hash(hash)
             if comp and isinstance(comp, DialecticalComponent):
                 return comp.statement
         except ValueError:
@@ -451,11 +516,11 @@ If no direct_theses and count isn't specified, use 4."""
 
         return result
 
-    def _resolve_component(self, hash_prefix: str) -> Optional[DialecticalComponent]:
-        """Resolve hash prefix to component."""
+    def _resolve_component(self, hash: str) -> Optional[DialecticalComponent]:
+        """Resolve hash to component."""
         repo = NodeRepository()
         try:
-            comp = repo.find_by_hash(hash_prefix)
+            comp = repo.find_by_hash(hash)
             if isinstance(comp, DialecticalComponent):
                 return comp
         except ValueError:
@@ -463,7 +528,7 @@ If no direct_theses and count isn't specified, use 4."""
         return None
 
     def _resolve_components(self, hashes: list[str]) -> list[DialecticalComponent]:
-        """Resolve list of hash prefixes to components."""
+        """Resolve list of hashes to components."""
         return [c for h in hashes if (c := self._resolve_component(h))]
 
     def _create_ideas(
@@ -471,7 +536,7 @@ If no direct_theses and count isn't specified, use 4."""
         components: list[DialecticalComponent],
         parsed: ParsedIntentDto,
     ) -> Optional[Ideas]:
-        """Create Ideas node and wire to components and inputs."""
+        """Create Ideas node and wire to components and inputs. Records effects in self._report."""
         if not components:
             return None
 
@@ -488,51 +553,17 @@ If no direct_theses and count isn't specified, use 4."""
             ideas.statements.connect(comp)
 
         ideas.commit()
+        self._report.node_created(ideas)
 
         # Attach rationale explaining how intent was interpreted
         if parsed.reasoning:
             rationale = Rationale(text=parsed.reasoning)
             rationale.set_explanation_target(ideas)
             rationale.commit()
+            self._report.node_created(rationale)
+            self._report.relationship_created(
+                rationale.explains, rationale, ideas,
+            )
 
         return ideas
 
-    def _build_report(
-        self,
-        parsed: ParsedIntentDto,
-        extracted_count: int,
-        deleted_count: int,
-        final_components: list[DialecticalComponent],
-        ideas: Optional[Ideas],
-        direct_count: int = 0,
-    ) -> str:
-        """Build the result report."""
-        lines = ["**Anchoring Complete**", ""]
-
-        lines.append(f"**Intent parsed:** {parsed.reasoning}")
-        lines.append(f"**Target count:** {parsed.count}")
-        if parsed.domain_hint:
-            lines.append(f"**Domain:** {parsed.domain_hint}")
-        if parsed.focus:
-            lines.append(f"**Focus:** {parsed.focus}")
-        if parsed.direct_theses:
-            lines.append(f"**Direct theses:** {', '.join(parsed.direct_theses)}")
-
-        lines.append("")
-        if direct_count > 0:
-            lines.append(f"**Direct theses anchored:** {direct_count}")
-        if extracted_count > 0:
-            lines.append(f"**Extracted from inputs:** {extracted_count} theses")
-        if deleted_count > 0:
-            lines.append(f"**Deduplicated:** {deleted_count} (preferred existing DB versions)")
-
-        lines.append("")
-        lines.append(f"**Final theses ({len(final_components)}):**")
-        for comp in final_components:
-            lines.append(f"  [{comp.short_hash}] {comp.statement}")
-
-        if ideas:
-            lines.append("")
-            lines.append(f"**Ideas:** {ideas.short_hash}")
-
-        return "\n".join(lines)

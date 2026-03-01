@@ -16,6 +16,17 @@ Flow:
     One Ideas per T (containing all A for that T)
            ↓
     BrainstormingAgent → Reviews T/A pairs, rejects low Heuristic Similarity
+
+Usage:
+    # Programmatic (web app)
+    agent = PolarityFindingAgent(thesis_hashes=["abc123", "def456"])
+    antitheses = await agent.execute()
+    for a in antitheses:
+        print(a.statement)
+
+    # LLM tool use (returns JSON)
+    agent = PolarityFindingAgent(thesis_hashes=[...])
+    json_result = await agent.call()
 """
 
 from __future__ import annotations
@@ -29,11 +40,13 @@ from pydantic import BaseModel, Field, PrivateAttr
 from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
     AntithesisExtraction,
 )
+from dialectical_framework.agents.executable_capability import ExecutableCapability
 from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
     DedupResult,
     StatementDeduplication,
 )
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -76,7 +89,7 @@ class ThesisResult:
 # --- Main Orchestrator ---
 
 
-class PolarityFindingAgent(BaseTool):
+class PolarityFindingAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]]):
     """
     Orchestrate antithesis generation (Phase 2 of polarity-finder).
 
@@ -90,6 +103,10 @@ class PolarityFindingAgent(BaseTool):
     4. Return summary report for BrainstormingAgent curation
 
     This is symmetric to AnchoringAgent which orchestrates Phase 1.
+
+    Dual interface:
+    - execute() returns list[DialecticalComponent] for programmatic use
+    - call() returns JSON string for LLM tool use
     """
 
     thesis_hashes: list[str] = Field(
@@ -97,14 +114,26 @@ class PolarityFindingAgent(BaseTool):
     )
 
     _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
+    _report: ExecutionReport = PrivateAttr()
 
     async def call(self) -> str:
-        """Execute polarity finding: orchestrate AntithesisExtraction for each thesis."""
+        """Execute polarity finding and return ExecutionReport as JSON (for LLM tool use)."""
+        await self.execute()
+        return str(self._report)
+
+    async def execute(self) -> list[DialecticalComponent]:
+        """Execute polarity finding: orchestrate AntithesisExtraction for each thesis. Returns antitheses."""
+        # Reset report on each execution (allows instance reuse)
+        self._report = ExecutionReport(tool="polarity_finding_agent")
+
         # Initialize conversation with system prompt
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         if not self.thesis_hashes:
-            return "No thesis hashes provided"
+            self._report.ok = True
+            self._report.summary = "No thesis hashes provided"
+            self._report.artifacts["antithesis_hashes"] = []
+            return []
 
         # Get input text for context
         input_text = await self._get_input_text()
@@ -114,7 +143,7 @@ class PolarityFindingAgent(BaseTool):
         not_like_these = [c["statement"] for c in vocab]
 
         results: list[ThesisResult] = []
-        all_extracted_hashes: list[str] = []  # Track all extracted for dedup
+        all_antitheses: list[DialecticalComponent] = []  # Track all extracted
 
         # Phase 1: Extract antitheses for all theses (with retry if none found)
         for thesis_hash in self.thesis_hashes:
@@ -128,35 +157,33 @@ class PolarityFindingAgent(BaseTool):
             result = ThesisResult(thesis=thesis)
 
             # Try extraction with not_like_these, retry with empty if no results
-            antithesis_data = await self._extract_with_retry(
-                thesis_hash=thesis_hash,
+            antitheses, antithesis_data, extraction_reports = await self._extract_with_retry(
+                thesis=thesis,
                 text=input_text,
                 not_like_these=not_like_these,
             )
-
-            if isinstance(antithesis_data, str):  # Error string
-                result.error = antithesis_data
-                results.append(result)
-                continue
+            for r in extraction_reports:
+                self._report = self._report.merge(r)
 
             result.antithesis_data = antithesis_data
+            all_antitheses.extend(antitheses)
 
-            # Track extracted hashes for dedup
-            for data in antithesis_data:
-                all_extracted_hashes.append(data["hash"])
-                comp = self._resolve_component(data["hash"])
-                if comp and comp.statement not in not_like_these:
+            # Track extracted for not_like_these
+            for comp in antitheses:
+                if comp.statement not in not_like_these:
                     not_like_these.append(comp.statement)
 
             results.append(result)
 
         # Phase 2: Semantic deduplication against existing vocabulary
         deleted_count = 0
+        all_extracted_hashes = [c.hash for c in all_antitheses]
         if all_extracted_hashes and vocab:
             deduplicator = StatementDeduplication()
-            dedup_result = await deduplicator.deduplicate(
+            dedup_result = await deduplicator.execute(
                 extracted_hashes=all_extracted_hashes,
                 vocabulary=vocab,
+                text=input_text,
             )
             deleted_count = dedup_result.deleted_count
 
@@ -169,71 +196,85 @@ class PolarityFindingAgent(BaseTool):
                     continue
                 for data in result.antithesis_data:
                     if data["hash"] in dedup_result.replacements:
-                        data["hash"] = dedup_result.replacements[data["hash"]]
+                        data["hash"] = dedup_result.replacements[data["hash"]].hash
                         data["deduped"] = True
 
         # Phase 3: Create Ideas for each thesis with deduped components
+        ideas_hashes: list[str] = []
         for result in results:
             if result.error or not result.antithesis_data:
                 continue
             ideas = self._create_ideas_for_thesis(result.thesis, result.antithesis_data)
             result.ideas = ideas
+            if ideas:
+                ideas_hashes.append(ideas.hash)
 
-        return self._build_report(results, deleted_count)
+        # Build final artifacts
+        total_antitheses = sum(len(r.antithesis_data) for r in results if not r.error)
+        self._report.artifacts["thesis_hashes"] = self.thesis_hashes
+        self._report.artifacts["antithesis_hashes"] = all_extracted_hashes
+        self._report.artifacts["ideas_hashes"] = ideas_hashes
+        self._report.artifacts["deleted_count"] = deleted_count
+        self._report.artifacts["total_antitheses"] = total_antitheses
+        self._report.summary = f"Generated {total_antitheses} antithesis(es) for {len(self.thesis_hashes)} thesis(es)"
+
+        return all_antitheses
 
     # --- Extraction with Retry ---
 
     async def _extract_with_retry(
         self,
-        thesis_hash: str,
+        thesis: DialecticalComponent,
         text: str,
         not_like_these: list[str],
-    ) -> list[dict] | str:
+    ) -> tuple[list[DialecticalComponent], list[dict], list[ExecutionReport]]:
         """
         Extract antitheses with retry logic.
 
         Goal: Find at least 1 antithesis per thesis.
         If first attempt with not_like_these yields nothing, retry with empty constraints.
 
-        Returns list of antithesis data dicts, or error string.
+        Returns tuple of (antithesis components, antithesis data dicts, reports).
         """
-        # Resolve thesis first
-        thesis = self._resolve_component(thesis_hash)
-        if thesis is None:
-            return f"ERROR: Thesis with hash '{thesis_hash}' not found"
+        from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
+            AntithesisProcessed,
+        )
+
+        reports: list[ExecutionReport] = []
 
         # First attempt: with not_like_these constraints
         service = AntithesisExtraction()
-        report = await service.extract(
+        results = await service.execute(
             thesis=thesis,
             text=text,
             not_like_these=not_like_these,
         )
-
-        antithesis_data = self._extract_data_from_report(report)
+        reports.append(service.report)
 
         # If we got results, return them
-        if antithesis_data:
-            return antithesis_data
+        if results:
+            components = [r.component for r in results]
+            antithesis_data = self._build_antithesis_data(results)
+            return components, antithesis_data, reports
 
         # Retry with empty not_like_these (relax constraints)
         service_retry = AntithesisExtraction()
-        report_retry = await service_retry.extract(
+        results_retry = await service_retry.execute(
             thesis=thesis,
             text=text,
             not_like_these=[],
         )
+        reports.append(service_retry.report)
 
-        return self._extract_data_from_report(report_retry)
+        components = [r.component for r in results_retry]
+        antithesis_data = self._build_antithesis_data(results_retry)
+        return components, antithesis_data, reports
 
-    def _extract_data_from_report(self, report) -> list[dict]:
-        """Extract antithesis data from RunReport artifacts."""
-        antithesis_hashes = report.artifacts.get("antithesis_hashes", [])
-        hs_by_hash = report.artifacts.get("heuristic_similarity_by_hash", {})
-
+    def _build_antithesis_data(self, results: list) -> list[dict]:
+        """Build antithesis data dicts directly from AntithesisResult objects."""
         return [
-            {"hash": h, "heuristic_similarity": hs_by_hash.get(h, 0.5)}
-            for h in antithesis_hashes
+            {"hash": r.component.hash, "heuristic_similarity": r.heuristic_similarity}
+            for r in results
         ]
 
     # --- Helpers ---
@@ -297,9 +338,8 @@ class PolarityFindingAgent(BaseTool):
                 hash_to_thesis[data["hash"]] = result.thesis
 
         # Connect thesis to DB version for each replacement
-        for ext_hash, db_hash in dedup_result.replacements.items():
+        for ext_hash, db_comp in dedup_result.replacements.items():
             thesis = hash_to_thesis.get(ext_hash)
-            db_comp = self._resolve_component(db_hash)
             if thesis and db_comp:
                 thesis.oppositions.connect(db_comp)
 
@@ -319,7 +359,7 @@ class PolarityFindingAgent(BaseTool):
         thesis: DialecticalComponent,
         antithesis_data: list[dict],
     ) -> Optional[Ideas]:
-        """Create Ideas node for a thesis with its antitheses."""
+        """Create Ideas node for a thesis with its antitheses. Records effects in self._report."""
         if not antithesis_data:
             return None
 
@@ -338,6 +378,7 @@ class PolarityFindingAgent(BaseTool):
                 ideas.statements.connect(comp)
 
         ideas.commit()
+        self._report.node_created(ideas, meta={"thesis_hash": thesis.hash})
 
         # Attach Rationale summarizing the generation
         hs_values = [d["heuristic_similarity"] for d in antithesis_data]
@@ -347,50 +388,10 @@ class PolarityFindingAgent(BaseTool):
         )
         rationale.set_explanation_target(ideas)
         rationale.commit()
+        self._report.node_created(rationale)
+        self._report.relationship_created(
+            rationale.explains, rationale, ideas,
+        )
 
         return ideas
 
-    def _build_report(self, results: list[ThesisResult], deleted_count: int = 0) -> str:
-        """Build the result report."""
-        lines = ["**Polarity Finding Complete**", ""]
-
-        if deleted_count > 0:
-            lines.append(f"**Deduplicated:** {deleted_count} (preferred existing DB versions)")
-            lines.append("")
-
-        total_antitheses = 0
-        ideas_list: list[Ideas] = []
-
-        for r in results:
-            if r.error:
-                lines.append(f"**[ERROR]** {r.error}")
-                continue
-
-            thesis = r.thesis
-            is_simple = "SIMPLE" if thesis.is_simple else "COMPLEX"
-            antitheses = r.antithesis_data
-
-            lines.append(f"**[{thesis.short_hash}] {thesis.statement}** ({is_simple})")
-
-            if r.ideas:
-                lines.append(f"  Ideas: {r.ideas.short_hash}")
-                ideas_list.append(r.ideas)
-
-            if antitheses:
-                lines.append(f"  Antitheses ({len(antitheses)}):")
-                for a in antitheses:
-                    comp = self._resolve_component(a["hash"])
-                    stmt = comp.statement if comp else "?"
-                    lines.append(f"    [{a['hash']}] {stmt} (Heuristic Similarity={a['heuristic_similarity']:.2f})")
-                total_antitheses += len(antitheses)
-            else:
-                lines.append("  Antitheses: None generated")
-
-            lines.append("")
-
-        lines.append(
-            f"**Total:** {len(results)} theses processed, {total_antitheses} antitheses generated"
-        )
-        lines.append(f"**Ideas nodes:** {len(ideas_list)}")
-
-        return "\n".join(lines)

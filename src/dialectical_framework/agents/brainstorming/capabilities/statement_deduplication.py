@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository,
@@ -53,39 +55,60 @@ class SemanticDedupDto(BaseModel):
 class DedupResult:
     """Result of applying deduplication."""
 
-    # Maps old extracted hash -> replacement DB hash (for matched components)
-    replacements: dict[str, str]
+    # Maps extracted hash -> DB component that replaces it
+    replacements: dict[str, DialecticalComponent]
     # Components that were deleted (had DB equivalent)
     deleted_count: int
-    # Components that were kept (no DB equivalent)
-    kept_hashes: list[str]
+    # Original extracted components that were kept (no DB equivalent)
+    originals: list[DialecticalComponent]
+
+    @property
+    def components(self) -> list[DialecticalComponent]:
+        """All unique components: originals + unique replacements."""
+        seen: set[str] = set()
+        result: list[DialecticalComponent] = []
+
+        for comp in self.originals:
+            if comp.hash not in seen:
+                seen.add(comp.hash)
+                result.append(comp)
+
+        for comp in self.replacements.values():
+            if comp.hash not in seen:
+                seen.add(comp.hash)
+                result.append(comp)
+
+        return result
 
 
 # --- Service ---
 
 
-class StatementDeduplication:
+class StatementDeduplication(ExecutableCapability[DedupResult]):
     """
-    Service for semantic deduplication of components against vocabulary.
+    Capability for semantic deduplication of components against vocabulary.
 
     Usage:
-        deduplicator = SemanticDeduplicator()
-        result = await deduplicator.deduplicate(
+        deduplicator = StatementDeduplication()
+        result = await deduplicator.execute(
             extracted_hashes=["abc123", "def456"],
             vocabulary=vocab_list,
+            text="source context for deduplication",
         )
-        # result.replacements: {"abc123": "existing_xyz"}
+        # result.replacements: {"abc123": <DialecticalComponent>}  # DB equivalent
         # result.deleted_count: 1
-        # result.kept_hashes: ["def456"]
+        # result.originals: [<DialecticalComponent>]  # kept extractions
+        # deduplicator.report contains effects
     """
 
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def deduplicate(
+    async def execute(
         self,
         extracted_hashes: list[str],
         vocabulary: list[dict],
+        text: str = "",
     ) -> DedupResult:
         """
         Find and apply semantic deduplication.
@@ -94,15 +117,26 @@ class StatementDeduplication:
             extracted_hashes: Hashes of newly extracted components
             vocabulary: Existing vocabulary as list of dicts with keys:
                         hash, statement, meaning, rejected, rationale
+            text: Source context for contextualized deduplication
 
         Returns:
             DedupResult with replacements, deleted_count, and kept_hashes
         """
+        self._report = ExecutionReport(tool=self.__class__.__name__)
+        self._text = text
+
         if not extracted_hashes or not vocabulary:
+            self._report.ok = True
+            self._report.summary = "No deduplication needed"
+            # Resolve all extracted to components (they're all kept)
+            originals = [
+                comp for h in extracted_hashes
+                if (comp := self._resolve_component(h)) is not None
+            ]
             return DedupResult(
                 replacements={},
                 deleted_count=0,
-                kept_hashes=extracted_hashes,
+                originals=originals,
             )
 
         # Get semantic matches from LLM
@@ -111,7 +145,16 @@ class StatementDeduplication:
         )
 
         # Apply matches: delete duplicates, track replacements
-        return self._apply_matches(extracted_hashes, dedup_dto)
+        result = self._apply_matches(extracted_hashes, dedup_dto)
+
+        # Fill out report summary
+        self._report.ok = True
+        self._report.summary = (
+            f"Deduplication complete: {result.deleted_count} duplicate(s) removed, "
+            f"{len(result.originals)} kept"
+        )
+
+        return result
 
     async def _find_semantic_matches(
         self,
@@ -140,9 +183,17 @@ class StatementDeduplication:
         if not extraction_lines or not vocab_lines:
             return SemanticDedupDto(matches=[])
 
+        context_section = ""
+        if self._text:
+            context_section = f"""
+**Source Context:**
+{self._text}
+
+"""
+
         prompt = f"""Compare these newly extracted statements against existing vocabulary.
 Find semantic equivalents (same concept, possibly different wording).
-
+{context_section}
 **Newly Extracted Statements:**
 {chr(10).join(extraction_lines)}
 
@@ -151,6 +202,7 @@ Find semantic equivalents (same concept, possibly different wording).
 
 For each extraction, determine if there's a semantically equivalent
 statement in the existing vocabulary. Consider same core concept (even if worded differently).
+Use the source context to understand the intended meaning of extracted statements.
 
 Only match if confidence >= 0.7 (clearly the same concept).
 If no match, set db_hash to null."""
@@ -166,8 +218,8 @@ If no match, set db_hash to null."""
         dedup_dto: SemanticDedupDto,
     ) -> DedupResult:
         """Apply dedup matches: delete duplicates, return result."""
-        replacements: dict[str, str] = {}
-        kept_hashes: list[str] = []
+        replacements: dict[str, DialecticalComponent] = {}
+        originals: list[DialecticalComponent] = []
         deleted_count = 0
         repo = DialecticalComponentRepository()
 
@@ -180,17 +232,22 @@ If no match, set db_hash to null."""
                 ext_comp = self._resolve_component(ext_hash)
                 if ext_comp and repo.safe_delete(ext_comp):
                     deleted_count += 1
+                    self._report.node_deleted(ext_comp, meta={"replaced_by": match.db_hash})
 
-                # Record replacement
-                replacements[ext_hash] = match.db_hash
+                # Record replacement (resolve to actual component)
+                db_comp = self._resolve_component(match.db_hash)
+                if db_comp:
+                    replacements[ext_hash] = db_comp
             else:
                 # No equivalent - keep extraction
-                kept_hashes.append(ext_hash)
+                ext_comp = self._resolve_component(ext_hash)
+                if ext_comp:
+                    originals.append(ext_comp)
 
         return DedupResult(
             replacements=replacements,
             deleted_count=deleted_count,
-            kept_hashes=kept_hashes,
+            originals=originals,
         )
 
     def _find_match(

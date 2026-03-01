@@ -1,8 +1,15 @@
 """
-AntithesisExtractor: Service for generating antitheses for a thesis.
+AntithesisExtraction: Capability for generating antitheses for a thesis.
 
-Core business logic for antithesis extraction. Returns RunReport with effects.
-Used by ExtractAntitheses tool (LLM orchestration) and webapp routes.
+Core business logic for antithesis extraction.
+
+Usage:
+    service = AntithesisExtraction()
+    antitheses = await service.execute(thesis=thesis, text=text)
+    for a in antitheses:
+        print(a.statement)
+    # Access report if needed:
+    print(service.report.heuristic_similarity_by_hash)
 """
 
 from __future__ import annotations
@@ -13,13 +20,17 @@ from typing import TYPE_CHECKING, ClassVar, Optional
 
 from pydantic import BaseModel, Field
 
+from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
+    StatementClassification,
+)
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.run_report import RunReport
-from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.estimation import ArousalEstimation, ModeEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
     pass
@@ -167,16 +178,6 @@ class SimpleNegationDto(BaseModel):
 # --- Constants ---
 
 
-# Systemic taxonomy mapping for T→A lookup (thesis branch → antithesis branch)
-# Format: branch_name -> {generic_t, generic_a}
-SYSTEMIC_TAXONOMY = {
-    "Integrity": {"generic_t": "Integration", "generic_a": "Disintegration"},
-    "Fidelity": {"generic_t": "Modeling", "generic_a": "ErrorCorrection"},
-    "Exchange": {"generic_t": "Exchange", "generic_a": "Consumption"},
-    "Flexibility": {"generic_t": "Exploration", "generic_a": "Exploitation"},
-    "Resilience": {"generic_t": "Recovery", "generic_a": "Disruption"},
-}
-
 # Arousal label to value mapping (0.1-0.9 range, passive→active)
 AROUSAL_VALUES = {
     "dormant": 0.1,     # Completely latent, invisible tension
@@ -200,7 +201,7 @@ def arousal_label_to_value(label: str) -> float:
 
 
 @dataclass
-class AntithesisResult:
+class AntithesisProcessed:
     """Container for an antithesis with its metadata."""
 
     component: DialecticalComponent
@@ -212,26 +213,26 @@ class AntithesisResult:
 # --- Service ---
 
 
-class AntithesisExtraction(SettingsAware):
+class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], SettingsAware):
     """
-    Service for extracting antitheses for a thesis.
+    Capability for extracting antitheses for a thesis.
 
     Handles both simple and complex theses:
     - Simple: Direct negation with HS=1.0, Mode=1.0
     - Complex: Contextualized taxonomy with candidates at key Mode points
 
-    Returns RunReport with all effects (nodes created, relationships, estimations).
+    Returns list of DialecticalComponent. Access .report for effects.
     """
 
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def extract(
+    async def execute(
         self,
         thesis: DialecticalComponent,
         text: str = "",
         not_like_these: Optional[list[str]] = None,
-    ) -> RunReport:
+    ) -> list[AntithesisProcessed]:
         """
         Extract antitheses for a thesis.
 
@@ -241,11 +242,17 @@ class AntithesisExtraction(SettingsAware):
             not_like_these: Statements to avoid (for dedup)
 
         Returns:
-            RunReport with effects and artifacts
+            List of AntithesisResult containing component and metadata (mode, arousal, HS)
         """
+        # Reset report on each execution (allows instance reuse)
+        self._report = ExecutionReport(tool=self.__class__.__name__)
+
+        # Early validation
+        if not thesis or not thesis.statement:
+            raise ValueError("Cannot extract antitheses for a missing thesis")
+
         self._text = text
         self._not_like_these = not_like_these or []
-        self._report = RunReport(tool="antithesis_extractor")
 
         # Initialize conversation
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
@@ -256,7 +263,7 @@ class AntithesisExtraction(SettingsAware):
             taxonomy = None
         else:
             taxonomy = await self._contextualize_taxonomy(thesis)
-            results = await self._generate_with_taxonomy(thesis, taxonomy)
+            results = await self._process_complex_thesis(thesis, taxonomy)
 
         # Build artifacts
         self._report.artifacts["thesis_hash"] = thesis.hash
@@ -265,7 +272,7 @@ class AntithesisExtraction(SettingsAware):
             r.component.hash: r.heuristic_similarity for r in results
         }
         if taxonomy:
-            self._report.artifacts["apex"] = taxonomy.apex
+            self._report.artifacts["apex_thesis"] = taxonomy.apex
 
         # Summary
         thesis_type = "simple" if thesis.is_simple else "complex"
@@ -275,16 +282,15 @@ class AntithesisExtraction(SettingsAware):
             else f"Extracted {len(results)} antithesis(es) for {thesis_type} thesis '{thesis.statement}'"
         )
 
-        return self._report
+        return results
 
     # --- Simple Thesis Processing ---
 
-    async def _process_simple(self, thesis: DialecticalComponent) -> list[AntithesisResult]:
+    async def _process_simple(self, thesis: DialecticalComponent) -> list[AntithesisProcessed]:
         """Process a simple thesis: generate direct negation."""
-        prompt = self._simple_negation_prompt(thesis.statement)
         result = await self._conversation.submit(
             response_model=SimpleNegationDto,
-            user_content=prompt,
+            user_content=self._simple_negation_prompt(thesis.statement),
         )
 
         # Skip if matches not_like_these
@@ -303,7 +309,6 @@ class AntithesisExtraction(SettingsAware):
         thesis.oppositions.connect(antithesis)
         self._report.relationship_created(
             thesis.oppositions, thesis, antithesis,
-            meta={"auto_created": True}
         )
 
         # Add rationale (created first so it can be provider for estimations)
@@ -325,7 +330,7 @@ class AntithesisExtraction(SettingsAware):
             self._report.node_updated(arousal_est, patch={"value": arousal_value})
 
         return [
-            AntithesisResult(
+            AntithesisProcessed(
                 component=antithesis,
                 mode_value=1.0,
                 arousal_value=arousal_value,
@@ -383,11 +388,11 @@ Example for thesis "Love":
 - distancing: "Emotional withdrawal"
 - privation: "Complete indifference" """
 
-    async def _generate_with_taxonomy(
+    async def _process_complex_thesis(
         self,
         thesis: DialecticalComponent,
         taxonomy: ContextualizedTaxonomyDto,
-    ) -> list[AntithesisResult]:
+    ) -> list[AntithesisProcessed]:
         """Generate antithesis candidates using contextualized taxonomy (parallel)."""
         # Collect mode points to process
         mode_points: list[tuple[str, float, str]] = []
@@ -416,9 +421,9 @@ Example for thesis "Love":
         mode_results = await asyncio.gather(*tasks)
 
         # Process results
-        results: list[AntithesisResult] = []
+        results: list[AntithesisProcessed] = []
         manager = EstimationManager()
-        antithesis_meaning = self._derive_antithesis_meaning(thesis.meaning)
+        antithesis_meaning = StatementClassification.lookup_antithesis_meaning(thesis)
 
         for (field_name, mode_value, _), mode_result in zip(mode_points, mode_results):
             # Skip if matches not_like_these
@@ -442,7 +447,6 @@ Example for thesis "Love":
             thesis.oppositions.connect(antithesis)
             self._report.relationship_created(
                 thesis.oppositions, thesis, antithesis,
-                meta={"auto_created": True}
             )
 
             # Add rationale (created first so it can be provider for estimations)
@@ -467,7 +471,7 @@ Example for thesis "Love":
                 self._report.node_updated(arousal_est, patch={"value": arousal_value})
 
             results.append(
-                AntithesisResult(
+                AntithesisProcessed(
                     component=antithesis,
                     mode_value=mode_value,
                     arousal_value=arousal_value,
@@ -498,21 +502,3 @@ Generate:
 2. Rate its HS (Heuristic Similarity) to the apex concept using the scale from the system prompt
 3. Assess the arousal level of this T↔A tension using the arousal scale from the system prompt
 4. Provide combined reasoning for your choices"""
-
-    def _derive_antithesis_meaning(self, thesis_meaning: Optional[str]) -> str:
-        """Derive antithesis meaning from thesis meaning using systemic taxonomy."""
-        if not thesis_meaning:
-            return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
-
-        for branch, mapping in SYSTEMIC_TAXONOMY.items():
-            if f"/{branch}/" in thesis_meaning:
-                domain = "General"
-                if "System(" in thesis_meaning:
-                    start = thesis_meaning.find("System(") + 7
-                    end = thesis_meaning.find(".v1)")
-                    if end > start:
-                        domain = thesis_meaning[start:end]
-
-                return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{mapping['generic_a']}"
-
-        return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"

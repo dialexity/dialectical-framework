@@ -1,12 +1,12 @@
-"""Tests for RunReport."""
+"""Tests for ExecutionReport."""
 
 import pytest
 
-from dialectical_framework.agents.run_report import (
+from dialectical_framework.agents.execution_report import (
     Effect,
+    ExecutionReport,
     NodeRef,
     RelationshipRef,
-    RunReport,
     _resolve_rel_type,
 )
 
@@ -19,6 +19,10 @@ class MockNode:
         self.hash = hash
         self.statement = statement
 
+    @property
+    def short_hash(self) -> str:
+        return self.hash[:8] if self.hash else ""
+
     def __class__(self):
         pass
 
@@ -28,7 +32,7 @@ MockNode.__name__ = "MockNode"
 
 
 def test_run_report_node_created():
-    report = RunReport(tool="test_tool")
+    report = ExecutionReport(tool="test_tool")
 
     # Create a mock node
     node = MockNode("DialecticalComponent", "abc123", "Test statement")
@@ -45,7 +49,7 @@ def test_run_report_node_created():
 
 
 def test_run_report_sequencing():
-    report = RunReport(tool="test_tool")
+    report = ExecutionReport(tool="test_tool")
 
     node1 = MockNode("A", "hash1", "First")
     node1.__class__ = type("A", (), {})
@@ -60,7 +64,7 @@ def test_run_report_sequencing():
 
 
 def test_run_report_relationship_created():
-    report = RunReport(tool="test_tool")
+    report = ExecutionReport(tool="test_tool")
 
     node1 = MockNode("A", "hash1")
     node1.__class__ = type("A", (), {})
@@ -78,8 +82,8 @@ def test_run_report_relationship_created():
 
 
 def test_run_report_merge():
-    report1 = RunReport(tool="tool1", summary="First tool")
-    report2 = RunReport(tool="tool2", summary="Second tool")
+    report1 = ExecutionReport(tool="tool1", summary="First tool")
+    report2 = ExecutionReport(tool="tool2", summary="Second tool")
 
     node1 = MockNode("A", "hash1")
     node1.__class__ = type("A", (), {})
@@ -104,7 +108,7 @@ def test_run_report_merge():
 
 
 def test_run_report_artifacts():
-    report = RunReport(tool="extract_antitheses")
+    report = ExecutionReport(tool="extract_antitheses")
 
     report.artifacts["antithesis_hashes"] = ["hash1", "hash2"]
     report.artifacts["hs_by_hash"] = {"hash1": 0.8, "hash2": 0.6}
@@ -145,7 +149,7 @@ def test_resolve_rel_type_invalid():
 
 def test_run_report_relationship_with_manager():
     """Test relationship methods accept relationship manager-like objects."""
-    report = RunReport(tool="test_tool")
+    report = ExecutionReport(tool="test_tool")
 
     class MockRelManager:
         relationship_type = "CUSTOM_REL"

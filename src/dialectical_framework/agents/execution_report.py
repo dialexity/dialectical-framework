@@ -1,7 +1,7 @@
 """
-RunReport: Structured output for agent tools.
+ExecutionReport: Structured output for agent tools.
 
-Every tool returns a RunReport containing:
+Every tool returns a ExecutionReport containing:
 - effects: standardized list of atomic mutations (for undo/audit/diff UI)
 - artifacts: free-form dict of outputs for orchestration (tool-specific)
 
@@ -100,7 +100,7 @@ class Effect(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
 
 
-class RunReport(BaseModel):
+class ExecutionReport(BaseModel):
     """Structured output from a tool run."""
 
     tool: str
@@ -279,7 +279,11 @@ class RunReport(BaseModel):
 
     # --- Utilities ---
 
-    def merge(self, other: RunReport) -> RunReport:
+    def __str__(self) -> str:
+        """Return JSON representation for LLM tool use."""
+        return self.model_dump_json(indent=2, exclude_none=True)
+
+    def merge(self, other: ExecutionReport) -> ExecutionReport:
         """Merge another report into this one, adjusting seq numbers."""
         for effect in other.effects:
             # Re-sequence effects from the other report
@@ -289,7 +293,7 @@ class RunReport(BaseModel):
         # Merge artifacts (other overwrites on conflict)
         merged_artifacts = {**self.artifacts, **other.artifacts}
 
-        return RunReport(
+        return ExecutionReport(
             tool=self.tool,
             ok=self.ok and other.ok,
             summary=f"{self.summary}\n{other.summary}".strip(),

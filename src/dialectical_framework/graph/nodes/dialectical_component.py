@@ -165,13 +165,17 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         """
         Collect structure hash parts for this component.
 
-        Parts: statement text + meaning.
+        Parts: normalized statement text + meaning.
+        Normalization (strip + lowercase) ensures case/whitespace variations
+        produce the same hash while preserving original text for display.
 
         Returns:
-            List with the statement and meaning
+            List with normalized statement and meaning
         """
-        # meaning is guaranteed to be set by commit() validation
-        return [self.statement, self.meaning or ""]
+        # Normalize for hash: same concept = same hash regardless of casing
+        normalized_statement = self.statement.strip().lower()
+        normalized_meaning = (self.meaning or "").strip().lower()
+        return [normalized_statement, normalized_meaning]
 
     def compute_hash(self) -> str:
         """
