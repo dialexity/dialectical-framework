@@ -1,7 +1,8 @@
 """
 AntithesisExtraction: Capability for generating antitheses for a thesis.
 
-Core business logic for antithesis extraction.
+Generates "ideal" antitheses at mode=1.0, HS=1.0.
+For classifying arbitrary user-provided antitheses, use AntithesisClassification.
 
 Usage:
     service = AntithesisExtraction()
@@ -16,11 +17,17 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
+    SYSTEM_PROMPT,
+    ContextualizedTaxonomyDto,
+    arousal_label_to_value,
+    contextualize_taxonomy,
+)
 from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
     StatementClassification,
 )
@@ -36,116 +43,7 @@ if TYPE_CHECKING:
     pass
 
 
-# --- System Prompt ---
-
-SYSTEM_PROMPT = """You are a dialectical antithesis generator using the universal antithesis taxonomy.
-
-## Universal Antithesis Taxonomy Structure
-
-```
-                    APEX: [T]-lessness
-                           │
-        ┌──────────────────┴──────────────────┐
-        │                                     │
-   Anti-[T]                            Absence of [T]
-  (Violations)                          (Inhibition)
-        │                                     │
-┌───────┴───────┐                     ┌───────┴───────┐
-│               │                     │               │
-Corruption     Deformation            Inhibition      Privation
-```
-
-## Mode Scale (interaction mechanism from absence to negation)
-
-| Mode | Type | Description |
-|------|------|-------------|
-| 1.0 | Negation | Direct, active opposition to T |
-| 0.9 | Inversion | Reversal of T's meaning |
-| 0.8 | Devaluation | Diminishing T's worth |
-| 0.7 | Hollowing | Emptying T of substance |
-| 0.6 | Corruption | Degrading/perverting T |
-| 0.5 | Distortion | Twisting T's form |
-| 0.4 | Skew | Imbalancing T |
-| 0.3 | Blocking | Obstructing T |
-| 0.2 | Suppression | Holding T down |
-| 0.1 | Distancing | Drifting from T |
-| 0.0 | Privation | Complete absence of T |
-
-## Arousal Scale (activation from invisible to visible)
-
-| Arousal | Description |
-|---------|-------------|
-| dormant | Completely latent, invisible tension |
-| latent | Barely perceptible, nascent |
-| low | Mild, background tension |
-| mild | Noticeable but subdued |
-| moderate | Balanced, present tension |
-| elevated | Becoming prominent |
-| high | Strong, clearly visible |
-| intense | Very active, urgent |
-| active | Fully manifest, immediate |
-
-## HS (Heuristic Similarity) Scale
-
-HS measures how well the candidate represents the apex concept:
-- 0.0-0.3: Unrelated or tangentially related
-- 0.3-0.5: Somewhat related but different focus
-- 0.5-0.7: Related, captures some aspects of apex
-- 0.7-0.9: Very similar, captures most aspects of apex
-- 0.9-1.0: Equivalent or near-equivalent to apex
-
-Respond with structured output matching the requested format."""
-
-
-# --- DTOs for LLM structured outputs ---
-
-
-class ContextualizedTaxonomyDto(BaseModel):
-    """Contextualized universal taxonomy for a thesis.
-
-    Structure (from docs/r&d/taxonomy-universal.md):
-                            APEX: [T]-lessness
-                                   │
-                ┌──────────────────┴──────────────────┐
-                │                                     │
-           Anti-[T]                            Absence of [T]
-          (Violations)                          (Inhibition)
-                │                                     │
-        ┌───────┴───────┐                     ┌───────┴───────┐
-        │               │                     │               │
-   Corruption     Deformation            Inhibition      Privation
-    """
-
-    # Mode field -> mode value mapping (excludes apex)
-    MODE_FIELDS: ClassVar[dict[str, float]] = {
-        "negation": 1.0,      # Direct, active opposition to T
-        "inversion": 0.9,     # Reversal of T's meaning
-        "devaluation": 0.8,   # Diminishing T's worth
-        "hollowing": 0.7,     # Emptying T of substance
-        "corruption": 0.6,    # Degrading/perverting T
-        "distortion": 0.5,    # Twisting T's form
-        "skew": 0.4,          # Imbalancing T
-        "blocking": 0.3,      # Obstructing T
-        "suppression": 0.2,   # Holding T down
-        "distancing": 0.1,    # Drifting from T
-        "privation": 0.0,     # Complete absence of T
-    }
-
-    apex: str = Field(description="[T]-lessness concept (complete absence/negation)")
-    # Anti-[T] branch (Mode 0.7-1.0)
-    negation: str = Field(description="Mode 1.0: Direct, active opposition to T")
-    inversion: str = Field(description="Mode 0.9: Reversal of T's meaning")
-    devaluation: str = Field(description="Mode 0.8: Diminishing T's worth")
-    hollowing: str = Field(description="Mode 0.7: Emptying T of substance")
-    corruption: str = Field(description="Mode 0.6: Degrading/perverting T")
-    # Deformation branch (Mode 0.4-0.5)
-    distortion: str = Field(description="Mode 0.5: Twisting T's form")
-    skew: str = Field(description="Mode 0.4: Imbalancing T")
-    # Absence of T branch (Mode 0.0-0.3)
-    blocking: str = Field(description="Mode 0.3: Obstructing T")
-    suppression: str = Field(description="Mode 0.2: Holding T down")
-    distancing: str = Field(description="Mode 0.1: Drifting from T")
-    privation: str = Field(description="Mode 0.0: Complete absence of T")
+# --- Extraction-specific DTOs ---
 
 
 class ModePointResultDto(BaseModel):
@@ -173,28 +71,6 @@ class SimpleNegationDto(BaseModel):
     negation: str = Field(description="Direct negation statement (similar length to thesis)")
     arousal_label: str = Field(description="dormant/latent/low/mild/moderate/elevated/high/intense/active")
     arousal_explanation: str = Field(description="Reasoning for arousal level")
-
-
-# --- Constants ---
-
-
-# Arousal label to value mapping (0.1-0.9 range, passive→active)
-AROUSAL_VALUES = {
-    "dormant": 0.1,     # Completely latent, invisible tension
-    "latent": 0.2,      # Barely perceptible, nascent
-    "low": 0.3,         # Mild, background tension
-    "mild": 0.4,        # Noticeable but subdued
-    "moderate": 0.5,    # Balanced, present tension
-    "elevated": 0.6,    # Becoming prominent
-    "high": 0.7,        # Strong, clearly visible
-    "intense": 0.8,     # Very active, urgent
-    "active": 0.9,      # Fully manifest, immediate
-}
-
-
-def arousal_label_to_value(label: str) -> float:
-    """Convert arousal label to value. Returns default if unknown."""
-    return AROUSAL_VALUES.get(label.lower().strip(), 0.5)
 
 
 # --- Result Container ---
@@ -259,7 +135,7 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
 
         # Process based on complexity
         if thesis.is_simple:
-            results = await self._process_simple(thesis)
+            results = await self._process_simple_thesis(thesis)
             taxonomy = None
         else:
             taxonomy = await self._contextualize_taxonomy(thesis)
@@ -286,7 +162,7 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
 
     # --- Simple Thesis Processing ---
 
-    async def _process_simple(self, thesis: DialecticalComponent) -> list[AntithesisProcessed]:
+    async def _process_simple_thesis(self, thesis: DialecticalComponent) -> list[AntithesisProcessed]:
         """Process a simple thesis: generate direct negation."""
         result = await self._conversation.submit(
             response_model=SimpleNegationDto,
@@ -356,37 +232,12 @@ Generate:
         self, thesis: DialecticalComponent
     ) -> ContextualizedTaxonomyDto:
         """Contextualize universal taxonomy for a complex thesis."""
-        prompt = self._contextualize_prompt(thesis.statement, thesis.meaning or "")
-        return await self._conversation.submit(
-            response_model=ContextualizedTaxonomyDto,
-            user_content=prompt,
+        return await contextualize_taxonomy(
+            thesis_statement=thesis.statement,
+            thesis_meaning=thesis.meaning or "",
+            text=self._text,
+            conversation=self._conversation,
         )
-
-    def _contextualize_prompt(self, thesis: str, meaning: str) -> str:
-        """Build user prompt for taxonomy contextualization."""
-        context_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
-        return f"""{context_section}Contextualize the universal antithesis taxonomy for this thesis.
-
-Thesis: "{thesis}"
-Thesis meaning: {meaning or "unanchored"}
-
-Using the taxonomy structure and Mode scale from the system prompt, generate specific contextualizations for each Mode level.
-
-Each contextualization should be 2-5 words describing that type of opposition in the specific context of the thesis.
-
-Example for thesis "Love":
-- apex: "Lovelessness"
-- negation: "Hate"
-- inversion: "Love as weapon"
-- devaluation: "Love is weakness"
-- hollowing: "Empty affection"
-- corruption: "Possessive love"
-- distortion: "Conditional love"
-- skew: "Unbalanced devotion"
-- blocking: "Walls against intimacy"
-- suppression: "Buried feelings"
-- distancing: "Emotional withdrawal"
-- privation: "Complete indifference" """
 
     async def _process_complex_thesis(
         self,

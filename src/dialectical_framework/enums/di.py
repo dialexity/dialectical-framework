@@ -10,8 +10,6 @@ class DI(str, Enum):
     polar_reasoner = "polar_reasoner"
     causality_sequencer = "causality_sequencer"
 
-    polarity_finder = "polarity_finder"
-
     tarorank = "tarorank"
 
     # Content resolution (app provides implementation)
