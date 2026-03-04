@@ -89,7 +89,7 @@ class ThesisResult:
 # --- Main Orchestrator ---
 
 
-class PolarityFindingAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]]):
+class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
     """
     Orchestrate antithesis generation (Phase 2 of polarity-finder).
 
@@ -121,8 +121,8 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[list[DialecticalCompon
         await self.execute()
         return str(self._report)
 
-    async def execute(self) -> list[DialecticalComponent]:
-        """Execute polarity finding: orchestrate AntithesisExtraction for each thesis. Returns antitheses."""
+    async def execute(self) -> Optional[Ideas]:
+        """Execute polarity finding: orchestrate AntithesisExtraction for each thesis. Returns Ideas container."""
         # Reset report on each execution (allows instance reuse)
         self._report = ExecutionReport(tool="polarity_finding_agent")
 
@@ -133,7 +133,8 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[list[DialecticalCompon
             self._report.ok = True
             self._report.summary = "No thesis hashes provided"
             self._report.artifacts["antithesis_hashes"] = []
-            return []
+            self._report.artifacts["total_antitheses"] = 0
+            return None
 
         # Get input text for context
         input_text = await self._get_input_text()
@@ -199,26 +200,29 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[list[DialecticalCompon
                         data["hash"] = dedup_result.replacements[data["hash"]].hash
                         data["deduped"] = True
 
-        # Phase 3: Create Ideas for each thesis with deduped components
-        ideas_hashes: list[str] = []
-        for result in results:
-            if result.error or not result.antithesis_data:
-                continue
-            ideas = self._create_ideas_for_thesis(result.thesis, result.antithesis_data)
-            result.ideas = ideas
-            if ideas:
-                ideas_hashes.append(ideas.hash)
+        # Phase 3: Create ONE Ideas with all theses and their antitheses
+        total_antitheses = sum(len(r.antithesis_data) for r in results if not r.error)
+
+        if total_antitheses == 0:
+            self._report.ok = True
+            self._report.summary = "No antitheses generated"
+            self._report.artifacts["thesis_hashes"] = self.thesis_hashes
+            self._report.artifacts["antithesis_hashes"] = []
+            self._report.artifacts["total_antitheses"] = 0
+            return None
+
+        # Create Ideas containing all theses + antitheses (OPPOSITE_OF already exists)
+        ideas = self._create_ideas(results)
 
         # Build final artifacts
-        total_antitheses = sum(len(r.antithesis_data) for r in results if not r.error)
         self._report.artifacts["thesis_hashes"] = self.thesis_hashes
         self._report.artifacts["antithesis_hashes"] = all_extracted_hashes
-        self._report.artifacts["ideas_hashes"] = ideas_hashes
+        self._report.artifacts["ideas_hash"] = ideas.hash if ideas else None
         self._report.artifacts["deleted_count"] = deleted_count
         self._report.artifacts["total_antitheses"] = total_antitheses
         self._report.summary = f"Generated {total_antitheses} antithesis(es) for {len(self.thesis_hashes)} thesis(es)"
 
-        return all_antitheses
+        return ideas
 
     # --- Extraction with Retry ---
 
@@ -354,16 +358,20 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[list[DialecticalCompon
             pass
         return None
 
-    def _create_ideas_for_thesis(
-        self,
-        thesis: DialecticalComponent,
-        antithesis_data: list[dict],
-    ) -> Optional[Ideas]:
-        """Create Ideas node for a thesis with its antitheses. Records effects in self._report."""
-        if not antithesis_data:
+    def _create_ideas(self, results: list[ThesisResult]) -> Optional[Ideas]:
+        """Create Ideas node with all theses and their antitheses. Records effects in self._report."""
+        # Collect all valid theses and antithesis data
+        valid_results = [r for r in results if not r.error and r.antithesis_data]
+        if not valid_results:
             return None
 
-        ideas = Ideas(intent=f'Antitheses for thesis "{thesis.statement}", thesis hash: {thesis.hash}')
+        # Build intent summary
+        thesis_statements = [r.thesis.statement for r in valid_results]
+        intent = f"Polarities for: {', '.join(thesis_statements[:3])}"
+        if len(thesis_statements) > 3:
+            intent += f" (+{len(thesis_statements) - 3} more)"
+
+        ideas = Ideas(intent=intent)
         ideas.save()
 
         # Connect to all inputs in scope
@@ -371,20 +379,28 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[list[DialecticalCompon
         for inp in input_repo.get_all():
             ideas.inputs.connect(inp)
 
-        # Connect all antitheses
-        for data in antithesis_data:
-            comp = self._resolve_component(data["hash"])
-            if comp:
-                ideas.statements.connect(comp)
+        # Connect all theses AND their antitheses
+        for result in valid_results:
+            # Connect thesis
+            ideas.statements.connect(result.thesis)
+
+            # Connect antitheses (OPPOSITE_OF relationship already exists from extraction)
+            for data in result.antithesis_data:
+                comp = self._resolve_component(data["hash"])
+                if comp:
+                    ideas.statements.connect(comp)
 
         ideas.commit()
-        self._report.node_created(ideas, meta={"thesis_hash": thesis.hash})
+        self._report.node_created(ideas)
 
         # Attach Rationale summarizing the generation
-        hs_values = [d["heuristic_similarity"] for d in antithesis_data]
-        max_hs = max(hs_values) if hs_values else 0.0
+        total_theses = len(valid_results)
+        total_antitheses = sum(len(r.antithesis_data) for r in valid_results)
+        all_hs = [d["heuristic_similarity"] for r in valid_results for d in r.antithesis_data]
+        max_hs = max(all_hs) if all_hs else 0.0
+
         rationale = Rationale(
-            text=f"Generated {len(antithesis_data)} antitheses for thesis '{thesis.statement}'. Max Heuristic Similarity: {max_hs:.2f}"
+            text=f"Generated {total_antitheses} antitheses for {total_theses} theses. Max Heuristic Similarity: {max_hs:.2f}"
         )
         rationale.set_explanation_target(ideas)
         rationale.commit()

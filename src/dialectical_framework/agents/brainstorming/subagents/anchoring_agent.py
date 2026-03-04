@@ -115,7 +115,7 @@ class ParsedIntentDto(BaseModel):
 # --- Main Agent ---
 
 
-class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]]):
+class AnchoringAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
     """
     Surfaces theses for BrainstormingAgent by fulfilling anchoring intent.
 
@@ -153,8 +153,8 @@ class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]])
         await self.execute()
         return str(self._report)
 
-    async def execute(self) -> list[DialecticalComponent]:
-        """Execute anchoring: extract, dedup, cleanup, create Ideas. Returns components."""
+    async def execute(self) -> Optional[Ideas]:
+        """Execute anchoring: extract, dedup, cleanup, create Ideas. Returns Ideas container."""
         # Reset report on each execution (allows instance reuse)
         self._report = ExecutionReport(tool="anchoring_agent")
 
@@ -204,7 +204,7 @@ class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]])
             if not input_text and not parsed.direct_theses:
                 self._report.summary = "No inputs in scope and no direct theses in intent"
             self._report.artifacts["thesis_hashes"] = []
-            return []
+            return None
 
         # 5. Semantic dedup ONLY for extracted components (not direct theses)
         # Direct theses represent explicit user intent and should be preserved as-is.
@@ -240,7 +240,7 @@ class AnchoringAgent(BaseTool, ExecutableCapability[list[DialecticalComponent]])
         self._report.artifacts["duplicates_found_and_deleted"] = deleted_count
         self._report.summary = f"Anchored {len(final_components)} thesis(es)"
 
-        return final_components
+        return ideas
 
     # --- Intent Parsing ---
 
