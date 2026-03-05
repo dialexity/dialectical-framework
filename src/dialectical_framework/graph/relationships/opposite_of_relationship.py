@@ -2,30 +2,20 @@
 Relationship model for dialectical component opposition.
 
 This module provides the OppositeOfRelationship class for representing
-semantic opposition between dialectical components.
+dialectical opposition between T (thesis) and A (antithesis) components.
 """
 
 from __future__ import annotations
-
-from typing import Optional
 
 from gqlalchemy import Relationship
 
 
 class OppositeOfRelationship(Relationship, type="OPPOSITE_OF"):
     """
-    Relationship representing semantic opposition between components.
+    Relationship representing dialectical opposition between T and A components.
 
-    This relationship captures the degree and type of opposition between
-    two dialectical components, useful for semantic analysis and validation.
-
-    Example:
-        Component("Peace") -[strength=0.9, type="semantic"]-> Component("War")
+    This is a symmetric relationship: if T opposes A, then A opposes T.
+    Used exclusively for thesis-antithesis pairs.
     """
 
-    strength: float = 1.0
-    type: Optional[str] = None
-
-    def __repr__(self) -> str:
-        """String representation of the relationship."""
-        return f"OppositeOfRelationship(strength={self.strength}, type={self.type})"
+    pass

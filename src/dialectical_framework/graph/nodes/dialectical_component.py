@@ -23,6 +23,9 @@ from dialectical_framework.graph.relationship_manager import (
 from dialectical_framework.graph.relationships.opposite_of_relationship import (
     OppositeOfRelationship,
 )
+from dialectical_framework.graph.relationships.contradiction_of_relationship import (
+    ContradictionOfRelationship,
+)
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
 )
@@ -90,9 +93,17 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     meaning: Optional[str] = None
 
     # Symmetric relationship: if A opposes B, then B opposes A
+    # Used for T vs A (thesis vs antithesis) dialectical opposition
     oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipBoth(
         "DialecticalComponent",
         model=OppositeOfRelationship,
+    )
+
+    # Symmetric relationship for mutually exclusive/contradicting statements
+    # Used for T+ vs A- and A+ vs T- (positive vs negative cross-polarity)
+    contradictions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipBoth(
+        "DialecticalComponent",
+        model=ContradictionOfRelationship,
     )
 
     # Semantic relationship: T+ → T, A+ → A (positive aspect of neutral)

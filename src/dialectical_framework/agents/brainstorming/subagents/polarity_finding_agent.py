@@ -302,7 +302,7 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         """Get existing oppositions for a thesis from the database.
 
         For each antithesis:
-        1. Look up HS from WisdomUnit's ARelationship if exists
+        1. Look up HS from WisdomUnit's ARelationship where T=thesis AND A=antithesis
         2. Otherwise estimate using AntithesisClassification
 
         Returns:
@@ -319,11 +319,11 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         for antithesis, _ in thesis.oppositions.all():
             existing_components.append(antithesis)
 
-            # Try to find HS from WisdomUnit's ARelationship
-            hs = self._lookup_hs_from_wisdom_unit(antithesis, wu_repo)
+            # Try to find HS from WisdomUnit where T=thesis AND A=antithesis
+            hs = self._lookup_hs_from_wisdom_unit(thesis, antithesis, wu_repo)
 
             if hs is None:
-                # No WisdomUnit found - estimate using AntithesisClassification
+                # No WisdomUnit found for this T-A pair - estimate using AntithesisClassification
                 classifier = AntithesisClassification()
                 result = await classifier.execute(
                     thesis=thesis,
@@ -346,22 +346,24 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         return existing_components, existing_data
 
     def _lookup_hs_from_wisdom_unit(
-        self, antithesis: DialecticalComponent, wu_repo: WisdomUnitRepository
+        self,
+        thesis: DialecticalComponent,
+        antithesis: DialecticalComponent,
+        wu_repo: WisdomUnitRepository
     ) -> Optional[float]:
-        """Look up heuristic_similarity from WisdomUnit's ARelationship."""
+        """Look up heuristic_similarity from WisdomUnit where T=thesis AND A=antithesis."""
         from dialectical_framework.graph.relationships.polarity_relationship import ARelationship
 
-        # Find WisdomUnits containing this antithesis
-        wu_results = wu_repo.find_by_dialectical_component(antithesis)
+        # Find WisdomUnits where T=thesis AND A=antithesis
+        wus = wu_repo.find_by_polarity(thesis, antithesis)
 
-        for wu, rel_type in wu_results:
-            if rel_type == "A":
-                # Get the A relationship to access heuristic_similarity
-                a_result = wu.a.get()
-                if a_result:
-                    _, a_rel = a_result
-                    if isinstance(a_rel, ARelationship) and a_rel.heuristic_similarity is not None:
-                        return a_rel.heuristic_similarity
+        for wu in wus:
+            # Get the A relationship to access heuristic_similarity
+            a_result = wu.a.get()
+            if a_result:
+                _, a_rel = a_result
+                if isinstance(a_rel, ARelationship) and a_rel.heuristic_similarity is not None:
+                    return a_rel.heuristic_similarity
 
         return None
 

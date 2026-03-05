@@ -497,7 +497,8 @@ class BoundRelationshipManager(Generic[T]):
         Auto-create semantic relationships when connecting components to WisdomUnit positions.
 
         Creates:
-        - OPPOSITE_OF: T ↔ A, T+ ↔ A-, A+ ↔ T-
+        - OPPOSITE_OF: T ↔ A (dialectical opposition between thesis and antithesis)
+        - CONTRADICTION_OF: T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity pairs)
         - POSITIVE_SIDE_OF: T+ → T, A+ → A
         - NEGATIVE_SIDE_OF: T- → T, A- → A
 
@@ -573,35 +574,36 @@ class BoundRelationshipManager(Generic[T]):
                 safe_connect_semantic(new_comp, 'oppositions', t_comp)
                 safe_connect_semantic(t_comp, 'oppositions', new_comp)
 
-        # Cross-opposites: T+ ↔ A-, A+ ↔ T- (bidirectional)
+        # Cross-polarity contradictions: T+ ↔ A-, A+ ↔ T- (bidirectional)
+        # These are mutually exclusive statements (CONTRADICTION_OF, not OPPOSITE_OF)
         if position == 'T_PLUS':
             a_minus_result = wu.a_minus.get()
             if a_minus_result:
                 a_minus_comp, _ = a_minus_result
                 # Bidirectional: T+→A- and A-→T+
-                safe_connect_semantic(new_comp, 'oppositions', a_minus_comp)
-                safe_connect_semantic(a_minus_comp, 'oppositions', new_comp)
+                safe_connect_semantic(new_comp, 'contradictions', a_minus_comp)
+                safe_connect_semantic(a_minus_comp, 'contradictions', new_comp)
         elif position == 'A_MINUS':
             t_plus_result = wu.t_plus.get()
             if t_plus_result:
                 t_plus_comp, _ = t_plus_result
                 # Bidirectional: A-→T+ and T+→A-
-                safe_connect_semantic(new_comp, 'oppositions', t_plus_comp)
-                safe_connect_semantic(t_plus_comp, 'oppositions', new_comp)
+                safe_connect_semantic(new_comp, 'contradictions', t_plus_comp)
+                safe_connect_semantic(t_plus_comp, 'contradictions', new_comp)
         elif position == 'A_PLUS':
             t_minus_result = wu.t_minus.get()
             if t_minus_result:
                 t_minus_comp, _ = t_minus_result
                 # Bidirectional: A+→T- and T-→A+
-                safe_connect_semantic(new_comp, 'oppositions', t_minus_comp)
-                safe_connect_semantic(t_minus_comp, 'oppositions', new_comp)
+                safe_connect_semantic(new_comp, 'contradictions', t_minus_comp)
+                safe_connect_semantic(t_minus_comp, 'contradictions', new_comp)
         elif position == 'T_MINUS':
             a_plus_result = wu.a_plus.get()
             if a_plus_result:
                 a_plus_comp, _ = a_plus_result
                 # Bidirectional: T-→A+ and A+→T-
-                safe_connect_semantic(new_comp, 'oppositions', a_plus_comp)
-                safe_connect_semantic(a_plus_comp, 'oppositions', new_comp)
+                safe_connect_semantic(new_comp, 'contradictions', a_plus_comp)
+                safe_connect_semantic(a_plus_comp, 'contradictions', new_comp)
 
         # Also create relationships when T or A is connected and positive/negative sides exist
         if position == 'T':
@@ -640,7 +642,7 @@ class BoundRelationshipManager(Generic[T]):
         - If T and A are in the same WU, they should be OPPOSITE_OF, not POSITIVE_SIDE_OF
 
         This is called automatically by connect() for semantic relationships
-        (OPPOSITE_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO).
+        (OPPOSITE_OF, CONTRADICTION_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO).
 
         Raises:
             ValueError: If the relationship contradicts WisdomUnit structure
@@ -648,7 +650,7 @@ class BoundRelationshipManager(Generic[T]):
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
         # Only validate Component-to-Component semantic relationships
-        semantic_types = {'OPPOSITE_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO'}
+        semantic_types = {'OPPOSITE_OF', 'CONTRADICTION_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO'}
 
         if not (isinstance(self.source_node, DialecticalComponent) and
                 isinstance(target_node, DialecticalComponent) and
@@ -682,9 +684,10 @@ class BoundRelationshipManager(Generic[T]):
             positive_side_pairs = {('T_PLUS', 'T'), ('A_PLUS', 'A')}
             # NEGATIVE_SIDE_OF: T- → T, A- → A
             negative_side_pairs = {('T_MINUS', 'T'), ('A_MINUS', 'A')}
-            # OPPOSITE_OF: T ↔ A, T+ ↔ A-, A+ ↔ T-
-            opposite_pairs = {
-                ('T', 'A'), ('A', 'T'),
+            # OPPOSITE_OF: T ↔ A (dialectical opposition between thesis and antithesis)
+            opposite_pairs = {('T', 'A'), ('A', 'T')}
+            # CONTRADICTION_OF: T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity pairs)
+            contradiction_pairs = {
                 ('T_PLUS', 'A_MINUS'), ('A_MINUS', 'T_PLUS'),
                 ('A_PLUS', 'T_MINUS'), ('T_MINUS', 'A_PLUS'),
             }
@@ -698,6 +701,12 @@ class BoundRelationshipManager(Generic[T]):
                         f"Cannot create POSITIVE_SIDE_OF between components that are opposites "
                         f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have OPPOSITE_OF relationship, not POSITIVE_SIDE_OF."
+                    )
+                if pos_pair in contradiction_pairs:
+                    raise ValueError(
+                        f"Cannot create POSITIVE_SIDE_OF between components that are contradictions "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have CONTRADICTION_OF relationship, not POSITIVE_SIDE_OF."
                     )
                 if pos_pair in negative_side_pairs:
                     raise ValueError(
@@ -714,6 +723,12 @@ class BoundRelationshipManager(Generic[T]):
                         f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have OPPOSITE_OF relationship, not NEGATIVE_SIDE_OF."
                     )
+                if pos_pair in contradiction_pairs:
+                    raise ValueError(
+                        f"Cannot create NEGATIVE_SIDE_OF between components that are contradictions "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have CONTRADICTION_OF relationship, not NEGATIVE_SIDE_OF."
+                    )
                 if pos_pair in positive_side_pairs:
                     raise ValueError(
                         f"Cannot create NEGATIVE_SIDE_OF between components where source is "
@@ -722,12 +737,33 @@ class BoundRelationshipManager(Generic[T]):
                     )
 
             elif rel_type == 'OPPOSITE_OF':
-                # Should not be used between same-side components
+                # Only valid for T ↔ A
                 if pos_pair in positive_side_pairs or pos_pair in negative_side_pairs:
                     raise ValueError(
                         f"Cannot create OPPOSITE_OF between components that are on the same side "
                         f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
+                    )
+                if pos_pair in contradiction_pairs:
+                    raise ValueError(
+                        f"Cannot create OPPOSITE_OF between cross-polarity components "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have CONTRADICTION_OF relationship, not OPPOSITE_OF."
+                    )
+
+            elif rel_type == 'CONTRADICTION_OF':
+                # Only valid for T+ ↔ A-, A+ ↔ T-
+                if pos_pair in positive_side_pairs or pos_pair in negative_side_pairs:
+                    raise ValueError(
+                        f"Cannot create CONTRADICTION_OF between components that are on the same side "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
+                    )
+                if pos_pair in opposite_pairs:
+                    raise ValueError(
+                        f"Cannot create CONTRADICTION_OF between T and A components "
+                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"These positions should have OPPOSITE_OF relationship, not CONTRADICTION_OF."
                     )
 
     def _validate_structural_immutability(self, target_node: BaseNode, operation: str = "connect") -> None:

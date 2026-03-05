@@ -26,6 +26,48 @@ class WisdomUnitRepository:
     """
 
     @inject
+    def find_by_polarity(
+        self,
+        thesis: DialecticalComponent,
+        antithesis: DialecticalComponent,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> list[WisdomUnit]:
+        """
+        Find WisdomUnits that have the given thesis at T and antithesis at A.
+
+        This is useful for looking up the heuristic_similarity stored on the
+        ARelationship for a specific T-A pair.
+
+        Args:
+            thesis: The DialecticalComponent at position T
+            antithesis: The DialecticalComponent at position A
+            sid: Scope ID (injected from DI context)
+
+        Returns:
+            List of WisdomUnits where T=thesis AND A=antithesis
+        """
+        if thesis._id is None or antithesis._id is None:
+            return []
+
+        # Validate both components belong to current scope
+        if sid:
+            if thesis.sid != sid or antithesis.sid != sid:
+                return []
+
+        query = """
+        MATCH (t:DialecticalComponent)-[:T]->(wu:WisdomUnit)<-[:A]-(a:DialecticalComponent)
+        WHERE id(t) = $thesis_id AND id(a) = $antithesis_id
+        RETURN wu
+        """
+
+        results = graph_db.execute_and_fetch(query, {
+            "thesis_id": thesis._id,
+            "antithesis_id": antithesis._id
+        })
+        return [result["wu"] for result in results]
+
+    @inject
     def find_by_dialectical_component(
         self,
         component: DialecticalComponent,
