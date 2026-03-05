@@ -156,7 +156,7 @@ class AnchoringAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
     async def execute(self) -> Optional[Ideas]:
         """Execute anchoring: extract, dedup, cleanup, create Ideas. Returns Ideas container."""
         # Reset report on each execution (allows instance reuse)
-        self._report = ExecutionReport(tool="anchoring_agent")
+        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Initialize conversation with system prompt
         self._conversation.set_system_prompt(SYSTEM_PROMPT)

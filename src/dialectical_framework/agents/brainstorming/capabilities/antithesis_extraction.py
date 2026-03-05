@@ -133,6 +133,9 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
         # Initialize conversation
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
+        # TODO: we need to extract several samples per category, now we're extracting only one
+        # TODO: we need to be able to hint (intent?) what to extract
+        # TODO: we need to be able to extract variation of a given antithesis, meaning a variation on the statement+mode?
         # Process based on complexity
         if thesis.is_simple:
             results = await self._process_simple_thesis(thesis)
@@ -148,7 +151,7 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
             r.component.hash: r.heuristic_similarity for r in results
         }
         if taxonomy:
-            self._report.artifacts["apex_thesis"] = taxonomy.apex
+            self._report.artifacts["apex_antithesis"] = taxonomy.apex
 
         # Summary
         thesis_type = "simple" if thesis.is_simple else "complex"

@@ -56,6 +56,7 @@ from dialectical_framework.graph.repositories.dialectical_component_repository i
 )
 from dialectical_framework.graph.repositories.input_repository import InputRepository
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -124,7 +125,7 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
     async def execute(self) -> Optional[Ideas]:
         """Execute polarity finding: orchestrate AntithesisExtraction for each thesis. Returns Ideas container."""
         # Reset report on each execution (allows instance reuse)
-        self._report = ExecutionReport(tool="polarity_finding_agent")
+        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Initialize conversation with system prompt
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
@@ -144,9 +145,10 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         not_like_these = [c["statement"] for c in vocab]
 
         results: list[ThesisResult] = []
-        all_antitheses: list[DialecticalComponent] = []  # Track all extracted
+        all_existing: list[DialecticalComponent] = []  # Track existing oppositions
+        newly_extracted: list[DialecticalComponent] = []  # Track newly extracted (for dedup)
 
-        # Phase 1: Extract antitheses for all theses (with retry if none found)
+        # Phase 1: For each thesis, collect existing oppositions + extract new ones
         for thesis_hash in self.thesis_hashes:
             thesis = self._resolve_component(thesis_hash)
             if thesis is None:
@@ -157,7 +159,17 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
             result = ThesisResult(thesis=thesis)
 
-            # Try extraction with not_like_these, retry with empty if no results
+            # 1a. Collect existing oppositions from database (no dedup needed)
+            existing_antitheses, existing_data = await self._get_existing_oppositions(thesis, input_text)
+            result.antithesis_data.extend(existing_data)
+            all_existing.extend(existing_antitheses)
+
+            # Add existing to not_like_these to avoid re-extraction
+            for comp in existing_antitheses:
+                if comp.statement not in not_like_these:
+                    not_like_these.append(comp.statement)
+
+            # 1b. Extract new antitheses (with retry if none found)
             antitheses, antithesis_data, extraction_reports = await self._extract_with_retry(
                 thesis=thesis,
                 text=input_text,
@@ -166,8 +178,8 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             for r in extraction_reports:
                 self._report = self._report.merge(r)
 
-            result.antithesis_data = antithesis_data
-            all_antitheses.extend(antitheses)
+            result.antithesis_data.extend(antithesis_data)
+            newly_extracted.extend(antitheses)
 
             # Track extracted for not_like_these
             for comp in antitheses:
@@ -176,13 +188,13 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
             results.append(result)
 
-        # Phase 2: Semantic deduplication against existing vocabulary
-        deleted_count = 0
-        all_extracted_hashes = [c.hash for c in all_antitheses]
-        if all_extracted_hashes and vocab:
+        # Phase 2: Semantic deduplication (only newly extracted, not existing)
+        existing_hashes = [c.hash for c in all_existing]
+        newly_extracted_hashes = [c.hash for c in newly_extracted]
+        if newly_extracted_hashes and vocab:
             deduplicator = StatementDeduplication()
             dedup_result = await deduplicator.execute(
-                extracted_hashes=all_extracted_hashes,
+                extracted_hashes=newly_extracted_hashes,
                 vocabulary=vocab,
                 text=input_text,
             )
@@ -205,9 +217,10 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
         if total_antitheses == 0:
             self._report.ok = True
-            self._report.summary = "No antitheses generated"
+            self._report.summary = "No antitheses found"
             self._report.artifacts["thesis_hashes"] = self.thesis_hashes
-            self._report.artifacts["antithesis_hashes"] = []
+            self._report.artifacts["existing_antitheses_hashes"] = []
+            self._report.artifacts["new_antitheses_hashes"] = []
             self._report.artifacts["total_antitheses"] = 0
             return None
 
@@ -216,11 +229,11 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
         # Build final artifacts
         self._report.artifacts["thesis_hashes"] = self.thesis_hashes
-        self._report.artifacts["antithesis_hashes"] = all_extracted_hashes
+        self._report.artifacts["existing_antitheses_hashes"] = existing_hashes
+        self._report.artifacts["new_antitheses_hashes"] = newly_extracted_hashes
         self._report.artifacts["ideas_hash"] = ideas.hash if ideas else None
-        self._report.artifacts["deleted_count"] = deleted_count
         self._report.artifacts["total_antitheses"] = total_antitheses
-        self._report.summary = f"Generated {total_antitheses} antithesis(es) for {len(self.thesis_hashes)} thesis(es)"
+        self._report.summary = f"Found {len(existing_hashes)} existing + generated {len(newly_extracted_hashes)} new antithesis(es) for {len(self.thesis_hashes)} thesis(es)"
 
         return ideas
 
@@ -282,6 +295,75 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         ]
 
     # --- Helpers ---
+
+    async def _get_existing_oppositions(
+        self, thesis: DialecticalComponent, text: str = ""
+    ) -> tuple[list[DialecticalComponent], list[dict]]:
+        """Get existing oppositions for a thesis from the database.
+
+        For each antithesis:
+        1. Look up HS from WisdomUnit's ARelationship if exists
+        2. Otherwise estimate using AntithesisClassification
+
+        Returns:
+            Tuple of (antithesis components, antithesis data dicts)
+        """
+        from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
+            AntithesisClassification,
+        )
+
+        existing_components: list[DialecticalComponent] = []
+        existing_data: list[dict] = []
+        wu_repo = WisdomUnitRepository()
+
+        for antithesis, _ in thesis.oppositions.all():
+            existing_components.append(antithesis)
+
+            # Try to find HS from WisdomUnit's ARelationship
+            hs = self._lookup_hs_from_wisdom_unit(antithesis, wu_repo)
+
+            if hs is None:
+                # No WisdomUnit found - estimate using AntithesisClassification
+                classifier = AntithesisClassification()
+                result = await classifier.execute(
+                    thesis=thesis,
+                    antithesis_statement=antithesis.statement,
+                    text=text,
+                )
+                hs = result.heuristic_similarity
+                self._report.artifacts.setdefault("estimated_hs_count", 0)
+                self._report.artifacts["estimated_hs_count"] += 1
+
+            existing_data.append({
+                "hash": antithesis.hash,
+                "heuristic_similarity": hs,
+                "existing": True,
+            })
+
+        if existing_components:
+            self._report.artifacts["existing_oppositions_count"] = len(existing_components)
+
+        return existing_components, existing_data
+
+    def _lookup_hs_from_wisdom_unit(
+        self, antithesis: DialecticalComponent, wu_repo: WisdomUnitRepository
+    ) -> Optional[float]:
+        """Look up heuristic_similarity from WisdomUnit's ARelationship."""
+        from dialectical_framework.graph.relationships.polarity_relationship import ARelationship
+
+        # Find WisdomUnits containing this antithesis
+        wu_results = wu_repo.find_by_dialectical_component(antithesis)
+
+        for wu, rel_type in wu_results:
+            if rel_type == "A":
+                # Get the A relationship to access heuristic_similarity
+                a_result = wu.a.get()
+                if a_result:
+                    _, a_rel = a_result
+                    if isinstance(a_rel, ARelationship) and a_rel.heuristic_similarity is not None:
+                        return a_rel.heuristic_similarity
+
+        return None
 
     @inject
     async def _get_input_text(
