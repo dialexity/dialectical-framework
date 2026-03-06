@@ -26,7 +26,7 @@ class WisdomUnitRepository:
     """
 
     @inject
-    def find_by_polarity(
+    def find_by_tension(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,

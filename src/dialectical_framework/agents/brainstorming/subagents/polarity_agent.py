@@ -1,0 +1,280 @@
+"""
+PolarityAgent: Orchestrator for tetrad expansion (pole generation).
+
+Takes a single T-A tension and completes all partial WisdomUnits with poles.
+TensionAgent creates partial WUs; PolarityAgent finds and completes them.
+
+Flow:
+    TensionAgent → Ideas + partial WisdomUnits (T + A, uncommitted)
+           ↓
+    PolarityAgent → Complete WisdomUnits (T, A, T+, T-, A+, A-, committed)
+
+Usage:
+    # From TensionAgent output
+    tension_agent = TensionAgent(thesis_hashes=[...])
+    ideas = await tension_agent.execute()
+
+    # Get tension data from artifacts
+    for tension in tension_agent.report.artifacts["antithesis_data"]:
+        polarity_agent = PolarityAgent(
+            thesis_hash=tension["thesis_hash"],
+            antithesis_hash=tension["antithesis_hash"],
+        )
+        wus = await polarity_agent.execute()
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
+
+from dependency_injector.wiring import Provide, inject
+from mirascope import BaseTool
+from pydantic import Field, PrivateAttr
+
+from dialectical_framework.agents.brainstorming.capabilities.pole_generation import (
+    PoleGeneration,
+    PoleResult,
+)
+from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.wisdom_unit import (
+    POSITION_A,
+    POSITION_A_MINUS,
+    POSITION_A_PLUS,
+    POSITION_T,
+    POSITION_T_MINUS,
+    POSITION_T_PLUS,
+    WisdomUnit,
+)
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    ARelationship,
+    APlusRelationship,
+    AMinusRelationship,
+    TRelationship,
+    TPlusRelationship,
+    TMinusRelationship,
+)
+from dialectical_framework.graph.repositories.input_repository import InputRepository
+from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+
+if TYPE_CHECKING:
+    from dialectical_framework.protocols.input_resolver import InputResolver
+
+
+class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
+    """
+    Orchestrate tetrad expansion for a single T-A tension.
+
+    Completes ALL partial WisdomUnits for the tension. If none exist, creates
+    one new WU. Existing complete WUs are used as variation seeds (not_like_these).
+
+    Flow:
+    1. Look up existing WisdomUnits for this T-A pair
+    2. Complete all partial WUs (from TensionAgent)
+    3. If no partial WUs, create and complete one new WU
+    4. Return list of completed WisdomUnits
+
+    Dual interface:
+    - execute() returns list[WisdomUnit] for programmatic use
+    - call() returns JSON string for LLM tool use
+    """
+
+    thesis_hash: str = Field(
+        description="Hash of the thesis component"
+    )
+    antithesis_hash: str = Field(
+        description="Hash of the antithesis component"
+    )
+    positions: Optional[list[str]] = Field(
+        default=None,
+        description="Which poles to generate (T+, T-, A+, A-). If None, generates all 4."
+    )
+
+    _report: ExecutionReport = PrivateAttr()
+
+    @property
+    def report(self) -> ExecutionReport:
+        """Access the execution report."""
+        return self._report
+
+    async def call(self) -> str:
+        """Execute tetrad expansion and return ExecutionReport as JSON."""
+        await self.execute()
+        return str(self._report)
+
+    async def execute(self) -> list[WisdomUnit]:
+        """
+        Execute tetrad expansion for a single T-A tension.
+
+        Completes all partial WUs, or creates one if none exist.
+
+        Returns:
+            List of complete, committed WisdomUnits
+        """
+        self._report = ExecutionReport(tool=self.__class__.__name__)
+
+        # Resolve components
+        thesis = self._resolve_component(self.thesis_hash)
+        if thesis is None:
+            self._report.ok = False
+            self._report.summary = f"Thesis '{self.thesis_hash}' not found"
+            return []
+
+        antithesis = self._resolve_component(self.antithesis_hash)
+        if antithesis is None:
+            self._report.ok = False
+            self._report.summary = f"Antithesis '{self.antithesis_hash}' not found"
+            return []
+
+        # Look up existing WisdomUnits for this T-A pair
+        wu_repo = WisdomUnitRepository()
+        existing_wus = wu_repo.find_by_tension(thesis, antithesis)
+        complete_wus = [wu for wu in existing_wus if wu.is_complete()]
+        partial_wus = [wu for wu in existing_wus if not wu.is_complete()]
+
+        # If no partial WUs, create one new WU
+        if not partial_wus:
+            wu = WisdomUnit()
+            wu.save()
+
+            # Connect T (HS = 1.0 for thesis position)
+            wu.t.connect(thesis, relationship=TRelationship(
+                alias=POSITION_T,
+                heuristic_similarity=1.0,
+                complementarity_t=None,
+                complementarity_a=None,
+            ))
+
+            # Connect A
+            wu.a.connect(antithesis, relationship=ARelationship(
+                alias=POSITION_A,
+                heuristic_similarity=0.5,  # Default estimate for fresh creation
+                complementarity_t=None,
+                complementarity_a=None,
+            ))
+
+            partial_wus = [wu]
+
+        # Get input text for context
+        input_text = await self._get_input_text()
+
+        # Complete all partial WUs
+        completed_wus: list[WisdomUnit] = []
+        error_count = 0
+
+        for wu in partial_wus:
+            # Use complete WUs + already completed in this run as not_like_these
+            not_like_these = complete_wus + completed_wus
+
+            try:
+                generator = PoleGeneration()
+                poles = await generator.execute(
+                    wisdom_unit=wu,
+                    positions=self.positions,
+                    text=input_text,
+                    not_like_these=not_like_these,
+                )
+                self._report = self._report.merge(generator.report)
+
+                # Connect poles to WisdomUnit
+                for pole in poles:
+                    self._connect_pole(wu, pole)
+
+                # Commit WisdomUnit
+                wu.commit()
+                self._report.node_created(wu)
+                completed_wus.append(wu)
+
+            except Exception as e:
+                self._report.artifacts.setdefault("errors", []).append(
+                    f"Error completing WU: {e}"
+                )
+                error_count += 1
+
+        # Return all WUs: existing complete + newly completed
+        all_wus = complete_wus + completed_wus
+
+        # Build summary
+        self._report.ok = len(all_wus) > 0 or error_count == 0
+        self._report.artifacts["wisdom_unit_hashes"] = [
+            wu.hash for wu in all_wus if wu.hash
+        ]
+        self._report.artifacts["total_count"] = len(all_wus)
+        self._report.artifacts["existing_count"] = len(complete_wus)
+        self._report.artifacts["new_count"] = len(completed_wus)
+        if error_count:
+            self._report.artifacts["error_count"] = error_count
+
+        self._report.summary = (
+            f"{len(all_wus)} WisdomUnit(s) ({len(complete_wus)} existing, {len(completed_wus)} new)"
+            + (f", {error_count} errors" if error_count else "")
+        )
+
+        return all_wus
+
+    def _connect_pole(self, wu: WisdomUnit, pole: PoleResult) -> None:
+        """Connect a generated pole to the WisdomUnit."""
+        relationship_classes = {
+            POSITION_T_PLUS: TPlusRelationship,
+            POSITION_T_MINUS: TMinusRelationship,
+            POSITION_A_PLUS: APlusRelationship,
+            POSITION_A_MINUS: AMinusRelationship,
+        }
+
+        rel_class = relationship_classes[pole.position]
+        manager = wu.get_relationship_manager_by_position(pole.position)
+
+        manager.connect(
+            pole.component,
+            relationship=rel_class(
+                alias=pole.position,
+                heuristic_similarity=pole.heuristic_similarity,
+                complementarity_t=pole.complementarity_t,
+                complementarity_a=pole.complementarity_a,
+            ),
+        )
+
+        self._report.relationship_created(
+            manager,
+            wu,
+            pole.component,
+            meta={
+                "position": pole.position,
+                "hs": pole.heuristic_similarity,
+                "k_t": pole.complementarity_t,
+                "k_a": pole.complementarity_a,
+            },
+        )
+
+    def _resolve_component(self, component_hash: str) -> Optional[DialecticalComponent]:
+        """Resolve hash to component."""
+        repo = NodeRepository()
+        try:
+            comp = repo.find_by_hash(component_hash)
+            if isinstance(comp, DialecticalComponent):
+                return comp
+        except ValueError:
+            pass
+        return None
+
+    @inject
+    async def _get_input_text(
+        self,
+        input_resolver: InputResolver = Provide[DI.input_resolver],
+    ) -> str:
+        """Get concatenated text from all inputs in scope."""
+        repo = InputRepository()
+        inputs = repo.get_all()
+
+        if not inputs:
+            return ""
+
+        texts = []
+        for input_node in inputs:
+            resolved = await input_resolver.resolve(input_node)
+            texts.append(resolved)
+
+        return "\n\n---\n\n".join(texts)

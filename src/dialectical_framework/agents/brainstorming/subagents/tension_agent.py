@@ -1,32 +1,29 @@
 """
-PolarityFindingAgent: Orchestrator for Phase 2 of polarity-finder.
+TensionAgent: Orchestrator for finding T-A tensions.
 
-Uses conversational pattern: all steps share context through conversation history,
-enabling prompt caching.
-
-Symmetric to AnchoringAgent:
-- AnchoringAgent (orchestrator) uses ThesisExtraction → Ideas (all T)
-- PolarityFindingAgent (orchestrator) uses AntithesisExtraction → Ideas (per T, all A)
+Extracts antitheses for theses and creates OPPOSITE_OF relationships.
+Returns Ideas containing all T and A components with HS metadata.
 
 Flow:
     AnchoringAgent → Theses (Ideas with all T)
            ↓
-    PolarityFindingAgent → For each thesis, extract antitheses
+    TensionAgent → Ideas with T-A pairs (OPPOSITE_OF relationships + HS)
            ↓
-    One Ideas per T (containing all A for that T)
-           ↓
-    BrainstormingAgent → Reviews T/A pairs, rejects low Heuristic Similarity
+    PolarityAgent → Looks up/creates WisdomUnits, completes with poles
 
 Usage:
     # Programmatic (web app)
-    agent = PolarityFindingAgent(thesis_hashes=["abc123", "def456"])
-    antitheses = await agent.execute()
-    for a in antitheses:
-        print(a.statement)
+    agent = TensionAgent(thesis_hashes=["abc123", "def456"])
+    ideas = await agent.execute()
 
-    # LLM tool use (returns JSON)
-    agent = PolarityFindingAgent(thesis_hashes=[...])
-    json_result = await agent.call()
+    # Access T-A pairs from Ideas
+    for comp, _ in ideas.statements.all():
+        for antithesis, _ in comp.oppositions.all():
+            print(f"{comp.statement} vs {antithesis.statement}")
+
+    # LLM tool use (returns JSON with HS data)
+    agent = TensionAgent(thesis_hashes=[...])
+    json_result = await agent.call()  # Includes antithesis_data with HS values
 """
 
 from __future__ import annotations
@@ -35,7 +32,7 @@ from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import Field, PrivateAttr
 
 from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
     AntithesisExtraction,
@@ -45,12 +42,16 @@ from dialectical_framework.agents.brainstorming.capabilities.statement_deduplica
     DedupResult,
     StatementDeduplication,
 )
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.graph.nodes.wisdom_unit import POSITION_A, POSITION_T, WisdomUnit
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    ARelationship,
+    TRelationship,
+)
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository,
 )
@@ -62,18 +63,6 @@ if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
 
 
-# --- System Prompt ---
-
-SYSTEM_PROMPT = """You are a polarity finding agent for dialectical brainstorming.
-
-Your task is to orchestrate antithesis generation for theses and perform semantic deduplication.
-
-For semantic deduplication:
-- Compare newly extracted antitheses against existing vocabulary
-- Only match if confidence >= 0.7 (clearly the same concept)
-- Consider same core concept even if worded differently"""
-
-
 # --- Result container for tracking ---
 
 
@@ -83,58 +72,54 @@ class ThesisResult:
     def __init__(self, thesis: DialecticalComponent):
         self.thesis = thesis
         self.antithesis_data: list[dict] = []  # [{hash, heuristic_similarity}, ...]
-        self.ideas: Optional[Ideas] = None
         self.error: Optional[str] = None
 
 
 # --- Main Orchestrator ---
 
 
-class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
+class TensionAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
     """
-    Orchestrate antithesis generation (Phase 2 of polarity-finder).
-
-    Uses conversational pattern where all steps share context through
-    conversation history, enabling prompt caching.
+    Orchestrate T-A tension finding (antithesis generation).
 
     For each thesis hash:
     1. Use AntithesisExtraction to generate antitheses
-    2. Get antithesis hashes + Heuristic Similarity values from report
-    3. Create Ideas node per thesis with its antitheses
-    4. Return summary report for BrainstormingAgent curation
+    2. Create OPPOSITE_OF relationships with HS metadata
+    3. Return Ideas containing all T and A components
 
-    This is symmetric to AnchoringAgent which orchestrates Phase 1.
+    The HS (Heuristic Similarity) for each T-A pair is available in:
+    - Report artifacts: antithesis_data[{thesis_hash, antithesis_hash, heuristic_similarity}]
+    - Existing WisdomUnits: ARelationship.heuristic_similarity
 
     Dual interface:
-    - execute() returns list[DialecticalComponent] for programmatic use
-    - call() returns JSON string for LLM tool use
+    - execute() returns Ideas for programmatic use
+    - call() returns JSON string for LLM tool use (includes HS data)
     """
 
     thesis_hashes: list[str] = Field(
         description="Hashes of theses to generate antitheses for"
     )
 
-    _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
     _report: ExecutionReport = PrivateAttr()
 
     async def call(self) -> str:
-        """Execute polarity finding and return ExecutionReport as JSON (for LLM tool use)."""
+        """Execute tension finding and return ExecutionReport as JSON (for LLM tool use)."""
         await self.execute()
         return str(self._report)
 
     async def execute(self) -> Optional[Ideas]:
-        """Execute polarity finding: orchestrate AntithesisExtraction for each thesis. Returns Ideas container."""
-        # Reset report on each execution (allows instance reuse)
-        self._report = ExecutionReport(tool=self.__class__.__name__)
+        """
+        Execute tension finding: extract antitheses and create Ideas.
 
-        # Initialize conversation with system prompt
-        self._conversation.set_system_prompt(SYSTEM_PROMPT)
+        Returns:
+            Ideas containing all T and A components (with OPPOSITE_OF relationships)
+        """
+        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         if not self.thesis_hashes:
             self._report.ok = True
             self._report.summary = "No thesis hashes provided"
-            self._report.artifacts["antithesis_hashes"] = []
-            self._report.artifacts["total_antitheses"] = 0
+            self._report.artifacts["antithesis_data"] = []
             return None
 
         # Get input text for context
@@ -145,8 +130,8 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         not_like_these = [c["statement"] for c in vocab]
 
         results: list[ThesisResult] = []
-        all_existing: list[DialecticalComponent] = []  # Track existing oppositions
-        newly_extracted: list[DialecticalComponent] = []  # Track newly extracted (for dedup)
+        all_existing: list[DialecticalComponent] = []
+        newly_extracted: list[DialecticalComponent] = []
 
         # Phase 1: For each thesis, collect existing oppositions + extract new ones
         for thesis_hash in self.thesis_hashes:
@@ -159,7 +144,7 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
             result = ThesisResult(thesis=thesis)
 
-            # 1a. Collect existing oppositions from database (no dedup needed)
+            # 1a. Collect existing oppositions from database
             existing_antitheses, existing_data = await self._get_existing_oppositions(thesis, input_text)
             result.antithesis_data.extend(existing_data)
             all_existing.extend(existing_antitheses)
@@ -189,7 +174,6 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             results.append(result)
 
         # Phase 2: Semantic deduplication (only newly extracted, not existing)
-        existing_hashes = [c.hash for c in all_existing]
         newly_extracted_hashes = [c.hash for c in newly_extracted]
         if newly_extracted_hashes and vocab:
             deduplicator = StatementDeduplication()
@@ -198,7 +182,6 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
                 vocabulary=vocab,
                 text=input_text,
             )
-            deleted_count = dedup_result.deleted_count
 
             # Reconnect OPPOSITE_OF: thesis -> DB version for replacements
             self._reconnect_oppositions(results, dedup_result)
@@ -212,28 +195,51 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
                         data["hash"] = dedup_result.replacements[data["hash"]].hash
                         data["deduped"] = True
 
-        # Phase 3: Create ONE Ideas with all theses and their antitheses
+        # Phase 3: Create partial WisdomUnits for each T-A pair
         total_antitheses = sum(len(r.antithesis_data) for r in results if not r.error)
 
         if total_antitheses == 0:
             self._report.ok = True
             self._report.summary = "No antitheses found"
-            self._report.artifacts["thesis_hashes"] = self.thesis_hashes
-            self._report.artifacts["existing_antitheses_hashes"] = []
-            self._report.artifacts["new_antitheses_hashes"] = []
-            self._report.artifacts["total_antitheses"] = 0
+            self._report.artifacts["antithesis_data"] = []
             return None
 
-        # Create Ideas containing all theses + antitheses (OPPOSITE_OF already exists)
-        ideas = self._create_ideas(results)
 
-        # Build final artifacts
-        self._report.artifacts["thesis_hashes"] = self.thesis_hashes
-        self._report.artifacts["existing_antitheses_hashes"] = existing_hashes
-        self._report.artifacts["new_antitheses_hashes"] = newly_extracted_hashes
+        # Phase 4: Create Ideas with all T-A pairs
+        ideas = self._create_ideas(results)
+        self._create_wisdom_units(results)
+
+        # Build antithesis_data for report (includes HS for each T-A pair)
+        antithesis_data = []
+        for result in results:
+            if result.error:
+                continue
+            for data in result.antithesis_data:
+                antithesis_data.append({
+                    "thesis_hash": result.thesis.hash,
+                    "antithesis_hash": data["hash"],
+                    "heuristic_similarity": data["heuristic_similarity"],
+                    "existing": data.get("existing", False),
+                    "deduped": data.get("deduped", False),
+                })
+
+        # Build summary
+        existing_count = len(all_existing)
+        new_count = len(newly_extracted)
+
+        self._report.ok = True
+        self._report.artifacts["thesis_count"] = len(self.thesis_hashes)
+        self._report.artifacts["existing_antitheses"] = existing_count
+        self._report.artifacts["new_antitheses"] = new_count
         self._report.artifacts["ideas_hash"] = ideas.hash if ideas else None
-        self._report.artifacts["total_antitheses"] = total_antitheses
-        self._report.summary = f"Found {len(existing_hashes)} existing + generated {len(newly_extracted_hashes)} new antithesis(es) for {len(self.thesis_hashes)} thesis(es)"
+        self._report.artifacts["antithesis_data"] = antithesis_data
+        wu_created = self._report.artifacts.get("created_wu_count", 0)
+        wu_existing = self._report.artifacts.get("existing_wu_count", 0)
+        self._report.summary = (
+            f"Found {existing_count} existing + {new_count} new antithesis(es) "
+            f"for {len(self.thesis_hashes)} thesis(es). "
+            f"WisdomUnits: {wu_created} created, {wu_existing} existing."
+        )
 
         return ideas
 
@@ -250,13 +256,7 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
         Goal: Find at least 1 antithesis per thesis.
         If first attempt with not_like_these yields nothing, retry with empty constraints.
-
-        Returns tuple of (antithesis components, antithesis data dicts, reports).
         """
-        from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
-            AntithesisProcessed,
-        )
-
         reports: list[ExecutionReport] = []
 
         # First attempt: with not_like_these constraints
@@ -268,7 +268,6 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         )
         reports.append(service.report)
 
-        # If we got results, return them
         if results:
             components = [r.component for r in results]
             antithesis_data = self._build_antithesis_data(results)
@@ -288,7 +287,7 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         return components, antithesis_data, reports
 
     def _build_antithesis_data(self, results: list) -> list[dict]:
-        """Build antithesis data dicts directly from AntithesisResult objects."""
+        """Build antithesis data dicts from AntithesisResult objects."""
         return [
             {"hash": r.component.hash, "heuristic_similarity": r.heuristic_similarity}
             for r in results
@@ -299,15 +298,7 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
     async def _get_existing_oppositions(
         self, thesis: DialecticalComponent, text: str = ""
     ) -> tuple[list[DialecticalComponent], list[dict]]:
-        """Get existing oppositions for a thesis from the database.
-
-        For each antithesis:
-        1. Look up HS from WisdomUnit's ARelationship where T=thesis AND A=antithesis
-        2. Otherwise estimate using AntithesisClassification
-
-        Returns:
-            Tuple of (antithesis components, antithesis data dicts)
-        """
+        """Get existing oppositions for a thesis from the database."""
         from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
             AntithesisClassification,
         )
@@ -319,11 +310,11 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         for antithesis, _ in thesis.oppositions.all():
             existing_components.append(antithesis)
 
-            # Try to find HS from WisdomUnit where T=thesis AND A=antithesis
+            # Try to find HS from existing WisdomUnit
             hs = self._lookup_hs_from_wisdom_unit(thesis, antithesis, wu_repo)
 
             if hs is None:
-                # No WisdomUnit found for this T-A pair - estimate using AntithesisClassification
+                # No WisdomUnit found - estimate HS
                 classifier = AntithesisClassification()
                 result = await classifier.execute(
                     thesis=thesis,
@@ -340,9 +331,6 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
                 "existing": True,
             })
 
-        if existing_components:
-            self._report.artifacts["existing_oppositions_count"] = len(existing_components)
-
         return existing_components, existing_data
 
     def _lookup_hs_from_wisdom_unit(
@@ -351,14 +339,10 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         antithesis: DialecticalComponent,
         wu_repo: WisdomUnitRepository
     ) -> Optional[float]:
-        """Look up heuristic_similarity from WisdomUnit where T=thesis AND A=antithesis."""
-        from dialectical_framework.graph.relationships.polarity_relationship import ARelationship
-
-        # Find WisdomUnits where T=thesis AND A=antithesis
-        wus = wu_repo.find_by_polarity(thesis, antithesis)
+        """Look up HS from existing WisdomUnit."""
+        wus = wu_repo.find_by_tension(thesis, antithesis)
 
         for wu in wus:
-            # Get the A relationship to access heuristic_similarity
             a_result = wu.a.get()
             if a_result:
                 _, a_rel = a_result
@@ -393,11 +377,10 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
         result = []
         for comp in vocab:
-            # Get rationale if exists
             rationale_text = ""
             for rat, _ in comp.rationales.all():
                 rationale_text = rat.text
-                break  # Just use first rationale
+                break
 
             result.append({
                 "hash": comp.hash or "",
@@ -409,15 +392,12 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
         return result
 
-    # --- Deduplication Helpers ---
-
     def _reconnect_oppositions(
         self,
         results: list[ThesisResult],
         dedup_result: DedupResult,
     ) -> None:
-        """Reconnect OPPOSITE_OF relationships from thesis to DB version for replacements."""
-        # Build mapping: extracted_hash -> thesis
+        """Reconnect OPPOSITE_OF for deduped antitheses."""
         hash_to_thesis: dict[str, DialecticalComponent] = {}
         for result in results:
             if result.error:
@@ -425,7 +405,6 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             for data in result.antithesis_data:
                 hash_to_thesis[data["hash"]] = result.thesis
 
-        # Connect thesis to DB version for each replacement
         for ext_hash, db_comp in dedup_result.replacements.items():
             thesis = hash_to_thesis.get(ext_hash)
             if thesis and db_comp:
@@ -442,33 +421,76 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             pass
         return None
 
+    def _create_wisdom_units(self, results: list[ThesisResult]) -> list[WisdomUnit]:
+        """Create partial WisdomUnits (T + A) for each T-A pair."""
+        wu_repo = WisdomUnitRepository()
+        created_wus: list[WisdomUnit] = []
+
+        for result in results:
+            if result.error:
+                continue
+
+            for data in result.antithesis_data:
+                antithesis = self._resolve_component(data["hash"])
+                if antithesis is None:
+                    continue
+
+                # Check if WU already exists for this T-A pair
+                existing_wus = wu_repo.find_by_tension(result.thesis, antithesis)
+                if existing_wus:
+                    # WU already exists - skip creation
+                    self._report.artifacts.setdefault("existing_wu_count", 0)
+                    self._report.artifacts["existing_wu_count"] += 1
+                    continue
+
+                # Create new partial WisdomUnit
+                wu = WisdomUnit()
+                wu.save()
+
+                # Connect T
+                wu.t.connect(result.thesis, relationship=TRelationship(
+                    alias=POSITION_T,
+                    heuristic_similarity=1.0,
+                    complementarity_t=None,
+                    complementarity_a=None,
+                ))
+
+                # Connect A with HS
+                wu.a.connect(antithesis, relationship=ARelationship(
+                    alias=POSITION_A,
+                    heuristic_similarity=data["heuristic_similarity"],
+                    complementarity_t=None,
+                    complementarity_a=None,
+                ))
+
+                created_wus.append(wu)
+                self._report.node_created(wu, meta={"partial": True, "hs": data["heuristic_similarity"]})
+
+        self._report.artifacts["created_wu_count"] = len(created_wus)
+        return created_wus
+
     def _create_ideas(self, results: list[ThesisResult]) -> Optional[Ideas]:
-        """Create Ideas node with all theses and their antitheses. Records effects in self._report."""
-        # Collect all valid theses and antithesis data
+        """Create Ideas node with all theses and their antitheses."""
         valid_results = [r for r in results if not r.error and r.antithesis_data]
         if not valid_results:
             return None
 
-        # Build intent summary
         thesis_statements = [r.thesis.statement for r in valid_results]
-        intent = f"Polarities for: {', '.join(thesis_statements[:3])}"
+        intent = f"Tensions for: {', '.join(thesis_statements[:3])}"
         if len(thesis_statements) > 3:
             intent += f" (+{len(thesis_statements) - 3} more)"
 
         ideas = Ideas(intent=intent)
         ideas.save()
 
-        # Connect to all inputs in scope
+        # Connect to inputs
         input_repo = InputRepository()
         for inp in input_repo.get_all():
             ideas.inputs.connect(inp)
 
-        # Connect all theses AND their antitheses
+        # Connect all theses and antitheses
         for result in valid_results:
-            # Connect thesis
             ideas.statements.connect(result.thesis)
-
-            # Connect antitheses (OPPOSITE_OF relationship already exists from extraction)
             for data in result.antithesis_data:
                 comp = self._resolve_component(data["hash"])
                 if comp:
@@ -477,21 +499,17 @@ class PolarityFindingAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         ideas.commit()
         self._report.node_created(ideas)
 
-        # Attach Rationale summarizing the generation
+        # Add rationale
         total_theses = len(valid_results)
         total_antitheses = sum(len(r.antithesis_data) for r in valid_results)
         all_hs = [d["heuristic_similarity"] for r in valid_results for d in r.antithesis_data]
         max_hs = max(all_hs) if all_hs else 0.0
 
         rationale = Rationale(
-            text=f"Generated {total_antitheses} antitheses for {total_theses} theses. Max Heuristic Similarity: {max_hs:.2f}"
+            text=f"Found {total_antitheses} antitheses for {total_theses} theses. Max HS: {max_hs:.2f}"
         )
         rationale.set_explanation_target(ideas)
         rationale.commit()
         self._report.node_created(rationale)
-        self._report.relationship_created(
-            rationale.explains, rationale, ideas,
-        )
 
         return ideas
-

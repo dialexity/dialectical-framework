@@ -24,6 +24,14 @@ from pydantic import BaseModel, Field
 from dialectical_framework.agents.executable_capability import ExecutableCapability
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.graph.nodes.wisdom_unit import (
+    POSITION_T,
+    POSITION_T_PLUS,
+    POSITION_T_MINUS,
+    POSITION_A,
+    POSITION_A_PLUS,
+    POSITION_A_MINUS,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -31,18 +39,63 @@ if TYPE_CHECKING:
 
 # --- Taxonomy Constants ---
 
-# Systemic taxonomy mapping for T→A lookup (thesis branch → antithesis leaf)
+# Systemic taxonomy mapping from Table S-1
+# Structure: branch -> {POSITION_T: apex, POSITION_A: apex, POSITION_T_PLUS: apex, ...}
 SYSTEMIC_TAXONOMY = {
-    "Integrity": {"thesis_leaf": "Integration", "antithesis_leaf": "Disintegration"},
-    "Fidelity": {"thesis_leaf": "Modeling", "antithesis_leaf": "ErrorCorrection"},
-    "Exchange": {"thesis_leaf": "Exchange", "antithesis_leaf": "Consumption"},
-    "Flexibility": {"thesis_leaf": "Exploration", "antithesis_leaf": "Exploitation"},
-    "Resilience": {"thesis_leaf": "Recovery", "antithesis_leaf": "Disruption"},
+    "Apex": {
+        POSITION_T: "Integration",
+        POSITION_A: "Disintegration",
+        POSITION_T_PLUS: "Coherence",
+        POSITION_T_MINUS: "Rigid fusion",
+        POSITION_A_PLUS: "Differentiation",
+        POSITION_A_MINUS: "Disintegration",
+    },
+    "Integrity": {
+        POSITION_T: "Cohesion",
+        POSITION_A: "Separation",
+        POSITION_T_PLUS: "Coherence",
+        POSITION_T_MINUS: "Locking-in",
+        POSITION_A_PLUS: "Differentiation",
+        POSITION_A_MINUS: "Rupture",
+    },
+    "Fidelity": {
+        POSITION_T: "Modeling",
+        POSITION_A: "Error correction",
+        POSITION_T_PLUS: "Accuracy",
+        POSITION_T_MINUS: "Dogmatism",
+        POSITION_A_PLUS: "Critical testing",
+        POSITION_A_MINUS: "Denial",
+    },
+    "Exchange": {
+        POSITION_T: "Exchange",
+        POSITION_A: "Consumption",
+        POSITION_T_PLUS: "Exchange",
+        POSITION_T_MINUS: "Dependency",
+        POSITION_A_PLUS: "Constraint",
+        POSITION_A_MINUS: "Depletion",
+    },
+    "Flexibility": {
+        POSITION_T: "Exploration",
+        POSITION_A: "Constraint",
+        POSITION_T_PLUS: "Plasticity",
+        POSITION_T_MINUS: "Chaotic drift",
+        POSITION_A_PLUS: "Stabilization",
+        POSITION_A_MINUS: "Suffocating",
+    },
+    "Resilience": {
+        POSITION_T: "Recovery",
+        POSITION_A: "Disruption",
+        POSITION_T_PLUS: "Recovery",
+        POSITION_T_MINUS: "Fragility",
+        POSITION_A_PLUS: "Buffering",
+        POSITION_A_MINUS: "Collapse",
+    },
 }
 
 VALID_DOMAINS = ["General", "Engineering", "Ecology", "Institutions", "Love"]
-VALID_BRANCHES = ["Integrity", "Fidelity", "Exchange", "Flexibility", "Resilience"]
+VALID_BRANCHES = ["Apex", "Integrity", "Fidelity", "Exchange", "Flexibility", "Resilience"]
 VALID_ELEMENTS = ["Fire", "Earth", "Air", "Water"]
+VALID_POLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
 
 
 # --- System Prompt ---
@@ -182,7 +235,7 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
                     if end > start:
                         domain = thesis_meaning[start:end]
 
-                return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{mapping['antithesis_leaf']}"
+                return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{mapping[POSITION_A]}"
 
         # Fallback
         return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
@@ -214,9 +267,126 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
             domain = "General"
 
         if leaf is None:
-            leaf = SYSTEMIC_TAXONOMY.get(branch, {}).get("thesis_leaf", branch)
+            leaf = SYSTEMIC_TAXONOMY.get(branch, {}).get(POSITION_T, branch)
 
         return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{leaf}"
+
+    @staticmethod
+    def lookup_pole_meaning(
+        parent: DialecticalComponent,
+        position: str,
+    ) -> str:
+        """
+        Derive pole meaning from parent component - deterministic, no LLM needed.
+
+        For T+/T-: parent should be the thesis (T)
+        For A+/A-: parent should be the antithesis (A)
+
+        Args:
+            parent: The parent component (T for T+/T-, A for A+/A-)
+            position: Pole position ("T+", "T-", "A+", "A-")
+
+        Returns:
+            Meaning URI for the pole
+        """
+        if position not in VALID_POLE_POSITIONS:
+            raise ValueError(f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}")
+
+        if parent.is_simple:
+            return "dx://taxonomy/Simple"
+
+        parent_meaning = parent.meaning
+        if not parent_meaning:
+            # Fallback to apex-level poles
+            leaf = SYSTEMIC_TAXONOMY["Apex"][position]
+            return f"dx://taxonomy/System(General.v1)/Viability/Apex/{leaf}"
+
+        # Parse parent meaning to extract branch and domain
+        branch = None
+        domain = "General"
+
+        for branch_name in VALID_BRANCHES:
+            if f"/{branch_name}/" in parent_meaning:
+                branch = branch_name
+                break
+
+        if "System(" in parent_meaning:
+            start = parent_meaning.find("System(") + 7
+            end = parent_meaning.find(".v1)")
+            if end > start:
+                domain = parent_meaning[start:end]
+
+        # Get pole leaf from taxonomy using position directly as key
+        if branch and branch in SYSTEMIC_TAXONOMY:
+            leaf = SYSTEMIC_TAXONOMY[branch][position]
+        else:
+            # Use apex-level poles
+            leaf = SYSTEMIC_TAXONOMY["Apex"][position]
+            branch = "Apex"
+
+        return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{leaf}"
+
+    @staticmethod
+    def lookup_pole_apex(
+        parent: DialecticalComponent,
+        position: str,
+    ) -> str:
+        """
+        Get the apex concept name for a pole position - for HS calculation.
+
+        This returns the generic apex concept (e.g., "Coherence" for T+ in Integrity branch)
+        that serves as the reference for heuristic similarity scoring.
+
+        Args:
+            parent: The parent component (T for T+/T-, A for A+/A-)
+            position: Pole position (POSITION_T_PLUS, POSITION_T_MINUS, etc.)
+
+        Returns:
+            Apex concept name (e.g., "Coherence", "Differentiation")
+        """
+        if position not in VALID_POLE_POSITIONS:
+            raise ValueError(f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}")
+
+        if parent.is_simple:
+            return "Simple"
+
+        parent_meaning = parent.meaning or ""
+
+        # Find branch from parent meaning
+        branch = None
+        for branch_name in VALID_BRANCHES:
+            if f"/{branch_name}/" in parent_meaning:
+                branch = branch_name
+                break
+
+        # Get pole apex from taxonomy using position directly as key
+        if branch and branch in SYSTEMIC_TAXONOMY:
+            return SYSTEMIC_TAXONOMY[branch][position]
+        else:
+            return SYSTEMIC_TAXONOMY["Apex"][position]
+
+    @staticmethod
+    def get_contradiction_pair(position: str) -> str:
+        """
+        Get the contradiction counterpart for a pole position.
+
+        T+ contradicts A-, A+ contradicts T-.
+
+        Args:
+            position: Pole position ("T+", "T-", "A+", "A-")
+
+        Returns:
+            The contradicting pole position
+        """
+        contradiction_map = {
+            POSITION_T_PLUS: POSITION_A_MINUS,
+            POSITION_A_MINUS: POSITION_T_PLUS,
+            POSITION_A_PLUS: POSITION_T_MINUS,
+            POSITION_T_MINUS: POSITION_A_PLUS,
+        }
+        if position not in contradiction_map:
+            raise ValueError(f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}")
+        return contradiction_map[position]
 
     # --- LLM-based Classification ---
 

@@ -113,7 +113,7 @@ class ThesisExtraction(ExecutableCapability[list[DialecticalComponent]], Setting
     async def execute(
         self,
         text: str,
-        count: int = 3,
+        count: int = 4,
         focus: str = "",
         domain_hint: str = "",
         not_like_these: Optional[list[str]] = None,

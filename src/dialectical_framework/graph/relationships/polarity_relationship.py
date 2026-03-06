@@ -15,20 +15,29 @@ from dialectical_framework.graph.relationships.immutable_structure import Identi
 # Base class for all polarity relationships
 class PolarityRelationship(IdentityRelationship):
     """
-    Base for all polarity relationships with alias property.
+    Base for all polarity relationships with alias and scoring properties.
 
     The alias stores the component's contextual position (e.g., "T1", "A2+").
     Same component can have different aliases in different WisdomUnits.
 
-    Use isinstance checks to safely access .alias:
+    Scoring properties (all Optional[float], 0.0-1.0):
+    - heuristic_similarity: How similar the component is to its taxonomy apex
+    - complementarity_t: K_T - how well this component complements the thesis
+    - complementarity_a: K_A - how well this component complements the antithesis
+
+    Use isinstance checks to safely access properties:
         if isinstance(rel, PolarityRelationship):
             alias = rel.alias  # Direct access, fully typed
+            hs = rel.heuristic_similarity
 
     The alias property is validated to ensure it's always a non-empty,
     non-whitespace string.
     """
 
     alias: str
+    heuristic_similarity: Optional[float]
+    complementarity_t: Optional[float]
+    complementarity_a: Optional[float]
 
     def __init__(self, **data):
         """Initialize and validate alias property."""
@@ -58,7 +67,7 @@ class TMinusRelationship(PolarityRelationship, type="T_MINUS"):
 # A-side relationships
 class ARelationship(PolarityRelationship, type="A"):
     """Neutral antithesis relationship."""
-    heuristic_similarity: Optional[float]
+    pass
 
 
 class APlusRelationship(PolarityRelationship, type="A_PLUS"):
