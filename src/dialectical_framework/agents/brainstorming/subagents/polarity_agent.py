@@ -190,6 +190,17 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
             for pole in poles:
                 self._connect_pole(wu, pole)
 
+            # Check if WU (after deduplication) is identical to an existing complete WU
+            duplicate_of = self._find_duplicate(wu, complete_wus + completed_wus)
+            if duplicate_of:
+                # Discard the duplicate - delete uncommitted WU
+                wu_repo.safe_delete(wu)
+                self._report.artifacts.setdefault("duplicates_discarded", []).append({
+                    "discarded": wu.short_hash if wu.hash else "uncommitted",
+                    "duplicate_of": duplicate_of.short_hash,
+                })
+                continue
+
             # Commit WisdomUnit
             wu.commit()
             self._report.node_created(wu)
@@ -306,6 +317,27 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
                 updated_poles.append(pole)
 
         return updated_poles
+
+    def _find_duplicate(
+        self, wu: WisdomUnit, existing_wus: list[WisdomUnit]
+    ) -> Optional[WisdomUnit]:
+        """
+        Find an existing committed WU that has the same components as the given WU.
+
+        Uses WisdomUnit.is_same which handles T-A symmetry.
+        Only considers committed WUs as valid duplicates.
+
+        Args:
+            wu: The WisdomUnit to check
+            existing_wus: List of existing WisdomUnits to compare against
+
+        Returns:
+            The matching committed WU if found, None otherwise
+        """
+        for existing in existing_wus:
+            if existing.is_committed and wu.is_same(existing):
+                return existing
+        return None
 
     def _resolve_component(self, component_hash: str) -> Optional[DialecticalComponent]:
         """Resolve hash to component."""

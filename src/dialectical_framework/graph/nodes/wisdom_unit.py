@@ -213,6 +213,48 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             and self.a_minus.count() >= 1
         )
 
+    def is_same(self, other: WisdomUnit) -> bool:
+        """
+        Check if this WisdomUnit has the same components as another.
+
+        Compares by component hashes, not WU hashes (which include timestamps).
+        Handles T-A symmetry: two WUs are the same if their T and A sides match,
+        even if T and A are swapped between them.
+
+        Args:
+            other: Another WisdomUnit to compare with
+
+        Returns:
+            True if both WUs have the same 6 components (possibly swapped)
+
+        Example:
+            # Same orientation
+            wu1: T=X, A=Y → wu2: T=X, A=Y → is_same = True
+
+            # Swapped orientation (still the same tension)
+            wu1: T=X, A=Y → wu2: T=Y, A=X → is_same = True
+        """
+        if self is other:
+            return True
+        if not isinstance(other, WisdomUnit):
+            return False
+
+        # Check normal orientation: T↔T, A↔A
+        if (
+            self.segment_t.is_same(other.segment_t)
+            and self.segment_a.is_same(other.segment_a)
+        ):
+            return True
+
+        # Check swapped orientation: T↔A, A↔T
+        if (
+            self.segment_t.is_same(other.segment_a)
+            and self.segment_a.is_same(other.segment_t)
+        ):
+            return True
+
+        return False
+
     @property
     def segment_t(self) -> WheelSegment:
         """
