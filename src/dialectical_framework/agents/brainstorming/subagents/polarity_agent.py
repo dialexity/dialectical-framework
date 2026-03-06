@@ -35,10 +35,16 @@ from dialectical_framework.agents.brainstorming.capabilities.pole_generation imp
     PoleGeneration,
     PoleResult,
 )
+from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
+    StatementDeduplication,
+)
 from dialectical_framework.agents.executable_capability import ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.repositories.dialectical_component_repository import (
+    DialecticalComponentRepository,
+)
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_A,
     POSITION_A_MINUS,
@@ -163,54 +169,46 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
 
         # Complete all partial WUs
         completed_wus: list[WisdomUnit] = []
-        error_count = 0
 
         for wu in partial_wus:
             # Use complete WUs + already completed in this run as not_like_these
             not_like_these = complete_wus + completed_wus
 
-            try:
-                generator = PoleGeneration()
-                poles = await generator.execute(
-                    wisdom_unit=wu,
-                    positions=self.positions,
-                    text=input_text,
-                    not_like_these=not_like_these,
-                )
-                self._report = self._report.merge(generator.report)
+            generator = PoleGeneration()
+            poles = await generator.execute(
+                wisdom_unit=wu,
+                positions=self.positions,
+                text=input_text,
+                not_like_these=not_like_these,
+            )
+            self._report = self._report.merge(generator.report)
 
-                # Connect poles to WisdomUnit
-                for pole in poles:
-                    self._connect_pole(wu, pole)
+            # Deduplicate poles against vocabulary (within same branch)
+            poles = await self._deduplicate_poles(poles, input_text)
 
-                # Commit WisdomUnit
-                wu.commit()
-                self._report.node_created(wu)
-                completed_wus.append(wu)
+            # Connect poles to WisdomUnit
+            for pole in poles:
+                self._connect_pole(wu, pole)
 
-            except Exception as e:
-                self._report.artifacts.setdefault("errors", []).append(
-                    f"Error completing WU: {e}"
-                )
-                error_count += 1
+            # Commit WisdomUnit
+            wu.commit()
+            self._report.node_created(wu)
+            completed_wus.append(wu)
 
         # Return all WUs: existing complete + newly completed
         all_wus = complete_wus + completed_wus
 
         # Build summary
-        self._report.ok = len(all_wus) > 0 or error_count == 0
+        self._report.ok = True
         self._report.artifacts["wisdom_unit_hashes"] = [
             wu.hash for wu in all_wus if wu.hash
         ]
         self._report.artifacts["total_count"] = len(all_wus)
         self._report.artifacts["existing_count"] = len(complete_wus)
         self._report.artifacts["new_count"] = len(completed_wus)
-        if error_count:
-            self._report.artifacts["error_count"] = error_count
 
         self._report.summary = (
             f"{len(all_wus)} WisdomUnit(s) ({len(complete_wus)} existing, {len(completed_wus)} new)"
-            + (f", {error_count} errors" if error_count else "")
         )
 
         return all_wus
@@ -248,6 +246,66 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
                 "k_a": pole.complementarity_a,
             },
         )
+
+    async def _deduplicate_poles(
+        self, poles: list[PoleResult], text: str
+    ) -> list[PoleResult]:
+        """
+        Deduplicate generated poles against vocabulary (within same branch).
+
+        If a generated pole matches an existing component in the same taxonomy branch,
+        replace the generated component with the existing one.
+        """
+        if not poles:
+            return poles
+
+        # Get vocabulary
+        repo = DialecticalComponentRepository()
+        vocab = repo.get_vocabulary_with_rationales()
+        if not vocab:
+            return poles
+
+        # Collect generated hashes
+        generated_hashes = [p.component.hash for p in poles if p.component.hash]
+        if not generated_hashes:
+            return poles
+
+        # Run deduplication (branch filtering happens inside StatementDeduplication)
+        deduplicator = StatementDeduplication()
+        dedup_result = await deduplicator.execute(
+            extracted_hashes=generated_hashes,
+            vocabulary=vocab,
+            text=text,
+        )
+        self._report = self._report.merge(deduplicator.report)
+
+        # If no replacements, return original poles
+        if not dedup_result.replacements:
+            return poles
+
+        # Update poles with replaced components
+        updated_poles: list[PoleResult] = []
+        for pole in poles:
+            if pole.component.hash in dedup_result.replacements:
+                # Replace with existing component (keeps original meaning)
+                replacement = dedup_result.replacements[pole.component.hash]
+                updated_poles.append(PoleResult(
+                    component=replacement,
+                    position=pole.position,
+                    apex_concept=pole.apex_concept,
+                    heuristic_similarity=pole.heuristic_similarity,
+                    complementarity_t=pole.complementarity_t,
+                    complementarity_a=pole.complementarity_a,
+                ))
+                self._report.artifacts.setdefault("deduped_poles", []).append({
+                    "position": pole.position,
+                    "original": pole.component.short_hash,
+                    "replaced_with": replacement.short_hash,
+                })
+            else:
+                updated_poles.append(pole)
+
+        return updated_poles
 
     def _resolve_component(self, component_hash: str) -> Optional[DialecticalComponent]:
         """Resolve hash to component."""

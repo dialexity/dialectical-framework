@@ -126,7 +126,8 @@ class TensionAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         input_text = await self._get_input_text()
 
         # Get existing vocabulary to avoid and for dedup comparison
-        vocab = self._get_vocabulary_with_rationales()
+        comp_repo = DialecticalComponentRepository()
+        vocab = comp_repo.get_vocabulary_with_rationales()
         not_like_these = [c["statement"] for c in vocab]
 
         results: list[ThesisResult] = []
@@ -369,28 +370,6 @@ class TensionAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             texts.append(resolved)
 
         return "\n\n---\n\n".join(texts)
-
-    def _get_vocabulary_with_rationales(self) -> list[dict]:
-        """Get vocabulary components with their rationales."""
-        repo = DialecticalComponentRepository()
-        vocab = list(repo.get_vocabulary())
-
-        result = []
-        for comp in vocab:
-            rationale_text = ""
-            for rat, _ in comp.rationales.all():
-                rationale_text = rat.text
-                break
-
-            result.append({
-                "hash": comp.hash or "",
-                "statement": comp.statement,
-                "meaning": comp.meaning,
-                "rejected": comp.rejected,
-                "rationale": rationale_text,
-            })
-
-        return result
 
     def _reconnect_oppositions(
         self,

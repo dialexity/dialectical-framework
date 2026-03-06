@@ -25,6 +25,31 @@ if TYPE_CHECKING:
     pass
 
 
+def _extract_meaning_prefix(meaning: Optional[str]) -> Optional[str]:
+    """
+    Extract taxonomy prefix from meaning URI (everything except the leaf).
+
+    Empty string or None meaning returns None, which means "matches everything".
+    The prefix includes domain, taxonomy version, and branch path.
+
+    Example:
+        "dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling"
+        → "dx://taxonomy/System(General.v1)/Viability/Fidelity"
+    """
+    if not meaning:
+        return None  # No meaning = matches everything
+
+    # Remove trailing slash if present
+    meaning = meaning.rstrip("/")
+
+    # Find last slash to separate prefix from leaf
+    last_slash = meaning.rfind("/")
+    if last_slash <= 0:
+        return None  # Malformed URI, treat as matching everything
+
+    return meaning[:last_slash]
+
+
 # --- DTOs ---
 
 
@@ -162,18 +187,31 @@ class StatementDeduplication(ExecutableCapability[DedupResult]):
         vocabulary: list[dict],
     ) -> SemanticDedupDto:
         """Call LLM to find semantic equivalents."""
-        # Build extraction descriptions
+        # Build extraction descriptions and collect meaning prefixes
         extraction_lines = []
+        extracted_prefixes: set[Optional[str]] = set()
         for h in extracted_hashes:
             comp = self._resolve_component(h)
-            if comp:
+            if comp and comp.is_committed:
                 extraction_lines.append(
                     f"[{comp.short_hash}] {comp.statement} (meaning: {comp.meaning or 'none'})"
                 )
+                extracted_prefixes.add(_extract_meaning_prefix(comp.meaning))
 
-        # Build vocabulary descriptions (exclude rejected, limit tokens)
-        vocab_lines = []
+        # Filter vocabulary by meaning prefix
+        # None prefix (no meaning) matches everything
         non_rejected = [v for v in vocabulary if not v.get("rejected")]
+        if extracted_prefixes and None not in extracted_prefixes:
+            # All extracted have meaning - filter vocab to matching prefixes
+            # Include vocab items with no meaning (match everything) or matching prefix
+            non_rejected = [
+                v for v in non_rejected
+                if _extract_meaning_prefix(v.get("meaning")) is None  # No meaning = matches all
+                or _extract_meaning_prefix(v.get("meaning")) in extracted_prefixes
+            ]
+
+        # Build vocabulary descriptions (limit tokens)
+        vocab_lines = []
         for v in non_rejected[:100]:
             rationale_hint = f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
             vocab_lines.append(
