@@ -25,16 +25,32 @@ if TYPE_CHECKING:
     pass
 
 
+from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
+    parse_meaning_uri,
+    VIABILITY_CATEGORY,
+)
+
+SIMPLE_MEANING = "dx://taxonomy/Simple"
+
+
 def _extract_meaning_prefix(meaning: Optional[str]) -> Optional[str]:
     """
     Extract taxonomy prefix from meaning URI (everything except the leaf).
 
+    Uses parse_meaning_uri from StatementClassification for consistent parsing.
+
     Empty string or None meaning returns None, which means "matches everything".
-    The prefix includes domain, taxonomy version, and branch path.
+    The prefix includes domain, taxonomy version, category, and branch.
+
+    Special case: Simple meaning (dx://taxonomy/Simple) returns the full URI
+    since there's no leaf to strip - Simple components only match other Simple.
 
     Example:
         "dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling"
         → "dx://taxonomy/System(General.v1)/Viability/Fidelity"
+
+        "dx://taxonomy/Simple"
+        → "dx://taxonomy/Simple" (full URI, Simple only matches Simple)
     """
     if not meaning:
         return None  # No meaning = matches everything
@@ -42,7 +58,22 @@ def _extract_meaning_prefix(meaning: Optional[str]) -> Optional[str]:
     # Remove trailing slash if present
     meaning = meaning.rstrip("/")
 
-    # Find last slash to separate prefix from leaf
+    # Simple meaning: return full URI (Simple only matches Simple)
+    if meaning == SIMPLE_MEANING:
+        return meaning
+
+    # Use centralized parsing from StatementClassification
+    domain, category, branch, _ = parse_meaning_uri(meaning)
+
+    # If we successfully parsed the URI, reconstruct prefix (without leaf)
+    if domain and category and branch:
+        return f"dx://taxonomy/System({domain}.v1)/{category}/{branch}"
+
+    # If we have category and branch but no domain, still construct prefix
+    if category and branch:
+        return f"dx://taxonomy/{category}/{branch}"
+
+    # Fallback: strip last segment manually
     last_slash = meaning.rfind("/")
     if last_slash <= 0:
         return None  # Malformed URI, treat as matching everything
@@ -64,6 +95,21 @@ class SemanticMatchDto(BaseModel):
     confidence: float = Field(
         default=0.0,
         description="Confidence of the match (0.0-1.0)",
+    )
+
+
+class IdeaMatchDto(BaseModel):
+    """Result of checking a raw idea against vocabulary."""
+
+    is_duplicate: bool = Field(description="Is the idea semantically equivalent to an existing component?")
+    matched_hash: Optional[str] = Field(
+        default=None,
+        description="If duplicate, hash of the matching component (null if not duplicate)",
+    )
+    confidence: float = Field(
+        ge=0.0, le=1.0,
+        default=0.0,
+        description="Confidence in the match (0.0-1.0)",
     )
 
 
@@ -306,4 +352,71 @@ If no match, set db_hash to null."""
                 return comp
         except ValueError:
             pass
+        return None
+
+    async def check_idea(
+        self,
+        idea: str,
+        vocabulary: list[dict],
+        text: str = "",
+    ) -> Optional[DialecticalComponent]:
+        """
+        Check if a raw idea string is a semantic duplicate of existing vocabulary.
+
+        Unlike execute(), this works with raw strings (no committed component needed)
+        and does NOT filter by meaning - it checks against ALL vocabulary.
+
+        Args:
+            idea: The raw idea string to check
+            vocabulary: Existing vocabulary as list of dicts with keys:
+                        hash, statement, meaning, rejected, rationale
+            text: Source context for contextualized matching
+
+        Returns:
+            The matching DialecticalComponent if duplicate found, None otherwise
+        """
+        if not idea or not idea.strip() or not vocabulary:
+            return None
+
+        idea = idea.strip()
+
+        # Build vocabulary descriptions (no meaning filtering - check ALL)
+        non_rejected = [v for v in vocabulary if not v.get("rejected")]
+        vocab_lines = []
+        for v in non_rejected[:100]:  # Limit for token budget
+            meaning_hint = f" (meaning: {v.get('meaning', 'none')})" if v.get("meaning") else ""
+            vocab_lines.append(f"[{v['hash']}] {v['statement']}{meaning_hint}")
+
+        if not vocab_lines:
+            return None
+
+        context_section = ""
+        if text:
+            context_section = f"""
+**Source Context:**
+{text}
+
+"""
+
+        prompt = f"""Check if this idea is semantically equivalent to any existing component.
+{context_section}
+**Idea:** "{idea}"
+
+**Existing vocabulary:**
+{chr(10).join(vocab_lines)}
+
+Determine if "{idea}" means the same thing as any existing component.
+Consider the same core concept even if worded differently.
+
+Only mark as duplicate if confidence >= 0.8 (clearly the same concept).
+If not a duplicate, set is_duplicate=false and matched_hash=null."""
+
+        result = await self._conversation.submit(
+            response_model=IdeaMatchDto,
+            user_content=prompt,
+        )
+
+        if result.is_duplicate and result.matched_hash and result.confidence >= 0.8:
+            return self._resolve_component(result.matched_hash)
+
         return None

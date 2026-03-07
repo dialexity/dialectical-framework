@@ -97,6 +97,69 @@ VALID_BRANCHES = ["Apex", "Integrity", "Fidelity", "Exchange", "Flexibility", "R
 VALID_ELEMENTS = ["Fire", "Earth", "Air", "Water"]
 VALID_POLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
 
+# Systemic taxonomy URI prefix for matching
+SYSTEMIC_PREFIX = "dx://taxonomy/System("
+VIABILITY_CATEGORY = "Viability"
+
+
+def parse_meaning_uri(
+    meaning: str,
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """
+    Parse a meaning URI to extract domain, category, branch, and leaf.
+
+    Expected format: dx://taxonomy/System({domain}.v1)/{category}/{branch}/{leaf}
+    Standard:        dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion
+
+    Where:
+    - domain: General, Engineering, Ecology, Institutions, Love
+    - category: Viability (parent of all branches)
+    - branch: Apex, Integrity, Fidelity, Exchange, Flexibility, Resilience
+    - leaf: specific concept (Cohesion, Modeling, etc.)
+
+    Args:
+        meaning: The meaning URI to parse
+
+    Returns:
+        Tuple of (domain, category, branch, leaf) - any may be None if not found
+    """
+    if not meaning:
+        return None, None, None, None
+
+    domain = None
+    category = None
+    branch = None
+    leaf = None
+
+    # Extract domain from System({domain}.v1) if present
+    if "System(" in meaning:
+        start = meaning.find("System(") + 7
+        end = meaning.find(".v1)")
+        if end > start:
+            domain = meaning[start:end]
+
+    # Split URI into path segments
+    # Remove protocol prefix for parsing
+    path_part = meaning
+    if "://" in meaning:
+        path_part = meaning.split("://", 1)[1]
+
+    segments = [s for s in path_part.split("/") if s]
+
+    # Find category and branch by looking for Viability followed by valid branch
+    for i, segment in enumerate(segments):
+        if segment == VIABILITY_CATEGORY:
+            category = segment
+            # Next segment should be the branch
+            if i + 1 < len(segments) and segments[i + 1] in VALID_BRANCHES:
+                branch = segments[i + 1]
+                # Leaf is the segment after branch
+                if i + 2 < len(segments):
+                    leaf = segments[i + 2]
+            break
+
+    return domain, category, branch, leaf
+
 
 # --- System Prompt ---
 
@@ -224,18 +287,14 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
         if not thesis_meaning:
             return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
 
-        # Parse thesis meaning and derive antithesis
-        for branch, mapping in SYSTEMIC_TAXONOMY.items():
-            if f"/{branch}/" in thesis_meaning:
-                # Extract domain from thesis meaning
-                domain = "General"
-                if "System(" in thesis_meaning:
-                    start = thesis_meaning.find("System(") + 7
-                    end = thesis_meaning.find(".v1)")
-                    if end > start:
-                        domain = thesis_meaning[start:end]
+        # Parse thesis meaning URI properly
+        domain, category, branch, _ = parse_meaning_uri(thesis_meaning)
 
-                return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{mapping[POSITION_A]}"
+        if branch and branch in SYSTEMIC_TAXONOMY:
+            domain = domain or "General"
+            category = category or VIABILITY_CATEGORY
+            antithesis_leaf = SYSTEMIC_TAXONOMY[branch][POSITION_A]
+            return f"dx://taxonomy/System({domain}.v1)/{category}/{branch}/{antithesis_leaf}"
 
         # Fallback
         return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
@@ -301,20 +360,10 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
             leaf = SYSTEMIC_TAXONOMY["Apex"][position]
             return f"dx://taxonomy/System(General.v1)/Viability/Apex/{leaf}"
 
-        # Parse parent meaning to extract branch and domain
-        branch = None
-        domain = "General"
-
-        for branch_name in VALID_BRANCHES:
-            if f"/{branch_name}/" in parent_meaning:
-                branch = branch_name
-                break
-
-        if "System(" in parent_meaning:
-            start = parent_meaning.find("System(") + 7
-            end = parent_meaning.find(".v1)")
-            if end > start:
-                domain = parent_meaning[start:end]
+        # Parse parent meaning URI properly
+        domain, category, branch, _ = parse_meaning_uri(parent_meaning)
+        domain = domain or "General"
+        category = category or VIABILITY_CATEGORY
 
         # Get pole leaf from taxonomy using position directly as key
         if branch and branch in SYSTEMIC_TAXONOMY:
@@ -324,7 +373,7 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
             leaf = SYSTEMIC_TAXONOMY["Apex"][position]
             branch = "Apex"
 
-        return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{leaf}"
+        return f"dx://taxonomy/System({domain}.v1)/{category}/{branch}/{leaf}"
 
     @staticmethod
     def lookup_pole_apex(
@@ -352,12 +401,8 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
 
         parent_meaning = parent.meaning or ""
 
-        # Find branch from parent meaning
-        branch = None
-        for branch_name in VALID_BRANCHES:
-            if f"/{branch_name}/" in parent_meaning:
-                branch = branch_name
-                break
+        # Parse parent meaning URI properly
+        _, _, branch, _ = parse_meaning_uri(parent_meaning)
 
         # Get pole apex from taxonomy using position directly as key
         if branch and branch in SYSTEMIC_TAXONOMY:

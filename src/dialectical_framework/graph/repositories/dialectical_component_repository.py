@@ -156,3 +156,34 @@ class DialecticalComponentRepository:
         """
         graph_db.execute(delete_query, {"comp_id": component._id})
         return True
+
+    def get_vocabulary_with_rationales(self) -> list[dict]:
+        """
+        Get committed vocabulary components with their rationales.
+
+        Only returns committed components (those with hash).
+        Uses best_rationale (highest-rated) for each component.
+
+        Returns:
+            List of dicts with: hash, statement, meaning, rejected, rationale
+        """
+        vocab = self.get_vocabulary()
+
+        result = []
+        for comp in vocab:
+            # Only include committed components
+            if not comp.is_committed:
+                continue
+
+            best = comp.best_rationale
+            rationale_text = best.text if best else ""
+
+            result.append({
+                "hash": comp.hash,
+                "statement": comp.statement,
+                "meaning": comp.meaning,
+                "rejected": comp.rejected,
+                "rationale": rationale_text,
+            })
+
+        return result
