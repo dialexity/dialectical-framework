@@ -2,12 +2,16 @@
 PolarityAgent: Orchestrator for tetrad expansion (pole generation).
 
 Takes a single T-A tension and completes all partial WisdomUnits with poles.
-TensionAgent creates partial WUs; PolarityAgent finds and completes them.
+If no WisdomUnit exists for the T-A pair, creates one using AntithesisClassification
+to get the proper heuristic_similarity.
 
 Flow:
-    TensionAgent → Ideas + partial WisdomUnits (T + A, uncommitted)
+    TensionAgent → Ideas + partial WisdomUnits (T + A with HS, uncommitted)
            ↓
     PolarityAgent → Complete WisdomUnits (T, A, T+, T-, A+, A-, committed)
+
+If no WU exists:
+    PolarityAgent calls AntithesisClassification to get HS, creates WU, then expands.
 
 Usage:
     # From TensionAgent output
@@ -31,6 +35,9 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
+    AntithesisClassification,
+)
 from dialectical_framework.agents.brainstorming.capabilities.pole_generation import (
     PoleGeneration,
     PoleResult,
@@ -74,13 +81,14 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
     """
     Orchestrate tetrad expansion for a single T-A tension.
 
-    Completes ALL partial WisdomUnits for the tension. If none exist, creates
-    one new WU. Existing complete WUs are used as variation seeds (not_like_these).
+    Completes ALL partial WisdomUnits for the tension. If no WU exists,
+    creates one using AntithesisClassification to get the proper heuristic_similarity.
+    Existing complete WUs are used as variation seeds (not_like_these).
 
     Flow:
     1. Look up existing WisdomUnits for this T-A pair
-    2. Complete all partial WUs (from TensionAgent)
-    3. If no partial WUs, create and complete one new WU
+    2. If none exist, classify the antithesis and create a partial WU
+    3. Complete all partial WUs by generating poles (T+, T-, A+, A-)
     4. Return list of completed WisdomUnits
 
     Dual interface:
@@ -115,7 +123,8 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         """
         Execute tetrad expansion for a single T-A tension.
 
-        Completes all partial WUs, or creates one if none exist.
+        If no WU exists for the T-A pair, creates one using AntithesisClassification
+        to get the proper heuristic_similarity. Then completes all partial WUs.
 
         Returns:
             List of complete, committed WisdomUnits
@@ -135,37 +144,34 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
             self._report.summary = f"Antithesis '{self.antithesis_hash}' not found"
             return []
 
+        # Get input text for context (needed for classification and pole generation)
+        input_text = await self._get_input_text()
+
         # Look up existing WisdomUnits for this T-A pair
         wu_repo = WisdomUnitRepository()
         existing_wus = wu_repo.find_by_tension(thesis, antithesis)
+
+        if not existing_wus:
+            # No WU exists - classify the antithesis and create one
+            wu = await self._create_wisdom_unit_from_classification(
+                thesis, antithesis, input_text
+            )
+            existing_wus = [wu]
+
         complete_wus = [wu for wu in existing_wus if wu.is_complete()]
         partial_wus = [wu for wu in existing_wus if not wu.is_complete()]
 
-        # If no partial WUs, create one new WU
         if not partial_wus:
-            wu = WisdomUnit()
-            wu.save()
-
-            # Connect T (HS = 1.0 for thesis position)
-            wu.t.connect(thesis, relationship=TRelationship(
-                alias=POSITION_T,
-                heuristic_similarity=1.0,
-                complementarity_t=None,
-                complementarity_a=None,
-            ))
-
-            # Connect A
-            wu.a.connect(antithesis, relationship=ARelationship(
-                alias=POSITION_A,
-                heuristic_similarity=0.5,  # Default estimate for fresh creation
-                complementarity_t=None,
-                complementarity_a=None,
-            ))
-
-            partial_wus = [wu]
-
-        # Get input text for context
-        input_text = await self._get_input_text()
+            # All WUs are already complete - nothing to do
+            self._report.ok = True
+            self._report.summary = f"{len(complete_wus)} complete WisdomUnit(s), no partial WUs to expand"
+            self._report.artifacts["wisdom_unit_hashes"] = [
+                wu.hash for wu in complete_wus if wu.hash
+            ]
+            self._report.artifacts["total_count"] = len(complete_wus)
+            self._report.artifacts["existing_count"] = len(complete_wus)
+            self._report.artifacts["new_count"] = 0
+            return complete_wus
 
         # Complete all partial WUs
         completed_wus: list[WisdomUnit] = []
@@ -257,6 +263,64 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
                 "k_a": pole.complementarity_a,
             },
         )
+
+    async def _create_wisdom_unit_from_classification(
+        self,
+        thesis: DialecticalComponent,
+        antithesis: DialecticalComponent,
+        text: str,
+    ) -> WisdomUnit:
+        """
+        Create a WisdomUnit by classifying the antithesis to get heuristic_similarity.
+
+        Called when no WU exists for the T-A pair. Uses AntithesisClassification
+        to get the proper HS value instead of inventing one.
+
+        Args:
+            thesis: The thesis component
+            antithesis: The antithesis component
+            text: Source content context
+
+        Returns:
+            A partial WisdomUnit (T + A connected, no poles yet)
+        """
+        # Run AntithesisClassification to get the heuristic_similarity
+        classifier = AntithesisClassification()
+        classification = await classifier.execute(
+            thesis=thesis,
+            antithesis_statement=antithesis.statement,
+            text=text,
+        )
+        self._report = self._report.merge(classifier.report)
+
+        # Create WisdomUnit
+        wu = WisdomUnit()
+        wu.save()
+
+        # Connect T (HS = 1.0 for thesis position - it defines the apex)
+        wu.t.connect(thesis, relationship=TRelationship(
+            alias=POSITION_T,
+            heuristic_similarity=1.0,
+            complementarity_t=None,
+            complementarity_a=None,
+        ))
+
+        # Connect A with the classified heuristic_similarity
+        wu.a.connect(antithesis, relationship=ARelationship(
+            alias=POSITION_A,
+            heuristic_similarity=classification.heuristic_similarity,
+            complementarity_t=None,
+            complementarity_a=None,
+        ))
+
+        self._report.node_created(wu)
+        self._report.artifacts.setdefault("created_wus", []).append({
+            "thesis": thesis.short_hash,
+            "antithesis": antithesis.short_hash,
+            "heuristic_similarity": classification.heuristic_similarity,
+        })
+
+        return wu
 
     async def _deduplicate_poles(
         self, poles: list[PoleResult], text: str

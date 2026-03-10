@@ -2,9 +2,10 @@
 PoleClassification: Capability for classifying a user-provided pole.
 
 Evaluates a given pole statement against a tension (T-A pair) to determine:
-- Is it valid for the specified position (T+, T-, A+, A-)?
 - HS: Heuristic Similarity to the apex concept (0.0-1.0)
-- Complementarity: How it relates to T and A
+  - HS > 0.1: Valid for the specified position
+  - HS <= 0.1: Wrong category, check suggested_position
+- Complementarity: How it relates to T and A (K_T, K_A)
 
 This is the pole counterpart to AntithesisClassification.
 
@@ -19,8 +20,10 @@ Usage:
         position="A+",
         text="context about relationships..."
     )
-    if result.is_valid:
+    if result.heuristic_similarity > 0.1:  # Valid for A+
         print(f"HS: {result.heuristic_similarity}, K_T: {result.complementarity_t}")
+    else:
+        print(f"Suggested position: {result.suggested_position}")
 """
 
 from __future__ import annotations
@@ -78,34 +81,34 @@ A pole is INVALID if:
 - It's actually the thesis or antithesis level concept (T or A), not an aspect
   - If so, suggest "T" or "A" as the better position
 
-## HS (Heuristic Similarity)
+## HS (Heuristic Similarity) Scale
 
 HS measures how well the pole represents the apex concept for that position:
-- 0.9-1.0: Exemplary, captures the essence perfectly
-- 0.7-0.9: Strong representation
-- 0.5-0.7: Moderate, captures some aspects
-- 0.3-0.5: Weak but related
-- 0.0-0.3: Poor fit for this position
+- 0.9-1.0: Perfect or near-perfect match - exemplary representation of the apex
+- 0.7-0.9: Very similar - captures most aspects of the apex concept
+- 0.5-0.7: Related - captures some aspects, moderate fit for position
+- 0.3-0.5: Somewhat related - weak but still the right category
+- 0.1-0.3: Weakly related - likely better suited for a different position
+- 0.0-0.1: Not related - wrong category entirely, definitely belongs elsewhere
 
-## Complementarity
+**Critical threshold**: HS > 0.1 means valid for this position (quality varies).
+HS ≤ 0.1 means wrong category - suggest the correct position.
 
-Complementarity measures how well the pole complements or enhances T and A:
+## Complementarity Scale
 
-**Complementarity to T (K_T)**: 0.0 to 1.0
-- 1.0: Strongly supports/enhances T
-- 0.5: Moderately complements T
-- 0.0: Does not complement T
+Complementarity measures how well the pole complements, enhances, or supports T and A.
 
-**Complementarity to A (K_A)**: 0.0 to 1.0
-- 1.0: Strongly supports/enhances A
-- 0.5: Moderately complements A
-- 0.0: Does not complement A
+**K_T (Complementarity to Thesis)**: 0.0 to 1.0
+How well does this pole complement, enhance, or support the Thesis?
+- 0.0 = Actively undermines or contradicts T
+- 0.5 = Neutral, neither helps nor hurts T
+- 1.0 = Strongly supports and enhances T
 
-Expected patterns (from paper):
-- T+: High K_T (~0.85), low K_A (~0.10)
-- T-: Low K_T (~0.30), low K_A (~0.15)
-- A+: High K_T (~0.75), high K_A (~0.85)
-- A-: Low K_T (~0.10), low K_A (~0.25)
+**K_A (Complementarity to Antithesis)**: 0.0 to 1.0
+How well does this pole complement, enhance, or support the Antithesis?
+- 0.0 = Actively undermines or contradicts A
+- 0.5 = Neutral, neither helps nor hurts A
+- 1.0 = Strongly supports and enhances A
 
 Respond with structured output matching the requested format."""
 
@@ -118,13 +121,10 @@ VALID_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_
 class PoleEvaluationDto(BaseModel):
     """Result of evaluating a pole against a tension."""
 
-    is_valid: bool = Field(
-        description="Is this a valid pole for the specified position?"
-    )
     heuristic_similarity: float = Field(
         ge=0.0,
         le=1.0,
-        description="Heuristic Similarity to the apex concept (0.0-1.0)",
+        description="Heuristic Similarity to the apex concept (0.0-1.0). HS > 0.1 means valid for this position.",
     )
     complementarity_t: float = Field(
         ge=0.0,
@@ -138,7 +138,7 @@ class PoleEvaluationDto(BaseModel):
     )
     suggested_position: Optional[str] = Field(
         default=None,
-        description="If invalid for given position, which position might fit better? (T/A/T+/T-/A+/A- or null if unrelated)",
+        description="If HS is very low, which position might fit better? (T/A/T+/T-/A+/A- or null if unrelated)",
     )
     reasoning: str = Field(description="Explanation of the evaluation")
 
@@ -148,12 +148,16 @@ class PoleEvaluationDto(BaseModel):
 
 @dataclass
 class PoleClassificationResult:
-    """Result of pole classification - no DB nodes created."""
+    """Result of pole classification - no DB nodes created.
+
+    Validity is determined by heuristic_similarity:
+    - HS > 0.1: Valid for this position
+    - HS <= 0.1: Wrong category, check suggested_position
+    """
 
     statement: str
     position: str
     meaning: str
-    is_valid: bool
     heuristic_similarity: float
     complementarity_t: float
     complementarity_a: float
@@ -233,12 +237,11 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
         # Evaluate pole
         evaluation = await self._evaluate_pole(apex_concept)
 
-        # Build result
+        # Build result (validity determined by HS > 0.1)
         result = PoleClassificationResult(
             statement=self._pole_statement,
             position=position,
             meaning=meaning,
-            is_valid=evaluation.is_valid,
             heuristic_similarity=evaluation.heuristic_similarity,
             complementarity_t=evaluation.complementarity_t,
             complementarity_a=evaluation.complementarity_a,
@@ -248,15 +251,13 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
         )
 
         # Build report
-        self._report.artifacts["is_valid"] = result.is_valid
         self._report.artifacts["heuristic_similarity"] = result.heuristic_similarity
         self._report.artifacts["complementarity_t"] = result.complementarity_t
         self._report.artifacts["complementarity_a"] = result.complementarity_a
         self._report.ok = True
 
-        validity_str = "valid" if result.is_valid else "invalid"
         self._report.summary = (
-            f"Classified pole '{self._pole_statement}' as {validity_str} for {position} "
+            f"Classified pole '{self._pole_statement}' for {position} "
             f"(HS={result.heuristic_similarity:.2f})"
         )
 
@@ -294,26 +295,19 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
 
 **Determine:**
 
-1. **is_valid**: Is "{self._pole_statement}" a valid {position_description[self._position]}?
-   - Does it represent a genuine {self._position} aspect?
-   - Or does it belong to a different position / is unrelated?
+1. **heuristic_similarity** (0.0-1.0): How well does this pole represent the apex concept "{apex_concept}"?
+   Use the HS scale from the system guidelines. Remember: HS > 0.1 = valid, HS ≤ 0.1 = wrong category.
 
-2. **heuristic_similarity** (0.0-1.0): How well does this pole represent the apex concept "{apex_concept}"?
+2. **complementarity_t** (K_T, 0.0-1.0): How well does this pole complement, enhance, or support the thesis "{self._thesis.statement}"?
+   Use the K_T scale from the system guidelines.
 
-3. **complementarity_t** (0.0 to 1.0): How well does this pole complement/enhance the thesis "{self._thesis.statement}"?
-   - 1.0 = Strongly supports/enhances T
-   - 0.5 = Moderately complements T
-   - 0.0 = Does not complement T
+3. **complementarity_a** (K_A, 0.0-1.0): How well does this pole complement, enhance, or support the antithesis "{self._antithesis.statement}"?
+   Use the K_A scale from the system guidelines.
 
-4. **complementarity_a** (0.0 to 1.0): How well does this pole complement/enhance the antithesis "{self._antithesis.statement}"?
-   - 1.0 = Strongly supports/enhances A
-   - 0.5 = Moderately complements A
-   - 0.0 = Does not complement A
-
-5. **suggested_position**: If invalid for {self._position}, which position might fit better?
+4. **suggested_position**: If HS is very low (not a good fit for {self._position}), which position might fit better?
    - T: if this is actually a thesis-level concept (neutral statement of the T side)
    - A: if this is actually an antithesis-level concept (neutral statement of the A side)
    - T+/T-/A+/A-: if it's a pole but for a different position
    - null: if unrelated to this tension
 
-6. **reasoning**: Explain your evaluation."""
+5. **reasoning**: Explain your evaluation."""

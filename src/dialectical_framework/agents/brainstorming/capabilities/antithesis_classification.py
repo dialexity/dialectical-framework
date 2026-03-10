@@ -128,11 +128,15 @@ Lovelessness (APEX)
 ## HS (Heuristic Similarity) Scale
 
 HS measures how well the antithesis represents the apex concept:
-- 0.0-0.3: Unrelated or tangentially related
-- 0.3-0.5: Somewhat related but different focus
-- 0.5-0.7: Related, captures some aspects of apex
-- 0.7-0.9: Very similar, captures most aspects of apex
-- 0.9-1.0: Equivalent or near-equivalent to apex
+- 0.9-1.0: Perfect or near-perfect match - exemplary antithesis
+- 0.7-0.9: Very similar - captures most aspects of the apex
+- 0.5-0.7: Related - captures some aspects, moderate quality
+- 0.3-0.5: Somewhat related - weak but still a valid antithesis
+- 0.1-0.3: Weakly related - poor quality antithesis, but still in the right category
+- 0.0-0.1: Not related - wrong category entirely, not an antithesis (likely a pole or unrelated)
+
+**Critical threshold**: HS > 0.1 means valid antithesis (quality varies).
+HS ≤ 0.1 means wrong category - this is NOT an antithesis.
 
 Respond with structured output matching the requested format."""
 
@@ -460,14 +464,9 @@ Determine:
    - 0.0 = Privation (complete absence)
 
 2. **HS (Heuristic Similarity)** (0.0-1.0): How well does this antithesis represent the ideal negation (apex)?
-   Use the full HS scale from the system prompt:
-   - 0.9-1.0 = Equivalent or near-equivalent to apex
-   - 0.7-0.9 = Very similar, captures most aspects
-   - 0.5-0.7 = Related, captures some aspects
-   - 0.3-0.5 = Somewhat related but different focus
-   - 0.0-0.3 = Unrelated or tangentially related
+   Use the HS scale from the system guidelines.
 
-3. **Arousal**: Assess the arousal level of the T↔A tension using the full arousal scale from the system prompt (dormant/latent/low/mild/moderate/elevated/high/intense/active).
+3. **Arousal**: Assess the arousal level of the T↔A tension using the arousal scale from the system guidelines.
 
 4. **Explanation**: Provide reasoning for your assessments."""
 
