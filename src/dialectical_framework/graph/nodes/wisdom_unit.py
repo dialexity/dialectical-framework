@@ -16,6 +16,7 @@ from dialectical_framework.graph.mixins.incremental_build_mixin import Increment
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager, BoundRelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
+    PoleRelationship,
     TRelationship,
     TPlusRelationship,
     TMinusRelationship,
@@ -274,6 +275,74 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             from dialectical_framework.graph.wheel_segment import WheelSegment
             self._cached_segment_a = WheelSegment(self, 'A')
         return self._cached_segment_a
+
+    @property
+    def is_positive_synthesis_empirically_possible(self) -> Optional[bool]:
+        """
+        Check if positive synthesis (S+) is empirically possible based on pole complementarities.
+
+        Empirical conditions for positive synthesis:
+        1. KS(T+) - KS(T-) ≈ KS(A+) - KS(A-) ≥ 0.1
+           (Both differentials should be positive and approximately equal, tolerance=0.15)
+        2. Positive poles: KS(T+) > 0.4 and KS(A+) > 0.4
+        3. Negative poles: KS(T-) < 0.6 and KS(A-) < 0.6
+
+        Where KS = complementarity_s = (K_T + K_A) / 2
+
+        Example (differential balance check):
+            ┌──────────────┬────────┬────────┬────────────┬────────────────┐
+            │   Scenario   │ diff_t │ diff_a │ Difference │     Valid?     │
+            ├──────────────┼────────┼────────┼────────────┼────────────────┤
+            │ Balanced     │ 0.25   │ 0.30   │ 0.05       │ ✓              │
+            ├──────────────┼────────┼────────┼────────────┼────────────────┤
+            │ Slightly off │ 0.35   │ 0.22   │ 0.13       │ ✓ (borderline) │
+            ├──────────────┼────────┼────────┼────────────┼────────────────┤
+            │ Unbalanced   │ 0.50   │ 0.12   │ 0.38       │ ✗              │
+            └──────────────┴────────┴────────┴────────────┴────────────────┘
+
+        Returns:
+            True if conditions are met, False if not, None if data is missing
+        """
+        # Get complementarity_s for each pole position
+        def get_ks(manager) -> Optional[float]:
+            result = manager.get()
+            if not result:
+                return None
+            _, rel = result
+            if isinstance(rel, PoleRelationship):
+                return rel.complementarity_s
+            return None
+
+        ks_t_plus = get_ks(self.t_plus)
+        ks_t_minus = get_ks(self.t_minus)
+        ks_a_plus = get_ks(self.a_plus)
+        ks_a_minus = get_ks(self.a_minus)
+
+        # If any KS is missing, we can't determine
+        if any(ks is None for ks in [ks_t_plus, ks_t_minus, ks_a_plus, ks_a_minus]):
+            return None
+
+        # Condition 2: Positive poles KS > 0.4
+        if ks_t_plus <= 0.4 or ks_a_plus <= 0.4:
+            return False
+
+        # Condition 3: Negative poles KS < 0.6
+        if ks_t_minus >= 0.6 or ks_a_minus >= 0.6:
+            return False
+
+        # Condition 1: KS(T+) - KS(T-) ≈ KS(A+) - KS(A-) ≥ 0.1
+        diff_t = ks_t_plus - ks_t_minus
+        diff_a = ks_a_plus - ks_a_minus
+
+        # Both differentials should be >= 0.1
+        if diff_t < 0.1 or diff_a < 0.1:
+            return False
+
+        # Differentials should be approximately equal (within 0.15 tolerance)
+        if abs(diff_t - diff_a) > 0.15:
+            return False
+
+        return True
 
     @staticmethod
     def get_relationship_class_for_position(position: str) -> type[PolarityRelationship]:

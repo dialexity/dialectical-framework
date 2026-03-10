@@ -32,7 +32,7 @@ Usage:
     if result.placement == "antithesis":
         print(f"Hate is antithesis of {result.antithesis_of}")
     elif result.placement == "pole":
-        print(f"Hate is {result.position} of tension {result.tension}")
+        print(f"Hate is {result.position} of {result.pole_of}")
 
     # The component is always available (with proper classification)
     component = result.component
@@ -104,7 +104,11 @@ Respond with structured output matching the requested format."""
 
 
 class PlacementAnalysisDto(BaseModel):
-    """Result of analyzing idea placement (after deduplication)."""
+    """Result of analyzing idea placement (after deduplication).
+
+    This DTO only determines WHERE the idea belongs - actual metrics (HS, K_T, K_A)
+    are computed by the appropriate classification capability.
+    """
 
     placement: str = Field(
         description="Where the idea belongs: 'antithesis', 'pole', or 'thesis'"
@@ -112,22 +116,16 @@ class PlacementAnalysisDto(BaseModel):
     confidence: float = Field(
         ge=0.0,
         le=1.0,
-        description="Confidence in the placement (0.0-1.0)",
+        description="Confidence in the placement decision (0.0-1.0)",
     )
 
-    # For antithesis
+    # For antithesis - just identify which thesis
     antithesis_of_hash: Optional[str] = Field(
         default=None,
         description="If antithesis, hash of the thesis it opposes",
     )
-    heuristic_similarity: Optional[float] = Field(
-        default=None,
-        ge=0.0,
-        le=1.0,
-        description="If antithesis, Heuristic Similarity to the apex concept",
-    )
 
-    # For pole
+    # For pole - identify the tension and position
     tension_thesis_hash: Optional[str] = Field(
         default=None,
         description="If pole, hash of the thesis in the tension",
@@ -139,24 +137,6 @@ class PlacementAnalysisDto(BaseModel):
     position: Optional[str] = Field(
         default=None,
         description="If pole, position: T+, T-, A+, A-",
-    )
-    pole_heuristic_similarity: Optional[float] = Field(
-        default=None,
-        ge=0.0,
-        le=1.0,
-        description="If pole, Heuristic Similarity to the apex concept",
-    )
-    complementarity_t: Optional[float] = Field(
-        default=None,
-        ge=0.0,
-        le=1.0,
-        description="If pole, complementarity to thesis (0.0-1.0)",
-    )
-    complementarity_a: Optional[float] = Field(
-        default=None,
-        ge=0.0,
-        le=1.0,
-        description="If pole, complementarity to antithesis (0.0-1.0)",
     )
 
     reasoning: str = Field(description="Explanation of the placement decision")
@@ -181,14 +161,15 @@ class IdeaPlacementResult:
     # For duplicate
     duplicate_of: Optional[str] = None  # Component hash of existing duplicate
 
-    # For antithesis
-    antithesis_of: Optional[str] = None  # Thesis hash
+    # For antithesis or pole - HS from classification
     heuristic_similarity: Optional[float] = None
 
+    # For antithesis
+    antithesis_of: Optional[str] = None  # Thesis hash
+
     # For pole
-    tension: Optional[tuple[str, str]] = None  # (thesis_hash, antithesis_hash)
+    pole_of: Optional[tuple[str, str]] = None  # (thesis_hash, antithesis_hash)
     position: Optional[str] = None  # T+, T-, A+, A-
-    pole_heuristic_similarity: Optional[float] = None
     complementarity_t: Optional[float] = None
     complementarity_a: Optional[float] = None
 
@@ -256,9 +237,6 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         self._vocabulary = vocabulary
         self._tensions = tensions
         self._text = text
-
-        # Initialize conversation
-        self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         # If no vocabulary, it's a new thesis - run classification
         if not vocabulary:
@@ -478,15 +456,15 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         component.commit()
         self._report.node_created(component)
 
-        # Create rationale
+        # Create rationale (HS > 0.1 means valid for position)
+        validity = "valid" if classification.heuristic_similarity > 0.1 else "wrong category"
         rationale_text = (
             f"Placement: {position} pole of tension '{thesis.statement}' ↔ '{antithesis.statement}'\n"
             f"Reasoning: {analysis.reasoning}\n\n"
-            f"Classification:\n"
-            f"- Valid: {classification.is_valid}\n"
-            f"- Heuristic Similarity: {classification.heuristic_similarity}\n"
-            f"- Complementarity to Thesis: {classification.complementarity_t}\n"
-            f"- Complementarity to Antithesis: {classification.complementarity_a}\n"
+            f"Classification ({validity}):\n"
+            f"- Heuristic Similarity: {classification.heuristic_similarity:.2f}\n"
+            f"- K_T (Complementarity to Thesis): {classification.complementarity_t:.2f}\n"
+            f"- K_A (Complementarity to Antithesis): {classification.complementarity_a:.2f}\n"
             f"- Apex: {classification.apex_concept}\n"
             f"- Reasoning: {classification.reasoning}"
         )
@@ -498,9 +476,9 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
             confidence=analysis.confidence,
             reasoning=analysis.reasoning,
             component=component,
-            tension=(thesis.hash, antithesis.hash),
+            heuristic_similarity=classification.heuristic_similarity,
+            pole_of=(thesis.hash, antithesis.hash),
             position=position,
-            pole_heuristic_similarity=classification.heuristic_similarity,
             complementarity_t=classification.complementarity_t,
             complementarity_a=classification.complementarity_a,
         )
@@ -513,7 +491,12 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         self._report.node_created(rationale)
 
     async def _analyze_placement(self) -> PlacementAnalysisDto:
-        """Analyze idea placement using LLM."""
+        """Analyze idea placement using LLM.
+
+        Called AFTER duplicate check, so system prompt correctly states
+        that duplicate detection has already been done.
+        """
+        self._conversation.set_system_prompt(SYSTEM_PROMPT)
         prompt = self._build_analysis_prompt()
         return await self._conversation.submit(
             response_model=PlacementAnalysisDto,
@@ -554,23 +537,28 @@ Note: This idea has already been checked and is NOT a duplicate of existing voca
 
 1. **Check for ANTITHESIS**: Is "{self._idea}" a dialectical opposite of any existing thesis?
    - Consider: Does it create meaningful tension? Is it opposition/negation/absence?
-   - If yes: set placement="antithesis", antithesis_of_hash=thesis hash, estimate heuristic_similarity
+   - If yes: set placement="antithesis", antithesis_of_hash=thesis hash
 
 2. **Check for POLE**: Is "{self._idea}" a positive/negative aspect of any existing tension?
    - T+: benefit/strength of thesis
    - T-: risk/shadow of thesis
    - A+: benefit/strength of antithesis
    - A-: risk/shadow of antithesis
-   - If yes: set placement="pole", provide tension hashes and position
+   - If yes: set placement="pole", provide tension hashes (thesis and antithesis) and position
 
 3. **Otherwise THESIS**: Treat as a new thesis anchor
 
-Provide your analysis with confidence score (0.0-1.0) and reasoning."""
+Provide confidence (0.0-1.0) in your placement decision and reasoning.
+Note: Actual metrics (HS, complementarity) will be computed by specialized classifiers."""
 
     def _build_result(
         self, analysis: PlacementAnalysisDto, component: DialecticalComponent
     ) -> IdeaPlacementResult:
-        """Build result from analysis DTO (after deduplication)."""
+        """Build result from analysis DTO (after deduplication).
+
+        Note: This method is not used in the current flow - classification handlers
+        build their own results with actual metrics from classification.
+        """
         placement = analysis.placement.lower()
 
         # Validate placement type (duplicate handled before this)
@@ -587,18 +575,16 @@ Provide your analysis with confidence score (0.0-1.0) and reasoning."""
 
         if placement == "antithesis":
             result.antithesis_of = analysis.antithesis_of_hash
-            result.heuristic_similarity = analysis.heuristic_similarity
+            # heuristic_similarity comes from actual classification, not DTO
 
         elif placement == "pole":
             if analysis.tension_thesis_hash and analysis.tension_antithesis_hash:
-                result.tension = (
+                result.pole_of = (
                     analysis.tension_thesis_hash,
                     analysis.tension_antithesis_hash,
                 )
             result.position = analysis.position
-            result.pole_heuristic_similarity = analysis.pole_heuristic_similarity
-            result.complementarity_t = analysis.complementarity_t
-            result.complementarity_a = analysis.complementarity_a
+            # heuristic_similarity and complementarity come from actual classification
 
         return result
 
@@ -613,8 +599,9 @@ Provide your analysis with confidence score (0.0-1.0) and reasoning."""
             self._report.artifacts["antithesis_of"] = result.antithesis_of
             self._report.artifacts["heuristic_similarity"] = result.heuristic_similarity
         elif result.placement == "pole":
-            self._report.artifacts["tension"] = result.tension
+            self._report.artifacts["pole_of"] = result.pole_of
             self._report.artifacts["position"] = result.position
+            self._report.artifacts["heuristic_similarity"] = result.heuristic_similarity
 
         self._report.ok = True
         self._report.summary = (

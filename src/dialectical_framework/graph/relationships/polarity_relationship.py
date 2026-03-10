@@ -58,6 +58,7 @@ class PoleRelationship(PolarityRelationship):
     Poles (T+, T-, A+, A-) complement the thesis and antithesis:
     - complementarity_t: K_T - how well this pole complements/supports the thesis (0.0-1.0)
     - complementarity_a: K_A - how well this pole complements/supports the antithesis (0.0-1.0)
+    - complementarity: Average of K_T and K_A (calculated property)
 
     Scale:
     - 0.0 = Actively undermines or contradicts
@@ -67,6 +68,13 @@ class PoleRelationship(PolarityRelationship):
 
     complementarity_t: Optional[float]
     complementarity_a: Optional[float]
+
+    @property
+    def complementarity_s(self) -> Optional[float]:
+        """Average complementarity: (K_T + K_A) / 2."""
+        if self.complementarity_t is None or self.complementarity_a is None:
+            return None
+        return (self.complementarity_t + self.complementarity_a) / 2
 
 
 class TPlusRelationship(PoleRelationship, type="T_PLUS"):
