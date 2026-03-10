@@ -8,7 +8,6 @@ from gqlalchemy import Memgraph, Neo4j
 from dialectical_framework.brain import Brain
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
-from dialectical_framework.protocols.polarity_finder import PolarityFinder
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
     CausalitySequencerBalanced
@@ -18,7 +17,6 @@ from dialectical_framework.synthesist.causality.causality_sequencer_feasible imp
     CausalitySequencerFeasible
 from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
     CausalitySequencerRealistic
-from dialectical_framework.synthesist.ideas.polarity_finder_basic import PolarityFinderBasic
 from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
 from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
@@ -208,10 +206,6 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     causality_sequencer: providers.Factory[CausalitySequencer] = providers.Factory(
         _create_causality_sequencer,
         settings=settings,
-    )
-
-    polarity_finder: providers.Factory[PolarityFinder] = providers.Factory(
-        PolarityFinderBasic,
     )
 
     wheel_builder: providers.Factory[WheelBuilder] = providers.Factory(WheelBuilder)

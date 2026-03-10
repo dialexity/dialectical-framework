@@ -436,8 +436,6 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
             wu.t.connect(orig_t, relationship=TRelationship(
                 alias=POSITION_T,
                 heuristic_similarity=t_rel.heuristic_similarity if t_rel else 1.0,
-                complementarity_t=t_rel.complementarity_t if t_rel else None,
-                complementarity_a=t_rel.complementarity_a if t_rel else None,
             ))
 
         # Copy A from original (if not already connected)
@@ -448,8 +446,6 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
             wu.a.connect(orig_a, relationship=ARelationship(
                 alias=POSITION_A,
                 heuristic_similarity=a_rel.heuristic_similarity if a_rel else 0.5,
-                complementarity_t=a_rel.complementarity_t if a_rel else None,
-                complementarity_a=a_rel.complementarity_a if a_rel else None,
             ))
 
         # Handle poles
@@ -505,20 +501,16 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
         """Fill working WU with T, A and handle custom pole changes."""
         wu = self._working_wu
 
-        # Connect T
+        # Connect T (no complementarity - T is the reference point)
         wu.t.connect(thesis, relationship=TRelationship(
             alias=POSITION_T,
             heuristic_similarity=1.0,
-            complementarity_t=None,
-            complementarity_a=None,
         ))
 
-        # Connect A
+        # Connect A (no complementarity - A is the reference point)
         wu.a.connect(antithesis, relationship=ARelationship(
             alias=POSITION_A,
             heuristic_similarity=a_hs,
-            complementarity_t=None,
-            complementarity_a=None,
         ))
 
         # If user specified some poles, validate them first
@@ -873,20 +865,16 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
         """Fill working WU with T, A, and generate all poles."""
         wu = self._working_wu
 
-        # Connect T
+        # Connect T (no complementarity - T is the reference point)
         wu.t.connect(thesis, relationship=TRelationship(
             alias=POSITION_T,
             heuristic_similarity=1.0,
-            complementarity_t=None,
-            complementarity_a=None,
         ))
 
-        # Connect A
+        # Connect A (no complementarity - A is the reference point)
         wu.a.connect(antithesis, relationship=ARelationship(
             alias=POSITION_A,
             heuristic_similarity=a_hs,
-            complementarity_t=None,
-            complementarity_a=None,
         ))
 
         # Generate poles
@@ -937,8 +925,6 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
             wu.t.connect(orig_t, relationship=TRelationship(
                 alias=POSITION_T,
                 heuristic_similarity=t_rel.heuristic_similarity if t_rel else 1.0,
-                complementarity_t=t_rel.complementarity_t if t_rel else None,
-                complementarity_a=t_rel.complementarity_a if t_rel else None,
             ))
 
         if wu.a.count() == 0:
@@ -948,8 +934,6 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
             wu.a.connect(orig_a, relationship=ARelationship(
                 alias=POSITION_A,
                 heuristic_similarity=a_rel.heuristic_similarity if a_rel else 0.5,
-                complementarity_t=a_rel.complementarity_t if a_rel else None,
-                complementarity_a=a_rel.complementarity_a if a_rel else None,
             ))
 
         # Copy/replace poles

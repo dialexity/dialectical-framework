@@ -15,20 +15,13 @@ from dialectical_framework.graph.relationships.immutable_structure import Identi
 # Base class for all polarity relationships
 class PolarityRelationship(IdentityRelationship):
     """
-    Base for all polarity relationships with alias and scoring properties.
+    Base for all polarity relationships with alias and heuristic similarity.
 
     The alias stores the component's contextual position (e.g., "T1", "A2+").
     Same component can have different aliases in different WisdomUnits.
 
-    Scoring properties (all Optional[float], 0.0-1.0):
-    - heuristic_similarity: How similar the component is to its taxonomy apex
-    - complementarity_t: K_T - how well this component complements the thesis
-    - complementarity_a: K_A - how well this component complements the antithesis
-
-    Use isinstance checks to safely access properties:
-        if isinstance(rel, PolarityRelationship):
-            alias = rel.alias  # Direct access, fully typed
-            hs = rel.heuristic_similarity
+    Scoring properties:
+    - heuristic_similarity: How similar the component is to its taxonomy apex (0.0-1.0)
 
     The alias property is validated to ensure it's always a non-empty,
     non-whitespace string.
@@ -36,8 +29,6 @@ class PolarityRelationship(IdentityRelationship):
 
     alias: str
     heuristic_similarity: Optional[float]
-    complementarity_t: Optional[float]
-    complementarity_a: Optional[float]
 
     def __init__(self, **data):
         """Initialize and validate alias property."""
@@ -48,35 +39,53 @@ class PolarityRelationship(IdentityRelationship):
         super().__init__(**data)
 
 
-# T-side relationships
+# T and A relationships (reference points - no complementarity)
 class TRelationship(PolarityRelationship, type="T"):
-    """Neutral thesis relationship."""
+    """Neutral thesis relationship. T is the reference point, no complementarity."""
     pass
 
 
-class TPlusRelationship(PolarityRelationship, type="T_PLUS"):
-    """Positive thesis relationship."""
-    pass
-
-
-class TMinusRelationship(PolarityRelationship, type="T_MINUS"):
-    """Negative thesis relationship."""
-    pass
-
-
-# A-side relationships
 class ARelationship(PolarityRelationship, type="A"):
-    """Neutral antithesis relationship."""
+    """Neutral antithesis relationship. A is the reference point, no complementarity."""
     pass
 
 
-class APlusRelationship(PolarityRelationship, type="A_PLUS"):
-    """Positive antithesis relationship."""
+# Pole relationships (have complementarity to T and A)
+class PoleRelationship(PolarityRelationship):
+    """
+    Base for pole relationships with complementarity scores.
+
+    Poles (T+, T-, A+, A-) complement the thesis and antithesis:
+    - complementarity_t: K_T - how well this pole complements/supports the thesis (0.0-1.0)
+    - complementarity_a: K_A - how well this pole complements/supports the antithesis (0.0-1.0)
+
+    Scale:
+    - 0.0 = Actively undermines or contradicts
+    - 0.5 = Neutral, neither helps nor hurts
+    - 1.0 = Strongly supports and enhances
+    """
+
+    complementarity_t: Optional[float]
+    complementarity_a: Optional[float]
+
+
+class TPlusRelationship(PoleRelationship, type="T_PLUS"):
+    """Positive thesis pole relationship."""
     pass
 
 
-class AMinusRelationship(PolarityRelationship, type="A_MINUS"):
-    """Negative antithesis relationship."""
+class TMinusRelationship(PoleRelationship, type="T_MINUS"):
+    """Negative thesis pole relationship."""
+    pass
+
+
+class APlusRelationship(PoleRelationship, type="A_PLUS"):
+    """Positive antithesis pole relationship."""
+    pass
+
+
+class AMinusRelationship(PoleRelationship, type="A_MINUS"):
+    """Negative antithesis pole relationship."""
     pass
 
 
