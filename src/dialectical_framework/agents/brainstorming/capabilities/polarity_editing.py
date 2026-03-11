@@ -445,7 +445,7 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
             a_rel = a_result[1] if a_result else None
             wu.a.connect(orig_a, relationship=ARelationship(
                 alias=POSITION_A,
-                heuristic_similarity=a_rel.heuristic_similarity if a_rel else 0.5,
+                heuristic_similarity=a_rel.heuristic_similarity if a_rel else None,
             ))
 
         # Handle poles
@@ -482,7 +482,7 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
                             orig_comp,
                             relationship=rel_class(
                                 alias=pos,
-                                heuristic_similarity=orig_rel.heuristic_similarity if orig_rel else 0.5,
+                                heuristic_similarity=orig_rel.heuristic_similarity if orig_rel else None,
                                 complementarity_t=orig_rel.complementarity_t if orig_rel else None,
                                 complementarity_a=orig_rel.complementarity_a if orig_rel else None,
                             ),
@@ -933,7 +933,7 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
             a_rel = a_result[1] if a_result else None
             wu.a.connect(orig_a, relationship=ARelationship(
                 alias=POSITION_A,
-                heuristic_similarity=a_rel.heuristic_similarity if a_rel else 0.5,
+                heuristic_similarity=a_rel.heuristic_similarity if a_rel else None,
             ))
 
         # Copy/replace poles
@@ -969,7 +969,7 @@ class PolarityEditing(ExecutableCapability[PolarityEditingResult]):
                             orig_comp,
                             relationship=rel_class(
                                 alias=pos,
-                                heuristic_similarity=orig_rel.heuristic_similarity if orig_rel else 0.5,
+                                heuristic_similarity=orig_rel.heuristic_similarity if orig_rel else None,
                                 complementarity_t=orig_rel.complementarity_t if orig_rel else None,
                                 complementarity_a=orig_rel.complementarity_a if orig_rel else None,
                             ),
