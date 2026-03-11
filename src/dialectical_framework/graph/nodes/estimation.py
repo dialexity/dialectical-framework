@@ -28,6 +28,17 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
+# --- Validation Thresholds ---
+
+# Minimum score for valid diagonal opposition (T+ vs A-, A+ vs T-)
+# >= threshold means mutually exclusive (valid contradiction)
+ORTHOGONALITY_THRESHOLD = 0.7
+
+# Minimum score for valid constructive coherence (control statements)
+# >= threshold means logically coherent tetrad structure
+CONCEPTUAL_COHERENCE_THRESHOLD = 0.7
+
+
 class Estimation(BaseNode, label="Estimation"):
     """
     Base class for estimations associated with assessable entities.
@@ -413,7 +424,7 @@ class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
     The main `value` field stores the average of both scores.
     Individual scores are stored in the named fields.
 
-    Validation threshold: Both scores must be >= 0.7 for coherence.
+    Validation threshold: Both scores must be >= CONSTRUCTIVE_COHERENCE_THRESHOLD for coherence.
 
     Stored on WisdomUnit as it validates the entire tetrad structure.
     """
@@ -423,10 +434,45 @@ class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
 
     @property
     def is_coherent(self) -> bool:
-        """True if both control statements pass the 0.7 threshold."""
+        """True if both control statements pass the coherence threshold."""
         return (
-            self.t_plus_without_a_plus_yields_t_minus >= 0.7
-            and self.a_plus_without_t_plus_yields_a_minus >= 0.7
+                self.t_plus_without_a_plus_yields_t_minus >= CONCEPTUAL_COHERENCE_THRESHOLD
+                and self.a_plus_without_t_plus_yields_a_minus >= CONCEPTUAL_COHERENCE_THRESHOLD
+        )
+
+
+class DiagonalContradictionEstimation(Estimation, label="DiagonalContradiction"):
+    """
+    Diagonal contradiction estimation for WisdomUnit validation.
+
+    Tests the contradiction validity of diagonal pole pairs:
+    - t_plus_vs_a_minus: Does T+ contradict A-? (They should be mutually exclusive)
+    - a_plus_vs_t_minus: Does A+ contradict T-? (They should be mutually exclusive)
+
+    The main `value` field stores the average of both scores.
+    Individual scores are stored in the named fields.
+
+    Validation threshold: Both scores must be >= ORTHOGONALITY_THRESHOLD for valid contradictions.
+
+    These diagonals represent core tensions in the tetrad:
+    - T+ (positive thesis aspect) vs A- (negative antithesis aspect)
+    - A+ (positive antithesis aspect) vs T- (negative thesis aspect)
+
+    Strong contradiction means the poles cannot both be true/good simultaneously.
+    Weak contradiction suggests the tetrad structure may need refinement.
+
+    Stored on WisdomUnit as it validates the entire tetrad structure.
+    """
+
+    t_plus_vs_a_minus: float
+    a_plus_vs_t_minus: float
+
+    @property
+    def is_valid(self) -> bool:
+        """True if both diagonal pairs show valid orthogonal opposition."""
+        return (
+            self.t_plus_vs_a_minus >= ORTHOGONALITY_THRESHOLD
+            and self.a_plus_vs_t_minus >= ORTHOGONALITY_THRESHOLD
         )
 
 

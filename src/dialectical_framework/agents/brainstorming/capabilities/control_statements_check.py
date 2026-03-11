@@ -39,7 +39,10 @@ from pydantic import BaseModel, Field
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.agents.executable_capability import ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.estimation import ConceptualCoherenceEstimation
+from dialectical_framework.graph.nodes.estimation import (
+    ConceptualCoherenceEstimation,
+    CONCEPTUAL_COHERENCE_THRESHOLD,
+)
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T_PLUS,
@@ -50,11 +53,6 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-
-
-# --- Constants ---
-
-CC_THRESHOLD = 0.7  # Minimum coherence score for valid control statement
 
 
 # --- DTOs ---
@@ -78,7 +76,8 @@ class CoherenceEvaluationDto(BaseModel):
 class ControlStatementsCheckResult:
     """Result of control statements check.
 
-    Contains the estimation node that was created and attached to the WisdomUnit.
+    Contains the estimation node and coherence scores.
+    For uncommitted WUs, estimation/rationale are created but not committed.
     """
 
     estimation: ConceptualCoherenceEstimation
@@ -86,8 +85,10 @@ class ControlStatementsCheckResult:
 
     # Control statement details for transparency
     t_plus_without_a_plus_yields_t_minus_statement: str
+    t_plus_without_a_plus_yields_t_minus_score: float
     t_plus_without_a_plus_yields_t_minus_reasoning: str
     a_plus_without_t_plus_yields_a_minus_statement: str
+    a_plus_without_t_plus_yields_a_minus_score: float
     a_plus_without_t_plus_yields_a_minus_reasoning: str
 
     @property
@@ -124,22 +125,20 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
         """
         Validate the conceptual coherence of a WisdomUnit's tetrad.
 
-        Creates a ConceptualCoherenceEstimation node and attaches it to the WisdomUnit.
+        Creates a ConceptualCoherenceEstimation node if WU is committed.
+        For uncommitted WUs, returns coherence scores without creating nodes.
 
         Args:
-            wisdom_unit: The WisdomUnit to validate (must be committed, have T+, T-, A+, A-)
+            wisdom_unit: The WisdomUnit to validate (must be complete with all 6 positions)
             text: Optional context for evaluation
 
         Returns:
-            ControlStatementsCheckResult with estimation node and coherence status
+            ControlStatementsCheckResult with coherence status and optional estimation node
 
         Raises:
-            ValueError: If WisdomUnit is not committed or missing required pole components
+            ValueError: If WisdomUnit is missing required components
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
-
-        if not wisdom_unit.is_committed:
-            raise ValueError("WisdomUnit must be committed before validation")
 
         if not wisdom_unit.is_complete():
             raise ValueError("WisdomUnit must be complete (have all 6 positions)")
@@ -160,17 +159,20 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
             self._evaluate_control_statement(stmt_2, text),
         )
 
-        # Create estimation node
+        # Create estimation and rationale nodes
         avg_score = (result_1.coherence_score + result_2.coherence_score) / 2
+        is_coherent = (
+            result_1.coherence_score >= CONCEPTUAL_COHERENCE_THRESHOLD
+            and result_2.coherence_score >= CONCEPTUAL_COHERENCE_THRESHOLD
+        )
+        status = "COHERENT" if is_coherent else "NOT COHERENT"
+
         estimation = ConceptualCoherenceEstimation(
             value=avg_score,
             t_plus_without_a_plus_yields_t_minus=result_1.coherence_score,
             a_plus_without_t_plus_yields_a_minus=result_2.coherence_score,
         )
-        estimation.set_target(wisdom_unit)
 
-        # Create rationale explaining the evaluation
-        status = "COHERENT" if estimation.is_coherent else "NOT COHERENT"
         rationale_text = (
             f"Conceptual Coherence Evaluation: {status}\n\n"
             f"T+ without A+ yields T- (score={result_1.coherence_score:.2f}):\n"
@@ -179,24 +181,29 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
             f"A+ without T+ yields A- (score={result_2.coherence_score:.2f}):\n"
             f"  {stmt_2}\n"
             f"  Reasoning: {result_2.reasoning}\n\n"
-            f"Average: {avg_score:.2f} (threshold: {CC_THRESHOLD})"
+            f"Average: {avg_score:.2f} (threshold: {CONCEPTUAL_COHERENCE_THRESHOLD})"
         )
         rationale = Rationale(text=rationale_text)
-        rationale.set_explanation_target(wisdom_unit)
-        rationale.commit()
-        self._report.node_created(rationale)
 
-        # Commit estimation with rationale as provider
-        estimation.set_provider(rationale)
-        estimation.commit()
-        self._report.node_created(estimation)
+        # Only commit and attach if WU is committed
+        if wisdom_unit.is_committed:
+            estimation.set_target(wisdom_unit)
+            rationale.set_explanation_target(wisdom_unit)
+            rationale.commit()
+            self._report.node_created(rationale)
+
+            estimation.set_provider(rationale)
+            estimation.commit()
+            self._report.node_created(estimation)
 
         result = ControlStatementsCheckResult(
             estimation=estimation,
             rationale=rationale,
             t_plus_without_a_plus_yields_t_minus_statement=stmt_1,
+            t_plus_without_a_plus_yields_t_minus_score=result_1.coherence_score,
             t_plus_without_a_plus_yields_t_minus_reasoning=result_1.reasoning,
             a_plus_without_t_plus_yields_a_minus_statement=stmt_2,
+            a_plus_without_t_plus_yields_a_minus_score=result_2.coherence_score,
             a_plus_without_t_plus_yields_a_minus_reasoning=result_2.reasoning,
         )
 
@@ -233,17 +240,20 @@ Coherence scale:
 
     def _build_report(self, result: ControlStatementsCheckResult) -> None:
         """Build execution report from result."""
-        est = result.estimation
-        self._report.artifacts["t_plus_without_a_plus_yields_t_minus"] = est.t_plus_without_a_plus_yields_t_minus
-        self._report.artifacts["a_plus_without_t_plus_yields_a_minus"] = est.a_plus_without_t_plus_yields_a_minus
-        self._report.artifacts["average"] = est.value
+        score_1 = result.t_plus_without_a_plus_yields_t_minus_score
+        score_2 = result.a_plus_without_t_plus_yields_a_minus_score
+        avg_score = (score_1 + score_2) / 2
+
+        self._report.artifacts["t_plus_without_a_plus_yields_t_minus"] = score_1
+        self._report.artifacts["a_plus_without_t_plus_yields_a_minus"] = score_2
+        self._report.artifacts["average"] = avg_score
         self._report.artifacts["is_coherent"] = result.is_coherent
 
         self._report.ok = True
         status = "COHERENT" if result.is_coherent else "NOT COHERENT"
         self._report.summary = (
             f"Control Statements Check: {status} "
-            f"(T+\\A+→T-={est.t_plus_without_a_plus_yields_t_minus:.2f}, "
-            f"A+\\T+→A-={est.a_plus_without_t_plus_yields_a_minus:.2f}, "
-            f"avg={est.value:.2f})"
+            f"(T+\\A+→T-={score_1:.2f}, "
+            f"A+\\T+→A-={score_2:.2f}, "
+            f"avg={avg_score:.2f})"
         )
