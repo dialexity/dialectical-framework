@@ -67,19 +67,18 @@ A complete dialectical tetrad has 6 positions:
 - A+: Positive aspect of antithesis (benefits, strengths)
 - A-: Negative aspect of antithesis (risks, downsides, shadow)
 
-## Validity Criteria
+## Diagonal Contradiction (Structural Constraint)
 
-A pole is VALID for a position if:
-1. **T+**: Represents a genuine benefit/strength of the thesis
-2. **T-**: Represents a genuine risk/downside/shadow of the thesis
-3. **A+**: Represents a genuine benefit/strength of the antithesis
-4. **A-**: Represents a genuine risk/downside/shadow of the antithesis
+Poles form contradiction pairs across the diagonal:
+- **T+ contradicts A-**: They cannot both be true/good simultaneously
+- **A+ contradicts T-**: They cannot both be true/good simultaneously
 
-A pole is INVALID if:
-- It belongs to a different position (e.g., given as T+ but is actually A+)
-- It's unrelated to the tension
-- It's actually the thesis or antithesis level concept (T or A), not an aspect
-  - If so, suggest "T" or "A" as the better position
+Example (T=Love, A=Indifference):
+- T+ (Bonding) contradicts A- (Alienation)
+- A+ (Autonomy) contradicts T- (Enmeshment)
+
+When evaluating a pole, consider whether it would properly contradict its diagonal counterpart.
+If a proposed T+ doesn't oppose A-, or A+ doesn't oppose T-, it may be misclassified.
 
 ## HS (Heuristic Similarity) Scale
 
