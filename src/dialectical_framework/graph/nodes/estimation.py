@@ -400,3 +400,33 @@ class ArousalEstimation(Estimation, label="Arousal"):
     """
 
     pass
+
+
+class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
+    """
+    Conceptual coherence estimation for WisdomUnit validation.
+
+    Tests the logical coherence of a tetrad structure using control statements:
+    - t_plus_without_a_plus_yields_t_minus: "{T+} without {A+} yields {T-}"
+    - a_plus_without_t_plus_yields_a_minus: "{A+} without {T+} yields {A-}"
+
+    The main `value` field stores the average of both scores.
+    Individual scores are stored in the named fields.
+
+    Validation threshold: Both scores must be >= 0.7 for coherence.
+
+    Stored on WisdomUnit as it validates the entire tetrad structure.
+    """
+
+    t_plus_without_a_plus_yields_t_minus: float
+    a_plus_without_t_plus_yields_a_minus: float
+
+    @property
+    def is_coherent(self) -> bool:
+        """True if both control statements pass the 0.7 threshold."""
+        return (
+            self.t_plus_without_a_plus_yields_t_minus >= 0.7
+            and self.a_plus_without_t_plus_yields_a_minus >= 0.7
+        )
+
+
