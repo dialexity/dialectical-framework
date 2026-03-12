@@ -276,73 +276,224 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             self._cached_segment_a = WheelSegment(self, 'A')
         return self._cached_segment_a
 
+    def _get_pole_ks(self, manager) -> Optional[float]:
+        """Get complementarity_s (KS) for a pole relationship manager."""
+        result = manager.get()
+        if not result:
+            return None
+        _, rel = result
+        if isinstance(rel, PoleRelationship):
+            return rel.complementarity_s
+        return None
+
     @property
-    def is_positive_synthesis_empirically_possible(self) -> Optional[bool]:
+    def diff_t(self) -> Optional[float]:
         """
-        Check if positive synthesis (S+) is empirically possible based on pole complementarities.
+        Quality gap on the T-side: KS(T+) - KS(T-).
 
-        Empirical conditions for positive synthesis:
-        1. KS(T+) - KS(T-) ≈ KS(A+) - KS(A-) ≥ 0.1
-           (Both differentials should be positive and approximately equal, tolerance=0.15)
-        2. Positive poles: KS(T+) > 0.4 and KS(A+) > 0.4
-        3. Negative poles: KS(T-) < 0.6 and KS(A-) < 0.6
+        Measures how much better the healthy form of T is compared to the problematic form.
+        This differential indicates how well-differentiated the T poles are.
 
-        Where KS = complementarity_s = (K_T + K_A) / 2
+        Formula:
+            diff_t = KS(T+) - KS(T-)
 
-        Example (differential balance check):
-            ┌──────────────┬────────┬────────┬────────────┬────────────────┐
-            │   Scenario   │ diff_t │ diff_a │ Difference │     Valid?     │
-            ├──────────────┼────────┼────────┼────────────┼────────────────┤
-            │ Balanced     │ 0.25   │ 0.30   │ 0.05       │ ✓              │
-            ├──────────────┼────────┼────────┼────────────┼────────────────┤
-            │ Slightly off │ 0.35   │ 0.22   │ 0.13       │ ✓ (borderline) │
-            ├──────────────┼────────┼────────┼────────────┼────────────────┤
-            │ Unbalanced   │ 0.50   │ 0.12   │ 0.38       │ ✗              │
-            └──────────────┴────────┴────────┴────────────┴────────────────┘
+        Where KS = complementarity_s = (complementarity_t + complementarity_a) / 2
+
+        Interpretation:
+            High diff_t (e.g., 0.30) → Clear distinction between healthy T+ and problematic T-
+            Low diff_t  (e.g., 0.05) → Poles are poorly differentiated, may need refinement
+
+        Example (Love/Indifference tetrad):
+            T+ (Bonding)      KS = 0.55  ─┐
+                                          ├─ diff_t = 0.55 - 0.25 = 0.30
+            T- (Enmeshment)   KS = 0.25  ─┘
 
         Returns:
-            True if conditions are met, False if not, None if data is missing
+            The differential value, or None if T+ or T- complementarity data is missing.
         """
-        # Get complementarity_s for each pole position
-        def get_ks(manager) -> Optional[float]:
-            result = manager.get()
-            if not result:
-                return None
-            _, rel = result
-            if isinstance(rel, PoleRelationship):
-                return rel.complementarity_s
+        ks_t_plus = self._get_pole_ks(self.t_plus)
+        ks_t_minus = self._get_pole_ks(self.t_minus)
+
+        if ks_t_plus is None or ks_t_minus is None:
             return None
 
-        ks_t_plus = get_ks(self.t_plus)
-        ks_t_minus = get_ks(self.t_minus)
-        ks_a_plus = get_ks(self.a_plus)
-        ks_a_minus = get_ks(self.a_minus)
+        return ks_t_plus - ks_t_minus
 
-        # If any KS is missing, we can't determine
+    @property
+    def diff_a(self) -> Optional[float]:
+        """
+        Quality gap on the A-side: KS(A+) - KS(A-).
+
+        Measures how much better the healthy form of A is compared to the problematic form.
+        This differential indicates how well-differentiated the A poles are.
+
+        Formula:
+            diff_a = KS(A+) - KS(A-)
+
+        Where KS = complementarity_s = (complementarity_t + complementarity_a) / 2
+
+        Interpretation:
+            High diff_a (e.g., 0.60) → Clear distinction between healthy A+ and problematic A-
+            Low diff_a  (e.g., 0.05) → Poles are poorly differentiated, may need refinement
+
+        Example (Love/Indifference tetrad):
+            A+ (Autonomy)     KS = 0.80  ─┐
+                                          ├─ diff_a = 0.80 - 0.20 = 0.60
+            A- (Alienation)   KS = 0.20  ─┘
+
+        Returns:
+            The differential value, or None if A+ or A- complementarity data is missing.
+        """
+        ks_a_plus = self._get_pole_ks(self.a_plus)
+        ks_a_minus = self._get_pole_ks(self.a_minus)
+
+        if ks_a_plus is None or ks_a_minus is None:
+            return None
+
+        return ks_a_plus - ks_a_minus
+
+    @property
+    def rectangularity(self) -> Optional[float]:
+        """
+        Measures symmetry between T-side and A-side poles. Lower is better.
+
+        Formula:
+            rectangularity = (KS(T+) - KS(A+))² + (KS(T-) - KS(A-))²
+
+        Where KS = complementarity_s = (complementarity_t + complementarity_a) / 2
+
+        Interpretation:
+            Low rectangularity  (e.g., 0.002) → Balanced tetrad, like-signed poles have similar KS
+            High rectangularity (e.g., 0.090) → Skewed tetrad, one side dominates
+
+        Visual intuition - a rectangular tetrad forms a proper rectangle when plotting KS:
+
+            Balanced (low rectangularity):
+            KS
+             ↑
+             │   T+ ●━━━━━━━━━● A+     ← similar KS (0.55, 0.58)
+             │      ┃         ┃
+             │   T- ●━━━━━━━━━● A-     ← similar KS (0.22, 0.25)
+             └─────────────────→
+                    T-side   A-side
+
+            Unbalanced (high rectangularity):
+            KS
+             ↑
+             │   T+ ●                  ← KS = 0.75
+             │        ╲
+             │          ● A+           ← KS = 0.45  (big gap!)
+             │   T- ●━━━━● A-          ← similar (0.20, 0.22)
+             └─────────────────→
+
+        Use case:
+            When selecting among sibling WisdomUnits (same T-A, different tetrads),
+            prefer the one with lower rectangularity for a more balanced structure.
+
+        Example scores:
+            ┌─────────┬─────────┬─────────┬─────────┬────────────────┐
+            │ KS(T+)  │ KS(A+)  │ KS(T-)  │ KS(A-)  │ Rectangularity │
+            ├─────────┼─────────┼─────────┼─────────┼────────────────┤
+            │ 0.55    │ 0.58    │ 0.22    │ 0.25    │ 0.002 ✓        │
+            │ 0.60    │ 0.50    │ 0.25    │ 0.20    │ 0.012 ✓        │
+            │ 0.75    │ 0.45    │ 0.20    │ 0.22    │ 0.090 ✗        │
+            └─────────┴─────────┴─────────┴─────────┴────────────────┘
+
+        Returns:
+            The rectangularity score (lower is better), or None if data is missing.
+        """
+        ks_t_plus = self._get_pole_ks(self.t_plus)
+        ks_t_minus = self._get_pole_ks(self.t_minus)
+        ks_a_plus = self._get_pole_ks(self.a_plus)
+        ks_a_minus = self._get_pole_ks(self.a_minus)
+
         if any(ks is None for ks in [ks_t_plus, ks_t_minus, ks_a_plus, ks_a_minus]):
             return None
 
-        # Condition 2: Positive poles KS > 0.4
-        if ks_t_plus <= 0.4 or ks_a_plus <= 0.4:
-            return False
+        return (ks_t_plus - ks_a_plus) ** 2 + (ks_t_minus - ks_a_minus) ** 2
 
-        # Condition 3: Negative poles KS < 0.6
-        if ks_t_minus >= 0.6 or ks_a_minus >= 0.6:
-            return False
+    @property
+    def area(self) -> Optional[float]:
+        """
+        Total spread between positive and negative poles. Higher is better.
 
-        # Condition 1: KS(T+) - KS(T-) ≈ KS(A+) - KS(A-) ≥ 0.1
-        diff_t = ks_t_plus - ks_t_minus
-        diff_a = ks_a_plus - ks_a_minus
+        Formula:
+            area = KS(T+) + KS(A+) - KS(T-) - KS(A-)
+                 = (sum of positive poles) - (sum of negative poles)
+                 = diff_t + diff_a
 
-        # Both differentials should be >= 0.1
-        if diff_t < 0.1 or diff_a < 0.1:
-            return False
+        Where KS = complementarity_s = (complementarity_t + complementarity_a) / 2
 
-        # Differentials should be approximately equal (within 0.15 tolerance)
-        if abs(diff_t - diff_a) > 0.15:
-            return False
+        Interpretation:
+            High area (e.g., 1.00) → Strong differentiation between healthy and problematic poles
+            Low area  (e.g., 0.30) → Weak distinction, poles are "mushed together"
 
-        return True
+        Visual intuition:
+
+            High Area (good):
+            KS
+             ↑
+             │   T+ ●━━━━━━━━━● A+     ← HIGH (0.70, 0.75)
+             │      ┃         ┃
+             │      ┃  AREA   ┃        ← Big gap = lots of area
+             │      ┃         ┃
+             │   T- ●━━━━━━━━━● A-     ← LOW (0.20, 0.25)
+             └─────────────────→
+            Area = 1.45 - 0.45 = 1.00 ✓
+
+            Low Area (poor):
+            KS
+             ↑
+             │   T+ ●━━━━━━━━━● A+     ← MID (0.50, 0.55)
+             │      ┃  area   ┃        ← Small gap
+             │   T- ●━━━━━━━━━● A-     ← MID (0.35, 0.40)
+             └─────────────────→
+            Area = 1.05 - 0.75 = 0.30 ✗
+
+        Example scores:
+            ┌─────────┬─────────┬─────────┬─────────┬──────┐
+            │ KS(T+)  │ KS(A+)  │ KS(T-)  │ KS(A-)  │ Area │
+            ├─────────┼─────────┼─────────┼─────────┼──────┤
+            │ 0.70    │ 0.75    │ 0.20    │ 0.25    │ 1.00 │
+            │ 0.60    │ 0.65    │ 0.25    │ 0.30    │ 0.70 │
+            │ 0.50    │ 0.55    │ 0.35    │ 0.40    │ 0.30 │
+            └─────────┴─────────┴─────────┴─────────┴──────┘
+
+        Returns:
+            The area score (higher is better), or None if data is missing.
+        """
+        diff_t = self.diff_t
+        diff_a = self.diff_a
+
+        if diff_t is None or diff_a is None:
+            return None
+
+        return diff_t + diff_a
+
+    @property
+    def area_normalized(self) -> Optional[float]:
+        """
+        Area normalized to approximately 0-1 range.
+
+        Formula:
+            area_normalized = area / 2
+
+        The maximum theoretical area is 2.0 (when positive poles = 1.0 and negative poles = 0.0),
+        so dividing by 2 normalizes to a 0-1 range.
+
+        Interpretation:
+            ~0.5 → Excellent differentiation
+            ~0.35 → Good differentiation
+            ~0.15 → Poor differentiation
+
+        Returns:
+            The normalized area score (0-1, higher is better), or None if data is missing.
+        """
+        area = self.area
+        if area is None:
+            return None
+
+        return area / 2
 
     @staticmethod
     def get_relationship_class_for_position(position: str) -> type[PolarityRelationship]:
