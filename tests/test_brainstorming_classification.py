@@ -51,7 +51,7 @@ class TestPoleClassification:
             )
 
             assert classifier.report.ok
-            assert result.is_valid
+            assert result.heuristic_similarity > 0.1  # Valid for position
             assert result.heuristic_similarity > 0.0
             assert result.position == "T+"
 
@@ -118,9 +118,9 @@ class TestPoleClassification:
             )
 
             assert classifier.report.ok
-            # May be invalid or have suggested_position pointing elsewhere
-            # Note: LLM may not always provide suggested_position even when invalid
-            if not result.is_valid and result.suggested_position:
+            # May have low HS (wrong position) or have suggested_position pointing elsewhere
+            # HS <= 0.1 means wrong category
+            if result.heuristic_similarity <= 0.1 and result.suggested_position:
                 assert result.suggested_position in ("T", "A", "T+", "T-", "A+", "A-")
 
     @pytest.mark.asyncio
@@ -307,7 +307,7 @@ class TestIdeaPlacement:
             # Or could be thesis if LLM interprets differently
             if result.placement == "pole":
                 assert result.position in ("A+", "T-", "T+", "A-")
-                assert result.tension is not None
+                assert result.pole_of is not None
 
     @pytest.mark.asyncio
     @observe()

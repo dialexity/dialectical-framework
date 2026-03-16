@@ -474,7 +474,7 @@ class TestHashLookup:
         comp.commit()
 
         repo = NodeRepository()
-        found = repo.find_by_prefix(comp.hash[:7])
+        found = repo.find_by_hash(comp.hash[:7])
 
         assert found is not None
         assert found.hash == comp.hash
@@ -486,7 +486,7 @@ class TestHashLookup:
         repo = NodeRepository()
 
         with pytest.raises(ValueError) as exc_info:
-            repo.find_by_prefix("abc")
+            repo.find_by_hash("abc")
 
         assert "at least" in str(exc_info.value).lower()
 

@@ -151,7 +151,7 @@ class TestDialecticalComponentScoring:
 
         # Create rationales with R (estimations target component, rationale is source)
         rationale1 = Rationale(text=f"Supporting rationale {random.random()}")
-        rationale1.set_explanation(component)
+        rationale1.set_explanation_target(component)
         rationale1.commit()
         r1_est = RelevanceEstimation(value=0.9)
         r1_est.set_target(component)
@@ -159,7 +159,7 @@ class TestDialecticalComponentScoring:
         r1_est.commit()
 
         rationale2 = Rationale(text=f"Another rationale {random.random()}")
-        rationale2.set_explanation(component)
+        rationale2.set_explanation_target(component)
         rationale2.commit()
         r2_est = RelevanceEstimation(value=0.7)
         r2_est.set_target(component)
@@ -226,7 +226,7 @@ class TestTransitionScoring:
 
         # Rationale with P (estimation targets transition, rationale is source)
         rationale = Rationale(text=f"Supporting evidence {random.random()}")
-        rationale.set_explanation(transition)
+        rationale.set_explanation_target(transition)
         rationale.commit()
         rat_prob_est = ProbabilityEstimation(value=0.9)
         rat_prob_est.set_target(transition)
@@ -580,7 +580,7 @@ class TestRationaleAuditWins:
 
         # Original rationale with R estimation it provides
         rationale = Rationale(text=f"Original assessment {random.random()}")
-        rationale.set_explanation(dummy_component)
+        rationale.set_explanation_target(dummy_component)
         rationale.commit()
         r_est = RelevanceEstimation(value=0.9)
         r_est.set_target(dummy_component)
@@ -620,7 +620,7 @@ class TestRationaleAuditWins:
 
         # Original rationale provides R estimation
         rationale = Rationale(text=f"Original {random.random()}")
-        rationale.set_explanation(dummy_component)
+        rationale.set_explanation_target(dummy_component)
         rationale.commit()
         r_est = RelevanceEstimation(value=0.9)
         r_est.set_target(dummy_component)
@@ -714,7 +714,7 @@ class TestDialecticalComponentScoringAdditional:
 
         # Good rationale provides R estimation
         rationale1 = Rationale(text=f"Good rationale {random.random()}")
-        rationale1.set_explanation(component)
+        rationale1.set_explanation_target(component)
         rationale1.commit()
         r1_est = RelevanceEstimation(value=0.9)
         r1_est.set_target(component)
@@ -723,7 +723,7 @@ class TestDialecticalComponentScoringAdditional:
 
         # Bad rationale with R=0 (should be excluded via soft exclusion)
         rationale2 = Rationale(text=f"Vetoed rationale {random.random()}")
-        rationale2.set_explanation(component)
+        rationale2.set_explanation_target(component)
         rationale2.commit()
         r2_est = RelevanceEstimation(value=0.0)
         r2_est.set_target(component)
@@ -763,7 +763,7 @@ class TestDialecticalComponentScoringAdditional:
         rel2.commit()
 
         empty_rationale = Rationale(text=f"Just some text {random.random()}")  # No estimations
-        empty_rationale.set_explanation(component_with_empty)
+        empty_rationale.set_explanation_target(component_with_empty)
         empty_rationale.commit()
 
         scorer.calculate_score(component_with_empty)
@@ -786,7 +786,7 @@ class TestDialecticalComponentScoringAdditional:
 
         # Rationale with actual R value (evidence) - targets component
         evidence_rationale = Rationale(text=f"Real evidence {random.random()}")
-        evidence_rationale.set_explanation(component)
+        evidence_rationale.set_explanation_target(component)
         evidence_rationale.commit()
         rat_rel = RelevanceEstimation(value=0.9)
         rat_rel.set_target(component)
@@ -900,7 +900,7 @@ class TestRationaleFallbacks:
 
         # Rationale explains component but provides no estimations
         rationale = Rationale(text=f"Simple rationale {random.random()}")
-        rationale.set_explanation(component)
+        rationale.set_explanation_target(component)
         rationale.commit()
 
         # Score component - should use only its own R
@@ -926,7 +926,7 @@ class TestRationaleFallbacks:
 
         # Rationale provides R estimation for component
         rationale = Rationale(text=f"Supporting rationale {random.random()}")
-        rationale.set_explanation(component)
+        rationale.set_explanation_target(component)
         rationale.commit()
 
         rat_rel = RelevanceEstimation(value=0.9)
@@ -955,7 +955,7 @@ class TestRationaleFallbacks:
 
         # Bad rationale provides R=0
         rationale_bad = Rationale(text=f"Bad rationale {random.random()}")
-        rationale_bad.set_explanation(component)
+        rationale_bad.set_explanation_target(component)
         rationale_bad.commit()
         bad_rel = RelevanceEstimation(value=0.0)
         bad_rel.set_target(component)
@@ -964,7 +964,7 @@ class TestRationaleFallbacks:
 
         # Good rationale provides R=0.9
         rationale_good = Rationale(text=f"Good rationale {random.random()}")
-        rationale_good.set_explanation(component)
+        rationale_good.set_explanation_target(component)
         rationale_good.commit()
         good_rel = RelevanceEstimation(value=0.9)
         good_rel.set_target(component)
@@ -998,7 +998,7 @@ class TestComplexScoringScenarios:
         comp1_rel.commit()
 
         rationale = Rationale(text=f"Supporting evidence {random.random()}")
-        rationale.set_explanation(comp_with_rationale)
+        rationale.set_explanation_target(comp_with_rationale)
         rationale.commit()
         rat_rel = RelevanceEstimation(value=0.9)
         rat_rel.set_target(comp_with_rationale)
@@ -1033,7 +1033,7 @@ class TestComplexScoringScenarios:
 
         # Original rationale provides estimations
         rationale = Rationale(text=f"Original assessment {random.random()}")
-        rationale.set_explanation(dummy_component)
+        rationale.set_explanation_target(dummy_component)
         rationale.commit()
         orig_rel = RelevanceEstimation(value=0.9)
         orig_rel.set_target(dummy_component)

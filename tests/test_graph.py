@@ -442,7 +442,7 @@ def test_transition_str_formatting():
     # Test 4: Verbose format (with rationale)
     from dialectical_framework.graph.nodes.rationale import Rationale
     rationale = Rationale(text="This transition represents dialectical transformation")
-    rationale.set_explanation(trans)  # Set target before save
+    rationale.set_explanation_target(trans)  # Set target before save
     rationale.commit()
 
     verbose_str = f"{trans:verbose}"
@@ -784,7 +784,7 @@ def test_best_rationale_property():
 
     # Test 2: Single rationale without rating
     r1 = Rationale(text="First rationale")
-    r1.set_explanation(comp)  # Set target before save
+    r1.set_explanation_target(comp)  # Set target before save
     r1.commit()
 
     best = comp.best_rationale
@@ -796,11 +796,11 @@ def test_best_rationale_property():
     # Note: Rationale no longer extends AssessableEntity and doesn't have score.
     # Use the rating field instead for ranking.
     r2 = Rationale(text="Second rationale", rating=0.7)
-    r2.set_explanation(comp)
+    r2.set_explanation_target(comp)
     r2.commit()
 
     r3 = Rationale(text="Third rationale", rating=0.9)
-    r3.set_explanation(comp)
+    r3.set_explanation_target(comp)
     r3.commit()
 
     # Should return r3 (highest rating)
@@ -811,7 +811,7 @@ def test_best_rationale_property():
 
     # Test 4: Add even higher rated rationale
     r4 = Rationale(text="Fourth rationale", rating=0.95)
-    r4.set_explanation(comp)
+    r4.set_explanation_target(comp)
     r4.commit()
 
     best = comp.best_rationale
@@ -1612,7 +1612,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
 
     # Add rationale (attribute of WU)
     rat = Rationale(text="Test rationale")
-    rat.set_explanation(wu_isolated)  # Set target before save
+    rat.set_explanation_target(wu_isolated)  # Set target before save
     rat.commit()
 
     # Check isolation
@@ -1851,7 +1851,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # rat1 explains wu_rationale directly
     # rat2 critiques rat1, rat3 critiques rat2 (transitive chain)
     rat1 = Rationale(text="Base rationale")
-    rat1.set_explanation(wu_rationale)
+    rat1.set_explanation_target(wu_rationale)
     rat1.commit()
 
     rat2 = Rationale(text="Critique of rat1")
@@ -3054,7 +3054,7 @@ def test_critique_chain_temporal_order():
     component.commit()
 
     base = Rationale(text=f"Base rationale {random.random()}")
-    base.set_explanation(component)
+    base.set_explanation_target(component)
     base.commit()
     base_time = base.committed_at
 

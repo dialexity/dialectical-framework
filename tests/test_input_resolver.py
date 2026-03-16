@@ -321,7 +321,7 @@ class TestDialexityInputResolverLookup:
             text="Test rationale for dx://",
             sid="test-scope-123"
         )
-        rationale.set_explanation(comp)
+        rationale.set_explanation_target(comp)
         rationale.commit()
 
         uri = f"dx://test-scope-123/{rationale.hash}"
@@ -341,7 +341,7 @@ class TestDialexityInputResolverLookup:
             text="Test rationale for prefix lookup",
             sid="test-scope-456"
         )
-        rationale.set_explanation(comp)
+        rationale.set_explanation_target(comp)
         rationale.commit()
 
         # Use first 10 chars as prefix (>= 7)
@@ -361,7 +361,7 @@ class TestDialexityInputResolverLookup:
         comp.commit()
 
         rationale = Rationale(text="Test rationale", sid="correct-scope")
-        rationale.set_explanation(comp)
+        rationale.set_explanation_target(comp)
         rationale.commit()
 
         uri = f"dx://wrong-scope/{rationale.hash}"
@@ -399,7 +399,7 @@ class TestDialexityInputResolverContentExtraction:
             text="This is the detailed explanation",
             sid="rationale-test"
         )
-        rationale.set_explanation(comp)
+        rationale.set_explanation_target(comp)
         rationale.commit()
 
         result = await resolver.resolve(f"dx://rationale-test/{rationale.hash}")
@@ -419,7 +419,7 @@ class TestDialexityInputResolverContentExtraction:
             headline="Key Point",
             sid="rationale-headline-test"
         )
-        rationale.set_explanation(comp)
+        rationale.set_explanation_target(comp)
         rationale.commit()
 
         result = await resolver.resolve(f"dx://rationale-headline-test/{rationale.hash}")
