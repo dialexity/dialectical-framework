@@ -71,7 +71,7 @@ def component_from_dto(
         # Still add rationale if explanation provided (context-specific, always new)
         if dto.explanation:
             rationale = Rationale(text=dto.explanation)
-            rationale.set_explanation(existing)
+            rationale.set_explanation_target(existing)
             rationale.commit()
         return existing
 
@@ -82,7 +82,7 @@ def component_from_dto(
     # Add rationale if explanation provided (context-specific, always new)
     if dto.explanation:
         rationale = Rationale(text=dto.explanation)
-        rationale.set_explanation(component)
+        rationale.set_explanation_target(component)
         rationale.commit()
 
     return component

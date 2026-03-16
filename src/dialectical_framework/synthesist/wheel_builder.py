@@ -13,8 +13,8 @@ from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
-from dialectical_framework.protocols.polarity_finder import PolarityFinder
-from dialectical_framework.protocols.thesis_extractor import ThesisExtractor
+from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import ThesisExtraction
+from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
 # Graph-native models
 from dialectical_framework.graph.nodes.cycle import Cycle
@@ -49,8 +49,6 @@ class WheelBuilder(SettingsAware):
     @inject
     def __init__(
         self,
-        thesis_extractor: ThesisExtractor = Provide[DI.thesis_extractor],
-        polarity_finder: PolarityFinder = Provide[DI.polarity_finder],
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
         polar_reasoner: PolarReasoner = Provide[DI.polar_reasoner],
         tarorank: TaroRank = Provide[DI.tarorank],
@@ -74,8 +72,6 @@ class WheelBuilder(SettingsAware):
         self.__resolved_text: str | None = None  # Lazy cache
         self.__wheels: list[Wheel] = wheels or []
 
-        self.__thesis_extractor = thesis_extractor
-        self.__polarity_finder = polarity_finder
         self.__sequencer = causality_sequencer
         self.__reasoner = polar_reasoner
         self.__tarorank = tarorank
@@ -178,13 +174,37 @@ class WheelBuilder(SettingsAware):
         """Return the input resolver."""
         return self.__input_resolver
 
-    @property
-    def thesis_extractor(self) -> ThesisExtractor:
-        return self.__thesis_extractor
+    async def _extract_theses(
+        self,
+        *,
+        count: int = 1,
+        not_like_these: list[str] = None,
+    ) -> list[DialecticalComponent]:
+        """
+        Extract theses using extraction capability and query back components.
 
-    @property
-    def polarity_finder(self) -> PolarityFinder:
-        return self.__polarity_finder
+        Args:
+            count: Number of theses to extract
+            not_like_these: Statements to avoid duplicating
+
+        Returns:
+            List of DialecticalComponent graph nodes (committed)
+        """
+        text = await self._get_text()
+        source = await self._get_input_source()
+
+        service = ThesisExtraction()
+        components = await service.execute(
+            text=text,
+            count=count,
+            not_like_these=not_like_these or [],
+        )
+
+        # Connect extracted theses to source
+        for comp in components:
+            source.statements.connect(comp)
+
+        return components
 
     @property
     def reasoner(self) -> PolarReasoner:
@@ -213,9 +233,8 @@ class WheelBuilder(SettingsAware):
 
         if theses is None:
             # No theses provided, generate one automatically
-            # Extractor returns graph node directly (already connected to source)
-            t = await self.thesis_extractor.extract_single_thesis(source=source)
-            theses = [t]
+            generated = await self._extract_theses(count=1)
+            theses = generated
         else:
             # Handle mixed None, str, and DialecticalComponent values
             final_theses: list[DialecticalComponent | None] = []
@@ -240,33 +259,25 @@ class WheelBuilder(SettingsAware):
 
             # Generate all missing theses at once if needed
             if none_positions:
-                if len(none_positions) == 1:
-                    # Single thesis case: place at the correct original position
-                    pos = none_positions[0]
-                    generated_thesis = await self.thesis_extractor.extract_single_thesis(
-                        source=source, not_like_these=known_theses
-                    )
-                    final_theses[pos] = generated_thesis
-                else:
-                    # Multiple theses case - extract all missing ones at once
-                    generated_theses = await self.thesis_extractor.extract_multiple_theses(
-                        source=source,
-                        count=len(none_positions),
-                        not_like_these=known_theses
-                    )
+                generated_theses = await self._extract_theses(
+                    count=len(none_positions),
+                    not_like_these=known_theses,
+                )
 
-                    # Place generated theses in their correct positions
-                    for i, pos in enumerate(none_positions):
-                        if i < len(generated_theses):
-                            final_theses[pos] = generated_theses[i]
+                # Place generated theses in their correct positions
+                for i, pos in enumerate(none_positions):
+                    if i < len(generated_theses):
+                        final_theses[pos] = generated_theses[i]
 
-                    # Backfill any remaining None (precaution)
-                    for pos in none_positions:
-                        if final_theses[pos] is None:
-                            generated_thesis = await self.thesis_extractor.extract_single_thesis(
-                                source=source, not_like_these=known_theses
-                            )
-                            final_theses[pos] = generated_thesis
+                # Backfill any remaining None (precaution)
+                for pos in none_positions:
+                    if final_theses[pos] is None:
+                        backfill = await self._extract_theses(
+                            count=1,
+                            not_like_these=known_theses,
+                        )
+                        if backfill:
+                            final_theses[pos] = backfill[0]
 
             theses = final_theses
 
@@ -350,20 +361,13 @@ class WheelBuilder(SettingsAware):
             # Batch generate missing theses (more efficient + ensures distinctness)
             if none_positions:
                 known = [c.statement for c in thesis_components if c is not None]
-                if len(none_positions) == 1:
-                    # Single thesis case
-                    generated = await self.thesis_extractor.extract_single_thesis(
-                        source=source, not_like_these=known
-                    )
-                    thesis_components[none_positions[0]] = generated
-                else:
-                    # Multiple theses - batch extract for distinctness
-                    generated_list = await self.thesis_extractor.extract_multiple_theses(
-                        source=source, count=len(none_positions), not_like_these=known
-                    )
-                    for i, pos in enumerate(none_positions):
-                        if i < len(generated_list):
-                            thesis_components[pos] = generated_list[i]
+                generated_list = await self._extract_theses(
+                    count=len(none_positions),
+                    not_like_these=known,
+                )
+                for i, pos in enumerate(none_positions):
+                    if i < len(generated_list):
+                        thesis_components[pos] = generated_list[i]
 
         # Build WisdomUnits from thesis components (connects them to Nexus)
         # This MUST happen before connecting Cycles to Nexus (Nexus freezes after Cycle connection)

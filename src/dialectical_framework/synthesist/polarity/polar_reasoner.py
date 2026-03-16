@@ -28,9 +28,10 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     TRelationship,
     ARelationship,
 )
-from dialectical_framework.protocols.antithesis_extractor import AntithesisExtractor
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import AntithesisExtraction
+from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import ThesisExtraction
+from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.polarity_finder import PolarityFinder
 from dialectical_framework.settings import Settings
 from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
 from dialectical_framework.utils.dc_replace import dc_safe_replace
@@ -58,13 +59,46 @@ class PolarReasoner(HasBrain):
     Generates WisdomUnits from thesis/antithesis pairs through dialectical reasoning.
     """
 
-    def __init__(
+    def __init__(self):
+        pass
+
+    async def _extract_single_antithesis(
         self,
-        polarity_finder: PolarityFinder = Provide[DI.polarity_finder],
-        antithesis_extractor: AntithesisExtractor = Provide[DI.antithesis_extractor],
-    ):
-        self._polarity_finder = polarity_finder
-        self._antithesis_extractor = antithesis_extractor
+        text: str,
+        thesis_component: DialecticalComponent,
+        source: Union[Input, Ideas, None] = None,
+    ) -> DialecticalComponentDto:
+        """
+        Extract a single antithesis using the extraction capability.
+
+        Args:
+            text: Source text context
+            thesis_component: The thesis component to generate antithesis for
+            source: Optional Input or Ideas node (unused, kept for API compatibility)
+
+        Returns:
+            DialecticalComponentDto for the generated antithesis
+        """
+        from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+
+        service = AntithesisExtraction()
+        results = await service.execute(
+            thesis=thesis_component,
+            text=text,
+            not_like_these=[],
+        )
+
+        # Get first antithesis
+        if results:
+            comp = results[0].component
+            return DialecticalComponentDto(
+                statement=comp.statement,
+                explanation=comp.best_rationale.text if comp.best_rationale else "",
+                alias="A",
+            )
+
+        # Fallback - shouldn't happen
+        raise ValueError(f"Failed to extract antithesis for thesis: {thesis_component.statement}")
 
     @prompt_template(
         """
@@ -356,42 +390,79 @@ class PolarReasoner(HasBrain):
         self,
         *,
         source: Union[Input, Ideas],
+        text: str = "",
         thesis: str | DialecticalComponent | DialecticalComponentDto = None,
         antithesis: str | DialecticalComponent | DialecticalComponentDto = None
     ) -> tuple[DialecticalComponent, DialecticalComponent]:
         """
         Find polarity pair (thesis, antithesis) as graph nodes.
 
+        Uses ThesisExtraction and AntithesisExtraction capabilities to generate
+        missing components. Creates OPPOSITE_OF relationship between the pair.
+
         Args:
             source: Input or Ideas node for extraction context
+            text: Source text for extraction context
             thesis: statement text, graph-native node, or DTO
             antithesis: statement text, graph-native node, or DTO
 
-        Returns graph nodes (already connected to source.statements with OPPOSITE_OF relationship).
+        Returns:
+            Tuple of (thesis, antithesis) as graph nodes with OPPOSITE_OF relationship.
         """
-        # Helper to normalize input to what polarity_finder expects (DialecticalComponent, str, or None)
-        def normalize_input(input_val) -> DialecticalComponent | str | None:
+        # Helper to normalize input to DialecticalComponent or None
+        def to_component(input_val) -> DialecticalComponent | None:
+            if input_val is None:
+                return None
             if isinstance(input_val, DialecticalComponent):
-                return input_val  # Pass graph node directly
+                return input_val
             elif isinstance(input_val, DialecticalComponentDto):
-                # Convert DTO to graph node (includes rationale creation)
                 if not input_val.statement:
-                    return None  # Treat empty statement as None
+                    return None
                 return component_from_dto(input_val)
-            else:
-                return input_val or None  # String or None, treat "" as None
+            elif isinstance(input_val, str) and input_val.strip():
+                comp = DialecticalComponent(statement=input_val.strip())
+                comp.commit()
+                source.statements.connect(comp)
+                return comp
+            return None
 
-        # If both are already graph nodes, return them directly
-        if isinstance(thesis, DialecticalComponent) and isinstance(antithesis, DialecticalComponent):
-            return thesis, antithesis
+        t_node = to_component(thesis)
+        a_node = to_component(antithesis)
 
-        # Extract polarities using polarity finder (returns graph nodes)
-        # Pass DialecticalComponents directly to avoid creating redundant nodes
-        polarity = await self._polarity_finder.extract_polarities(
-            source=source,
-            given=[(normalize_input(thesis), normalize_input(antithesis))]
-        )
-        t_node, a_node = polarity[0]
+        # If both are already components, ensure OPPOSITE_OF and return
+        if t_node and a_node:
+            t_node.oppositions.connect(a_node)
+            return t_node, a_node
+
+        # Generate missing component(s)
+        if t_node is None and a_node is None:
+            # Generate thesis first
+            thesis_service = ThesisExtraction()
+            theses = await thesis_service.execute(text=text, count=1)
+            if theses:
+                t_node = theses[0]
+                source.statements.connect(t_node)
+
+        if t_node and a_node is None:
+            # Generate antithesis for thesis
+            # AntithesisExtraction creates OPPOSITE_OF relationship internally
+            antithesis_service = AntithesisExtraction()
+            results = await antithesis_service.execute(thesis=t_node, text=text)
+            if results:
+                a_node = results[0].component
+                source.statements.connect(a_node)
+
+        elif a_node and t_node is None:
+            # Generate thesis as opposite of antithesis (rare case)
+            # Use AntithesisExtraction with a_node to generate its opposite
+            antithesis_service = AntithesisExtraction()
+            results = await antithesis_service.execute(thesis=a_node, text=text)
+            if results:
+                t_node = results[0].component
+                source.statements.connect(t_node)
+
+        if t_node is None or a_node is None:
+            raise ValueError("Failed to generate polarity pair")
 
         return t_node, a_node
 
@@ -425,9 +496,8 @@ class PolarReasoner(HasBrain):
         if nexus:
             perspectives = [wu for wu, _ in nexus.wisdom_units.all()]
 
-        # Use _find_polarity to get graph nodes
-        # polarity_finder now returns graph nodes (already connected to source.statements)
-        t, a = await self._find_polarity(source=source, thesis=thesis, antithesis=antithesis)
+        # Use _find_polarity to get graph nodes (connected to source.statements with OPPOSITE_OF)
+        t, a = await self._find_polarity(source=source, text=text, thesis=thesis, antithesis=antithesis)
         t_alias = POSITION_T
         a_alias = POSITION_A
 
@@ -516,6 +586,7 @@ class PolarReasoner(HasBrain):
         *,  # ← everything after * is keyword-only
         original: WisdomUnit,
         text: str = "",
+        source: Union[Input, Ideas, None] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         **modified_dialectical_components,
     ) -> WisdomUnit:
@@ -525,6 +596,7 @@ class PolarReasoner(HasBrain):
         Args:
             original: The original WisdomUnit to base modifications on (required)
             text: Source text context for regeneration (if needed)
+            source: Optional Input or Ideas node for extraction tools
             **modified_dialectical_components: Field names (t, a, t_plus, etc.) mapped to new statement strings
 
         Returns:
@@ -582,7 +654,7 @@ class PolarReasoner(HasBrain):
 
                     # Add rationale
                     rationale = Rationale(text=f"{position} redefined.")
-                    rationale.set_explanation(component)
+                    rationale.set_explanation_target(component)
                     rationale.commit()  # Auto-connects to component
 
                     # Connect to new WU with typed relationship
@@ -614,7 +686,7 @@ class PolarReasoner(HasBrain):
                 if changed.get(base_pos) and not changed.get(other_pos):
                     # base side changed - regenerate other
                     orig_other = original.get_component(other_pos)
-                    o_dto = await self._antithesis_extractor.extract_single_antithesis(text=text, thesis=base_comp.statement)
+                    o_dto = await self._extract_single_antithesis(text=text, thesis_component=base_comp, source=source)
 
                     # Check if regenerated statement matches original
                     if orig_other and orig_other.statement == o_dto.statement:
@@ -637,7 +709,7 @@ class PolarReasoner(HasBrain):
                 elif changed.get(other_pos) and not changed.get(base_pos):
                     # other side changed - regenerate base
                     orig_base = original.get_component(base_pos)
-                    bm_dto = await self._antithesis_extractor.extract_single_antithesis(text=text, thesis=other_comp.statement)
+                    bm_dto = await self._extract_single_antithesis(text=text, thesis_component=other_comp, source=source)
 
                     # Check if regenerated statement matches original
                     if orig_base and orig_base.statement == bm_dto.statement:
@@ -750,7 +822,7 @@ class PolarReasoner(HasBrain):
 
                         # Add rationale
                         rationale = Rationale(text=f"{alias} redefined.")
-                        rationale.set_explanation(component)
+                        rationale.set_explanation_target(component)
                         rationale.commit()  # Auto-connects to component
 
                         # Connect to new WU with typed relationship

@@ -699,7 +699,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                 text=reasoning_text,
                 summary=argumentation_text,
             )
-            rationale.set_explanation(matched_structure)
+            rationale.set_explanation_target(matched_structure)
             rationale.commit()  # Auto-connects explanation relationship
 
             # Create Estimation nodes with provenance

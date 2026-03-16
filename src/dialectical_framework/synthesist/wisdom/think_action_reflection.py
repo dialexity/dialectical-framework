@@ -198,7 +198,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
 
         # Create rationale for the AC/RE wisdom unit (now that WU is committed)
         problem_rationale = Rationale(text=reciprocal_sol_dto.problem)
-        problem_rationale.set_explanation(ac_re_wu)
+        problem_rationale.set_explanation_target(ac_re_wu)
         problem_rationale.commit()  # Auto-connects to ac_re_wu
 
         # Get components for transitions
@@ -249,7 +249,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             if duplicate1:
                 # Create and add rationale to existing transition
                 rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
-                rationale1.set_explanation(duplicate1)
+                rationale1.set_explanation_target(duplicate1)
                 rationale1.commit()  # Auto-connects to transition
                 transitions_updated.append(duplicate1)
             # If no duplicate, transformation already has 2 transitions (cardinality 2,2), skip
@@ -259,7 +259,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             if duplicate2:
                 # Create and add rationale to existing transition
                 rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
-                rationale2.set_explanation(duplicate2)
+                rationale2.set_explanation_target(duplicate2)
                 rationale2.commit()  # Auto-connects to transition
                 transitions_updated.append(duplicate2)
             # If no duplicate, transformation already has 2 transitions (cardinality 2,2), skip
@@ -283,7 +283,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             transition1.commit()  # Auto-connects source/target
 
             rationale1 = Rationale(text=reciprocal_sol_dto.linear_action)
-            rationale1.set_explanation(transition1)
+            rationale1.set_explanation_target(transition1)
             rationale1.commit()  # Auto-connects to transition
 
             # Connect transition to uncommitted transformation
@@ -296,7 +296,7 @@ class ThinkActionReflection(StrategicConsultant, SettingsAware):
             transition2.commit()  # Auto-connects source/target
 
             rationale2 = Rationale(text=reciprocal_sol_dto.dialectical_reflection)
-            rationale2.set_explanation(transition2)
+            rationale2.set_explanation_target(transition2)
             rationale2.commit()  # Auto-connects to transition
 
             # Connect transition to uncommitted transformation

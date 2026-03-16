@@ -267,7 +267,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         rationale = GraphRationale(
             text=action_plan_dto.action_plan,
         )
-        rationale.set_explanation(transition)
+        rationale.set_explanation_target(transition)
         rationale.commit()  # Auto-connects to transition
 
         # noinspection PyArgumentList
