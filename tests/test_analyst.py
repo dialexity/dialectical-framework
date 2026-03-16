@@ -143,17 +143,20 @@ async def test_full_blown_wheel(number_of_thoughts):
 
     # Verify transformations exist (Action-Reflection)
     for wu in wu_list:
-        transformation_result = wu.transformation.get()
+        transformation_result = wu.transformations.get()
         assert transformation_result is not None, f"WisdomUnit {wu.hash} should have transformation"
         transformation, _ = transformation_result
 
-        # Verify ac_re exists
-        ac_re_result = transformation.ac_re.get()
-        assert ac_re_result is not None, "Transformation should have ac_re WisdomUnit"
-
-        # Verify transitions exist
-        transitions = transformation.transitions
-        assert len(transitions) == 2, f"Transformation should have 2 transitions, got {len(transitions)}"
+        # Verify 6 positions exist on Transformation (Ac, Re, Ac+, Ac-, Re+, Re-)
+        from dialectical_framework.graph.nodes.transformation import (
+            POSITION_AC, POSITION_RE, POSITION_AC_PLUS, POSITION_AC_MINUS,
+            POSITION_RE_PLUS, POSITION_RE_MINUS
+        )
+        for pos in [POSITION_AC, POSITION_RE, POSITION_AC_PLUS, POSITION_AC_MINUS,
+                    POSITION_RE_PLUS, POSITION_RE_MINUS]:
+            manager = transformation.get_relationship_manager_by_position(pos)
+            result = manager.get()
+            assert result is not None, f"Transformation should have transition at position {pos}"
 
     # Calculate syntheses for all wisdom units
     print("\n=== Calculating Syntheses ===")
@@ -161,11 +164,8 @@ async def test_full_blown_wheel(number_of_thoughts):
         print(f"Calculating synthesis for WisdomUnit {i+1}/{len(wu_list)}")
         await factory1.calculate_syntheses(wheel=wheel, at=wu)
 
-        # Verify synthesis was created (via transformation)
-        trans_result = wu.transformation.get()
-        assert trans_result is not None, f"WisdomUnit {i+1} should have a transformation"
-        transformation = trans_result[0]
-        synthesis_list = [s for s, _ in transformation.synthesis.all()]
+        # Verify synthesis was created (connected to WU directly)
+        synthesis_list = [s for s, _ in wu.synthesis.all()]
         assert len(synthesis_list) >= 1, f"WisdomUnit {i+1} should have at least one synthesis"
 
         # Verify S+ and S- exist
@@ -286,106 +286,47 @@ async def test_wheel_acre(number_of_thoughts, request):
     first_wu = wu_list[0]
 
     # Check transformation was created (Action-Reflection)
-    transformation_result = first_wu.transformation.get()
+    transformation_result = first_wu.transformations.get()
     assert transformation_result is not None, "Transformation should be created by DecoratorActionReflection"
     transformation, _ = transformation_result
 
-    # Verify ac_re wisdom unit exists
-    ac_re_result = transformation.ac_re.get()
-    assert ac_re_result is not None, "Transformation should have ac_re WisdomUnit attached"
-    ac_re_wu, _ = ac_re_result
-
-    # Verify all 6 components exist in ac_re
-    from dialectical_framework.graph.nodes.wisdom_unit import (
-        POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
-        POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
+    # Verify all 6 positions exist on Transformation (Ac, Re, Ac+, Ac-, Re+, Re-)
+    from dialectical_framework.graph.nodes.transformation import (
+        POSITION_AC, POSITION_RE, POSITION_AC_PLUS, POSITION_AC_MINUS,
+        POSITION_RE_PLUS, POSITION_RE_MINUS
     )
-    for pos_name, pos in [("T/Ac", POSITION_T), ("T+/Ac+", POSITION_T_PLUS), ("T-/Ac-", POSITION_T_MINUS),
-                           ("A/Re", POSITION_A), ("A+/Re+", POSITION_A_PLUS), ("A-/Re-", POSITION_A_MINUS)]:
-        manager = ac_re_wu.get_relationship_manager_by_position(pos)
+    for pos_name, pos in [("Ac", POSITION_AC), ("Re", POSITION_RE),
+                          ("Ac+", POSITION_AC_PLUS), ("Ac-", POSITION_AC_MINUS),
+                          ("Re+", POSITION_RE_PLUS), ("Re-", POSITION_RE_MINUS)]:
+        manager = transformation.get_relationship_manager_by_position(pos)
         result = manager.get()
-        assert result is not None, f"AC/RE WisdomUnit missing component at position {pos_name}"
+        assert result is not None, f"Transformation missing component at position {pos_name}"
 
-    print(f"\n✓ AC/RE WisdomUnit has all 6 components attached")
+    print(f"\n✓ Transformation has all 6 positions (Ac, Re, Ac+, Ac-, Re+, Re-)")
 
-    # Verify exactly 2 transitions (T- → A+, A- → T+)
-    transitions = transformation.transitions
-    assert len(transitions) == 2, f"Transformation should have exactly 2 transitions, got {len(transitions)}"
+    # Store initial transformation count
+    initial_transformation_count = first_wu.transformations.count()
+    old_transformation_id = transformation._id
 
-    # Verify transition source/target components
-    t_minus_result = first_wu.t_minus.get()
-    a_plus_result = first_wu.a_plus.get()
-    a_minus_result = first_wu.a_minus.get()
-    t_plus_result = first_wu.t_plus.get()
-
-    assert t_minus_result, "T- component should exist"
-    assert a_plus_result, "A+ component should exist"
-    assert a_minus_result, "A- component should exist"
-    assert t_plus_result, "T+ component should exist"
-
-    t_minus_comp, _ = t_minus_result
-    a_plus_comp, _ = a_plus_result
-    a_minus_comp, _ = a_minus_result
-    t_plus_comp, _ = t_plus_result
-
-    # Check that transitions connect correct components
-    transition_pairs = []
-    for trans in transitions:
-        source_result = trans.source.get()
-        target_result = trans.target.get()
-        assert source_result, "Transition should have source"
-        assert target_result, "Transition should have target"
-
-        source_comp, _ = source_result
-        target_comp, _ = target_result
-        transition_pairs.append((source_comp._id, target_comp._id))
-
-    # Should have T- → A+ and A- → T+
-    expected_pairs = {
-        (t_minus_comp._id, a_plus_comp._id),
-        (a_minus_comp._id, t_plus_comp._id)
-    }
-    assert set(transition_pairs) == expected_pairs, "Transitions should connect T- → A+ and A- → T+"
-
-    # Check that each transition has at least one rationale
-    for trans in transitions:
-        rationales = [r for r, _ in trans.rationales.all()]
-        assert len(rationales) >= 1, "Each transition should have at least one rationale"
-
-    # Store initial rationale counts
-    initial_rationale_counts = {trans._id: len([r for r, _ in trans.rationales.all()]) for trans in transitions}
-
-    # Store old ac_re ID before calling calculate_transitions again
-    old_ac_re_id = ac_re_wu._id
-
-    # Call calculate_transitions AGAIN to test duplicate detection AND ac_re replacement
+    # Call calculate_transitions AGAIN - should detect duplicate and return existing
     await factory2.calculate_transitions(wheel)
 
-    # Verify still exactly 2 transitions (no duplicates created)
-    transitions_after = transformation.transitions
-    assert len(transitions_after) == 2, f"Should still have exactly 2 transitions after second call, got {len(transitions_after)}"
+    # Verify same transformation is returned (duplicate detection)
+    transformation_count_after = first_wu.transformations.count()
+    assert transformation_count_after == initial_transformation_count, (
+        f"Calling calculate_transitions again should return existing transformation, "
+        f"not create new one. Before: {initial_transformation_count}, After: {transformation_count_after}"
+    )
 
-    # Verify rationale count increased (new rationales added to existing transitions)
-    for trans in transitions_after:
-        new_count = len([r for r, _ in trans.rationales.all()])
-        old_count = initial_rationale_counts[trans._id]
-        assert new_count > old_count, f"Transition should have more rationales after second call: {old_count} → {new_count}"
+    # Get the transformation again to verify it's the same one
+    transformation_after_result = first_wu.transformations.get()
+    assert transformation_after_result is not None, "Should still have transformation"
+    transformation_after, _ = transformation_after_result
+    assert transformation_after._id == old_transformation_id, (
+        "Should return same transformation (duplicate detection)"
+    )
 
-    # Verify NEW ac_re was created and connected (replace logic)
-    new_ac_re_result = transformation.ac_re.get()
-    assert new_ac_re_result is not None, "Transformation should have new ac_re after second call"
-    new_ac_re_wu, _ = new_ac_re_result
-    assert new_ac_re_wu._id != old_ac_re_id, "Should have NEW ac_re (different ID)"
-
-    # Verify old ac_re was DELETED (not orphaned)
-    db = di_container.graph_db()
-    old_ac_re_check = list(db.execute_and_fetch(
-        "MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": old_ac_re_id}
-    ))
-    assert len(old_ac_re_check) == 0, f"Old ac_re should be DELETED (not orphaned), but still exists: {old_ac_re_id}"
-
-    print("\n✓ Old ac_re was properly deleted (not orphaned) when calculate_transitions called twice")
+    print("\n✓ Duplicate transformation detection works correctly")
 
     print("\n" + "="*80)
     print(f"ACTION-REFLECTION WHEEL (with {number_of_thoughts} thought(s))")

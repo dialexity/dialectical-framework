@@ -161,19 +161,18 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (component)<-[:EXPLAINS]-(comp_rationale)
         OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
         OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
-        OPTIONAL MATCH (transformation)<-[:BELONGS_TO_CYCLE]-(transition:Transition)
-        OPTIONAL MATCH (transition)<-[:EXPLAINS]-(transit_rationale)
-        OPTIONAL MATCH (transformation)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
+        OPTIONAL MATCH (transformation)<-[:AC|RE|AC_PLUS|AC_MINUS|RE_PLUS|RE_MINUS]-(trans_component)
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synthesis:Synthesis)
         OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
         OPTIONAL MATCH (synthesis)<-[:S_PLUS|S_MINUS]-(synth_component)
 
         WITH wu,
              collect(DISTINCT component) AS components,
              collect(DISTINCT wu_rationale) + collect(DISTINCT comp_rationale) +
-             collect(DISTINCT trans_rationale) + collect(DISTINCT transit_rationale) +
+             collect(DISTINCT trans_rationale) +
              collect(DISTINCT synth_rationale) AS direct_rationales,
              collect(DISTINCT transformation) AS transformations,
-             collect(DISTINCT transition) AS transitions,
+             collect(DISTINCT trans_component) AS trans_components,
              collect(DISTINCT synthesis) AS syntheses,
              collect(DISTINCT synth_component) AS synth_components
 
@@ -181,20 +180,20 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (rat)<-[:CRITIQUES*0..10]-(critique_chain:Rationale)
         WHERE rat IS NOT NULL
 
-        WITH wu, components, transformations, transitions, syntheses, synth_components,
+        WITH wu, components, transformations, trans_components, syntheses, synth_components,
              direct_rationales, collect(DISTINCT critique_chain) AS critique_rationales
 
-        WITH wu, components, transformations, transitions, syntheses, synth_components,
+        WITH wu, components, transformations, trans_components, syntheses, synth_components,
              direct_rationales + critique_rationales AS rationales
 
         FOREACH (rat IN rationales | DETACH DELETE rat)
-        FOREACH (trans IN transitions | DETACH DELETE trans)
+        FOREACH (tcomp IN trans_components | DETACH DELETE tcomp)
         FOREACH (transformation IN transformations | DETACH DELETE transformation)
 
         WITH wu, components, synth_components, syntheses
         UNWIND CASE WHEN size(synth_components) > 0 THEN synth_components ELSE [null] END AS scomp
 
-        OPTIONAL MATCH (scomp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_trans:Transformation)-[:IS_SPIRAL_OF]->(other_wu:WisdomUnit)
+        OPTIONAL MATCH (scomp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu:WisdomUnit)
         WHERE scomp IS NOT NULL AND other_wu <> wu
 
         OPTIONAL MATCH (scomp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans_ref:Transition)
@@ -273,7 +272,7 @@ class WisdomUnitRepository:
 
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
 
-        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(trans_s:Transformation)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
         WITH wu,
              count(DISTINCT wheel) AS wheel_count,
@@ -285,13 +284,12 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
 
-        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_trans_s:Transformation)-[:IS_SPIRAL_OF]->(other_wu2:WisdomUnit)
+        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu2 <> wu
 
         OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(trans:Transition)
         OPTIONAL MATCH (trans)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
         WHERE comp IS NOT NULL
-          AND NOT (trans)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
 
         WITH wheel_count, ac_re_count,
              count(DISTINCT other_wu) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS component_vocab_count
@@ -392,7 +390,7 @@ class WisdomUnitRepository:
 
         OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
 
-        OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(trans:Transformation)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+        OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
         WITH wu, collect(DISTINCT component) + collect(DISTINCT synth_comp) AS all_components
 
@@ -401,13 +399,12 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
 
-        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_trans:Transformation)-[:IS_SPIRAL_OF]->(other_wu2:WisdomUnit)
+        OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu2 <> wu
 
         OPTIONAL MATCH (comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(transition:Transition)
         OPTIONAL MATCH (transition)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
         WHERE comp IS NOT NULL
-          AND NOT (transition)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(wu)
 
         WITH count(DISTINCT other_wu) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS shared_count
 

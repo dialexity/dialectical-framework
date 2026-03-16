@@ -233,12 +233,8 @@ class WheelSegmentPolarPair:
         from tabulate import tabulate
         sections = []
 
-        # Section 1: Synthesis (if exists, via transformation)
-        synthesis_list = []
-        trans_check = self._wisdom_unit.transformation.get()
-        if trans_check:
-            trans_node, _ = trans_check
-            synthesis_list = list(trans_node.synthesis.all())
+        # Section 1: Synthesis (now on WU, not transformation)
+        synthesis_list = list(self._wisdom_unit.synthesis.all())
 
         if synthesis_list:
             synthesis_parts = ["=== Synthesis ==="]
@@ -253,31 +249,25 @@ class WheelSegmentPolarPair:
         sections.append(self.__format__(""))  # Default format with explanations
 
         # Section 3: Transformation (if exists)
-        transformation_result = self._wisdom_unit.transformation.get()
+        transformation_result = self._wisdom_unit.transformations.get()
         if transformation_result:
             transformation, _ = transformation_result
             sections.append("=== Transformation ===")
             sections.append(f"{transformation}")
 
-        # Section 4: Rationales (3-column table)
+        # Section 4: Rationales (2-column table)
         sections.append("=== Rationales ===")
 
         # Collect rationales from each source
         wu_rationales = [r.text for r, _ in self._wisdom_unit.rationales.all() if r.text]
 
         trans_rationales = []
-        ac_re_rationales = []
         if transformation_result:
             transformation, _ = transformation_result
             trans_rationales = [r.text for r, _ in transformation.rationales.all() if r.text]
 
-            ac_re_result = transformation.ac_re.get()
-            if ac_re_result:
-                ac_re_wu, _ = ac_re_result
-                ac_re_rationales = [r.text for r, _ in ac_re_wu.rationales.all() if r.text]
-
-        # Build rationale table (3 columns: WU | Transformation | AC/RE)
-        max_rows = max(len(wu_rationales), len(trans_rationales), len(ac_re_rationales), 0)
+        # Build rationale table (2 columns: WU | Transformation)
+        max_rows = max(len(wu_rationales), len(trans_rationales), 0)
 
         if max_rows > 0:
             rationale_table = []
@@ -285,12 +275,11 @@ class WheelSegmentPolarPair:
                 row = [
                     wu_rationales[i] if i < len(wu_rationales) else "",
                     trans_rationales[i] if i < len(trans_rationales) else "",
-                    ac_re_rationales[i] if i < len(ac_re_rationales) else ""
                 ]
                 rationale_table.append(row)
 
             # Add headers
-            headers = ["WisdomUnit", "Transformation", "AC/RE WisdomUnit"]
+            headers = ["WisdomUnit", "Transformation"]
             sections.append(tabulate(rationale_table, headers=headers, tablefmt="plain"))
         else:
             sections.append("[No rationales]")
@@ -309,12 +298,8 @@ class WheelSegmentPolarPair:
 
         lines = []
 
-        # Section 1: Synthesis (if exists, via transformation)
-        synthesis_list = []
-        trans_check = self._wisdom_unit.transformation.get()
-        if trans_check:
-            trans_node, _ = trans_check
-            synthesis_list = list(trans_node.synthesis.all())
+        # Section 1: Synthesis (now on WU, not transformation)
+        synthesis_list = list(self._wisdom_unit.synthesis.all())
 
         if synthesis_list:
             lines.append("=== Synthesis ===")
@@ -347,20 +332,32 @@ class WheelSegmentPolarPair:
                 return rel.alias, component.statement
             return "", ""
 
-        # Get Transformation ac_re WisdomUnit (if exists)
-        transformation_result = self._wisdom_unit.transformation.get()
-        ac_re_wu = None
+        # Get Transformation (if exists) - transformation has its own 6 positions now
+        transformation_result = self._wisdom_unit.transformations.get()
+        transformation = None
         if transformation_result:
             transformation, _ = transformation_result
-            ac_re_result = transformation.ac_re.get()
-            if ac_re_result:
-                ac_re_wu, _ = ac_re_result
 
         # Build table rows: one row per position
         from dialectical_framework.graph.nodes.wisdom_unit import (
             POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
             POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
         )
+        from dialectical_framework.graph.nodes.transformation import (
+            POSITION_AC, POSITION_RE,
+            POSITION_AC_PLUS, POSITION_AC_MINUS,
+            POSITION_RE_PLUS, POSITION_RE_MINUS,
+        )
+
+        # Map WU positions to Transformation positions for side-by-side display
+        wu_to_trans_position = {
+            POSITION_T: POSITION_AC,
+            POSITION_T_PLUS: POSITION_AC_PLUS,
+            POSITION_T_MINUS: POSITION_AC_MINUS,
+            POSITION_A: POSITION_RE,
+            POSITION_A_PLUS: POSITION_RE_PLUS,
+            POSITION_A_MINUS: POSITION_RE_MINUS,
+        }
 
         positions = [
             (POSITION_T_MINUS, "t_minus"),
@@ -382,18 +379,20 @@ class WheelSegmentPolarPair:
             row.append(wu_alias)
             row.append(wu_statement)
 
-            # Transformation ac_re column (if exists)
-            if ac_re_wu:
-                trans_manager = ac_re_wu.get_relationship_manager_by_position(position_label)
-                trans_alias, trans_statement = _get_component_info(trans_manager)
-                row.append(trans_alias)
-                row.append(trans_statement)
+            # Transformation column (if exists)
+            if transformation:
+                trans_position = wu_to_trans_position.get(position_label)
+                if trans_position:
+                    trans_manager = transformation.get_relationship_manager_by_position(trans_position)
+                    trans_alias, trans_statement = _get_component_info(trans_manager)
+                    row.append(trans_alias)
+                    row.append(trans_statement)
 
             table.append(row)
 
         lines.append(tabulate(table, tablefmt="plain"))
 
-        # Section 3: Rationales (3-column table: WU, Transformation, AC/RE)
+        # Section 3: Rationales (2-column table: WU, Transformation)
         lines.append("")
         lines.append("=== Rationales ===")
 
@@ -401,18 +400,12 @@ class WheelSegmentPolarPair:
         wu_rationales = [r.text for r, _ in self._wisdom_unit.rationales.all() if r.text]
 
         trans_rationales = []
-        ac_re_rationales = []
         if transformation_result:
             transformation, _ = transformation_result
             trans_rationales = [r.text for r, _ in transformation.rationales.all() if r.text]
 
-            ac_re_result = transformation.ac_re.get()
-            if ac_re_result:
-                ac_re_wu, _ = ac_re_result
-                ac_re_rationales = [r.text for r, _ in ac_re_wu.rationales.all() if r.text]
-
-        # Build rationale table (3 columns: WU | Transformation | AC/RE)
-        max_rows = max(len(wu_rationales), len(trans_rationales), len(ac_re_rationales))
+        # Build rationale table (2 columns: WU | Transformation)
+        max_rows = max(len(wu_rationales), len(trans_rationales))
 
         if max_rows > 0:
             rationale_table = []
@@ -420,12 +413,11 @@ class WheelSegmentPolarPair:
                 row = [
                     wu_rationales[i] if i < len(wu_rationales) else "",
                     trans_rationales[i] if i < len(trans_rationales) else "",
-                    ac_re_rationales[i] if i < len(ac_re_rationales) else ""
                 ]
                 rationale_table.append(row)
 
             # Add headers
-            headers = ["WisdomUnit", "Transformation", "AC/RE WisdomUnit"]
+            headers = ["WisdomUnit", "Transformation"]
             lines.append(tabulate(rationale_table, headers=headers, tablefmt="plain"))
         else:
             lines.append("[No rationales]")

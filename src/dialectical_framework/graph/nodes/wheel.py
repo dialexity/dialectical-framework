@@ -814,14 +814,27 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
                         row.append("")
                         row.append("")
 
-                    # Transformation (AC/RE) columns
-                    transformation_result = wu.transformation.get()
+                    # Transformation (AC/RE) columns - transformation has its own 6 positions
+                    transformation_result = wu.transformations.get()
                     if transformation_result:
                         transformation, _ = transformation_result
-                        ac_re_result = transformation.ac_re.get()
-                        if ac_re_result:
-                            ac_re_wu, _ = ac_re_result
-                            trans_manager = ac_re_wu.get_relationship_manager_by_position(position_label)
+                        # Map T/A positions to Ac/Re positions for display
+                        from dialectical_framework.graph.nodes.transformation import (
+                            POSITION_AC, POSITION_RE,
+                            POSITION_AC_PLUS, POSITION_AC_MINUS,
+                            POSITION_RE_PLUS, POSITION_RE_MINUS,
+                        )
+                        wu_to_trans_position = {
+                            POSITION_T: POSITION_AC,
+                            POSITION_T_PLUS: POSITION_AC_PLUS,
+                            POSITION_T_MINUS: POSITION_AC_MINUS,
+                            POSITION_A: POSITION_RE,
+                            POSITION_A_PLUS: POSITION_RE_PLUS,
+                            POSITION_A_MINUS: POSITION_RE_MINUS,
+                        }
+                        trans_position = wu_to_trans_position.get(position_label)
+                        if trans_position:
+                            trans_manager = transformation.get_relationship_manager_by_position(trans_position)
                             trans_result = trans_manager.get()
                             if trans_result:
                                 trans_comp, trans_rel = trans_result
@@ -848,7 +861,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
                 output.append("Transformation Scores:")
                 for idx, pair in enumerate(polar_pairs, 1):
                     wu = pair.wisdom_unit
-                    transformation_result = wu.transformation.get()
+                    transformation_result = wu.transformations.get()
                     if transformation_result:
                         transformation, _ = transformation_result
                         output.append(f"  WU{idx}: [{fmt_scores(transformation, colorize=True)}]")
@@ -879,13 +892,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
                 ("Spiral", spiral_result[0] if spiral_result else None),
             ]
 
-            # Add transformation transitions
-            for idx, pair in enumerate(polar_pairs, 1):
-                wu = pair.wisdom_unit
-                transformation_result = wu.transformation.get()
-                if transformation_result:
-                    transformation, _ = transformation_result
-                    cycles_to_check.append((f"WU{idx} Trans", transformation))
+            # Note: Transformation no longer has transitions - it has 6 component positions (Ac, Re, Ac+, Ac-, Re+, Re-)
 
             def format_rationale_tree(rationales: list, indent: int = 0) -> list[str]:
                 """Format rationale hierarchy with provided P/R values and rating."""

@@ -106,3 +106,55 @@ class SPlusRelationship(PolarityRelationship, type="S_PLUS"):
 class SMinusRelationship(PolarityRelationship, type="S_MINUS"):
     """Negative synthesis relationship."""
     pass
+
+
+# Transition pole relationships for Transformation (Action-Reflection structure)
+# These are about insight and proactiveness, not complementarity
+class TransitionPoleRelationship(PolarityRelationship):
+    """
+    Base for Ac/Re transition relationships with insight and proactiveness scores.
+
+    Transition poles represent navigation paths through the dialectical tension:
+    - insight: How much understanding/clarity the transition provides (0.0-1.0)
+    - proactiveness: How actionable/practical the transition is (0.0-1.0)
+
+    Scale:
+    - 0.0 = No insight/proactiveness
+    - 0.5 = Moderate
+    - 1.0 = High insight/proactiveness
+    """
+
+    insight: Optional[float]
+    proactiveness: Optional[float]
+
+
+# Neutral positions (reference points - no insight/proactiveness)
+class AcRelationship(PolarityRelationship, type="AC"):
+    """Action relationship: T → A transition. Reference point, no scoring properties."""
+    pass
+
+
+class ReRelationship(PolarityRelationship, type="RE"):
+    """Reflection relationship: A → T transition. Reference point, no scoring properties."""
+    pass
+
+
+# Ac/Re pole positions (have insight/proactiveness)
+class AcPlusRelationship(TransitionPoleRelationship, type="AC_PLUS"):
+    """Positive action relationship: T- → A+ transition."""
+    pass
+
+
+class AcMinusRelationship(TransitionPoleRelationship, type="AC_MINUS"):
+    """Negative action relationship: T+ → A- transition."""
+    pass
+
+
+class RePlusRelationship(TransitionPoleRelationship, type="RE_PLUS"):
+    """Positive reflection relationship: A- → T+ transition."""
+    pass
+
+
+class ReMinusRelationship(TransitionPoleRelationship, type="RE_MINUS"):
+    """Negative reflection relationship: A+ → T- transition."""
+    pass

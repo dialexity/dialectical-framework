@@ -28,20 +28,19 @@ class WisdomUnitCalculator(BaseCalculator):
       * T ↔ A (neutral pair)
       * T+ ↔ A- (positive thesis ↔ negative antithesis)
       * T- ↔ A+ (negative thesis ↔ positive antithesis)
-    - Includes transformation R (internal spiral, which includes synthesis)
+    - Includes transformations Rs (aggregated if multiple)
+    - Includes synthesis Rs (WU-level, aggregated if multiple)
     - Includes unit-level rationale Rs (with rating)
     - Aggregates all via GM
 
-    Note: Synthesis R flows through Transformation (Synthesis → Transformation → WU)
-
     P calculation:
-    - P comes from Transformation (internal spiral)
-    - If no transformation: P = 1.0 (no structural constraint)
+    - P comes from Transformations (aggregated via product if multiple)
+    - If no transformations: P = 1.0 (no structural constraint)
     """
 
     def score_children(self, wu: WisdomUnit, force: bool = False) -> None:
         """
-        Score all components and transformation in this WU.
+        Score all components, transformations, and synthesis in this WU.
 
         Args:
             wu: WisdomUnit whose children should be scored
@@ -53,11 +52,13 @@ class WisdomUnitCalculator(BaseCalculator):
             for comp in components:
                 self.scorer.calculate_score(comp, force=force)
 
-        # Score transformation if present (includes synthesis scoring)
-        trans_result = wu.transformation.get()
-        if trans_result:
-            transformation = trans_result[0]
+        # Score all transformations
+        for transformation, _ in wu.transformations.all():
             self.scorer.calculate_score(transformation, force=force)
+
+        # Score all synthesis alternatives (WU-level)
+        for synthesis, _ in wu.synthesis.all():
+            self.scorer.calculate_score(synthesis, force=force)
 
     def calculate_relevance(self, wu: WisdomUnit) -> Optional[float]:
         """
@@ -122,13 +123,33 @@ class WisdomUnitCalculator(BaseCalculator):
             if pair_r is not None:
                 values.append(pair_r)
 
-        # Transformation R (internal spiral, includes synthesis R)
-        trans_result = wu.transformation.get()
-        if trans_result:
-            transformation = trans_result[0]
+        # Transformations Rs (aggregate if multiple)
+        trans_rs = []
+        for transformation, _ in wu.transformations.all():
             trans_r = transformation.relevance
             if trans_r is not None:
-                values.append(trans_r)
+                trans_rs.append(trans_r)
+        if trans_rs:
+            if len(trans_rs) == 1:
+                values.append(trans_rs[0])
+            else:
+                aggregated_trans_r = gm_with_zeros_and_nones_handled(trans_rs)
+                if aggregated_trans_r is not None:
+                    values.append(aggregated_trans_r)
+
+        # Synthesis Rs (WU-level, aggregate if multiple)
+        synth_rs = []
+        for synthesis, _ in wu.synthesis.all():
+            synth_r = synthesis.relevance
+            if synth_r is not None:
+                synth_rs.append(synth_r)
+        if synth_rs:
+            if len(synth_rs) == 1:
+                values.append(synth_rs[0])
+            else:
+                aggregated_synth_r = gm_with_zeros_and_nones_handled(synth_rs)
+                if aggregated_synth_r is not None:
+                    values.append(aggregated_synth_r)
 
         # Unit-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
@@ -150,25 +171,31 @@ class WisdomUnitCalculator(BaseCalculator):
 
     def calculate_probability(self, wu: WisdomUnit) -> Optional[float]:
         """
-        Calculate P for WisdomUnit from its Transformation.
+        Calculate P for WisdomUnit from its Transformations.
+
+        If multiple transformations, aggregates via product.
 
         Args:
             wu: WisdomUnit to calculate P for
 
         Returns:
-            P value (0.0-1.0) or 1.0 if no transformation (no structural constraint)
+            P value (0.0-1.0) or 1.0 if no transformations (no structural constraint)
         """
-        trans_result = wu.transformation.get()
-        if not trans_result:
-            # No transformation: no structural constraint
-            return 1.0
+        # Aggregate P from all transformations via product
+        prob = None
+        for transformation, _ in wu.transformations.all():
+            trans_p = transformation.probability
+            if trans_p is not None and trans_p > 0:
+                if prob is None:
+                    prob = 1.0
+                prob *= trans_p
 
-        transformation = trans_result[0]
-        return transformation.probability
+        # No transformations: no structural constraint
+        return prob if prob is not None else 1.0
 
     def clear_children(self, wu: WisdomUnit) -> None:
         """
-        Clear scores from all components and transformation.
+        Clear scores from all components, transformations, and synthesis.
 
         Args:
             wu: WisdomUnit whose children should be cleared
@@ -179,8 +206,10 @@ class WisdomUnitCalculator(BaseCalculator):
             for comp in components:
                 self.scorer.clear_scores(comp)
 
-        # Clear transformation if present (includes synthesis clearing)
-        trans_result = wu.transformation.get()
-        if trans_result:
-            transformation = trans_result[0]
+        # Clear all transformations
+        for transformation, _ in wu.transformations.all():
             self.scorer.clear_scores(transformation)
+
+        # Clear all synthesis alternatives (WU-level)
+        for synthesis, _ in wu.synthesis.all():
+            self.scorer.clear_scores(synthesis)

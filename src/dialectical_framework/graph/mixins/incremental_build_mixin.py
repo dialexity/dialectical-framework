@@ -106,6 +106,9 @@ class IncrementalBuildMixin(PersistableMixin):
                     f"Found uncommitted {child.__class__.__name__}."
                 )
 
+        # Verify cardinality constraints are satisfied
+        self._validate_all_cardinalities()
+
         # Set committed_at BEFORE computing hash (it's part of the hash for structural nodes)
         self.committed_at = time.time()
         self.hash = self.compute_hash()
@@ -114,6 +117,36 @@ class IncrementalBuildMixin(PersistableMixin):
         # If duplicate content exists, the unique constraint on hash will throw.
         graph_db.save_node(self)
         return self
+
+    def _validate_all_cardinalities(self) -> None:
+        """
+        Validate cardinality constraints for all relationship managers.
+
+        Iterates through all RelationshipManager attributes on this class
+        and validates that minimum cardinality constraints are satisfied.
+
+        Raises:
+            ValueError: If any cardinality constraint is violated
+        """
+        from dialectical_framework.graph.relationship_manager import RelationshipManager
+
+        errors = []
+
+        # Find all RelationshipManager attributes on this class
+        for attr_name in dir(self.__class__):
+            attr = getattr(self.__class__, attr_name, None)
+            if isinstance(attr, RelationshipManager):
+                # Get bound manager for this instance
+                bound_manager = getattr(self, attr_name)
+                is_valid, error_msg = bound_manager.validate_cardinality()
+                if not is_valid:
+                    errors.append(f"{attr_name}: {error_msg}")
+
+        if errors:
+            raise ValueError(
+                f"Cardinality constraints violated on {self.__class__.__name__}:\n"
+                + "\n".join(f"  - {e}" for e in errors)
+            )
 
     @property
     def is_committed(self) -> bool:

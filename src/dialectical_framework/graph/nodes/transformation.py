@@ -1,12 +1,14 @@
 """
 Transformation node for the dialectical framework.
 
-This module provides the Transformation class which represents transformational
-patterns within a WisdomUnit with action-reflection components.
+This module provides the Transformation class which represents the Action-Reflection
+dialectical structure within a WisdomUnit. A Transformation IS a full 6-position
+dialectical structure (Ac, Re, Ac+, Ac-, Re+, Re-), not just transitions.
 """
 
 from __future__ import annotations
 
+import re
 from typing import ClassVar, Optional, TYPE_CHECKING, Union, Self
 
 from dependency_injector.wiring import Provide, inject
@@ -16,58 +18,69 @@ from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
-from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
-from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
-    BelongsToCycleRelationship,
-)
+from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager, BoundRelationshipManager
 from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
     IsSpiralOfRelationship,
 )
-from dialectical_framework.graph.relationships.action_reflection_relationship import (
-    ActionReflectionRelationship,
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    PolarityRelationship,
+    AcRelationship,
+    ReRelationship,
+    AcPlusRelationship,
+    AcMinusRelationship,
+    RePlusRelationship,
+    ReMinusRelationship,
 )
-from dialectical_framework.graph.relationships.synthesis_of_relationship import (
-    SynthesisOfRelationship,
-)
-from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.synthesis import Synthesis
+    from dialectical_framework.graph.nodes.transition import Transition
 
 
-class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Transformation"):
+# Position constants for Ac/Re structure
+POSITION_AC = "Ac"
+POSITION_RE = "Re"
+POSITION_AC_PLUS = "Ac+"
+POSITION_AC_MINUS = "Ac-"
+POSITION_RE_PLUS = "Re+"
+POSITION_RE_MINUS = "Re-"
+
+
+class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Transformation"):
     """
-    Internal transformation within a WisdomUnit.
+    Action-Reflection dialectical structure within a WisdomUnit.
 
-    A Transformation represents the internal dialectical transformation within
-    a single wisdom unit. It captures the action-reflection cycle: T- → A+, A- → T+.
+    A Transformation represents a full 6-position dialectical structure capturing
+    how the WisdomUnit's tension can be navigated through action and reflection.
+    Each position is a Transition (source → target):
 
-    Unlike Spiral (which exists at the Wheel level), Transformation is internal
-    to a WisdomUnit and does not directly relate to Wheels.
+    - Ac (Action): T → A (transforms Thesis into Antithesis)
+    - Ac+ (Positive Action): T- → A+ (transforms negative Thesis into positive Antithesis)
+    - Ac- (Negative Action): T+ → A- (transforms positive Thesis into negative Antithesis)
+    - Re (Reflection): A → T (transforms Antithesis into Thesis)
+    - Re+ (Positive Reflection): A- → T+ (transforms negative Antithesis into positive Thesis)
+    - Re- (Negative Reflection): A+ → T- (transforms positive Antithesis into negative Thesis)
 
-    A transformation always has exactly 2 transitions:
-    - T- to A+ (thesis negative to antithesis positive)
-    - A- to T+ (antithesis negative to thesis positive)
+    Diagonal contradictions:
+    - Re+ contradicts Ac-
+    - Re- contradicts Ac+
+
+    A WisdomUnit can have multiple Transformations representing different paths
+    through the same tension. Synthesis emerges from the WisdomUnit level, not
+    from individual Transformation paths.
 
     Lifecycle (IncrementalBuildMixin pattern):
         1. Create: transformation = Transformation()
         2. Set parent: transformation.set_wisdom_unit(wu)
         3. Save (HEAD state): transformation.save()
-        4. Add children: transition.cycle.connect(transformation)
+        4. Add transitions: transformation.ac.connect(transition), etc.
         5. Commit (immutable): transformation.commit()
 
     Relationships:
-    - Transformations are internal to WisdomUnit (accessed via wisdom_unit.transformation)
-    - They reference an action-reflection WisdomUnit via ac_re
+    - Transformations are internal to WisdomUnit (accessed via wu.transformations)
+    - They contain 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-)
     - They do NOT directly connect to Wheel (accessed via their WisdomUnit)
-    - The ac_re WisdomUnit may or may not be part of the wheel's wisdom_units
-
-    Note: Transformation and Spiral are siblings (both inherit from AssessableEntity),
-    not parent-child. This prevents Transformation from inheriting Spiral's
-    Wheel relationship, which would be semantically incorrect.
     """
 
     # Hash inputs - set before save() to include in hash
@@ -100,37 +113,54 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
         self._wisdom_unit_ref = wu
         return self
 
-    # Override _transitions from CircularTopologyMixin with exact cardinality
-    # Exactly two transitions for internal transformation: T- → A+, A- → T+
-    _transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
-        "Transition",
-        model=BelongsToCycleRelationship,
-        cardinality=(2, 2)  # Exactly two transitions
-    )
-
     # The containing WisdomUnit (this transformation is internal to it)
     wisdom_unit: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
         "WisdomUnit",
         model=IsSpiralOfRelationship,
-        cardinality=(1, 1)  # Required - transformation (spiral) belongs to one wisdom unit
+        cardinality=(1, 1)  # Required - transformation belongs to one wisdom unit
     )
 
-    # The action-reflection context WisdomUnit (what this transformation is about)
-    ac_re: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
-        "WisdomUnit",
-        model=ActionReflectionRelationship,
-        cardinality=(1, 1)  # Required action-reflection wisdom unit
+    # 6 transition position relationships (Ac-Re structure)
+    # Each position is a Transition (source → target) representing a transformation path
+    # All positions are optional (0, 1) - in practice often only Ac+ and Re+ are populated
+    # Neutral positions (reference points)
+    ac: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=AcRelationship,
+        cardinality=(0, 1)  # Optional: T → A
     )
 
-    # Synthesis alternatives (S+/S- pairs) derived from this transformation
-    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
-        "Synthesis",
-        model=SynthesisOfRelationship,
-        cardinality=(0, None)  # Zero or more synthesis alternatives
+    re: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=ReRelationship,
+        cardinality=(0, 1)  # Optional: A → T
     )
 
-    # Note: Transformation does not directly connect to Wheel
-    # It's accessed via its containing WisdomUnit (wisdom_unit field)
+    # Pole positions (have complementarity)
+    # Ac+ and Re+ are REQUIRED - the core transformation path
+    ac_plus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=AcPlusRelationship,
+        cardinality=(1, 1)  # Required: T- → A+
+    )
+
+    ac_minus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=AcMinusRelationship,
+        cardinality=(0, 1)  # Optional: T+ → A-
+    )
+
+    re_plus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=RePlusRelationship,
+        cardinality=(1, 1)  # Required: A- → T+
+    )
+
+    re_minus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=ReMinusRelationship,
+        cardinality=(0, 1)  # Optional: A+ → T-
+    )
 
     def get_nexus(self) -> Nexus | None:
         """
@@ -156,8 +186,6 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
         wisdom_unit = wu_result[0]
 
         # Get the first Nexus from the WisdomUnit.
-        # It's fine to take any Nexus since aliases are stored on WU-Component edges,
-        # not on Nexus relationships - all Nexuses containing this WU see the same aliases.
         nexus_result = wisdom_unit.nexus.get()
         if nexus_result:
             return nexus_result[0]
@@ -166,25 +194,28 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
 
     def _get_commit_dependents(self):
         """
-        Get transitions for hash computation.
+        Get all 6 transitions for hash computation.
 
         Required by IncrementalBuildMixin for commit() validation.
 
         Yields:
-            Transition nodes
+            Transition nodes from all 6 positions
         """
-        for trans in self.transitions:
-            yield trans
+        for manager in [self.ac, self.re, self.ac_plus, self.ac_minus, self.re_plus, self.re_minus]:
+            result = manager.get()
+            if result:
+                trans, _ = result
+                yield trans
 
     def _collect_structure_hash_parts(self) -> list[str]:
         """
         Collect structure hash parts for this Transformation.
 
-        Parts: WisdomUnit hash, ordered transition hashes.
-        The WU hash ensures uniqueness since each WU has at most one transformation.
+        Parts: WisdomUnit hash, hashes of all 6 transition positions.
+        The WU hash ensures uniqueness across different WisdomUnits.
 
         Returns:
-            List of strings: [wu_hash, trans_hash1, trans_hash2, ...]
+            List of strings: [wu_hash, ac_hash, re_hash, ac+_hash, ac-_hash, re+_hash, re-_hash]
 
         Raises:
             ValueError: If WisdomUnit not set or not committed
@@ -210,14 +241,19 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
             )
         parts.append(wu_hash)
 
-        # Get transition hashes in order (may be empty for new transformations)
-        for trans in self.transitions:
-            if not trans.is_committed:
-                raise ValueError(
-                    "Transition must be committed before computing "
-                    "Transformation structure hash"
-                )
-            parts.append(trans.hash)
+        # Get hashes for all 6 transition positions in order
+        for manager in [self.ac, self.re, self.ac_plus, self.ac_minus, self.re_plus, self.re_minus]:
+            result = manager.get()
+            if result:
+                trans, _ = result
+                if not trans.is_committed:
+                    raise ValueError(
+                        "Transition must be committed before computing "
+                        "Transformation structure hash"
+                    )
+                parts.append(trans.hash)
+            else:
+                parts.append("")  # Empty placeholder for missing positions
 
         return parts
 
@@ -231,8 +267,8 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
 
         Lifecycle:
         1. Create transformation and set_wisdom_unit()
-        2. (Optional) save() and add transitions explicitly
-        3. commit() - auto-saves if needed, computes hash from transitions, makes immutable
+        2. (Optional) save() and add components explicitly
+        3. commit() - auto-saves if needed, computes hash from components, makes immutable
 
         If wisdom_unit was set via set_wisdom_unit(), the relationship is
         automatically created after the node is committed.
@@ -242,7 +278,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
 
         Raises:
             ImmutableNodeError: If already committed
-            ValueError: If any child transition is not committed
+            ValueError: If any child component is not committed
         """
         # Auto-save if not already saved (allows calling commit() directly)
         if self._id is None:
@@ -250,22 +286,128 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
             if result is not None and result._id is not None:
                 self._id = result._id
 
-        # Call IncrementalBuildMixin.commit() which validates children and computes hash
-        super().commit()
-
-        # Auto-connect wisdom_unit if ref was stored AND not already connected
+        # Auto-connect wisdom_unit BEFORE commit (so cardinality validation passes)
         if self._wisdom_unit_ref and self.wisdom_unit.count() == 0:
             self.wisdom_unit.connect(self._wisdom_unit_ref)
             self._wisdom_unit_ref = None  # Clear transient ref
 
+        # Call IncrementalBuildMixin.commit() which validates children and computes hash
+        super().commit()
+
         return self
+
+    @staticmethod
+    def get_relationship_class_for_position(position: str) -> type[PolarityRelationship]:
+        """
+        Get the correct PolarityRelationship subclass for a given position.
+
+        This mapping is used when creating relationships to ensure the correct
+        relationship type is used for querying.
+
+        Args:
+            position: Position name (e.g., 'Ac', 'Re', 'Ac+', 'Ac-', 'Re+', 'Re-')
+
+        Returns:
+            The relationship class for that position
+
+        Raises:
+            ValueError: If position is not recognized
+
+        Example:
+            rel_class = Transformation.get_relationship_class_for_position(POSITION_AC)
+            # rel_class is AcRelationship
+            transformation.ac.connect(component, relationship=rel_class(alias='Ac'))
+        """
+        position_to_rel_class = {
+            POSITION_AC: AcRelationship,
+            POSITION_RE: ReRelationship,
+            POSITION_AC_PLUS: AcPlusRelationship,
+            POSITION_AC_MINUS: AcMinusRelationship,
+            POSITION_RE_PLUS: RePlusRelationship,
+            POSITION_RE_MINUS: ReMinusRelationship,
+        }
+
+        rel_class = position_to_rel_class.get(position)
+        if rel_class is None:
+            raise ValueError(
+                f"Unknown position: {position}. "
+                f"Valid positions: Ac, Re, Ac+, Ac-, Re+, Re-"
+            )
+        return rel_class
+
+    def get_relationship_manager_by_position(self, position: str) -> BoundRelationshipManager[Transition]:
+        """
+        Get the bound relationship manager for a given position name.
+
+        Args:
+            position: Position name (e.g., 'Ac', 'Re', 'Ac+', 'Ac-', 'Re+', 'Re-')
+
+        Returns:
+            The corresponding BoundRelationshipManager (bound to this Transformation instance)
+
+        Raises:
+            ValueError: If position is not recognized
+
+        Note:
+            Position is NOT the same as alias!
+            - Position: Structural role ('Ac', 'Re+') - which relationship manager
+            - Alias: Display label stored on edge ('Ac1', 'Action', 'Re3+') - can be anything
+        """
+        position_map = {
+            # Position constants
+            POSITION_AC: self.ac,
+            POSITION_RE: self.re,
+            POSITION_AC_PLUS: self.ac_plus,
+            POSITION_AC_MINUS: self.ac_minus,
+            POSITION_RE_PLUS: self.re_plus,
+            POSITION_RE_MINUS: self.re_minus,
+            # Attribute format (lowercase, underscore) for convenience
+            'ac': self.ac,
+            're': self.re,
+            'ac_plus': self.ac_plus,
+            'ac_minus': self.ac_minus,
+            're_plus': self.re_plus,
+            're_minus': self.re_minus,
+        }
+        if position not in position_map:
+            raise ValueError(f"Unknown position: {position}. Valid positions: Ac, Re, Ac+, Ac-, Re+, Re-")
+        return position_map[position]
+
+    @property
+    def core_positions(self) -> list[str]:
+        """
+        Get list of all 6 core position names.
+
+        Returns:
+            List of position names that can be used with get_relationship_manager_by_position()
+        """
+        return [
+            POSITION_AC,
+            POSITION_RE,
+            POSITION_AC_PLUS,
+            POSITION_AC_MINUS,
+            POSITION_RE_PLUS,
+            POSITION_RE_MINUS,
+        ]
+
+    def get_human_friendly_index(self) -> int:
+        """
+        Get the human-friendly index from the containing WisdomUnit.
+
+        Delegates to wisdom_unit.get_human_friendly_index().
+
+        Returns:
+            The numeric index (e.g., 3 if WU components have T3, A3+, etc.), or 0 if not set
+        """
+        wu_result = self.wisdom_unit.get()
+        if not wu_result:
+            return 0
+        wu, _ = wu_result
+        return wu.get_human_friendly_index()
 
     def __format__(self, format_spec: str) -> str:
         """
-        Format this Transformation by displaying its ac_re WisdomUnit.
-
-        Format specifications are passed through to the ac_re WisdomUnit's __format__ method.
-        See WisdomUnit.__format__ for available format specifications.
+        Format this Transformation by displaying its Ac-Re structure.
 
         Format Specifications:
         ----------------------
@@ -273,13 +415,13 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
 
         Mode (optional):
             (empty) - Uses custom aliases as stored
-            "positions" - Uses canonical positions (T, T+, T-, A, A+, A-)
+            "positions" - Uses canonical positions (Ac, Ac+, Ac-, Re, Re+, Re-)
             "strip_index" - Strips numeric indexes
 
         Newlines (optional):
             :0 - Comma separation (compact single line)
-            :1 - Single newline between components (compact)
-            :2 - Double newline between components (spacious, default)
+            :1 - Single newline between transitions (compact)
+            :2 - Double newline between transitions (spacious, default)
 
         Examples:
         ---------
@@ -289,20 +431,63 @@ class Transformation(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, 
         f"{transformation:positions:0}" - Canonical positions, comma separated
 
         Returns:
-            Formatted string of the ac_re WisdomUnit, or empty string if ac_re not set
+            Formatted string of the Ac-Re structure with transitions
         """
-        ac_re_result = self.ac_re.get()
-        if not ac_re_result:
-            return ""
+        # Parse format spec: [mode][:newlines]
+        if ":" in format_spec:
+            mode, newlines_str = format_spec.split(":", 1)
+            try:
+                newlines = int(newlines_str)
+            except ValueError:
+                newlines = 2  # Default on parse error
+        else:
+            mode = format_spec
+            newlines = 2  # Default: double newline
 
-        ac_re_wu, _ = ac_re_result
-        return f"{ac_re_wu:{format_spec}}"
+        # Validate newlines
+        if newlines < 0:
+            newlines = 0
+
+        formatted_transitions = []
+
+        # Define position order and canonical names
+        positions = [
+            (self.ac, POSITION_AC),
+            (self.ac_plus, POSITION_AC_PLUS),
+            (self.ac_minus, POSITION_AC_MINUS),
+            (self.re, POSITION_RE),
+            (self.re_plus, POSITION_RE_PLUS),
+            (self.re_minus, POSITION_RE_MINUS),
+        ]
+
+        for manager, canonical_position in positions:
+            result = manager.get()
+            if result:
+                transition, rel = result
+                assert isinstance(rel, PolarityRelationship)
+                alias = rel.alias
+
+                # Apply mode formatting
+                if mode == "positions":
+                    alias = canonical_position
+                elif mode == "strip_index":
+                    alias = re.sub(r"(\d+)(?!.*\d)", "", alias)
+                # else: empty mode - use alias as-is
+
+                formatted_transitions.append(f"{alias} = {transition}")
+
+        # Join with specified separator
+        if newlines < 1:
+            separator = ", "
+        else:
+            separator = "\n" * newlines
+        return separator.join(formatted_transitions)
 
     def __str__(self) -> str:
-        """Human-readable string representation (defaults to ac_re WisdomUnit format)."""
+        """Human-readable string representation (defaults to Ac-Re structure format)."""
         return self.__format__("")
 
     def __repr__(self) -> str:
         """String representation of the transformation."""
-        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
+        hash_str = self.short_hash if self.is_committed else "uncommitted"
         return f"Transformation({hash_str})"

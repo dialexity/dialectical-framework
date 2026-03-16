@@ -138,33 +138,9 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         # Start with spiral transition (if found/created)
         transitions = [spiral_link] if spiral_link else []
 
-        # === TRANSFORMATION TRANSITIONS (Action-Reflection) ===
-        # Only audit if transformation exists (doesn't create if missing)
-        # This assumes ThinkActionReflection was already called to create transformations
-        wu = self._wheel.wisdom_unit_at(focus)
-        transformation_result = wu.transformation.get()
-        if transformation_result:
-            transformation = transformation_result[0]
-            # Get all transformation transitions
-            trans_list = transformation.transitions
-
-            # Transformation has exactly 2 fixed transitions within the same WU:
-            # - T- → A+ (linear action)
-            # - A- → T+ (dialectical reflection)
-            # Find the transition that originates from the focus segment
-            opposite = focus.opposite
-
-            # Get source (focus minus) and target (opposite plus)
-            # WheelSegment properties are polymorphic - t_minus returns T- or A- based on side
-            source_minus_result = focus.t_minus.get()
-            target_plus_result = opposite.t_plus.get()
-
-            if source_minus_result and target_plus_result:
-                source_comp, _ = source_minus_result
-                target_comp, _ = target_plus_result
-                trans = self.find_duplicate_transition(trans_list, source_comp, target_comp)
-                if trans:
-                    transitions.append(trans)
+        # Note: Transformation no longer has transitions - it has 6 component positions (Ac, Re, Ac+, Ac-, Re+, Re-)
+        # The transition-based auditing logic has been removed.
+        # TODO: Implement auditing for Transformation component positions if needed
 
         # Build list of (transition, rationale) pairs to audit
         audit_pairs = []

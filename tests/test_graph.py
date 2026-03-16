@@ -1583,27 +1583,27 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     wu_isolated.save()
 
     # Create components
-    t = DialecticalComponent(statement="Isolated thesis")
+    t = DialecticalComponent(statement="Isolated thesis", meaning="meaning:T")
     t.commit()
     wu_isolated.t.connect(t, properties={'alias': 'T'})
 
-    t_plus = DialecticalComponent(statement="Isolated T+")
+    t_plus = DialecticalComponent(statement="Isolated T+", meaning="meaning:T+")
     t_plus.commit()
     wu_isolated.t_plus.connect(t_plus, properties={'alias': 'T+'})
 
-    t_minus = DialecticalComponent(statement="Isolated T-")
+    t_minus = DialecticalComponent(statement="Isolated T-", meaning="meaning:T-")
     t_minus.commit()
     wu_isolated.t_minus.connect(t_minus, properties={'alias': 'T-'})
 
-    a = DialecticalComponent(statement="Isolated antithesis")
+    a = DialecticalComponent(statement="Isolated antithesis", meaning="meaning:A")
     a.commit()
     wu_isolated.a.connect(a, properties={'alias': 'A'})
 
-    a_plus = DialecticalComponent(statement="Isolated A+")
+    a_plus = DialecticalComponent(statement="Isolated A+", meaning="meaning:A+")
     a_plus.commit()
     wu_isolated.a_plus.connect(a_plus, properties={'alias': 'A+'})
 
-    a_minus = DialecticalComponent(statement="Isolated A-")
+    a_minus = DialecticalComponent(statement="Isolated A-", meaning="meaning:A-")
     a_minus.commit()
     wu_isolated.a_minus.connect(a_minus, properties={'alias': 'A-'})
 
@@ -1652,7 +1652,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     wu_shared_2.save()
 
     # Create shared component
-    shared_comp = DialecticalComponent(statement="Shared thesis")
+    shared_comp = DialecticalComponent(statement="Shared thesis", meaning="meaning:T")
     shared_comp.commit()
 
     # Connect to both WUs
@@ -1662,7 +1662,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # Add other required components to wu_shared_1
     for pos, stmt in [('t_plus', 'T1+'), ('t_minus', 'T1-'),
                        ('a', 'A1'), ('a_plus', 'A1+'), ('a_minus', 'A1-')]:
-        comp = DialecticalComponent(statement=stmt)
+        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_shared_1, pos).connect(comp, properties={'alias': stmt})
 
@@ -1712,7 +1712,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # Add other required components
     for pos, stmt in [('t_plus', 'T3+'), ('t_minus', 'T3-'),
                        ('a', 'A3'), ('a_plus', 'A3+'), ('a_minus', 'A3-')]:
-        comp = DialecticalComponent(statement=stmt)
+        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_shared_3, pos).connect(comp, properties={'alias': stmt})
 
@@ -1737,14 +1737,14 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     wu_boundary.save()
 
     # Create WU components
-    t_boundary = DialecticalComponent(statement="Boundary thesis")
+    t_boundary = DialecticalComponent(statement="Boundary thesis", meaning="meaning:T")
     t_boundary.commit()
     wu_boundary.t.connect(t_boundary, properties={'alias': 'T'})
 
     # Add other required components
     for pos, stmt in [('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=stmt)
+        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_boundary, pos).connect(comp, properties={'alias': stmt})
 
@@ -1758,7 +1758,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     input_boundary = Input(content="Test input for boundary")
     input_boundary.commit()
 
-    stmt_comp_orphan = DialecticalComponent(statement="Statement component (orphan)")
+    stmt_comp_orphan = DialecticalComponent(statement="Statement component (orphan)", meaning="meaning:orphan")
     stmt_comp_orphan.commit()
     input_boundary.statements.connect(stmt_comp_orphan)
 
@@ -1795,12 +1795,12 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # Create WU components for wu_boundary_2
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=stmt)
+        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_boundary_2, pos).connect(comp, properties={'alias': stmt})
 
     # Create shared stmt_component used in another WU
-    stmt_comp_shared = DialecticalComponent(statement="Statement component (in another WU)")
+    stmt_comp_shared = DialecticalComponent(statement="Statement component (in another WU)", meaning="meaning:shared")
     stmt_comp_shared.commit()
     wu_other.t.connect(stmt_comp_shared, properties={'alias': 'T_other'})
 
@@ -1840,7 +1840,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # Create components
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=stmt)
+        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_rationale, pos).connect(comp, properties={'alias': stmt})
 
@@ -1880,76 +1880,54 @@ def test_wisdom_unit_repository_safe_delete(di_container):
 
     print("✓ Test 5: All rationales deleted (including critique chain cascade)")
 
-    # ========== Test 6: WU with Transformation (should delete Transformation + Transitions) ==========
+    # ========== Test 6: WU with Transformation (should delete Transformation and its components) ==========
     from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        AcRelationship, ReRelationship,
+        AcPlusRelationship, AcMinusRelationship,
+        RePlusRelationship, ReMinusRelationship,
+    )
 
     wu_with_trans = WisdomUnit(intent="with_transformation")
     wu_with_trans.save()
 
     # Create components for the WU
-    wu_t_minus = DialecticalComponent(statement="T-")
-    wu_t_minus.commit()
-    wu_with_trans.t_minus.connect(wu_t_minus, properties={'alias': 'T-'})
-
-    wu_a_plus = DialecticalComponent(statement="A+")
-    wu_a_plus.commit()
-    wu_with_trans.a_plus.connect(wu_a_plus, properties={'alias': 'A+'})
-
-    wu_a_minus = DialecticalComponent(statement="A-")
-    wu_a_minus.commit()
-    wu_with_trans.a_minus.connect(wu_a_minus, properties={'alias': 'A-'})
-
-    wu_t_plus = DialecticalComponent(statement="T+")
-    wu_t_plus.commit()
-    wu_with_trans.t_plus.connect(wu_t_plus, properties={'alias': 'T+'})
-
-    # Add remaining required components
-    for pos, stmt in [('t', 'T'), ('a', 'A')]:
-        comp = DialecticalComponent(statement=stmt)
+    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+        comp = DialecticalComponent(statement=f"WU Trans {stmt}", meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_with_trans, pos).connect(comp, properties={'alias': stmt})
 
     # Commit WU before creating Transformation
     wu_with_trans.commit()
 
-    # Create Transitions first (they are structural building blocks)
-    trans1 = Transition()
-    trans1.set_source(wu_t_minus).set_target(wu_a_plus)
-    trans1.commit()
-
-    trans2 = Transition()
-    trans2.set_source(wu_a_minus).set_target(wu_t_plus)
-    trans2.commit()
-
-    # Create Transformation - save() before adding members
-    transformation = Transformation()
+    # Create Transformation with 6 Ac/Re positions
+    transformation = Transformation(intent="test_trans")
     transformation.set_wisdom_unit(wu_with_trans)
     transformation.save()
 
-    # Connect transitions while Transformation is uncommitted
-    trans1.cycle.connect(transformation)
-    trans2.cycle.connect(transformation)
+    # Add Ac/Re components
+    ac_re_positions = [
+        ('ac', 'Ac', AcRelationship),
+        ('re', 'Re', ReRelationship),
+        ('ac_plus', 'Ac+', AcPlusRelationship),
+        ('ac_minus', 'Ac-', AcMinusRelationship),
+        ('re_plus', 'Re+', RePlusRelationship),
+        ('re_minus', 'Re-', ReMinusRelationship),
+    ]
 
-    # Create ac_re WisdomUnit for the transformation
-    ac_re_wu = WisdomUnit(intent="ac_re")
-    ac_re_wu.save()
-    for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
-                       ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
-        comp = DialecticalComponent(statement=stmt)
+    for pos, stmt, rel_class in ac_re_positions:
+        comp = DialecticalComponent(statement=f"Trans {stmt}", meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(ac_re_wu, pos).connect(comp, properties={'alias': stmt})
-    transformation.ac_re.connect(ac_re_wu)
+        getattr(transformation, pos).connect(comp, relationship=rel_class(alias=stmt))
 
-    # Now commit the Transformation (hash includes transitions)
+    # Commit the Transformation
     transformation.commit()
 
-    # Store IDs for verification
+    # Store ID for verification
     trans_id = transformation._id
-    trans1_id = trans1._id
-    trans2_id = trans2._id
 
-    # Check isolation (should be isolated - Transformation and Transitions are part of subgraph)
+    # Check isolation (should be isolated - Transformation is part of subgraph)
     assert repo.is_isolated(wu_with_trans), "WU with Transformation should be isolated"
 
     # Safe delete should succeed
@@ -1970,130 +1948,12 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     ))
     assert len(result) == 0, "Transformation should be deleted"
 
-    # Verify Transitions deleted
-    result = list(db.execute_and_fetch(
-        f"MATCH (t:Transition) WHERE id(t) = $t_id RETURN t",
-        {"t_id": trans1_id}
-    ))
-    assert len(result) == 0, "Transition 1 should be deleted"
+    print("✓ Test 6: WU with Transformation deleted correctly")
 
-    result = list(db.execute_and_fetch(
-        f"MATCH (t:Transition) WHERE id(t) = $t_id RETURN t",
-        {"t_id": trans2_id}
-    ))
-    assert len(result) == 0, "Transition 2 should be deleted"
+    # Note: Tests 7 and 8 for ac_re behavior have been removed.
+    # Transformation no longer has ac_re - it has its own 6 positions (Ac, Re, Ac+, Ac-, Re+, Re-).
 
-    # Note: ac_re_wu should still exist (it's referenced by transformation.ac_re)
-    # But transformation is deleted, so ac_re becomes orphaned
-    result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": ac_re_wu._id}
-    ))
-    assert len(result) == 1, "ac_re WU should still exist (becomes orphan)"
-
-    print("✓ Test 6: WU with Transformation deleted Transformation and Transitions")
-
-    # ========== Test 7: WU that IS an ac_re (should NOT delete - external reference) ==========
-    wu_parent = WisdomUnit(intent="parent_with_trans")
-    wu_parent.save()
-
-    # Create components for parent WU
-    uid7 = random.random()
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Test7 parent {stmt} {uid7}")
-        comp.commit()
-        getattr(wu_parent, pos).connect(comp, properties={'alias': stmt})
-
-    # Commit parent WU before creating Transformation
-    wu_parent.commit()
-
-    # Create Transformation that references another WU as ac_re
-    wu_as_ac_re = WisdomUnit(intent="used_as_ac_re")
-    wu_as_ac_re.save()
-    for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
-                       ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
-        comp = DialecticalComponent(statement=f"Test7 ac_re {stmt} {uid7}")
-        comp.commit()
-        getattr(wu_as_ac_re, pos).connect(comp, properties={'alias': stmt})
-
-    parent_transformation = Transformation(intent=f"parent_trans_{uid7}")
-    parent_transformation.set_wisdom_unit(wu_parent)
-    parent_transformation.commit()
-    parent_transformation.ac_re.connect(wu_as_ac_re)
-
-    # Check isolation (should NOT be isolated - referenced by transformation.ac_re)
-    assert not repo.is_isolated(wu_as_ac_re), "WU used as ac_re should NOT be isolated"
-
-    # Safe delete should NOT delete
-    deleted = repo.safe_delete(wu_as_ac_re)
-    assert not deleted, "WU used as ac_re should NOT be deleted"
-
-    # Verify WU still exists
-    result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_as_ac_re._id}
-    ))
-    assert len(result) == 1, "WU used as ac_re should still exist"
-
-    print("✓ Test 7: WU used as ac_re prevented deletion (external reference)")
-
-    # ========== Test 8: Replacing ac_re (disconnect + safe_delete) ==========
-    wu_replace = WisdomUnit(intent="replace_test")
-    wu_replace.save()
-
-    # Create components
-    uid8 = random.random()
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Test8 replace {stmt} {uid8}")
-        comp.commit()
-        getattr(wu_replace, pos).connect(comp, properties={'alias': stmt})
-
-    # Commit wu_replace before creating Transformation
-    wu_replace.commit()
-
-    # Create old ac_re
-    old_ac_re = WisdomUnit(intent="old_ac_re")
-    old_ac_re.save()
-    for pos, stmt in [('t', 'Ac'), ('t_plus', 'Ac+'), ('t_minus', 'Ac-'),
-                       ('a', 'Re'), ('a_plus', 'Re+'), ('a_minus', 'Re-')]:
-        comp = DialecticalComponent(statement=f"Test8 old_ac_re {stmt} {uid8}")
-        comp.commit()
-        getattr(old_ac_re, pos).connect(comp, properties={'alias': stmt})
-    old_ac_re.commit()
-
-    # Create transformation with old ac_re
-    replace_transformation = Transformation(intent=f"replace_trans_{uid8}")
-    replace_transformation.set_wisdom_unit(wu_replace)
-    replace_transformation.commit()
-    replace_transformation.ac_re.connect(old_ac_re)
-
-    old_ac_re_id = old_ac_re._id
-
-    # Verify old_ac_re is NOT isolated (still referenced)
-    assert not repo.is_isolated(old_ac_re), "Old ac_re should NOT be isolated (still referenced)"
-
-    # Simulate replacing ac_re (disconnect)
-    replace_transformation.ac_re.disconnect(old_ac_re)
-
-    # Now old_ac_re should be isolated
-    assert repo.is_isolated(old_ac_re), "Old ac_re should be isolated after disconnect"
-
-    # Safe delete should succeed
-    deleted = repo.safe_delete(old_ac_re)
-    assert deleted, "Old ac_re should be deleted after disconnect"
-
-    # Verify old ac_re deleted
-    result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": old_ac_re_id}
-    ))
-    assert len(result) == 0, "Old ac_re should be deleted"
-
-    print("✓ Test 8: Replacing ac_re (disconnect + safe_delete) works correctly")
-
-    # ========== Test 9: WU with Synthesis (should delete Synthesis and orphaned S+/S- components) ==========
+    # ========== Test 7: WU with Synthesis (should delete Synthesis and orphaned S+/S- components) ==========
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.relationships.polarity_relationship import SPlusRelationship, SMinusRelationship
 
@@ -2103,7 +1963,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # Create core components
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Synth test {stmt}")
+        comp = DialecticalComponent(statement=f"Synth test {stmt}", meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_with_synth, pos).connect(comp, properties={'alias': stmt})
 
@@ -2115,20 +1975,20 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     trans.set_wisdom_unit(wu_with_synth)
     trans.commit()
 
-    # Create Synthesis with S+ and S- components connected to Transformation
+    # Create Synthesis with S+ and S- components connected to WU
     # Synthesis uses IncrementalBuildMixin: save() first (HEAD), connect, then commit()
     synth = Synthesis()
     synth.save()  # HEAD state (hash=None)
 
-    s_plus_comp = DialecticalComponent(statement="Positive synthesis")
+    s_plus_comp = DialecticalComponent(statement="Positive synthesis", meaning="meaning:S+")
     s_plus_comp.commit()
     synth.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_comp = DialecticalComponent(statement="Negative synthesis")
+    s_minus_comp = DialecticalComponent(statement="Negative synthesis", meaning="meaning:S-")
     s_minus_comp.commit()
     synth.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias="S-"))
 
-    synth.target.connect(trans)
+    synth.target.connect(wu_with_synth)
     synth.commit()  # Now compute hash
 
     synth_id = synth._id
@@ -2191,7 +2051,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     for wu in [wu_synth_1, wu_synth_2]:
         for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                            ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-            comp = DialecticalComponent(statement=f"{wu.intent} {stmt}")
+            comp = DialecticalComponent(statement=f"{wu.intent} {stmt}", meaning=f"meaning:{stmt}")
             comp.commit()
             getattr(wu, pos).connect(comp, properties={'alias': stmt})
 
@@ -2200,7 +2060,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     wu_synth_2.commit()
 
     # Create shared S+ component
-    shared_s_plus = DialecticalComponent(statement=f"Shared positive synthesis {random.random()}")
+    shared_s_plus = DialecticalComponent(statement=f"Shared positive synthesis {random.random()}", meaning="meaning:S+")
     shared_s_plus.commit()
 
     # Create Transformation for wu_synth_1
@@ -2208,13 +2068,13 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     trans_1.set_wisdom_unit(wu_synth_1)
     trans_1.commit()
 
-    # Create Synthesis for wu_synth_1 using shared S+ connected to Transformation
+    # Create Synthesis for wu_synth_1 using shared S+ connected to WU
     synth_1 = Synthesis(intent="synth_1")
     synth_1.save()
-    synth_1.target.connect(trans_1)
+    synth_1.target.connect(wu_synth_1)
     synth_1.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_1 = DialecticalComponent(statement=f"S- for wu_synth_1 {random.random()}")
+    s_minus_1 = DialecticalComponent(statement=f"S- for wu_synth_1 {random.random()}", meaning="meaning:S-")
     s_minus_1.commit()
     synth_1.s_minus.connect(s_minus_1, relationship=SMinusRelationship(alias="S-"))
 
@@ -2223,13 +2083,13 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     trans_2.set_wisdom_unit(wu_synth_2)
     trans_2.commit()
 
-    # Create Synthesis for wu_synth_2 using same shared S+ connected to Transformation
+    # Create Synthesis for wu_synth_2 using same shared S+ connected to WU
     synth_2 = Synthesis(intent="synth_2")
     synth_2.save()
-    synth_2.target.connect(trans_2)
+    synth_2.target.connect(wu_synth_2)
     synth_2.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_2 = DialecticalComponent(statement=f"S- for wu_synth_2 {random.random()}")
+    s_minus_2 = DialecticalComponent(statement=f"S- for wu_synth_2 {random.random()}", meaning="meaning:S-")
     s_minus_2.commit()
     synth_2.s_minus.connect(s_minus_2, relationship=SMinusRelationship(alias="S-"))
 
@@ -2293,7 +2153,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     # Create core components
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Conservative {stmt}")
+        comp = DialecticalComponent(statement=f"Conservative {stmt}", meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu_synth_conservative, pos).connect(comp, properties={'alias': stmt})
 
@@ -2305,13 +2165,13 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     trans_conservative.set_wisdom_unit(wu_synth_conservative)
     trans_conservative.commit()
 
-    # Create Synthesis using the shared S+ from wu_synth_2 connected to Transformation
+    # Create Synthesis using the shared S+ from wu_synth_2 connected to WU
     synth_conservative = Synthesis()
     synth_conservative.save()
-    synth_conservative.target.connect(trans_conservative)
+    synth_conservative.target.connect(wu_synth_conservative)
     synth_conservative.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_cons = DialecticalComponent(statement="S- for conservative")
+    s_minus_cons = DialecticalComponent(statement="S- for conservative", meaning="meaning:S-")
     s_minus_cons.commit()
     synth_conservative.s_minus.connect(s_minus_cons, relationship=SMinusRelationship(alias="S-"))
 
@@ -2445,13 +2305,11 @@ def test_multiple_feasibility_estimations(di_container):
 # Bidirectional Cardinality Enforcement Tests
 # =============================================================================
 
-def test_bidirectional_cardinality_enforcement():
+def test_wu_multiple_transformations():
     """
-    Test that cardinality is enforced from both sides of connect().
+    Test that WisdomUnit can have multiple transformations (cardinality 0,N).
 
-    Use Transformation -> WisdomUnit which has (0, 1) on WU.transformation.
-    If we try to connect two transformations to the same WU, the second
-    should fail due to inverse cardinality check.
+    Many Ac-Re paths → ONE S+ (synthesis emerges from T-A pair itself).
     """
     from dialectical_framework.graph.nodes.transformation import Transformation
 
@@ -2463,7 +2321,7 @@ def test_bidirectional_cardinality_enforcement():
     components = []
     uid = random.random()
     for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
-        c = DialecticalComponent(statement=f"Bidir card Statement {stmt} {uid}")
+        c = DialecticalComponent(statement=f"Multi trans WU {stmt} {uid}", meaning=f"meaning:{stmt}")
         c.commit()
         components.append(c)
 
@@ -2476,130 +2334,48 @@ def test_bidirectional_cardinality_enforcement():
 
     # Commit WU first
     wu.commit()
+
+    # Helper to create required transitions (Ac+ and Re+) for a transformation
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.relationships.polarity_relationship import AcPlusRelationship, RePlusRelationship
+
+    def add_required_transitions(trans: Transformation) -> None:
+        """Add Ac+ (T- → A+) and Re+ (A- → T+) transitions - the minimum required."""
+        # Ac+: T- → A+
+        ac_plus_trans = Transition()
+        ac_plus_trans.set_source(components[2])  # T-
+        ac_plus_trans.set_target(components[4])  # A+
+        ac_plus_trans.commit()
+        trans.ac_plus.connect(ac_plus_trans, relationship=AcPlusRelationship(alias="Ac+"))
+
+        # Re+: A- → T+
+        re_plus_trans = Transition()
+        re_plus_trans.set_source(components[5])  # A-
+        re_plus_trans.set_target(components[1])  # T+
+        re_plus_trans.commit()
+        trans.re_plus.connect(re_plus_trans, relationship=RePlusRelationship(alias="Re+"))
 
     # Create first transformation and connect to WU - should succeed
-    trans1 = Transformation(intent=f"bidir_trans1_{uid}")
+    trans1 = Transformation(intent=f"multi_trans1_{uid}")
     trans1.set_wisdom_unit(wu)
+    trans1.save()
+    add_required_transitions(trans1)
     trans1.commit()
 
-    # Create second WU for trans2 (since we need a committed WU to create a Transformation)
-    wu2 = WisdomUnit(intent=f"wu2_{random.random()}")
-    wu2.save()
-    for i, stmt in enumerate(["T", "T+", "T-", "A", "A+", "A-"]):
-        c = DialecticalComponent(statement=f"Bidir card WU2 {stmt} {uid}")
-        c.commit()
-        getattr(wu2, ['t', 't_plus', 't_minus', 'a', 'a_plus', 'a_minus'][i]).connect(c, properties={'alias': stmt})
-    wu2.commit()
+    # Verify first transformation is connected
+    assert wu.transformations.count() == 1, "WU should have 1 transformation"
 
-    # Create second transformation with its own WU
-    trans2 = Transformation(intent=f"bidir_trans2_{uid}")
-    trans2.set_wisdom_unit(wu2)
+    # Create second transformation and connect to SAME WU - should also succeed (0,N cardinality)
+    trans2 = Transformation(intent=f"multi_trans2_{uid}")
+    trans2.set_wisdom_unit(wu)
+    trans2.save()
+    add_required_transitions(trans2)
     trans2.commit()
 
-    # Now try to connect trans2 to wu (which already has trans1) - should fail
-    # This should fail - WU already has a transformation (cardinality 0,1)
-    # The inverse cardinality check on WU.transformation (0,1) should trigger
-    with pytest.raises(ValueError, match="cardinality"):
-        trans2.wisdom_unit.connect(wu)
+    # Verify both transformations are connected
+    assert wu.transformations.count() == 2, "WU should now have 2 transformations"
 
-    print("✓ Bidirectional cardinality enforcement works from child side")
-
-
-def test_bidirectional_cardinality_via_parent_connect():
-    """
-    Test that parent-side connect also checks child's cardinality.
-
-    When using wu.transformation.connect(trans), the inverse cardinality
-    on Transformation.wisdom_unit (1,1) should be checked.
-    """
-    from dialectical_framework.graph.nodes.transformation import Transformation
-
-    # Create WisdomUnit with all required components
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-
-    components = []
-    uid2 = random.random()
-    for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
-        c = DialecticalComponent(statement=f"Parent connect Statement {stmt} {uid2}")
-        c.commit()
-        components.append(c)
-
-    wu.t.connect(components[0], properties={'alias': 'T'})
-    wu.t_plus.connect(components[1], properties={'alias': 'T+'})
-    wu.t_minus.connect(components[2], properties={'alias': 'T-'})
-    wu.a.connect(components[3], properties={'alias': 'A'})
-    wu.a_plus.connect(components[4], properties={'alias': 'A+'})
-    wu.a_minus.connect(components[5], properties={'alias': 'A-'})
-
-    # Commit WU first
-    wu.commit()
-
-    # Create first transformation - auto-connect via set_wisdom_unit pattern
-    trans1 = Transformation(intent=f"parent_connect_trans1_{uid2}")
-    trans1.set_wisdom_unit(wu)
-    trans1.commit()
-
-    # Create second WU for trans2
-    wu2 = WisdomUnit(intent=f"wu2_parent_{random.random()}")
-    wu2.save()
-    for i, stmt in enumerate(["T", "T+", "T-", "A", "A+", "A-"]):
-        c = DialecticalComponent(statement=f"Parent connect WU2 {stmt} {uid2}")
-        c.commit()
-        getattr(wu2, ['t', 't_plus', 't_minus', 'a', 'a_plus', 'a_minus'][i]).connect(c, properties={'alias': stmt})
-    wu2.commit()
-
-    # Create second transformation with its own WU
-    trans2 = Transformation(intent=f"parent_connect_trans2_{uid2}")
-    trans2.set_wisdom_unit(wu2)
-    trans2.commit()
-
-    # This should fail even via parent side - WU already has transformation
-    # Error can come from either:
-    # - Source side: "maximum cardinality ... already reached"
-    # - Target side (inverse): "cardinality constraint violated"
-    with pytest.raises(ValueError, match="cardinality"):
-        wu.transformation.connect(trans2)
-
-    print("✓ Bidirectional cardinality enforcement works from parent side")
-
-
-def test_bidirectional_cardinality_allows_valid_connection():
-    """Test that valid connections still work with bidirectional enforcement."""
-    from dialectical_framework.graph.nodes.transformation import Transformation
-
-    uid = random.random()
-
-    # Create TWO WisdomUnits with components
-    wu1 = WisdomUnit(intent=f"wu1_{uid}")
-    wu1.save()
-    for i, stmt in enumerate(["T", "T+", "T-", "A", "A+", "A-"]):
-        c = DialecticalComponent(statement=f"Valid WU1 {stmt} {uid}")
-        c.commit()
-        getattr(wu1, ['t', 't_plus', 't_minus', 'a', 'a_plus', 'a_minus'][i]).connect(c, properties={'alias': stmt})
-    wu1.commit()
-
-    wu2 = WisdomUnit(intent=f"wu2_{uid}")
-    wu2.save()
-    for i, stmt in enumerate(["T", "T+", "T-", "A", "A+", "A-"]):
-        c = DialecticalComponent(statement=f"Valid WU2 {stmt} {uid}")
-        c.commit()
-        getattr(wu2, ['t', 't_plus', 't_minus', 'a', 'a_plus', 'a_minus'][i]).connect(c, properties={'alias': stmt})
-    wu2.commit()
-
-    # Each can have ONE transformation (cardinality 0,1)
-    trans1 = Transformation(intent=f"valid_trans1_{uid}")
-    trans1.set_wisdom_unit(wu1)
-    trans1.commit()
-
-    trans2 = Transformation(intent=f"valid_trans2_{uid}")
-    trans2.set_wisdom_unit(wu2)
-    trans2.commit()
-
-    assert wu1.transformation.count() == 1
-    assert wu2.transformation.count() == 1
-
-    print("✓ Valid connections still work with bidirectional enforcement")
+    print("✓ WisdomUnit can have multiple transformations (0,N cardinality)")
 
 
 # =============================================================================
@@ -2652,112 +2428,118 @@ def test_cycle_cardinality_validation():
     print("✓ Cycle cardinality validation works correctly")
 
 
-def test_transformation_cardinality_validation():
-    """Test that Transformation._transitions cardinality (2, 2) is validated correctly."""
-    from dialectical_framework.graph.nodes.transformation import Transformation
+def test_transformation_six_positions():
+    """Test that Transformation has 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-)."""
+    from dialectical_framework.graph.nodes.transformation import (
+        Transformation,
+        POSITION_AC, POSITION_RE,
+        POSITION_AC_PLUS, POSITION_AC_MINUS,
+        POSITION_RE_PLUS, POSITION_RE_MINUS,
+    )
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        AcRelationship, ReRelationship,
+        AcPlusRelationship, AcMinusRelationship,
+        RePlusRelationship, ReMinusRelationship,
+    )
 
     uid = random.random()
 
     # Create WisdomUnit first (required for Transformation)
-    wu = WisdomUnit(intent=f"trans_card_{uid}")
+    wu = WisdomUnit(intent=f"trans_six_{uid}")
     wu.save()
+    wu_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Trans card WU {stmt} {uid}")
+        comp = DialecticalComponent(statement=f"Trans six WU {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu, pos).connect(comp, properties={'alias': stmt})
+        wu_comps[pos] = comp
     wu.commit()
 
-    # Create transformation (IncrementalBuildMixin: save() before adding children)
-    transformation = Transformation()
+    # Create transformation with 6 transition positions
+    transformation = Transformation(intent="test_6_positions")
     transformation.set_wisdom_unit(wu)
     transformation.save()
 
-    # 0 transitions - should be invalid (min is 2)
-    assert not transformation._transitions.is_cardinality_valid(), "Transformation with 0 transitions should be invalid"
+    # Define transitions: position -> (source_pos, target_pos)
+    # Ac: T → A, Ac+: T- → A+, Ac-: T+ → A-
+    # Re: A → T, Re+: A- → T+, Re-: A+ → T-
+    transition_specs = [
+        (POSITION_AC, 't', 'a', transformation.ac, AcRelationship),
+        (POSITION_RE, 'a', 't', transformation.re, ReRelationship),
+        (POSITION_AC_PLUS, 't_minus', 'a_plus', transformation.ac_plus, AcPlusRelationship),
+        (POSITION_AC_MINUS, 't_plus', 'a_minus', transformation.ac_minus, AcMinusRelationship),
+        (POSITION_RE_PLUS, 'a_minus', 't_plus', transformation.re_plus, RePlusRelationship),
+        (POSITION_RE_MINUS, 'a_plus', 't_minus', transformation.re_minus, ReMinusRelationship),
+    ]
 
-    # Add 1 transition
-    t1 = DialecticalComponent(statement=f"Trans card T- {uid}")
-    t1.commit()
-    a1 = DialecticalComponent(statement=f"Trans card A+ {uid}")
-    a1.commit()
-    trans1 = Transition()
-    trans1.set_source(t1).set_target(a1)
-    trans1.commit()
-    trans1.cycle.connect(transformation)
+    for pos_name, source_pos, target_pos, manager, rel_class in transition_specs:
+        trans = Transition()
+        trans.set_source(wu_comps[source_pos])
+        trans.set_target(wu_comps[target_pos])
+        trans.commit()
+        manager.connect(trans, relationship=rel_class(alias=pos_name))
 
-    # 1 transition - should be invalid (min is 2)
-    assert not transformation._transitions.is_cardinality_valid(), "Transformation with 1 transition should be invalid"
-
-    # Add 2nd transition
-    a2 = DialecticalComponent(statement=f"Trans card A- {uid}")
-    a2.commit()
-    t2 = DialecticalComponent(statement=f"Trans card T+ {uid}")
-    t2.commit()
-    trans2 = Transition()
-    trans2.set_source(a2).set_target(t2)
-    trans2.commit()
-    trans2.cycle.connect(transformation)
-
-    # 2 transitions - should be valid (exactly 2)
-    assert transformation._transitions.is_cardinality_valid(), "Transformation with 2 transitions should be valid"
-
-    # Now commit (after all transitions are connected)
+    # Commit transformation (cardinality enforced here)
     transformation.commit()
 
-    print("✓ Transformation cardinality validation works correctly")
+    # Verify all positions are accessible
+    for pos_name, _, _, manager, _ in transition_specs:
+        result = manager.get()
+        assert result is not None, f"Position {pos_name} should have transition"
+        trans, rel = result
+        assert rel.alias == pos_name, f"Position {pos_name} should have correct alias"
+
+    # Verify get_relationship_manager_by_position works
+    for pos_name, _, _, _, _ in transition_specs:
+        manager = transformation.get_relationship_manager_by_position(pos_name)
+        assert manager.count() == 1, f"Position {pos_name} should have exactly one transition"
+
+    print("✓ Transformation 6-position structure works correctly")
 
 
-def test_transformation_max_cardinality_enforced():
-    """Test that Transformation cannot exceed max cardinality of 2."""
+def test_transformation_incomplete():
+    """Test that Transformation commit fails when required positions (Ac+, Re+) are missing."""
+    import pytest
     from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.relationships.polarity_relationship import AcRelationship
 
     uid = random.random()
 
     # Create WisdomUnit first (required for Transformation)
-    wu = WisdomUnit(intent=f"trans_max_{uid}")
+    wu = WisdomUnit(intent=f"trans_incomplete_{uid}")
     wu.save()
+    wu_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Trans max WU {stmt} {uid}")
+        comp = DialecticalComponent(statement=f"Trans incomplete WU {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
         getattr(wu, pos).connect(comp, properties={'alias': stmt})
+        wu_comps[pos] = comp
     wu.commit()
 
-    # IncrementalBuildMixin: save() before adding children
-    transformation = Transformation()
+    # Create transformation with only Ac position (missing required Ac+ and Re+)
+    transformation = Transformation(intent="test_incomplete")
     transformation.set_wisdom_unit(wu)
     transformation.save()
 
-    # Add 2 transitions (the max allowed)
-    components = []
-    for i in range(5):  # Need 5 for trans3 to have unique source/target
-        c = DialecticalComponent(statement=f"Trans max C{i} {uid}")
-        c.commit()
-        components.append(c)
+    # Add only one transition (Ac: T → A) - optional position
+    trans = Transition()
+    trans.set_source(wu_comps['t'])
+    trans.set_target(wu_comps['a'])
+    trans.commit()
+    transformation.ac.connect(trans, relationship=AcRelationship(alias="Ac"))
 
-    trans1 = Transition()
-    trans1.set_source(components[0]).set_target(components[1])
-    trans1.commit()
-    trans1.cycle.connect(transformation)
+    # Verify commit fails due to missing required positions (Ac+ and Re+)
+    with pytest.raises(ValueError) as exc_info:
+        transformation.commit()
 
-    trans2 = Transition()
-    trans2.set_source(components[2]).set_target(components[3])
-    trans2.commit()
-    trans2.cycle.connect(transformation)
+    assert "ac_plus" in str(exc_info.value), "Error should mention missing ac_plus"
+    assert "re_plus" in str(exc_info.value), "Error should mention missing re_plus"
 
-    # Try to add 3rd transition - should fail (max cardinality)
-    trans3 = Transition()
-    trans3.set_source(components[0]).set_target(components[4])
-    trans3.commit()
-
-    with pytest.raises(ValueError, match="cardinality"):
-        trans3.cycle.connect(transformation)
-
-    # Commit after adding valid transitions
-    transformation.commit()
-
-    print("✓ Transformation max cardinality (2) is enforced at connect time")
+    print("✓ Transformation cardinality enforcement works correctly")
 
 
 def test_input_transforms_to_dx_reference_when_component_exists():

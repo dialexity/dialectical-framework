@@ -4,7 +4,7 @@ from asyncio import gather
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.wheel import Wheel, WheelSegmentReference
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
@@ -19,11 +19,11 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
     """
     Decorator that adds Action-Reflection transformation to wheels.
 
-    Action-reflection always processes both T-side and A-side transitions
-    together (they form one transformation unit). When iterating over segments
+    Action-reflection always processes both T-side and A-side together
+    (they form one transformation unit). When iterating over segments
     in the same calculate_transitions call, subsequent segments of the same WU
-    are skipped. On new calculate_transitions calls, rationales are added to
-    existing transitions.
+    are skipped. On new calculate_transitions calls, a new transformation
+    may be created.
     """
 
     def __init__(self, builder: WheelBuilder):
@@ -42,41 +42,41 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
 
     async def _do_calculate_transitions(
         self, wheel: Wheel, at: WheelSegment
-    ) -> list[Transition]:
+    ) -> list[Transformation]:
         """
-        Calculate action-reflection transitions for a wisdom unit.
+        Calculate action-reflection transformation for a wisdom unit.
 
-        Always creates both T-side and A-side transitions (action-reflection
-        needs the full transformation context).
+        Always creates the full Ac-Re structure (action-reflection needs
+        the full transformation context with 6 positions).
 
         Skips if the same WU was already processed in this calculate_transitions call.
-        On subsequent calls, adds rationales to existing transitions.
+
+        Returns:
+            List containing the Transformation (or empty if already processed)
         """
         wu = wheel.wisdom_unit_at(at)
 
         # Skip if already processed in this call
         if wu.hash in self._processed_wus_this_call:
-            # Return existing transitions (no new LLM call)
-            transformation_result = wu.transformation.get()
-            if transformation_result:
-                transformation, _ = transformation_result
-                return transformation.transitions
-            return []
+            # Return existing transformations (no new LLM call)
+            transformations = [t for t, _ in wu.transformations.all()]
+            return transformations
 
         # Mark as processed
         self._processed_wus_this_call.add(wu.hash)
 
-        # Create both transitions (action-reflection is a single unit of work)
+        # Create transformation (action-reflection is a single unit of work)
         consultant = ThinkActionReflection(
             text=self.text, wheel=wheel, brain=self.reasoner.brain
         )
-        return await consultant.think(focus=at)
+        transformation = await consultant.think(focus=at)
+        return [transformation]
 
     async def _do_calculate_transitions_all(
         self, wheel: Wheel
-    ) -> list[Transition]:
+    ) -> list[Transformation]:
         """
-        Calculate action-reflection transitions for all wisdom units.
+        Calculate action-reflection transformations for all wisdom units.
 
         Parallelizes across unique WUs for efficiency (one LLM call per WU).
         """
@@ -92,7 +92,7 @@ class DecoratorActionReflection(WheelBuilderTransitionCalculator):
         results = await gather(*async_tasks)
 
         # Flatten the list of lists
-        result: list[Transition] = []
-        for tr_list in results:
-            result.extend(tr_list)
+        result: list[Transformation] = []
+        for trans_list in results:
+            result.extend(trans_list)
         return result

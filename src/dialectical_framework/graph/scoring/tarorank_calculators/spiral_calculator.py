@@ -30,13 +30,12 @@ class SpiralCalculator(BaseCalculator):
 
     R calculation:
     - GM of all transition Rs
-    - GM of meta-synthesis alternatives R (S+/S- emergent properties)
     - Includes spiral-level rationale Rs (via GM, no rating)
     """
 
     def score_children(self, spiral: Spiral, force: bool = False) -> None:
         """
-        Score all transitions and synthesis in this spiral.
+        Score all transitions in this spiral.
 
         Args:
             spiral: Spiral whose children should be scored
@@ -45,10 +44,6 @@ class SpiralCalculator(BaseCalculator):
         transitions = spiral.transitions  # Uses SequenceTopologyMixin
         for trans in transitions:
             self.scorer.calculate_score(trans, force=force)
-
-        # Score all meta-synthesis alternatives
-        for synthesis, _ in spiral.synthesis.all():
-            self.scorer.calculate_score(synthesis, force=force)
 
     def calculate_probability(self, spiral: Spiral) -> Optional[float]:
         """
@@ -100,22 +95,6 @@ class SpiralCalculator(BaseCalculator):
             if trans_r is not None:
                 values.append(trans_r)
 
-        # Meta-synthesis alternatives R (aggregate if multiple exist)
-        synthesis_rs = []
-        for synthesis, _ in spiral.synthesis.all():
-            synth_r = synthesis.relevance
-            if synth_r is not None:
-                synthesis_rs.append(synth_r)
-
-        if synthesis_rs:
-            # If single synthesis, use directly; if multiple, aggregate via GM
-            if len(synthesis_rs) == 1:
-                values.append(synthesis_rs[0])
-            else:
-                aggregated_synth_r = gm_with_zeros_and_nones_handled(synthesis_rs)
-                if aggregated_synth_r is not None:
-                    values.append(aggregated_synth_r)
-
         # Spiral-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
@@ -136,7 +115,7 @@ class SpiralCalculator(BaseCalculator):
 
     def clear_children(self, spiral: Spiral) -> None:
         """
-        Clear scores from all transitions and synthesis.
+        Clear scores from all transitions.
 
         Args:
             spiral: Spiral whose children should be cleared
@@ -144,7 +123,3 @@ class SpiralCalculator(BaseCalculator):
         transitions = spiral.transitions
         for trans in transitions:
             self.scorer.clear_scores(trans)
-
-        # Clear all meta-synthesis alternatives
-        for synthesis, _ in spiral.synthesis.all():
-            self.scorer.clear_scores(synthesis)

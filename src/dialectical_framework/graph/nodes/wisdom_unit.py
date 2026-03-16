@@ -30,15 +30,19 @@ from dialectical_framework.graph.relationships.belongs_to_nexus_relationship imp
 from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
     IsSpiralOfRelationship,
 )
+from dialectical_framework.graph.relationships.synthesis_of_relationship import (
+    SynthesisOfRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
 # Position constants - module level to avoid GQLAlchemy metaclass interference
-# Note: S+ and S- constants are in synthesis.py (Synthesis now belongs to Transformation/Spiral)
+# Note: S+ and S- constants are in synthesis.py (Synthesis belongs to WisdomUnit)
 POSITION_T = "T"
 POSITION_T_PLUS = "T+"
 POSITION_T_MINUS = "T-"
@@ -61,8 +65,10 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
     consequences or alternative perspectives on the same thesis, create multiple
     WisdomUnits that share the same T component node (component reuse pattern).
 
-    Note: Synthesis (S+, S-) emerges from Transformation, not directly from WisdomUnit.
-    Access synthesis via: wu.transformation.get()[0].synthesis.all()
+    Synthesis (S+, S-) emerges from the WisdomUnit's T-A tension, not from individual
+    transformation paths. A WU can have multiple transformations (different Ac-Re paths)
+    but synthesis belongs to the WU level.
+    Access synthesis via: wu.synthesis.all()
 
     The cardinality constraints are enforced at the RelationshipManager level,
     providing automatic validation and runtime checks.
@@ -130,16 +136,21 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         cardinality=(0, None)  # Zero or more Nexuses
     )
 
-    # Internal transformation spiral (T- → A+, A- → T+)
-    transformation: ClassVar[RelationshipManager[Transformation]] = RelationshipFrom(
+    # Internal transformations (Action-Reflection structures)
+    # Many transformation paths → ONE synthesis (synthesis emerges from T-A pair itself)
+    transformations: ClassVar[RelationshipManager[Transformation]] = RelationshipFrom(
         "Transformation",
         model=IsSpiralOfRelationship,
-        cardinality=(0, 1)  # Zero or one internal transformation spiral
+        cardinality=(0, None)  # Zero or more transformation paths
     )
 
-    # Note: Transformation.ac_re points to action-reflection WisdomUnit.
-    # No inverse defined here - a WU can be the ac_re for unlimited transformations.
-    # No inverse = implicit (0, None) cardinality.
+    # Synthesis alternatives (S+/S- pairs) derived from this WisdomUnit
+    # Synthesis emerges from the T-A tension, not from specific transformation paths
+    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
+        "Synthesis",
+        model=SynthesisOfRelationship,
+        cardinality=(0, None)  # Zero or more synthesis alternatives
+    )
 
     # Note: Evolution relationships (CHANGED_TO) have been removed.
     # History tracking now uses origin_hash chain (set during clone).

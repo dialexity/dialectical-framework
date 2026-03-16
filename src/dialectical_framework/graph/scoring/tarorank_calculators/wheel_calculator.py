@@ -24,7 +24,7 @@ class WheelCalculator(BaseCalculator):
     R calculation (content relevance):
     - Nexus R (GM of all WisdomUnit Rs - the main content)
     - Wheel-level Transition Rs (wheel's own transitions only, not cycle's)
-    - Spiral R (aggregated, includes spiral synthesis and rationales)
+    - Spiral R (aggregated, includes spiral transitions and rationales)
     - Wheel-level rationale Rs (with rating)
 
     P calculation (structural feasibility, Markovian):
@@ -60,7 +60,7 @@ class WheelCalculator(BaseCalculator):
         Per scoring.md, Wheel R includes:
         - Nexus R (summarizes all WisdomUnit Rs - the main content)
         - Wheel-level Transition Rs (ta-cycle detail - wheel's own transitions only)
-        - Spiral R (aggregated, if present - includes spiral synthesis and rationales)
+        - Spiral R (aggregated, if present - includes spiral transitions and rationales)
         - Wheel-level Rationale Rs
 
         Note: Cycle transitions are NOT included - they belong to Cycle R.
@@ -89,7 +89,7 @@ class WheelCalculator(BaseCalculator):
             if trans_r is not None and trans_r > 0.0:
                 values.append(trans_r)
 
-        # Spiral R (aggregated - includes spiral transitions, synthesis, rationales)
+        # Spiral R (aggregated - includes spiral transitions and rationales)
         spiral_result = wheel.spiral.get()
         if spiral_result:
             spiral = spiral_result[0]

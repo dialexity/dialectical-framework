@@ -25,8 +25,7 @@ from dialectical_framework.graph.relationships.synthesis_of_relationship import 
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.graph.nodes.spiral import Spiral
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 # Position constants for S+/S- (canonical names)
 POSITION_S_PLUS = "S+"
@@ -35,17 +34,16 @@ POSITION_S_MINUS = "S-"
 
 class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Synthesis"):
     """
-    Represents ONE synthesis interpretation of a dialectical transformation.
+    Represents ONE synthesis interpretation of a dialectical tension.
 
     Each Synthesis contains a symmetric S+/S- pair representing emergent properties:
     - S+ (exactly one): Positive synthesis - complementary harmony (1+1>2)
     - S- (exactly one): Negative synthesis - reinforcing uniformity (1+1<2)
 
-    Synthesis emerges from:
-    - Transformation: Internal dialectical crossing (T- ↔ A+, A- ↔ T+)
-    - Spiral: Wheel-level transformational sequence (meta-synthesis)
+    Synthesis emerges from WisdomUnit: The T-A tension itself
+    (many transformation paths → ONE synthesis).
 
-    A Transformation or Spiral can have multiple Synthesis nodes to explore
+    A WisdomUnit can have multiple Synthesis nodes to explore
     alternative synthesis interpretations.
     """
 
@@ -63,10 +61,10 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
         cardinality=(1, 1)  # Exactly one
     )
 
-    # Target relationship (Transformation or Spiral)
-    # Uses union type via tuple - exactly one target required
-    target: ClassVar[RelationshipManager[Transformation | Spiral]] = RelationshipTo(
-        ("Transformation", "Spiral"),
+    # Target relationship (WisdomUnit only)
+    # Synthesis emerges from WU-level tension (many Ac-Re paths → ONE synthesis)
+    target: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
+        "WisdomUnit",
         model=SynthesisOfRelationship,
         cardinality=(1, 1)  # Exactly one target
     )
@@ -74,7 +72,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
     @property
     def target_type(self) -> str:
         """
-        Return type of target: 'transformation', 'spiral', or 'none'.
+        Return type of target: 'wisdomunit' or 'none'.
 
         Returns:
             Lowercase name of the target class, or 'none' if not connected.
@@ -109,7 +107,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
             List of strings: [s+_hash, s-_hash]
 
         Note:
-            Target (Transformation/Spiral) and S+/S- components must be committed.
+            Target (WisdomUnit/Spiral) and S+/S- components must be committed.
         """
         # Verify target is committed - Synthesis only makes sense for finalized structures
         target_result = self.target.get()
@@ -122,7 +120,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
                 )
         else:
             raise ValueError(
-                "Synthesis must be connected to a target (Transformation/Spiral) "
+                "Synthesis must be connected to a target WisdomUnit "
                 "before computing structure hash."
             )
 

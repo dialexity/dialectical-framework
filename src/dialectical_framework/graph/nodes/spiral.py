@@ -16,16 +16,12 @@ from dialectical_framework.graph.relationship_manager import RelationshipTo, Rel
 from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
     IsSpiralOfRelationship,
 )
-from dialectical_framework.graph.relationships.synthesis_of_relationship import (
-    SynthesisOfRelationship,
-)
 from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.synthesis import Synthesis
 
 
 class Spiral(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Spiral"):
@@ -33,18 +29,18 @@ class Spiral(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessab
     Represents a transformational spiral in the dialectical framework.
 
     A Spiral is an analytical interpretation - a directed graph of transitions
-    that captures dialectical evolution and synthesis pathways. Spirals are
-    "drawn on" a wheel to show transformational relationships that lead to synthesis.
+    that captures dialectical evolution pathways. Spirals are "drawn on" a wheel
+    to show transformational relationships across WisdomUnits.
 
     Unlike Cycles which track causal relationships between components, Spirals
     track transformational relationships that represent upward movement in
-    dialectical reasoning, where thesis and antithesis are transformed through
-    synthesis into higher-order understanding.
+    dialectical reasoning.
 
     Relationship to Wheel:
-    - A wheel can have one primary/canonical spiral (wheel.spiral)
-    - Alternative spiral interpretations can also reference the same wheel
-    - Spirals can exist independently or be created after the wheel
+    - Each Wheel has at most one Spiral (0, 1 cardinality)
+    - Each Spiral belongs to exactly one Wheel (1, 1 cardinality)
+    - For alternative spiral interpretations, branch upstream by creating
+      different Cycles/Wheels
     """
 
     # Note: transitions relationship is inherited from CircularTopologyMixin as _transitions
@@ -54,13 +50,6 @@ class Spiral(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessab
         "Wheel",
         model=IsSpiralOfRelationship,
         cardinality=(1, 1)  # Spiral is always drawn on a wheel
-    )
-
-    # Meta-synthesis alternatives (S+/S- pairs) derived from this spiral
-    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
-        "Synthesis",
-        model=SynthesisOfRelationship,
-        cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
     def get_nexus(self) -> Nexus | None:

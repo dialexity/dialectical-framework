@@ -651,17 +651,10 @@ class WheelBuilder(SettingsAware):
             synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias=s_plus_alias_dto.alias))
             synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias=s_minus_alias_dto.alias))
 
-            # Connect Synthesis to Transformation (synthesis emerges from transformation)
-            trans_result = wu.transformation.get()
-            if trans_result:
-                transformation = trans_result[0]
-                synthesis.target.connect(transformation)
-                # Commit the synthesis now that all children are connected
-                synthesis.commit()
-            else:
-                # Cannot commit Synthesis without a target - skip this WU
-                logger.warning(f"WU {wu.hash} has no transformation - cannot create Synthesis")
-                continue
+            # Connect Synthesis to WisdomUnit (synthesis emerges from WU-level tension)
+            synthesis.target.connect(wu)
+            # Commit the synthesis now that all children are connected
+            synthesis.commit()
 
             # Set human-friendly index if WU has one
             if wu_index > 0:

@@ -334,9 +334,9 @@ transformation.commit()
 transition.cycle.connect(transformation)  # BLOCKED - container committed
 
 # Analytical: attach/detach anytime
-transformation.ac_re.connect(new_wu)      # OK even after commit
-transformation.ac_re.disconnect(old_wu)   # OK - just removes annotation
-rationale.set_explanation(any_node)       # OK - pointing into structure
+transformation.ac_re.connect(new_wu)  # OK even after commit
+transformation.ac_re.disconnect(old_wu)  # OK - just removes annotation
+rationale.set_explanation_target(any_node)  # OK - pointing into structure
 ```
 
 ## Relationship Patterns
@@ -414,7 +414,8 @@ Components have semantic relationships that capture dialectical structure:
 
 | Relationship | Direction | Purpose |
 |--------------|-----------|---------|
-| `OPPOSITE_OF` | Symmetric | T ↔ A, T+ ↔ A-, A+ ↔ T- (opposites) |
+| `OPPOSITE_OF` | Symmetric | T ↔ A (dialectical opposition) |
+| `CONTRADICTION_OF` | Symmetric | T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity) |
 | `POSITIVE_SIDE_OF` | T+ → T, A+ → A | Positive aspect of neutral |
 | `NEGATIVE_SIDE_OF` | T- → T, A- → A | Negative aspect of neutral |
 | `SIMILAR_TO` | Directed | Semantic similarity between components |

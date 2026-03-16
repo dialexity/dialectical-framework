@@ -118,7 +118,8 @@ When connecting components to WisdomUnit positions, semantic relationships are a
 
 | Relationship | Direction | When Created |
 |--------------|-----------|--------------|
-| `OPPOSITE_OF` | Symmetric | T ↔ A, T+ ↔ A-, A+ ↔ T- |
+| `OPPOSITE_OF` | Symmetric | T ↔ A (dialectical opposition) |
+| `CONTRADICTION_OF` | Symmetric | T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity) |
 | `POSITIVE_SIDE_OF` | Directed | T+ → T, A+ → A |
 | `NEGATIVE_SIDE_OF` | Directed | T- → T, A- → A |
 | `SIMILAR_TO` | Directed | Manual creation only |
@@ -200,8 +201,6 @@ src/dialectical_framework/
 │       └── tools/          # Mirascope tools for extraction
 │
 ├── synthesist/              # Reasoning engines
-│   ├── ideas/              # Idea extraction (polarity orchestration)
-│   │   └── polarity_finder_basic.py       # Orchestrate polarity extraction
 │   ├── polarity/           # Polar reasoning (PolarReasoner, WisdomUnit building)
 │   ├── causality/          # Order transitions (preset:balanced, preset:realistic, etc.)
 │   ├── concepts/           # Concept extraction
@@ -397,6 +396,16 @@ Store these in a `.env` file in the project root.
 ### Keep `__init__.py` files empty
 
 All `__init__.py` files must be empty. This project does not use `__init__.py` for module exports. When creating new packages, add an empty `__init__.py` file.
+
+### Preserve TODOs - Ask Before Removing
+
+**IMPORTANT:** Do not remove TODO comments from code without explicitly confirming with the user first. When deleting or refactoring code that contains TODOs:
+
+1. **Flag the TODO** - Point out that there's a TODO in the code being modified
+2. **Ask for confirmation** - Check if the TODO is still relevant or can be removed
+3. **Document if keeping** - If the TODO should be preserved, ensure it's not lost in the refactor
+
+TODOs often represent important reminders about incomplete work, edge cases, or future improvements. Accidentally removing them can cause loss of important context.
 
 ### Adding New Node Types
 

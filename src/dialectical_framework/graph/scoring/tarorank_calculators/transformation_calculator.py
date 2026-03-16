@@ -1,7 +1,7 @@
 """
 Calculator for Transformation nodes.
 
-Transformations are internal spirals within WisdomUnits.
+Transformations are Action-Reflection structures within WisdomUnits.
 """
 
 from __future__ import annotations
@@ -19,48 +19,43 @@ class TransformationCalculator(BaseCalculator):
     """
     Calculator for Transformation nodes.
 
-    Transformations are internal spirals within WisdomUnits (T- → A+, A- → T+).
+    Transformations are Action-Reflection structures within WisdomUnits,
+    containing 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-).
 
     P calculation:
-    - Product of transition Ps (exactly 2 transitions)
-    - Softer policy like Spiral: skips None and 0.0 values
+    - Product of 6 transition Ps
+    - Softer policy: skips None and 0.0 values
     - Transformational semantics (not strict causal sequence)
 
     R calculation:
-    - GM of all transition Rs
-    - GM of ac_re WisdomUnit R (action-reflection context)
-    - GM of synthesis alternatives R (S+/S- emergent properties)
+    - GM of all 6 transition Rs
     - Includes transformation-level rationale Rs (with rating)
     """
 
     def score_children(self, transformation: Transformation, force: bool = False) -> None:
         """
-        Score all transitions, ac_re WisdomUnit, and synthesis in this transformation.
+        Score all 6 transitions in this transformation.
 
         Args:
             transformation: Transformation whose children should be scored
             force: If True, force rescore even if children appear valid
         """
-        # Score all transitions
-        transitions = transformation.transitions  # Uses SequenceTopologyMixin
-        for trans in transitions:
-            self.scorer.calculate_score(trans, force=force)
-
-        # Score ac_re WisdomUnit (action-reflection context)
-        ac_re_result = transformation.ac_re.get()
-        if ac_re_result:
-            ac_re_wu = ac_re_result[0]
-            self.scorer.calculate_score(ac_re_wu, force=force)
-
-        # Score all synthesis alternatives
-        for synthesis, _ in transformation.synthesis.all():
-            self.scorer.calculate_score(synthesis, force=force)
+        # Score all 6 position transitions
+        for manager in [
+            transformation.ac, transformation.re,
+            transformation.ac_plus, transformation.ac_minus,
+            transformation.re_plus, transformation.re_minus
+        ]:
+            result = manager.get()
+            if result:
+                trans, _ = result
+                self.scorer.calculate_score(trans, force=force)
 
     def calculate_probability(self, transformation: Transformation) -> Optional[float]:
         """
         Calculate P for Transformation as product of transition Ps.
 
-        Softer policy than Cycle: skips None and 0.0 values.
+        Softer policy: skips None and 0.0 values.
         This makes sense for transformations which represent transformational
         paths rather than strict causal sequences.
 
@@ -70,24 +65,27 @@ class TransformationCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or None if no valid transitions
         """
-        transitions = transformation.transitions
-
-        if not transitions:
-            return None
-
         prob = None
-        for trans in transitions:
-            p = trans.probability
-            if p is not None and p > 0:
-                if prob is None:
-                    prob = 1.0
-                prob *= p
+
+        for manager in [
+            transformation.ac, transformation.re,
+            transformation.ac_plus, transformation.ac_minus,
+            transformation.re_plus, transformation.re_minus
+        ]:
+            result = manager.get()
+            if result:
+                trans, _ = result
+                p = trans.probability
+                if p is not None and p > 0:
+                    if prob is None:
+                        prob = 1.0
+                    prob *= p
 
         return prob
 
     def calculate_relevance(self, transformation: Transformation) -> Optional[float]:
         """
-        Calculate R for Transformation as GM of transition Rs and ac_re R.
+        Calculate R for Transformation as GM of transition Rs and rationale Rs.
 
         Args:
             transformation: Transformation to calculate R for
@@ -99,36 +97,18 @@ class TransformationCalculator(BaseCalculator):
 
         values = []
 
-        # Transition relevances
-        transitions = transformation.transitions
-        for trans in transitions:
-            trans_r = trans.relevance
-            if trans_r is not None:
-                values.append(trans_r)
-
-        # ac_re WisdomUnit relevance (action-reflection context)
-        ac_re_result = transformation.ac_re.get()
-        if ac_re_result:
-            ac_re_wu = ac_re_result[0]
-            ac_re_r = ac_re_wu.relevance
-            if ac_re_r is not None:
-                values.append(ac_re_r)
-
-        # Synthesis alternatives R (aggregate if multiple exist)
-        synthesis_rs = []
-        for synthesis, _ in transformation.synthesis.all():
-            synth_r = synthesis.relevance
-            if synth_r is not None:
-                synthesis_rs.append(synth_r)
-
-        if synthesis_rs:
-            # If single synthesis, use directly; if multiple, aggregate via GM
-            if len(synthesis_rs) == 1:
-                values.append(synthesis_rs[0])
-            else:
-                aggregated_synth_r = gm_with_zeros_and_nones_handled(synthesis_rs)
-                if aggregated_synth_r is not None:
-                    values.append(aggregated_synth_r)
+        # Transition relevances (6 positions)
+        for manager in [
+            transformation.ac, transformation.re,
+            transformation.ac_plus, transformation.ac_minus,
+            transformation.re_plus, transformation.re_minus
+        ]:
+            result = manager.get()
+            if result:
+                trans, _ = result
+                trans_r = trans.relevance
+                if trans_r is not None:
+                    values.append(trans_r)
 
         # Transformation-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
@@ -150,22 +130,18 @@ class TransformationCalculator(BaseCalculator):
 
     def clear_children(self, transformation: Transformation) -> None:
         """
-        Clear scores from all transitions, ac_re WisdomUnit, and synthesis.
+        Clear scores from all 6 transitions.
 
         Args:
             transformation: Transformation whose children should be cleared
         """
-        # Clear all transitions
-        transitions = transformation.transitions
-        for trans in transitions:
-            self.scorer.clear_scores(trans)
-
-        # Clear ac_re WisdomUnit (action-reflection context)
-        ac_re_result = transformation.ac_re.get()
-        if ac_re_result:
-            ac_re_wu = ac_re_result[0]
-            self.scorer.clear_scores(ac_re_wu)
-
-        # Clear all synthesis alternatives
-        for synthesis, _ in transformation.synthesis.all():
-            self.scorer.clear_scores(synthesis)
+        # Clear all 6 position transitions
+        for manager in [
+            transformation.ac, transformation.re,
+            transformation.ac_plus, transformation.ac_minus,
+            transformation.re_plus, transformation.re_minus
+        ]:
+            result = manager.get()
+            if result:
+                trans, _ = result
+                self.scorer.clear_scores(trans)
