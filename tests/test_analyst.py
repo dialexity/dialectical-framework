@@ -1,7 +1,6 @@
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.synthesist.wisdom.decorator_action_reflection import DecoratorActionReflection
 from dialectical_framework.synthesist.wisdom.decorator_discrete_spiral import DecoratorDiscreteSpiral
 from dialectical_framework.synthesist.wisdom.decorator_discrete_spiral_audited import DecoratorDiscreteSpiralAudited
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
@@ -17,11 +16,13 @@ user_message = "Putin started the war, Ukraine will not surrender and will final
 ])
 async def test_full_blown_wheel(number_of_thoughts):
     """
-    Full-blown test with all decorators: Action-Reflection, Spiral, and Audited Spiral.
+    Full-blown test with spiral decorators: Spiral and Audited Spiral.
     This test includes synthesis calculation.
+
+    Note: Action-Reflection decorator was removed - now uses TransformationAgent directly.
     """
     factory = DialecticalReasoning.wheel_builder(text=user_message)
-    factory1 = DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral(DecoratorActionReflection(builder=factory)))
+    factory1 = DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral(builder=factory))
     wheels = await factory1.build_wheel_permutations(theses=[None]*number_of_thoughts)
 
     assert len(wheels) > 0, "Should generate at least one wheel"
@@ -141,23 +142,6 @@ async def test_full_blown_wheel(number_of_thoughts):
     wu_list = wheel.wisdom_units
     assert len(wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {len(wu_list)}"
 
-    # Verify transformations exist (Action-Reflection)
-    for wu in wu_list:
-        transformation_result = wu.transformations.get()
-        assert transformation_result is not None, f"WisdomUnit {wu.hash} should have transformation"
-        transformation, _ = transformation_result
-
-        # Verify 6 positions exist on Transformation (Ac, Re, Ac+, Ac-, Re+, Re-)
-        from dialectical_framework.graph.nodes.transformation import (
-            POSITION_AC, POSITION_RE, POSITION_AC_PLUS, POSITION_AC_MINUS,
-            POSITION_RE_PLUS, POSITION_RE_MINUS
-        )
-        for pos in [POSITION_AC, POSITION_RE, POSITION_AC_PLUS, POSITION_AC_MINUS,
-                    POSITION_RE_PLUS, POSITION_RE_MINUS]:
-            manager = transformation.get_relationship_manager_by_position(pos)
-            result = manager.get()
-            assert result is not None, f"Transformation should have transition at position {pos}"
-
     # Calculate syntheses for all wisdom units
     print("\n=== Calculating Syntheses ===")
     for i, wu in enumerate(wu_list):
@@ -180,7 +164,7 @@ async def test_full_blown_wheel(number_of_thoughts):
     factory1.scorer.calculate_score(wheel, force=True)
 
     print("\n" + "="*80)
-    print(f"FULL BLOWN WHEEL (with {number_of_thoughts} thoughts: Action-Reflection, Spiral, Audit, and Syntheses)")
+    print(f"FULL BLOWN WHEEL (with {number_of_thoughts} thoughts: Spiral, Audit, and Syntheses)")
     print("="*80)
     print(f"{wheel:scores}")
 
@@ -200,7 +184,7 @@ async def test_full_blown_wheel(number_of_thoughts):
 ])
 async def test_wheel_spiral(number_of_thoughts):
     """
-    Test with DiscreteSpiral decorator only (no Action-Reflection, no Synthesis).
+    Test with DiscreteSpiral decorator only (no Synthesis).
     Verifies that cycles and spiral are created correctly.
     """
     factory = DialecticalReasoning.wheel_builder(text=user_message)
@@ -247,88 +231,6 @@ async def test_wheel_spiral(number_of_thoughts):
     # NO SYNTHESIS CALCULATION - that's only for test_full_blown_wheel
 
     print("\n" + "="*80)
-    print(f"WHEEL WITH SPIRAL (with {number_of_thoughts} thoughts: no Action-Reflection, no Synthesis)")
-    print("="*80)
-    print(str(wheel))
-
-@pytest.mark.asyncio
-@observe()
-@pytest.mark.parametrize("number_of_thoughts", [
-    1,
-    2,
-])
-async def test_wheel_acre(number_of_thoughts, request):
-    # Use request fixture to access di_container (works with @observe decorator)
-    di_container = request.getfixturevalue('di_container')
-
-    factory = DialecticalReasoning.wheel_builder(text=user_message)
-    factory2 = DecoratorActionReflection(builder=factory)
-    wheels = await factory2.build_wheel_permutations(theses=[None]*number_of_thoughts)
-    assert len(wheels) > 0
-    wheel = wheels[0]
-
-    # Check that cycle exists (new architecture: Wheel belongs to Cycle)
-    cycle_result = wheel.cycle.get()
-    assert cycle_result is not None, "Wheel should belong to a Cycle"
-
-    # Verify Nexus exists (via cycle)
-    cycle_obj, _ = cycle_result
-    nexus = cycle_obj.get_nexus()
-    assert nexus is not None, "Cycle should belong to a Nexus"
-
-    # First call to calculate_transitions
-    await factory2.calculate_transitions(wheel)
-
-    # Get first wisdom unit
-    wu_list = wheel.wisdom_units
-    assert len(
-        wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom unit(s), got {len(wu_list)}"
-    first_wu = wu_list[0]
-
-    # Check transformation was created (Action-Reflection)
-    transformation_result = first_wu.transformations.get()
-    assert transformation_result is not None, "Transformation should be created by DecoratorActionReflection"
-    transformation, _ = transformation_result
-
-    # Verify all 6 positions exist on Transformation (Ac, Re, Ac+, Ac-, Re+, Re-)
-    from dialectical_framework.graph.nodes.transformation import (
-        POSITION_AC, POSITION_RE, POSITION_AC_PLUS, POSITION_AC_MINUS,
-        POSITION_RE_PLUS, POSITION_RE_MINUS
-    )
-    for pos_name, pos in [("Ac", POSITION_AC), ("Re", POSITION_RE),
-                          ("Ac+", POSITION_AC_PLUS), ("Ac-", POSITION_AC_MINUS),
-                          ("Re+", POSITION_RE_PLUS), ("Re-", POSITION_RE_MINUS)]:
-        manager = transformation.get_relationship_manager_by_position(pos)
-        result = manager.get()
-        assert result is not None, f"Transformation missing component at position {pos_name}"
-
-    print(f"\n✓ Transformation has all 6 positions (Ac, Re, Ac+, Ac-, Re+, Re-)")
-
-    # Store initial transformation count
-    initial_transformation_count = first_wu.transformations.count()
-    old_transformation_id = transformation._id
-
-    # Call calculate_transitions AGAIN - should detect duplicate and return existing
-    await factory2.calculate_transitions(wheel)
-
-    # Verify same transformation is returned (duplicate detection)
-    transformation_count_after = first_wu.transformations.count()
-    assert transformation_count_after == initial_transformation_count, (
-        f"Calling calculate_transitions again should return existing transformation, "
-        f"not create new one. Before: {initial_transformation_count}, After: {transformation_count_after}"
-    )
-
-    # Get the transformation again to verify it's the same one
-    transformation_after_result = first_wu.transformations.get()
-    assert transformation_after_result is not None, "Should still have transformation"
-    transformation_after, _ = transformation_after_result
-    assert transformation_after._id == old_transformation_id, (
-        "Should return same transformation (duplicate detection)"
-    )
-
-    print("\n✓ Duplicate transformation detection works correctly")
-
-    print("\n" + "="*80)
-    print(f"ACTION-REFLECTION WHEEL (with {number_of_thoughts} thought(s))")
+    print(f"WHEEL WITH SPIRAL (with {number_of_thoughts} thoughts: no Synthesis)")
     print("="*80)
     print(str(wheel))

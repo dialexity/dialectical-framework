@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Dict, Union
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from dependency_injector.wiring import Provide, inject
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,9 @@ from dialectical_framework.protocols.causality_sequencer import CausalitySequenc
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import ThesisExtraction
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import AntithesisExtraction
+from dialectical_framework.agents.brainstorming.subagents.polarity_agent import PolarityAgent
+from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
 # Graph-native models
@@ -28,13 +32,32 @@ from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.wisdom_unit import (
     WisdomUnit,
     POSITION_T,
+    POSITION_A,
+)
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    TRelationship,
+    ARelationship,
 )
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
-from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
-
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+
+
+# --- Synthesis DTOs ---
+
+
+class SynthesisComponentDto(BaseModel):
+    """Single synthesis component (S+ or S-)."""
+    alias: str = Field(description="S+ or S-")
+    statement: str = Field(description="Synthesis statement")
+    explanation: str = Field(description="How this synthesis was derived")
+
+
+class SynthesisPairDto(BaseModel):
+    """S+ and S- pair for a WisdomUnit."""
+    s_plus: SynthesisComponentDto = Field(description="Positive synthesis (emergent integration)")
+    s_minus: SynthesisComponentDto = Field(description="Negative synthesis (reduction/uniformity)")
 
 
 class WheelBuilder(SettingsAware):
@@ -50,7 +73,6 @@ class WheelBuilder(SettingsAware):
     def __init__(
         self,
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
-        polar_reasoner: PolarReasoner = Provide[DI.polar_reasoner],
         tarorank: TaroRank = Provide[DI.tarorank],
         input_resolver: InputResolver = Provide[DI.input_resolver],
         *,
@@ -73,9 +95,9 @@ class WheelBuilder(SettingsAware):
         self.__wheels: list[Wheel] = wheels or []
 
         self.__sequencer = causality_sequencer
-        self.__reasoner = polar_reasoner
         self.__tarorank = tarorank
         self.__input_resolver = input_resolver
+        self.__conversation = ConversationFacilitator()
 
     async def _get_input_source(self) -> Union[Input, Ideas]:
         """
@@ -207,16 +229,302 @@ class WheelBuilder(SettingsAware):
         return components
 
     @property
-    def reasoner(self) -> PolarReasoner:
-        return self.__reasoner
-
-    @property
     def sequencer(self) -> CausalitySequencer:
         return self.__sequencer
 
     @property
     def scorer(self) -> TaroRank:
         return self.__tarorank
+
+    async def _create_wisdom_unit(
+        self,
+        *,
+        source: Union[Input, Ideas],
+        text: str,
+        thesis: Optional[Union[str, DialecticalComponent]] = None,
+        antithesis: Optional[Union[str, DialecticalComponent]] = None,
+        intent: str = "preset:general_concepts",
+        nexus: Optional[Nexus] = None,
+    ) -> WisdomUnit:
+        """
+        Create a complete WisdomUnit using agents.
+
+        This replaces PolarReasoner.think() with agent-based WU creation:
+        1. Get or extract thesis (T)
+        2. Get or extract antithesis (A)
+        3. Create partial WisdomUnit (T + A)
+        4. Complete WU with poles using PolarityAgent (T+, T-, A+, A-)
+
+        Args:
+            source: Input or Ideas node for context
+            text: Source text for AI prompts
+            thesis: Thesis statement or component (extracted if None)
+            antithesis: Antithesis statement or component (extracted if None)
+            intent: The reasoning intent
+            nexus: Optional Nexus to connect the WU to
+
+        Returns:
+            Complete, committed WisdomUnit
+        """
+        # Helper to normalize input to DialecticalComponent or None
+        def to_component(input_val: Optional[Union[str, DialecticalComponent]]) -> Optional[DialecticalComponent]:
+            if input_val is None:
+                return None
+            if isinstance(input_val, DialecticalComponent):
+                return input_val
+            if isinstance(input_val, str) and input_val.strip():
+                comp = DialecticalComponent(statement=input_val.strip())
+                comp.commit()
+                source.statements.connect(comp)
+                return comp
+            return None
+
+        t_node = to_component(thesis)
+        a_node = to_component(antithesis)
+
+        # Generate thesis if not provided
+        if t_node is None:
+            thesis_service = ThesisExtraction()
+            theses = await thesis_service.execute(text=text, count=1)
+            if theses:
+                t_node = theses[0]
+                source.statements.connect(t_node)
+
+        if t_node is None:
+            raise ValueError("Failed to generate thesis")
+
+        # Generate antithesis if not provided
+        if a_node is None:
+            antithesis_service = AntithesisExtraction()
+            results = await antithesis_service.execute(thesis=t_node, text=text)
+            if results:
+                a_node = results[0].component
+                source.statements.connect(a_node)
+
+        if a_node is None:
+            raise ValueError("Failed to generate antithesis")
+
+        # Ensure OPPOSITE_OF relationship exists
+        t_node.oppositions.connect(a_node)
+
+        # Create partial WisdomUnit (T + A only)
+        wu = WisdomUnit(intent=intent)
+        wu.save()
+
+        # Connect T and A with typed relationships
+        wu.t.connect(t_node, relationship=TRelationship(alias=POSITION_T, heuristic_similarity=1.0))
+        wu.a.connect(a_node, relationship=ARelationship(alias=POSITION_A, heuristic_similarity=1.0))
+
+        # Connect to nexus if provided
+        if nexus:
+            wu.nexus.connect(nexus)
+
+        # Complete WU with poles using PolarityAgent
+        polarity_agent = PolarityAgent(
+            thesis_hash=t_node.hash,
+            antithesis_hash=a_node.hash,
+        )
+        completed_wus = await polarity_agent.execute()
+
+        # Find our WU in the results (it should be there, completed)
+        for completed_wu in completed_wus:
+            if completed_wu.hash == wu.hash or (not wu.is_committed and completed_wu.is_complete()):
+                # Agent completed the WU - return it
+                return completed_wu
+
+        # If agent didn't find our WU (unlikely), commit and return the partial one
+        if not wu.is_committed:
+            wu.commit()
+        return wu
+
+    async def _find_synthesis(
+        self,
+        wu: WisdomUnit,
+        *,
+        text: str,
+    ) -> Optional[SynthesisPairDto]:
+        """
+        Generate S+ and S- synthesis components for a WisdomUnit.
+
+        Uses LLM to create synthesis that emerges from the T-A tension.
+
+        Args:
+            wu: Complete WisdomUnit with all 6 positions
+            text: Source text for context
+
+        Returns:
+            SynthesisPairDto with S+ and S- components, or None if synthesis failed
+        """
+        # Build context from WU components
+        wu_components = []
+        for position in wu.core_positions:
+            manager = wu.get_relationship_manager_by_position(position)
+            result = manager.get()
+            if result:
+                dc, rel = result
+                alias = rel.alias if hasattr(rel, 'alias') else position
+                wu_components.append(f"{alias} = {dc.statement}")
+
+        if len(wu_components) < 6:
+            logger.warning(f"WU {wu.short_hash} incomplete, skipping synthesis")
+            return None
+
+        # Build synthesis prompt
+        system_prompt = """You are a dialectical synthesis expert.
+
+Given a complete WisdomUnit with thesis (T), antithesis (A), and their poles (T+, T-, A+, A-),
+generate the synthesis pair:
+
+S+ (Positive Synthesis): The emergent integration where positive aspects (T+ and A+) combine
+synergistically. This represents 1+1>2 emergence, creating new possibilities beyond the sum
+of parts. Examples include musical harmony, cross-pollination of ideas, or creative collaboration.
+
+S- (Negative Synthesis): The reduction that results when negative/exaggerated aspects (T- and A-)
+reinforce each other. This represents 1+1<2 reduction, increasing intensity along limited axes
+at the expense of diversity. Examples include echo chambers, vicious cycles, or mutual destruction.
+
+Provide concrete statements that emerge from this specific tension."""
+
+        user_prompt = f"""Generate synthesis for this WisdomUnit:
+
+{chr(10).join(wu_components)}
+
+Context: {text[:1000] if text else 'No additional context provided'}
+
+Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this dialectical tension."""
+
+        self.__conversation.set_system_prompt(system_prompt)
+        result = await self.__conversation.submit(
+            response_model=SynthesisPairDto,
+            user_content=user_prompt,
+        )
+
+        return result
+
+    async def _redefine_wisdom_unit(
+        self,
+        *,
+        original: WisdomUnit,
+        text: str = "",
+        **modified_components: str,
+    ) -> WisdomUnit:
+        """
+        Create a new WisdomUnit with modified component statements.
+
+        If T or A is modified, regenerates the poles using PolarityAgent.
+        If only poles are modified, copies unchanged components and creates new ones.
+
+        Args:
+            original: The original WisdomUnit to base modifications on
+            text: Source text context for regeneration
+            **modified_components: Position names (t, a, t_plus, etc.) mapped to new statements
+
+        Returns:
+            A new, committed WisdomUnit with modifications applied
+        """
+        # Map field names to POSITION constants
+        field_to_position = {
+            't': POSITION_T,
+            'a': POSITION_A,
+            't_plus': 'T+',
+            't_minus': 'T-',
+            'a_plus': 'A+',
+            'a_minus': 'A-',
+        }
+
+        # Convert to position names
+        changes: dict[str, str] = {}
+        for k, v in modified_components.items():
+            if k in field_to_position:
+                changes[field_to_position[k]] = str(v)
+
+        # Check if nothing actually changed
+        all_same = True
+        for position, new_statement in changes.items():
+            orig_comp = original.get_component(position)
+            if orig_comp is None or orig_comp.statement != new_statement:
+                all_same = False
+                break
+
+        if all_same and not changes:
+            # Nothing to change - return original
+            return original
+
+        # Check if T or A changed - requires full regeneration
+        t_or_a_changed = POSITION_T in changes or POSITION_A in changes
+
+        if t_or_a_changed:
+            # Get T and A (modified or original)
+            t_comp = None
+            a_comp = None
+
+            if POSITION_T in changes:
+                t_comp = DialecticalComponent(statement=changes[POSITION_T])
+                t_comp.commit()
+            else:
+                t_comp = original.get_component(POSITION_T)
+
+            if POSITION_A in changes:
+                a_comp = DialecticalComponent(statement=changes[POSITION_A])
+                a_comp.commit()
+            else:
+                a_comp = original.get_component(POSITION_A)
+
+            if t_comp is None or a_comp is None:
+                raise ValueError("Cannot redefine WU: missing T or A component")
+
+            # Create new WU with T and A
+            new_wu = WisdomUnit(intent=original.intent)
+            new_wu.save()
+
+            new_wu.t.connect(t_comp, relationship=TRelationship(alias=POSITION_T, heuristic_similarity=1.0))
+            new_wu.a.connect(a_comp, relationship=ARelationship(alias=POSITION_A, heuristic_similarity=1.0))
+
+            # Use PolarityAgent to regenerate poles
+            t_comp.oppositions.connect(a_comp)
+            polarity_agent = PolarityAgent(
+                thesis_hash=t_comp.hash,
+                antithesis_hash=a_comp.hash,
+            )
+            completed_wus = await polarity_agent.execute()
+
+            # Find our WU in results
+            for completed_wu in completed_wus:
+                if completed_wu.is_complete():
+                    return completed_wu
+
+            # Fallback: commit partial WU
+            if not new_wu.is_committed:
+                new_wu.commit()
+            return new_wu
+        else:
+            # Only poles changed - copy structure with modifications
+            new_wu = WisdomUnit(intent=original.intent)
+            new_wu.save()
+
+            # Copy all components, replacing modified ones
+            for position in original.core_positions:
+                manager = original.get_relationship_manager_by_position(position)
+                result = manager.get()
+                if not result:
+                    continue
+                orig_comp, orig_rel = result
+
+                if position in changes:
+                    # Create new component with modified statement
+                    new_comp = DialecticalComponent(statement=changes[position])
+                    new_comp.commit()
+                else:
+                    # Reuse original component
+                    new_comp = orig_comp
+
+                # Connect to new WU
+                new_manager = new_wu.get_relationship_manager_by_position(position)
+                rel_class = WisdomUnit.get_relationship_class_for_position(position)
+                new_manager.connect(new_comp, relationship=rel_class(alias=position))
+
+            new_wu.commit()
+            return new_wu
 
     async def t_cycles(self, *, theses: list[Union[str, DialecticalComponent, None]] = None) -> list[Cycle]:
         """
@@ -285,12 +593,12 @@ class WheelBuilder(SettingsAware):
         nexus = Nexus()
         nexus.save()
 
-        # Create temporary WisdomUnits from theses (just T components)
+        # Create WisdomUnits from theses
         # This is needed because arrange() works from WisdomUnits
         source = await self._get_input_source()
         text = await self._get_text()
         for thesis in theses:
-            await self.reasoner.think(source=source, text=text, thesis=thesis, nexus=nexus)
+            await self._create_wisdom_unit(source=source, text=text, thesis=thesis, nexus=nexus)
         nexus.commit()
 
         # Arrange creates cycles and wheels from the Nexus (uncommitted since Nexus is uncommitted)
@@ -388,7 +696,7 @@ class WheelBuilder(SettingsAware):
                                 antithesis = t[1]
                                 break
 
-            wu = await self.reasoner.think(source=source, text=text, thesis=dc, antithesis=antithesis, nexus=nexus)
+            wu = await self._create_wisdom_unit(source=source, text=text, thesis=dc, antithesis=antithesis, nexus=nexus)
             wheel_wisdom_units.append(wu)
 
         if len(wheel_wisdom_units) > 1:
@@ -600,56 +908,42 @@ class WheelBuilder(SettingsAware):
 
         syntheses: list[Synthesis] = []
 
+        # Import relationship types
+        from dialectical_framework.graph.relationships.polarity_relationship import (
+            SPlusRelationship,
+            SMinusRelationship,
+        )
+
         # Iterate through selected wisdom units
         for wu in wisdom_units:
-            # Call reasoner to find synthesis components (returns DTO)
+            # Find synthesis components using LLM
             text = await self._get_text()
-            synthesis_deck_dto = await self.reasoner.find_synthesis(wu, text=text)
+            synthesis_pair = await self._find_synthesis(wu, text=text)
 
-            # Convert DTOs to graph components
-            if len(synthesis_deck_dto.dialectical_components) < 2:
-                # Skip if we don't have both S+ and S-
+            if synthesis_pair is None:
+                logger.warning(f"Skipping synthesis for WU {wu.short_hash}: synthesis generation failed")
                 continue
 
-            # Extract S+ and S- from the deck (should have exactly 2 components)
-            synthesis_components = [component_from_dto(dto) for dto in synthesis_deck_dto.dialectical_components]
-
-            # Identify S+ and S- by alias (may be indexed like S2+, S2-)
-            # Use DialecticalComponentDto to compute the expected indexed alias
+            # Compute indexed alias (e.g., S2+ for WU index 2)
             wu_index = wu.get_human_friendly_index()
-            s_plus_alias_dto = DialecticalComponentDto(alias=POSITION_S_PLUS, statement="")
-            s_minus_alias_dto = DialecticalComponentDto(alias=POSITION_S_MINUS, statement="")
-            s_plus_alias_dto.set_human_friendly_index(wu_index)
-            s_minus_alias_dto.set_human_friendly_index(wu_index)
+            s_plus_alias = POSITION_S_PLUS if wu_index <= 0 else f"S{wu_index}+"
+            s_minus_alias = POSITION_S_MINUS if wu_index <= 0 else f"S{wu_index}-"
 
-            try:
-                s_plus_dto = synthesis_deck_dto.get_by_alias(s_plus_alias_dto.alias)
-                s_minus_dto = synthesis_deck_dto.get_by_alias(s_minus_alias_dto.alias)
-            except KeyError:
-                # Fallback to non-indexed aliases if indexed not found
-                try:
-                    s_plus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_PLUS)
-                    s_minus_dto = synthesis_deck_dto.get_by_alias(POSITION_S_MINUS)
-                except KeyError as e:
-                    # Skip if S+ or S- not found in the synthesis deck
-                    logger.warning(f"Skipping synthesis for WU {wu.hash}: {e}")
-                    continue
+            # Create S+ component
+            s_plus_comp = DialecticalComponent(statement=synthesis_pair.s_plus.statement)
+            s_plus_comp.commit()
 
-            s_plus_comp = component_from_dto(s_plus_dto)
-            s_minus_comp = component_from_dto(s_minus_dto)
+            # Create S- component
+            s_minus_comp = DialecticalComponent(statement=synthesis_pair.s_minus.statement)
+            s_minus_comp.commit()
 
             # Create Synthesis node
             synthesis = Synthesis()
             synthesis.save()
 
             # Connect S+ and S- to Synthesis with appropriate relationship types
-            from dialectical_framework.graph.relationships.polarity_relationship import (
-                SPlusRelationship,
-                SMinusRelationship,
-            )
-
-            synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias=s_plus_alias_dto.alias))
-            synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias=s_minus_alias_dto.alias))
+            synthesis.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias=s_plus_alias))
+            synthesis.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias=s_minus_alias))
 
             # Connect Synthesis to WisdomUnit (synthesis emerges from WU-level tension)
             synthesis.target.connect(wu)
@@ -763,7 +1057,7 @@ class WheelBuilder(SettingsAware):
                     if has_changes:
                         wheel_is_dirty = True
                         # Redefine WU
-                        new_wu = await self.reasoner.redefine(original=wu, text=text, **mods)
+                        new_wu = await self._redefine_wisdom_unit(original=wu, text=text, **mods)
                         new_wus.append(new_wu)
                     else:
                         # No actual changes - use original

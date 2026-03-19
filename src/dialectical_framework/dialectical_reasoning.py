@@ -17,8 +17,6 @@ from dialectical_framework.synthesist.causality.causality_sequencer_feasible imp
     CausalitySequencerFeasible
 from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
     CausalitySequencerRealistic
-from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
-from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
 from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
@@ -183,11 +181,6 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         lambda settings: Brain(ai_model=settings.ai_model, ai_provider=settings.ai_provider),
         settings=settings
     )
-
-    polar_reasoner: providers.Factory[PolarReasoner] = providers.Factory(
-        ReasonFastAndSimple,
-    )
-
 
     @staticmethod
     def _create_causality_sequencer(settings: Settings) -> CausalitySequencer:

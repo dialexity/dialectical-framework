@@ -1,5 +1,4 @@
 import pytest
-from dependency_injector import providers
 from langfuse.decorators import observe
 
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
@@ -7,10 +6,6 @@ from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as GraphDialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as GraphWisdomUnit
-from dialectical_framework.synthesist.polarity.polar_reasoner import PolarReasoner
-from dialectical_framework.synthesist.polarity.reason_fast import ReasonFast
-from dialectical_framework.synthesist.polarity.reason_fast_and_simple import ReasonFastAndSimple
-from dialectical_framework.synthesist.polarity.reason_fast_polarized_conflict import ReasonFastPolarizedConflict
 from tests.test_analyst import user_message
 
 
@@ -72,107 +67,6 @@ async def test_bigger_wheel(number_of_thoughts):
         print("\n")
         print(wheel)
 
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("reasoner_cls", [
-    PolarReasoner,
-    ReasonFastAndSimple,
-    ReasonFast,
-    ReasonFastPolarizedConflict,
-])
-async def test_reasoner(di_container, reasoner_cls):
-    with di_container.override_providers(
-            polar_reasoner=providers.Singleton(
-                reasoner_cls,
-            )
-    ):
-        # Create Input node for SOA-ready extractors
-        input_node = Input(content=user_message)
-        input_node.commit()
-
-        reasoner = di_container.polar_reasoner()
-        wu = await reasoner.think(source=input_node, text=user_message)
-        assert wu.is_complete()
-        print("\n")
-        print(wu)
-
-@pytest.mark.asyncio
-async def test_redefine(di_container):
-    """Test redefine with graph-native models - simple modification test."""
-    # Create graph-native components with simple, clear dialectical opposites
-    # Using Order vs Chaos which are unambiguous opposites
-    t_minus = GraphDialecticalComponent(statement="Rigidity")
-    t_minus.commit()
-
-    t = GraphDialecticalComponent(statement="Order")
-    t.commit()
-
-    t_plus = GraphDialecticalComponent(statement="Structure")
-    t_plus.commit()
-
-    a_minus = GraphDialecticalComponent(statement="Destruction")
-    a_minus.commit()
-
-    a = GraphDialecticalComponent(statement="Chaos")
-    a.commit()
-
-    a_plus = GraphDialecticalComponent(statement="Creativity")
-    a_plus.commit()
-
-    # Create graph-native WisdomUnit
-    wu = GraphWisdomUnit(reasoning_mode="general_concepts")
-    wu.save()
-
-    # Connect components with aliases
-    wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
-    wu.t.connect(t, properties={'alias': 'T'})
-    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-    wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
-    wu.a.connect(a, properties={'alias': 'A'})
-    wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
-
-    # Test redefine with same values - should return original (optimization)
-    reasoner = di_container.polar_reasoner()
-    redefined_wu = await reasoner.redefine(
-        original=wu,
-        t="Order",  # Same as original - tests optimization
-        a="Chaos",  # Same as original
-    )
-
-    # Basic assertions
-    assert redefined_wu.is_complete()
-
-    # Optimization: redefine with same values returns original WU (same UID)
-    assert wu.hash == redefined_wu.hash, "Should return original WU when nothing changes"
-
-    # Test redefine with different value - should create new WU
-    # Using "Harmony" which is a valid dialectical opposite to "Chaos"
-    redefined_wu2 = await reasoner.redefine(
-        original=wu,
-        t="Harmony",  # Different from original - should create new WU
-        a="Chaos",
-    )
-
-    assert redefined_wu2.is_complete()
-    assert wu.hash != redefined_wu2.hash, "Should create new WU when components change"
-
-    # Verify all positions are set in the new WU
-    assert redefined_wu2.t.count() == 1
-    assert redefined_wu2.t_plus.count() == 1
-    assert redefined_wu2.t_minus.count() == 1
-    assert redefined_wu2.a.count() == 1
-    assert redefined_wu2.a_plus.count() == 1
-    assert redefined_wu2.a_minus.count() == 1
-
-    print("\n")
-    print("=== Original Graph-Native WisdomUnit ===")
-    print(wu)  # Uses __str__ which calls __format__ with empty spec
-    print("\n")
-    print("=== Redefined with Same Values (Same UID) ===")
-    print(redefined_wu)
-    print("\n")
-    print("=== Redefined with Different Values (New UID) ===")
-    print(redefined_wu2)
 
 @pytest.mark.asyncio
 async def test_causality_sequencer(di_container):
@@ -319,13 +213,13 @@ async def test_redefine_is_dirty_optimization():
     original_t1_statement = wus[0].get_component("T").statement if wus[0].get_component("T") else None
 
     if original_t1_statement:
-        # Pass the same statement - reasoner should return original WU
+        # Pass the same statement - should return original WU
         new_wheels2 = await factory.redefine(modified_statement_per_alias={"T1": original_t1_statement})
 
         # Wheel should be preserved (second-level optimization)
         assert new_wheels2[0].hash == original_wheel_uid, "Redefine with same statement should preserve original wheel"
 
-        # WU should be the same (reasoner returned original)
+        # WU should be the same (returned original)
         new_wu_uids = [wu.hash for wu in new_wheels2[0].wisdom_units]
         assert new_wu_uids == original_wu_uids, "WUs should be unchanged when statement is identical"
 
