@@ -1,0 +1,394 @@
+"""
+TransformationAgent: Subagent for generating Action-Reflection transformations for WisdomUnits.
+
+Orchestrates the transformation generation pipeline:
+1. Derives contextual apexes (Re+ and Ac+) for the WU
+2. Extracts Ac+ candidates along the Insight axis
+3. Generates full tetrads from each Ac+ candidate
+4. Creates Transformation nodes in the graph
+
+Usage:
+    agent = TransformationAgent(wisdom_unit_hash="abc123...")
+    transformations = await agent.execute()
+    for t in transformations:
+        print(f"{t}")
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from dependency_injector.wiring import Provide, inject
+
+from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.agents.sensemaking.capabilities.positive_ac_re_apex_derivation import (
+    ApexDerivation,
+    ApexDerivationResultDto,
+)
+from dialectical_framework.agents.sensemaking.capabilities.action_extraction import (
+    ActionExtraction,
+)
+from dialectical_framework.agents.sensemaking.capabilities.transformation_generation import (
+    TransformationGeneration,
+    TransformationTetradDto,
+)
+from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.graph.nodes.transformation import (
+    POSITION_AC,
+    POSITION_AC_MINUS,
+    POSITION_AC_PLUS,
+    POSITION_RE,
+    POSITION_RE_MINUS,
+    POSITION_RE_PLUS,
+    Transformation,
+)
+from dialectical_framework.graph.nodes.transition import Transition
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    AcMinusRelationship,
+    AcPlusRelationship,
+    AcRelationship,
+    ReMinusRelationship,
+    RePlusRelationship,
+    ReRelationship,
+)
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.protocols.input_resolver import InputResolver
+
+
+@dataclass
+class TransformationAgentResult:
+    """Result from the TransformationAgent."""
+
+    existing: list[Transformation]
+    new: list[Transformation]
+    apexes: ApexDerivationResultDto
+
+    @property
+    def all(self) -> list[Transformation]:
+        """Get all transformations (existing + new)."""
+        return self.existing + self.new
+
+
+class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
+    """
+    Subagent for generating Action-Reflection transformations for WisdomUnits.
+
+    This agent orchestrates the full transformation generation pipeline,
+    producing multiple transformation alternatives for a single WisdomUnit.
+    """
+
+    def __init__(
+        self,
+        wisdom_unit_hash: str,
+    ) -> None:
+        """
+        Initialize the TransformationAgent.
+
+        Args:
+            wisdom_unit_hash: Hash (full or prefix) of the WisdomUnit to transform
+        """
+        self._wisdom_unit_hash = wisdom_unit_hash
+
+    async def execute(self) -> TransformationAgentResult:
+        """
+        Execute the transformation generation pipeline.
+
+        Returns:
+            TransformationAgentResult with existing and new transformations
+        """
+        self._report = ExecutionReport(tool=self.__class__.__name__)
+
+        # 1. Resolve and validate WU
+        wu = self._resolve_wisdom_unit()
+        if not wu.is_complete():
+            raise ValueError(
+                f"WisdomUnit {wu.short_hash} must have all 6 positions to generate transformations"
+            )
+
+        # 2. Get existing committed transformations
+        existing = [t for t, _ in wu.transformations.all() if t.is_committed]
+
+        # 3. Get input text from scope
+        input_text = await self._get_input_text()
+
+        # 4. Derive apexes for this WU context
+        apex_service = ApexDerivation()
+        apexes = await apex_service.execute(wu, input_text)
+        self._report.merge(apex_service.report)
+
+        # 5. Extract Ac+ candidates (avoiding existing)
+        extractor = ActionExtraction()
+        ac_candidates = await extractor.execute(wu, input_text, not_like_these=existing)
+        self._report.merge(extractor.report)
+
+        if not ac_candidates:
+            self._report.summary = f"No new Ac+ candidates for WU {wu.short_hash}"
+            return TransformationAgentResult(
+                existing=existing,
+                new=[],
+                apexes=apexes,
+            )
+
+        # 6. For each Ac+, generate full tetrad and create graph nodes
+        new_transformations = []
+        for ac_plus in ac_candidates:
+            generator = TransformationGeneration()
+            tetrad = await generator.execute(wu, ac_plus, apexes, input_text)
+            self._report.merge(generator.report)
+
+            # 6. Create graph nodes
+            transformation = self._create_transformation(wu, tetrad)
+            new_transformations.append(transformation)
+
+        # Summary
+        self._report.artifacts["wu_hash"] = wu.short_hash
+        self._report.artifacts["existing_count"] = len(existing)
+        self._report.artifacts["new_count"] = len(new_transformations)
+        self._report.summary = (
+            f"Generated {len(new_transformations)} new transformation(s) for WU {wu.short_hash} "
+            f"({len(existing)} existing)"
+        )
+
+        return TransformationAgentResult(
+            existing=existing,
+            new=new_transformations,
+            apexes=apexes,
+        )
+
+    def _resolve_wisdom_unit(self) -> WisdomUnit:
+        """Resolve WisdomUnit from hash or prefix."""
+        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+        from dialectical_framework.graph.repositories.node_repository import (
+            NodeRepository,
+        )
+
+        repo = NodeRepository()
+        node = repo.find_by_hash(self._wisdom_unit_hash, node_type=WisdomUnit)
+        if node is None:
+            raise ValueError(f"WisdomUnit not found: {self._wisdom_unit_hash}")
+        return node
+
+    @inject
+    async def _get_input_text(
+        self,
+        input_resolver: "InputResolver" = Provide[DI.input_resolver],
+    ) -> str:
+        """Get concatenated text from all inputs in scope."""
+        from dialectical_framework.graph.repositories.input_repository import (
+            InputRepository,
+        )
+
+        repo = InputRepository()
+        inputs = repo.get_all()
+
+        if not inputs:
+            return ""
+
+        texts = []
+        for input_node in inputs:
+            resolved = await input_resolver.resolve(input_node)
+            texts.append(resolved)
+
+        return "\n\n---\n\n".join(texts)
+
+    def _create_transformation(
+        self,
+        wu: WisdomUnit,
+        tetrad: TransformationTetradDto,
+    ) -> Transformation:
+        """
+        Create a Transformation node with all 6 positions.
+
+        Args:
+            wu: The containing WisdomUnit
+            tetrad: The generated tetrad with category reframings and poles
+
+        Returns:
+            The committed Transformation node
+        """
+        # Get all WU components for transitions
+        t_result = wu.t.get()
+        t_minus_result = wu.t_minus.get()
+        t_plus_result = wu.t_plus.get()
+        a_result = wu.a.get()
+        a_plus_result = wu.a_plus.get()
+        a_minus_result = wu.a_minus.get()
+
+        if not all([t_result, t_minus_result, t_plus_result, a_result, a_plus_result, a_minus_result]):
+            raise ValueError(
+                "WisdomUnit missing required components for transformation"
+            )
+
+        t, _ = t_result
+        t_minus, _ = t_minus_result
+        t_plus, _ = t_plus_result
+        a, _ = a_result
+        a_plus, _ = a_plus_result
+        a_minus, _ = a_minus_result
+
+        # Create Transformation node
+        transformation = Transformation()
+        transformation.set_wisdom_unit(wu)
+        transformation.save()
+
+        # Create neutral category transitions (Ac: T → A, Re: A → T)
+        # Ac (Action category): contextualized taxonomy category for T → A
+        ac_transition = self._create_transition(
+            statement=tetrad.ac_category_reframing,
+            source=t,
+            target=a,
+            explanation=f"Action category: {tetrad.ac_category_reframing}",
+        )
+        transformation.ac.connect(
+            ac_transition,
+            relationship=AcRelationship(
+                alias=POSITION_AC,
+                heuristic_similarity=None,
+            ),
+        )
+        self._report.node_created(ac_transition, meta={"position": POSITION_AC})
+
+        # Re (Reflection category): contextualized taxonomy category for A → T
+        re_transition = self._create_transition(
+            statement=tetrad.re_category_reframing,
+            source=a,
+            target=t,
+            explanation=f"Reflection category: {tetrad.re_category_reframing}",
+        )
+        transformation.re.connect(
+            re_transition,
+            relationship=ReRelationship(
+                alias=POSITION_RE,
+                heuristic_similarity=None,
+            ),
+        )
+        self._report.node_created(re_transition, meta={"position": POSITION_RE})
+
+        # Create transitions for each position using WU poles as source/target
+        # Ac+: T- → A+ (positive action: escape T- problems toward A+ benefits)
+        ac_plus_transition = self._create_transition(
+            statement=tetrad.ac_plus.statement,
+            source=t_minus,
+            target=a_plus,
+            explanation=tetrad.ac_plus.explanation,
+        )
+        transformation.ac_plus.connect(
+            ac_plus_transition,
+            relationship=AcPlusRelationship(
+                alias=POSITION_AC_PLUS,
+                heuristic_similarity=tetrad.ac_plus_hs,
+                insight=tetrad.ac_plus.insight,
+                proactiveness=tetrad.ac_plus.proactiveness,
+            ),
+        )
+        self._report.node_created(
+            ac_plus_transition, meta={"position": POSITION_AC_PLUS}
+        )
+
+        # Re+: A- → T+ (positive reflection: escape A- problems toward T+ benefits)
+        re_plus_transition = self._create_transition(
+            statement=tetrad.re_plus.statement,
+            source=a_minus,
+            target=t_plus,
+            explanation=tetrad.re_plus.explanation,
+        )
+        transformation.re_plus.connect(
+            re_plus_transition,
+            relationship=RePlusRelationship(
+                alias=POSITION_RE_PLUS,
+                heuristic_similarity=tetrad.re_plus_hs,
+                insight=tetrad.re_plus.insight,
+                proactiveness=tetrad.re_plus.proactiveness,
+            ),
+        )
+        self._report.node_created(
+            re_plus_transition, meta={"position": POSITION_RE_PLUS}
+        )
+
+        # Re-: A+ → T- (negative reflection: action without reflection leads here)
+        re_minus_transition = self._create_transition(
+            statement=tetrad.re_minus.statement,
+            source=a_plus,
+            target=t_minus,
+            explanation=tetrad.re_minus.explanation,
+        )
+        transformation.re_minus.connect(
+            re_minus_transition,
+            relationship=ReMinusRelationship(
+                alias=POSITION_RE_MINUS,
+                heuristic_similarity=None,  # Negative poles don't have HS
+                insight=tetrad.re_minus.insight,
+                proactiveness=tetrad.re_minus.proactiveness,
+            ),
+        )
+        self._report.node_created(
+            re_minus_transition, meta={"position": POSITION_RE_MINUS}
+        )
+
+        # Ac-: T+ → A- (negative action: reflection without action leads here)
+        ac_minus_transition = self._create_transition(
+            statement=tetrad.ac_minus.statement,
+            source=t_plus,
+            target=a_minus,
+            explanation=tetrad.ac_minus.explanation,
+        )
+        transformation.ac_minus.connect(
+            ac_minus_transition,
+            relationship=AcMinusRelationship(
+                alias=POSITION_AC_MINUS,
+                heuristic_similarity=None,  # Negative poles don't have HS
+                insight=tetrad.ac_minus.insight,
+                proactiveness=tetrad.ac_minus.proactiveness,
+            ),
+        )
+        self._report.node_created(
+            ac_minus_transition, meta={"position": POSITION_AC_MINUS}
+        )
+
+        # Commit transformation
+        transformation.commit()
+        self._report.node_created(transformation)
+
+        return transformation
+
+    def _create_transition(
+        self,
+        statement: str,
+        source: DialecticalComponent,
+        target: DialecticalComponent,
+        explanation: str,
+    ) -> Transition:
+        """
+        Create a Transition node between WU poles.
+
+        Args:
+            statement: The transition statement (stored on Transition.statement)
+            source: The source component from the WisdomUnit (e.g., T-)
+            target: The target component from the WisdomUnit (e.g., A+)
+            explanation: Explanation of why this transition makes sense
+
+        Returns:
+            The committed Transition node
+        """
+        # Create transition with statement
+        transition = Transition(statement=statement)
+        transition.set_source(source)
+        transition.set_target(target)
+        transition.commit()
+
+        # Add rationale with headline (statement) and text (explanation)
+        rationale = Rationale(
+            headline=statement,
+            text=explanation,
+        )
+        rationale.set_explanation_target(transition)
+        rationale.commit()
+        self._report.node_created(rationale)
+
+        return transition

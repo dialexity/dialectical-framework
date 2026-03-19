@@ -85,6 +85,10 @@ class Transition(AssessableEntity, label="Transition"):
     # Nonce for hash uniqueness - see class docstring for explanation
     nonce: str
 
+    # Optional statement describing the transformation path
+    # For Ac/Re transitions, this is the generated statement (e.g., "Establish boundaries to enable autonomy")
+    statement: Optional[str] = None
+
     def __init__(self, **data: Any) -> None:
         # Auto-generate nonce if not provided
         if "nonce" not in data:
