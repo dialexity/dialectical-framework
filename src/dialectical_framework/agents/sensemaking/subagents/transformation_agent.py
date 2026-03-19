@@ -239,13 +239,12 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
         # Create neutral category transitions (Ac: T → A, Re: A → T)
         # Ac (Action category): contextualized taxonomy category for T → A
-        # For neutral categories, the reframing serves as both headline and statement
         ac_transition = self._create_transition(
-            headline=tetrad.ac_category_reframing,
-            statement=tetrad.ac_category_reframing,
+            headline=tetrad.ac.headline,
+            statement=tetrad.ac.statement,
             source=t,
             target=a,
-            explanation=f"Action category: {tetrad.ac_category_reframing}",
+            explanation=tetrad.ac.explanation,
         )
         transformation.ac.connect(
             ac_transition,
@@ -258,11 +257,11 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
         # Re (Reflection category): contextualized taxonomy category for A → T
         re_transition = self._create_transition(
-            headline=tetrad.re_category_reframing,
-            statement=tetrad.re_category_reframing,
+            headline=tetrad.re.headline,
+            statement=tetrad.re.statement,
             source=a,
             target=t,
-            explanation=f"Reflection category: {tetrad.re_category_reframing}",
+            explanation=tetrad.re.explanation,
         )
         transformation.re.connect(
             re_transition,

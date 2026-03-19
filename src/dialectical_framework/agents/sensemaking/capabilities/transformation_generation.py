@@ -57,6 +57,25 @@ A transformation has 4 transition poles:
 - **Re-**: A+ → T- (reflection targeting T-: what happens when action lacks reflection)
 - **Ac-**: T+ → A- (action targeting A-: what happens when reflection lacks action)
 
+## Circular Causality: Why Ac+ and Re+ Must Be Complementary
+
+Positive synthesis (S+) emerges ONLY when Ac+ and Re+ work together as complementary transitions:
+- Ac+ alone (action without reflection) regresses to Re- (back to T-)
+- Re+ alone (reflection without action) drifts to Ac- (toward A-)
+
+Together, they form a closed loop of circular causality — the source of self-regulation in healthy systems.
+
+**Re+ should NOT simply restate or mirror Ac+.** It must be a genuinely complementary reflection that:
+- Addresses a DIFFERENT aspect of the tension (what Ac+ doesn't cover)
+- Works harmoniously WITH Ac+ to create a complete solution
+- Could stand alone as valuable insight, not just a reaction to Ac+
+
+## Diagonal Contradictions
+
+The tetrad has diagonal contradictions that must be preserved:
+- **Re+ must contradict Ac-**: The positive reflection opposes the drift toward A-
+- **Ac+ must contradict Re-**: The positive action opposes regression toward T-
+
 ## Coherence Constraint (CC)
 
 The "-" poles describe failure modes when transitions are unbalanced:
@@ -123,12 +142,37 @@ APEX
 
 ## Requirements
 
-1. Re+ must be a REFLECTION in the polar pair category of the given Ac+
-2. Ac+ and Re+ should have similar insight levels (within 0.1-0.2)
-3. Re- and Ac- typically have lower insight than the "+" poles
-4. Re- describes regression toward T- (action without reflection)
-5. Ac- describes drift toward A- (reflection without action)
-6. All statements should be 1-15 words, actionable and memorable
+1. **Re+ must COMPLEMENT Ac+**, not mirror it — address what Ac+ doesn't cover
+2. Re+ must be a REFLECTION in the polar pair category of the given Ac+
+3. Ac+ and Re+ should have similar insight levels (within 0.1-0.2)
+4. **Re+ must contradict Ac-** (positive reflection opposes drift toward A-)
+5. **Ac+ must contradict Re-** (positive action opposes regression toward T-)
+6. Re- and Ac- typically have lower insight than the "+" poles
+7. All statements should be 1-15 words, actionable and memorable
+
+## Example (T = Love, A = Indifference)
+
+**Dialectical polarity:**
+- T+ = Bonding (healthy connection)
+- T- = Enmeshment (loss of identity)
+- A+ = Autonomy (healthy independence)
+- A- = Alienation (disconnection)
+
+**Ac+ (T- → A+):** "Establish personal boundaries while staying emotionally available"
+- This ACTION helps escape Enmeshment toward Autonomy
+
+**Re+ (A- → T+):** "Recognize connection needs without demanding fusion"
+- This REFLECTION helps escape Alienation toward Bonding
+- COMPLEMENTS Ac+ (boundaries + recognition = balanced relationship)
+- Does NOT simply restate "be autonomous" — addresses the OTHER side
+
+**Re- (A+ → T-):** "Autonomy pursued without reflection becomes cold detachment"
+- Failure mode: taking Ac+ without Re+ leads back to Enmeshment patterns
+
+**Ac- (T+ → A-):** "Bonding valued without action becomes passive withdrawal"
+- Failure mode: taking Re+ without Ac+ drifts toward Alienation
+
+Notice: Re+ contradicts Ac- (recognition vs. withdrawal), Ac+ contradicts Re- (boundaries vs. detachment).
 """
 
 
@@ -147,15 +191,7 @@ class TransitionDto(BaseModel):
 
 
 class TetradCompletionDto(BaseModel):
-    """LLM response for completing a tetrad."""
-
-    # Neutral category reframings (contextualized taxonomy categories, component length)
-    ac_category_reframing: str = Field(
-        description="Contextualized action category (component length, e.g., 'Boundary-setting intervention')"
-    )
-    re_category_reframing: str = Field(
-        description="Contextualized reflection category (component length, e.g., 'Connection needs interpretation')"
-    )
+    """LLM response for completing a tetrad (without category reframings)."""
 
     # Re+ fields
     re_plus_headline: str = Field(description="Re+ headline (component length)")
@@ -198,16 +234,30 @@ class HsScoringDto(BaseModel):
     )
 
 
-class TransformationTetradDto(BaseModel):
-    """Complete transformation with 4 poles and 2 neutral category reframings."""
+class CategoryReframingDto(BaseModel):
+    """LLM response for contextualizing Ac and Re taxonomy categories as full transitions."""
 
-    # Neutral category reframings (T → A and A → T)
-    ac_category_reframing: str = Field(
-        description="Contextualized action category (e.g., 'Intervening through boundary-setting')"
-    )
-    re_category_reframing: str = Field(
-        description="Contextualized reflection category (e.g., 'Interpreting connection needs')"
-    )
+    # Ac (neutral action category: T → A)
+    ac_headline: str = Field(description="Ac headline (component length)")
+    ac_statement: str = Field(description="Ac statement (1-15 words)")
+    ac_explanation: str = Field(description="Why this reframing captures how the action category manifests")
+    ac_insight_label: str = Field(description="Insight level for Ac")
+    ac_proactiveness_label: str = Field(description="Proactiveness category for Ac")
+
+    # Re (neutral reflection category: A → T)
+    re_headline: str = Field(description="Re headline (component length)")
+    re_statement: str = Field(description="Re statement (1-15 words)")
+    re_explanation: str = Field(description="Why this reframing captures how the reflection category manifests")
+    re_insight_label: str = Field(description="Insight level for Re")
+    re_proactiveness_label: str = Field(description="Proactiveness category for Re")
+
+
+class TransformationTetradDto(BaseModel):
+    """Complete transformation with 6 positions: 2 neutral categories + 4 poles."""
+
+    # Neutral category transitions (T → A and A → T)
+    ac: TransitionDto = Field(description="Neutral action category transition (T → A)")
+    re: TransitionDto = Field(description="Neutral reflection category transition (A → T)")
 
     # Pole transitions
     ac_plus: TransitionDto
@@ -317,9 +367,31 @@ class TransformationGeneration(
         ac_plus_hs = hs_scores.ac_plus_hs
         re_plus_hs = hs_scores.re_plus_hs
 
+        # Generate category reframings in a separate LLM call (same conversation)
+        category_reframings = await self._generate_category_reframings(
+            ac_plus.proactiveness_label,
+            expected_re_category,
+        )
+
+        # Build neutral category transitions
+        ac_dto = self._build_transition_dto(
+            category_reframings.ac_headline,
+            category_reframings.ac_statement,
+            category_reframings.ac_insight_label,
+            category_reframings.ac_proactiveness_label,
+            category_reframings.ac_explanation,
+        )
+        re_dto = self._build_transition_dto(
+            category_reframings.re_headline,
+            category_reframings.re_statement,
+            category_reframings.re_insight_label,
+            category_reframings.re_proactiveness_label,
+            category_reframings.re_explanation,
+        )
+
         result = TransformationTetradDto(
-            ac_category_reframing=completion.ac_category_reframing,
-            re_category_reframing=completion.re_category_reframing,
+            ac=ac_dto,
+            re=re_dto,
             ac_plus=ac_plus_dto,
             re_plus=re_plus_dto,
             re_minus=re_minus_dto,
@@ -329,8 +401,8 @@ class TransformationGeneration(
         )
 
         # Report artifacts
-        self._report.artifacts["ac_category_reframing"] = completion.ac_category_reframing
-        self._report.artifacts["re_category_reframing"] = completion.re_category_reframing
+        self._report.artifacts["ac_statement"] = ac_dto.statement
+        self._report.artifacts["re_statement"] = re_dto.statement
         self._report.artifacts["ac_plus_statement"] = ac_plus.statement
         self._report.artifacts["re_plus_statement"] = re_plus_dto.statement
         self._report.artifacts["ac_plus_hs"] = ac_plus_hs
@@ -388,47 +460,46 @@ class TransformationGeneration(
 {wu_context}
 </wisdom_unit>
 
-And this Ac+ (Positive Action) statement:
+And this Ac+ (action targeting A+) statement:
 - Statement: "{ac_plus.statement}"
 - Insight: {ac_plus.insight_label} ({ac_plus.insight})
 - Proactiveness: {ac_plus.proactiveness_label} ({ac_plus.proactiveness})
 
-Complete the transformation:
-
-## Category Reframings (contextualize the taxonomy categories)
-
-1. **Ac (Action category)**: Contextualize "{ac_plus.proactiveness_label}" for this specific T-A polarity.
-   - Example: "Intervention" → "Intervening through boundary-setting"
-   - The reframing should describe how {ac_plus.proactiveness_label} manifests in this context
-
-2. **Re (Reflection category)**: Contextualize "{expected_re_category}" for this specific T-A polarity.
-   - Example: "Interpretation" → "Interpreting connection needs"
-   - The reframing should describe how {expected_re_category} manifests in this context
-
-## Tetrad Completion
+Complete the transformation tetrad.
 
 For each position, provide:
 - A **headline** (~{self.settings.component_length} words) - short, memorable essence
 - A **statement** (1-15 words) - fuller actionable description
 - An **explanation** - why this transition makes sense
 
-3. **Re+** (reflection targeting T+): Generate a complementary reflection at the {expected_re_category.upper()} proactiveness level.
-   - Re+ guides the A- → T+ path (escaping A's problems toward T's benefits)
-   - Insight should be similar to Ac+ (~{ac_plus.insight_label})
-   - This reflection gives meaning and direction to the action
+## 1. Re+ (reflection targeting T+)
 
-4. **Re-** (reflection targeting T-): What happens when Ac+ is taken WITHOUT Re+?
-   - Describes regression toward T- when action lacks guiding reflection
-   - Usually lower insight than Re+
+Generate a COMPLEMENTARY reflection at the {expected_re_category.upper()} proactiveness level.
+- Re+ guides the A- → T+ path (escaping A's problems toward T's benefits)
+- **CRITICAL**: Re+ must COMPLEMENT Ac+, not mirror it — address what Ac+ doesn't cover
+- Together, Ac+ and Re+ should form a complete solution (circular causality for S+)
+- Insight should be similar to Ac+ (~{ac_plus.insight_label})
+- Re+ must CONTRADICT Ac- (the positive reflection opposes drift toward A-)
 
-5. **Ac-** (action targeting A-): What happens when Re+ is taken WITHOUT Ac+?
-   - Describes drift toward A- when reflection lacks grounding action
-   - Usually lower insight than Ac+
+## 2. Re- (reflection targeting T-)
+
+What happens when Ac+ is taken WITHOUT Re+?
+- Describes regression toward T- when action lacks guiding reflection
+- Ac+ must CONTRADICT Re- (the positive action opposes this regression)
+- Usually lower insight than Re+
+
+## 3. Ac- (action targeting A-)
+
+What happens when Re+ is taken WITHOUT Ac+?
+- Describes drift toward A- when reflection lacks grounding action
+- Re+ must CONTRADICT Ac- (the positive reflection opposes this drift)
+- Usually lower insight than Ac+
 
 Requirements:
 - Headlines ~{self.settings.component_length} words, statements 1-15 words
 - Re+ must be in the {expected_re_category} category (polar pair of {ac_plus.proactiveness_label})
-- The "-" poles describe failure modes (regression/drift), not opposites"""
+- Re+ must genuinely complement Ac+ (address DIFFERENT aspects of the tension)
+- Diagonal contradictions: Re+ vs Ac-, Ac+ vs Re-"""
 
         return await self._conversation.submit(
             response_model=TetradCompletionDto,
@@ -465,6 +536,37 @@ Score each transition by comparing its semantic meaning to the corresponding ape
 
         return await self._conversation.submit(
             response_model=HsScoringDto,
+            user_content=prompt,
+        )
+
+    async def _generate_category_reframings(
+        self,
+        ac_category: str,
+        re_category: str,
+    ) -> CategoryReframingDto:
+        """Generate contextualized category reframings for Ac and Re as full transitions."""
+        prompt = f"""Now generate the neutral category transitions for this transformation.
+
+These are the T ↔ A transitions that contextualize the taxonomy categories:
+
+## Ac (Action category: T → A): {ac_category}
+Generate a transition that describes how "{ac_category}" specifically manifests in this T-A polarity.
+- Example: For Love/Indifference, "Intervention" → "Boundary-setting intervention"
+- This is a NEUTRAL action category (not + or -), describing the general T → A movement
+
+## Re (Reflection category: A → T): {re_category}
+Generate a transition that describes how "{re_category}" specifically manifests in this A-T polarity.
+- Example: For Love/Indifference, "Interpretation" → "Connection needs interpretation"
+- This is a NEUTRAL reflection category (not + or -), describing the general A → T movement
+
+For each, provide:
+- **headline** (~{self.settings.component_length} words) - short, memorable reframing
+- **statement** (1-15 words) - fuller description of the contextualized category
+- **explanation** - why this reframing captures how the category operates here
+- **insight_label** and **proactiveness_label** - should match the base category"""
+
+        return await self._conversation.submit(
+            response_model=CategoryReframingDto,
             user_content=prompt,
         )
 
