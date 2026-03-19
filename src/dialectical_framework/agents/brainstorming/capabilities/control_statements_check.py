@@ -12,7 +12,7 @@ Example (T=Love, A=Hate):
 - "Autonomy (A+) without Bonding (T+) yields Alienation (A-)"
 
 Each statement is evaluated for logical coherence (CC score 0.0-1.0).
-A tetrad passes validation if both CC scores >= 0.7.
+A tetrad passes validation if the average CC score >= 0.7.
 
 Creates a ConceptualCoherenceEstimation node attached to the WisdomUnit,
 with optional Rationale explaining the evaluation.
@@ -107,7 +107,7 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
     1. "{T+} without {A+} yields {T-}" - Does lacking A+ cause T to become T-?
     2. "{A+} without {T+} yields {A-}" - Does lacking T+ cause A to become A-?
 
-    Both must score >= 0.7 for the tetrad to be considered coherent.
+    Average of both scores must be >= 0.7 for the tetrad to be considered coherent.
 
     Creates:
     - ConceptualCoherenceEstimation node attached to the WisdomUnit
@@ -161,10 +161,7 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
 
         # Create estimation and rationale nodes
         avg_score = (result_1.coherence_score + result_2.coherence_score) / 2
-        is_coherent = (
-            result_1.coherence_score >= CONCEPTUAL_COHERENCE_THRESHOLD
-            and result_2.coherence_score >= CONCEPTUAL_COHERENCE_THRESHOLD
-        )
+        is_coherent = avg_score >= CONCEPTUAL_COHERENCE_THRESHOLD
         status = "COHERENT" if is_coherent else "NOT COHERENT"
 
         estimation = ConceptualCoherenceEstimation(
