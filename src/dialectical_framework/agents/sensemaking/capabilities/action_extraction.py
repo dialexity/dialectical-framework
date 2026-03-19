@@ -54,11 +54,15 @@ if TYPE_CHECKING:
 
 SYSTEM_PROMPT = """You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
 
-Your task is to generate Ac+ (Positive Action) candidates that represent T- → A+ transition paths.
+Your task is to generate Ac+ candidates that represent T- → A+ transition paths.
 
 ## What is Ac+?
 
-Ac+ is a "Positive Action" - a way of acting/behaving that helps someone escape the problematic aspects of the thesis (T-) and move toward the healthy aspects of the antithesis (A+).
+The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
+- "+" poles target beneficial states (T+ or A+)
+- "-" poles target problematic states (T- or A-)
+
+Ac+ is an "action targeting A+" - a way of acting/behaving that helps someone escape the problematic aspects of the thesis (T-) and move toward the healthy aspects of the antithesis (A+).
 
 ## Y-Axis: Insight (0.0 → 1.0)
 

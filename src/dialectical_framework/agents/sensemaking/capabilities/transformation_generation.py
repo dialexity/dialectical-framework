@@ -43,21 +43,25 @@ if TYPE_CHECKING:
 
 SYSTEM_PROMPT = """You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
 
-Your task is to complete a transformation tetrad given an Ac+ (Positive Action) statement.
+Your task is to complete a transformation tetrad given an Ac+ statement.
 
 ## Transformation Structure
 
-A transformation has 4 key positions:
-- Ac+ (given): T- → A+ path (action escaping T's problems toward A's benefits)
-- Re+: A- → T+ path (reflection escaping A's problems toward T's benefits)
-- Re-: What happens when Ac+ is taken WITHOUT adequate Re+ (action without reflection)
-- Ac-: What happens when Re+ is taken WITHOUT adequate Ac+ (reflection without action)
+The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
+- "+" poles target beneficial states (T+ or A+)
+- "-" poles target problematic states (T- or A-)
+
+A transformation has 4 transition poles:
+- **Ac+**: T- → A+ (action targeting A+: escaping T's problems toward A's benefits)
+- **Re+**: A- → T+ (reflection targeting T+: escaping A's problems toward T's benefits)
+- **Re-**: A+ → T- (reflection targeting T-: what happens when action lacks reflection)
+- **Ac-**: T+ → A- (action targeting A-: what happens when reflection lacks action)
 
 ## Coherence Constraint (CC)
 
-The negative poles must satisfy:
-- Re-: "Ac+ without Re+ yields Re-" — taking action without reflection leads to this problem
-- Ac-: "Re+ without Ac+ yields Ac-" — reflecting without action leads to this problem
+The "-" poles describe failure modes when transitions are unbalanced:
+- Re-: "Ac+ without Re+ yields Re-" — unguided action regresses toward T-
+- Ac-: "Re+ without Ac+ yields Ac-" — ungrounded reflection drifts toward A-
 
 ## Y-Axis: Insight (0.0 → 1.0)
 
@@ -121,9 +125,9 @@ APEX
 
 1. Re+ must be a REFLECTION in the polar pair category of the given Ac+
 2. Ac+ and Re+ should have similar insight levels (within 0.1-0.2)
-3. Re- and Ac- typically have lower insight than their positive counterparts
-4. Re- describes the failure mode of action-without-reflection
-5. Ac- describes the failure mode of reflection-without-action
+3. Re- and Ac- typically have lower insight than the "+" poles
+4. Re- describes regression toward T- (action without reflection)
+5. Ac- describes drift toward A- (reflection without action)
 6. All statements should be 1-15 words, actionable and memorable
 """
 
@@ -408,23 +412,23 @@ For each position, provide:
 - A **statement** (1-15 words) - fuller actionable description
 - An **explanation** - why this transition makes sense
 
-3. **Re+** (Positive Reflection): Generate a complementary reflection at the {expected_re_category.upper()} proactiveness level.
-   - Re+ should guide the A- → T+ path
-   - Insight should be similar to the one of Ac+ (~{ac_plus.insight_label})
+3. **Re+** (reflection targeting T+): Generate a complementary reflection at the {expected_re_category.upper()} proactiveness level.
+   - Re+ guides the A- → T+ path (escaping A's problems toward T's benefits)
+   - Insight should be similar to Ac+ (~{ac_plus.insight_label})
    - This reflection gives meaning and direction to the action
 
-4. **Re-** (Negative Reflection): What happens when Ac+ is taken WITHOUT Re+?
-   - "Action without reflection" failure mode
+4. **Re-** (reflection targeting T-): What happens when Ac+ is taken WITHOUT Re+?
+   - Describes regression toward T- when action lacks guiding reflection
    - Usually lower insight than Re+
 
-5. **Ac-** (Negative Action): What happens when Re+ is taken WITHOUT Ac+?
-   - "Reflection without action" failure mode
+5. **Ac-** (action targeting A-): What happens when Re+ is taken WITHOUT Ac+?
+   - Describes drift toward A- when reflection lacks grounding action
    - Usually lower insight than Ac+
 
 Requirements:
 - Headlines ~{self.settings.component_length} words, statements 1-15 words
 - Re+ must be in the {expected_re_category} category (polar pair of {ac_plus.proactiveness_label})
-- Negative poles describe failure modes, not opposites"""
+- The "-" poles describe failure modes (regression/drift), not opposites"""
 
         return await self._conversation.submit(
             response_model=TetradCompletionDto,
