@@ -30,6 +30,23 @@ from dialectical_framework.agents.sensemaking.capabilities.ac_re_taxonomy import
 )
 from dialectical_framework.protocols.has_config import SettingsAware
 
+# Insight hierarchy categories for exploration
+# Groups insight levels into categories for generating candidates at different depths
+INSIGHT_CATEGORIES = {
+    "Generative": {
+        "description": "High depth insight - strategic or transformational actions",
+        "levels": ["Leverage", "Anticipation", "Inversion", "Redirection", "Transcendence"],
+    },
+    "Configurational": {
+        "description": "Medium depth insight - restructuring or combining approaches",
+        "levels": ["Composition", "Reformulation"],
+    },
+    "Corrective": {
+        "description": "Low depth insight - adjustments or reactive responses",
+        "levels": ["Variation", "Tuning", "Procedure", "Reflex"],
+    },
+}
+
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -94,6 +111,7 @@ APEX
 class ActionCandidateDto(BaseModel):
     """A candidate Ac+ statement with coordinates."""
 
+    headline: str = Field(description="Short headline (component length)")
     statement: str = Field(description="The Ac+ statement (1-15 words)")
     insight_label: str = Field(
         description="Insight level: leverage/anticipation/composition/etc"
@@ -107,6 +125,7 @@ class ActionCandidateDto(BaseModel):
 class ActionCandidateResultDto(BaseModel):
     """Container for an Ac+ candidate with numeric coordinates."""
 
+    headline: str
     statement: str
     insight: float
     proactiveness: float
@@ -124,22 +143,6 @@ class ActionExtraction(
     Generates multiple Ac+ candidates along the Y-axis (Insight), with the LLM
     determining the appropriate X-axis position (Proactiveness) for each.
     """
-
-    # Insight hierarchy categories to explore
-    TARGET_INSIGHT_CATEGORIES = {
-        "Generative": {
-            "description": "High insight - strategic or transformational actions",
-            "levels": ["Leverage", "Anticipation", "Inversion", "Redirection", "Transcendence"],
-        },
-        "Configurational": {
-            "description": "Medium insight - restructuring or combining approaches",
-            "levels": ["Composition", "Reformulation"],
-        },
-        "Corrective": {
-            "description": "Low insight - adjustments or reactive responses",
-            "levels": ["Variation", "Tuning", "Procedure", "Reflex"],
-        },
-    }
 
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
@@ -180,7 +183,7 @@ class ActionExtraction(
             self._generate_candidate_for_category(
                 wu_context, input_text, category, info, exclusion_statements
             )
-            for category, info in self.TARGET_INSIGHT_CATEGORIES.items()
+            for category, info in INSIGHT_CATEGORIES.items()
         ]
         candidates = await asyncio.gather(*tasks)
 
@@ -193,7 +196,7 @@ class ActionExtraction(
         # Report artifacts
         self._report.artifacts["wu_hash"] = wu.short_hash
         self._report.artifacts["candidate_count"] = len(results)
-        self._report.artifacts["insight_categories"] = list(self.TARGET_INSIGHT_CATEGORIES.keys())
+        self._report.artifacts["insight_categories"] = list(INSIGHT_CATEGORIES.keys())
         self._report.summary = (
             f"Extracted {len(results)} Ac+ candidates for WU {wu.short_hash}"
         )
@@ -274,7 +277,8 @@ The Ac+ must:
 1. Be an ACTION that helps escape T- and move toward A+
 2. Pick the specific insight label from [{levels_str}] that best fits your action
 3. Choose the appropriate action category (Coordination/Intervention/Implementation/Configuration/Governance/Stewardship)
-4. Be 1-15 words, actionable and memorable
+4. Provide a short headline (~{self.settings.component_length} words) - the essence of the action
+5. Provide a fuller statement/summary (1-15 words) - actionable and memorable
 
 Focus on the T- → A+ transition path, not the destination."""
 
@@ -303,6 +307,7 @@ Focus on the T- → A+ transition path, not the destination."""
             proactiveness = AC_PLUS_APEX_TARGET["proactiveness"]
 
         return ActionCandidateResultDto(
+            headline=candidate.headline,
             statement=candidate.statement,
             insight=insight,
             proactiveness=proactiveness,

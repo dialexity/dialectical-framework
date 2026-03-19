@@ -129,59 +129,50 @@ APEX
 
 
 class TransitionDto(BaseModel):
-    """A transition statement with coordinates."""
+    """A transition with headline, statement, and explanation."""
 
+    headline: str = Field(description="Short headline (component length)")
     statement: str = Field(description="The transition statement (1-15 words)")
+    explanation: str = Field(description="Full explanation of why this transition makes sense")
     insight: float = Field(ge=0.0, le=1.0, description="Insight level (0.0-1.0)")
     proactiveness: float = Field(
         ge=0.0, le=1.0, description="Proactiveness level (0.0-1.0)"
     )
     insight_label: str = Field(description="Insight category label")
     proactiveness_label: str = Field(description="Proactiveness category label")
-    explanation: str = Field(description="Explanation of why this transition makes sense")
 
 
 class TetradCompletionDto(BaseModel):
     """LLM response for completing a tetrad."""
 
-    # Neutral category reframings (contextualized taxonomy categories)
+    # Neutral category reframings (contextualized taxonomy categories, component length)
     ac_category_reframing: str = Field(
-        description="Contextualized action category for this WU (e.g., 'Intervening through boundary-setting')"
+        description="Contextualized action category (component length, e.g., 'Boundary-setting intervention')"
     )
     re_category_reframing: str = Field(
-        description="Contextualized reflection category for this WU (e.g., 'Interpreting connection needs')"
+        description="Contextualized reflection category (component length, e.g., 'Connection needs interpretation')"
     )
 
-    re_plus_statement: str = Field(
-        description="Re+ statement: complementary reflection"
-    )
-    re_plus_insight_label: str = Field(description="Insight level for Re+")
-    re_plus_proactiveness_label: str = Field(
-        description="Proactiveness category for Re+"
-    )
+    # Re+ fields
+    re_plus_headline: str = Field(description="Re+ headline (component length)")
+    re_plus_statement: str = Field(description="Re+ statement (1-15 words)")
     re_plus_explanation: str = Field(description="How Re+ complements Ac+")
+    re_plus_insight_label: str = Field(description="Insight level for Re+")
+    re_plus_proactiveness_label: str = Field(description="Proactiveness category for Re+")
 
-    re_minus_statement: str = Field(
-        description="Re- statement: Ac+ without Re+ yields this"
-    )
+    # Re- fields
+    re_minus_headline: str = Field(description="Re- headline (component length)")
+    re_minus_statement: str = Field(description="Re- statement (1-15 words)")
+    re_minus_explanation: str = Field(description="Why this is the failure mode of unguided action")
     re_minus_insight_label: str = Field(description="Insight level for Re-")
-    re_minus_proactiveness_label: str = Field(
-        description="Proactiveness category for Re-"
-    )
-    re_minus_explanation: str = Field(
-        description="Why this is the failure mode of unguided action"
-    )
+    re_minus_proactiveness_label: str = Field(description="Proactiveness category for Re-")
 
-    ac_minus_statement: str = Field(
-        description="Ac- statement: Re+ without Ac+ yields this"
-    )
+    # Ac- fields
+    ac_minus_headline: str = Field(description="Ac- headline (component length)")
+    ac_minus_statement: str = Field(description="Ac- statement (1-15 words)")
+    ac_minus_explanation: str = Field(description="Why this is the failure mode of ungrounded reflection")
     ac_minus_insight_label: str = Field(description="Insight level for Ac-")
-    ac_minus_proactiveness_label: str = Field(
-        description="Proactiveness category for Ac-"
-    )
-    ac_minus_explanation: str = Field(
-        description="Why this is the failure mode of ungrounded reflection"
-    )
+    ac_minus_proactiveness_label: str = Field(description="Proactiveness category for Ac-")
 
 
 class HsScoringDto(BaseModel):
@@ -280,6 +271,7 @@ class TransformationGeneration(
 
         # Build transition DTOs
         ac_plus_dto = TransitionDto(
+            headline=ac_plus.headline,
             statement=ac_plus.statement,
             insight=ac_plus.insight,
             proactiveness=ac_plus.proactiveness,
@@ -289,6 +281,7 @@ class TransformationGeneration(
         )
 
         re_plus_dto = self._build_transition_dto(
+            completion.re_plus_headline,
             completion.re_plus_statement,
             completion.re_plus_insight_label,
             completion.re_plus_proactiveness_label,
@@ -296,6 +289,7 @@ class TransformationGeneration(
         )
 
         re_minus_dto = self._build_transition_dto(
+            completion.re_minus_headline,
             completion.re_minus_statement,
             completion.re_minus_insight_label,
             completion.re_minus_proactiveness_label,
@@ -303,6 +297,7 @@ class TransformationGeneration(
         )
 
         ac_minus_dto = self._build_transition_dto(
+            completion.ac_minus_headline,
             completion.ac_minus_statement,
             completion.ac_minus_insight_label,
             completion.ac_minus_proactiveness_label,
@@ -408,9 +403,14 @@ Complete the transformation:
 
 ## Tetrad Completion
 
+For each position, provide:
+- A **headline** (~{self.settings.component_length} words) - short, memorable essence
+- A **statement** (1-15 words) - fuller actionable description
+- An **explanation** - why this transition makes sense
+
 3. **Re+** (Positive Reflection): Generate a complementary reflection at the {expected_re_category.upper()} proactiveness level.
    - Re+ should guide the A- → T+ path
-   - Insight should be similar to Ac+ (~{ac_plus.insight_label})
+   - Insight should be similar to the one of Ac+ (~{ac_plus.insight_label})
    - This reflection gives meaning and direction to the action
 
 4. **Re-** (Negative Reflection): What happens when Ac+ is taken WITHOUT Re+?
@@ -422,7 +422,7 @@ Complete the transformation:
    - Usually lower insight than Ac+
 
 Requirements:
-- All statements 1-15 words
+- Headlines ~{self.settings.component_length} words, statements 1-15 words
 - Re+ must be in the {expected_re_category} category (polar pair of {ac_plus.proactiveness_label})
 - Negative poles describe failure modes, not opposites"""
 
@@ -466,6 +466,7 @@ Score each transition by comparing its semantic meaning to the corresponding ape
 
     def _build_transition_dto(
         self,
+        headline: str,
         statement: str,
         insight_label: str,
         proactiveness_label: str,
@@ -486,6 +487,7 @@ Score each transition by comparing its semantic meaning to the corresponding ape
             proactiveness = PROACTIVENESS_SCALE["Evaluation"]  # Midpoint default
 
         return TransitionDto(
+            headline=headline,
             statement=statement,
             insight=insight,
             proactiveness=proactiveness,

@@ -239,7 +239,9 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
         # Create neutral category transitions (Ac: T → A, Re: A → T)
         # Ac (Action category): contextualized taxonomy category for T → A
+        # For neutral categories, the reframing serves as both headline and statement
         ac_transition = self._create_transition(
+            headline=tetrad.ac_category_reframing,
             statement=tetrad.ac_category_reframing,
             source=t,
             target=a,
@@ -256,6 +258,7 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
         # Re (Reflection category): contextualized taxonomy category for A → T
         re_transition = self._create_transition(
+            headline=tetrad.re_category_reframing,
             statement=tetrad.re_category_reframing,
             source=a,
             target=t,
@@ -273,6 +276,7 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
         # Create transitions for each position using WU poles as source/target
         # Ac+: T- → A+ (positive action: escape T- problems toward A+ benefits)
         ac_plus_transition = self._create_transition(
+            headline=tetrad.ac_plus.headline,
             statement=tetrad.ac_plus.statement,
             source=t_minus,
             target=a_plus,
@@ -293,6 +297,7 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
         # Re+: A- → T+ (positive reflection: escape A- problems toward T+ benefits)
         re_plus_transition = self._create_transition(
+            headline=tetrad.re_plus.headline,
             statement=tetrad.re_plus.statement,
             source=a_minus,
             target=t_plus,
@@ -313,6 +318,7 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
         # Re-: A+ → T- (negative reflection: action without reflection leads here)
         re_minus_transition = self._create_transition(
+            headline=tetrad.re_minus.headline,
             statement=tetrad.re_minus.statement,
             source=a_plus,
             target=t_minus,
@@ -333,6 +339,7 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
         # Ac-: T+ → A- (negative action: reflection without action leads here)
         ac_minus_transition = self._create_transition(
+            headline=tetrad.ac_minus.headline,
             statement=tetrad.ac_minus.statement,
             source=t_plus,
             target=a_minus,
@@ -359,6 +366,7 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
 
     def _create_transition(
         self,
+        headline: str,
         statement: str,
         source: DialecticalComponent,
         target: DialecticalComponent,
@@ -368,23 +376,28 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
         Create a Transition node between WU poles.
 
         Args:
-            statement: The transition statement (stored on Transition.statement)
+            headline: Short headline (~7 words) - stored on Transition.statement and Rationale.headline
+            statement: Fuller statement (1-15 words) - stored on Rationale.summary
             source: The source component from the WisdomUnit (e.g., T-)
             target: The target component from the WisdomUnit (e.g., A+)
-            explanation: Explanation of why this transition makes sense
+            explanation: Full explanation - stored on Rationale.text
 
         Returns:
             The committed Transition node
         """
-        # Create transition with statement
-        transition = Transition(statement=statement)
+        # Create transition with headline as its statement
+        transition = Transition(statement=headline)
         transition.set_source(source)
         transition.set_target(target)
         transition.commit()
 
-        # Add rationale with headline (statement) and text (explanation)
+        # Add rationale with three-tier structure:
+        # - headline: short essence (~7 words)
+        # - summary: fuller statement (1-15 words)
+        # - text: full explanation
         rationale = Rationale(
-            headline=statement,
+            headline=headline,
+            summary=statement,
             text=explanation,
         )
         rationale.set_explanation_target(transition)
