@@ -8,10 +8,15 @@ Orchestrates the transformation generation pipeline:
 4. Creates Transformation nodes in the graph
 
 Usage:
+    # Programmatic use
     agent = TransformationAgent(wisdom_unit_hash="abc123...")
-    transformations = await agent.execute()
-    for t in transformations:
+    result = await agent.execute()
+    for t in result.all:
         print(f"{t}")
+
+    # LLM tool use
+    agent = TransformationAgent(wisdom_unit_hash="abc123...")
+    json_result = await agent.call()  # Returns JSON string
 """
 
 from __future__ import annotations
@@ -20,6 +25,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from dependency_injector.wiring import Provide, inject
+from mirascope import BaseTool
+from pydantic import Field, PrivateAttr
 
 from dialectical_framework.agents.executable_capability import ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
@@ -75,25 +82,28 @@ class TransformationAgentResult:
         return self.existing + self.new
 
 
-class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
+class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResult]):
     """
     Subagent for generating Action-Reflection transformations for WisdomUnits.
 
     This agent orchestrates the full transformation generation pipeline,
     producing multiple transformation alternatives for a single WisdomUnit.
+
+    Dual interface:
+    - execute() returns TransformationAgentResult for programmatic use
+    - call() returns JSON string for LLM tool use
     """
 
-    def __init__(
-        self,
-        wisdom_unit_hash: str,
-    ) -> None:
-        """
-        Initialize the TransformationAgent.
+    wisdom_unit_hash: str = Field(
+        description="Hash (full or prefix) of the WisdomUnit to transform"
+    )
 
-        Args:
-            wisdom_unit_hash: Hash (full or prefix) of the WisdomUnit to transform
-        """
-        self._wisdom_unit_hash = wisdom_unit_hash
+    _report: ExecutionReport = PrivateAttr()
+
+    async def call(self) -> str:
+        """Execute transformation generation and return ExecutionReport as JSON (for LLM tool use)."""
+        await self.execute()
+        return str(self._report)
 
     async def execute(self) -> TransformationAgentResult:
         """
@@ -169,9 +179,9 @@ class TransformationAgent(ExecutableCapability[TransformationAgentResult]):
         )
 
         repo = NodeRepository()
-        node = repo.find_by_hash(self._wisdom_unit_hash, node_type=WisdomUnit)
+        node = repo.find_by_hash(self.wisdom_unit_hash, node_type=WisdomUnit)
         if node is None:
-            raise ValueError(f"WisdomUnit not found: {self._wisdom_unit_hash}")
+            raise ValueError(f"WisdomUnit not found: {self.wisdom_unit_hash}")
         return node
 
     @inject
