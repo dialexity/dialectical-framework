@@ -97,7 +97,8 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         Ensure required indexes and constraints exist on the graph database.
 
         Creates indexes on :Node for Merkle identity fields (hash, origin_hash, sid).
-        Creates a unique constraint on :Node(hash).
+        Creates a unique constraint on :Node(hash, sid) - composite constraint ensures
+        uniqueness within scope while allowing same content in different scopes.
         Works with both Memgraph and Neo4j by detecting DB type and using appropriate syntax.
         """
         required_indexes = {"hash", "origin_hash", "sid"}
@@ -134,8 +135,10 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                 # Memgraph syntax
                 graph_db.execute(f"CREATE INDEX ON :Node({prop})")
 
-        # Check for existing unique constraint on hash
-        has_hash_constraint = False
+        # Check for existing unique constraint on (hash, sid)
+        # This composite constraint ensures uniqueness within scope while allowing
+        # same content (same hash) in different scopes (different sid)
+        has_hash_sid_constraint = False
         try:
             if is_neo4j:
                 # Neo4j: SHOW CONSTRAINTS returns labelsOrTypes, properties
@@ -143,30 +146,31 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                 for row in results:
                     labels = row.get("labelsOrTypes", [])
                     props = row.get("properties", [])
-                    if "Node" in labels and "hash" in props:
-                        has_hash_constraint = True
+                    if "Node" in labels and "hash" in props and "sid" in props:
+                        has_hash_sid_constraint = True
                         break
             else:
                 # Memgraph: SHOW CONSTRAINT INFO returns constraint_type, label, properties
                 results = graph_db.execute_and_fetch("SHOW CONSTRAINT INFO")
                 for row in results:
-                    if row.get("label") == "Node" and "hash" in row.get("properties", []):
-                        has_hash_constraint = True
+                    props = row.get("properties", [])
+                    if row.get("label") == "Node" and "hash" in props and "sid" in props:
+                        has_hash_sid_constraint = True
                         break
         except Exception:
             pass  # Fresh DB or no constraints
 
-        # Create unique constraint on hash if missing
-        if not has_hash_constraint:
+        # Create unique constraint on (hash, sid) if missing
+        if not has_hash_sid_constraint:
             try:
                 if is_neo4j:
                     graph_db.execute(
-                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Node) REQUIRE n.hash IS UNIQUE"
+                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Node) REQUIRE (n.hash, n.sid) IS UNIQUE"
                     )
                 else:
-                    # Memgraph syntax
+                    # Memgraph syntax: no parentheses around properties
                     graph_db.execute(
-                        "CREATE CONSTRAINT ON (n:Node) ASSERT n.hash IS UNIQUE"
+                        "CREATE CONSTRAINT ON (n:Node) ASSERT n.hash, n.sid IS UNIQUE"
                     )
             except Exception:
                 pass  # Constraint may already exist or DB doesn't support it
