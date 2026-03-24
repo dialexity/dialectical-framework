@@ -207,6 +207,15 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
                 })
                 continue
 
+            # Only commit complete WUs (all 6 positions filled)
+            # If specific positions were requested, WU may remain incomplete
+            if not wu.is_complete():
+                self._report.artifacts.setdefault("incomplete_wus", []).append({
+                    "status": "kept_uncommitted",
+                    "reason": "missing positions",
+                })
+                continue
+
             # Commit WisdomUnit
             wu.commit()
             self._report.node_created(wu)

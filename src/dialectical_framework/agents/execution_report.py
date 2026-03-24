@@ -68,11 +68,11 @@ class NodeRef(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     label: str
-    hash: str
+    hash: Optional[str] = None
 
     @classmethod
     def from_node(cls, node: BaseNode) -> NodeRef:
-        # Short hash - to save tokens
+        # Short hash - to save tokens (None if uncommitted)
         return cls(label=node.__class__.__name__, hash=node.short_hash)
 
 

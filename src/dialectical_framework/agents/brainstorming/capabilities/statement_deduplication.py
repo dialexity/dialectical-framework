@@ -210,9 +210,28 @@ class StatementDeduplication(ExecutableCapability[DedupResult]):
                 originals=originals,
             )
 
+        # CRITICAL: Filter out extracted hashes from vocabulary to prevent self-matching
+        # The extracted components may have been committed to DB before this call,
+        # making them appear in vocabulary. Matching a component to itself is wrong.
+        extracted_set = set(extracted_hashes)
+        filtered_vocabulary = [v for v in vocabulary if v.get("hash") not in extracted_set]
+
+        if not filtered_vocabulary:
+            self._report.ok = True
+            self._report.summary = "No vocabulary to compare against (after excluding extracted)"
+            originals = [
+                comp for h in extracted_hashes
+                if (comp := self._resolve_component(h)) is not None
+            ]
+            return DedupResult(
+                replacements={},
+                deleted_count=0,
+                originals=originals,
+            )
+
         # Get semantic matches from LLM
         dedup_dto = await self._find_semantic_matches(
-            extracted_hashes, vocabulary
+            extracted_hashes, filtered_vocabulary
         )
 
         # Apply matches: delete duplicates, track replacements
@@ -312,16 +331,20 @@ If no match, set db_hash to null."""
             match = self._find_match(ext_hash, dedup_dto.matches)
 
             if match and match.db_hash and match.confidence >= 0.7:
-                # Has equivalent in DB - delete extraction
-                ext_comp = self._resolve_component(ext_hash)
-                if ext_comp and repo.safe_delete(ext_comp):
-                    deleted_count += 1
-                    self._report.node_deleted(ext_comp, meta={"replaced_by": match.db_hash})
-
-                # Record replacement (resolve to actual component)
+                # Resolve replacement FIRST - only delete if replacement exists
                 db_comp = self._resolve_component(match.db_hash)
                 if db_comp:
+                    # Has valid replacement - safe to delete extraction
+                    ext_comp = self._resolve_component(ext_hash)
+                    if ext_comp and repo.safe_delete(ext_comp):
+                        deleted_count += 1
+                        self._report.node_deleted(ext_comp, meta={"replaced_by": match.db_hash})
                     replacements[ext_hash] = db_comp
+                else:
+                    # Replacement not found (LLM hallucinated hash?) - keep original
+                    ext_comp = self._resolve_component(ext_hash)
+                    if ext_comp:
+                        originals.append(ext_comp)
             else:
                 # No equivalent - keep extraction
                 ext_comp = self._resolve_component(ext_hash)

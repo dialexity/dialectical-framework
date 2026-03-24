@@ -145,8 +145,8 @@ class AnchoringAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         )
     )
 
-    _conversation: ConversationFacilitator = PrivateAttr(default_factory=ConversationFacilitator)
-    _report: ExecutionReport = PrivateAttr()
+    _conversation: Optional[ConversationFacilitator] = PrivateAttr(default=None)
+    _report: Optional[ExecutionReport] = PrivateAttr(default=None)
 
     async def call(self) -> str:
         """Execute anchoring and return ExecutionReport as JSON (for LLM tool use)."""
@@ -158,7 +158,8 @@ class AnchoringAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         # Reset report on each execution (allows instance reuse)
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        # Initialize conversation with system prompt
+        # Initialize conversation (lazy init for Mirascope tool compatibility)
+        self._conversation = ConversationFacilitator()
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         # 1. Parse intent

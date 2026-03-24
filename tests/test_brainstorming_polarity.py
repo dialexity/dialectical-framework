@@ -307,11 +307,11 @@ class TestWisdomUnitIsSame:
             )
 
             # Create two WUs with different T components
-            t1 = DialecticalComponent(statement="Trust")
+            t1 = DialecticalComponent(statement="Trust", meaning="dx://taxonomy/Simple")
             t1.commit()
-            t2 = DialecticalComponent(statement="Love")
+            t2 = DialecticalComponent(statement="Love", meaning="dx://taxonomy/Simple")
             t2.commit()
-            a = DialecticalComponent(statement="Fear")
+            a = DialecticalComponent(statement="Fear", meaning="dx://taxonomy/Simple")
             a.commit()
 
             wu1 = WisdomUnit()
@@ -343,17 +343,17 @@ class TestWisdomUnitIsSame:
             )
 
             # Create components
-            c1 = DialecticalComponent(statement="Order")
+            c1 = DialecticalComponent(statement="Order", meaning="dx://taxonomy/Simple")
             c1.commit()
-            c2 = DialecticalComponent(statement="Chaos")
+            c2 = DialecticalComponent(statement="Chaos", meaning="dx://taxonomy/Simple")
             c2.commit()
-            c1_plus = DialecticalComponent(statement="Order+")
+            c1_plus = DialecticalComponent(statement="Order+", meaning="dx://taxonomy/Simple")
             c1_plus.commit()
-            c1_minus = DialecticalComponent(statement="Order-")
+            c1_minus = DialecticalComponent(statement="Order-", meaning="dx://taxonomy/Simple")
             c1_minus.commit()
-            c2_plus = DialecticalComponent(statement="Chaos+")
+            c2_plus = DialecticalComponent(statement="Chaos+", meaning="dx://taxonomy/Simple")
             c2_plus.commit()
-            c2_minus = DialecticalComponent(statement="Chaos-")
+            c2_minus = DialecticalComponent(statement="Chaos-", meaning="dx://taxonomy/Simple")
             c2_minus.commit()
 
             # WU1: T=Order, A=Chaos

@@ -69,6 +69,16 @@ class ConversationFacilitator(HasBrain, SettingsAware):
         else:
             self._messages.insert(0, system_msg)
 
+    def add_user_message(self, content: str) -> ConversationFacilitator:
+        """Add a user message to the conversation. Returns self for chaining."""
+        self._messages.append(Messages.User(content))
+        return self
+
+    def add_assistant_message(self, content: str) -> ConversationFacilitator:
+        """Add an assistant message to the conversation. Returns self for chaining."""
+        self._messages.append(Messages.Assistant(content))
+        return self
+
     def isolate(self) -> ConversationFacilitator:
         """
         Create an isolated copy with current messages snapshot.

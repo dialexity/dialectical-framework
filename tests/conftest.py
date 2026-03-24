@@ -49,30 +49,30 @@ class TestMemgraph(Memgraph):
         IMPORTANT: Always adds test label to ALL saved nodes (even those without hash)
         so that test cleanup works correctly even when tests fail mid-execution.
 
-        NOTE: Hash lookup includes the node's specific label to avoid
-        cross-type collisions (e.g., Input and DialecticalComponent with
-        same content/statement getting same hash).
+        NOTE: Hash lookup includes the node's specific label AND sid to avoid
+        cross-scope collisions.
         """
         # For content-addressable nodes, check if a node with this hash already exists
         if hasattr(node, 'hash') and node.hash and node._id is None:
             # Get the node's primary label for type-specific lookup
             # GQLAlchemy nodes have 'label' class attribute from @label decorator
             node_label = getattr(node.__class__, 'label', None)
+            node_sid = getattr(node, 'sid', None)
             if node_label and isinstance(node_label, str):
-                # Look up by hash AND specific label to avoid cross-type collisions
+                # Look up by hash AND specific label AND sid to ensure proper scoping
                 query = f"""
-                    MATCH (n:{node_label} {{hash: $hash}})
+                    MATCH (n:{node_label} {{hash: $hash, sid: $sid}})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
             else:
                 # Fallback to generic Node label
                 query = """
-                    MATCH (n:Node {hash: $hash})
+                    MATCH (n:Node {hash: $hash, sid: $sid})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
-            results = list(self.execute_and_fetch(query, {"hash": node.hash}))
+            results = list(self.execute_and_fetch(query, {"hash": node.hash, "sid": node_sid}))
             if results:
                 # Node exists - reuse it
                 existing_node = results[0]["n"]
@@ -119,30 +119,30 @@ class TestNeo4j(Neo4j):
         IMPORTANT: Always adds test label to ALL saved nodes (even those without hash)
         so that test cleanup works correctly even when tests fail mid-execution.
 
-        NOTE: Hash lookup includes the node's specific label to avoid
-        cross-type collisions (e.g., Input and DialecticalComponent with
-        same content/statement getting same hash).
+        NOTE: Hash lookup includes the node's specific label AND sid to avoid
+        cross-scope collisions.
         """
         # For content-addressable nodes, check if a node with this hash already exists
         if hasattr(node, 'hash') and node.hash and node._id is None:
             # Get the node's primary label for type-specific lookup
             # GQLAlchemy nodes have 'label' class attribute from @label decorator
             node_label = getattr(node.__class__, 'label', None)
+            node_sid = getattr(node, 'sid', None)
             if node_label and isinstance(node_label, str):
-                # Look up by hash AND specific label to avoid cross-type collisions
+                # Look up by hash AND specific label AND sid to ensure proper scoping
                 query = f"""
-                    MATCH (n:{node_label} {{hash: $hash}})
+                    MATCH (n:{node_label} {{hash: $hash, sid: $sid}})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
             else:
                 # Fallback to generic Node label
                 query = """
-                    MATCH (n:Node {hash: $hash})
+                    MATCH (n:Node {hash: $hash, sid: $sid})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
-            results = list(self.execute_and_fetch(query, {"hash": node.hash}))
+            results = list(self.execute_and_fetch(query, {"hash": node.hash, "sid": node_sid}))
             if results:
                 # Node exists - reuse it
                 existing_node = results[0]["n"]
