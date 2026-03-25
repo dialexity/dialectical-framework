@@ -1,8 +1,8 @@
 """
-Session management tools for the Orchestrator.
+Input tool for the Orchestrator.
 
-These tools manage content within the current session. Session lifecycle
-is handled by the Orchestrator itself, not by tools.
+AddInput is for adding SOURCE MATERIAL (user-provided content) for analysis.
+It is NOT for storing analytical outputs - those go through agent tools.
 """
 
 from __future__ import annotations
@@ -20,14 +20,23 @@ from dialectical_framework.graph.nodes.input import Input
 
 class AddInput(BaseTool):
     """
-    Add content to the current brainstorm.
+    Add SOURCE MATERIAL for analysis to the current brainstorm.
 
-    Content can be plain text or a URL. The input will be available
-    for thesis extraction.
+    ONLY use this for external content the user wants to analyze:
+    - Text the user pastes or provides
+    - URLs to articles/documents
+    - Uploaded file contents
+
+    DO NOT use this for:
+    - Your own summaries or analysis
+    - Generated outputs or conclusions
+    - Anything YOU wrote (use the appropriate agent tools instead)
+
+    Think of Input as "what goes IN for analysis", not "where to store results".
     """
 
     content: str = Field(
-        description="The content to add (plain text or URL)"
+        description="External source material to analyze (user-provided text or URL). NOT for storing your outputs."
     )
 
     @inject
