@@ -1,5 +1,5 @@
 """
-Tests for PolarityAgent - tetrad expansion (pole generation).
+Tests for WisdomAgent - tetrad expansion (pole generation).
 """
 
 from __future__ import annotations
@@ -9,12 +9,23 @@ import json
 import pytest
 from langfuse.decorators import observe
 
+from dialectical_framework.agents.brainstorming.subagents.wisdom_agent import WisdomAgent
 from dialectical_framework.agents.brainstorming.subagents.polarity_agent import PolarityAgent
-from dialectical_framework.agents.brainstorming.subagents.tension_agent import TensionAgent
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
+from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    TRelationship,
+    ARelationship,
+    TPlusRelationship,
+    TMinusRelationship,
+    APlusRelationship,
+    AMinusRelationship,
+    HasPolarityRelationship,
+)
+from dialectical_framework.graph.repositories.polarity_repository import PolarityRepository
 from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 from dialectical_framework.graph.scope_context import scope
 
@@ -36,18 +47,18 @@ data consistency across microservices. The system processes 10,000 orders per da
 """
 
 
-class TestPolarityAgent:
-    """Tests for PolarityAgent - tetrad expansion."""
+class TestWisdomAgent:
+    """Tests for WisdomAgent - tetrad expansion."""
 
     @pytest.mark.asyncio
     @observe()
-    async def test_polarity_requires_valid_thesis(self):
-        """PolarityAgent returns error when thesis not found."""
+    async def test_wisdom_requires_valid_thesis(self):
+        """WisdomAgent returns error when thesis not found."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            agent = PolarityAgent(
+            agent = WisdomAgent(
                 thesis_hash="nonexistent123",
                 antithesis_hash="nonexistent456",
             )
@@ -58,8 +69,8 @@ class TestPolarityAgent:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_polarity_requires_valid_antithesis(self):
-        """PolarityAgent returns error when antithesis not found."""
+    async def test_wisdom_requires_valid_antithesis(self):
+        """WisdomAgent returns error when antithesis not found."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -70,7 +81,7 @@ class TestPolarityAgent:
             )
             thesis.commit()
 
-            agent = PolarityAgent(
+            agent = WisdomAgent(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash="nonexistent456",
             )
@@ -81,8 +92,8 @@ class TestPolarityAgent:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_polarity_generates_all_poles(self):
-        """PolarityAgent generates all 4 poles (T+, T-, A+, A-)."""
+    async def test_wisdom_generates_all_poles(self):
+        """WisdomAgent generates all 4 poles (T+, T-, A+, A-)."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -99,7 +110,7 @@ class TestPolarityAgent:
             )
             antithesis.commit()
 
-            agent = PolarityAgent(
+            agent = WisdomAgent(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -115,8 +126,8 @@ class TestPolarityAgent:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_polarity_completes_partial_wu(self):
-        """PolarityAgent completes partial WisdomUnits from TensionAgent."""
+    async def test_wisdom_creates_wu_from_polarity(self):
+        """WisdomAgent creates WU using PolarityAgent output."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -127,30 +138,30 @@ class TestPolarityAgent:
             )
             thesis.commit()
 
-            # Use TensionAgent to create partial WU
-            tension_agent = TensionAgent(thesis_hashes=[thesis.short_hash])
-            await tension_agent.execute()
+            # Use PolarityAgent to create Polarity (T-A pair)
+            polarity_agent = PolarityAgent(thesis_hashes=[thesis.short_hash])
+            await polarity_agent.execute()
 
-            # Get the partial WU data
-            antithesis_data = tension_agent.report.artifacts.get("antithesis_data", [])
-            assert len(antithesis_data) >= 1
+            # Get the polarity data
+            polarity_data = polarity_agent.report.artifacts.get("polarity_data", [])
+            assert len(polarity_data) >= 1
 
-            # Complete with PolarityAgent
-            data = antithesis_data[0]
-            polarity_agent = PolarityAgent(
+            # Complete with WisdomAgent
+            data = polarity_data[0]
+            wisdom_agent = WisdomAgent(
                 thesis_hash=data["thesis_hash"],
                 antithesis_hash=data["antithesis_hash"],
             )
-            wus = await polarity_agent.execute()
+            wus = await wisdom_agent.execute()
 
-            assert polarity_agent.report.ok
+            assert wisdom_agent.report.ok
             assert len(wus) >= 1
             assert wus[0].is_complete()
 
     @pytest.mark.asyncio
     @observe()
-    async def test_polarity_returns_existing_complete_wus(self):
-        """PolarityAgent returns existing complete WUs along with new ones."""
+    async def test_wisdom_returns_existing_complete_wus(self):
+        """WisdomAgent returns existing complete WUs along with new ones."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -168,7 +179,7 @@ class TestPolarityAgent:
             antithesis.commit()
 
             # First run - creates new WU
-            agent1 = PolarityAgent(
+            agent1 = WisdomAgent(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -177,7 +188,7 @@ class TestPolarityAgent:
             first_wu_hash = wus1[0].hash
 
             # Second run - should return existing + potentially new
-            agent2 = PolarityAgent(
+            agent2 = WisdomAgent(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -192,8 +203,8 @@ class TestPolarityAgent:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_polarity_with_specific_positions(self):
-        """PolarityAgent can generate specific poles only."""
+    async def test_wisdom_with_specific_positions(self):
+        """WisdomAgent can generate specific poles only."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -211,7 +222,7 @@ class TestPolarityAgent:
             antithesis.commit()
 
             # Only generate T+ and T-
-            agent = PolarityAgent(
+            agent = WisdomAgent(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
                 positions=["T+", "T-"],
@@ -224,8 +235,8 @@ class TestPolarityAgent:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_polarity_detects_duplicates(self):
-        """PolarityAgent detects and discards duplicate WUs after deduplication."""
+    async def test_wisdom_detects_duplicates(self):
+        """WisdomAgent detects and discards duplicate WUs after deduplication."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -243,7 +254,7 @@ class TestPolarityAgent:
             antithesis.commit()
 
             # First run
-            agent1 = PolarityAgent(
+            agent1 = WisdomAgent(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -253,15 +264,20 @@ class TestPolarityAgent:
             # Multiple runs should not create exact duplicates
             # (though they may create variants with different poles)
             for _ in range(2):
-                agent = PolarityAgent(
+                agent = WisdomAgent(
                     thesis_hash=thesis.short_hash,
                     antithesis_hash=antithesis.short_hash,
                 )
                 await agent.execute()
 
             # Check how many WUs exist for this tension
+            pol_repo = PolarityRepository()
+            polarities = pol_repo.find_by_tension(thesis, antithesis)
+            assert len(polarities) >= 1, "Expected at least one Polarity"
+            polarity = polarities[0]
+
             wu_repo = WisdomUnitRepository()
-            all_wus = wu_repo.find_by_tension(thesis, antithesis)
+            all_wus = wu_repo.find_by_polarity(polarity)
             complete_wus = [wu for wu in all_wus if wu.is_complete() and wu.is_committed]
 
             # Should not have exact duplicates (same 6 components)
@@ -301,12 +317,7 @@ class TestWisdomUnitIsSame:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            from dialectical_framework.graph.relationships.polarity_relationship import (
-                TRelationship,
-                ARelationship,
-            )
-
-            # Create two WUs with different T components
+            # Create components
             t1 = DialecticalComponent(statement="Trust", meaning="dx://taxonomy/Simple")
             t1.commit()
             t2 = DialecticalComponent(statement="Love", meaning="dx://taxonomy/Simple")
@@ -314,15 +325,25 @@ class TestWisdomUnitIsSame:
             a = DialecticalComponent(statement="Fear", meaning="dx://taxonomy/Simple")
             a.commit()
 
+            # Create two Polarities with different T components
+            pol1 = Polarity()
+            pol1.set_t(t1, heuristic_similarity=1.0)
+            pol1.set_a(a, heuristic_similarity=0.5)
+            pol1.commit()
+
+            pol2 = Polarity()
+            pol2.set_t(t2, heuristic_similarity=1.0)
+            pol2.set_a(a, heuristic_similarity=0.5)
+            pol2.commit()
+
+            # Create WUs referencing the different Polarities
             wu1 = WisdomUnit()
             wu1.save()
-            wu1.t.connect(t1, relationship=TRelationship(alias="T", heuristic_similarity=1.0))
-            wu1.a.connect(a, relationship=ARelationship(alias="A", heuristic_similarity=0.5))
+            wu1.polarity.connect(pol1, relationship=HasPolarityRelationship())
 
             wu2 = WisdomUnit()
             wu2.save()
-            wu2.t.connect(t2, relationship=TRelationship(alias="T", heuristic_similarity=1.0))
-            wu2.a.connect(a, relationship=ARelationship(alias="A", heuristic_similarity=0.5))
+            wu2.polarity.connect(pol2, relationship=HasPolarityRelationship())
 
             assert not wu1.is_same(wu2)
 
@@ -333,15 +354,6 @@ class TestWisdomUnitIsSame:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            from dialectical_framework.graph.relationships.polarity_relationship import (
-                TRelationship,
-                TPlusRelationship,
-                TMinusRelationship,
-                ARelationship,
-                APlusRelationship,
-                AMinusRelationship,
-            )
-
             # Create components
             c1 = DialecticalComponent(statement="Order", meaning="dx://taxonomy/Simple")
             c1.commit()
@@ -356,21 +368,31 @@ class TestWisdomUnitIsSame:
             c2_minus = DialecticalComponent(statement="Chaos-", meaning="dx://taxonomy/Simple")
             c2_minus.commit()
 
-            # WU1: T=Order, A=Chaos
+            # Polarity 1: T=Order, A=Chaos
+            pol1 = Polarity()
+            pol1.set_t(c1, heuristic_similarity=1.0)
+            pol1.set_a(c2, heuristic_similarity=0.5)
+            pol1.commit()
+
+            # Polarity 2: T=Chaos, A=Order (swapped!)
+            pol2 = Polarity()
+            pol2.set_t(c2, heuristic_similarity=1.0)
+            pol2.set_a(c1, heuristic_similarity=0.5)
+            pol2.commit()
+
+            # WU1 with Polarity 1 and Order poles for T, Chaos poles for A
             wu1 = WisdomUnit()
             wu1.save()
-            wu1.t.connect(c1, relationship=TRelationship(alias="T", heuristic_similarity=1.0))
-            wu1.a.connect(c2, relationship=ARelationship(alias="A", heuristic_similarity=0.5))
+            wu1.polarity.connect(pol1, relationship=HasPolarityRelationship())
             wu1.t_plus.connect(c1_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.8))
             wu1.t_minus.connect(c1_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.8))
             wu1.a_plus.connect(c2_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.8))
             wu1.a_minus.connect(c2_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.8))
 
-            # WU2: T=Chaos, A=Order (swapped!)
+            # WU2 with Polarity 2 (swapped) and poles matching the swapped orientation
             wu2 = WisdomUnit()
             wu2.save()
-            wu2.t.connect(c2, relationship=TRelationship(alias="T", heuristic_similarity=1.0))
-            wu2.a.connect(c1, relationship=ARelationship(alias="A", heuristic_similarity=0.5))
+            wu2.polarity.connect(pol2, relationship=HasPolarityRelationship())
             wu2.t_plus.connect(c2_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.8))
             wu2.t_minus.connect(c2_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.8))
             wu2.a_plus.connect(c1_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.8))

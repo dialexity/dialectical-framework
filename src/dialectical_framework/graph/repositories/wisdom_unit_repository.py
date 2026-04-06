@@ -16,6 +16,7 @@ from dialectical_framework.enums.di import DI
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.polarity import Polarity
 
 
 class WisdomUnitRepository:
@@ -26,45 +27,36 @@ class WisdomUnitRepository:
     """
 
     @inject
-    def find_by_tension(
+    def find_by_polarity(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        polarity: Polarity,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[WisdomUnit]:
         """
-        Find WisdomUnits that have the given thesis at T and antithesis at A.
-
-        This is useful for looking up the heuristic_similarity stored on the
-        ARelationship for a specific T-A pair.
+        Find WisdomUnits that reference the given Polarity.
 
         Args:
-            thesis: The DialecticalComponent at position T
-            antithesis: The DialecticalComponent at position A
+            polarity: The Polarity (T-A pair) to query for
             sid: Scope ID (injected from DI context)
 
         Returns:
-            List of WisdomUnits where T=thesis AND A=antithesis
+            List of WisdomUnits connected to this Polarity
         """
-        if thesis._id is None or antithesis._id is None:
+        if polarity._id is None:
             return []
 
-        # Validate both components belong to current scope
-        if sid:
-            if thesis.sid != sid or antithesis.sid != sid:
-                return []
+        # Validate polarity belongs to current scope
+        if sid and polarity.sid != sid:
+            return []
 
         query = """
-        MATCH (t:DialecticalComponent)-[:T]->(wu:WisdomUnit)<-[:A]-(a:DialecticalComponent)
-        WHERE id(t) = $thesis_id AND id(a) = $antithesis_id
+        MATCH (wu:WisdomUnit)-[:HAS_POLARITY]->(p:Polarity)
+        WHERE id(p) = $polarity_id
         RETURN wu
         """
 
-        results = graph_db.execute_and_fetch(query, {
-            "thesis_id": thesis._id,
-            "antithesis_id": antithesis._id
-        })
+        results = graph_db.execute_and_fetch(query, {"polarity_id": polarity._id})
         return [result["wu"] for result in results]
 
     @inject
@@ -92,10 +84,18 @@ class WisdomUnitRepository:
             return []
 
         query = """
-        // Core positions (T, T+, T-, A, A+, A-) directly on WU
+        // Pole positions (T+, T-, A+, A-) directly on WU
         MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
         WHERE id(c) = $component_id
-        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS']
+        AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
+        RETURN wu, type(r) AS rel_type
+
+        UNION
+
+        // T and A positions via Polarity
+        MATCH (c:DialecticalComponent)-[r]->(p:Polarity)<-[:HAS_POLARITY]-(wu:WisdomUnit)
+        WHERE id(c) = $component_id
+        AND type(r) IN ['T', 'A']
         RETURN wu, type(r) AS rel_type
 
         UNION

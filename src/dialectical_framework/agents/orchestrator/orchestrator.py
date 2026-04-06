@@ -99,8 +99,8 @@ from dialectical_framework.graph.scope_context import scope
 
 # Import existing subagents
 from dialectical_framework.agents.brainstorming.subagents.anchoring_agent import AnchoringAgent
-from dialectical_framework.agents.brainstorming.subagents.tension_agent import TensionAgent
 from dialectical_framework.agents.brainstorming.subagents.polarity_agent import PolarityAgent
+from dialectical_framework.agents.brainstorming.subagents.wisdom_agent import WisdomAgent
 from dialectical_framework.agents.brainstorming.subagents.polarity_editor import PolarityEditor
 from dialectical_framework.agents.sensemaking.subagents.transformation_agent import TransformationAgent
 
@@ -216,8 +216,8 @@ class Orchestrator:
 
         build_tools = [
             AnchoringAgent,
-            TensionAgent,
             PolarityAgent,
+            WisdomAgent,
             PolarityEditor,
             TransformationAgent,
         ]

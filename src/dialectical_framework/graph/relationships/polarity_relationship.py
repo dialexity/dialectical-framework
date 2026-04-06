@@ -158,3 +158,14 @@ class RePlusRelationship(TransitionPoleRelationship, type="RE_PLUS"):
 class ReMinusRelationship(TransitionPoleRelationship, type="RE_MINUS"):
     """Negative reflection relationship: A+ → T- transition."""
     pass
+
+
+# Structural relationships for Polarity node
+class HasPolarityRelationship(IdentityRelationship, type="HAS_POLARITY"):
+    """
+    Links WisdomUnit to its Polarity (T-A pair).
+
+    The Polarity contains the thesis (T) and antithesis (A) reference points.
+    WisdomUnit references Polarity and adds the 4 poles (T+, T-, A+, A-).
+    """
+    pass

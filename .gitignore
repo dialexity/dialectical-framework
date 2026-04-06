@@ -63,3 +63,4 @@ logs/
 .claude/
 tests/play.py
 docs/r&d/
+.chainlit/

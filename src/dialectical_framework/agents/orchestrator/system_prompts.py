@@ -42,8 +42,8 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 
 ### Building
 - **AnchoringAgent**: Extract theses from inputs or anchor direct concepts
-- **TensionAgent**: Generate antitheses for existing theses
-- **PolarityAgent**: Complete WisdomUnits with positive/negative poles
+- **PolarityAgent**: Generate antitheses and create Polarities (T-A pairs)
+- **WisdomAgent**: Complete WisdomUnits with positive/negative poles (T+, T-, A+, A-)
 - **PolarityEditor**: Modify existing WisdomUnit positions
 - **TransformationAgent**: Generate action-reflection transformations
 - **NexusAgent**: Create a Nexus from WisdomUnits
@@ -64,7 +64,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 2. **Explain as you go**: Help users understand the dialectical structure being built
 3. **Be concise**: Summarize tool results rather than dumping raw output
 4. **Suggest next steps**: Guide users through the workflow
-5. **Input vs Output**: AddInput is ONLY for source material the user provides. Your analytical outputs go into DialecticalComponents via the agent tools (AnchoringAgent, TensionAgent, etc.), NOT into Input.
+5. **Input vs Output**: AddInput is ONLY for source material the user provides. Your analytical outputs go into DialecticalComponents via the agent tools (AnchoringAgent, PolarityAgent, etc.), NOT into Input.
 
 When a user describes a topic or concept to explore, help them:
 1. Extract or define key theses

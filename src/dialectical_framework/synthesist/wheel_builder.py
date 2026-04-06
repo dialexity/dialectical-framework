@@ -16,7 +16,7 @@ from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import ThesisExtraction
 from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import AntithesisExtraction
-from dialectical_framework.agents.brainstorming.subagents.polarity_agent import PolarityAgent
+from dialectical_framework.agents.brainstorming.subagents.wisdom_agent import WisdomAgent
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
@@ -253,7 +253,7 @@ class WheelBuilder(SettingsAware):
         1. Get or extract thesis (T)
         2. Get or extract antithesis (A)
         3. Create partial WisdomUnit (T + A)
-        4. Complete WU with poles using PolarityAgent (T+, T-, A+, A-)
+        4. Complete WU with poles using WisdomAgent (T+, T-, A+, A-)
 
         Args:
             source: Input or Ideas node for context
@@ -319,8 +319,8 @@ class WheelBuilder(SettingsAware):
         if nexus:
             wu.nexus.connect(nexus)
 
-        # Complete WU with poles using PolarityAgent
-        polarity_agent = PolarityAgent(
+        # Complete WU with poles using WisdomAgent
+        polarity_agent = WisdomAgent(
             thesis_hash=t_node.hash,
             antithesis_hash=a_node.hash,
         )
@@ -411,7 +411,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         """
         Create a new WisdomUnit with modified component statements.
 
-        If T or A is modified, regenerates the poles using PolarityAgent.
+        If T or A is modified, regenerates the poles using WisdomAgent.
         If only poles are modified, copies unchanged components and creates new ones.
 
         Args:
@@ -480,9 +480,9 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
             new_wu.t.connect(t_comp, relationship=TRelationship(alias=POSITION_T, heuristic_similarity=1.0))
             new_wu.a.connect(a_comp, relationship=ARelationship(alias=POSITION_A, heuristic_similarity=1.0))
 
-            # Use PolarityAgent to regenerate poles
+            # Use WisdomAgent to regenerate poles
             t_comp.oppositions.connect(a_comp)
-            polarity_agent = PolarityAgent(
+            polarity_agent = WisdomAgent(
                 thesis_hash=t_comp.hash,
                 antithesis_hash=a_comp.hash,
             )

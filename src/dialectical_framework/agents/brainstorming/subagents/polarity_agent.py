@@ -1,30 +1,29 @@
 """
-PolarityAgent: Orchestrator for tetrad expansion (pole generation).
+PolarityAgent: Orchestrator for creating Polarities (T-A pairs).
 
-Takes a single T-A tension and completes all partial WisdomUnits with poles.
-If no WisdomUnit exists for the T-A pair, creates one using AntithesisClassification
-to get the proper heuristic_similarity.
+Extracts antitheses for theses and creates Polarity nodes (T-A pairs).
+Returns Ideas containing all T and A components with HS metadata.
 
 Flow:
-    TensionAgent → Ideas + partial WisdomUnits (T + A with HS, uncommitted)
+    AnchoringAgent → Theses (Ideas with all T)
            ↓
-    PolarityAgent → Complete WisdomUnits (T, A, T+, T-, A+, A-, committed)
-
-If no WU exists:
-    PolarityAgent calls AntithesisClassification to get HS, creates WU, then expands.
+    PolarityAgent → Polarity nodes (T-A pairs with HS) + Ideas with all T and A
+           ↓
+    WisdomAgent → Creates WisdomUnits from Polarities by adding poles (T+, T-, A+, A-)
 
 Usage:
-    # From TensionAgent output
-    tension_agent = TensionAgent(thesis_hashes=[...])
-    ideas = await tension_agent.execute()
+    # Programmatic (web app)
+    agent = PolarityAgent(thesis_hashes=["abc123", "def456"])
+    ideas = await agent.execute()
 
-    # Get tension data from artifacts
-    for tension in tension_agent.report.artifacts["antithesis_data"]:
-        polarity_agent = PolarityAgent(
-            thesis_hash=tension["thesis_hash"],
-            antithesis_hash=tension["antithesis_hash"],
-        )
-        wus = await polarity_agent.execute()
+    # Access T-A pairs from Ideas
+    for comp, _ in ideas.statements.all():
+        for antithesis, _ in comp.oppositions.all():
+            print(f"{comp.statement} vs {antithesis.statement}")
+
+    # LLM tool use (returns JSON with HS data)
+    agent = PolarityAgent(thesis_hashes=[...])
+    json_result = await agent.call()  # Includes antithesis_data with HS values
 """
 
 from __future__ import annotations
@@ -35,392 +34,321 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
-    AntithesisClassification,
-)
-from dialectical_framework.agents.brainstorming.capabilities.pole_generation import (
-    PoleGeneration,
-    PoleResult,
-)
-from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
-    StatementDeduplication,
+from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
+    AntithesisExtraction,
 )
 from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
+    DedupResult,
+    StatementDeduplication,
+)
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.ideas import Ideas
+from dialectical_framework.graph.nodes.polarity import POSITION_A, POSITION_T, Polarity
+from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    ARelationship,
+    TRelationship,
+)
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository,
 )
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_A,
-    POSITION_A_MINUS,
-    POSITION_A_PLUS,
-    POSITION_T,
-    POSITION_T_MINUS,
-    POSITION_T_PLUS,
-    WisdomUnit,
-)
-from dialectical_framework.graph.relationships.polarity_relationship import (
-    ARelationship,
-    APlusRelationship,
-    AMinusRelationship,
-    TRelationship,
-    TPlusRelationship,
-    TMinusRelationship,
-)
 from dialectical_framework.graph.repositories.input_repository import InputRepository
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.repositories.polarity_repository import PolarityRepository
 from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
 
 
-class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
+# --- Result container for tracking ---
+
+
+class ThesisResult:
+    """Container for tracking results per thesis."""
+
+    def __init__(self, thesis: DialecticalComponent):
+        self.thesis = thesis
+        self.antithesis_data: list[dict] = []  # [{hash, heuristic_similarity}, ...]
+        self.error: Optional[str] = None
+
+
+# --- Main Orchestrator ---
+
+
+class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
     """
-    Orchestrate tetrad expansion for a single T-A tension.
+    Orchestrate Polarity creation (T-A pairs).
 
-    Completes ALL partial WisdomUnits for the tension. If no WU exists,
-    creates one using AntithesisClassification to get the proper heuristic_similarity.
-    Existing complete WUs are used as variation seeds (not_like_these).
+    For each thesis hash:
+    1. Use AntithesisExtraction to generate antitheses
+    2. Create Polarity nodes (T-A pairs) with HS metadata
+    3. Return Ideas containing all T and A components
 
-    Flow:
-    1. Look up existing WisdomUnits for this T-A pair
-    2. If none exist, classify the antithesis and create a partial WU
-    3. Complete all partial WUs by generating poles (T+, T-, A+, A-)
-    4. Return list of completed WisdomUnits
+    The HS (Heuristic Similarity) for each T-A pair is available in:
+    - Report artifacts: polarity_data[{thesis_hash, antithesis_hash, heuristic_similarity}]
+    - Polarity nodes: ARelationship.heuristic_similarity
 
     Dual interface:
-    - execute() returns list[WisdomUnit] for programmatic use
-    - call() returns JSON string for LLM tool use
+    - execute() returns Ideas for programmatic use
+    - call() returns JSON string for LLM tool use (includes HS data)
     """
 
-    thesis_hash: str = Field(
-        description="Hash of the thesis component"
-    )
-    antithesis_hash: str = Field(
-        description="Hash of the antithesis component"
-    )
-    positions: Optional[list[str]] = Field(
-        default=None,
-        description="Which poles to generate (T+, T-, A+, A-). If None, generates all 4."
+    thesis_hashes: list[str] = Field(
+        description="Hashes of theses to generate antitheses for"
     )
 
     _report: ExecutionReport = PrivateAttr()
 
-    @property
-    def report(self) -> ExecutionReport:
-        """Access the execution report."""
-        return self._report
-
     async def call(self) -> str:
-        """Execute tetrad expansion and return ExecutionReport as JSON."""
+        """Execute polarity creation and return ExecutionReport as JSON (for LLM tool use)."""
         await self.execute()
         return str(self._report)
 
-    async def execute(self) -> list[WisdomUnit]:
+    async def execute(self) -> Optional[Ideas]:
         """
-        Execute tetrad expansion for a single T-A tension.
-
-        If no WU exists for the T-A pair, creates one using AntithesisClassification
-        to get the proper heuristic_similarity. Then completes all partial WUs.
+        Execute polarity creation: extract antitheses and create Polarities + Ideas.
 
         Returns:
-            List of complete, committed WisdomUnits
+            Ideas containing all T and A components (with OPPOSITE_OF relationships)
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        # Resolve components
-        thesis = self._resolve_component(self.thesis_hash)
-        if thesis is None:
-            self._report.ok = False
-            self._report.summary = f"Thesis '{self.thesis_hash}' not found"
-            return []
+        if not self.thesis_hashes:
+            self._report.ok = True
+            self._report.summary = "No thesis hashes provided"
+            self._report.artifacts["antithesis_data"] = []
+            return None
 
-        antithesis = self._resolve_component(self.antithesis_hash)
-        if antithesis is None:
-            self._report.ok = False
-            self._report.summary = f"Antithesis '{self.antithesis_hash}' not found"
-            return []
-
-        # Get input text for context (needed for classification and pole generation)
+        # Get input text for context
         input_text = await self._get_input_text()
 
-        # Look up existing WisdomUnits for this T-A pair
-        wu_repo = WisdomUnitRepository()
-        existing_wus = wu_repo.find_by_tension(thesis, antithesis)
+        # Get existing vocabulary to avoid and for dedup comparison
+        comp_repo = DialecticalComponentRepository()
+        vocab = comp_repo.get_vocabulary_with_rationales()
+        not_like_these = [c["statement"] for c in vocab]
 
-        if not existing_wus:
-            # No WU exists - classify the antithesis and create one
-            wu = await self._create_wisdom_unit_from_classification(
-                thesis, antithesis, input_text
-            )
-            existing_wus = [wu]
+        results: list[ThesisResult] = []
+        all_existing: list[DialecticalComponent] = []
+        newly_extracted: list[DialecticalComponent] = []
 
-        complete_wus = [wu for wu in existing_wus if wu.is_complete()]
-        partial_wus = [wu for wu in existing_wus if not wu.is_complete()]
+        # Phase 1: For each thesis, collect existing oppositions + extract new ones
+        for thesis_hash in self.thesis_hashes:
+            thesis = self._resolve_component(thesis_hash)
+            if thesis is None:
+                result = ThesisResult(thesis=DialecticalComponent(statement=""))
+                result.error = f"Thesis with hash '{thesis_hash}' not found"
+                results.append(result)
+                continue
 
-        if not partial_wus:
-            # All WUs are already complete - nothing to do
-            self._report.ok = True
-            self._report.summary = f"{len(complete_wus)} complete WisdomUnit(s), no partial WUs to expand"
-            self._report.artifacts["wisdom_unit_hashes"] = [
-                wu.hash for wu in complete_wus if wu.hash
-            ]
-            self._report.artifacts["total_count"] = len(complete_wus)
-            self._report.artifacts["existing_count"] = len(complete_wus)
-            self._report.artifacts["new_count"] = 0
-            return complete_wus
+            result = ThesisResult(thesis=thesis)
 
-        # Complete all partial WUs
-        completed_wus: list[WisdomUnit] = []
+            # 1a. Collect existing oppositions from database
+            existing_antitheses, existing_data = await self._get_existing_oppositions(thesis, input_text)
+            result.antithesis_data.extend(existing_data)
+            all_existing.extend(existing_antitheses)
 
-        for wu in partial_wus:
-            # Use complete WUs + already completed in this run as not_like_these
-            not_like_these = complete_wus + completed_wus
+            # Add existing to not_like_these to avoid re-extraction
+            for comp in existing_antitheses:
+                if comp.statement not in not_like_these:
+                    not_like_these.append(comp.statement)
 
-            generator = PoleGeneration()
-            poles = await generator.execute(
-                wisdom_unit=wu,
-                positions=self.positions,
+            # 1b. Extract new antitheses (with retry if none found)
+            antitheses, antithesis_data, extraction_reports = await self._extract_with_retry(
+                thesis=thesis,
                 text=input_text,
                 not_like_these=not_like_these,
             )
-            self._report = self._report.merge(generator.report)
+            for r in extraction_reports:
+                self._report = self._report.merge(r)
 
-            # Deduplicate poles against vocabulary (within same branch)
-            poles = await self._deduplicate_poles(poles, input_text)
+            result.antithesis_data.extend(antithesis_data)
+            newly_extracted.extend(antitheses)
 
-            # Connect poles to WisdomUnit
-            for pole in poles:
-                self._connect_pole(wu, pole)
+            # Track extracted for not_like_these
+            for comp in antitheses:
+                if comp.statement not in not_like_these:
+                    not_like_these.append(comp.statement)
 
-            # Check if WU (after deduplication) is identical to an existing complete WU
-            duplicate_of = self._find_duplicate(wu, complete_wus + completed_wus)
-            if duplicate_of:
-                # Discard the duplicate - delete uncommitted WU
-                wu_repo.safe_delete(wu)
-                self._report.artifacts.setdefault("duplicates_discarded", []).append({
-                    "discarded": wu.short_hash if wu.hash else "uncommitted",
-                    "duplicate_of": duplicate_of.short_hash,
-                })
+            results.append(result)
+
+        # Phase 2: Semantic deduplication (only newly extracted, not existing)
+        newly_extracted_hashes = [c.hash for c in newly_extracted]
+        if newly_extracted_hashes and vocab:
+            deduplicator = StatementDeduplication()
+            dedup_result = await deduplicator.execute(
+                extracted_hashes=newly_extracted_hashes,
+                vocabulary=vocab,
+                text=input_text,
+            )
+
+            # Reconnect OPPOSITE_OF: thesis -> DB version for replacements
+            self._reconnect_oppositions(results, dedup_result)
+
+            # Update results with deduped hashes
+            for result in results:
+                if result.error:
+                    continue
+                for data in result.antithesis_data:
+                    if data["hash"] in dedup_result.replacements:
+                        data["hash"] = dedup_result.replacements[data["hash"]].hash
+                        data["deduped"] = True
+
+        # Phase 3: Create Polarity nodes for each T-A pair
+        total_antitheses = sum(len(r.antithesis_data) for r in results if not r.error)
+
+        if total_antitheses == 0:
+            self._report.ok = True
+            self._report.summary = "No polarities found"
+            self._report.artifacts["polarity_data"] = []
+            return None
+
+        # Phase 4: Create Polarities and Ideas with all T-A pairs
+        ideas = self._create_ideas(results)
+        self._create_polarities(results)
+
+        # Build polarity_data for report (includes HS for each T-A pair)
+        polarity_data = []
+        for result in results:
+            if result.error:
                 continue
-
-            # Only commit complete WUs (all 6 positions filled)
-            # If specific positions were requested, WU may remain incomplete
-            if not wu.is_complete():
-                self._report.artifacts.setdefault("incomplete_wus", []).append({
-                    "status": "kept_uncommitted",
-                    "reason": "missing positions",
+            for data in result.antithesis_data:
+                polarity_data.append({
+                    "thesis_hash": result.thesis.hash,
+                    "antithesis_hash": data["hash"],
+                    "heuristic_similarity": data["heuristic_similarity"],
+                    "existing": data.get("existing", False),
+                    "deduped": data.get("deduped", False),
                 })
-                continue
-
-            # Commit WisdomUnit
-            wu.commit()
-            self._report.node_created(wu)
-            completed_wus.append(wu)
-
-        # Return all WUs: existing complete + newly completed
-        all_wus = complete_wus + completed_wus
 
         # Build summary
+        existing_count = len(all_existing)
+        new_count = len(newly_extracted)
+
         self._report.ok = True
-        self._report.artifacts["wisdom_unit_hashes"] = [
-            wu.hash for wu in all_wus if wu.hash
-        ]
-        self._report.artifacts["total_count"] = len(all_wus)
-        self._report.artifacts["existing_count"] = len(complete_wus)
-        self._report.artifacts["new_count"] = len(completed_wus)
-
+        self._report.artifacts["thesis_count"] = len(self.thesis_hashes)
+        self._report.artifacts["existing_antitheses"] = existing_count
+        self._report.artifacts["new_antitheses"] = new_count
+        self._report.artifacts["ideas_hash"] = ideas.hash if ideas else None
+        self._report.artifacts["polarity_data"] = polarity_data
+        pol_created = self._report.artifacts.get("created_polarity_count", 0)
+        pol_existing = self._report.artifacts.get("existing_polarity_count", 0)
         self._report.summary = (
-            f"{len(all_wus)} WisdomUnit(s) ({len(complete_wus)} existing, {len(completed_wus)} new)"
+            f"Found {existing_count} existing + {new_count} new antithesis(es) "
+            f"for {len(self.thesis_hashes)} thesis(es). "
+            f"Polarities: {pol_created} created, {pol_existing} existing."
         )
 
-        return all_wus
+        return ideas
 
-    def _connect_pole(self, wu: WisdomUnit, pole: PoleResult) -> None:
-        """Connect a generated pole to the WisdomUnit."""
-        relationship_classes = {
-            POSITION_T_PLUS: TPlusRelationship,
-            POSITION_T_MINUS: TMinusRelationship,
-            POSITION_A_PLUS: APlusRelationship,
-            POSITION_A_MINUS: AMinusRelationship,
-        }
+    # --- Extraction with Retry ---
 
-        rel_class = relationship_classes[pole.position]
-        manager = wu.get_relationship_manager_by_position(pole.position)
+    async def _extract_with_retry(
+        self,
+        thesis: DialecticalComponent,
+        text: str,
+        not_like_these: list[str],
+    ) -> tuple[list[DialecticalComponent], list[dict], list[ExecutionReport]]:
+        """
+        Extract antitheses with retry logic.
 
-        manager.connect(
-            pole.component,
-            relationship=rel_class(
-                alias=pole.position,
-                heuristic_similarity=pole.heuristic_similarity,
-                complementarity_t=pole.complementarity_t,
-                complementarity_a=pole.complementarity_a,
-            ),
+        Goal: Find at least 1 antithesis per thesis.
+        If first attempt with not_like_these yields nothing, retry with empty constraints.
+        """
+        reports: list[ExecutionReport] = []
+
+        # First attempt: with not_like_these constraints
+        service = AntithesisExtraction()
+        results = await service.execute(
+            thesis=thesis,
+            text=text,
+            not_like_these=not_like_these,
+        )
+        reports.append(service.report)
+
+        if results:
+            components = [r.component for r in results]
+            antithesis_data = self._build_antithesis_data(results)
+            return components, antithesis_data, reports
+
+        # Retry with empty not_like_these (relax constraints)
+        service_retry = AntithesisExtraction()
+        results_retry = await service_retry.execute(
+            thesis=thesis,
+            text=text,
+            not_like_these=[],
+        )
+        reports.append(service_retry.report)
+
+        components = [r.component for r in results_retry]
+        antithesis_data = self._build_antithesis_data(results_retry)
+        return components, antithesis_data, reports
+
+    def _build_antithesis_data(self, results: list) -> list[dict]:
+        """Build antithesis data dicts from AntithesisResult objects."""
+        return [
+            {"hash": r.component.hash, "heuristic_similarity": r.heuristic_similarity}
+            for r in results
+        ]
+
+    # --- Helpers ---
+
+    async def _get_existing_oppositions(
+        self, thesis: DialecticalComponent, text: str = ""
+    ) -> tuple[list[DialecticalComponent], list[dict]]:
+        """Get existing oppositions for a thesis from the database."""
+        from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
+            AntithesisClassification,
         )
 
-        self._report.relationship_created(
-            manager,
-            wu,
-            pole.component,
-            meta={
-                "position": pole.position,
-                "hs": pole.heuristic_similarity,
-                "k_t": pole.complementarity_t,
-                "k_a": pole.complementarity_a,
-            },
-        )
+        existing_components: list[DialecticalComponent] = []
+        existing_data: list[dict] = []
 
-    async def _create_wisdom_unit_from_classification(
+        for antithesis, _ in thesis.oppositions.all():
+            existing_components.append(antithesis)
+
+            # Try to find HS from existing Polarity
+            hs = self._lookup_hs_from_polarity(thesis, antithesis)
+
+            if hs is None:
+                # No WisdomUnit found - estimate HS
+                classifier = AntithesisClassification()
+                result = await classifier.execute(
+                    thesis=thesis,
+                    antithesis_statement=antithesis.statement,
+                    text=text,
+                )
+                hs = result.heuristic_similarity
+                self._report.artifacts.setdefault("estimated_hs_count", 0)
+                self._report.artifacts["estimated_hs_count"] += 1
+
+            existing_data.append({
+                "hash": antithesis.hash,
+                "heuristic_similarity": hs,
+                "existing": True,
+            })
+
+        return existing_components, existing_data
+
+    def _lookup_hs_from_polarity(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
-        text: str,
-    ) -> WisdomUnit:
-        """
-        Create a WisdomUnit by classifying the antithesis to get heuristic_similarity.
+    ) -> Optional[float]:
+        """Look up HS from existing Polarity."""
+        pol_repo = PolarityRepository()
+        polarities = pol_repo.find_by_tension(thesis, antithesis)
 
-        Called when no WU exists for the T-A pair. Uses AntithesisClassification
-        to get the proper HS value instead of inventing one.
+        for polarity in polarities:
+            a_result = polarity.a.get()
+            if a_result:
+                _, a_rel = a_result
+                if isinstance(a_rel, ARelationship) and a_rel.heuristic_similarity is not None:
+                    return a_rel.heuristic_similarity
 
-        Args:
-            thesis: The thesis component
-            antithesis: The antithesis component
-            text: Source content context
-
-        Returns:
-            A partial WisdomUnit (T + A connected, no poles yet)
-        """
-        # Run AntithesisClassification to get the heuristic_similarity
-        classifier = AntithesisClassification()
-        classification = await classifier.execute(
-            thesis=thesis,
-            antithesis_statement=antithesis.statement,
-            text=text,
-        )
-        self._report = self._report.merge(classifier.report)
-
-        # Create WisdomUnit
-        wu = WisdomUnit()
-        wu.save()
-
-        # Connect T (HS = 1.0 for thesis position - it defines the apex)
-        wu.t.connect(thesis, relationship=TRelationship(
-            alias=POSITION_T,
-            heuristic_similarity=1.0,
-            complementarity_t=None,
-            complementarity_a=None,
-        ))
-
-        # Connect A with the classified heuristic_similarity
-        wu.a.connect(antithesis, relationship=ARelationship(
-            alias=POSITION_A,
-            heuristic_similarity=classification.heuristic_similarity,
-            complementarity_t=None,
-            complementarity_a=None,
-        ))
-
-        self._report.node_created(wu)
-        self._report.artifacts.setdefault("created_wus", []).append({
-            "thesis": thesis.short_hash,
-            "antithesis": antithesis.short_hash,
-            "heuristic_similarity": classification.heuristic_similarity,
-        })
-
-        return wu
-
-    async def _deduplicate_poles(
-        self, poles: list[PoleResult], text: str
-    ) -> list[PoleResult]:
-        """
-        Deduplicate generated poles against vocabulary (within same branch).
-
-        If a generated pole matches an existing component in the same taxonomy branch,
-        replace the generated component with the existing one.
-        """
-        if not poles:
-            return poles
-
-        # Get vocabulary
-        repo = DialecticalComponentRepository()
-        vocab = repo.get_vocabulary_with_rationales()
-        if not vocab:
-            return poles
-
-        # Collect generated hashes
-        generated_hashes = [p.component.hash for p in poles if p.component.hash]
-        if not generated_hashes:
-            return poles
-
-        # Run deduplication (branch filtering happens inside StatementDeduplication)
-        deduplicator = StatementDeduplication()
-        dedup_result = await deduplicator.execute(
-            extracted_hashes=generated_hashes,
-            vocabulary=vocab,
-            text=text,
-        )
-        self._report = self._report.merge(deduplicator.report)
-
-        # If no replacements, return original poles
-        if not dedup_result.replacements:
-            return poles
-
-        # Update poles with replaced components
-        updated_poles: list[PoleResult] = []
-        for pole in poles:
-            if pole.component.hash in dedup_result.replacements:
-                # Replace with existing component (keeps original meaning)
-                replacement = dedup_result.replacements[pole.component.hash]
-                updated_poles.append(PoleResult(
-                    component=replacement,
-                    position=pole.position,
-                    apex_concept=pole.apex_concept,
-                    heuristic_similarity=pole.heuristic_similarity,
-                    complementarity_t=pole.complementarity_t,
-                    complementarity_a=pole.complementarity_a,
-                ))
-                self._report.artifacts.setdefault("deduped_poles", []).append({
-                    "position": pole.position,
-                    "original": pole.component.short_hash,
-                    "replaced_with": replacement.short_hash,
-                })
-            else:
-                updated_poles.append(pole)
-
-        return updated_poles
-
-    def _find_duplicate(
-        self, wu: WisdomUnit, existing_wus: list[WisdomUnit]
-    ) -> Optional[WisdomUnit]:
-        """
-        Find an existing committed WU that has the same components as the given WU.
-
-        Uses WisdomUnit.is_same which handles T-A symmetry.
-        Only considers committed WUs as valid duplicates.
-
-        Args:
-            wu: The WisdomUnit to check
-            existing_wus: List of existing WisdomUnits to compare against
-
-        Returns:
-            The matching committed WU if found, None otherwise
-        """
-        for existing in existing_wus:
-            if existing.is_committed and wu.is_same(existing):
-                return existing
-        return None
-
-    def _resolve_component(self, component_hash: str) -> Optional[DialecticalComponent]:
-        """Resolve hash to component."""
-        repo = NodeRepository()
-        try:
-            comp = repo.find_by_hash(component_hash)
-            if isinstance(comp, DialecticalComponent):
-                return comp
-        except ValueError:
-            pass
         return None
 
     @inject
@@ -441,3 +369,111 @@ class PolarityAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
             texts.append(resolved)
 
         return "\n\n---\n\n".join(texts)
+
+    def _reconnect_oppositions(
+        self,
+        results: list[ThesisResult],
+        dedup_result: DedupResult,
+    ) -> None:
+        """Reconnect OPPOSITE_OF for deduped antitheses."""
+        hash_to_thesis: dict[str, DialecticalComponent] = {}
+        for result in results:
+            if result.error:
+                continue
+            for data in result.antithesis_data:
+                hash_to_thesis[data["hash"]] = result.thesis
+
+        for ext_hash, db_comp in dedup_result.replacements.items():
+            thesis = hash_to_thesis.get(ext_hash)
+            if thesis and db_comp:
+                thesis.oppositions.connect(db_comp)
+
+    def _resolve_component(self, hash: str) -> Optional[DialecticalComponent]:
+        """Resolve hash to component."""
+        repo = NodeRepository()
+        try:
+            comp = repo.find_by_hash(hash)
+            if isinstance(comp, DialecticalComponent):
+                return comp
+        except ValueError:
+            pass
+        return None
+
+    def _create_polarities(self, results: list[ThesisResult]) -> list[Polarity]:
+        """Create Polarity nodes (T-A pairs) for each T-A pair."""
+        pol_repo = PolarityRepository()
+        created_polarities: list[Polarity] = []
+
+        for result in results:
+            if result.error:
+                continue
+
+            for data in result.antithesis_data:
+                antithesis = self._resolve_component(data["hash"])
+                if antithesis is None:
+                    continue
+
+                # Check if Polarity already exists for this T-A pair
+                existing_pols = pol_repo.find_by_tension(result.thesis, antithesis)
+                if existing_pols:
+                    # Polarity already exists - skip creation
+                    self._report.artifacts.setdefault("existing_polarity_count", 0)
+                    self._report.artifacts["existing_polarity_count"] += 1
+                    continue
+
+                # Create new Polarity (atomic creation)
+                polarity = Polarity()
+                polarity.set_t(result.thesis, heuristic_similarity=1.0)
+                polarity.set_a(antithesis, heuristic_similarity=data["heuristic_similarity"])
+                polarity.commit()
+
+                created_polarities.append(polarity)
+                self._report.node_created(polarity, meta={"hs": data["heuristic_similarity"]})
+
+        self._report.artifacts["created_polarity_count"] = len(created_polarities)
+        return created_polarities
+
+    def _create_ideas(self, results: list[ThesisResult]) -> Optional[Ideas]:
+        """Create Ideas node with all theses and their antitheses."""
+        valid_results = [r for r in results if not r.error and r.antithesis_data]
+        if not valid_results:
+            return None
+
+        thesis_statements = [r.thesis.statement for r in valid_results]
+        intent = f"Tensions for: {', '.join(thesis_statements[:3])}"
+        if len(thesis_statements) > 3:
+            intent += f" (+{len(thesis_statements) - 3} more)"
+
+        ideas = Ideas(intent=intent)
+        ideas.save()
+
+        # Connect to inputs
+        input_repo = InputRepository()
+        for inp in input_repo.get_all():
+            ideas.inputs.connect(inp)
+
+        # Connect all theses and antitheses
+        for result in valid_results:
+            ideas.statements.connect(result.thesis)
+            for data in result.antithesis_data:
+                comp = self._resolve_component(data["hash"])
+                if comp:
+                    ideas.statements.connect(comp)
+
+        ideas.commit()
+        self._report.node_created(ideas)
+
+        # Add rationale
+        total_theses = len(valid_results)
+        total_antitheses = sum(len(r.antithesis_data) for r in valid_results)
+        all_hs = [d["heuristic_similarity"] for r in valid_results for d in r.antithesis_data]
+        max_hs = max(all_hs) if all_hs else 0.0
+
+        rationale = Rationale(
+            text=f"Found {total_antitheses} antitheses for {total_theses} theses. Max HS: {max_hs:.2f}"
+        )
+        rationale.set_explanation_target(ideas)
+        rationale.commit()
+        self._report.node_created(rationale)
+
+        return ideas

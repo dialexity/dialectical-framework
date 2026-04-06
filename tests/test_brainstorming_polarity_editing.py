@@ -22,15 +22,29 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T_PLUS,
     WisdomUnit,
 )
+from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.relationships.polarity_relationship import (
     ARelationship,
     TRelationship,
+    TPlusRelationship,
+    TMinusRelationship,
+    APlusRelationship,
+    AMinusRelationship,
+    HasPolarityRelationship,
 )
 from dialectical_framework.graph.scope_context import scope
 
 
-def create_test_wu(sid: str) -> WisdomUnit:
-    """Create a test WisdomUnit with T and A."""
+def create_test_wu(sid: str, commit: bool = False) -> WisdomUnit:
+    """Create a test WisdomUnit with T, A and all poles via Polarity.
+
+    Args:
+        sid: Session ID
+        commit: If True, commits the WU (default: False, returns uncommitted)
+
+    Returns:
+        WisdomUnit with Polarity (T+A) and all 4 poles connected
+    """
     with scope(sid):
         t = DialecticalComponent(
             statement="Love",
@@ -44,17 +58,63 @@ def create_test_wu(sid: str) -> WisdomUnit:
         )
         a.commit()
 
+        # Create poles
+        t_plus = DialecticalComponent(
+            statement="Deep connection",
+            meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Coherence",
+        )
+        t_plus.commit()
+
+        t_minus = DialecticalComponent(
+            statement="Obsessive attachment",
+            meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Enmeshment",
+        )
+        t_minus.commit()
+
+        a_plus = DialecticalComponent(
+            statement="Healthy detachment",
+            meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Autonomy",
+        )
+        a_plus.commit()
+
+        a_minus = DialecticalComponent(
+            statement="Cold isolation",
+            meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Disconnection",
+        )
+        a_minus.commit()
+
+        # Create Polarity (atomic creation)
+        polarity = Polarity()
+        polarity.set_t(t, heuristic_similarity=1.0)
+        polarity.set_a(a, heuristic_similarity=0.8)
+        polarity.commit()
+
+        # Create WU and connect to Polarity
         wu = WisdomUnit()
         wu.save()
-        wu.t.connect(t, relationship=TRelationship(
-            alias=POSITION_T,
-            heuristic_similarity=1.0,
+        wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+
+        # Connect poles
+        wu.t_plus.connect(t_plus, relationship=TPlusRelationship(
+            alias=POSITION_T_PLUS,
+            heuristic_similarity=0.9,
         ))
-        wu.a.connect(a, relationship=ARelationship(
-            alias=POSITION_A,
-            heuristic_similarity=0.8,
+        wu.t_minus.connect(t_minus, relationship=TMinusRelationship(
+            alias=POSITION_T_MINUS,
+            heuristic_similarity=0.85,
         ))
-        # Don't commit yet - leave as partial WU for testing
+        wu.a_plus.connect(a_plus, relationship=APlusRelationship(
+            alias=POSITION_A_PLUS,
+            heuristic_similarity=0.88,
+        ))
+        wu.a_minus.connect(a_minus, relationship=AMinusRelationship(
+            alias=POSITION_A_MINUS,
+            heuristic_similarity=0.82,
+        ))
+
+        if commit:
+            wu.commit()
+
         return wu
 
 
@@ -69,8 +129,7 @@ class TestPolarityEditorThesis:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
-            wu.commit()  # Commit so we have a hash
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,
@@ -99,8 +158,7 @@ class TestPolarityEditorThesis:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,
@@ -127,8 +185,7 @@ class TestPolarityEditorAntithesis:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,
@@ -154,8 +211,7 @@ class TestPolarityEditorAntithesis:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,
@@ -180,30 +236,7 @@ class TestPolarityEditorPole:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            # Create complete WU with poles
-            t = DialecticalComponent(
-                statement="Love",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
-            )
-            t.commit()
-
-            a = DialecticalComponent(
-                statement="Indifference",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
-            )
-            a.commit()
-
-            t_plus = DialecticalComponent(
-                statement="Connection",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Coherence",
-            )
-            t_plus.commit()
-
-            wu = WisdomUnit()
-            wu.save()
-            wu.t.connect(t, relationship=TRelationship(alias=POSITION_T, heuristic_similarity=1.0))
-            wu.a.connect(a, relationship=ARelationship(alias=POSITION_A, heuristic_similarity=0.8))
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,
@@ -227,23 +260,7 @@ class TestPolarityEditorPole:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            t = DialecticalComponent(
-                statement="Love",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
-            )
-            t.commit()
-
-            a = DialecticalComponent(
-                statement="Indifference",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
-            )
-            a.commit()
-
-            wu = WisdomUnit()
-            wu.save()
-            wu.t.connect(t, relationship=TRelationship(alias=POSITION_T, heuristic_similarity=1.0))
-            wu.a.connect(a, relationship=ARelationship(alias=POSITION_A, heuristic_similarity=0.8))
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,
@@ -284,8 +301,7 @@ class TestPolarityEditorForking:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
             original_hash = wu.hash
 
             editor = PolarityEditor(
@@ -311,8 +327,7 @@ class TestPolarityEditorValidation:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,
@@ -330,8 +345,7 @@ class TestPolarityEditorValidation:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
-            wu.commit()
+            wu = create_test_wu(brainstorm.sid, commit=True)
 
             editor = PolarityEditor(
                 wisdom_unit_hash=wu.hash,

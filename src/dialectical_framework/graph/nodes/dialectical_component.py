@@ -454,7 +454,8 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
             The position constant (e.g., "T", "T+", "A-", "S+", "S-") or None if not connected
 
         Example:
-            from dialectical_framework.graph.nodes.wisdom_unit import POSITION_T, POSITION_T_PLUS
+            from dialectical_framework.graph.nodes.polarity import POSITION_T
+            from dialectical_framework.graph.nodes.wisdom_unit import POSITION_T_PLUS
             comp = DialecticalComponent(statement="Democracy")
             wu = WisdomUnit(...)
             wu.t.connect(comp, relationship=TRelationship(alias='T1'))
@@ -465,9 +466,10 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
             wu.t_plus.connect(comp2, relationship=TPlusRelationship(alias='T1+'))
             position2 = comp2.get_position(wu)  # Returns "T+" (POSITION_T_PLUS)
         """
+        from dialectical_framework.graph.nodes.polarity import POSITION_T, POSITION_A
         from dialectical_framework.graph.nodes.wisdom_unit import (
-            POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
-            POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS,
+            POSITION_T_PLUS, POSITION_T_MINUS,
+            POSITION_A_PLUS, POSITION_A_MINUS,
         )
         from dialectical_framework.graph.nodes.synthesis import (
             POSITION_S_PLUS, POSITION_S_MINUS

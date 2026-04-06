@@ -23,6 +23,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     ARelationship,
     APlusRelationship,
     AMinusRelationship,
+    HasPolarityRelationship,
 )
 from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
     BelongsToNexusRelationship,
@@ -41,12 +42,14 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
-# Position constants - module level to avoid GQLAlchemy metaclass interference
+# Import Polarity and its position constants (T and A belong to Polarity)
+from dialectical_framework.graph.nodes.polarity import Polarity, POSITION_T, POSITION_A
+
+# Position constants for poles - module level to avoid GQLAlchemy metaclass interference
+# Note: POSITION_T and POSITION_A are in polarity.py (T/A belong to Polarity)
 # Note: S+ and S- constants are in synthesis.py (Synthesis belongs to WisdomUnit)
-POSITION_T = "T"
 POSITION_T_PLUS = "T+"
 POSITION_T_MINUS = "T-"
-POSITION_A = "A"
 POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
 
@@ -55,15 +58,16 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
     """
     Represents ONE coherent dialectical analysis with enforced cardinality.
 
-    A WisdomUnit contains exactly ONE component per polarity position:
-    - Thesis side (T-side): 1 T, 1 T+, 1 T-
-    - Antithesis side (A-side): 1 A, 1 A+, 1 A-
+    A WisdomUnit references a Polarity (T-A pair) and adds four poles:
+    - Polarity: contains T and A (the fundamental tension)
+    - Poles: T+, T-, A+, A- (healthy/problematic forms of each side)
 
-    Total: 6 core positions forming a complete dialectical analysis.
+    Structure:
+        Polarity(T, A) + Poles(T+, T-, A+, A-) = WisdomUnit
 
     Each WisdomUnit represents ONE dialectical exploration. To explore multiple
-    consequences or alternative perspectives on the same thesis, create multiple
-    WisdomUnits that share the same T component node (component reuse pattern).
+    consequences or alternative perspectives on the same T-A pair, create multiple
+    WisdomUnits that share the same Polarity (different tetrad interpretations).
 
     Synthesis (S+, S-) emerges from the WisdomUnit's T-A tension, not from individual
     transformation paths. A WU can have multiple transformations (different Ac-Re paths)
@@ -74,6 +78,17 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
     providing automatic validation and runtime checks.
 
     The intent field (from IntentMixin) captures the guiding question for this analysis.
+
+    Lifecycle:
+        1. Create or find a committed Polarity (T-A pair)
+        2. wu = WisdomUnit()
+        3. wu.save()
+        4. wu.polarity.connect(polarity)
+        5. wu.t_plus.connect(t_plus_comp, relationship=TPlusRelationship(...))
+        6. wu.t_minus.connect(t_minus_comp, relationship=TMinusRelationship(...))
+        7. wu.a_plus.connect(a_plus_comp, relationship=APlusRelationship(...))
+        8. wu.a_minus.connect(a_minus_comp, relationship=AMinusRelationship(...))
+        9. wu.commit()
     """
 
     def __init__(self, **data: Any):
@@ -81,51 +96,76 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         self._cached_segment_t: Optional[WheelSegment] = None
         self._cached_segment_a: Optional[WheelSegment] = None
 
-    # Declarative relationships with specific polarity relationship types
-    # The alias is stored on the relationship edge, making component positions contextual
-    # Each polarity has its own relationship type for fine-grained querying
-
-    # T-side (exactly one neutral thesis)
-    t: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
-        model=TRelationship,
-        cardinality=(1, 1)  # Exactly one
+    # Reference to Polarity (T-A pair) - exactly one
+    polarity: ClassVar[RelationshipManager[Polarity]] = RelationshipTo(
+        "Polarity",
+        model=HasPolarityRelationship,
+        cardinality=(1, 1)  # Exactly one Polarity
     )
 
-    # T+ side (exactly one positive thesis)
+    # Four pole positions (each exactly one)
+    # T+ side (exactly one positive thesis pole)
     t_plus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=TPlusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
-    # T- side (exactly one negative thesis)
+    # T- side (exactly one negative thesis pole)
     t_minus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=TMinusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
-    # A-side (exactly one neutral antithesis)
-    a: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
-        model=ARelationship,
-        cardinality=(1, 1)  # Exactly one
-    )
-
-    # A+ side (exactly one positive antithesis)
+    # A+ side (exactly one positive antithesis pole)
     a_plus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=APlusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
-    # A- side (exactly one negative antithesis)
+    # A- side (exactly one negative antithesis pole)
     a_minus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=AMinusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
+
+    # Convenience properties to access T and A through Polarity
+    @property
+    def t(self) -> BoundRelationshipManager[DialecticalComponent]:
+        """
+        Access T component through Polarity.
+
+        Returns a BoundRelationshipManager that delegates to the Polarity's T manager.
+        This provides backward compatibility for code that accesses wu.t directly.
+
+        Raises:
+            ValueError: If no Polarity is connected
+        """
+        polarity_result = self.polarity.get()
+        if not polarity_result:
+            raise ValueError("WisdomUnit has no Polarity connected - cannot access T")
+        pol, _ = polarity_result
+        return pol.t
+
+    @property
+    def a(self) -> BoundRelationshipManager[DialecticalComponent]:
+        """
+        Access A component through Polarity.
+
+        Returns a BoundRelationshipManager that delegates to the Polarity's A manager.
+        This provides backward compatibility for code that accesses wu.a directly.
+
+        Raises:
+            ValueError: If no Polarity is connected
+        """
+        polarity_result = self.polarity.get()
+        if not polarity_result:
+            raise ValueError("WisdomUnit has no Polarity connected - cannot access A")
+        pol, _ = polarity_result
+        return pol.a
 
     # Relationship to Nexus (pool of WisdomUnits)
     # WisdomUnits can belong to multiple Nexuses for different analytical perspectives.
@@ -159,12 +199,19 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         """
         Get all committed children for hash computation.
 
-        For WisdomUnit, yields all 6 polarity components.
+        For WisdomUnit, yields the Polarity and all 4 pole components.
 
         Yields:
-            Component nodes that should be included in hash computation
+            Polarity node and Component nodes (poles)
         """
-        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+        # Yield Polarity
+        polarity_result = self.polarity.get()
+        if polarity_result:
+            pol, _ = polarity_result
+            yield pol
+
+        # Yield 4 poles
+        for manager in [self.t_plus, self.t_minus, self.a_plus, self.a_minus]:
             result = manager.get()
             if result:
                 comp, _ = result
@@ -174,18 +221,31 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         """
         Collect structure hash parts for this WisdomUnit.
 
-        Parts: hashes of all 6 polarity components (t, t+, t-, a, a+, a-).
+        Parts: Polarity hash + hashes of 4 pole components (t+, t-, a+, a-).
 
         Returns:
-            List of strings: [t_hash, t+_hash, t-_hash, a_hash, a+_hash, a-_hash]
+            List of strings: [polarity_hash, t+_hash, t-_hash, a+_hash, a-_hash]
 
         Note:
-            All connected components must be committed.
+            Polarity and all connected components must be committed.
         """
         parts = []
 
-        # Get hashes for all 6 positions in order
-        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+        # Get Polarity hash first
+        polarity_result = self.polarity.get()
+        if polarity_result:
+            pol, _ = polarity_result
+            if not pol.is_committed:
+                raise ValueError(
+                    "Polarity must be committed before computing "
+                    "WisdomUnit structure hash"
+                )
+            parts.append(pol.hash)
+        else:
+            parts.append("")  # Empty placeholder
+
+        # Get hashes for all 4 pole positions in order
+        for manager in [self.t_plus, self.t_minus, self.a_plus, self.a_minus]:
             result = manager.get()
             if result:
                 comp, _ = result
@@ -210,17 +270,16 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         Check if this wisdom unit has all required components.
 
         A WisdomUnit is complete when it has:
-        - Required: t, a, t_plus, t_minus, a_plus, a_minus (at least one each)
+        - Required: polarity (with T and A), t_plus, t_minus, a_plus, a_minus
         - Optional: s_plus, s_minus (don't affect completeness)
 
         Returns:
             True if all required components are present
         """
         return (
-            self.t.count() >= 1
+            self.polarity.count() >= 1
             and self.t_plus.count() >= 1
             and self.t_minus.count() >= 1
-            and self.a.count() >= 1
             and self.a_plus.count() >= 1
             and self.a_minus.count() >= 1
         )
@@ -633,11 +692,30 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         Returns:
             List of position names that can be used with get_relationship_manager_by_position()
 
-        Note: S+/S- are NOT included - they are on the Synthesis node
+        Note:
+            - T and A are accessed through the Polarity node
+            - S+/S- are on the Synthesis node, not WisdomUnit
         """
         return [
             POSITION_T,
             POSITION_A,
+            POSITION_T_PLUS,
+            POSITION_T_MINUS,
+            POSITION_A_PLUS,
+            POSITION_A_MINUS,
+        ]
+
+    @property
+    def pole_positions(self) -> list[str]:
+        """
+        Get list of the 4 pole position names (excluding T and A).
+
+        These are the positions directly on WisdomUnit (not on Polarity).
+
+        Returns:
+            List of pole position names: [T+, T-, A+, A-]
+        """
+        return [
             POSITION_T_PLUS,
             POSITION_T_MINUS,
             POSITION_A_PLUS,
@@ -687,23 +765,29 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         Args:
             human_friendly_index: The integer index (0 = strip numbers, >0 = add/replace)
 
+        Note:
+            T and A aliases are stored on the Polarity's edges. If multiple WisdomUnits
+            share the same Polarity, updating these aliases affects all of them.
+            The 4 pole aliases (T+, T-, A+, A-) are WisdomUnit-specific.
+
         Example:
             wu.set_human_friendly_index(3)
             # T → T3, A+ → A3+, T- → T3-, etc.
         """
         import re
 
-        # Map managers to their relationship types
-        manager_to_rel_type = {
-            id(self.t): (self.t, TRelationship),
-            id(self.t_plus): (self.t_plus, TPlusRelationship),
-            id(self.t_minus): (self.t_minus, TMinusRelationship),
-            id(self.a): (self.a, ARelationship),
-            id(self.a_plus): (self.a_plus, APlusRelationship),
-            id(self.a_minus): (self.a_minus, AMinusRelationship),
-        }
+        # Build list of (manager, rel_class) tuples
+        # Note: T and A managers come from Polarity, poles from this WisdomUnit
+        managers_and_types: list[tuple[BoundRelationshipManager, type]] = [
+            (self.t, TRelationship),
+            (self.t_plus, TPlusRelationship),
+            (self.t_minus, TMinusRelationship),
+            (self.a, ARelationship),
+            (self.a_plus, APlusRelationship),
+            (self.a_minus, AMinusRelationship),
+        ]
 
-        for manager_id, (manager, rel_class) in manager_to_rel_type.items():
+        for manager, rel_class in managers_and_types:
             for component, rel in manager.all():
                 # Skip non-polarity relationships
                 if not isinstance(rel, PolarityRelationship):

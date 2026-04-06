@@ -55,12 +55,11 @@ from dialectical_framework.agents.brainstorming.capabilities.statement_classific
 from dialectical_framework.agents.executable_capability import ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.polarity import Polarity, POSITION_T, POSITION_A
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_A,
     POSITION_A_MINUS,
     POSITION_A_PLUS,
-    POSITION_T,
     POSITION_T_MINUS,
     POSITION_T_PLUS,
     WisdomUnit,
@@ -69,6 +68,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship,
     APlusRelationship,
     ARelationship,
+    HasPolarityRelationship,
     TMinusRelationship,
     TPlusRelationship,
     TRelationship,
@@ -198,6 +198,7 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         # Prepare working WU
         if self._was_committed:
             self._working_wu = wu.clone()
+            self._working_wu.save()  # Save so we can connect relationships
         else:
             self._working_wu = wu
             if not self._working_wu._id:
@@ -562,20 +563,18 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         a_hs: float,
         pole_changes: set[str],
     ) -> None:
-        """Fill working WU with T, A and handle custom pole changes."""
+        """Fill working WU with T, A (via Polarity) and handle custom pole changes."""
         wu = self._working_wu
 
-        # Connect T
-        wu.t.connect(thesis, relationship=TRelationship(
-            alias=POSITION_T,
-            heuristic_similarity=1.0,
-        ))
+        # Create Polarity for T-A pair (atomic creation)
+        polarity = Polarity()
+        polarity.set_t(thesis, heuristic_similarity=1.0)
+        polarity.set_a(antithesis, heuristic_similarity=a_hs)
+        polarity.commit()
+        self._report.node_created(polarity)
 
-        # Connect A
-        wu.a.connect(antithesis, relationship=ARelationship(
-            alias=POSITION_A,
-            heuristic_similarity=a_hs,
-        ))
+        # Connect WU to Polarity
+        wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
         # Validate user-specified poles first
         user_poles: dict[str, tuple[DialecticalComponent, object]] = {}
@@ -665,25 +664,12 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         """Fill working WU with specific poles changed, copying others from original."""
         wu = self._working_wu
 
-        # Copy T from original
-        if wu.t.count() == 0:
-            orig_t = self._original_wu.get_component(POSITION_T)
-            t_result = self._original_wu.t.get()
-            t_rel = t_result[1] if t_result else None
-            wu.t.connect(orig_t, relationship=TRelationship(
-                alias=POSITION_T,
-                heuristic_similarity=t_rel.heuristic_similarity if t_rel else 1.0,
-            ))
-
-        # Copy A from original
-        if wu.a.count() == 0:
-            orig_a = self._original_wu.get_component(POSITION_A)
-            a_result = self._original_wu.a.get()
-            a_rel = a_result[1] if a_result else None
-            wu.a.connect(orig_a, relationship=ARelationship(
-                alias=POSITION_A,
-                heuristic_similarity=a_rel.heuristic_similarity if a_rel else None,
-            ))
+        # Copy Polarity (T-A pair) from original if not connected
+        if wu.polarity.count() == 0:
+            orig_polarity_result = self._original_wu.polarity.get()
+            if orig_polarity_result:
+                orig_polarity, _ = orig_polarity_result
+                wu.polarity.connect(orig_polarity, relationship=HasPolarityRelationship())
 
         # Handle poles
         rel_classes = {
