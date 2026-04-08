@@ -61,7 +61,7 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         """
     )
     def prompt_constructive_convergence_audit(self, text: str, transition: Transition, rationale: Rationale) -> "Messages.Type":
-        # Extract segments from transition (uses Nexus internally)
+        # Extract segments from transition
         focus = transition.get_source_wheel_segment()
         next_ws = transition.get_target_wheel_segment()
 
