@@ -1,4 +1,4 @@
-"""Relationship model for Transformation action-reflection context."""
+"""Relationship model for Transformation pointing to its wheel edge."""
 from __future__ import annotations
 
 from dialectical_framework.graph.relationships.immutable_structure import AnalyticalStructure
@@ -6,10 +6,16 @@ from dialectical_framework.graph.relationships.immutable_structure import Analyt
 
 class ActionReflectionRelationship(AnalyticalStructure, type="ACTION_REFLECTION"):
     """
-    Links a Transformation to its action-reflection WisdomUnit context.
+    Links a Transformation to its wheel edge (Transition).
 
-    Part of the analytical layer - defines the dialectical context
-    (action WU and reflection WU) for the Transformation.
+    Direction: Transformation --ACTION_REFLECTION--> Transition
+
+    A wheel's edges define the causality sequence. Each edge can have multiple
+    Transformation alternatives at different insight/proactiveness levels.
+    The Transformation IS an action-reflection analysis OF that edge.
+
+    Part of the analytical layer - Transformations are derived artifacts that don't
+    affect the Transition's structural hash.
     """
 
     pass

@@ -86,14 +86,9 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
         """
         Audit existing transitions for the given wheel segment.
 
-        This method performs feasibility audits on transitions related to the focus segment:
-        1. **Spiral transitions** (constructive convergence): T- → next segment's T+
-           - Ensures the spiral transition exists by calling parent's think() if not found
-        2. **Transformation transitions** (action-reflection): T- → A+ or A- → T+ within same WU
-           - Only audits if transformation exists (doesn't create if missing)
-
-        For each transition found, creates audit rationales that critique the original
-        rationales based on practical feasibility assessment.
+        This method performs feasibility audits on wheel transitions (causality steps)
+        related to the focus segment. For each transition found, creates audit rationales
+        that critique the original rationales based on practical feasibility assessment.
 
         Args:
             focus: The wheel segment to audit transitions from
@@ -102,45 +97,37 @@ class ThinkConstructiveConvergenceAuditor(ThinkConstructiveConvergence):
             List of transitions that were audited (may have new critique rationales added)
 
         Note:
-            This creates a mix of behaviors:
-            - Spiral: Creates if missing (via super().think())
-            - Transformation: Only audits if exists (assumes created by ThinkActionReflection)
+            Creates transition via super().think() if not found.
         """
-        # Get representative components for spiral transition (T- → next segment's T+)
+        # Get representative components for transition (T- → next segment's T+)
         focus_t_minus_result = focus.t_minus.get()
 
-        # For spiral: get next segment in ta_cycle order
+        # Get next segment in ta_cycle order
         next_ws = self._wheel.get_next_segment(focus)
         next_ws_t_plus_result = next_ws.t_plus.get()
 
-        # === SPIRAL TRANSITIONS (Constructive Convergence) ===
-        # Try to find existing spiral transition with same source/target
-        spiral_result = self._wheel.spiral.get()
-        spiral_link = None
+        # === WHEEL TRANSITIONS (Constructive Convergence) ===
+        # Try to find existing transition with same source/target in wheel's transitions
+        wheel_transitions = self._wheel.edges
+        causality_link = None
 
-        if focus_t_minus_result and next_ws_t_plus_result and spiral_result:
+        if focus_t_minus_result and next_ws_t_plus_result and wheel_transitions:
             source_comp, _ = focus_t_minus_result
             target_comp, _ = next_ws_t_plus_result
 
-            spiral = spiral_result[0]
-            spiral_transitions = spiral.transitions
-
             # Check for duplicate using shared helper
-            spiral_link = self.find_duplicate_transition(spiral_transitions, source_comp, target_comp)
+            causality_link = self.find_duplicate_transition(wheel_transitions, source_comp, target_comp)
 
-        if spiral_link is None:
-            # Spiral transition doesn't exist - create it via parent's think()
-            # This ensures we always have a spiral transition to audit
+        if causality_link is None:
+            # Transition doesn't exist - create it via parent's think()
             result_list = await super().think(focus=focus)
             if result_list:
-                spiral_link = result_list[0]
+                causality_link = result_list[0]
 
-        # Start with spiral transition (if found/created)
-        transitions = [spiral_link] if spiral_link else []
+        # Start with found/created transition
+        transitions = [causality_link] if causality_link else []
 
-        # Note: Transformation no longer has transitions - it has 6 component positions (Ac, Re, Ac+, Ac-, Re+, Re-)
-        # The transition-based auditing logic has been removed.
-        # TODO: Implement auditing for Transformation component positions if needed
+        # Note: Transformation auditing would go here if needed
 
         # Build list of (transition, rationale) pairs to audit
         audit_pairs = []

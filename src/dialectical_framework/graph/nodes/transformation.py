@@ -3,10 +3,10 @@ Transformation node for the dialectical framework.
 
 This module provides the Transformation class which represents the Action-Reflection
 dialectical structure. A Transformation IS a full 6-position dialectical structure
-(Ac, Re, Ac+, Ac-, Re+, Re-) and belongs to a Wheel (not a WisdomUnit).
+(Ac, Re, Ac+, Ac-, Re+, Re-) and belongs to an edge (Transition) in a Wheel.
 
-Transformations can span multiple WisdomUnits in a Wheel, with recursive
-decomposition for multi-step transformations.
+A wheel's edges define the causality sequence. Each edge can have multiple
+Transformation alternatives at different insight/proactiveness levels.
 """
 
 from __future__ import annotations
@@ -22,8 +22,8 @@ from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager, BoundRelationshipManager
-from dialectical_framework.graph.relationships.has_transformation_relationship import (
-    HasTransformationRelationship,
+from dialectical_framework.graph.relationships.action_reflection_relationship import (
+    ActionReflectionRelationship,
 )
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
@@ -51,11 +51,12 @@ POSITION_RE_MINUS = "Re-"
 
 class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Transformation"):
     """
-    Action-Reflection dialectical structure belonging to a Wheel.
+    Action-Reflection dialectical structure belonging to a wheel edge.
 
     A Transformation represents a full 6-position dialectical structure capturing
     how tension(s) can be navigated through action and reflection. Transformations
-    belong to a Wheel and can span multiple WisdomUnits.
+    belong to an edge (a Transition in the wheel's causality sequence) and represent
+    one alternative way to navigate that edge.
 
     Each position is a Transition (source → target):
 
@@ -70,58 +71,57 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
     - Re+ contradicts Ac-
     - Re- contradicts Ac+
 
-    Single vs Multi-segment:
-    - Single-segment: All transitions stay within one polar segment
-    - Multi-segment: Transitions cross segment boundaries (X- → Y+)
+    Multiple Transformations can exist for the same edge, representing different
+    alternatives at various insight/proactiveness levels (see Fig. 8 in paper).
 
     Lifecycle (IncrementalBuildMixin pattern):
         1. Create: transformation = Transformation()
-        2. Set parent wheel: transformation.set_wheel(wheel)
+        2. Set edge: transformation.set_on_edge(wheel_edge)
         3. Save (HEAD state): transformation.save()
         4. Add transitions: transformation.ac_plus.connect(transition), etc.
         5. Commit (immutable): transformation.commit()
 
     Relationships:
-    - Transformations belong to Wheel (accessed via wheel.transformations)
+    - Transformations belong to an edge (wheel Transition) via ACTION_REFLECTION
+    - Access via: transformation.edge.get() to get the (Transition, rel) tuple
     - They contain 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-)
     """
 
     # Hash inputs - set before save() to include in hash
-    _wheel_hash: Optional[str] = None
+    _edge_hash: Optional[str] = None
     # Transient ref for auto-connecting after save
-    _wheel_ref: Optional[Wheel] = None
+    _edge_ref: Optional[Transition] = None
 
-    def set_wheel(self, wheel: Wheel) -> Transformation:
+    def set_on_edge(self, edge: Transition) -> Transformation:
         """
-        Set the containing Wheel for this transformation (before save).
+        Set the edge (wheel transition) for this transformation.
 
         This stores the reference for hash computation and auto-connection after save.
-        The Wheel must already be saved (have _id).
+        The Transition must already be committed.
 
         Args:
-            wheel: The saved Wheel this transformation belongs to
+            edge: The committed wheel Transition this transformation is an alternative for
 
         Returns:
             Self for chaining
 
         Raises:
-            ValueError: If Wheel is not saved
+            ValueError: If Transition is not committed
         """
-        if wheel._id is None:
+        if not edge.is_committed:
             raise ValueError(
-                "Wheel must be saved before setting on transformation. "
-                "Call wheel.save() first."
+                "Edge (Transition) must be committed before setting on transformation."
             )
-        if wheel.is_committed:
-            self._wheel_hash = wheel.hash
-        self._wheel_ref = wheel
+        self._edge_hash = edge.hash
+        self._edge_ref = edge
         return self
 
-    # The containing Wheel (required)
-    wheel: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
-        "Wheel",
-        model=HasTransformationRelationship,
-        cardinality=(1, 1)  # Required - transformation belongs to one wheel
+    # The edge this transformation is an alternative for
+    # Uses ACTION_REFLECTION relationship: Transformation --ACTION_REFLECTION--> Transition
+    edge: ClassVar[RelationshipManager[Transition]] = RelationshipTo(
+        "Transition",
+        model=ActionReflectionRelationship,
+        cardinality=(1, 1)  # Required - transformation belongs to one edge
     )
 
     # 6 transition position relationships (Ac-Re structure)
@@ -168,14 +168,20 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
 
     def get_wheel(self) -> Wheel | None:
         """
-        Get the Wheel this transformation belongs to.
+        Get the Wheel this transformation belongs to (via edge).
 
         Returns:
             Wheel instance or None if not connected
         """
-        wheel_result = self.wheel.get()
-        if wheel_result:
-            return wheel_result[0]
+        edge_result = self.edge.get()
+        if edge_result:
+            edge_transition, _ = edge_result
+            # Edge is a wheel transition, find its wheel
+            for wheel, _ in edge_transition.cycle.all():
+                # cycle relationship returns Cycle/Wheel containers
+                from dialectical_framework.graph.nodes.wheel import Wheel
+                if isinstance(wheel, Wheel):
+                    return wheel
         return None
 
     def _get_commit_dependents(self):
@@ -197,33 +203,33 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         """
         Collect structure hash parts for this Transformation.
 
-        Parts: Wheel hash, hashes of all 6 transition positions.
-        Source/target WUs are derivable from transitions (no need to store indices).
+        Parts: edge (Transition) hash, hashes of all 6 transition positions.
+        Source/target segments are derivable from transitions (no need to store indices).
 
         Returns:
             List of strings for hash computation
 
         Raises:
-            ValueError: If Wheel is not set
+            ValueError: If edge is not set
         """
         parts = []
 
-        # Get Wheel hash
-        wheel_hash = self._wheel_hash
-        if not wheel_hash:
-            wheel_result = self.wheel.get()
-            if wheel_result:
-                wheel, _ = wheel_result
-                if wheel.is_committed:
-                    wheel_hash = wheel.hash
+        # Get edge hash
+        step_hash = self._edge_hash
+        if not step_hash:
+            edge_result = self.edge.get()
+            if edge_result:
+                edge_transition, _ = edge_result
+                if edge_transition.is_committed:
+                    step_hash = edge_transition.hash
 
-        if not wheel_hash:
+        if not step_hash:
             raise ValueError(
-                "Transformation must have a Wheel set before computing hash. "
-                "Use set_wheel() first."
+                "Transformation must have an edge set before computing hash. "
+                "Use set_on_edge() first."
             )
 
-        parts.append(wheel_hash)
+        parts.append(step_hash)
 
         # Get hashes for all 6 transition positions in order
         for manager in [self.ac, self.re, self.ac_plus, self.ac_minus, self.re_plus, self.re_minus]:
@@ -250,7 +256,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         Commit this transformation: save (if needed), compute hash, persist, and create relationships.
 
         Lifecycle:
-        1. Create transformation and set_wheel()
+        1. Create transformation and set_on_edge()
         2. (Optional) save() and add transitions explicitly
         3. commit() - auto-saves if needed, computes hash from components, makes immutable
 
@@ -267,10 +273,10 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
             if result is not None and result._id is not None:
                 self._id = result._id
 
-        # Auto-connect wheel BEFORE commit
-        if self._wheel_ref and self.wheel.count() == 0:
-            self.wheel.connect(self._wheel_ref)
-            self._wheel_ref = None  # Clear transient ref
+        # Auto-connect edge BEFORE commit
+        if self._edge_ref and self.edge.count() == 0:
+            self.edge.connect(self._edge_ref)
+            self._edge_ref = None  # Clear transient ref
 
         # Call IncrementalBuildMixin.commit() which validates children and computes hash
         super().commit()
@@ -353,23 +359,6 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         if position not in position_map:
             raise ValueError(f"Unknown position: {position}. Valid positions: Ac, Re, Ac+, Ac-, Re+, Re-")
         return position_map[position]
-
-    @property
-    def core_positions(self) -> list[str]:
-        """
-        Get list of all 6 core position names.
-
-        Returns:
-            List of position names that can be used with get_relationship_manager_by_position()
-        """
-        return [
-            POSITION_AC,
-            POSITION_RE,
-            POSITION_AC_PLUS,
-            POSITION_AC_MINUS,
-            POSITION_RE_PLUS,
-            POSITION_RE_MINUS,
-        ]
 
     def get_source_polar_segment(self) -> WheelSegmentPolarPair | None:
         """

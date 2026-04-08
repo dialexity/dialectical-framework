@@ -80,7 +80,7 @@ class WheelCalculator(BaseCalculator):
                     values.append(wu_r)
 
         # Wheel-level Transition Rs
-        for trans in wheel.transitions:
+        for trans in wheel.edges:
             trans_r = trans.relevance
             if trans_r is not None and trans_r > 0.0:
                 values.append(trans_r)
@@ -144,7 +144,7 @@ class WheelCalculator(BaseCalculator):
                     all_terms.append(wu_p)
 
         # Wheel's own transitions P (product for sequential probability)
-        wheel_transitions = wheel.transitions
+        wheel_transitions = wheel.edges
         if wheel_transitions:
             trans_probs = []
             for trans in wheel_transitions:

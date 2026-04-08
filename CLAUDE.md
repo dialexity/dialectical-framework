@@ -30,27 +30,27 @@ Think of a Dialectical Wheel as a pizza:
 
 - **Transition**: Recipe for moving between segments (T-→A+, A-→T+)
 - **Transformation**: Action-Reflection structure with 6 positions (Ac, Re, Ac+, Ac-, Re+, Re-)
-  - Belongs to Wheel (not WisdomUnit)
-  - Can span multiple WUs using source/target pair indices
-  - Supports recursive decomposition for multi-step transformations
+  - Belongs to a wheel edge via ACTION_REFLECTION relationship (`transformation.edge`)
+  - Each edge can have multiple Transformation alternatives at different insight/proactiveness levels
+  - Source/target segments derived from Ac+ transition's source/target components
 - **Synthesis**: Emergent S+/S- pair from Transformation
 - **Cycle**: T-cycle - ordered sequence of WisdomUnits defining abstract thesis causality
   - Stores WU hashes directly (cycle.wisdom_unit_hashes)
   - Intent field for dynamics type ("preset:balanced", "preset:realistic", etc.)
 - **Wheel**: Concrete T-A arrangement implementing a Cycle's T-cycle
   - Has flip configuration per WU ("normal" = T-side first, "swapped" = A-side first)
-  - Contains transitions (ta_cycle level)
-  - Contains Transformations
+  - Contains `edges` (causality sequence / ta_cycle level)
+  - Transformations belong to individual edges (access via `wheel.transformations`)
 - **Input**: External content source (URL/IPFS) linked to extracted components
 - **Ideas**: Container of distilled concepts from an Input (uses IncrementalBuildMixin: save → add statements → commit)
 - **Brainstorm**: Multi-input exploration container with unified vocabulary
 
-**Hierarchy:** WisdomUnit → Cycle → Wheel → Transformation
+**Hierarchy:** WisdomUnit → Cycle → Wheel (edges) → Transformation
 **Brainstorm flow:** Brainstorm → Input → Ideas → Components
 
 **DEPRECATED nodes (kept for backwards compatibility):**
 - **Nexus**: Replaced by Cycle storing WU hashes directly
-- **Spiral**: Replaced by Transformations on Wheel
+- **Spiral**: Replaced by Transformations on edges
 
 ### Intent Levels
 
@@ -70,7 +70,7 @@ Note: Brainstorm does not have intent - it's a container for inputs.
 
 ### Transformation Model
 
-**Transformation (Wheel-level)**: Action-Reflection structure with 6 positions:
+**Transformation (per edge)**: Action-Reflection structure with 6 positions:
 - Ac (Action): T → A
 - Ac+ (Positive Action): T- → A+ (REQUIRED)
 - Ac- (Negative Action): T+ → A-
@@ -78,14 +78,28 @@ Note: Brainstorm does not have intent - it's a container for inputs.
 - Re+ (Positive Reflection): A- → T+ (REQUIRED)
 - Re- (Negative Reflection): A+ → T-
 
-**Multi-WU Transformations**: Can span multiple WisdomUnits using source/target pair indices.
-Recursive decomposition allows breaking down T1- → T3+ into smaller steps.
+**Edges**: Each edge in a wheel's causality sequence can have multiple Transformation alternatives
+at different insight/proactiveness levels. Use `transformation.set_on_edge(edge)` to connect.
 
 **Example:**
-```
-Transformation(T1- → T3+)  [parent/composed]
-  ├── child: Transformation(T1- → T2+)  [step 1]
-  └── child: Transformation(T2- → T3+)  [step 2]
+```python
+# Create wheel with edges
+wheel = Wheel()
+edge1 = Transition()  # T1- → A2+
+edge1.set_source(t1_minus).set_target(a2_plus)
+edge1.commit()
+edge1.cycle.connect(wheel)
+
+# Create transformation for this edge
+transformation = Transformation()
+transformation.set_on_edge(edge1)
+transformation.save()
+# ... add ac_plus, re_plus transitions ...
+transformation.commit()
+
+# Access all transformations
+for tr in wheel.transformations:
+    edge_result = tr.edge.get()  # Returns (Transition, rel) tuple
 ```
 
 ### Cardinality Design: Where to Branch
@@ -95,7 +109,7 @@ Transformation(T1- → T3+)  [parent/composed]
 **Wheel implements Cycle:** Same T-cycle can have multiple Wheel implementations with different flip configurations.
 
 **To explore different paths, branch upstream:**
-- Different transformation interpretations → Create different **Transformations** on Wheel
+- Different transformation interpretations → Create different **Transformations** on same edge
 - Different WU combinations → Create different **Cycles**
 - Different flip configurations → Create different **Wheels** from same Cycle
 

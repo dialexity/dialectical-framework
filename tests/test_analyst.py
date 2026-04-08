@@ -80,7 +80,7 @@ async def test_full_blown_wheel(number_of_thoughts):
                 )
 
     # Verify Wheel has MORE transitions than t_cycle (detailed arrangement)
-    wheel_transitions = wheel.transitions
+    wheel_transitions = wheel.edges
     wheel_transition_count = len(wheel_transitions)
     expected_wheel_transitions = number_of_thoughts * 2  # T1, T2, A1, A2 for 2 WUs
     assert wheel_transition_count == expected_wheel_transitions, (

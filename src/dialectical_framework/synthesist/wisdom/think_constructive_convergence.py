@@ -234,7 +234,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         target_comp, _ = next_ws_t_plus_result
 
         # Query wheel for existing transition with same source/target components
-        wheel_transitions = self._wheel.transitions
+        wheel_transitions = self._wheel.edges
         transition = None
 
         # Check for duplicate using shared helper

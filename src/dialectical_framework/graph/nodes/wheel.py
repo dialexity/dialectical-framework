@@ -3,7 +3,7 @@ Wheel node for the dialectical framework.
 
 This module provides the Wheel class which represents the top-level container
 for a complete dialectical system. A Wheel is a concrete T-A arrangement
-implementing a Cycle's abstract T-cycle via transitions.
+implementing a Cycle's abstract T-cycle via causality edges.
 """
 
 from __future__ import annotations
@@ -19,9 +19,6 @@ from dialectical_framework.graph.relationships.has_wheel_relationship import (
 )
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
-)
-from dialectical_framework.graph.relationships.has_transformation_relationship import (
-    HasTransformationRelationship,
 )
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
@@ -50,28 +47,28 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     """
     Represents a concrete T-A arrangement implementing a Cycle's T-cycle.
 
-    A Wheel = Cycle + Transitions. The Cycle defines which WisdomUnits are
-    included and their T-cycle order. The Transitions define the concrete
-    component-to-component flow (T1- → A2+ → A1- → T2+ → ...).
+    A Wheel = Cycle + Edges. The Cycle defines which WisdomUnits are
+    included and their T-cycle order. The Edges define the concrete
+    component-to-component causality flow (T1- → A2+ → A1- → T2+ → ...).
 
     The polarity (which side appears first - T or A) for each WU is derived
-    from the transitions, not stored separately.
+    from the edges, not stored separately.
 
     Hierarchy:
-        WisdomUnit → Cycle (T-cycle + intent) → Wheel (transitions)
+        WisdomUnit → Cycle (T-cycle + intent) → Wheel (edges)
 
     The wheel metaphor represents the circular, iterative nature of
     dialectical reasoning where thesis and antithesis are arranged in segments.
 
     Relationships:
     - Wheel belongs to exactly one Cycle
-    - Wheel has transitions (ta_cycle level navigation)
-    - Wheel can have Transformations
+    - Wheel has edges (causality sequence / ta_cycle level)
+    - Each edge can have Transformations (via ACTION_REFLECTION)
 
     Properties:
         polarity_count: Number of wisdom units (computed via cycle)
         segment_count: Total segments = polarity_count × 2 (computed)
-        polar_segments: WUs with L/R orientation derived from transitions (use this!)
+        polar_segments: WUs with L/R orientation derived from edges (use this!)
 
     Example:
         cycle = Cycle(intent="preset:balanced")
@@ -82,13 +79,13 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         wheel.save()
         cycle.wheels.connect(wheel)
 
-        # Add transitions that define the T-A arrangement
-        trans1 = Transition()
-        trans1.set_source(t1_minus)
-        trans1.set_target(a2_plus)
-        trans1.commit()
-        trans1.cycle.connect(wheel)
-        # ... more transitions ...
+        # Add edges that define the T-A arrangement
+        edge1 = Transition()
+        edge1.set_source(t1_minus)
+        edge1.set_target(a2_plus)
+        edge1.commit()
+        edge1.cycle.connect(wheel)
+        # ... more edges ...
 
         wheel.commit()
     """
@@ -107,32 +104,41 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         cardinality=(1, 1)  # Exactly one parent cycle
     )
 
-    # Transitions that form this wheel's ta_cycle
-    # (moved from CircularTopologyMixin for explicit control)
-    _transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+    # Edges that form this wheel's causality sequence (ta_cycle)
+    _edges: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         model=BelongsToCycleRelationship,
-        cardinality=(2, None)  # At least two transitions to form a cycle
-    )
-
-    # Transformations belonging to this Wheel
-    # Parent→child: Wheel has Transformations
-    transformations: ClassVar[RelationshipManager[Transformation]] = RelationshipFrom(
-        "Transformation",
-        model=HasTransformationRelationship,
-        cardinality=(0, None)  # Zero or more transformations
+        cardinality=(2, None)  # At least two edges to form a cycle
     )
 
     @property
-    def transitions(self) -> list[Transition]:
+    def edges(self) -> list[Transition]:
         """
-        Get transitions in order by following source->target chain.
+        Get causality edges in order by following source->target chain.
+
+        Each edge is a Transition representing one step in the wheel's causality sequence.
+        Transformations belong to individual edges.
 
         Returns:
-            List of Transition nodes in order, or empty list if no transitions
+            List of Transition nodes in order, or empty list if no edges
         """
-        all_transitions = [trans for trans, _ in self._transitions.all()]
-        return order_transitions(all_transitions)
+        all_edges = [edge for edge, _ in self._edges.all()]
+        return order_transitions(all_edges)
+
+    @property
+    def transformations(self) -> list[Transformation]:
+        """
+        Get all Transformations belonging to this wheel's edges.
+
+        Queries transformations that point to any of this wheel's edges
+        via ACTION_REFLECTION relationship, scoped by sid.
+
+        Returns:
+            List of Transformation nodes from all edges
+        """
+        from dialectical_framework.graph.repositories.wheel_repository import WheelRepository
+        repo = WheelRepository()
+        return repo.get_transformations(self)
 
     @property
     def _wisdom_units(self) -> list[WisdomUnit]:
@@ -153,26 +159,26 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
     def _get_commit_dependents(self):
         """
-        Get transitions for hash computation.
+        Get edges for hash computation.
 
         Yields:
-            Transition nodes
+            Transition nodes (edges)
         """
-        for trans in self.transitions:
-            yield trans
+        for edge in self.edges:
+            yield edge
 
     def _collect_structure_hash_parts(self) -> list[str]:
         """
         Collect structure hash parts for this Wheel.
 
-        Parts: cycle hash, sorted transition hashes.
+        Parts: cycle hash, sorted edge hashes.
         The intent is added separately by BaseNode.compute_hash().
 
         Returns:
-            List of strings: [cycle_hash, trans_hash1, trans_hash2, ...]
+            List of strings: [cycle_hash, edge_hash1, edge_hash2, ...]
 
         Raises:
-            ValueError: If Cycle is not connected/committed or transitions not committed
+            ValueError: If Cycle is not connected/committed or edges not committed
         """
         parts = []
 
@@ -191,19 +197,19 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 "Wheel must be connected to a Cycle before computing structure hash."
             )
 
-        # Get transition hashes and sort for deterministic ordering
-        # Transitions encode the T-A arrangement (polarity is derived from them)
-        trans_hashes = []
-        for trans in self.transitions:
-            if not trans.is_committed:
+        # Get edge hashes and sort for deterministic ordering
+        # Edges encode the T-A arrangement (polarity is derived from them)
+        edge_hashes = []
+        for edge in self.edges:
+            if not edge.is_committed:
                 raise ValueError(
-                    "Transition must be committed before computing "
+                    "Edge (Transition) must be committed before computing "
                     "Wheel structure hash"
                 )
-            trans_hashes.append(trans.hash)
+            edge_hashes.append(edge.hash)
 
-        trans_hashes.sort()
-        parts.extend(trans_hashes)
+        edge_hashes.sort()
+        parts.extend(edge_hashes)
 
         return parts
 
@@ -472,16 +478,16 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     @property
     def polar_segments(self) -> list[WheelSegmentPolarPair]:
         """
-        Get all wisdom units as WheelSegmentPolarPair objects in transition order.
+        Get all wisdom units as WheelSegmentPolarPair objects in edge order.
 
-        Orientation (which side appears first - T or A) is derived from transitions.
-        The first component of each WU seen in the transition chain determines
+        Orientation (which side appears first - T or A) is derived from edges.
+        The first component of each WU seen in the edge chain determines
         whether it's "normal" (T-side first) or "swapped" (A-side first).
 
         Polar pairs are cached per wisdom unit to ensure the same instances are reused.
 
         Returns:
-            List of WheelSegmentPolarPair objects in transition order with derived orientation
+            List of WheelSegmentPolarPair objects in edge order with derived orientation
 
         Raises:
             ValueError: If wheel has no WisdomUnits
@@ -496,14 +502,14 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         if not wus:
             raise ValueError("Wheel has no WisdomUnits")
 
-        return self._derive_polar_segments_from_transitions()
+        return self._derive_polar_segments_from_edges()
 
-    def _derive_polar_segments_from_transitions(self) -> list[WheelSegmentPolarPair]:
+    def _derive_polar_segments_from_edges(self) -> list[WheelSegmentPolarPair]:
         """
-        Derive polar pair orientations from transitions.
+        Derive polar pair orientations from edges.
 
-        Traverses transitions to determine which side of each WU appears first.
-        The first component from each WU seen in the transition chain determines
+        Traverses edges to determine which side of each WU appears first.
+        The first component from each WU seen in the edge chain determines
         the polarity: T-side components → "normal", A-side components → "swapped".
 
         Returns:
@@ -511,8 +517,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         """
         from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
 
-        ordered_transitions = self.transitions
-        if not ordered_transitions:
+        ordered_edges = self.edges
+        if not ordered_edges:
             # Fall back to default "normal" orientation
             return [
                 WheelSegmentPolarPair(wu, "normal")
@@ -537,8 +543,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         seen_wisdom_units = set()
         pairs = []
 
-        for transition in ordered_transitions:
-            source_result = transition.source.get()
+        for edge in ordered_edges:
+            source_result = edge.source.get()
             if not source_result:
                 continue
 
@@ -573,39 +579,39 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     @property
     def segments(self) -> list[WheelSegment]:
         """
-        Get all wheel segments (T and A sides) in transition order.
+        Get all wheel segments (T and A sides) in edge order.
 
-        Returns segments in the exact order they appear in the wheel's transitions,
-        which is the correct order for creating transitions (each segment's
+        Returns segments in the exact order they appear in the wheel's edges,
+        which is the correct order for creating edges (each segment's
         minus connects to the next segment's plus).
 
         Returns:
-            List of WheelSegment objects in transition order
+            List of WheelSegment objects in edge order
 
         Raises:
-            ValueError: If wheel has no transitions
+            ValueError: If wheel has no edges
 
         Example:
-            # If transitions follow T1 → A2 → A1 → T2:
-            # Returns: [T1, A2, A1, T2] (exact transition order)
+            # If edges follow T1 → A2 → A1 → T2:
+            # Returns: [T1, A2, A1, T2] (exact edge order)
 
             for seg in wheel.segments:
                 comp = seg.t.get()
                 if comp:
                     print(f"{seg.side}: {comp[0].statement}")
         """
-        ordered_transitions = self.transitions
+        ordered_edges = self.edges
 
-        if not ordered_transitions:
-            raise ValueError("Wheel has no transitions")
+        if not ordered_edges:
+            raise ValueError("Wheel has no edges")
 
-        # Extract segments by following the transitions
+        # Extract segments by following the edges
         segments = []
         seen_segments = set()
 
-        for transition in ordered_transitions:
+        for edge in ordered_edges:
             # Get source component
-            source_result = transition.source.get()
+            source_result = edge.source.get()
             if not source_result:
                 continue
 
@@ -637,7 +643,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
     def get_next_segment(self, current: WheelSegment) -> WheelSegment:
         """
-        Get the next segment in transition order.
+        Get the next segment in edge order.
 
         Args:
             current: The current segment
@@ -657,7 +663,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 next_index = (i + 1) % len(segments)
                 return segments[next_index]
 
-        raise ValueError(f"Segment not found in wheel's transition order")
+        raise ValueError(f"Segment not found in wheel's edge order")
 
     def is_same_structure(self, other: Wheel, compare: Literal['alias', 'statement'] = 'alias') -> bool:
         """
@@ -749,9 +755,9 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         else:
             raise ValueError(f"Invalid compare parameter: {compare}. Must be 'alias' or 'statement'")
 
-    def _format_transitions(self, mode: str = "aliases") -> str:
+    def _format_edges(self, mode: str = "aliases") -> str:
         """
-        Format transitions as a chain string.
+        Format edges as a chain string.
 
         Args:
             mode: "aliases" (default), "statements", or "explicit"
@@ -807,7 +813,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             List of DialecticalComponent nodes from transitions
         """
         components = []
-        transitions = self.transitions
+        transitions = self.edges
 
         if not transitions:
             return []
@@ -928,15 +934,15 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             output.extend(_format_cycle(cycle_obj, "Cycle (t_cycle)"))
             output.append("")
 
-        # Wheel transitions (ta_cycle level)
-        if len(self.transitions) > 0:
+        # Wheel edges (ta_cycle level causality sequence)
+        if len(self.edges) > 0:
             lines = []
-            header = "=== Wheel Transitions (ta_cycle) ==="
+            header = "=== Wheel Edges (ta_cycle) ==="
             if show_scores:
-                header = f"=== Wheel Transitions [{fmt_scores(self, colorize=True)}] ==="
+                header = f"=== Wheel Edges [{fmt_scores(self, colorize=True)}] ==="
             lines.append(header)
-            # Format transitions as alias chain
-            lines.append(self._format_transitions("aliases"))
+            # Format edges as alias chain
+            lines.append(self._format_edges("aliases"))
 
             # Add the best rationale if it exists
             rationale = self.best_rationale
@@ -970,7 +976,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 ("a_minus", POSITION_A_MINUS),
             ]
 
-            # Build table: each row is a position, columns are (alias, statement) pairs for WU and then for Transformation
+            # Build table: each row is a position, columns are (alias, statement) pairs for each WU
             table = []
             for position_attr, position_label in positions:
                 row = []
@@ -989,59 +995,17 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                         row.append("")
                         row.append("")
 
-                    # Transformation (AC/RE) columns - transformation has its own 6 positions
-                    transformation_result = wu.transformations.get()
-                    if transformation_result:
-                        transformation, _ = transformation_result
-                        # Map T/A positions to Ac/Re positions for display
-                        from dialectical_framework.graph.nodes.transformation import (
-                            POSITION_AC, POSITION_RE,
-                            POSITION_AC_PLUS, POSITION_AC_MINUS,
-                            POSITION_RE_PLUS, POSITION_RE_MINUS,
-                        )
-                        wu_to_trans_position = {
-                            POSITION_T: POSITION_AC,
-                            POSITION_T_PLUS: POSITION_AC_PLUS,
-                            POSITION_T_MINUS: POSITION_AC_MINUS,
-                            POSITION_A: POSITION_RE,
-                            POSITION_A_PLUS: POSITION_RE_PLUS,
-                            POSITION_A_MINUS: POSITION_RE_MINUS,
-                        }
-                        trans_position = wu_to_trans_position.get(position_label)
-                        if trans_position:
-                            trans_manager = transformation.get_relationship_manager_by_position(trans_position)
-                            trans_result = trans_manager.get()
-                            if trans_result:
-                                trans_comp, trans_rel = trans_result
-                                assert isinstance(trans_rel, PolarityRelationship)
-                                row.append(trans_rel.alias)
-                                row.append(trans_comp.statement)
-                            else:
-                                row.append("")
-                                row.append("")
-                        else:
-                            row.append("")
-                            row.append("")
-                    else:
-                        row.append("")
-                        row.append("")
-
                 table.append(row)
 
             output.append(tabulate(table, tablefmt="plain"))
 
             # Show transformation scores if in scores mode
-            if show_scores:
+            # Transformations now belong to Transitions (causality steps), not WUs
+            if show_scores and self.transformations:
                 output.append("")
                 output.append("Transformation Scores:")
-                for idx, pair in enumerate(polar_segments, 1):
-                    wu = pair.wisdom_unit
-                    transformation_result = wu.transformations.get()
-                    if transformation_result:
-                        transformation, _ = transformation_result
-                        output.append(f"  WU{idx}: [{fmt_scores(transformation, colorize=True)}]")
-                    else:
-                        output.append(f"  WU{idx}: [No transformation]")
+                for idx, transformation in enumerate(self.transformations, 1):
+                    output.append(f"  Step {idx}: [{fmt_scores(transformation, colorize=True)}]")
         else:
             output.append("[No wisdom units]")
         output.append("")

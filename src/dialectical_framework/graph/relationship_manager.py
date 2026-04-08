@@ -394,7 +394,7 @@ class BoundRelationshipManager(Generic[T]):
         cycle_wu_ids = {wu.hash for wu in cycle_wus}
 
         # Get wheel's transitions
-        wheel_transitions = wheel.transitions
+        wheel_transitions = wheel.edges
         if not wheel_transitions:
             raise ValueError(
                 "Cannot connect cycle to wheel: wheel has no transitions. "

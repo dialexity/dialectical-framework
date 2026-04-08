@@ -2181,97 +2181,112 @@ def test_multiple_feasibility_estimations(di_container):
 
 def test_wheel_multiple_transformations():
     """
-    Test that Wheel can have multiple transformations (cardinality 0,N).
+    Test that a causality step (wheel transition) can have multiple transformations.
 
-    Many Ac-Re paths → ONE S+ (synthesis emerges from T-A pair itself).
+    Each transition in a wheel's ta_cycle can have multiple Transformation alternatives
+    at different insight/proactiveness levels.
     """
     from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.scope_context import scope
 
-    # Create components for WisdomUnit
-    uid = random.random()
-    components = []
-    for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
-        c = DialecticalComponent(statement=f"Multi trans Wheel {stmt} {uid}", meaning=f"meaning:{stmt}")
-        c.commit()
-        components.append(c)
+    # Create brainstorm for sid scoping
+    brainstorm = Brainstorm()
+    brainstorm.commit()
 
-    # Create WU with Polarity using helper
-    wu, _ = create_wu_from_components(
-        t=components[0],
-        a=components[3],
-        t_plus=components[1],
-        t_minus=components[2],
-        a_plus=components[4],
-        a_minus=components[5],
-        intent=f"wu_{random.random()}",
-    )
-    wu.commit()
+    with scope(brainstorm.sid):
+        # Create components for WisdomUnit
+        uid = random.random()
+        components = []
+        for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
+            c = DialecticalComponent(statement=f"Multi trans Wheel {stmt} {uid}", meaning=f"meaning:{stmt}")
+            c.commit()
+            components.append(c)
 
-    # Create Cycle
-    cycle = Cycle(intent="preset:balanced")
-    cycle.set_wisdom_units([wu])
-    cycle.commit()
+        # Create WU with Polarity using helper
+        wu, _ = create_wu_from_components(
+            t=components[0],
+            a=components[3],
+            t_plus=components[1],
+            t_minus=components[2],
+            a_plus=components[4],
+            a_minus=components[5],
+            intent=f"wu_{random.random()}",
+        )
+        wu.commit()
 
-    # Create Wheel
-    wheel = Wheel(intent=f"wheel_{uid}")
-    wheel.save()
+        # Create Cycle
+        cycle = Cycle(intent="preset:balanced")
+        cycle.set_wisdom_units([wu])
+        cycle.commit()
 
-    # Add wheel-level transitions (required before connecting to cycle)
-    from dialectical_framework.graph.nodes.transition import Transition
-    from dialectical_framework.graph.relationships.polarity_relationship import AcPlusRelationship, RePlusRelationship
+        # Create Wheel
+        wheel = Wheel(intent=f"wheel_{uid}")
+        wheel.save()
 
-    wheel_trans1 = Transition()
-    wheel_trans1.set_source(components[0]).set_target(components[3])  # T → A
-    wheel_trans1.commit()
-    wheel_trans1.cycle.connect(wheel)
+        # Add wheel-level transitions (causality steps)
+        from dialectical_framework.graph.nodes.transition import Transition
+        from dialectical_framework.graph.relationships.polarity_relationship import AcPlusRelationship, RePlusRelationship
 
-    wheel_trans2 = Transition()
-    wheel_trans2.set_source(components[3]).set_target(components[0])  # A → T
-    wheel_trans2.commit()
-    wheel_trans2.cycle.connect(wheel)
+        wheel_trans1 = Transition()
+        wheel_trans1.set_source(components[0]).set_target(components[3])  # T → A
+        wheel_trans1.commit()
+        wheel_trans1.cycle.connect(wheel)
 
-    # Now connect wheel to cycle and commit it
-    cycle.wheels.connect(wheel)
-    wheel.commit()  # Wheel must be committed before transformations can use its hash
+        wheel_trans2 = Transition()
+        wheel_trans2.set_source(components[3]).set_target(components[0])  # A → T
+        wheel_trans2.commit()
+        wheel_trans2.cycle.connect(wheel)
 
-    # Helper to create required transitions (Ac+ and Re+) for a transformation
-    def add_required_transitions(trans: Transformation) -> None:
-        """Add Ac+ (T- → A+) and Re+ (A- → T+) transitions - the minimum required."""
-        # Ac+: T- → A+
-        ac_plus_trans = Transition()
-        ac_plus_trans.set_source(components[2])  # T-
-        ac_plus_trans.set_target(components[4])  # A+
-        ac_plus_trans.commit()
-        trans.ac_plus.connect(ac_plus_trans, relationship=AcPlusRelationship(alias="Ac+"))
+        # Now connect wheel to cycle and commit it
+        cycle.wheels.connect(wheel)
+        wheel.commit()
 
-        # Re+: A- → T+
-        re_plus_trans = Transition()
-        re_plus_trans.set_source(components[5])  # A-
-        re_plus_trans.set_target(components[1])  # T+
-        re_plus_trans.commit()
-        trans.re_plus.connect(re_plus_trans, relationship=RePlusRelationship(alias="Re+"))
+        # Helper to create required transitions (Ac+ and Re+) for a transformation
+        def add_required_transitions(trans: Transformation) -> None:
+            """Add Ac+ (T- → A+) and Re+ (A- → T+) transitions - the minimum required."""
+            # Ac+: T- → A+
+            ac_plus_trans = Transition()
+            ac_plus_trans.set_source(components[2])  # T-
+            ac_plus_trans.set_target(components[4])  # A+
+            ac_plus_trans.commit()
+            trans.ac_plus.connect(ac_plus_trans, relationship=AcPlusRelationship(alias="Ac+"))
 
-    # Create first transformation and connect to Wheel - should succeed
-    trans1 = Transformation(intent=f"multi_trans1_{uid}")
-    trans1.set_wheel(wheel)
-    trans1.save()
-    add_required_transitions(trans1)
-    trans1.commit()
+            # Re+: A- → T+
+            re_plus_trans = Transition()
+            re_plus_trans.set_source(components[5])  # A-
+            re_plus_trans.set_target(components[1])  # T+
+            re_plus_trans.commit()
+            trans.re_plus.connect(re_plus_trans, relationship=RePlusRelationship(alias="Re+"))
 
-    # Verify first transformation is connected
-    assert wheel.transformations.count() == 1, "Wheel should have 1 transformation"
+        # Create first transformation and connect to causality step (wheel_trans1)
+        trans1 = Transformation(intent=f"multi_trans1_{uid}")
+        trans1.set_on_edge(wheel_trans1)
+        trans1.save()
+        add_required_transitions(trans1)
+        trans1.commit()
 
-    # Create second transformation and connect to SAME Wheel - should also succeed (0,N cardinality)
-    trans2 = Transformation(intent=f"multi_trans2_{uid}")
-    trans2.set_wheel(wheel)
-    trans2.save()
-    add_required_transitions(trans2)
-    trans2.commit()
+        # Verify wheel has 1 transformation
+        assert len(wheel.transformations) == 1, "Wheel should have 1 transformation"
 
-    # Verify both transformations are connected
-    assert wheel.transformations.count() == 2, "Wheel should now have 2 transformations"
+        # Create second transformation and connect to SAME causality step - should succeed
+        trans2 = Transformation(intent=f"multi_trans2_{uid}")
+        trans2.set_on_edge(wheel_trans1)
+        trans2.save()
+        add_required_transitions(trans2)
+        trans2.commit()
 
-    print("✓ Wheel can have multiple transformations (0,N cardinality)")
+        # Verify wheel now has 2 transformations
+        assert len(wheel.transformations) == 2, "Wheel should have 2 transformations"
+
+        # Verify both transformations point to the same edge
+        for tr in wheel.transformations:
+            edge_result = tr.edge.get()
+            assert edge_result is not None
+            edge_transition, _ = edge_result
+            assert edge_transition.hash == wheel_trans1.hash, "Transformation should point to wheel_trans1"
+
+        print("✓ Edge can have multiple transformations")
 
 
 # =============================================================================
@@ -2367,11 +2382,12 @@ def test_transformation_six_positions():
 
     # Now connect wheel to cycle and commit it
     cycle.wheels.connect(wheel)
-    wheel.commit()  # Wheel must be committed before transformations can use its hash
+    wheel.commit()
 
     # Create transformation with 6 transition positions
+    # Transformation now belongs to a causality step (wheel transition)
     transformation = Transformation(intent="test_6_positions")
-    transformation.set_wheel(wheel)
+    transformation.set_on_edge(wheel_trans1)
     transformation.save()
 
     # Define transitions: position -> (source_pos, target_pos)
@@ -2463,10 +2479,11 @@ def test_transformation_incomplete():
 
     # Now connect wheel to cycle
     cycle.wheels.connect(wheel)
+    wheel.commit()
 
     # Create transformation with only Ac position (missing required Ac+ and Re+)
     transformation = Transformation(intent="test_incomplete")
-    transformation.set_wheel(wheel)
+    transformation.set_on_edge(wheel_trans1)
     transformation.save()
 
     # Add only one transition (Ac: T → A) - optional position

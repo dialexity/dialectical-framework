@@ -167,7 +167,7 @@ async def test_causality_sequencer(di_container):
         print(f"  Components: {len(wheel.dialectical_components) if wheel.dialectical_components else 0}")
 
         # Verify transition probabilities were set
-        transitions = wheel.transitions
+        transitions = wheel.edges
         if transitions:
             trans_probs = [t.probability for t in transitions if t.probability is not None]
             if trans_probs:

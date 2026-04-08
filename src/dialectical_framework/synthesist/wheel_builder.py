@@ -807,7 +807,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
                 estimation_manager.upsert_estimation(wheel, ProbabilityEstimation, 1.0)
                 estimation_manager.upsert_estimation(wheel, RelevanceEstimation, 1.0)
                 # Set transition-level estimations (TaroRank calculates from children)
-                for trans in wheel.transitions:
+                for trans in wheel.edges:
                     estimation_manager.upsert_estimation(trans, ProbabilityEstimation, 1.0)
                     estimation_manager.upsert_estimation(trans, RelevanceEstimation, 1.0)
             # Also set Cycle estimations
