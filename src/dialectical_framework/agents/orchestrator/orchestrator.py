@@ -33,15 +33,13 @@ GRAPH_SCHEMA = """
 ### Dialectical Structure
 - **DialecticalComponent**: A statement/thesis/position. Has `statement` (text) and optional `meaning` (semantic URI).
 - **WisdomUnit**: A dialectical tension pairing thesis (T) with antithesis (A), plus their poles (T+, T-, A+, A-).
-- **Nexus**: A pool/collection of related WisdomUnits.
-- **Cycle**: An ordered sequence of Nexuses for navigation.
-- **Wheel**: Top-level synthesis container with transitions.
+- **Cycle**: T-cycle - an ordered sequence of WisdomUnits defining abstract thesis causality.
+- **Wheel**: Concrete T-A arrangement implementing a Cycle with flip configurations and transitions.
 
 ### Transformation & Synthesis
-- **Transformation**: Internal spiral within a WisdomUnit (action-reflection transitions).
+- **Transformation**: Action-reflection structure belonging to Wheel (Ac, Re, Ac+, Ac-, Re+, Re-).
 - **Transition**: Movement between dialectical positions (e.g., T- → A+).
 - **Synthesis**: Emergent S+/S- pair from transformation.
-- **Spiral**: Global navigation across all WU transformations.
 
 ### Metadata
 - **Rationale**: Explanation text attached to any node.
@@ -67,8 +65,8 @@ GRAPH_SCHEMA = """
 ### Structural Relations
 - **HAS_INPUT**: Brainstorm → Input
 - **HAS_STATEMENT**: Ideas → DialecticalComponent
-- **BELONGS_TO_NEXUS**: WisdomUnit → Nexus
-- **BELONGS_TO_CYCLE**: Nexus → Cycle
+- **HAS_WHEEL**: Cycle → Wheel
+- **HAS_TRANSFORMATION**: Wheel → Transformation
 - **IS_SOURCE_OF**: DialecticalComponent → Transition
 - **IS_TARGET_OF**: DialecticalComponent → Transition
 - **AC**: Action transition → Transformation
@@ -90,7 +88,7 @@ DialecticalComponent:
 - `meaning`: Optional semantic URI
 - `rejected`: Boolean if rejected
 
-WisdomUnit, Nexus, Cycle, etc.:
+WisdomUnit, Cycle, Wheel, etc.:
 - `intent`: Optional intent/purpose description
 """
 from dialectical_framework.enums.di import DI

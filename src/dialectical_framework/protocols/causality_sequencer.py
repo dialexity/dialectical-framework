@@ -6,7 +6,7 @@ circular topologies (Cycles or Wheels) by analyzing causal relationships
 and estimating transition probabilities.
 
 Two-phase workflow:
-1. Structure building: arrange() creates Cycles and Wheels from a Nexus
+1. Structure building: arrange() creates Cycles and Wheels from WisdomUnits
 2. Estimation: estimate() attaches AI-generated Rationale and Estimation nodes
 
 This decoupling allows:
@@ -18,12 +18,12 @@ This decoupling allows:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
     from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
 class CausalitySequencer(ABC):
@@ -34,47 +34,37 @@ class CausalitySequencer(ABC):
     generate ordered arrangements with probability estimates.
 
     Workflow:
-    1. arrange() - creates Cycles and Wheels from Nexus (or reuses existing)
+    1. arrange() - creates Cycles and Wheels from WisdomUnits
     2. estimate() - attaches AI-generated Rationale and Estimation nodes
     """
 
     @abstractmethod
     def arrange(
         self,
-        nexus: Nexus,
+        wisdom_units: list[WisdomUnit],
         intent: str,
     ) -> list[Cycle]:
         """
-        Arrange WisdomUnits in a Nexus into Cycles and Wheels (idempotent).
+        Arrange WisdomUnits into Cycles and Wheels.
 
         Creates Cycle nodes (from T components) and Wheel nodes (from WisdomUnits).
-        Picks up where it left off:
-        - If some Cycles with this intent exist, only creates missing ones
-        - If some Wheels exist in a Cycle, only creates missing ones
-
-        Commit behavior follows Nexus state:
-        - If Nexus is committed: new Cycles and Wheels are committed
-        - If Nexus is uncommitted: new Cycles and Wheels are saved but not committed
-          (caller is responsible for committing Nexus first, then Cycles, then Wheels)
 
         Args:
-            nexus: Nexus containing WisdomUnits to arrange.
-                   Can be uncommitted or committed - new cycles can be added either way.
+            wisdom_units: List of committed WisdomUnits to arrange.
             intent: Causality intent (e.g., "preset:balanced", "preset:realistic").
 
         Returns:
-            List of all Cycle nodes (existing + new). Wheels via cycle.wheels.all().
-            Commit state of new structures matches Nexus commit state.
+            List of Cycle nodes. Wheels via cycle.wheels.all().
 
         Raises:
-            ValueError: If nexus has no WisdomUnits.
+            ValueError: If wisdom_units is empty.
         """
         ...
 
     @abstractmethod
     async def estimate(
         self,
-        cycle: CircularTopologyMixin | list[CircularTopologyMixin],
+        cycle: Union[Cycle, Wheel, list[Cycle], list[Wheel]],
         force: bool = False,
     ) -> None:
         """

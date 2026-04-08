@@ -31,10 +31,7 @@ from dialectical_framework.graph.relationships.belongs_to_cycle_relationship imp
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.spiral import Spiral
-    from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.wheel import Wheel
-    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
@@ -43,26 +40,16 @@ class Transition(AssessableEntity, label="Transition"):
     """
     Represents a transition (relationship) between dialectical components.
 
-    Transitions capture different types of relationships between components:
-    - CAUSES: Causal transitions organized in Cycles
-    - CONSTRUCTIVELY_CONVERGES_TO: Synthesis convergence organized in Spirals
-    - TRANSFORMS_TO: Dialectical transformations organized in Transformations
-
-    The semantic type of transition is implicit from its container:
-    - Transitions in Cycle → CAUSES
-    - Transitions in Spiral → CONSTRUCTIVELY_CONVERGES_TO
-    - Transitions in Transformation → TRANSFORMS_TO
-
     Transitions are nodes (not edges) in the graph because they:
     1. Can be assessed/scored
     2. Have their own rationales
     3. Can have estimations (probability of transition)
-    4. Are organized into Cycles, Spirals, and Transformations
 
     Relationships:
-    - source: The representative component from the source wheel segment (1:1)
-    - target: The representative component from the target wheel segment (1:1)
-    - cycle: The container (Cycle, Spiral, or Transformation) this transition belongs to (0:1)
+    - source: The source component (1:1)
+    - target: The target component (1:1)
+    - cycle: Container (Cycle or Wheel) for causal transitions (0:1)
+    - Transformation positions (ac, re, ac_plus, etc.) use typed relationships
 
     Note: Default probability fallback is handled by the scorer (TaroRank.default_transition_probability)
     from settings, not stored on individual transition nodes.
@@ -115,10 +102,12 @@ class Transition(AssessableEntity, label="Transition"):
         cardinality=(1, 1)
     )
 
-    cycle: ClassVar[RelationshipManager[Cycle | Spiral | Transformation | Wheel]] = RelationshipTo(
-        ("Cycle", "Spiral", "Transformation", "Wheel"),
+    # Container for this transition (Cycle or Wheel)
+    # Note: Transformation transitions use typed relationships (ac, re, ac_plus, etc.) instead
+    cycle: ClassVar[RelationshipManager[Cycle | Wheel]] = RelationshipTo(
+        ("Cycle", "Wheel"),
         model=BelongsToCycleRelationship,
-        cardinality=(1, 1)  # Exactly one container
+        cardinality=(0, 1)  # Optional - Transformation transitions use typed relationships
     )
 
 
@@ -160,19 +149,37 @@ class Transition(AssessableEntity, label="Transition"):
         self._target_ref = component
         return self
 
-    def get_nexus(self) -> Nexus | None:
+    def _get_wisdom_units(self) -> list[WisdomUnit]:
         """
-        Get the nexus this transition belongs to via its cycle/spiral.
+        Get WisdomUnits for alias resolution via the container chain.
+
+        Follows: Transition → Wheel → Cycle → wisdom_units
+              or Transition → Cycle → wisdom_units
 
         Returns:
-            The nexus containing this transition's cycle, or None if not found
+            List of WisdomUnits, or empty list if not found
         """
         cycle_result = self.cycle.get()
         if not cycle_result:
-            return None
+            return []
 
         container, _ = cycle_result
-        return container.get_nexus()
+
+        # For Wheel: get from cycle.wisdom_units
+        from dialectical_framework.graph.nodes.wheel import Wheel
+        if isinstance(container, Wheel):
+            cycle_res = container.cycle.get()
+            if cycle_res:
+                cycle_obj, _ = cycle_res
+                return cycle_obj.wisdom_units
+            return []
+
+        # For Cycle: get wisdom_units directly
+        from dialectical_framework.graph.nodes.cycle import Cycle
+        if isinstance(container, Cycle):
+            return container.wisdom_units
+
+        return []
 
     def _collect_structure_hash_parts(self) -> list[str]:
         """
@@ -277,10 +284,9 @@ class Transition(AssessableEntity, label="Transition"):
 
     def _find_wu_for_component(self, component: DialecticalComponent) -> WisdomUnit | None:
         """
-        Find which WisdomUnit contains this component via Nexus.
+        Find which WisdomUnit contains this component.
 
-        This is the Nexus-based alternative to wheel.wisdom_unit_at().
-        Searches through all WisdomUnits in the Nexus to find the one
+        Searches through all WisdomUnits via get_wisdom_units() to find the one
         containing the given component.
 
         Args:
@@ -289,11 +295,11 @@ class Transition(AssessableEntity, label="Transition"):
         Returns:
             The WisdomUnit containing this component, or None if not found
         """
-        nexus = self.get_nexus()
-        if not nexus:
+        wisdom_units = self._get_wisdom_units()
+        if not wisdom_units:
             return None
 
-        for wu, _ in nexus.wisdom_units.all():
+        for wu in wisdom_units:
             try:
                 component.get_alias(wu)
                 return wu
@@ -362,7 +368,7 @@ class Transition(AssessableEntity, label="Transition"):
     def _get_component_label(
         comp: DialecticalComponent,
         mode: str,
-        nexus: Nexus | None
+        wisdom_units: list[WisdomUnit] | None
     ) -> str:
         """
         Get label for a component based on format mode.
@@ -370,16 +376,15 @@ class Transition(AssessableEntity, label="Transition"):
         Args:
             comp: The dialectical component
             mode: Format mode ("aliases", "statements", "explicit")
-            nexus: Optional nexus for alias resolution
+            wisdom_units: Optional list of WisdomUnits for alias resolution
 
         Returns:
             Formatted label string
         """
         alias = None
 
-        # Try to resolve alias through nexus context
-        if nexus and mode in ("", "aliases", "explicit"):
-            wisdom_units = [wu for wu, _ in nexus.wisdom_units.all()]
+        # Try to resolve alias through WisdomUnit context
+        if wisdom_units and mode in ("", "aliases", "explicit"):
             for wu in wisdom_units:
                 try:
                     alias = comp.get_alias(wu)
@@ -404,12 +409,11 @@ class Transition(AssessableEntity, label="Transition"):
 
     def _is_segment_transition(self) -> bool:
         """
-        Check if this transition has segment semantics (Spiral/Transformation).
+        Check if this transition has segment semantics (Transformation).
 
         Returns:
-            True if transition is in a Spiral or Transformation container
+            True if transition is in a Transformation container
         """
-        from dialectical_framework.graph.nodes.spiral import Spiral
         from dialectical_framework.graph.nodes.transformation import Transformation
 
         cycle_result = self.cycle.get()
@@ -417,16 +421,16 @@ class Transition(AssessableEntity, label="Transition"):
             return False
 
         container, _ = cycle_result
-        return isinstance(container, (Spiral, Transformation))
+        return isinstance(container, Transformation)
 
     def _get_segment_source_labels(
         self,
         source_comp: DialecticalComponent,
         mode: str,
-        nexus: Nexus | None
+        wisdom_units: list[WisdomUnit] | None
     ) -> str:
         """
-        Get source labels for segment-based transitions (Spiral/Transformation).
+        Get source labels for segment-based transitions (Transformation).
 
         For segment transitions, source is represented by minus AND core components
         (e.g., "T1-, T1" not just "T1-").
@@ -434,15 +438,15 @@ class Transition(AssessableEntity, label="Transition"):
         Args:
             source_comp: The source component (minus component)
             mode: Format mode
-            nexus: Optional nexus for alias resolution
+            wisdom_units: Optional list of WisdomUnits for alias resolution
 
         Returns:
             Formatted source label with segment aliases (e.g., "T1-, T1")
         """
-        # Find the segment containing this source component (uses Nexus internally)
+        # Find the segment containing this source component
         source_segment = self.get_source_wheel_segment()
         if not source_segment:
-            return self._get_component_label(source_comp, mode, nexus)
+            return self._get_component_label(source_comp, mode, wisdom_units)
 
         wu = source_segment.wisdom_unit
 
@@ -456,14 +460,14 @@ class Transition(AssessableEntity, label="Transition"):
             core_result = wu.a.get()
 
         if not minus_result or not core_result:
-            return self._get_component_label(source_comp, mode, nexus)
+            return self._get_component_label(source_comp, mode, wisdom_units)
 
         minus_comp, _ = minus_result
         core_comp, _ = core_result
 
         # Get labels for both components
-        minus_label = self._get_component_label(minus_comp, mode, nexus)
-        core_label = self._get_component_label(core_comp, mode, nexus)
+        minus_label = self._get_component_label(minus_comp, mode, wisdom_units)
+        core_label = self._get_component_label(core_comp, mode, wisdom_units)
 
         return f"{minus_label}, {core_label}"
 
@@ -478,9 +482,9 @@ class Transition(AssessableEntity, label="Transition"):
         "explicit"        - Combines both: "T1- (statement) → A1+ (statement)"
         "verbose"         - Shows alias format + rationale text
 
-        For Spiral/Transformation transitions, source shows segment aliases:
+        For Transformation transitions, source shows segment aliases:
         - Cycle: "T1- → A1+" (component-to-component)
-        - Spiral/Transformation: "T1-, T1 → A1+" (segment-to-component)
+        - Transformation: "T1-, T1 → A1+" (segment-to-component)
 
         Examples:
         ---------
@@ -502,31 +506,31 @@ class Transition(AssessableEntity, label="Transition"):
         source_comp, _ = source_result
         target_comp, _ = target_result
 
-        # Get nexus context for alias resolution
-        nexus = self.get_nexus()
+        # Get WisdomUnits for alias resolution (replaces nexus)
+        wisdom_units = self._get_wisdom_units()
 
         # Normalize mode
         mode = format_spec if format_spec else "aliases"
 
-        # Check if this is a segment transition (Spiral/Transformation)
+        # Check if this is a segment transition (Transformation)
         is_segment = self._is_segment_transition()
 
         # Helper to get source label (segment or component based)
         def get_source_label(label_mode: str) -> str:
             if is_segment and label_mode != "statements":
-                return self._get_segment_source_labels(source_comp, label_mode, nexus)
-            return self._get_component_label(source_comp, label_mode, nexus)
+                return self._get_segment_source_labels(source_comp, label_mode, wisdom_units)
+            return self._get_component_label(source_comp, label_mode, wisdom_units)
 
         if mode == "verbose":
             # Verbose: aliases + rationale
             source_label = get_source_label("aliases")
-            target_label = self._get_component_label(target_comp, "aliases", nexus)
+            target_label = self._get_component_label(target_comp, "aliases", wisdom_units)
 
             result = f"{source_label} → {target_label}"
 
             # Add explicit format on new line
             source_explicit = get_source_label("explicit")
-            target_explicit = self._get_component_label(target_comp, "explicit", nexus)
+            target_explicit = self._get_component_label(target_comp, "explicit", wisdom_units)
             result = f"{result}\n{source_explicit} → {target_explicit}"
 
             # Add rationales
@@ -550,7 +554,7 @@ class Transition(AssessableEntity, label="Transition"):
 
         elif mode in ("", "aliases", "statements", "explicit"):
             source_label = get_source_label(mode)
-            target_label = self._get_component_label(target_comp, mode, nexus)
+            target_label = self._get_component_label(target_comp, mode, wisdom_units)
             return f"{source_label} → {target_label}"
 
         else:

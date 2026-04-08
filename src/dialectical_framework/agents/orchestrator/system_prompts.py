@@ -19,10 +19,9 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **WisdomUnit**: Contains all 6 positions (T, T+, T-, A, A+, A-)
 
 **Higher Structures**:
-- **Transformation**: How to navigate between positions within a WisdomUnit (action-reflection pairs)
-- **Nexus**: A collection of related WisdomUnits
-- **Cycle**: Ordering and dynamics for navigating a Nexus
-- **Wheel**: The ultimate navigation artifact combining everything
+- **Transformation**: How to navigate between positions (action-reflection pairs), belongs to Wheel
+- **Cycle**: T-cycle defining abstract thesis causality (ordered sequence of WisdomUnits)
+- **Wheel**: Concrete T-A arrangement implementing a Cycle with flip configurations
 
 ## Typical Workflow
 
@@ -30,9 +29,10 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 2. **Extract Theses**: Find key concepts and claims in the content
 3. **Generate Antitheses**: Create dialectical oppositions for each thesis
 4. **Complete WisdomUnits**: Add positive/negative poles (T+, T-, A+, A-)
-5. **Generate Transformations**: Create action-reflection navigation paths
-6. **Build Nexus**: Group related WisdomUnits together
-7. **Explore**: Query and analyze the resulting structure
+5. **Create Cycles**: Arrange WisdomUnits into ordered causal sequences
+6. **Create Wheels**: Build concrete arrangements with flip configurations
+7. **Generate Transformations**: Create action-reflection navigation paths
+8. **Explore**: Query and analyze the resulting structure
 
 ## Available Tools
 
@@ -45,9 +45,8 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **PolarityAgent**: Generate antitheses and create Polarities (T-A pairs)
 - **WisdomAgent**: Complete WisdomUnits with positive/negative poles (T+, T-, A+, A-)
 - **PolarityEditor**: Modify existing WisdomUnit positions
+- **CausalityAgent**: Arrange WisdomUnits into Cycles and Wheels
 - **TransformationAgent**: Generate action-reflection transformations
-- **NexusAgent**: Create a Nexus from WisdomUnits
-- **CausalityAgent**: Set ordering/dynamics for a Nexus
 
 ### Querying
 - **ListWisdomUnits**: Show all WisdomUnits in scope
@@ -56,7 +55,8 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **ListVocabulary**: Show all components in scope
 - **ListInputs**: Show all inputs in the brainstorm
 - **SearchGraph**: Search statements across the graph
-- **GetNexus**: Get Nexus details and its WisdomUnits
+- **GetCycle**: Get Cycle details and its WisdomUnits
+- **GetWheel**: Get Wheel details and its structure
 
 ## Guidelines
 

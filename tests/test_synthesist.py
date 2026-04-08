@@ -108,25 +108,15 @@ async def test_causality_sequencer(di_container):
     # Test causality sequencer (DI will inject brain and settings automatically)
     sequencer = CausalitySequencerBalanced()
 
-    # Set up graph hierarchy: Nexus with WUs
-    from dialectical_framework.graph.nodes.nexus import Nexus
-
     # Commit WisdomUnits first
     wu1.commit()
     wu2.commit()
 
-    # Create Nexus and connect WUs (Nexus must be uncommitted when WUs connect)
-    nexus = Nexus()
-    nexus.save()
-    wu1.nexus.connect(nexus)
-    wu2.nexus.connect(nexus)
+    # Use arrange() to create Cycles and Wheels from WisdomUnits
+    # In the new model, arrange takes a list of WisdomUnits directly
+    cycles = sequencer.arrange([wu1, wu2], intent="preset:balanced")
 
-    # Use arrange() to create Cycles and Wheels in one call
-    # Returns uncommitted structures since Nexus is uncommitted
-    cycles = sequencer.arrange(nexus, intent="preset:balanced")
-
-    # Commit: Nexus first, then Cycles, then Wheels
-    nexus.commit()
+    # Commit Cycles and Wheels
     for cycle in cycles:
         cycle.commit()
         for wheel, _ in cycle.wheels.all():
@@ -194,7 +184,7 @@ async def test_redefine_is_dirty_optimization():
     wheels = await factory.build_wheel_permutations(theses=[None, None])
 
     original_wheel_uid = wheels[0].hash
-    original_wu_uids = [wu.hash for wu in wheels[0].wisdom_units]  # wisdom_units is a list property
+    original_wu_uids = [wu.hash for wu in wheels[0]._wisdom_units]  # wisdom_units is a list property
 
     # Test 1: Empty dict - should preserve originals (first-level optimization)
     new_wheels = await factory.redefine(modified_statement_per_alias={})
@@ -209,7 +199,7 @@ async def test_redefine_is_dirty_optimization():
 
     # Test 2: Redefine with same statements - should preserve originals (second-level optimization)
     # Get original statements
-    wus = sorted(wheels[0].wisdom_units, key=lambda wu: wu.get_human_friendly_index())
+    wus = sorted(wheels[0]._wisdom_units, key=lambda wu: wu.get_human_friendly_index())
     original_t1_statement = wus[0].get_component("T").statement if wus[0].get_component("T") else None
 
     if original_t1_statement:
@@ -220,7 +210,7 @@ async def test_redefine_is_dirty_optimization():
         assert new_wheels2[0].hash == original_wheel_uid, "Redefine with same statement should preserve original wheel"
 
         # WU should be the same (returned original)
-        new_wu_uids = [wu.hash for wu in new_wheels2[0].wisdom_units]
+        new_wu_uids = [wu.hash for wu in new_wheels2[0]._wisdom_units]
         assert new_wu_uids == original_wu_uids, "WUs should be unchanged when statement is identical"
 
         print("\n=== Second-level is_dirty optimization test passed ===")
@@ -243,7 +233,7 @@ async def test_selective_synthesis():
     wheels = await factory.build_wheel_permutations(theses=[None, None])
     wheel = wheels[0]
 
-    wus = wheel.wisdom_units  # wisdom_units is already a list property
+    wus = wheel._wisdom_units  # wisdom_units is already a list property
     assert len(wus) == 2, "Should have 2 WUs"
 
     # Create a Transformation for the first WU so synthesis has a target

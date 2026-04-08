@@ -120,14 +120,14 @@ class QueryGraph(BaseTool):
     - "MATCH (b:Brainstorm)-[:HAS_INPUT]->(i:Input) RETURN i.content" - list inputs
     - "MATCH (wu:WisdomUnit)<-[:T]-(t) RETURN wu, t.statement" - WisdomUnits with thesis
     - "MATCH (a)-[:OPPOSITE_OF]->(b) RETURN a.statement, b.statement" - oppositions
-    - "MATCH (n:Nexus)-[:BELONGS_TO_NEXUS]-(wu:WisdomUnit) RETURN n, wu" - nexus contents
+    - "MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel) RETURN c, w" - cycle and wheels
 
-    KEY NODE TYPES: Brainstorm, Input, DialecticalComponent, WisdomUnit, Nexus,
+    KEY NODE TYPES: Brainstorm, Input, DialecticalComponent, WisdomUnit,
                     Cycle, Wheel, Transformation, Transition, Synthesis, Rationale
 
     KEY RELATIONSHIPS: T, A, T_PLUS, T_MINUS, A_PLUS, A_MINUS (positions),
                        OPPOSITE_OF, CONTRADICTION_OF (semantic),
-                       HAS_INPUT, BELONGS_TO_NEXUS, BELONGS_TO_CYCLE (structural)
+                       HAS_INPUT, HAS_WHEEL, HAS_TRANSFORMATION (structural)
     """
 
     cypher: str = Field(

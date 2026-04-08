@@ -107,7 +107,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
             List of strings: [s+_hash, s-_hash]
 
         Note:
-            Target (WisdomUnit/Spiral) and S+/S- components must be committed.
+            Target (WisdomUnit/Transformation) and S+/S- components must be committed.
         """
         # Verify target is committed - Synthesis only makes sense for finalized structures
         target_result = self.target.get()

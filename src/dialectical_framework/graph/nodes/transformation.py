@@ -2,8 +2,11 @@
 Transformation node for the dialectical framework.
 
 This module provides the Transformation class which represents the Action-Reflection
-dialectical structure within a WisdomUnit. A Transformation IS a full 6-position
-dialectical structure (Ac, Re, Ac+, Ac-, Re+, Re-), not just transitions.
+dialectical structure. A Transformation IS a full 6-position dialectical structure
+(Ac, Re, Ac+, Ac-, Re+, Re-) and belongs to a Wheel (not a WisdomUnit).
+
+Transformations can span multiple WisdomUnits in a Wheel, with recursive
+decomposition for multi-step transformations.
 """
 
 from __future__ import annotations
@@ -19,8 +22,8 @@ from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager, BoundRelationshipManager
-from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
-    IsSpiralOfRelationship,
+from dialectical_framework.graph.relationships.has_transformation_relationship import (
+    HasTransformationRelationship,
 )
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
@@ -33,8 +36,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.wheel import Wheel, WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.transition import Transition
 
 
@@ -49,10 +51,12 @@ POSITION_RE_MINUS = "Re-"
 
 class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Transformation"):
     """
-    Action-Reflection dialectical structure within a WisdomUnit.
+    Action-Reflection dialectical structure belonging to a Wheel.
 
     A Transformation represents a full 6-position dialectical structure capturing
-    how the WisdomUnit's tension can be navigated through action and reflection.
+    how tension(s) can be navigated through action and reflection. Transformations
+    belong to a Wheel and can span multiple WisdomUnits.
+
     Each position is a Transition (source → target):
 
     - Ac (Action): T → A (transforms Thesis into Antithesis)
@@ -66,58 +70,58 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
     - Re+ contradicts Ac-
     - Re- contradicts Ac+
 
-    A WisdomUnit can have multiple Transformations representing different paths
-    through the same tension. Synthesis emerges from the WisdomUnit level, not
-    from individual Transformation paths.
+    Single vs Multi-segment:
+    - Single-segment: All transitions stay within one polar segment
+    - Multi-segment: Transitions cross segment boundaries (X- → Y+)
 
     Lifecycle (IncrementalBuildMixin pattern):
         1. Create: transformation = Transformation()
-        2. Set parent: transformation.set_wisdom_unit(wu)
+        2. Set parent wheel: transformation.set_wheel(wheel)
         3. Save (HEAD state): transformation.save()
-        4. Add transitions: transformation.ac.connect(transition), etc.
+        4. Add transitions: transformation.ac_plus.connect(transition), etc.
         5. Commit (immutable): transformation.commit()
 
     Relationships:
-    - Transformations are internal to WisdomUnit (accessed via wu.transformations)
+    - Transformations belong to Wheel (accessed via wheel.transformations)
     - They contain 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-)
-    - They do NOT directly connect to Wheel (accessed via their WisdomUnit)
     """
 
     # Hash inputs - set before save() to include in hash
-    _wisdom_unit_hash: Optional[str] = None
+    _wheel_hash: Optional[str] = None
     # Transient ref for auto-connecting after save
-    _wisdom_unit_ref: Optional[WisdomUnit] = None
+    _wheel_ref: Optional[Wheel] = None
 
-    def set_wisdom_unit(self, wu: WisdomUnit) -> Transformation:
+    def set_wheel(self, wheel: Wheel) -> Transformation:
         """
-        Set the containing WisdomUnit for this transformation (before save).
+        Set the containing Wheel for this transformation (before save).
 
         This stores the reference for hash computation and auto-connection after save.
-        The WisdomUnit must already be committed (have hash).
+        The Wheel must already be saved (have _id).
 
         Args:
-            wu: The committed WisdomUnit this transformation belongs to
+            wheel: The saved Wheel this transformation belongs to
 
         Returns:
             Self for chaining
 
         Raises:
-            ValueError: If WisdomUnit is not committed
+            ValueError: If Wheel is not saved
         """
-        if not wu.is_committed:
+        if wheel._id is None:
             raise ValueError(
-                "WisdomUnit must be committed before setting on transformation. "
-                "Call wu.commit() first."
+                "Wheel must be saved before setting on transformation. "
+                "Call wheel.save() first."
             )
-        self._wisdom_unit_hash = wu.hash
-        self._wisdom_unit_ref = wu
+        if wheel.is_committed:
+            self._wheel_hash = wheel.hash
+        self._wheel_ref = wheel
         return self
 
-    # The containing WisdomUnit (this transformation is internal to it)
-    wisdom_unit: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
-        "WisdomUnit",
-        model=IsSpiralOfRelationship,
-        cardinality=(1, 1)  # Required - transformation belongs to one wisdom unit
+    # The containing Wheel (required)
+    wheel: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
+        "Wheel",
+        model=HasTransformationRelationship,
+        cardinality=(1, 1)  # Required - transformation belongs to one wheel
     )
 
     # 6 transition position relationships (Ac-Re structure)
@@ -162,34 +166,16 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         cardinality=(0, 1)  # Optional: A+ → T-
     )
 
-    def get_nexus(self) -> Nexus | None:
+    def get_wheel(self) -> Wheel | None:
         """
-        Get the nexus this transformation belongs to via its WisdomUnit.
-
-        Transformation is internal to a WisdomUnit, so this method:
-        1. Gets the containing WisdomUnit
-        2. Gets the first Nexus from that WisdomUnit
+        Get the Wheel this transformation belongs to.
 
         Returns:
-            Nexus instance or None if not connected
-
-        Example:
-            nexus = transformation.get_nexus()
-            if nexus:
-                print(f"Transformation's source nexus has {nexus.wisdom_units.count()} WUs")
+            Wheel instance or None if not connected
         """
-        # Get the containing WisdomUnit
-        wu_result = self.wisdom_unit.get()
-        if not wu_result:
-            return None
-
-        wisdom_unit = wu_result[0]
-
-        # Get the first Nexus from the WisdomUnit.
-        nexus_result = wisdom_unit.nexus.get()
-        if nexus_result:
-            return nexus_result[0]
-
+        wheel_result = self.wheel.get()
+        if wheel_result:
+            return wheel_result[0]
         return None
 
     def _get_commit_dependents(self):
@@ -211,35 +197,33 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         """
         Collect structure hash parts for this Transformation.
 
-        Parts: WisdomUnit hash, hashes of all 6 transition positions.
-        The WU hash ensures uniqueness across different WisdomUnits.
+        Parts: Wheel hash, hashes of all 6 transition positions.
+        Source/target WUs are derivable from transitions (no need to store indices).
 
         Returns:
-            List of strings: [wu_hash, ac_hash, re_hash, ac+_hash, ac-_hash, re+_hash, re-_hash]
+            List of strings for hash computation
 
         Raises:
-            ValueError: If WisdomUnit not set or not committed
+            ValueError: If Wheel is not set
         """
         parts = []
 
-        # Get containing WisdomUnit hash - prefer stored hash, fall back to relationship
-        wu_hash = self._wisdom_unit_hash
-        if not wu_hash:
-            wu_result = self.wisdom_unit.get()
-            if wu_result:
-                wu, _ = wu_result
-                if not wu.is_committed:
-                    raise ValueError(
-                        "WisdomUnit must be committed before computing Transformation structure hash"
-                    )
-                wu_hash = wu.hash
+        # Get Wheel hash
+        wheel_hash = self._wheel_hash
+        if not wheel_hash:
+            wheel_result = self.wheel.get()
+            if wheel_result:
+                wheel, _ = wheel_result
+                if wheel.is_committed:
+                    wheel_hash = wheel.hash
 
-        if not wu_hash:
+        if not wheel_hash:
             raise ValueError(
-                "Transformation must have a WisdomUnit set before computing hash. "
-                "Use set_wisdom_unit() first."
+                "Transformation must have a Wheel set before computing hash. "
+                "Use set_wheel() first."
             )
-        parts.append(wu_hash)
+
+        parts.append(wheel_hash)
 
         # Get hashes for all 6 transition positions in order
         for manager in [self.ac, self.re, self.ac_plus, self.ac_minus, self.re_plus, self.re_minus]:
@@ -266,12 +250,9 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         Commit this transformation: save (if needed), compute hash, persist, and create relationships.
 
         Lifecycle:
-        1. Create transformation and set_wisdom_unit()
-        2. (Optional) save() and add components explicitly
+        1. Create transformation and set_wheel()
+        2. (Optional) save() and add transitions explicitly
         3. commit() - auto-saves if needed, computes hash from components, makes immutable
-
-        If wisdom_unit was set via set_wisdom_unit(), the relationship is
-        automatically created after the node is committed.
 
         Returns:
             Self for chaining
@@ -286,10 +267,10 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
             if result is not None and result._id is not None:
                 self._id = result._id
 
-        # Auto-connect wisdom_unit BEFORE commit (so cardinality validation passes)
-        if self._wisdom_unit_ref and self.wisdom_unit.count() == 0:
-            self.wisdom_unit.connect(self._wisdom_unit_ref)
-            self._wisdom_unit_ref = None  # Clear transient ref
+        # Auto-connect wheel BEFORE commit
+        if self._wheel_ref and self.wheel.count() == 0:
+            self.wheel.connect(self._wheel_ref)
+            self._wheel_ref = None  # Clear transient ref
 
         # Call IncrementalBuildMixin.commit() which validates children and computes hash
         super().commit()
@@ -390,20 +371,75 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
             POSITION_RE_MINUS,
         ]
 
+    def get_source_polar_segment(self) -> WheelSegmentPolarPair | None:
+        """
+        Get the source polar segment (derives from ac_plus source component).
+
+        The Ac+ transition goes from the "minus side" of one segment to
+        the "plus side" of another. This returns the segment containing
+        the source (minus side).
+
+        Returns:
+            WheelSegmentPolarPair containing the ac_plus source, or None
+        """
+        ac_plus_result = self.ac_plus.get()
+        if not ac_plus_result:
+            return None
+
+        trans, _ = ac_plus_result
+        source = trans.get_source()
+        if not source:
+            return None
+
+        wheel = self.get_wheel()
+        if not wheel:
+            return None
+
+        for pair in wheel.polar_segments:
+            if pair.wisdom_unit.has_component(source):
+                return pair
+        return None
+
+    def get_target_polar_segment(self) -> WheelSegmentPolarPair | None:
+        """
+        Get the target polar segment (derives from ac_plus target component).
+
+        The Ac+ transition goes from the "minus side" of one segment to
+        the "plus side" of another. This returns the segment containing
+        the target (plus side).
+
+        Returns:
+            WheelSegmentPolarPair containing the ac_plus target, or None
+        """
+        ac_plus_result = self.ac_plus.get()
+        if not ac_plus_result:
+            return None
+
+        trans, _ = ac_plus_result
+        target = trans.get_target()
+        if not target:
+            return None
+
+        wheel = self.get_wheel()
+        if not wheel:
+            return None
+
+        for pair in wheel.polar_segments:
+            if pair.wisdom_unit.has_component(target):
+                return pair
+        return None
+
     def get_human_friendly_index(self) -> int:
         """
-        Get the human-friendly index from the containing WisdomUnit.
-
-        Delegates to wisdom_unit.get_human_friendly_index().
+        Get the human-friendly index from the source polar segment.
 
         Returns:
             The numeric index (e.g., 3 if WU components have T3, A3+, etc.), or 0 if not set
         """
-        wu_result = self.wisdom_unit.get()
-        if not wu_result:
+        segment = self.get_source_polar_segment()
+        if not segment:
             return 0
-        wu, _ = wu_result
-        return wu.get_human_friendly_index()
+        return segment.wisdom_unit.get_human_friendly_index()
 
     def __format__(self, format_spec: str) -> str:
         """

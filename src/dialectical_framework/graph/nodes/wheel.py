@@ -2,12 +2,13 @@
 Wheel node for the dialectical framework.
 
 This module provides the Wheel class which represents the top-level container
-for a complete dialectical system.
+for a complete dialectical system. A Wheel is a concrete T-A arrangement
+implementing a Cycle's abstract T-cycle via transitions.
 """
 
 from __future__ import annotations
 
-from typing import ClassVar, Union, TYPE_CHECKING, Literal, Any
+from typing import ClassVar, Union, TYPE_CHECKING, Literal
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
@@ -16,10 +17,12 @@ from dialectical_framework.graph.relationship_manager import RelationshipFrom, R
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
 )
-from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
-    IsSpiralOfRelationship,
+from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
+    BelongsToCycleRelationship,
 )
-from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
+from dialectical_framework.graph.relationships.has_transformation_relationship import (
+    HasTransformationRelationship,
+)
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
     POSITION_T_PLUS,
@@ -28,6 +31,7 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_A_PLUS,
     POSITION_A_MINUS,
 )
+from dialectical_framework.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -35,43 +39,64 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.wheel_segment import WheelSegment
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.graph.nodes.spiral import Spiral
     from dialectical_framework.graph.nodes.transition import Transition
-    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.transformation import Transformation
 
     # Type alias for flexible wheel segment references (no integer indexing in graph-native)
     WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
 
 
-class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Wheel"):
+class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel"):
     """
-    Represents a detailed dialectical arrangement belonging to a Cycle.
+    Represents a concrete T-A arrangement implementing a Cycle's T-cycle.
 
-    A Wheel is a concrete implementation of a Cycle's causal arrangement,
-    containing transitions that form the detailed causal loop through
-    thesis and antithesis components.
+    A Wheel = Cycle + Transitions. The Cycle defines which WisdomUnits are
+    included and their T-cycle order. The Transitions define the concrete
+    component-to-component flow (T1- → A2+ → A1- → T2+ → ...).
+
+    The polarity (which side appears first - T or A) for each WU is derived
+    from the transitions, not stored separately.
 
     Hierarchy:
-        Nexus (pool of WUs) → Cycle (arrangement) → Wheel (detailed implementation)
+        WisdomUnit → Cycle (T-cycle + intent) → Wheel (transitions)
 
     The wheel metaphor represents the circular, iterative nature of
     dialectical reasoning where thesis and antithesis are arranged in segments.
 
     Relationships:
     - Wheel belongs to exactly one Cycle
-    - WisdomUnits are accessed via cycle.nexus (not stored directly on Wheel)
-    - Wheel can have a Spiral for transformational sequences
+    - Wheel has transitions (ta_cycle level navigation)
+    - Wheel can have Transformations
 
     Properties:
-        polarity_count: Number of wisdom units (computed via cycle.nexus)
+        polarity_count: Number of wisdom units (computed via cycle)
         segment_count: Total segments = polarity_count × 2 (computed)
-        wisdom_units: WisdomUnits accessed via cycle.nexus (property)
+        polar_segments: WUs with L/R orientation derived from transitions (use this!)
+
+    Example:
+        cycle = Cycle(intent="preset:balanced")
+        cycle.set_wisdom_units([wu1, wu2, wu3])
+        cycle.commit()
+
+        wheel = Wheel()
+        wheel.save()
+        cycle.wheels.connect(wheel)
+
+        # Add transitions that define the T-A arrangement
+        trans1 = Transition()
+        trans1.set_source(t1_minus)
+        trans1.set_target(a2_plus)
+        trans1.commit()
+        trans1.cycle.connect(wheel)
+        # ... more transitions ...
+
+        wheel.commit()
     """
 
     def __init__(self, **data):
         """Initialize wheel with polar pair cache."""
         super().__init__(**data)
-        # Cache for polar pairs: wu_uid -> WheelSegmentPolarPair
+        # Cache for polar pairs: wu_key:polarity -> WheelSegmentPolarPair
         self._polar_pair_cache: dict[str, WheelSegmentPolarPair] = {}
 
     # Parent Cycle (required)
@@ -82,94 +107,49 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
         cardinality=(1, 1)  # Exactly one parent cycle
     )
 
-    # Note: transitions relationship is inherited from CircularTopologyMixin as _transitions
-    # Access via .transitions property which returns ordered list
+    # Transitions that form this wheel's ta_cycle
+    # (moved from CircularTopologyMixin for explicit control)
+    _transitions: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
+        "Transition",
+        model=BelongsToCycleRelationship,
+        cardinality=(2, None)  # At least two transitions to form a cycle
+    )
 
-    # Optional spiral (transformational sequence)
-    spiral: ClassVar[RelationshipManager[Spiral]] = RelationshipFrom(
-        "Spiral",
-        model=IsSpiralOfRelationship,
-        cardinality=(0, 1)  # Zero or one wheel-level spiral
+    # Transformations belonging to this Wheel
+    # Parent→child: Wheel has Transformations
+    transformations: ClassVar[RelationshipManager[Transformation]] = RelationshipFrom(
+        "Transformation",
+        model=HasTransformationRelationship,
+        cardinality=(0, None)  # Zero or more transformations
     )
 
     @property
-    def wisdom_units(self) -> list[WisdomUnit]:
+    def transitions(self) -> list[Transition]:
         """
-        Get WisdomUnits in transition order.
-
-        WisdomUnits are accessed via Wheel → Cycle → Nexus, then ordered
-        by following the wheel's transitions. This is the canonical ordering
-        for the wheel.
+        Get transitions in order by following source->target chain.
 
         Returns:
-            List of WisdomUnit nodes in transition order
-
-        Raises:
-            ValueError: If wheel has no transitions
+            List of Transition nodes in order, or empty list if no transitions
         """
-        ordered_transitions = self.transitions
-        if not ordered_transitions:
-            raise ValueError("Wheel has no transitions")
+        all_transitions = [trans for trans, _ in self._transitions.all()]
+        return order_transitions(all_transitions)
 
-        # Get all WUs from Nexus
+    @property
+    def _wisdom_units(self) -> list[WisdomUnit]:
+        """
+        Get WisdomUnits in cycle order (internal use).
+
+        For public API, use polar_segments which includes orientation.
+
+        Returns:
+            List of WisdomUnit nodes in cycle order
+        """
         cycle_result = self.cycle.get()
         if not cycle_result:
             return []
 
         cycle_obj, _ = cycle_result
-        nexus_result = cycle_obj.nexus.get()
-        if not nexus_result:
-            return []
-
-        nexus_obj, _ = nexus_result
-        all_wus = [wu for wu, _ in nexus_obj.wisdom_units.all()]
-
-        # Track which wisdom units we've seen to avoid duplicates
-        seen_wisdom_units = set()
-        wisdom_units_list = []
-
-        # Traverse transitions and extract wisdom units in order
-        for transition in ordered_transitions:
-            source_result = transition.source.get()
-            if not source_result:
-                continue
-
-            source_component, _ = source_result
-
-            # Find which wisdom unit this component belongs to
-            for wu in all_wus:
-                try:
-                    source_component.get_alias(wu)
-                    # Found it - add if not already seen
-                    # Use _id for tracking since uncommitted nodes have hash=None
-                    wu_key = wu._id if wu._id is not None else id(wu)
-                    if wu_key not in seen_wisdom_units:
-                        wisdom_units_list.append(wu)
-                        seen_wisdom_units.add(wu_key)
-                    break
-                except ValueError:
-                    continue  # Not in this WU
-
-        return wisdom_units_list
-
-    def get_nexus(self) -> Nexus | None:
-        """
-        Get the source Nexus for this wheel via its Cycle.
-
-        Returns:
-            Nexus instance or None if not connected
-
-        Example:
-            nexus = wheel.get_nexus()
-            if nexus:
-                print(f"Wheel's source nexus has {nexus.wisdom_units.count()} WUs")
-        """
-        cycle_result = self.cycle.get()
-        if not cycle_result:
-            return None
-
-        cycle_obj, _ = cycle_result
-        return cycle_obj.get_nexus()
+        return cycle_obj.wisdom_units
 
     def _get_commit_dependents(self):
         """
@@ -212,6 +192,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             )
 
         # Get transition hashes and sort for deterministic ordering
+        # Transitions encode the T-A arrangement (polarity is derived from them)
         trans_hashes = []
         for trans in self.transitions:
             if not trans.is_committed:
@@ -232,7 +213,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
         The number of polarities (wisdom units) in the wheel.
 
         Each wisdom unit represents one polarity - a thesis/antithesis pair.
-        Computed via cycle.nexus.wisdom_units.
+        Computed via Wheel → Cycle → wisdom_units.
 
         Returns:
             Number of wisdom units in the wheel
@@ -240,7 +221,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
         Raises:
             ValueError: If the wheel has no WisdomUnits
         """
-        wus = self.wisdom_units
+        wus = self._wisdom_units
         if not wus:
             raise ValueError("The wheel has no WisdomUnits, therefore polarity_count is undefined.")
         return len(wus)
@@ -258,12 +239,12 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
         """
         return self.polarity_count * 2
 
-    def wisdom_unit_at(
+    def polar_segment_at(
         self,
         key: Union[str, WisdomUnit, DialecticalComponent, WheelSegment]
-    ) -> WisdomUnit:
+    ) -> WheelSegmentPolarPair:
         """
-        Get wisdom unit by various identifiers.
+        Get polar pair (WU with orientation) by various identifiers.
 
         Note: No integer indexing - use cycles to determine ordering.
 
@@ -274,89 +255,100 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
                  2. Component UID (e.g., "comp_67890")
                  3. Component alias (e.g., "T1", "A2+")
                - WisdomUnit: match by uid
-               - DialecticalComponent: find WU containing this component
-               - WheelSegment: find WU containing this segment
+               - DialecticalComponent: find polar pair containing this component
+               - WheelSegment: find polar pair containing this segment
 
         Returns:
-            The matching WisdomUnit
+            The matching WheelSegmentPolarPair (WU with orientation derived from transitions)
 
         Raises:
-            ValueError: If no matching wisdom unit is found
+            ValueError: If no matching polar pair is found
 
         Examples:
-            wu = wheel.wisdom_unit_at("wu_123")  # By WU UID
-            wu = wheel.wisdom_unit_at("comp_456")  # By component UID
-            wu = wheel.wisdom_unit_at("T1")  # By component alias
-            wu = wheel.wisdom_unit_at(component)  # By component instance
-            wu = wheel.wisdom_unit_at(segment)  # By segment instance
-            wu = wheel.wisdom_unit_at(wisdom_unit)  # By WU instance
+            pair = wheel.polar_segment_at("wu_123")  # By WU UID
+            pair = wheel.polar_segment_at("comp_456")  # By component UID
+            pair = wheel.polar_segment_at("T1")  # By component alias
+            pair = wheel.polar_segment_at(component)  # By component instance
+            pair = wheel.polar_segment_at(segment)  # By segment instance
+            pair = wheel.polar_segment_at(wisdom_unit)  # By WU instance
         """
         from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as WUClass
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as DCClass
         from dialectical_framework.graph.wheel_segment import WheelSegment
 
-        wus = self.wisdom_units
+        # Get polar pairs (WUs with orientation)
+        pairs = self.polar_segments
+
+        def find_pair_for_wu(target_wu: WisdomUnit) -> WheelSegmentPolarPair:
+            """Find the polar pair containing the target WU."""
+            target_key = target_wu._id if target_wu._id is not None else id(target_wu)
+            for pair in pairs:
+                pair_key = pair.wisdom_unit._id if pair.wisdom_unit._id is not None else id(pair.wisdom_unit)
+                if pair_key == target_key:
+                    return pair
+                # Also check by hash
+                if target_wu.hash and pair.wisdom_unit.hash == target_wu.hash:
+                    return pair
+            raise ValueError(f"WisdomUnit not found in polar pairs")
 
         if isinstance(key, WUClass):
-            # Match by identity (use _id if hash is None)
-            for wu in wus:
-                if key.hash and wu.hash == key.hash:
-                    return wu
-                elif key._id is not None and wu._id == key._id:
-                    return wu
-            raise ValueError(f"WisdomUnit {key.hash or key._id} not found in wheel")
+            return find_pair_for_wu(key)
 
         elif isinstance(key, WheelSegment):
             # Match by segment
-            for wu in wus:
+            for pair in pairs:
+                wu = pair.wisdom_unit
                 t_seg = wu.segment_t
                 if t_seg.is_same(key):
-                    return wu
+                    return pair
 
                 a_seg = wu.segment_a
                 if a_seg.is_same(key):
-                    return wu
+                    return pair
 
-            raise ValueError(f"Cannot find wisdom unit containing segment")
+            raise ValueError(f"Cannot find polar pair containing segment")
 
         elif isinstance(key, str):
             # Try string as three possibilities: WU identity, component identity, or component alias
-
-            # 1. Try as WisdomUnit identity (fast, direct lookup by hash or _id)
-            for wu in wus:
-                if wu.hash == key or str(wu._id) == key:
-                    return wu
-
-            # 2. Try as component identity (iterate through all components in all WUs)
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
-            for wu in wus:
+            # 1. Try as WisdomUnit identity (fast, direct lookup by hash or _id)
+            for pair in pairs:
+                wu = pair.wisdom_unit
+                if wu.hash == key or str(wu._id) == key:
+                    return pair
+
+            # 2. Try as component identity
+            for pair in pairs:
+                wu = pair.wisdom_unit
                 components_with_aliases = repo.find_by_wisdom_unit(wu)
                 for comp, alias in components_with_aliases:
                     if comp.hash == key:
-                        return wu
+                        return pair
 
             # 3. Finally try as component alias
-            for wu in wus:
+            for pair in pairs:
+                wu = pair.wisdom_unit
                 components_with_aliases = repo.find_by_wisdom_unit(wu)
                 for comp, alias in components_with_aliases:
                     if alias == key:
-                        return wu
+                        return pair
 
-            raise ValueError(f"Cannot find wisdom unit with key: {key} (tried as WU identity, component identity, and component alias)")
+            raise ValueError(f"Cannot find polar pair with key: {key} (tried as WU identity, component identity, and component alias)")
 
         elif isinstance(key, DCClass):
             # Search by component
-            for wu in wus:
+            for pair in pairs:
+                wu = pair.wisdom_unit
                 try:
                     key.get_alias(wu)
-                    return wu  # Found it
+                    return pair  # Found it
                 except ValueError:
                     continue  # Not in this WU
-            raise ValueError(f"Cannot find wisdom unit containing component: {key.hash}")
+            raise ValueError(f"Cannot find polar pair containing component: {key.hash}")
 
-        raise ValueError(f"Cannot find wisdom unit with key: {key}")
+        raise ValueError(f"Cannot find polar pair with key: {key}")
 
     def segment_at(
         self,
@@ -392,7 +384,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
 
         # If key is a WheelSegment, validate it exists in this wheel and return it
         if isinstance(key, WSClass):
-            wus = self.wisdom_units
+            wus = self._wisdom_units
             for wu in wus:
                 if wu.segment_t.is_same(key) or wu.segment_a.is_same(key):
                     return key
@@ -400,7 +392,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
 
         # If key is a DialecticalComponent instance, use it directly
         elif isinstance(key, DCClass):
-            wus = self.wisdom_units
+            wus = self._wisdom_units
             for wu in wus:
                 # Check T-side segment
                 t_seg = wu.segment_t
@@ -419,7 +411,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
-            wus = self.wisdom_units
+            wus = self._wisdom_units
 
             # 1. Try as component identity
             for wu in wus:
@@ -472,52 +464,64 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
                 print("Segment exists")
         """
         try:
-            self.wisdom_unit_at(key)
+            self.polar_segment_at(key)
             return True
         except ValueError:
             return False
 
     @property
-    def polar_pairs(self) -> list[WheelSegmentPolarPair]:
+    def polar_segments(self) -> list[WheelSegmentPolarPair]:
         """
         Get all wisdom units as WheelSegmentPolarPair objects in transition order.
 
-        The transitions determine which side of each WU appears on the left/west.
-        For example, if transitions follow T1 → A2 → A1 → T2, the pairs are:
-        - Pair 1: (T1 on left, A1 on right) - T1 appears first
-        - Pair 2: (A2 on left, T2 on right) - A2 appears first
+        Orientation (which side appears first - T or A) is derived from transitions.
+        The first component of each WU seen in the transition chain determines
+        whether it's "normal" (T-side first) or "swapped" (A-side first).
 
         Polar pairs are cached per wisdom unit to ensure the same instances are reused.
 
         Returns:
-            List of WheelSegmentPolarPair objects in transition order with correct orientation
+            List of WheelSegmentPolarPair objects in transition order with derived orientation
 
         Raises:
-            ValueError: If wheel has no transitions
+            ValueError: If wheel has no WisdomUnits
 
         Example:
-            pairs = wheel.polar_pairs
+            pairs = wheel.polar_segments
             for pair in pairs:
                 print(f"Left: {pair.segment_left.t.get()[0].statement}")
                 print(f"Right: {pair.segment_right.t.get()[0].statement}")
         """
+        wus = self._wisdom_units
+        if not wus:
+            raise ValueError("Wheel has no WisdomUnits")
+
+        return self._derive_polar_segments_from_transitions()
+
+    def _derive_polar_segments_from_transitions(self) -> list[WheelSegmentPolarPair]:
+        """
+        Derive polar pair orientations from transitions.
+
+        Traverses transitions to determine which side of each WU appears first.
+        The first component from each WU seen in the transition chain determines
+        the polarity: T-side components → "normal", A-side components → "swapped".
+
+        Returns:
+            List of WheelSegmentPolarPair objects with derived orientation
+        """
         from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
-        from dialectical_framework.graph.nodes.wisdom_unit import (
-            POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
-            POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
-        )
 
-        # Wheel is now CircularTopologyMixin, get transitions directly
         ordered_transitions = self.transitions
-
         if not ordered_transitions:
-            raise ValueError("Wheel has no transitions")
+            # Fall back to default "normal" orientation
+            return [
+                WheelSegmentPolarPair(wu, "normal")
+                for wu in self._wisdom_units
+            ]
 
-        # Build a lookup map: component_uid -> (wisdom_unit, position)
-        # This avoids repeated searches through all WUs for each transition
+        # Build a lookup map: component_hash -> (wisdom_unit, position)
         component_to_wu_map = {}
-        for wu in self.wisdom_units:
-            # Check all positions in this WU
+        for wu in self._wisdom_units:
             positions = [
                 (POSITION_T, wu.t),
                 (POSITION_T_PLUS, wu.t_plus),
@@ -530,27 +534,20 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
                 for comp, _ in manager.all():
                     component_to_wu_map[comp.hash] = (wu, position)
 
-        # Track which wisdom units we've seen
         seen_wisdom_units = set()
         pairs = []
 
-        # Traverse transitions to determine which side appears first for each WU
         for transition in ordered_transitions:
-            # Get source component from transition (cardinality 1,1)
             source_result = transition.source.get()
             if not source_result:
                 continue
 
             source_component, _ = source_result
-
-            # Look up wisdom unit and position from map
             wu_info = component_to_wu_map.get(source_component.hash)
             if wu_info is None:
                 continue
 
             wu, position = wu_info
-
-            # Use _id for tracking since uncommitted nodes have hash=None
             wu_key = wu._id if wu._id is not None else id(wu)
             if wu_key in seen_wisdom_units:
                 continue
@@ -558,20 +555,17 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             # Determine polarity based on which side appears first
             polarity: Literal["normal", "swapped"]
             if position in [POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS]:
-                polarity = "normal"  # T-side appears first
+                polarity = "normal"
             elif position in [POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS]:
-                polarity = "swapped"  # A-side appears first
+                polarity = "swapped"
             else:
-                # Skip synthesis positions
                 continue
 
-            # Get or create cached pair (use _id or hash for cache key)
             cache_key = f"{wu_key}:{polarity}"
             if cache_key not in self._polar_pair_cache:
                 self._polar_pair_cache[cache_key] = WheelSegmentPolarPair(wu, polarity)
 
-            pair = self._polar_pair_cache[cache_key]
-            pairs.append(pair)
+            pairs.append(self._polar_pair_cache[cache_key])
             seen_wisdom_units.add(wu_key)
 
         return pairs
@@ -582,7 +576,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
         Get all wheel segments (T and A sides) in transition order.
 
         Returns segments in the exact order they appear in the wheel's transitions,
-        which is the correct order for creating spiral transitions (each segment's
+        which is the correct order for creating transitions (each segment's
         minus connects to the next segment's plus).
 
         Returns:
@@ -600,7 +594,6 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
                 if comp:
                     print(f"{seg.side}: {comp[0].statement}")
         """
-        # Wheel is now CircularTopologyMixin, get transitions directly
         ordered_transitions = self.transitions
 
         if not ordered_transitions:
@@ -619,7 +612,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             source_component, _ = source_result
 
             # Find which segment this component belongs to
-            for wu in self.wisdom_units:
+            for wu in self._wisdom_units:
                 # Use _id for tracking since uncommitted nodes have hash=None
                 wu_key = wu._id if wu._id is not None else id(wu)
 
@@ -666,10 +659,193 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
 
         raise ValueError(f"Segment not found in wheel's transition order")
 
+    def is_same_structure(self, other: Wheel, compare: Literal['alias', 'statement'] = 'alias') -> bool:
+        """
+        Check if wheels represent the same structure regardless of starting point.
+
+        Args:
+            other: Another Wheel to compare with
+            compare: What to compare - 'alias' (default) or 'statement'
+                    - 'alias': Compare by component aliases
+                    - 'statement': Compare by component statement text
+
+        Returns:
+            True if both have same components in same order (allowing rotation)
+
+        Raises:
+            ValueError: If compare='alias' but wisdom units not available
+        """
+        if not isinstance(other, Wheel):
+            return False
+
+        self_components = self.dialectical_components
+        other_components = other.dialectical_components
+
+        if len(self_components) != len(other_components):
+            return False
+
+        if compare == 'alias':
+            self_wus = self._wisdom_units
+            other_wus = other._wisdom_units
+
+            if not self_wus or not other_wus:
+                raise ValueError(
+                    "Cannot compare by alias: wisdom units not available. "
+                    "Use compare='statement' or ensure wheels have wisdom units."
+                )
+
+            self_aliases = []
+            for comp in self_components:
+                alias = None
+                for wu in self_wus:
+                    try:
+                        alias = comp.get_alias(wu)
+                        break
+                    except ValueError:
+                        continue
+                if not alias:
+                    raise ValueError(f"Component {comp.hash} has no alias in wheel")
+                self_aliases.append(alias)
+
+            other_aliases = []
+            for comp in other_components:
+                alias = None
+                for wu in other_wus:
+                    try:
+                        alias = comp.get_alias(wu)
+                        break
+                    except ValueError:
+                        continue
+                if not alias:
+                    raise ValueError(f"Component {comp.hash} has no alias in wheel")
+                other_aliases.append(alias)
+
+            if set(self_aliases) != set(other_aliases):
+                return False
+
+            if len(self_aliases) <= 1:
+                return True
+
+            return any(
+                self_aliases == other_aliases[i:] + other_aliases[:i]
+                for i in range(len(other_aliases))
+            )
+
+        elif compare == 'statement':
+            self_statements = [comp.statement for comp in self_components]
+            other_statements = [comp.statement for comp in other_components]
+
+            if set(self_statements) != set(other_statements):
+                return False
+
+            if len(self_statements) <= 1:
+                return True
+
+            return any(
+                self_statements == other_statements[i:] + other_statements[:i]
+                for i in range(len(other_statements))
+            )
+
+        else:
+            raise ValueError(f"Invalid compare parameter: {compare}. Must be 'alias' or 'statement'")
+
+    def _format_transitions(self, mode: str = "aliases") -> str:
+        """
+        Format transitions as a chain string.
+
+        Args:
+            mode: "aliases" (default), "statements", or "explicit"
+
+        Returns:
+            Formatted string like "T1- → A2+ → A1- → T2+ → T1-..."
+        """
+        components = self.dialectical_components
+        if not components:
+            return ""
+
+        wus = self._wisdom_units
+
+        # Get aliases if needed
+        aliases = []
+        if mode in ("", "aliases", "explicit"):
+            for i, comp in enumerate(components):
+                alias = None
+                for wu in wus:
+                    try:
+                        alias = comp.get_alias(wu)
+                        break
+                    except ValueError:
+                        continue
+                aliases.append(alias if alias else f"C{i+1}")
+        else:
+            aliases = [comp.statement for comp in components]
+
+        # Build labels based on mode
+        if mode in ("", "aliases"):
+            labels = aliases
+        elif mode == "statements":
+            labels = [comp.statement for comp in components]
+        elif mode == "explicit":
+            labels = [
+                f"{alias} ({comp.statement})"
+                for alias, comp in zip(aliases, components)
+            ]
+        else:
+            labels = aliases
+
+        if len(labels) == 1:
+            return f"{labels[0]} → {labels[0]}..."
+
+        return " → ".join(labels) + f" → {labels[0]}..."
+
+    @property
+    def dialectical_components(self) -> list[DialecticalComponent]:
+        """
+        Get dialectical components from transitions in order.
+
+        Returns:
+            List of DialecticalComponent nodes from transitions
+        """
+        components = []
+        transitions = self.transitions
+
+        if not transitions:
+            return []
+
+        for i, trans in enumerate(transitions):
+            source_result = trans.source.get()
+            target_result = trans.target.get()
+
+            if not source_result or not target_result:
+                continue
+
+            source_comp, _ = source_result
+            target_comp, _ = target_result
+
+            components.append(source_comp)
+
+            is_last = i == len(transitions) - 1
+            if is_last:
+                existing_ids = {comp._id for comp in components}
+                if target_comp._id not in existing_ids:
+                    components.append(target_comp)
+            else:
+                next_trans = transitions[i + 1]
+                next_source_result = next_trans.source.get()
+
+                if next_source_result:
+                    next_source_comp, _ = next_source_result
+                    if target_comp._id != next_source_comp._id:
+                        components.append(target_comp)
+                else:
+                    components.append(target_comp)
+
+        return components
+
     def __repr__(self) -> str:
         """String representation of the wheel."""
         try:
-            wus = self.wisdom_units
+            wus = self._wisdom_units
             polarity_count = len(wus) if wus else 0
         except (ValueError, AttributeError):
             polarity_count = 0
@@ -685,18 +861,17 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
         Modifiers can be combined with `:` separator.
 
         Modes:
-        - (empty) - Default format showing cycles, wisdom units, and spiral
+        - (empty) - Default format showing cycles, wisdom units, and transformations
         - "compact" - Compact format with abbreviated components
 
         Modifiers:
-        - "scores" - Shows S/R/P values for wheel, cycles, spiral, transformations
+        - "scores" - Shows S/R/P values for wheel, cycles, transformations
                      Calculated values shown in [brackets], manual without
 
         Shows:
         - Parent Cycle (t_cycle) with rationale
         - Wheel transitions (ta_cycle level)
         - Tabular view of all wisdom units using WheelSegmentPolarPair
-        - Spiral with rationale (if present)
 
         Examples:
         ---------
@@ -753,15 +928,15 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             output.extend(_format_cycle(cycle_obj, "Cycle (t_cycle)"))
             output.append("")
 
-        # Wheel transitions (ta_cycle level) - Wheel is now CircularTopologyMixin
+        # Wheel transitions (ta_cycle level)
         if len(self.transitions) > 0:
             lines = []
             header = "=== Wheel Transitions (ta_cycle) ==="
             if show_scores:
                 header = f"=== Wheel Transitions [{fmt_scores(self, colorize=True)}] ==="
             lines.append(header)
-            # Use CircularTopologyMixin's __format__ directly to avoid recursion
-            lines.append(CircularTopologyMixin.__format__(self, "aliases"))
+            # Format transitions as alias chain
+            lines.append(self._format_transitions("aliases"))
 
             # Add the best rationale if it exists
             rationale = self.best_rationale
@@ -772,17 +947,17 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             output.append("")
 
         # Wisdom Units (tabular with transformations)
-        # Use polar_pairs to get wisdom units in transition order with correct polarity
+        # Use polar_segments to get wisdom units in transition order with correct polarity
         output.append("=== Wisdom Units / Transformations ===")
 
         try:
-            polar_pairs = self.polar_pairs
+            polar_segments = self.polar_segments
         except ValueError:
             # No transitions, fall back to unordered wisdom units
             from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
-            polar_pairs = [WheelSegmentPolarPair(wu, "normal") for wu in self.wisdom_units]
+            polar_segments = [WheelSegmentPolarPair(wu, "normal") for wu in self._wisdom_units]
 
-        if polar_pairs:
+        if polar_segments:
             from tabulate import tabulate
             from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 
@@ -799,7 +974,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             table = []
             for position_attr, position_label in positions:
                 row = []
-                for pair in polar_pairs:
+                for pair in polar_segments:
                     wu = pair.wisdom_unit
 
                     # WisdomUnit columns
@@ -859,7 +1034,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             if show_scores:
                 output.append("")
                 output.append("Transformation Scores:")
-                for idx, pair in enumerate(polar_pairs, 1):
+                for idx, pair in enumerate(polar_segments, 1):
                     wu = pair.wisdom_unit
                     transformation_result = wu.transformations.get()
                     if transformation_result:
@@ -870,13 +1045,6 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
         else:
             output.append("[No wisdom units]")
         output.append("")
-
-        # Spiral (if present)
-        spiral_result = self.spiral.get()
-        if spiral_result:
-            spiral_obj, _ = spiral_result
-            output.extend(_format_cycle(spiral_obj, "Spiral"))
-            output.append("")
 
         # Transitions table with scores (only in scores mode)
         if show_scores:
@@ -889,7 +1057,6 @@ class Wheel(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             cycles_to_check = [
                 ("Cycle", cycle_result[0] if cycle_result else None),
                 ("Wheel", self),  # Wheel itself has transitions (ta_cycle level)
-                ("Spiral", spiral_result[0] if spiral_result else None),
             ]
 
             # Note: Transformation no longer has transitions - it has 6 component positions (Ac, Re, Ac+, Ac-, Re+, Re-)

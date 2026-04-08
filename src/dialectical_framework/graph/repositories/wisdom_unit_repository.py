@@ -148,6 +148,7 @@ class WisdomUnitRepository:
         MATCH (stmt_comp:DialecticalComponent)
         WHERE NOT exists((stmt_comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]->())
         AND NOT exists((stmt_comp)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-())
+        AND NOT exists((stmt_comp)-[:T|A]->(:Polarity))
         DETACH DELETE stmt_comp
         """
         graph_db.execute(delete_orphaned_stmt_query)
@@ -156,9 +157,14 @@ class WisdomUnitRepository:
         delete_subgraph_query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component)
+        // Get pole components directly on WU (T+, T-, A+, A-)
+        OPTIONAL MATCH (wu)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(pole_component)
+        // Get Polarity and T/A components through it
+        OPTIONAL MATCH (wu)-[:HAS_POLARITY]->(polarity:Polarity)
+        OPTIONAL MATCH (polarity)<-[:T|A]-(polarity_comp)
         OPTIONAL MATCH (wu)<-[:EXPLAINS]-(wu_rationale)
-        OPTIONAL MATCH (component)<-[:EXPLAINS]-(comp_rationale)
+        OPTIONAL MATCH (pole_component)<-[:EXPLAINS]-(comp_rationale)
+        OPTIONAL MATCH (polarity_comp)<-[:EXPLAINS]-(pol_comp_rationale)
         OPTIONAL MATCH (wu)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
         OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
         OPTIONAL MATCH (transformation)<-[:AC|RE|AC_PLUS|AC_MINUS|RE_PLUS|RE_MINUS]-(trans_component)
@@ -166,9 +172,9 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (synthesis)<-[:EXPLAINS]-(synth_rationale)
         OPTIONAL MATCH (synthesis)<-[:S_PLUS|S_MINUS]-(synth_component)
 
-        WITH wu,
-             collect(DISTINCT component) AS components,
-             collect(DISTINCT wu_rationale) + collect(DISTINCT comp_rationale) +
+        WITH wu, polarity,
+             collect(DISTINCT pole_component) + collect(DISTINCT polarity_comp) AS components,
+             collect(DISTINCT wu_rationale) + collect(DISTINCT comp_rationale) + collect(DISTINCT pol_comp_rationale) +
              collect(DISTINCT trans_rationale) +
              collect(DISTINCT synth_rationale) AS direct_rationales,
              collect(DISTINCT transformation) AS transformations,
@@ -236,6 +242,31 @@ class WisdomUnitRepository:
         """
         graph_db.execute(delete_subgraph_query, {"wu_id": wisdom_unit._id})
 
+        # Delete orphaned Polarities and their components
+        # (Polarities that are no longer connected to any WisdomUnit)
+
+        # Step 1: Delete orphaned components from orphaned Polarities (only if not used elsewhere)
+        delete_orphaned_polarity_comps_query = """
+        MATCH (pol:Polarity)
+        WHERE NOT exists((pol)<-[:HAS_POLARITY]-(:WisdomUnit))
+        MATCH (pol)<-[:T|A]-(comp:DialecticalComponent)
+        // Only delete components if they're not used elsewhere
+        WHERE NOT exists((comp)-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]->(:WisdomUnit))
+        AND NOT exists((comp)-[:T|A]->(:Polarity)<-[:HAS_POLARITY]-(:WisdomUnit))
+        AND NOT exists((comp)-[:S_PLUS|S_MINUS]->(:Synthesis))
+        AND NOT exists((comp)-[:IS_SOURCE_OF|IS_TARGET_OF]-(:Transition))
+        DETACH DELETE comp
+        """
+        graph_db.execute(delete_orphaned_polarity_comps_query)
+
+        # Step 2: Delete orphaned Polarities (now that components are handled)
+        delete_orphaned_polarity_query = """
+        MATCH (pol:Polarity)
+        WHERE NOT exists((pol)<-[:HAS_POLARITY]-(:WisdomUnit))
+        DETACH DELETE pol
+        """
+        graph_db.execute(delete_orphaned_polarity_query)
+
         return True
 
     @inject
@@ -265,24 +296,35 @@ class WisdomUnitRepository:
         query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        OPTIONAL MATCH (wu)-[:BELONGS_TO_NEXUS]->(nexus:Nexus)-[:HAS_CYCLE]->(cycle:Cycle)-[:HAS_WHEEL]->(wheel:Wheel)
+        // Check if WU is used in any Cycle (via wisdom_unit_hashes property)
+        OPTIONAL MATCH (cycle:Cycle)-[:HAS_WHEEL]->(wheel:Wheel)
+        WHERE wu.hash IN cycle.wisdom_unit_hashes
 
-        OPTIONAL MATCH (external_trans:Transformation)-[:ACTION_REFLECTION]->(wu)
-        WHERE NOT (external_trans)-[:IS_SPIRAL_OF]->(wu)
+        // Check if WU is referenced by any Transformation via Wheel
+        OPTIONAL MATCH (wheel2:Wheel)-[:HAS_TRANSFORMATION]->(external_trans:Transformation)
+        WHERE wu.hash IN (()-[:HAS_WHEEL]->(wheel2)<-[:HAS_WHEEL]-(cycle2:Cycle)).wisdom_unit_hashes
 
-        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
+        // Get pole components directly on WU (T+, T-, A+, A-)
+        OPTIONAL MATCH (wu)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(pole_component:DialecticalComponent)
+        // Get T/A components through Polarity
+        OPTIONAL MATCH (wu)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:DialecticalComponent)
 
         OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
         WITH wu,
              count(DISTINCT wheel) AS wheel_count,
              count(DISTINCT external_trans) AS ac_re_count,
-             collect(DISTINCT component) + collect(DISTINCT synth_comp) AS all_components
+             collect(DISTINCT pole_component) + collect(DISTINCT polarity_comp) + collect(DISTINCT synth_comp) AS all_components
 
         UNWIND CASE WHEN size(all_components) > 0 THEN all_components ELSE [null] END AS comp
 
-        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
+        // Check if component is used in other WUs directly
+        OPTIONAL MATCH (comp)-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
+
+        // Check if component is used in other WUs through Polarity
+        OPTIONAL MATCH (comp)-[:T|A]->(other_pol:Polarity)<-[:HAS_POLARITY]-(other_wu_pol:WisdomUnit)
+        WHERE comp IS NOT NULL AND other_wu_pol <> wu
 
         OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu2 <> wu
@@ -292,7 +334,7 @@ class WisdomUnitRepository:
         WHERE comp IS NOT NULL
 
         WITH wheel_count, ac_re_count,
-             count(DISTINCT other_wu) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS component_vocab_count
+             count(DISTINCT other_wu) + count(DISTINCT other_wu_pol) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS component_vocab_count
 
         RETURN wheel_count > 0 OR ac_re_count > 0 OR component_vocab_count > 0 AS not_isolated
         """
@@ -329,12 +371,15 @@ class WisdomUnitRepository:
         query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        OPTIONAL MATCH (wu)-[:BELONGS_TO_NEXUS]->(nexus:Nexus)-[:HAS_CYCLE]->(cycle:Cycle)-[:HAS_WHEEL]->(wheel:Wheel)
+        // Check if WU is used in any Cycle (via wisdom_unit_hashes property)
+        OPTIONAL MATCH (cycle:Cycle)-[:HAS_WHEEL]->(wheel:Wheel)
+        WHERE wu.hash IN cycle.wisdom_unit_hashes
 
-        OPTIONAL MATCH (external_trans:Transformation)-[:ACTION_REFLECTION]->(wu)
-        WHERE NOT (external_trans)-[:IS_SPIRAL_OF]->(wu)
+        // Check if WU is referenced by any Transformation
+        OPTIONAL MATCH (wheel2:Wheel)-[:HAS_TRANSFORMATION]->(trans:Transformation)
+        WHERE wu.hash IN (()-[:HAS_WHEEL]->(wheel2)<-[:HAS_WHEEL]-(cycle2:Cycle)).wisdom_unit_hashes
 
-        RETURN count(DISTINCT wheel) + count(DISTINCT external_trans) AS usage_count
+        RETURN count(DISTINCT wheel) + count(DISTINCT trans) AS usage_count
         """
         result = list(graph_db.execute_and_fetch(query, {"wu_id": wisdom_unit._id}))
         if result:
@@ -388,16 +433,24 @@ class WisdomUnitRepository:
         query = """
         MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id
 
-        OPTIONAL MATCH (wu)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]-(component:DialecticalComponent)
+        // Get pole components directly on WU (T+, T-, A+, A-)
+        OPTIONAL MATCH (wu)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(pole_component:DialecticalComponent)
+        // Get T/A components through Polarity
+        OPTIONAL MATCH (wu)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:DialecticalComponent)
 
         OPTIONAL MATCH (wu)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
-        WITH wu, collect(DISTINCT component) + collect(DISTINCT synth_comp) AS all_components
+        WITH wu, collect(DISTINCT pole_component) + collect(DISTINCT polarity_comp) + collect(DISTINCT synth_comp) AS all_components
 
         UNWIND CASE WHEN size(all_components) > 0 THEN all_components ELSE [null] END AS comp
 
-        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
+        // Check if component is used in other WUs directly
+        OPTIONAL MATCH (comp)-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]->(other_wu:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu <> wu
+
+        // Check if component is used in other WUs through Polarity
+        OPTIONAL MATCH (comp)-[:T|A]->(other_pol:Polarity)<-[:HAS_POLARITY]-(other_wu_pol:WisdomUnit)
+        WHERE comp IS NOT NULL AND other_wu_pol <> wu
 
         OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(other_synth:Synthesis)-[:SYNTHESIS_OF]->(other_wu2:WisdomUnit)
         WHERE comp IS NOT NULL AND other_wu2 <> wu
@@ -406,7 +459,7 @@ class WisdomUnitRepository:
         OPTIONAL MATCH (transition)-[:BELONGS_TO_CYCLE]->(cycle_or_spiral)
         WHERE comp IS NOT NULL
 
-        WITH count(DISTINCT other_wu) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS shared_count
+        WITH count(DISTINCT other_wu) + count(DISTINCT other_wu_pol) + count(DISTINCT other_wu2) + count(DISTINCT cycle_or_spiral) AS shared_count
 
         RETURN shared_count > 0 AS has_shared
         """

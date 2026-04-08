@@ -447,13 +447,13 @@ class ReverseEngineer:
 
     @staticmethod
     def till_wheel_without_convergent_transitions(wheel: Wheel, text: str = None) -> list[BaseMessageParam]:
-        # New architecture: Wheel belongs to Cycle which belongs to Nexus
+        # Wheel belongs to Cycle which stores WU hashes
         # Get the parent cycle from wheel
         cycle_result = wheel.cycle.get()
         cycle = cycle_result[0] if cycle_result else None
 
         # Get wisdom units list
-        wisdom_units_list = wheel.wisdom_units
+        wisdom_units_list = wheel._wisdom_units
 
         # In the new architecture, the wheel IS the ta-cycle level
         # Pass the same cycle for both t_cycle and ta_cycle

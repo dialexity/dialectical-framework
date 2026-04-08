@@ -1,9 +1,9 @@
 """
-CausalityAgent: Subagent for creating causal cycles from a Nexus.
+CausalityAgent: Subagent for creating causal cycles from WisdomUnits.
 
-Takes a Nexus hash and intent, then creates Cycles and Wheels representing
-different causal arrangements of the WisdomUnits. Optionally attaches AI
-estimations for probability assessment.
+Takes WisdomUnit hashes and intent, then creates Cycles and Wheels representing
+different causal arrangements. Optionally attaches AI estimations for probability
+assessment.
 
 Intents:
 - "preset:balanced" - Equal consideration of all factors
@@ -14,7 +14,7 @@ Intents:
 Usage:
     # Programmatic use
     agent = CausalityAgent(
-        nexus_hash="abc123...",
+        wisdom_unit_hashes=["abc123...", "def456..."],
         intent="preset:balanced",
         estimate=True,
     )
@@ -25,7 +25,7 @@ Usage:
             print(f"  Wheel: {wheel.short_hash}")
 
     # LLM tool use
-    agent = CausalityAgent(nexus_hash="abc123...")
+    agent = CausalityAgent(wisdom_unit_hashes=["abc123...", "def456..."])
     json_result = await agent.call()  # Returns JSON string
 """
 
@@ -42,14 +42,11 @@ from dialectical_framework.agents.executable_capability import ExecutableCapabil
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
-from dialectical_framework.synthesist.causality.causality_sequencer_balanced import (
-    CausalitySequencerBalanced,
-)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
     from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 
 
@@ -57,7 +54,7 @@ if TYPE_CHECKING:
 class CausalityAgentResult:
     """Result from the CausalityAgent."""
 
-    nexus: Nexus
+    wisdom_units: list[WisdomUnit]
     cycles: list[Cycle]
     wheels: list[Wheel]
     estimated: bool
@@ -65,14 +62,14 @@ class CausalityAgentResult:
 
 class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
     """
-    Subagent for creating causal cycles from a Nexus.
+    Subagent for creating causal cycles from WisdomUnits.
 
     This agent orchestrates the full causality sequencing pipeline:
-    1. Resolves Nexus from hash
+    1. Resolves WisdomUnits from hashes
     2. Arranges WisdomUnits into Cycles and Wheels using the specified intent
     3. Optionally estimates probabilities using AI
 
-    Multiple intents can be applied to the same Nexus by running the agent
+    Multiple intents can be applied to the same WisdomUnits by running the agent
     multiple times with different intent values.
 
     Dual interface:
@@ -80,8 +77,8 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
     - call() returns JSON string for LLM tool use
     """
 
-    nexus_hash: str = Field(
-        description="Hash (full or prefix) of the Nexus to arrange into causal cycles"
+    wisdom_unit_hashes: list[str] = Field(
+        description="List of WisdomUnit hashes (full or prefix) to arrange into causal cycles"
     )
     intent: str = Field(
         default="preset:balanced",
@@ -108,13 +105,14 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        # 1. Resolve Nexus
-        nexus = self._resolve_nexus()
-        self._report.artifacts["nexus_hash"] = nexus.short_hash
+        # 1. Resolve WisdomUnits
+        wisdom_units = self._resolve_wisdom_units()
+        self._report.artifacts["wisdom_unit_count"] = len(wisdom_units)
+        self._report.artifacts["wisdom_unit_hashes"] = [wu.short_hash for wu in wisdom_units]
 
         # 2. Arrange into Cycles and Wheels
         sequencer = self._get_sequencer()
-        cycles = sequencer.arrange(nexus, intent=self.intent)
+        cycles = sequencer.arrange(wisdom_units, intent=self.intent)
 
         # Collect all wheels
         wheels: list[Wheel] = []
@@ -138,31 +136,34 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
         # Summary
         self._report.summary = (
             f"Created {len(cycles)} cycle(s) and {len(wheels)} wheel(s) "
-            f"for Nexus {nexus.short_hash} with intent '{self.intent}'"
+            f"from {len(wisdom_units)} WisdomUnit(s) with intent '{self.intent}'"
             + (" (estimated)" if estimated else "")
         )
 
         return CausalityAgentResult(
-            nexus=nexus,
+            wisdom_units=wisdom_units,
             cycles=cycles,
             wheels=wheels,
             estimated=estimated,
         )
 
-    def _resolve_nexus(self) -> Nexus:
-        """Resolve Nexus from hash or prefix."""
-        from dialectical_framework.graph.nodes.nexus import Nexus
+    def _resolve_wisdom_units(self) -> list[WisdomUnit]:
+        """Resolve WisdomUnits from hashes or prefixes."""
+        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
         repo = NodeRepository()
-        node = repo.find_by_hash(self.nexus_hash, node_type=Nexus)
-        if node is None:
-            raise ValueError(f"Nexus not found: {self.nexus_hash}")
-        return node
+        wisdom_units = []
+        for wu_hash in self.wisdom_unit_hashes:
+            node = repo.find_by_hash(wu_hash, node_type=WisdomUnit)
+            if node is None:
+                raise ValueError(f"WisdomUnit not found: {wu_hash}")
+            wisdom_units.append(node)
+        return wisdom_units
 
     @inject
     def _get_sequencer(
         self,
         causality_sequencer: CausalitySequencer = Provide[DI.causality_sequencer],
-    ) -> CausalitySequencerBalanced:
+    ) -> CausalitySequencer:
         """Get the causality sequencer from DI."""
         return causality_sequencer

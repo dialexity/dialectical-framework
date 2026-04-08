@@ -1,166 +1,196 @@
 """
 Cycle node for the dialectical framework.
 
-This module provides the Cycle class which represents causal cycles
-composed of transitions between dialectical components.
+This module provides the Cycle class which represents the T-cycle:
+an ordered sequence of WisdomUnits defining abstract thesis causality.
+
+A Cycle captures the order in which theses relate causally (T1 → T2 → T3).
+Multiple Wheels can share the same T-cycle with different flip configurations.
 """
 
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING
+from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
-from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
-from dialectical_framework.graph.relationships.has_cycle_relationship import (
-    HasCycleRelationship,
-)
+from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
+from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
 )
-from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
-    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
-class Cycle(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, AssessableEntity, label="Cycle"):
+class Cycle(ForkableMixin, IntentMixin, AssessableEntity, label="Cycle"):
     """
-    Represents a causal arrangement of WisdomUnits from a Nexus.
+    Represents the T-cycle: an ordered sequence of WisdomUnits.
 
-    A Cycle is an analytical interpretation - a directed graph of transitions
-    between components that forms a closed loop. Cycles capture causal
-    relationships and feedback loops discovered in the dialectical system.
+    A Cycle defines abstract thesis causality - the order in which theses
+    relate to each other (T1 → T2 → T3). This is the "pool" of WisdomUnits
+    in a specific causal arrangement.
 
     The intent field captures the dynamics/causality type of this cycle
     (e.g., "preset:realistic", "preset:desirable", "preset:feasible", "preset:balanced").
 
-    Cycles always flow clockwise through the components.
+    Multiple Wheels can implement the same Cycle with different flip configurations,
+    where each WU can have its T and A sides swapped.
 
     Hierarchy:
-        Nexus (pool of WUs) → Cycle (arrangement) → Wheel (detailed implementation)
+        WisdomUnit → Cycle (ordered pool + intent) → Wheel (flips + transitions)
 
     Relationships:
-    - Cycle belongs to exactly one Nexus (source of WisdomUnits)
-    - Cycle can have multiple Wheels (different detailed arrangements)
-    - Use get_nexus() to find the source Nexus
+    - Cycle contains ordered WU hashes (stored as field, not relationships)
+    - Cycle can have multiple Wheels (different flip configurations)
+    - Use wisdom_units property to get WU instances
     - Use wheels.all() to find associated Wheels
+
+    Example:
+        # Create WUs
+        wu1.commit()
+        wu2.commit()
+        wu3.commit()
+
+        # Create cycle with ordered WUs
+        cycle = Cycle(intent="preset:balanced")
+        cycle.set_wisdom_units([wu1, wu2, wu3])  # Order matters
+        cycle.commit()
+
+        # Create wheel with transitions
+        wheel = Wheel()
+        cycle.wheels.connect(wheel)
+        wheel.save()
+        # Add transitions that define the T-A arrangement
+        # Polarity (T-first vs A-first) is derived from transitions
+        # ... add transitions ...
+        wheel.commit()
     """
 
-    # Note: transitions relationship is inherited from CircularTopologyMixin as _transitions
-    # Access via .transitions property which returns ordered list
+    # Ordered list of WisdomUnit hashes - defines the T-cycle order
+    wisdom_unit_hashes: list[str] = []
 
-    # Source Nexus (where WUs come from)
-    # Parent→child: Nexus has this Cycle
-    nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipFrom(
-        "Nexus",
-        model=HasCycleRelationship,
-        cardinality=(1, 1)  # Exactly one source Nexus
-    )
+    # Transient refs for setting WUs before commit (not persisted)
+    _wu_refs: Optional[list[WisdomUnit]] = None
 
     # Wheels that implement this cycle's arrangement
     # Parent→child: Cycle has Wheels
     wheels: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
         model=HasWheelRelationship,
-        cardinality=(1, None)  # At least one wheel per cycle
+        cardinality=(0, None)  # Zero or more wheels can implement this cycle
     )
 
-    def get_nexus(self) -> Nexus | None:
+    def set_wisdom_units(self, wisdom_units: list[WisdomUnit]) -> Cycle:
         """
-        Get the source Nexus for this cycle.
+        Set the ordered list of WisdomUnits for this cycle.
+
+        Must be called before commit(). All WUs must be committed.
+        Order determines the T-cycle: T1 → T2 → T3 → T1...
+
+        Args:
+            wisdom_units: Ordered list of committed WisdomUnits
 
         Returns:
-            Nexus instance or None if not connected
+            Self for chaining
 
-        Example:
-            nexus = cycle.get_nexus()
-            if nexus:
-                print(f"Cycle derived from nexus with {nexus.wisdom_units.count()} WUs")
+        Raises:
+            ValueError: If any WU is not committed
         """
-        result = self.nexus.get()
-        if result:
-            return result[0]
-        return None
+        hashes = []
+        for wu in wisdom_units:
+            if not wu.is_committed:
+                raise ValueError(
+                    "WisdomUnit must be committed before adding to Cycle"
+                )
+            hashes.append(wu.hash)
 
-    def _get_commit_dependents(self):
-        """
-        Get transitions for hash computation.
+        self.wisdom_unit_hashes = hashes
+        self._wu_refs = wisdom_units  # Keep refs for potential use
+        return self
 
-        Yields:
-            Transition nodes
+    @property
+    def wisdom_units(self) -> list[WisdomUnit]:
         """
-        for trans in self.transitions:
-            yield trans
+        Get the WisdomUnits in cycle order.
+
+        Returns WU instances by looking up their hashes.
+
+        Returns:
+            List of WisdomUnit instances in T-cycle order
+        """
+        if not self.wisdom_unit_hashes:
+            return []
+
+        from dialectical_framework.graph.repositories.node_repository import NodeRepository
+        repo = NodeRepository()
+
+        result = []
+        for wu_hash in self.wisdom_unit_hashes:
+            wu = repo.find_by_hash(wu_hash)
+            if wu:
+                result.append(wu)
+        return result
+
+    @property
+    def wisdom_unit_count(self) -> int:
+        """Number of WisdomUnits in this cycle."""
+        return len(self.wisdom_unit_hashes)
 
     def _collect_structure_hash_parts(self) -> list[str]:
         """
         Collect structure hash parts for this Cycle.
 
-        Parts: nexus hash, sorted transition hashes.
+        Parts: ordered WU hashes (NOT sorted - order matters for T-cycle).
         The intent is added separately by BaseNode.compute_hash().
 
         Returns:
-            List of strings: [nexus_hash, trans_hash1, trans_hash2, ...]
+            List of strings: [wu_hash1, wu_hash2, wu_hash3, ...]
 
         Raises:
-            ValueError: If Nexus is not connected/committed or transitions not committed
+            ValueError: If no WisdomUnits are set
         """
-        parts = []
-
-        # Get and verify parent Nexus
-        nexus = self.get_nexus()
-        if not nexus:
+        if not self.wisdom_unit_hashes:
             raise ValueError(
-                "Cycle must be connected to a Nexus before computing structure hash."
+                "Cycle must have WisdomUnits set before computing structure hash. "
+                "Use set_wisdom_units()."
             )
-        if not nexus.is_committed:
-            raise ValueError(
-                "Nexus must be committed before computing Cycle structure hash. "
-                "Commit the parent Nexus first."
-            )
-        parts.append(nexus.hash)
 
-        # Get transition hashes and sort for deterministic ordering
-        trans_hashes = []
-        for trans in self.transitions:
-            if not trans.is_committed:
-                raise ValueError(
-                    "Transition must be committed before computing "
-                    "Cycle structure hash"
-                )
-            trans_hashes.append(trans.hash)
-
-        trans_hashes.sort()
-        parts.extend(trans_hashes)
-
-        return parts
+        # Return hashes in order (NOT sorted - order defines the T-cycle)
+        return list(self.wisdom_unit_hashes)
 
     def __format__(self, format_spec: str) -> str:
         """
         Format this Cycle using Python's format string protocol.
 
-        Extends CircularTopologyMixin with a "verbose" mode that shows intent and rationales.
-
         Format Specifications:
         ----------------------
-        "" or "aliases"   - Chains aliases like "T1 → T2 → T3 → T1..." (inherited from mixin)
-        "statements"      - Uses component statements instead of aliases (inherited from mixin)
-        "explicit"        - Combines both: "T1 (statement) → T2 (statement) → ..." (inherited from mixin)
+        "" or "aliases"   - Shows T-cycle: "T1 → T2 → T3 → T1..."
         "verbose"         - Shows intent, sequence, and rationales
 
         Examples:
         ---------
-        f"{cycle}"              - Default aliases: "T1 → A1 → T2 → T1..."
-        f"{cycle:explicit}"     - Explicit: "T1 (Democracy) → A1 (Fear) → T2 (Courage) → T1..."
-        f"{cycle:verbose}"      - Verbose: "REALISTIC: T1 → A1 → T2 → T1...\nRationale: ..."
+        f"{cycle}"              - Default: "T1 → T2 → T3 → T1..."
+        f"{cycle:verbose}"      - Verbose: "balanced cycle: T1 → T2 → T3...\nRationale: ..."
 
         Returns:
             Formatted string representing the cycle
         """
+        # Build T-cycle sequence from WU order
+        wus = self.wisdom_units
+        if not wus:
+            sequence = "[no WisdomUnits]"
+        else:
+            # T-cycle shows thesis positions: T1 → T2 → T3 → T1...
+            labels = [f"T{i+1}" for i in range(len(wus))]
+            if len(labels) > 1:
+                # Add wrap-around
+                sequence = " → ".join(labels) + f" → {labels[0]}..."
+            else:
+                sequence = labels[0]
+
         if format_spec == "verbose":
             # Verbose mode: show intent + sequence + rationales
             result = ""
@@ -171,10 +201,7 @@ class Cycle(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
             else:
                 result = "Cycle: "
 
-            # Add sequence using aliases mode from parent
-            sequence = super().__format__("aliases")
             result += sequence
-            result = f"{result}\n{super().__format__('explicit')}"
 
             # Add rationales
             rationales = list(self.rationales.all())
@@ -198,8 +225,8 @@ class Cycle(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
 
             return result
         else:
-            # All other modes: delegate to parent CircularTopologyMixin
-            return super().__format__(format_spec)
+            # Default: just the sequence
+            return sequence
 
     def __str__(self) -> str:
         """String representation using default format."""
@@ -207,5 +234,6 @@ class Cycle(IncrementalBuildMixin, IntentMixin, CircularTopologyMixin, Assessabl
 
     def __repr__(self) -> str:
         """Debug representation of the cycle."""
-        hash_str = self.hash[:7] if self.is_committed else "uncommitted"
-        return f"Cycle({hash_str}, intent={self.intent})"
+        hash_str = self.short_hash if self.is_committed else "uncommitted"
+        wu_count = len(self.wisdom_unit_hashes)
+        return f"Cycle({hash_str}, wu_count={wu_count}, intent={self.intent})"

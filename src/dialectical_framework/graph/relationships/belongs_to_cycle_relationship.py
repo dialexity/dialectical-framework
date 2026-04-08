@@ -6,14 +6,11 @@ from dialectical_framework.graph.relationships.immutable_structure import Contai
 
 class BelongsToCycleRelationship(ContainerMembership, type="BELONGS_TO_CYCLE"):
     """
-    Links a Transition to structural containers (Cycle, Wheel).
+    Links a Transition to structural containers (Cycle, Wheel, Transformation).
 
     Part of the structural layer - defines which Transitions make up
-    the Cycle/Wheel reasoning pathway. The container's hash includes
-    its transitions via _get_committed_children().
-
-    Note: Transitions can also belong to analytical containers
-    (Spiral, Transformation) via separate relationships.
+    the Cycle/Wheel/Transformation reasoning pathway. The container's hash
+    includes its transitions via _get_committed_children().
     """
 
     pass

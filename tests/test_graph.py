@@ -21,51 +21,197 @@ import pytest
 
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
-from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.utils.order_transitions import order_transitions
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    HasPolarityRelationship,
+    TPlusRelationship,
+    TMinusRelationship,
+    APlusRelationship,
+    AMinusRelationship,
+)
+
+
+def create_wisdom_unit_with_polarity(
+    t_statement: str = "Democracy empowers citizens",
+    a_statement: str = "Authority provides order",
+    t_plus_statement: str = "Democracy promotes equality",
+    t_minus_statement: str = "Democracy can be inefficient",
+    a_plus_statement: str = "Authority ensures security",
+    a_minus_statement: str = "Authority restricts freedom",
+    intent: str = "test",
+    heuristic_similarity: float = 0.8,
+) -> tuple[WisdomUnit, Polarity, dict]:
+    """
+    Helper to create a WisdomUnit with proper Polarity structure.
+
+    Returns:
+        Tuple of (wisdom_unit, polarity, components_dict)
+        where components_dict has keys: t, a, t_plus, t_minus, a_plus, a_minus
+    """
+    # Create T and A components
+    t = DialecticalComponent(statement=t_statement, meaning="test")
+    t.commit()
+    a = DialecticalComponent(statement=a_statement, meaning="test")
+    a.commit()
+
+    # Create Polarity with T and A
+    polarity = Polarity(intent=intent)
+    polarity.set_t(t, heuristic_similarity=1.0)
+    polarity.set_a(a, heuristic_similarity=heuristic_similarity)
+    polarity.commit()
+
+    # Create WU and connect to Polarity
+    wu = WisdomUnit(intent=intent)
+    wu.save()
+    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+
+    # Create and connect poles
+    t_plus = DialecticalComponent(statement=t_plus_statement, meaning="test")
+    t_plus.commit()
+    t_minus = DialecticalComponent(statement=t_minus_statement, meaning="test")
+    t_minus.commit()
+    a_plus = DialecticalComponent(statement=a_plus_statement, meaning="test")
+    a_plus.commit()
+    a_minus = DialecticalComponent(statement=a_minus_statement, meaning="test")
+    a_minus.commit()
+
+    wu.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
+    wu.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
+    wu.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
+    wu.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
+
+    components = {
+        "t": t,
+        "a": a,
+        "t_plus": t_plus,
+        "t_minus": t_minus,
+        "a_plus": a_plus,
+        "a_minus": a_minus,
+    }
+
+    return wu, polarity, components
+
+
+def create_wu_from_components(
+    t: DialecticalComponent,
+    a: DialecticalComponent,
+    t_plus: DialecticalComponent | None = None,
+    t_minus: DialecticalComponent | None = None,
+    a_plus: DialecticalComponent | None = None,
+    a_minus: DialecticalComponent | None = None,
+    intent: str = "test",
+    heuristic_similarity: float = 0.8,
+) -> tuple[WisdomUnit, Polarity]:
+    """
+    Create a WisdomUnit with Polarity from pre-existing components.
+
+    T and A are required and must be committed.
+    Poles (T+, T-, A+, A-) are optional.
+
+    Returns:
+        Tuple of (wisdom_unit, polarity)
+    """
+    # Create Polarity with T and A
+    polarity = Polarity(intent=intent)
+    polarity.set_t(t, heuristic_similarity=1.0)
+    polarity.set_a(a, heuristic_similarity=heuristic_similarity)
+    polarity.commit()
+
+    # Create WU and connect to Polarity
+    wu = WisdomUnit(intent=intent)
+    wu.save()
+    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+
+    # Connect poles if provided
+    if t_plus:
+        wu.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
+    if t_minus:
+        wu.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
+    if a_plus:
+        wu.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
+    if a_minus:
+        wu.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
+
+    return wu, polarity
+
+
+def create_cycle_wheel_setup(
+    wus: list[WisdomUnit],
+    components_for_transitions: list[DialecticalComponent],
+    cycle_intent: str = "preset:balanced",
+    wheel_intent: str = "test_wheel",
+) -> tuple[Cycle, Wheel, list[Transition]]:
+    """
+    Create a Cycle with ordered WUs and a Wheel with transitions.
+
+    New model pattern (no Nexus):
+    1. Create Cycle with set_wisdom_units()
+    2. Create Wheel and add transitions
+    3. Connect Wheel to Cycle
+
+    Args:
+        wus: List of committed WisdomUnits (order matters for T-cycle)
+        components_for_transitions: Components to use for wheel transitions
+            (must belong to WUs in the cycle)
+        cycle_intent: Intent for the cycle
+        wheel_intent: Intent for the wheel
+
+    Returns:
+        Tuple of (cycle, wheel, transitions)
+    """
+    # Ensure all WUs are committed
+    for wu in wus:
+        if not wu.is_committed:
+            wu.commit()
+
+    # Create Cycle with ordered WUs
+    cycle = Cycle(intent=cycle_intent)
+    cycle.set_wisdom_units(wus)
+    cycle.commit()
+
+    # Create Wheel
+    wheel = Wheel(intent=wheel_intent)
+    wheel.save()
+
+    # Create transitions forming a cycle through the components
+    transitions = []
+    num_comps = len(components_for_transitions)
+    for i in range(num_comps):
+        trans = Transition()
+        trans.set_source(components_for_transitions[i])
+        trans.set_target(components_for_transitions[(i + 1) % num_comps])
+        trans.commit()
+        trans.cycle.connect(wheel)
+        transitions.append(trans)
+
+    # Connect Wheel to Cycle
+    cycle.wheels.connect(wheel)
+
+    return cycle, wheel, transitions
 
 
 def test_create_simple_wisdom_unit():
     """Test creating a WisdomUnit with basic components."""
 
-    # Create a wisdom unit
-    wu = WisdomUnit(index=1, intent="dialectical")
-    wu.save()  # Uses injected graph_db
+    # Use helper to create WU with proper Polarity structure
+    wu, polarity, components = create_wisdom_unit_with_polarity(
+        t_statement="Democracy empowers citizens",
+        a_statement="Authority provides order",
+        t_plus_statement="Democracy promotes equality",
+        t_minus_statement="Democracy can be inefficient",
+        a_plus_statement="Authority ensures security",
+        a_minus_statement="Authority restricts freedom",
+        intent="dialectical",
+    )
 
-    # Create thesis components
-    t = DialecticalComponent(statement="Democracy empowers citizens")
-    t_plus = DialecticalComponent(statement="Democracy promotes equality")
-    t_minus = DialecticalComponent(statement="Democracy can be inefficient")
-
-    t.commit()
-    t_plus.commit()
-    t_minus.commit()
-
-    # Create antithesis components
-    a = DialecticalComponent(statement="Authority provides order")
-    a_plus = DialecticalComponent(statement="Authority ensures security")
-    a_minus = DialecticalComponent(statement="Authority restricts freedom")
-
-    a.commit()
-    a_plus.commit()
-    a_minus.commit()
-
-    # Connect components to wisdom unit with contextual aliases
-    wu.t.connect(t, properties={'alias': 'T'})
-    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-    wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
-
-    wu.a.connect(a, properties={'alias': 'A'})
-    wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
-    wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
-
-    # Verify connections
+    # Verify connections through Polarity
     t_component = wu.t.get()
     assert t_component is not None
     assert t_component[0].statement == "Democracy empowers citizens"
@@ -88,38 +234,42 @@ def test_create_simple_wisdom_unit():
 def test_wisdom_unit_validation():
     """Test WisdomUnit completeness validation."""
 
-    # Create incomplete wisdom unit
+    # Create T and A components first
+    t = DialecticalComponent(statement="Test thesis", meaning="test")
+    t.commit()
+    a = DialecticalComponent(statement="Antithesis", meaning="test")
+    a.commit()
+
+    # Create Polarity with T and A
+    polarity = Polarity(intent="test")
+    polarity.set_t(t, heuristic_similarity=1.0)
+    polarity.set_a(a, heuristic_similarity=0.8)
+    polarity.commit()
+
+    # Create WU and connect to Polarity
     wu = WisdomUnit(intent=f"wu_{random.random()}")
     wu.save()
+    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-    # Add only T component - incomplete
-    t = DialecticalComponent(statement="Test thesis")
-    t.commit()
-    wu.t.connect(t, properties={'alias': 'T'})
-
-    # Should not be complete (missing t_plus, t_minus, a, a_plus, a_minus)
+    # Should not be complete (missing t_plus, t_minus, a_plus, a_minus)
     assert not wu.is_complete()
 
-    # Add remaining required components
-    t_plus = DialecticalComponent(statement="T+")
+    # Add remaining required pole components
+    t_plus = DialecticalComponent(statement="T+", meaning="test")
     t_plus.commit()
-    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
+    wu.t_plus.connect(t_plus, relationship=TPlusRelationship(alias='T+', heuristic_similarity=0.9))
 
-    t_minus = DialecticalComponent(statement="T-")
+    t_minus = DialecticalComponent(statement="T-", meaning="test")
     t_minus.commit()
-    wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
+    wu.t_minus.connect(t_minus, relationship=TMinusRelationship(alias='T-', heuristic_similarity=0.9))
 
-    a = DialecticalComponent(statement="Antithesis")
-    a.commit()
-    wu.a.connect(a, properties={'alias': 'A'})
-
-    a_plus = DialecticalComponent(statement="A+")
+    a_plus = DialecticalComponent(statement="A+", meaning="test")
     a_plus.commit()
-    wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
+    wu.a_plus.connect(a_plus, relationship=APlusRelationship(alias='A+', heuristic_similarity=0.9))
 
-    a_minus = DialecticalComponent(statement="A-")
+    a_minus = DialecticalComponent(statement="A-", meaning="test")
     a_minus.commit()
-    wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
+    wu.a_minus.connect(a_minus, relationship=AMinusRelationship(alias='A-', heuristic_similarity=0.9))
 
     # Now should be complete (s_plus and s_minus are optional)
     assert wu.is_complete()
@@ -130,38 +280,43 @@ def test_wisdom_unit_validation():
 def test_component_aliases():
     """Test getting components with their contextual aliases from relationships."""
 
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-
-    # Add components with contextual aliases
-    t = DialecticalComponent(statement="Thesis 3")
-    a = DialecticalComponent(statement="Antithesis 3")
-
+    # Create T and A components
+    t = DialecticalComponent(statement="Thesis 3", meaning="test")
+    a = DialecticalComponent(statement="Antithesis 3", meaning="test")
     t.commit()
     a.commit()
 
-    wu.t.connect(t, properties={'alias': 'T3'})
-    wu.a.connect(a, properties={'alias': 'A3'})
+    # Create Polarity with custom aliases (aliases are stored on relationship)
+    polarity = Polarity(intent="test")
+    polarity.set_t(t, heuristic_similarity=1.0)
+    polarity.set_a(a, heuristic_similarity=0.8)
+    polarity.commit()
+
+    # Create WU and connect to Polarity
+    wu = WisdomUnit(intent=f"wu_{random.random()}")
+    wu.save()
+    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Get all components with their aliases using repository
     from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
     repo = DialecticalComponentRepository()
     components_with_aliases = repo.find_by_wisdom_unit(wu)
 
+    # Should find T and A through Polarity
     assert len(components_with_aliases) == 2
     aliases = [alias for _, alias in components_with_aliases]
-    assert 'T3' in aliases
-    assert 'A3' in aliases
+    assert 'T' in aliases
+    assert 'A' in aliases
 
     # Test component.get_alias() method
     t_alias = t.get_alias(wu)
     a_alias = a.get_alias(wu)
 
-    assert t_alias == 'T3'
-    assert a_alias == 'A3'
+    assert t_alias == 'T'
+    assert a_alias == 'A'
 
     # Test with component not in this wisdom unit
-    other_comp = DialecticalComponent(statement="Not connected")
+    other_comp = DialecticalComponent(statement="Not connected", meaning="test")
     other_comp.commit()
 
     # Should raise ValueError when component not connected to WU
@@ -173,252 +328,202 @@ def test_component_aliases():
     print(f"✓ component.get_alias() works correctly: T={t_alias}, A={a_alias}")
 
 
-def test_cycle_topology_ordered_transitions():
-    """Test cycle topology with ordered transitions."""
+def test_cycle_ordered_wisdom_units():
+    """Test that Cycle stores WisdomUnits in order (T-cycle)."""
 
-    # Create a simple 3-component cycle: T1 → T2 → T3 → T1
-    t1 = DialecticalComponent(statement="Component 1")
-    t2 = DialecticalComponent(statement="Component 2")
-    t3 = DialecticalComponent(statement="Component 3")
+    # Create 3 WisdomUnits with proper Polarity structure
+    wu1, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 1", a_statement="Antithesis 1",
+        t_plus_statement="T1+", t_minus_statement="T1-",
+        a_plus_statement="A1+", a_minus_statement="A1-",
+        intent=f"wu1_{random.random()}"
+    )
+    wu1.commit()
 
-    t1.commit()
-    t2.commit()
-    t3.commit()
+    wu2, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 2", a_statement="Antithesis 2",
+        t_plus_statement="T2+", t_minus_statement="T2-",
+        a_plus_statement="A2+", a_minus_statement="A2-",
+        intent=f"wu2_{random.random()}"
+    )
+    wu2.commit()
 
-    # Create transitions with source/target set before save
-    # (Merkle model: hash includes source/target)
-    trans1 = Transition()  # T1 → T2
-    trans1.set_source(t1).set_target(t2)
-    trans1.commit()
+    wu3, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 3", a_statement="Antithesis 3",
+        t_plus_statement="T3+", t_minus_statement="T3-",
+        a_plus_statement="A3+", a_minus_statement="A3-",
+        intent=f"wu3_{random.random()}"
+    )
+    wu3.commit()
 
-    trans2 = Transition()  # T2 → T3
-    trans2.set_source(t2).set_target(t3)
-    trans2.commit()
-
-    trans3 = Transition()  # T3 → T1
-    trans3.set_source(t3).set_target(t1)
-    trans3.commit()
-
-    # Create cycle and connect transitions
+    # Create cycle with ordered WUs (order defines T-cycle: T1 → T2 → T3)
     cycle = Cycle(intent="preset:balanced")
-    cycle.save()
+    cycle.set_wisdom_units([wu1, wu2, wu3])
+    cycle.commit()
 
-    trans1.cycle.connect(cycle)
-    trans2.cycle.connect(cycle)
-    trans3.cycle.connect(cycle)
+    # Verify order is preserved
+    assert cycle.wisdom_unit_count == 3, f"Expected 3 WUs, got {cycle.wisdom_unit_count}"
+    assert cycle.wisdom_unit_hashes == [wu1.hash, wu2.hash, wu3.hash], "Order should be preserved"
 
-    # Test order_transitions utility
-    all_transitions = cycle.transitions
-    ordered = order_transitions(all_transitions)
-    assert len(ordered) == 3, f"Expected 3 transitions, got {len(ordered)}"
+    # Verify wisdom_units property returns WUs in order
+    wus = cycle.wisdom_units
+    assert len(wus) == 3, f"Expected 3 WUs, got {len(wus)}"
+    assert wus[0].hash == wu1.hash, "First WU should be wu1"
+    assert wus[1].hash == wu2.hash, "Second WU should be wu2"
+    assert wus[2].hash == wu3.hash, "Third WU should be wu3"
 
-    # Verify the ordering follows source→target chain
-    source_statements = []
-    for trans in ordered:
-        source_nodes = [src for src, _ in trans.source.all()]
-        if source_nodes:
-            source_statements.append(source_nodes[0].statement)
-
-    # Check that we have a valid cycle (each source appears once)
-    assert len(set(source_statements)) == 3, "Cycle should have 3 unique sources"
-    assert set(source_statements) == {"Component 1", "Component 2", "Component 3"}, "Cycle should contain all components"
-
-    print(f"✓ Cycle topology ordered correctly: {' → '.join(source_statements)}")
+    print(f"✓ Cycle T-cycle order preserved: WU1 → WU2 → WU3")
 
 
-def test_cycle_dialectical_components():
-    """Test dialectical_components property returns correct components."""
+def test_cycle_requires_committed_wisdom_units():
+    """Test that Cycle requires committed WisdomUnits."""
 
-    # Create components
-    t1 = DialecticalComponent(statement="Thesis 1")
-    t2 = DialecticalComponent(statement="Thesis 2")
-    t3 = DialecticalComponent(statement="Thesis 3")
-
-    t1.commit()
-    t2.commit()
-    t3.commit()
-
-    # Create transitions with source/target set before save
-    trans1 = Transition()
-    trans1.set_source(t1).set_target(t2)
-    trans1.commit()
-
-    trans2 = Transition()
-    trans2.set_source(t2).set_target(t3)
-    trans2.commit()
-
-    trans3 = Transition()
-    trans3.set_source(t3).set_target(t1)
-    trans3.commit()
+    # Create uncommitted WU
+    wu, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 1", a_statement="Antithesis 1",
+        t_plus_statement="T1+", t_minus_statement="T1-",
+        a_plus_statement="A1+", a_minus_statement="A1-",
+        intent=f"wu_{random.random()}"
+    )
+    # wu is NOT committed
 
     # Create cycle
     cycle = Cycle(intent="preset:realistic")
-    cycle.save()
 
-    trans1.cycle.connect(cycle)
-    trans2.cycle.connect(cycle)
-    trans3.cycle.connect(cycle)
+    # Should fail with uncommitted WU
+    with pytest.raises(ValueError, match="WisdomUnit must be committed"):
+        cycle.set_wisdom_units([wu])
 
-    # Test dialectical_components property
-    components = cycle.dialectical_components
-    assert len(components) == 3, f"Expected 3 components, got {len(components)}"
+    # Now commit WU and try again
+    wu.commit()
+    cycle.set_wisdom_units([wu])
+    cycle.commit()
 
-    statements = [comp.statement for comp in components]
-    assert set(statements) == {"Thesis 1", "Thesis 2", "Thesis 3"}, f"Expected all thesis statements, got {statements}"
+    assert cycle.wisdom_unit_count == 1
+    assert cycle.wisdom_unit_hashes == [wu.hash]
 
-    print(f"✓ Dialectical components extracted correctly: {statements}")
+    print(f"✓ Cycle correctly validates WU commitment")
 
 
 def test_cycle_str_formatting():
-    """Test as_str() method with automatic Wheel resolution."""
+    """Test Cycle string formatting shows T-cycle."""
 
-    # Create a 4-component cycle
-    components = []
-    for i in range(1, 5):
-        comp = DialecticalComponent(statement=f"Component {i}")
-        comp.commit()
-        components.append(comp)
+    # Create 3 WisdomUnits
+    wu1, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 1", a_statement="Antithesis 1",
+        t_plus_statement="T1+", t_minus_statement="T1-",
+        a_plus_statement="A1+", a_minus_statement="A1-",
+        intent=f"wu1_{random.random()}"
+    )
+    wu1.commit()
 
-    # Create transitions in cycle with source/target set before save
-    transitions = []
-    for i in range(4):
-        trans = Transition()
-        trans.set_source(components[i]).set_target(components[(i + 1) % 4])
-        trans.commit()
-        transitions.append(trans)
+    wu2, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 2", a_statement="Antithesis 2",
+        t_plus_statement="T2+", t_minus_statement="T2-",
+        a_plus_statement="A2+", a_minus_statement="A2-",
+        intent=f"wu2_{random.random()}"
+    )
+    wu2.commit()
 
-    # Create cycle
+    wu3, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 3", a_statement="Antithesis 3",
+        t_plus_statement="T3+", t_minus_statement="T3-",
+        a_plus_statement="A3+", a_minus_statement="A3-",
+        intent=f"wu3_{random.random()}"
+    )
+    wu3.commit()
+
+    # Create cycle with 3 WUs
     cycle = Cycle(intent="preset:desirable")
-    cycle.save()
+    cycle.set_wisdom_units([wu1, wu2, wu3])
+    cycle.commit()
 
-    for trans in transitions:
-        trans.cycle.connect(cycle)
+    # Test default format shows T-cycle
+    cycle_string = str(cycle)
+    assert "T1" in cycle_string, f"Expected T1 in cycle string: {cycle_string}"
+    assert "T2" in cycle_string, f"Expected T2 in cycle string: {cycle_string}"
+    assert "T3" in cycle_string, f"Expected T3 in cycle string: {cycle_string}"
+    assert "→" in cycle_string, f"Expected arrows in cycle string: {cycle_string}"
 
-    # Create WisdomUnit and connect components with aliases FIRST
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
+    print(f"✓ Cycle string shows T-cycle: {cycle_string}")
 
-    wu.t.connect(components[0], properties={'alias': 'T'})
-    wu.t_plus.connect(components[1], properties={'alias': 'T+'})
-    wu.t_minus.connect(components[2], properties={'alias': 'T-'})
-    wu.a.connect(components[3], properties={'alias': 'A'})
+    # Test verbose format
+    verbose_string = f"{cycle:verbose}"
+    assert "preset:desirable" in verbose_string, f"Expected intent in verbose: {verbose_string}"
+    assert "T1" in verbose_string
+    assert "Rationale" in verbose_string  # Shows "Rationale: N/A" when no rationales
 
-    # Create Nexus and connect WisdomUnit
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu.nexus.connect(nexus)
+    print(f"✓ Cycle verbose format works correctly")
 
-    # Connect Nexus to Cycle
-    nexus.cycles.connect(cycle)
+    # Test repr
+    cycle_repr = repr(cycle)
+    assert "Cycle" in cycle_repr
+    assert "wu_count=3" in cycle_repr
+    assert "preset:desirable" in cycle_repr
 
-    # Create Wheel first with unique intent to differentiate
-    wheel = Wheel(intent="test_cycle_str_formatting")
-    wheel.save()
-
-    # Create wheel transitions with REVERSE direction to avoid hash collision
-    # Cycle: 0→1→2→3→0, Wheel: 1→0, 2→1, 3→2, 0→3
-    for i in range(4):
-        wheel_trans = Transition()
-        wheel_trans.set_source(components[(i + 1) % 4]).set_target(components[i])
-        wheel_trans.commit()
-        wheel_trans.cycle.connect(wheel)
-
-    # Now connect Wheel to Cycle (validation will succeed)
-    cycle.wheels.connect(wheel)
-
-    # Test 1: Automatic Wheel resolution (no parameters needed!)
-    cycle_string = str(cycle)  # Use __str__ instead of as_str()
-    assert "T" in cycle_string
-    assert "T+" in cycle_string
-    assert "T-" in cycle_string
-    assert "A" in cycle_string
-
-    print(f"✓ Cycle string with automatic wheel resolution: {cycle_string}")
-
-    # Test 2: component.get_alias(wisdom_unit) convenience method
-    assert components[0].get_alias(wu) == 'T'
-    assert components[1].get_alias(wu) == 'T+'
-    assert components[2].get_alias(wu) == 'T-'
-    assert components[3].get_alias(wu) == 'A'
-
-    print(f"✓ component.get_alias(wisdom_unit) works correctly")
-
-    # Test 3: Fallback when not connected to wheel
-    orphan_cycle = Cycle(intent="preset:balanced")
-    orphan_cycle.save()
-    orphan_comp = DialecticalComponent(statement="Orphan component")
-    orphan_comp.commit()
-    orphan_trans = Transition()
-    orphan_trans.set_source(orphan_comp).set_target(orphan_comp)
-    orphan_trans.commit()
-    orphan_trans.cycle.connect(orphan_cycle)
-
-    fallback_string = str(orphan_cycle)  # Use __str__ instead of as_str()
-    assert "Orphan component" in fallback_string
-
-    print(f"✓ Cycle string fallback to statement preview: {fallback_string}")
+    print(f"✓ Cycle repr: {cycle_repr}")
 
 
 def test_transition_str_formatting():
     """Test Transition.__format__() with various modes."""
 
-    # Create components
-    source_comp = DialecticalComponent(statement="Negative aspect of thesis")
-    target_comp = DialecticalComponent(statement="Positive aspect of antithesis")
+    # Create components (T- and A+ are source/target for transition)
+    source_comp = DialecticalComponent(statement="Negative aspect of thesis", meaning="test")
+    target_comp = DialecticalComponent(statement="Positive aspect of antithesis", meaning="test")
     source_comp.commit()
     target_comp.commit()
+
+    # Create T and A components for Polarity
+    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
+    t_comp.commit()
+    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
+    a_comp.commit()
+
+    # Create additional components for T+ and A- positions
+    t_plus_comp = DialecticalComponent(statement="Positive thesis aspect", meaning="test")
+    t_plus_comp.commit()
+    a_minus_comp = DialecticalComponent(statement="Negative antithesis aspect", meaning="test")
+    a_minus_comp.commit()
+
+    # Create WisdomUnit with Polarity and connect all components with aliases
+    wu, _ = create_wu_from_components(
+        t=t_comp,
+        a=a_comp,
+        t_plus=t_plus_comp,
+        t_minus=source_comp,
+        a_plus=target_comp,
+        a_minus=a_minus_comp,
+        intent=f"wu_{random.random()}",
+    )
+    wu.commit()
+
+    # Create Cycle with ordered WUs (new model: no Nexus)
+    cycle = Cycle(intent="preset:balanced")
+    cycle.set_wisdom_units([wu])
+    cycle.commit()
 
     # Create transition with source/target set before save
     trans = Transition()
     trans.set_source(source_comp).set_target(target_comp)
     trans.commit()
 
-    # Create WisdomUnit and connect components with aliases
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-    wu.t_minus.connect(source_comp, properties={'alias': 'T-'})
-    wu.a_plus.connect(target_comp, properties={'alias': 'A+'})
-
-    # Create Nexus and connect WisdomUnit
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu.nexus.connect(nexus)
-
-    # Create Cycle and connect to Nexus + transition
-    cycle = Cycle(intent="preset:balanced")
-    cycle.save()
-    nexus.cycles.connect(cycle)
-    trans.cycle.connect(cycle)
-
-    # Create Wheel first with unique intent
+    # Create Wheel and connect transitions to it (not to Cycle)
     wheel = Wheel(intent="test_transition_str_formatting")
     wheel.save()
 
-    # Create wheel transitions with different direction to avoid collision
-    # Wheel transition: reverse of cycle's trans (target → source)
-    wheel_trans1 = Transition()
-    wheel_trans1.set_source(target_comp).set_target(source_comp)
-    wheel_trans1.commit()
-    wheel_trans1.cycle.connect(wheel)
+    # Connect transition to wheel
+    trans.cycle.connect(wheel)
 
-    # Create additional components for second wheel transition
-    extra_comp1 = DialecticalComponent(statement="Extra wheel comp 1")
-    extra_comp2 = DialecticalComponent(statement="Extra wheel comp 2")
-    extra_comp1.commit()
-    extra_comp2.commit()
+    # Add second transition to form a cycle (wheel needs at least 2 transitions)
+    trans2 = Transition()
+    trans2.set_source(target_comp).set_target(source_comp)
+    trans2.commit()
+    trans2.cycle.connect(wheel)
 
-    # Connect extras to WU so they can be used in wheel
-    wu.a_minus.connect(extra_comp1, properties={'alias': 'A-'})
-
-    wheel_trans2 = Transition()
-    wheel_trans2.set_source(source_comp).set_target(extra_comp1)
-    wheel_trans2.commit()
-    wheel_trans2.cycle.connect(wheel)
-
-    # Now connect Wheel to Cycle
+    # Connect Wheel to Cycle
     cycle.wheels.connect(wheel)
 
-    # Test 1: Default format (aliases) - use wheel_trans which is connected to wheel
+    # Test 1: Default format (aliases)
     default_str = str(trans)
     assert "T-" in default_str
     assert "A+" in default_str
@@ -453,8 +558,8 @@ def test_transition_str_formatting():
     print(f"✓ Transition verbose format: {verbose_str}")
 
     # Test 5: Orphan transition (no wheel context) - should fallback to UID
-    orphan_comp1 = DialecticalComponent(statement="Orphan source")
-    orphan_comp2 = DialecticalComponent(statement="Orphan target")
+    orphan_comp1 = DialecticalComponent(statement="Orphan source", meaning="test")
+    orphan_comp2 = DialecticalComponent(statement="Orphan target", meaning="test")
     orphan_comp1.commit()
     orphan_comp2.commit()
     orphan_trans = Transition()
@@ -473,58 +578,41 @@ def test_transition_str_formatting():
     print(f"✓ Orphan transition statements format: {orphan_statements}")
 
 
-def test_transition_segment_formatting():
-    """Test Transition formatting shows segment aliases for Spiral/Transformation."""
-    from dialectical_framework.graph.nodes.spiral import Spiral
-
+def test_transition_formatting_with_wheel():
+    """Test Transition formatting shows segment aliases for Wheel."""
     # Create components for a full wisdom unit
-    t = DialecticalComponent(statement="Main thesis")
-    t_plus = DialecticalComponent(statement="Positive thesis")
-    t_minus = DialecticalComponent(statement="Negative thesis")
-    a = DialecticalComponent(statement="Main antithesis")
-    a_plus = DialecticalComponent(statement="Positive antithesis")
-    a_minus = DialecticalComponent(statement="Negative antithesis")
+    t = DialecticalComponent(statement="Main thesis", meaning="test")
+    t_plus = DialecticalComponent(statement="Positive thesis", meaning="test")
+    t_minus = DialecticalComponent(statement="Negative thesis", meaning="test")
+    a = DialecticalComponent(statement="Main antithesis", meaning="test")
+    a_plus = DialecticalComponent(statement="Positive antithesis", meaning="test")
+    a_minus = DialecticalComponent(statement="Negative antithesis", meaning="test")
 
     for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
         comp.commit()
 
-    # Create WisdomUnit with all components
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-    wu.t.connect(t, properties={'alias': 'T'})
-    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-    wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
-    wu.a.connect(a, properties={'alias': 'A'})
-    wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
-    wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
+    # Create WisdomUnit with Polarity
+    wu, _ = create_wu_from_components(
+        t=t,
+        a=a,
+        t_plus=t_plus,
+        t_minus=t_minus,
+        a_plus=a_plus,
+        a_minus=a_minus,
+        intent=f"wu_{random.random()}",
+    )
+    wu.commit()
 
-    # Create Nexus and connect WisdomUnit
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu.nexus.connect(nexus)
-
-    # Create Cycle (needed for Wheel)
+    # Create Cycle with ordered WUs (new model: no Nexus)
     cycle_base = Cycle(intent="preset:realistic")
-    cycle_base.save()
-    nexus.cycles.connect(cycle_base)
+    cycle_base.set_wisdom_units([wu])
+    cycle_base.commit()
 
-    # Create cycle transitions: T- → A+ → T- (for the wheel)
-    cycle_trans1 = Transition()
-    cycle_trans1.set_source(t_minus).set_target(a_plus)
-    cycle_trans1.commit()
-    cycle_trans1.cycle.connect(cycle_base)
-
-    cycle_trans2 = Transition()
-    cycle_trans2.set_source(a_plus).set_target(t_minus)
-    cycle_trans2.commit()
-    cycle_trans2.cycle.connect(cycle_base)
-
-    # Create Wheel first with unique intent
-    wheel = Wheel(intent="test_transition_segment_formatting")
+    # Create Wheel
+    wheel = Wheel(intent="test_transition_formatting_with_wheel")
     wheel.save()
 
-    # Create separate wheel transitions (same components, different transition objects)
-    # Note: Using different components to avoid duplicate hash
+    # Create wheel transitions
     wheel_trans1 = Transition()
     wheel_trans1.set_source(t).set_target(a)
     wheel_trans1.commit()
@@ -535,167 +623,73 @@ def test_transition_segment_formatting():
     wheel_trans2.commit()
     wheel_trans2.cycle.connect(wheel)
 
-    # Now connect Wheel to Cycle
+    # Connect Wheel to Cycle
     cycle_base.wheels.connect(wheel)
 
-    # Create Spiral transition: use a unique component pair
-    # Note: Using a_minus → t_plus to avoid collision with cycle transitions
-    spiral_trans = Transition()
-    spiral_trans.set_source(a_minus).set_target(t_plus)
-    spiral_trans.commit()
-
-    # Create Spiral and connect with unique intent
-    spiral = Spiral(intent="test_spiral")
-    spiral.save()
-    spiral_trans.cycle.connect(spiral)
-    wheel.spiral.connect(spiral)
-
-    # Test: Spiral transition should show segment format (source segment → target)
-    spiral_str = str(spiral_trans)
-    print(f"Spiral transition format: {spiral_str}")
-    # Segment format should include T- (the source) and the arrow
-    assert "T-" in spiral_str or "T" in spiral_str
-    assert "→" in spiral_str
-    print(f"✓ Spiral transition shows segment aliases: {spiral_str}")
-
-    # Test explicit mode
-    explicit_str = f"{spiral_trans:explicit}"
-    print(f"Spiral transition explicit: {explicit_str}")
-    assert "→" in explicit_str
-    print(f"✓ Spiral transition explicit format: {explicit_str}")
-
-    # Compare with Cycle transition (should be component-only)
-    # Note: Using t_plus → a_minus (opposite of spiral_trans) to avoid hash collision
-    cycle_trans = Transition()
-    cycle_trans.set_source(t_plus).set_target(a_minus)
-    cycle_trans.commit()
-
-    # Connect to the existing cycle_base
-    cycle_trans.cycle.connect(cycle_base)
-
-    # Cycle transition should show only "T- → A+" (component format, no segment expansion)
-    cycle_str = str(cycle_trans)
-    print(f"Cycle transition format: {cycle_str}")
-    # Cycle should NOT have comma (single component on each side)
-    # Note: It will have T- and A+ but not "T-, T"
-    assert "→" in cycle_str
-    print(f"✓ Cycle transition shows component aliases: {cycle_str}")
+    # Test: Wheel transition should show component format
+    wheel_str = str(wheel_trans1)
+    print(f"Wheel transition format: {wheel_str}")
+    assert "→" in wheel_str
+    print(f"✓ Wheel transition shows component aliases: {wheel_str}")
 
 
-def test_cycle_is_same_structure():
-    """Test is_same_structure() detects rotational equivalence."""
+def test_cycle_hash_identity():
+    """Test that Cycle hash depends on ordered WUs and intent."""
 
-    # Create first cycle: T1 → T2 → T3 → T1
-    t1a = DialecticalComponent(statement="Component 1")
-    t2a = DialecticalComponent(statement="Component 2")
-    t3a = DialecticalComponent(statement="Component 3")
+    # Create 3 WisdomUnits
+    wu1, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 1", a_statement="Antithesis 1",
+        t_plus_statement="T1+", t_minus_statement="T1-",
+        a_plus_statement="A1+", a_minus_statement="A1-",
+        intent=f"wu1_{random.random()}"
+    )
+    wu1.commit()
 
-    t1a.commit()
-    t2a.commit()
-    t3a.commit()
+    wu2, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 2", a_statement="Antithesis 2",
+        t_plus_statement="T2+", t_minus_statement="T2-",
+        a_plus_statement="A2+", a_minus_statement="A2-",
+        intent=f"wu2_{random.random()}"
+    )
+    wu2.commit()
 
-    trans1a = Transition()
-    trans1a.set_source(t1a).set_target(t2a)
-    trans1a.commit()
+    wu3, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis 3", a_statement="Antithesis 3",
+        t_plus_statement="T3+", t_minus_statement="T3-",
+        a_plus_statement="A3+", a_minus_statement="A3-",
+        intent=f"wu3_{random.random()}"
+    )
+    wu3.commit()
 
-    trans2a = Transition()
-    trans2a.set_source(t2a).set_target(t3a)
-    trans2a.commit()
+    # Create cycle with WUs in order [wu1, wu2, wu3]
+    cycle1 = Cycle(intent="preset:balanced")
+    cycle1.set_wisdom_units([wu1, wu2, wu3])
+    cycle1.commit()
 
-    trans3a = Transition()
-    trans3a.set_source(t3a).set_target(t1a)
-    trans3a.commit()
+    # Create another cycle with SAME WUs in SAME order and SAME intent
+    # This should produce the same hash (content-addressed identity)
+    cycle2 = Cycle(intent="preset:balanced")
+    cycle2.set_wisdom_units([wu1, wu2, wu3])
+    # Note: Don't commit cycle2 - we'll check the hash computation
 
-    cycle1 = Cycle(intent="cycle1:balanced")
-    cycle1.save()
+    # Create cycle with WUs in DIFFERENT order - should have different hash
+    cycle3 = Cycle(intent="preset:balanced")
+    cycle3.set_wisdom_units([wu2, wu1, wu3])  # Different order!
+    cycle3.commit()
 
-    trans1a.cycle.connect(cycle1)
-    trans2a.cycle.connect(cycle1)
-    trans3a.cycle.connect(cycle1)
+    assert cycle1.hash != cycle3.hash, "Different WU order should produce different hash"
 
-    # Create second cycle with same statement pattern but different starting point
-    # Using different instance identities (prefixed statements) to avoid hash collision
-    # but is_same_structure(compare='statement') will match on the content pattern
-    t1b = DialecticalComponent(statement="Component 1")  # Same statement - will reuse
-    t2b = DialecticalComponent(statement="Component 2")  # Same statement - will reuse
-    t3b = DialecticalComponent(statement="Component 3")  # Same statement - will reuse
+    # Create cycle with SAME WUs but DIFFERENT intent - should have different hash
+    cycle4 = Cycle(intent="preset:realistic")  # Different intent!
+    cycle4.set_wisdom_units([wu1, wu2, wu3])
+    cycle4.commit()
 
-    # In Merkle model, these have same hash as t1a, t2a, t3a - just reuse them
-    # So for cycle2 we use the same components but different transition order
-    # This tests rotational equivalence with the SAME component objects
+    assert cycle1.hash != cycle4.hash, "Different intent should produce different hash"
 
-    # T2 → T3 → T1 → T2 (rotated version using same components)
-    trans1b = Transition()
-    trans1b.set_source(t2a).set_target(t3a)  # Reuse t2a, t3a - but this collision with trans2a!
-    # Actually, this transition already exists! In Merkle, same transition = same object
-    # We need different transitions, so use different component combinations
-
-    # Create new cycle with different components that have same-structure statements
-    t1b_new = DialecticalComponent(statement="B Component 1")
-    t2b_new = DialecticalComponent(statement="B Component 2")
-    t3b_new = DialecticalComponent(statement="B Component 3")
-
-    t1b_new.commit()
-    t2b_new.commit()
-    t3b_new.commit()
-
-    trans1b = Transition()
-    trans1b.set_source(t2b_new).set_target(t3b_new)
-    trans1b.commit()
-
-    trans2b = Transition()
-    trans2b.set_source(t3b_new).set_target(t1b_new)
-    trans2b.commit()
-
-    trans3b = Transition()
-    trans3b.set_source(t1b_new).set_target(t2b_new)
-    trans3b.commit()
-
-    cycle2 = Cycle(intent="cycle2:balanced")
-    cycle2.save()
-
-    trans1b.cycle.connect(cycle2)
-    trans2b.cycle.connect(cycle2)
-    trans3b.cycle.connect(cycle2)
-
-    # Note: In Merkle identity, cycles with different components have different hashes.
-    # cycle1 and cycle2 have different component statements ("Component N" vs "B Component N")
-    # so they should NOT be structurally equivalent by statement comparison.
-    assert not cycle1.is_same_structure(cycle2, compare='statement'), "Cycles with different statements should not be equivalent"
-
-    # Create third cycle with different number of components (different structure)
-    t4 = DialecticalComponent(statement="Component 4")
-    t4.commit()
-
-    t1c = DialecticalComponent(statement="C Component 1")
-    t2c = DialecticalComponent(statement="C Component 2")
-
-    t1c.commit()
-    t2c.commit()
-
-    trans1c = Transition()
-    trans1c.set_source(t1c).set_target(t2c)
-    trans1c.commit()
-
-    trans2c = Transition()
-    trans2c.set_source(t2c).set_target(t4)
-    trans2c.commit()
-
-    trans3c = Transition()
-    trans3c.set_source(t4).set_target(t1c)
-    trans3c.commit()
-
-    cycle3 = Cycle(intent="cycle3:balanced")
-    cycle3.save()
-
-    trans1c.cycle.connect(cycle3)
-    trans2c.cycle.connect(cycle3)
-    trans3c.cycle.connect(cycle3)
-
-    # Test is_same_structure (should be False - different components)
-    assert not cycle1.is_same_structure(cycle3, compare='statement'), "Cycles with different components should not be equivalent"
-
-    print("✓ is_same_structure() correctly detects structural differences")
+    print(f"✓ Cycle hash correctly depends on WU order and intent")
+    print(f"  cycle1 (balanced, 1-2-3): {cycle1.short_hash}")
+    print(f"  cycle3 (balanced, 2-1-3): {cycle3.short_hash}")
+    print(f"  cycle4 (realistic, 1-2-3): {cycle4.short_hash}")
 
 
 def test_estimation_properties():
@@ -710,7 +704,7 @@ def test_estimation_properties():
     r2 = round(0.93 + random.random() * 0.05, 4)  # ~0.93-0.98
 
     # Create a component with unique statement
-    comp = DialecticalComponent(statement=f"Test component {random.random()}")
+    comp = DialecticalComponent(statement=f"Test component {random.random()}", meaning="test")
     comp.commit()
 
     # Test 1: No estimations - should return None
@@ -754,7 +748,7 @@ def test_estimation_properties():
     print(f"✓ Relevance property works correctly (GM): {comp.relevance:.4f}")
 
     # Test 5: Zero estimation - should return 0 (veto semantics)
-    comp2 = DialecticalComponent(statement=f"Test component 2 {random.random()}")
+    comp2 = DialecticalComponent(statement=f"Test component 2 {random.random()}", meaning="test")
     comp2.commit()
 
     prob_est3 = ProbabilityEstimation(value=round(0.79 + random.random() * 0.02, 4))
@@ -776,7 +770,7 @@ def test_estimation_properties():
 def test_best_rationale_property():
     """Test best_rationale property on AssessableEntity."""
     # Create a component
-    comp = DialecticalComponent(statement="Test component")
+    comp = DialecticalComponent(statement="Test component", meaning="test")
     comp.commit()
 
     # Test 1: No rationales - should return None
@@ -824,61 +818,46 @@ def test_best_rationale_property():
 def test_wheel_navigation_properties():
     """Test wheel navigation properties (order, degree)."""
 
-    # Create 4 wisdom units with T and A components
+    # Create 4 wisdom units with full components using Polarity
     wus = []
-    t_components = []
     a_components = []
     for i in range(4):
-        wu = WisdomUnit(intent=f"mode_{i}")
-        wu.save()
-
-        # T component
-        t_comp = DialecticalComponent(statement=f"T Component {i}")
+        # Create all required components for a complete WU
+        t_comp = DialecticalComponent(statement=f"T Component {i}", meaning="test")
         t_comp.commit()
-        wu.t.connect(t_comp, properties={'alias': f'T{i}'})
+        t_plus = DialecticalComponent(statement=f"T+ Component {i}", meaning="test")
+        t_plus.commit()
+        t_minus = DialecticalComponent(statement=f"T- Component {i}", meaning="test")
+        t_minus.commit()
 
-        # A component (connected to same WU)
-        a_comp = DialecticalComponent(statement=f"A Component {i}")
+        a_comp = DialecticalComponent(statement=f"A Component {i}", meaning="test")
         a_comp.commit()
-        wu.a.connect(a_comp, properties={'alias': f'A{i}'})
+        a_plus = DialecticalComponent(statement=f"A+ Component {i}", meaning="test")
+        a_plus.commit()
+        a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
+        a_minus.commit()
+
+        # Create WU with Polarity and all poles
+        wu, _ = create_wu_from_components(
+            t=t_comp,
+            a=a_comp,
+            t_plus=t_plus,
+            t_minus=t_minus,
+            a_plus=a_plus,
+            a_minus=a_minus,
+            intent=f"mode_{i}",
+        )
 
         wus.append(wu)
-        t_components.append(t_comp)
         a_components.append(a_comp)
 
-    # Create Nexus and connect all WUs
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    for wu in wus:
-        wu.nexus.connect(nexus)
-
-    # Create Cycle and connect to Nexus
-    cycle = Cycle(intent="preset:balanced")
-    cycle.save()
-    nexus.cycles.connect(cycle)
-
-    # Create transitions forming a cycle: T0 → T1 → T2 → T3 → T0
-    transitions = []
-    for i in range(4):
-        trans = Transition()
-        trans.set_source(t_components[i]).set_target(t_components[(i + 1) % 4])
-        trans.commit()
-        trans.cycle.connect(cycle)
-        transitions.append(trans)
-
-    # Create Wheel first
-    wheel = Wheel(intent=f"wheel_{random.random()}")
-    wheel.save()
-
-    # Create wheel transitions using A components (which are connected to WUs)
-    for i in range(4):
-        wheel_trans = Transition()
-        wheel_trans.set_source(a_components[i]).set_target(a_components[(i + 1) % 4])
-        wheel_trans.commit()
-        wheel_trans.cycle.connect(wheel)
-
-    # Now connect Wheel to Cycle
-    cycle.wheels.connect(wheel)
+    # Use helper to create Cycle+Wheel setup (new model: no Nexus)
+    cycle, wheel, _ = create_cycle_wheel_setup(
+        wus=wus,
+        components_for_transitions=a_components,  # Use A components for transitions
+        cycle_intent="preset:balanced",
+        wheel_intent=f"wheel_{random.random()}",
+    )
 
     # Test 1: polarity_count property
     assert wheel.polarity_count == 4
@@ -890,159 +869,134 @@ def test_wheel_navigation_properties():
 
 
 def test_wheel_wisdom_unit_at():
-    """Test wisdom_unit_at() method (no integer indexing)."""
+    """Test polar_segment_at() method (no integer indexing)."""
 
-    # Create wisdom units with T and A components
+    # Create wisdom units with full components using Polarity
     wus = []
     t_components = []
     a_components = []
     for i in range(3):
-        wu = WisdomUnit(intent=f"wu_{random.random()}")
-        wu.save()
-
-        # Add a T component with alias
-        t_comp = DialecticalComponent(statement=f"T Component {i}")
+        # Create all required components
+        t_comp = DialecticalComponent(statement=f"T Component {i}", meaning="test")
         t_comp.commit()
-        wu.t.connect(t_comp, properties={'alias': f'T{i}'})
+        t_plus = DialecticalComponent(statement=f"T+ Component {i}", meaning="test")
+        t_plus.commit()
+        t_minus = DialecticalComponent(statement=f"T- Component {i}", meaning="test")
+        t_minus.commit()
 
-        # Add an A component with alias
-        a_comp = DialecticalComponent(statement=f"A Component {i}")
+        a_comp = DialecticalComponent(statement=f"A Component {i}", meaning="test")
         a_comp.commit()
-        wu.a.connect(a_comp, properties={'alias': f'A{i}'})
+        a_plus = DialecticalComponent(statement=f"A+ Component {i}", meaning="test")
+        a_plus.commit()
+        a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
+        a_minus.commit()
+
+        # Create WU with Polarity and all poles
+        wu, _ = create_wu_from_components(
+            t=t_comp,
+            a=a_comp,
+            t_plus=t_plus,
+            t_minus=t_minus,
+            a_plus=a_plus,
+            a_minus=a_minus,
+            intent=f"wu_{random.random()}",
+        )
 
         wus.append((wu, t_comp))
         t_components.append(t_comp)
         a_components.append(a_comp)
 
-    # Create Nexus and connect all WUs
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    for wu, _ in wus:
-        wu.nexus.connect(nexus)
+    # Use helper to create Cycle+Wheel setup (new model: no Nexus)
+    wu_list = [w[0] for w in wus]
+    cycle, wheel, _ = create_cycle_wheel_setup(
+        wus=wu_list,
+        components_for_transitions=a_components,  # Use A components for transitions
+        cycle_intent="preset:balanced",
+        wheel_intent=f"wheel_{random.random()}",
+    )
 
-    # Create Cycle and connect to Nexus
-    cycle = Cycle(intent="preset:balanced")
-    cycle.save()
-    nexus.cycles.connect(cycle)
+    # Test 1: Get by component (T components) - returns polar pair
+    pair = wheel.polar_segment_at(t_components[0])
+    assert pair.wisdom_unit.hash == wus[0][0].hash
 
-    # Create transitions forming a cycle: T0 → T1 → T2 → T0
-    transitions = []
-    for i in range(3):
-        trans = Transition()
-        trans.set_source(t_components[i]).set_target(t_components[(i + 1) % 3])
-        trans.commit()
-        trans.cycle.connect(cycle)
-        transitions.append(trans)
+    pair = wheel.polar_segment_at(t_components[1])
+    assert pair.wisdom_unit.hash == wus[1][0].hash
 
-    # Create Wheel first
-    wheel = Wheel(intent=f"wheel_{random.random()}")
-    wheel.save()
+    pair = wheel.polar_segment_at(t_components[2])
+    assert pair.wisdom_unit.hash == wus[2][0].hash
 
-    # Create wheel transitions using A components (which are connected to WUs)
-    for i in range(3):
-        wheel_trans = Transition()
-        wheel_trans.set_source(a_components[i]).set_target(a_components[(i + 1) % 3])
-        wheel_trans.commit()
-        wheel_trans.cycle.connect(wheel)
+    # Test 2: Get by component (from wus tuple)
+    pair = wheel.polar_segment_at(wus[0][1])
+    assert pair.wisdom_unit.hash == wus[0][0].hash
 
-    # Now connect Wheel to Cycle
-    cycle.wheels.connect(wheel)
-
-    # Test 1: Get by alias
-    wu = wheel.wisdom_unit_at("T0")
-    assert wu.hash == wus[0][0].hash
-
-    wu = wheel.wisdom_unit_at("T1")
-    assert wu.hash == wus[1][0].hash
-
-    wu = wheel.wisdom_unit_at("T2")
-    assert wu.hash == wus[2][0].hash
-
-    # Test 2: Get by component
-    wu = wheel.wisdom_unit_at(wus[0][1])
-    assert wu.hash == wus[0][0].hash
-
-    wu = wheel.wisdom_unit_at(wus[2][1])  # Component from wu2
-    assert wu.hash == wus[2][0].hash
+    pair = wheel.polar_segment_at(wus[2][1])  # Component from wu2
+    assert pair.wisdom_unit.hash == wus[2][0].hash
 
     # Test 3: Get by WisdomUnit
-    wu = wheel.wisdom_unit_at(wus[1][0])
-    assert wu.hash == wus[1][0].hash
+    pair = wheel.polar_segment_at(wus[1][0])
+    assert pair.wisdom_unit.hash == wus[1][0].hash
 
-    # Test 4: Alias not found
+    # Test 4: Component not found
+    orphan_comp = DialecticalComponent(statement="Orphan", meaning="test")
+    orphan_comp.commit()
     try:
-        _ = wheel.wisdom_unit_at("NonexistentAlias")
+        _ = wheel.polar_segment_at(orphan_comp)
         assert False, "Should have raised ValueError"
     except ValueError:
         pass
 
-    print("✓ wisdom_unit_at() works with alias, component, and WisdomUnit")
+    print("✓ polar_segment_at() works with alias, component, and WisdomUnit")
 
 
 def test_wheel_is_same_structure():
     """Test is_same_structure() for comparing wheels by transitions."""
 
-    # Helper function to create a complete wheel setup
+    # Helper function to create a complete wheel setup (new model: no Nexus)
     def create_wheel_with_transitions(n_components: int, prefix: str):
         """Create a wheel with n components connected in a cycle."""
-        t_components = []
         a_components = []
 
-        # Create WisdomUnits with T and A components
+        # Create WisdomUnits with all required components using Polarity
         wus = []
         for i in range(n_components):
-            wu = WisdomUnit(intent=f"wu_{random.random()}")
-            wu.save()
-
-            # T component
-            t_comp = DialecticalComponent(statement=f"{prefix} T Component {i}")
+            # Create all required components
+            t_comp = DialecticalComponent(statement=f"{prefix} T Component {i}", meaning="test")
             t_comp.commit()
-            wu.t.connect(t_comp, properties={'alias': f'{prefix}T{i}'})
-            t_components.append(t_comp)
+            t_plus = DialecticalComponent(statement=f"{prefix} T+ Component {i}", meaning="test")
+            t_plus.commit()
+            t_minus = DialecticalComponent(statement=f"{prefix} T- Component {i}", meaning="test")
+            t_minus.commit()
 
-            # A component
-            a_comp = DialecticalComponent(statement=f"{prefix} A Component {i}")
+            a_comp = DialecticalComponent(statement=f"{prefix} A Component {i}", meaning="test")
             a_comp.commit()
-            wu.a.connect(a_comp, properties={'alias': f'{prefix}A{i}'})
+            a_plus = DialecticalComponent(statement=f"{prefix} A+ Component {i}", meaning="test")
+            a_plus.commit()
+            a_minus = DialecticalComponent(statement=f"{prefix} A- Component {i}", meaning="test")
+            a_minus.commit()
+
             a_components.append(a_comp)
 
+            # Create WU with Polarity and all poles
+            wu, _ = create_wu_from_components(
+                t=t_comp,
+                a=a_comp,
+                t_plus=t_plus,
+                t_minus=t_minus,
+                a_plus=a_plus,
+                a_minus=a_minus,
+                intent=f"wu_{random.random()}",
+            )
             wus.append(wu)
 
-        # Create Nexus
-        nexus = Nexus(intent=f"nexus_{random.random()}")
-        nexus.save()
-        for wu in wus:
-            wu.nexus.connect(nexus)
+        # Use helper to create Cycle+Wheel setup
+        cycle, wheel, _ = create_cycle_wheel_setup(
+            wus=wus,
+            components_for_transitions=a_components,
+            cycle_intent="preset:balanced",
+            wheel_intent=f"wheel_{random.random()}",
+        )
 
-        # Create Cycle
-        cycle = Cycle(intent="preset:balanced")
-        cycle.save()
-        nexus.cycles.connect(cycle)
-
-        # Create transitions forming a cycle using T components
-        transitions = []
-        for i in range(n_components):
-            trans = Transition()
-            trans.set_source(t_components[i]).set_target(t_components[(i + 1) % n_components])
-            trans.commit()
-            trans.cycle.connect(cycle)
-            transitions.append(trans)
-
-        # Create Wheel first
-        wheel = Wheel(intent=f"wheel_{random.random()}")
-        wheel.save()
-
-        # Create wheel transitions using A components (which are connected to WUs)
-        for i in range(n_components):
-            wheel_trans = Transition()
-            wheel_trans.set_source(a_components[i]).set_target(a_components[(i + 1) % n_components])
-            wheel_trans.commit()
-            wheel_trans.cycle.connect(wheel)
-
-        # Now connect Wheel to Cycle
-        cycle.wheels.connect(wheel)
-
-        return wheel, t_components
+        return wheel, a_components
 
     # Create first wheel with 2 components
     wheel1, _ = create_wheel_with_transitions(2, "W1")
@@ -1068,35 +1022,30 @@ def test_wheel_segment_from_wisdom_unit():
     """Test creating WheelSegment from WisdomUnit using segment_t() and segment_a()."""
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
-    # Create wisdom unit with complete T-side and A-side
-    wu = WisdomUnit(intent="test")
-    wu.save()
-
-    # Create T-side components
-    t_comp = DialecticalComponent(statement="Thesis")
+    # Create all components
+    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
     t_comp.commit()
-    wu.t.connect(t_comp, properties={'alias': 'T'})
-
-    t_plus_comp = DialecticalComponent(statement="Thesis positive")
+    t_plus_comp = DialecticalComponent(statement="Thesis positive", meaning="test")
     t_plus_comp.commit()
-    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T+'})
-
-    t_minus_comp = DialecticalComponent(statement="Thesis negative")
+    t_minus_comp = DialecticalComponent(statement="Thesis negative", meaning="test")
     t_minus_comp.commit()
-    wu.t_minus.connect(t_minus_comp, properties={'alias': 'T-'})
-
-    # Create A-side components
-    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
     a_comp.commit()
-    wu.a.connect(a_comp, properties={'alias': 'A'})
-
-    a_plus_comp = DialecticalComponent(statement="Antithesis positive")
+    a_plus_comp = DialecticalComponent(statement="Antithesis positive", meaning="test")
     a_plus_comp.commit()
-    wu.a_plus.connect(a_plus_comp, properties={'alias': 'A+'})
-
-    a_minus_comp = DialecticalComponent(statement="Antithesis negative")
+    a_minus_comp = DialecticalComponent(statement="Antithesis negative", meaning="test")
     a_minus_comp.commit()
-    wu.a_minus.connect(a_minus_comp, properties={'alias': 'A-'})
+
+    # Create WisdomUnit with Polarity
+    wu, _ = create_wu_from_components(
+        t=t_comp,
+        a=a_comp,
+        t_plus=t_plus_comp,
+        t_minus=t_minus_comp,
+        a_plus=a_plus_comp,
+        a_minus=a_minus_comp,
+        intent="test",
+    )
 
     # Get T-side segment
     t_seg = wu.segment_t
@@ -1135,49 +1084,48 @@ def test_wheel_segment_from_wisdom_unit():
 
 def test_wheel_segment_get_component_by_alias():
     """Test finding components within a segment by alias."""
-    wu = WisdomUnit(intent="test")
-    wu.save()
-
-    # Create T-side components
-    t_comp = DialecticalComponent(statement="Thesis")
+    # Create components
+    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
     t_comp.commit()
-    wu.t.connect(t_comp, properties={'alias': 'T1'})
-
-    t_plus_comp = DialecticalComponent(statement="Thesis positive")
+    t_plus_comp = DialecticalComponent(statement="Thesis positive", meaning="test")
     t_plus_comp.commit()
-    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T1+'})
-
-    # Create A-side component
-    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
     a_comp.commit()
-    wu.a.connect(a_comp, properties={'alias': 'A1'})
+
+    # Create WisdomUnit with Polarity
+    wu, _ = create_wu_from_components(
+        t=t_comp,
+        a=a_comp,
+        t_plus=t_plus_comp,
+        intent="test",
+    )
 
     # Get T-side segment
     t_seg = wu.segment_t
 
-    # Find T-side components by alias
-    found_t = t_seg.get_component('T1')
+    # Find T-side components by alias (default aliases from create_wu_from_components)
+    found_t = t_seg.get_component('T')
     assert found_t is not None
     assert found_t.hash == t_comp.hash
 
-    found_t_plus = t_seg.get_component('T1+')
+    found_t_plus = t_seg.get_component('T+')
     assert found_t_plus is not None
     assert found_t_plus.hash == t_plus_comp.hash
 
     # A-side component should not be found in T-side segment
-    found_a = t_seg.get_component('A1')
+    found_a = t_seg.get_component('A')
     assert found_a is None
 
     # Get A-side segment
     a_seg = wu.segment_a
 
     # Find A-side component by alias
-    found_a = a_seg.get_component('A1')
+    found_a = a_seg.get_component('A')
     assert found_a is not None
     assert found_a.hash == a_comp.hash
 
     # T-side component should not be found in A-side segment
-    found_t = a_seg.get_component('T1')
+    found_t = a_seg.get_component('T')
     assert found_t is None
 
     print("✓ WheelSegment.get_component_by_alias() filters by side correctly")
@@ -1187,88 +1135,63 @@ def test_wheel_segment_at():
     """Test Wheel.segment_at() lookup by alias or component."""
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
-    # Create 2 wisdom units with full components
+    # Create 2 wisdom units with full components using Polarity
     wus = []
     t_comps = []
+    a_comps = []
     for i in range(2):
-        wu = WisdomUnit(intent=f"mode_{i}")
-        wu.save()
-
-        # Add T-side components
-        t_comp = DialecticalComponent(statement=f"Thesis {i}")
+        # Create all components
+        t_comp = DialecticalComponent(statement=f"Thesis {i}", meaning="test")
         t_comp.commit()
-        wu.t.connect(t_comp, properties={'alias': f'T{i}'})
         t_comps.append(t_comp)
 
-        t_plus = DialecticalComponent(statement=f"T+ {i}")
+        t_plus = DialecticalComponent(statement=f"T+ {i}", meaning="test")
         t_plus.commit()
-        wu.t_plus.connect(t_plus, properties={'alias': f'T{i}+'})
-
-        t_minus = DialecticalComponent(statement=f"T- {i}")
+        t_minus = DialecticalComponent(statement=f"T- {i}", meaning="test")
         t_minus.commit()
-        wu.t_minus.connect(t_minus, properties={'alias': f'T{i}-'})
 
-        # Add A-side components
-        a_comp = DialecticalComponent(statement=f"Antithesis {i}")
+        a_comp = DialecticalComponent(statement=f"Antithesis {i}", meaning="test")
         a_comp.commit()
-        wu.a.connect(a_comp, properties={'alias': f'A{i}'})
+        a_comps.append(a_comp)
 
-        a_plus = DialecticalComponent(statement=f"A+ {i}")
+        a_plus = DialecticalComponent(statement=f"A+ {i}", meaning="test")
         a_plus.commit()
-        wu.a_plus.connect(a_plus, properties={'alias': f'A{i}+'})
-
-        a_minus = DialecticalComponent(statement=f"A- {i}")
+        a_minus = DialecticalComponent(statement=f"A- {i}", meaning="test")
         a_minus.commit()
-        wu.a_minus.connect(a_minus, properties={'alias': f'A{i}-'})
+
+        # Create WU with Polarity
+        wu, _ = create_wu_from_components(
+            t=t_comp,
+            a=a_comp,
+            t_plus=t_plus,
+            t_minus=t_minus,
+            a_plus=a_plus,
+            a_minus=a_minus,
+            intent=f"mode_{i}",
+        )
 
         wus.append((wu, t_comp, a_comp))
 
-    # Create Nexus and connect WUs
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    for wu, _, _ in wus:
-        wu.nexus.connect(nexus)
+    # Use helper to create Cycle+Wheel setup (new model: no Nexus)
+    wu_list = [w[0] for w in wus]
+    cycle, wheel, _ = create_cycle_wheel_setup(
+        wus=wu_list,
+        components_for_transitions=a_comps,  # Use A components for transitions
+        cycle_intent="preset:balanced",
+        wheel_intent=f"wheel_{random.random()}",
+    )
 
-    # Create Cycle and connect to Nexus
-    cycle = Cycle(intent="preset:balanced")
-    cycle.save()
-    nexus.cycles.connect(cycle)
-
-    # Create transitions: T0 → T1 → T0
-    transitions = []
-    for i in range(2):
-        trans = Transition()
-        trans.set_source(t_comps[i]).set_target(t_comps[(i + 1) % 2])
-        trans.commit()
-        trans.cycle.connect(cycle)
-        transitions.append(trans)
-
-    # Create Wheel first
-    wheel = Wheel(intent=f"wheel_{random.random()}")
-    wheel.save()
-
-    # Create wheel transitions using the A components from WUs (which are already connected)
-    a_comps = [wu_tuple[2] for wu_tuple in wus]  # Get the a_comp from each WU tuple
-    for i in range(2):
-        wheel_trans = Transition()
-        wheel_trans.set_source(a_comps[i]).set_target(a_comps[(i + 1) % 2])
-        wheel_trans.commit()
-        wheel_trans.cycle.connect(wheel)
-
-    # Now connect Wheel to Cycle
-    cycle.wheels.connect(wheel)
-
-    # Test 1: By alias
-    seg_t0 = wheel.segment_at("T0")
+    # Test 1: By component (T components)
+    seg_t0 = wheel.segment_at(t_comps[0])
     assert isinstance(seg_t0, WheelSegment)
     assert seg_t0.side == 'T'
     assert seg_t0.wisdom_unit.hash == wus[0][0].hash
 
-    seg_a1 = wheel.segment_at("A1")
+    seg_a1 = wheel.segment_at(wus[1][2])  # A component of second WU
     assert seg_a1.side == 'A'
     assert seg_a1.wisdom_unit.hash == wus[1][0].hash
 
-    # Test 2: By component
+    # Test 2: By component (from wus tuple)
     seg_by_comp = wheel.segment_at(wus[0][1])  # T component of first WU
     assert seg_by_comp.side == 'T'
     assert seg_by_comp.wisdom_unit.hash == wus[0][0].hash
@@ -1277,30 +1200,33 @@ def test_wheel_segment_at():
     assert seg_by_a_comp.side == 'A'
     assert seg_by_a_comp.wisdom_unit.hash == wus[1][0].hash
 
-    print("✓ Wheel.segment_at() supports alias/component lookup")
+    print("✓ Wheel.segment_at() supports component lookup")
 
 
 def test_wheel_segment_is_same():
     """Test WheelSegment.is_same() comparison."""
-    wu1 = WisdomUnit(intent="test1")
-    wu1.save()
-
-    wu2 = WisdomUnit(intent="test2")
-    wu2.save()
-
-    # Create unique T-side components for each WU
-    for idx, wu in enumerate([wu1, wu2]):
-        t_comp = DialecticalComponent(statement=f"Thesis WU{idx}")
+    # Create WUs using helper
+    wus = []
+    for idx in range(2):
+        t_comp = DialecticalComponent(statement=f"Thesis WU{idx}", meaning="test")
         t_comp.commit()
-        wu.t.connect(t_comp, properties={'alias': 'T'})
-
-        t_plus = DialecticalComponent(statement=f"T+ WU{idx}")
+        t_plus = DialecticalComponent(statement=f"T+ WU{idx}", meaning="test")
         t_plus.commit()
-        wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-
-        t_minus = DialecticalComponent(statement=f"T- WU{idx}")
+        t_minus = DialecticalComponent(statement=f"T- WU{idx}", meaning="test")
         t_minus.commit()
-        wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
+        a_comp = DialecticalComponent(statement=f"Antithesis WU{idx}", meaning="test")
+        a_comp.commit()
+
+        wu, _ = create_wu_from_components(
+            t=t_comp,
+            a=a_comp,
+            t_plus=t_plus,
+            t_minus=t_minus,
+            intent=f"test{idx+1}",
+        )
+        wus.append(wu)
+
+    wu1, wu2 = wus
 
     # Extract segments
     seg1 = wu1.segment_t
@@ -1317,34 +1243,33 @@ def test_wheel_segment_is_same():
 
 def test_wheel_segment_is_set():
     """Test WheelSegment.is_set() method."""
-    wu = WisdomUnit(intent="test")
-    wu.save()
-
-    # Create T-side components
-    t_comp = DialecticalComponent(statement="Thesis")
+    # Create components
+    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
     t_comp.commit()
-    wu.t.connect(t_comp, properties={'alias': 'T1'})
-
-    t_plus = DialecticalComponent(statement="T+")
+    t_plus = DialecticalComponent(statement="T+", meaning="test")
     t_plus.commit()
-    wu.t_plus.connect(t_plus, properties={'alias': 'T1+'})
-
-    # Create A-side component
-    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
     a_comp.commit()
-    wu.a.connect(a_comp, properties={'alias': 'A1'})
+
+    # Create WU with Polarity
+    wu, _ = create_wu_from_components(
+        t=t_comp,
+        a=a_comp,
+        t_plus=t_plus,
+        intent="test",
+    )
 
     # Get segments
     t_seg = wu.segment_t
     a_seg = wu.segment_a
 
-    # Test is_set by alias
-    assert t_seg.is_set("T1")
-    assert t_seg.is_set("T1+")
-    assert not t_seg.is_set("A1")  # A component not in T segment
+    # Test is_set by alias (default aliases from helper)
+    assert t_seg.is_set("T")
+    assert t_seg.is_set("T+")
+    assert not t_seg.is_set("A")  # A component not in T segment
 
-    assert a_seg.is_set("A1")
-    assert not a_seg.is_set("T1")  # T component not in A segment
+    assert a_seg.is_set("A")
+    assert not a_seg.is_set("T")  # T component not in A segment
 
     # Test is_set by component
     assert t_seg.is_set(t_comp)
@@ -1358,157 +1283,99 @@ def test_wheel_segment_is_set():
 
 
 def test_wheel_wisdom_unit_at_segment():
-    """Test Wheel.wisdom_unit_at() with WheelSegment."""
-    # Create 2 wisdom units with components
+    """Test Wheel.polar_segment_at() with WheelSegment."""
+    # Create 2 wisdom units with components using Polarity
     wus = []
-    t_comps = []
     a_comps = []
     for i in range(2):
-        wu = WisdomUnit(intent=f"mode_{i}")
-        wu.save()
-
-        # Add minimal components
-        t = DialecticalComponent(statement=f"T{i}")
+        # Create components
+        t = DialecticalComponent(statement=f"T{i}", meaning="test")
         t.commit()
-        wu.t.connect(t, properties={'alias': f'T{i}'})
-        t_comps.append(t)
 
-        t_plus = DialecticalComponent(statement=f"T{i}+")
+        t_plus = DialecticalComponent(statement=f"T{i}+", meaning="test")
         t_plus.commit()
-        wu.t_plus.connect(t_plus, properties={'alias': f'T{i}+'})
-
-        t_minus = DialecticalComponent(statement=f"T{i}-")
+        t_minus = DialecticalComponent(statement=f"T{i}-", meaning="test")
         t_minus.commit()
-        wu.t_minus.connect(t_minus, properties={'alias': f'T{i}-'})
 
-        a = DialecticalComponent(statement=f"A{i}")
+        a = DialecticalComponent(statement=f"A{i}", meaning="test")
         a.commit()
-        wu.a.connect(a, properties={'alias': f'A{i}'})
         a_comps.append(a)
 
-        a_plus = DialecticalComponent(statement=f"A{i}+")
+        a_plus = DialecticalComponent(statement=f"A{i}+", meaning="test")
         a_plus.commit()
-        wu.a_plus.connect(a_plus, properties={'alias': f'A{i}+'})
-
-        a_minus = DialecticalComponent(statement=f"A{i}-")
+        a_minus = DialecticalComponent(statement=f"A{i}-", meaning="test")
         a_minus.commit()
-        wu.a_minus.connect(a_minus, properties={'alias': f'A{i}-'})
 
+        # Create WU with Polarity
+        wu, _ = create_wu_from_components(
+            t=t,
+            a=a,
+            t_plus=t_plus,
+            t_minus=t_minus,
+            a_plus=a_plus,
+            a_minus=a_minus,
+            intent=f"mode_{i}",
+        )
         wus.append(wu)
 
-    # Create Nexus and connect WUs
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    for wu in wus:
-        wu.nexus.connect(nexus)
-
-    # Create Cycle and connect to Nexus
-    cycle = Cycle(intent="preset:balanced")
-    cycle.save()
-    nexus.cycles.connect(cycle)
-
-    # Create transitions: T0 → T1 → T0
-    transitions = []
-    for i in range(2):
-        trans = Transition()
-        trans.set_source(t_comps[i]).set_target(t_comps[(i + 1) % 2])
-        trans.commit()
-        trans.cycle.connect(cycle)
-        transitions.append(trans)
-
-    # Create Wheel first
-    wheel = Wheel(intent=f"wheel_{random.random()}")
-    wheel.save()
-
-    # Create wheel transitions using A components (which are connected to WUs)
-    for i in range(2):
-        wheel_trans = Transition()
-        wheel_trans.set_source(a_comps[i]).set_target(a_comps[(i + 1) % 2])
-        wheel_trans.commit()
-        wheel_trans.cycle.connect(wheel)
-
-    # Now connect Wheel to Cycle
-    cycle.wheels.connect(wheel)
+    # Use helper to create Cycle+Wheel setup (new model: no Nexus)
+    cycle, wheel, _ = create_cycle_wheel_setup(
+        wus=wus,
+        components_for_transitions=a_comps,  # Use A components for transitions
+        cycle_intent="preset:balanced",
+        wheel_intent=f"wheel_{random.random()}",
+    )
 
     # Get segments
     t_seg_1 = wus[1].segment_t
     a_seg_0 = wus[0].segment_a
 
-    # Test wisdom_unit_at with WheelSegment
-    found_wu = wheel.wisdom_unit_at(t_seg_1)
-    assert found_wu.hash == wus[1].hash
+    # Test polar_segment_at with WheelSegment - returns polar pair
+    found_pair = wheel.polar_segment_at(t_seg_1)
+    assert found_pair.wisdom_unit.hash == wus[1].hash
 
-    found_wu = wheel.wisdom_unit_at(a_seg_0)
-    assert found_wu.hash == wus[0].hash
+    found_pair = wheel.polar_segment_at(a_seg_0)
+    assert found_pair.wisdom_unit.hash == wus[0].hash
 
-    print("✓ Wheel.wisdom_unit_at() works with WheelSegment")
+    print("✓ Wheel.polar_segment_at() works with WheelSegment")
 
 
 def test_wheel_is_set():
     """Test Wheel.is_set() method."""
-    # Create WisdomUnit
-    wu = WisdomUnit(intent="test")
-    wu.save()
-
-    # Add components
-    t = DialecticalComponent(statement="T")
+    # Create all required components
+    t = DialecticalComponent(statement="T", meaning="test")
     t.commit()
-    wu.t.connect(t, properties={'alias': 'T'})
-
-    t_plus = DialecticalComponent(statement="T+")
+    t_plus = DialecticalComponent(statement="T+", meaning="test")
     t_plus.commit()
-    wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-
-    a = DialecticalComponent(statement="A")
-    a.commit()
-    wu.a.connect(a, properties={'alias': 'A'})
-
-    # Create Nexus and connect WU
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu.nexus.connect(nexus)
-
-    # Create Cycle and connect to Nexus
-    cycle = Cycle(intent="preset:balanced")
-    cycle.save()
-    nexus.cycles.connect(cycle)
-
-    # Create transitions: T → A → T (minimal cycle)
-    trans1 = Transition()
-    trans1.set_source(t).set_target(a)
-    trans1.commit()
-    trans1.cycle.connect(cycle)
-
-    trans2 = Transition()
-    trans2.set_source(a).set_target(t)
-    trans2.commit()
-    trans2.cycle.connect(cycle)
-
-    # Create Wheel first
-    wheel = Wheel(intent=f"wheel_{random.random()}")
-    wheel.save()
-
-    # Create unique wheel transitions with different components
-    t_wheel = DialecticalComponent(statement="T wheel specific")
+    t_wheel = DialecticalComponent(statement="T wheel specific (T-)", meaning="test")
     t_wheel.commit()
-    wu.t_minus.connect(t_wheel, properties={'alias': 'T-'})
-
-    a_wheel = DialecticalComponent(statement="A wheel specific")
+    a = DialecticalComponent(statement="A", meaning="test")
+    a.commit()
+    a_wheel = DialecticalComponent(statement="A wheel specific (A+)", meaning="test")
     a_wheel.commit()
-    wu.a_plus.connect(a_wheel, properties={'alias': 'A+'})
+    a_minus = DialecticalComponent(statement="A-", meaning="test")
+    a_minus.commit()
 
-    wheel_trans1 = Transition()
-    wheel_trans1.set_source(t_wheel).set_target(a_wheel)
-    wheel_trans1.commit()
-    wheel_trans1.cycle.connect(wheel)
+    # Create WU with Polarity and all poles
+    wu, _ = create_wu_from_components(
+        t=t,
+        a=a,
+        t_plus=t_plus,
+        t_minus=t_wheel,
+        a_plus=a_wheel,
+        a_minus=a_minus,
+        intent="test",
+    )
+    wu.commit()
 
-    wheel_trans2 = Transition()
-    wheel_trans2.set_source(a_wheel).set_target(t_wheel)
-    wheel_trans2.commit()
-    wheel_trans2.cycle.connect(wheel)
-
-    # Now connect Wheel to Cycle
-    cycle.wheels.connect(wheel)
+    # Use helper to create Cycle+Wheel setup (new model: no Nexus)
+    # Use t_wheel and a_wheel for transitions since they're connected to WU as T- and A+
+    cycle, wheel, _ = create_cycle_wheel_setup(
+        wus=[wu],
+        components_for_transitions=[t_wheel, a_wheel],  # T- → A+ → T-
+        cycle_intent="preset:balanced",
+        wheel_intent=f"wheel_{random.random()}",
+    )
 
     # Test with alias - wheel transitions use T- and A+ components
     assert wheel.is_set('T-') is True
@@ -1532,35 +1399,34 @@ def test_dialectical_component_repository_find_by_wisdom_unit():
     """Test DialecticalComponentRepository.find_by_wisdom_unit()."""
     from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
 
-    # Create wisdom unit
-    wu = WisdomUnit(intent="test")
-    wu.save()
-
-    # Create and connect components
-    t_comp = DialecticalComponent(statement="Thesis")
+    # Create components
+    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
     t_comp.commit()
-    wu.t.connect(t_comp, properties={'alias': 'T1'})
-
-    t_plus_comp = DialecticalComponent(statement="Thesis positive")
+    t_plus_comp = DialecticalComponent(statement="Thesis positive", meaning="test")
     t_plus_comp.commit()
-    wu.t_plus.connect(t_plus_comp, properties={'alias': 'T1+'})
-
-    a_comp = DialecticalComponent(statement="Antithesis")
+    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
     a_comp.commit()
-    wu.a.connect(a_comp, properties={'alias': 'A1'})
+
+    # Create WU with Polarity
+    wu, _ = create_wu_from_components(
+        t=t_comp,
+        a=a_comp,
+        t_plus=t_plus_comp,
+        intent="test",
+    )
 
     # Use repository to find components
     repo = DialecticalComponentRepository()
     results = repo.find_by_wisdom_unit(wu)
 
-    # Verify results
+    # Verify results (T, A through Polarity + T+ connected to WU)
     assert len(results) == 3
 
-    # Check that all expected aliases are present
+    # Check that all expected aliases are present (default aliases from helper)
     aliases = [alias for _, alias in results]
-    assert 'T1' in aliases
-    assert 'T1+' in aliases
-    assert 'A1' in aliases
+    assert 'T' in aliases
+    assert 'T+' in aliases
+    assert 'A' in aliases
 
     # Verify component UIDs match
     component_uids = {comp.hash for comp, _ in results}
@@ -1579,33 +1445,30 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     db = di_container.graph_db()
 
     # ========== Test 1: Isolated WU deletion (should delete) ==========
-    wu_isolated = WisdomUnit(intent="test_isolated")
-    wu_isolated.save()
-
     # Create components
     t = DialecticalComponent(statement="Isolated thesis", meaning="meaning:T")
     t.commit()
-    wu_isolated.t.connect(t, properties={'alias': 'T'})
-
     t_plus = DialecticalComponent(statement="Isolated T+", meaning="meaning:T+")
     t_plus.commit()
-    wu_isolated.t_plus.connect(t_plus, properties={'alias': 'T+'})
-
     t_minus = DialecticalComponent(statement="Isolated T-", meaning="meaning:T-")
     t_minus.commit()
-    wu_isolated.t_minus.connect(t_minus, properties={'alias': 'T-'})
-
     a = DialecticalComponent(statement="Isolated antithesis", meaning="meaning:A")
     a.commit()
-    wu_isolated.a.connect(a, properties={'alias': 'A'})
-
     a_plus = DialecticalComponent(statement="Isolated A+", meaning="meaning:A+")
     a_plus.commit()
-    wu_isolated.a_plus.connect(a_plus, properties={'alias': 'A+'})
-
     a_minus = DialecticalComponent(statement="Isolated A-", meaning="meaning:A-")
     a_minus.commit()
-    wu_isolated.a_minus.connect(a_minus, properties={'alias': 'A-'})
+
+    # Create WU with Polarity
+    wu_isolated, _ = create_wu_from_components(
+        t=t,
+        a=a,
+        t_plus=t_plus,
+        t_minus=t_minus,
+        a_plus=a_plus,
+        a_minus=a_minus,
+        intent="test_isolated",
+    )
 
     # Commit WU (computes hash) so we can add rationales
     wu_isolated.commit()
@@ -1645,26 +1508,29 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 1: Isolated WU deleted successfully")
 
     # ========== Test 2: Shared component (should NOT delete) ==========
-    wu_shared_1 = WisdomUnit(intent="shared_1")
-    wu_shared_1.save()
-
-    wu_shared_2 = WisdomUnit(intent="shared_2")
-    wu_shared_2.save()
-
-    # Create shared component
+    # Create shared component (used by both WUs)
     shared_comp = DialecticalComponent(statement="Shared thesis", meaning="meaning:T")
     shared_comp.commit()
 
-    # Connect to both WUs
-    wu_shared_1.t.connect(shared_comp, properties={'alias': 'T1'})
-    wu_shared_2.t.connect(shared_comp, properties={'alias': 'T2'})
+    # Create unique A components for each WU
+    a1 = DialecticalComponent(statement="A1", meaning="meaning:A1")
+    a1.commit()
+    a2 = DialecticalComponent(statement="A2", meaning="meaning:A2")
+    a2.commit()
 
-    # Add other required components to wu_shared_1
-    for pos, stmt in [('t_plus', 'T1+'), ('t_minus', 'T1-'),
-                       ('a', 'A1'), ('a_plus', 'A1+'), ('a_minus', 'A1-')]:
-        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(wu_shared_1, pos).connect(comp, properties={'alias': stmt})
+    # Create WU1 with shared T component
+    wu_shared_1, _ = create_wu_from_components(
+        t=shared_comp,
+        a=a1,
+        intent="shared_1",
+    )
+
+    # Create WU2 with same shared T component
+    wu_shared_2, _ = create_wu_from_components(
+        t=shared_comp,
+        a=a2,
+        intent="shared_2",
+    )
 
     # Check isolation (should be False - shared component)
     assert not repo.is_isolated(wu_shared_1), "WU with shared component should not be isolated"
@@ -1703,18 +1569,16 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 2: GC mode deleted WU but preserved shared component")
 
     # ========== Test 2b: Conservative mode with shared component (should NOT delete) ==========
-    wu_shared_3 = WisdomUnit(intent="shared_3")
-    wu_shared_3.save()
+    # Create unique A component for wu_shared_3
+    a3 = DialecticalComponent(statement="A3", meaning="meaning:A3")
+    a3.commit()
 
-    # Create shared component (reuse the same one)
-    wu_shared_3.t.connect(shared_comp, properties={'alias': 'T3'})
-
-    # Add other required components
-    for pos, stmt in [('t_plus', 'T3+'), ('t_minus', 'T3-'),
-                       ('a', 'A3'), ('a_plus', 'A3+'), ('a_minus', 'A3-')]:
-        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(wu_shared_3, pos).connect(comp, properties={'alias': stmt})
+    # Create WU3 with shared T component
+    wu_shared_3, _ = create_wu_from_components(
+        t=shared_comp,
+        a=a3,
+        intent="shared_3",
+    )
 
     # Check is_shared
     assert repo.is_shared(wu_shared_3), "WU should have shared components"
@@ -1733,20 +1597,30 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     print("✓ Test 2b: Conservative mode preserved WU with shared component")
 
     # ========== Test 3: HAS_STATEMENT boundary (should disconnect, conditionally delete) ==========
-    wu_boundary = WisdomUnit(intent="boundary_test")
-    wu_boundary.save()
-
-    # Create WU components
+    # Create components for boundary test
     t_boundary = DialecticalComponent(statement="Boundary thesis", meaning="meaning:T")
     t_boundary.commit()
-    wu_boundary.t.connect(t_boundary, properties={'alias': 'T'})
+    a_boundary = DialecticalComponent(statement="Boundary antithesis", meaning="meaning:A")
+    a_boundary.commit()
+    t_plus_boundary = DialecticalComponent(statement="T+", meaning="meaning:T+")
+    t_plus_boundary.commit()
+    t_minus_boundary = DialecticalComponent(statement="T-", meaning="meaning:T-")
+    t_minus_boundary.commit()
+    a_plus_boundary = DialecticalComponent(statement="A+", meaning="meaning:A+")
+    a_plus_boundary.commit()
+    a_minus_boundary = DialecticalComponent(statement="A-", meaning="meaning:A-")
+    a_minus_boundary.commit()
 
-    # Add other required components
-    for pos, stmt in [('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(wu_boundary, pos).connect(comp, properties={'alias': stmt})
+    # Create WU with Polarity
+    wu_boundary, _ = create_wu_from_components(
+        t=t_boundary,
+        a=a_boundary,
+        t_plus=t_plus_boundary,
+        t_minus=t_minus_boundary,
+        a_plus=a_plus_boundary,
+        a_minus=a_minus_boundary,
+        intent="boundary_test",
+    )
 
     # Commit WU so we can add rationales
     wu_boundary.commit()
@@ -2199,7 +2073,7 @@ def test_feasibility_estimation_fallback(di_container):
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
 
-    component = DialecticalComponent(statement=f"Test feasibility fallback {random.random()}")
+    component = DialecticalComponent(statement=f"Test feasibility fallback {random.random()}", meaning="test")
     component.commit()
 
     # Add FeasibilityEstimation with unique value
@@ -2219,7 +2093,7 @@ def test_relevance_estimation_priority(di_container):
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation, RelevanceEstimation
 
-    component = DialecticalComponent(statement=f"Test relevance priority {random.random()}")
+    component = DialecticalComponent(statement=f"Test relevance priority {random.random()}", meaning="test")
     component.commit()
 
     # Add both estimations with unique values
@@ -2248,7 +2122,7 @@ def test_calculated_relevance_priority(di_container):
         CalculatedRelevanceEstimation
     )
 
-    component = DialecticalComponent(statement=f"Test calculated relevance {random.random()}")
+    component = DialecticalComponent(statement=f"Test calculated relevance {random.random()}", meaning="test")
     component.commit()
 
     # Add manual estimations with unique values
@@ -2280,7 +2154,7 @@ def test_multiple_feasibility_estimations(di_container):
     from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
     import math
 
-    component = DialecticalComponent(statement=f"Test multi feas {random.random()}")
+    component = DialecticalComponent(statement=f"Test multi feas {random.random()}", meaning="test")
     component.commit()
 
     # Add multiple FeasibilityEstimations with unique values
@@ -2305,40 +2179,62 @@ def test_multiple_feasibility_estimations(di_container):
 # Bidirectional Cardinality Enforcement Tests
 # =============================================================================
 
-def test_wu_multiple_transformations():
+def test_wheel_multiple_transformations():
     """
-    Test that WisdomUnit can have multiple transformations (cardinality 0,N).
+    Test that Wheel can have multiple transformations (cardinality 0,N).
 
     Many Ac-Re paths → ONE S+ (synthesis emerges from T-A pair itself).
     """
     from dialectical_framework.graph.nodes.transformation import Transformation
 
-    # Create WisdomUnit with all required components
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-
-    # Add required components
-    components = []
+    # Create components for WisdomUnit
     uid = random.random()
+    components = []
     for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
-        c = DialecticalComponent(statement=f"Multi trans WU {stmt} {uid}", meaning=f"meaning:{stmt}")
+        c = DialecticalComponent(statement=f"Multi trans Wheel {stmt} {uid}", meaning=f"meaning:{stmt}")
         c.commit()
         components.append(c)
 
-    wu.t.connect(components[0], properties={'alias': 'T'})
-    wu.t_plus.connect(components[1], properties={'alias': 'T+'})
-    wu.t_minus.connect(components[2], properties={'alias': 'T-'})
-    wu.a.connect(components[3], properties={'alias': 'A'})
-    wu.a_plus.connect(components[4], properties={'alias': 'A+'})
-    wu.a_minus.connect(components[5], properties={'alias': 'A-'})
-
-    # Commit WU first
+    # Create WU with Polarity using helper
+    wu, _ = create_wu_from_components(
+        t=components[0],
+        a=components[3],
+        t_plus=components[1],
+        t_minus=components[2],
+        a_plus=components[4],
+        a_minus=components[5],
+        intent=f"wu_{random.random()}",
+    )
     wu.commit()
 
-    # Helper to create required transitions (Ac+ and Re+) for a transformation
+    # Create Cycle
+    cycle = Cycle(intent="preset:balanced")
+    cycle.set_wisdom_units([wu])
+    cycle.commit()
+
+    # Create Wheel
+    wheel = Wheel(intent=f"wheel_{uid}")
+    wheel.save()
+
+    # Add wheel-level transitions (required before connecting to cycle)
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.relationships.polarity_relationship import AcPlusRelationship, RePlusRelationship
 
+    wheel_trans1 = Transition()
+    wheel_trans1.set_source(components[0]).set_target(components[3])  # T → A
+    wheel_trans1.commit()
+    wheel_trans1.cycle.connect(wheel)
+
+    wheel_trans2 = Transition()
+    wheel_trans2.set_source(components[3]).set_target(components[0])  # A → T
+    wheel_trans2.commit()
+    wheel_trans2.cycle.connect(wheel)
+
+    # Now connect wheel to cycle and commit it
+    cycle.wheels.connect(wheel)
+    wheel.commit()  # Wheel must be committed before transformations can use its hash
+
+    # Helper to create required transitions (Ac+ and Re+) for a transformation
     def add_required_transitions(trans: Transformation) -> None:
         """Add Ac+ (T- → A+) and Re+ (A- → T+) transitions - the minimum required."""
         # Ac+: T- → A+
@@ -2355,77 +2251,61 @@ def test_wu_multiple_transformations():
         re_plus_trans.commit()
         trans.re_plus.connect(re_plus_trans, relationship=RePlusRelationship(alias="Re+"))
 
-    # Create first transformation and connect to WU - should succeed
+    # Create first transformation and connect to Wheel - should succeed
     trans1 = Transformation(intent=f"multi_trans1_{uid}")
-    trans1.set_wisdom_unit(wu)
+    trans1.set_wheel(wheel)
     trans1.save()
     add_required_transitions(trans1)
     trans1.commit()
 
     # Verify first transformation is connected
-    assert wu.transformations.count() == 1, "WU should have 1 transformation"
+    assert wheel.transformations.count() == 1, "Wheel should have 1 transformation"
 
-    # Create second transformation and connect to SAME WU - should also succeed (0,N cardinality)
+    # Create second transformation and connect to SAME Wheel - should also succeed (0,N cardinality)
     trans2 = Transformation(intent=f"multi_trans2_{uid}")
-    trans2.set_wisdom_unit(wu)
+    trans2.set_wheel(wheel)
     trans2.save()
     add_required_transitions(trans2)
     trans2.commit()
 
     # Verify both transformations are connected
-    assert wu.transformations.count() == 2, "WU should now have 2 transformations"
+    assert wheel.transformations.count() == 2, "Wheel should now have 2 transformations"
 
-    print("✓ WisdomUnit can have multiple transformations (0,N cardinality)")
+    print("✓ Wheel can have multiple transformations (0,N cardinality)")
 
 
 # =============================================================================
 # Cardinality Validation Tests
 # =============================================================================
 
-def test_cycle_cardinality_validation():
-    """Test that Cycle._transitions cardinality (2, None) is validated correctly."""
+def test_cycle_requires_wisdom_units():
+    """Test that Cycle requires at least one WisdomUnit to commit."""
     from dialectical_framework.graph.nodes.cycle import Cycle
 
-    uid = random.random()
-
-    # Create cycle with no transitions
+    # Create cycle without WUs
     cycle = Cycle(intent="preset:balanced")
-    cycle.save()
 
-    # 0 transitions - should be invalid (min is 2)
-    assert not cycle._transitions.is_cardinality_valid(), "Cycle with 0 transitions should be invalid"
+    # Should fail to commit without WUs
+    with pytest.raises(ValueError, match="Cycle must have WisdomUnits"):
+        cycle.commit()
 
-    # Add 1 transition
-    t1 = DialecticalComponent(statement=f"Cycle card T1 {uid}")
-    t1.commit()
-    trans1 = Transition()
-    trans1.set_source(t1).set_target(t1)
-    trans1.commit()
-    trans1.cycle.connect(cycle)
+    # Create and commit a WU
+    wu, _, _ = create_wisdom_unit_with_polarity(
+        t_statement="Thesis", a_statement="Antithesis",
+        t_plus_statement="T+", t_minus_statement="T-",
+        a_plus_statement="A+", a_minus_statement="A-",
+        intent=f"wu_{random.random()}"
+    )
+    wu.commit()
 
-    # 1 transition - should still be invalid (min is 2)
-    assert not cycle._transitions.is_cardinality_valid(), "Cycle with 1 transition should be invalid"
+    # Now set WUs and commit should work
+    cycle.set_wisdom_units([wu])
+    cycle.commit()
 
-    # Add 2nd transition
-    t2 = DialecticalComponent(statement=f"Cycle card T2 {uid}")
-    t2.commit()
-    trans2 = Transition()
-    trans2.set_source(t1).set_target(t2)
-    trans2.commit()
-    trans2.cycle.connect(cycle)
+    assert cycle.wisdom_unit_count == 1
+    assert cycle.is_committed
 
-    # 2 transitions - should be valid (meets minimum)
-    assert cycle._transitions.is_cardinality_valid(), "Cycle with 2 transitions should be valid"
-
-    # Add 3rd transition - should still be valid (no max)
-    trans3 = Transition()
-    trans3.set_source(t2).set_target(t1)
-    trans3.commit()
-    trans3.cycle.connect(cycle)
-
-    assert cycle._transitions.is_cardinality_valid(), "Cycle with 3 transitions should be valid"
-
-    print("✓ Cycle cardinality validation works correctly")
+    print("✓ Cycle requires at least one WisdomUnit to commit")
 
 
 def test_transformation_six_positions():
@@ -2445,21 +2325,53 @@ def test_transformation_six_positions():
 
     uid = random.random()
 
-    # Create WisdomUnit first (required for Transformation)
-    wu = WisdomUnit(intent=f"trans_six_{uid}")
-    wu.save()
+    # Create components for WisdomUnit
     wu_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
         comp = DialecticalComponent(statement=f"Trans six WU {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(wu, pos).connect(comp, properties={'alias': stmt})
         wu_comps[pos] = comp
+
+    # Create WU with Polarity
+    wu, _ = create_wu_from_components(
+        t=wu_comps['t'],
+        a=wu_comps['a'],
+        t_plus=wu_comps['t_plus'],
+        t_minus=wu_comps['t_minus'],
+        a_plus=wu_comps['a_plus'],
+        a_minus=wu_comps['a_minus'],
+        intent=f"trans_six_{uid}",
+    )
     wu.commit()
+
+    # Create Cycle
+    cycle = Cycle(intent="preset:balanced")
+    cycle.set_wisdom_units([wu])
+    cycle.commit()
+
+    # Create Wheel
+    wheel = Wheel(intent=f"wheel_{uid}")
+    wheel.save()
+
+    # Add wheel-level transitions (required before connecting to cycle)
+    wheel_trans1 = Transition()
+    wheel_trans1.set_source(wu_comps['t']).set_target(wu_comps['a'])
+    wheel_trans1.commit()
+    wheel_trans1.cycle.connect(wheel)
+
+    wheel_trans2 = Transition()
+    wheel_trans2.set_source(wu_comps['a']).set_target(wu_comps['t'])
+    wheel_trans2.commit()
+    wheel_trans2.cycle.connect(wheel)
+
+    # Now connect wheel to cycle and commit it
+    cycle.wheels.connect(wheel)
+    wheel.commit()  # Wheel must be committed before transformations can use its hash
 
     # Create transformation with 6 transition positions
     transformation = Transformation(intent="test_6_positions")
-    transformation.set_wisdom_unit(wu)
+    transformation.set_wheel(wheel)
     transformation.save()
 
     # Define transitions: position -> (source_pos, target_pos)
@@ -2508,21 +2420,53 @@ def test_transformation_incomplete():
 
     uid = random.random()
 
-    # Create WisdomUnit first (required for Transformation)
-    wu = WisdomUnit(intent=f"trans_incomplete_{uid}")
-    wu.save()
+    # Create components for WisdomUnit
     wu_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
         comp = DialecticalComponent(statement=f"Trans incomplete WU {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(wu, pos).connect(comp, properties={'alias': stmt})
         wu_comps[pos] = comp
+
+    # Create WU with Polarity
+    wu, _ = create_wu_from_components(
+        t=wu_comps['t'],
+        a=wu_comps['a'],
+        t_plus=wu_comps['t_plus'],
+        t_minus=wu_comps['t_minus'],
+        a_plus=wu_comps['a_plus'],
+        a_minus=wu_comps['a_minus'],
+        intent=f"trans_incomplete_{uid}",
+    )
     wu.commit()
+
+    # Create Cycle
+    cycle = Cycle(intent="preset:balanced")
+    cycle.set_wisdom_units([wu])
+    cycle.commit()
+
+    # Create Wheel
+    wheel = Wheel(intent=f"wheel_{uid}")
+    wheel.save()
+
+    # Add wheel-level transitions (required before connecting to cycle)
+    from dialectical_framework.graph.nodes.transition import Transition as Trans
+    wheel_trans1 = Trans()
+    wheel_trans1.set_source(wu_comps['t']).set_target(wu_comps['a'])
+    wheel_trans1.commit()
+    wheel_trans1.cycle.connect(wheel)
+
+    wheel_trans2 = Trans()
+    wheel_trans2.set_source(wu_comps['a']).set_target(wu_comps['t'])
+    wheel_trans2.commit()
+    wheel_trans2.cycle.connect(wheel)
+
+    # Now connect wheel to cycle
+    cycle.wheels.connect(wheel)
 
     # Create transformation with only Ac position (missing required Ac+ and Re+)
     transformation = Transformation(intent="test_incomplete")
-    transformation.set_wisdom_unit(wu)
+    transformation.set_wheel(wheel)
     transformation.save()
 
     # Add only one transition (Ac: T → A) - optional position
@@ -2556,7 +2500,7 @@ def test_input_transforms_to_dx_reference_when_component_exists():
     statement = f"Democracy empowers citizens {uid}"
 
     # First, create a DialecticalComponent
-    comp = DialecticalComponent(statement=statement, sid="test-sid")
+    comp = DialecticalComponent(statement=statement, meaning="test", sid="test-sid")
     comp.commit()
 
     # Now create Input with the same content
@@ -2653,10 +2597,10 @@ def test_scope_vocabulary():
         brainstorm.inputs.connect(input_node)
 
         # Create component (inherits sid from scope context)
-        comp1 = DialecticalComponent(statement=f"Component 1 {uid}")
+        comp1 = DialecticalComponent(statement=f"Component 1 {uid}", meaning="test")
         comp1.commit()
 
-        comp2 = DialecticalComponent(statement=f"Component 2 {uid}")
+        comp2 = DialecticalComponent(statement=f"Component 2 {uid}", meaning="test")
         comp2.commit()
 
         # Get vocabulary - should include all components in scope
@@ -2668,153 +2612,6 @@ def test_scope_vocabulary():
         assert len(vocab) == 2, f"Expected 2 components, got {len(vocab)}"
 
     print("✅ Scope vocabulary correctly includes all components")
-
-
-def test_nexus_frozen_after_cycle():
-    """
-    Test that WisdomUnits cannot be added to a Nexus after Cycles have been created.
-
-    Once a Nexus has been "crystallized" into one or more Cycles, its WisdomUnit
-    membership should be frozen. This prevents semantic inconsistencies where
-    Cycles reference components that don't include newly added WUs.
-    """
-    from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.graph.relationships.polarity_relationship import (
-        TRelationship, ARelationship, TPlusRelationship, TMinusRelationship,
-        APlusRelationship, AMinusRelationship
-    )
-
-    uid = random.random()
-
-    # === Setup: Create Input with components ===
-
-    input_source = Input(content=f"https://example.com/frozen-nexus-test-{uid}")
-    input_source.commit()
-
-    # Create components for WU1
-    components_wu1 = {}
-    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        comp = DialecticalComponent(statement=f"Frozen WU1 {pos} {uid}")
-        comp.commit()
-        input_source.statements.connect(comp)
-        components_wu1[pos] = comp
-
-    # Create WU1 and connect all components
-    wu1 = WisdomUnit(intent="frozen_nexus_test_wu1")
-    wu1.save()
-    wu1.t.connect(components_wu1['t'], relationship=TRelationship(alias="T1"))
-    wu1.a.connect(components_wu1['a'], relationship=ARelationship(alias="A1"))
-    wu1.t_plus.connect(components_wu1['t_plus'], relationship=TPlusRelationship(alias="T1+"))
-    wu1.t_minus.connect(components_wu1['t_minus'], relationship=TMinusRelationship(alias="T1-"))
-    wu1.a_plus.connect(components_wu1['a_plus'], relationship=APlusRelationship(alias="A1+"))
-    wu1.a_minus.connect(components_wu1['a_minus'], relationship=AMinusRelationship(alias="A1-"))
-
-    # Create Nexus and pool WU1
-    nexus = Nexus(intent=f"nexus_{random.random()}")
-    nexus.save()
-    wu1.nexus.connect(nexus)
-
-    # === Test 1: Can add WU before Cycle exists ===
-
-    # Create components for WU2
-    components_wu2 = {}
-    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        comp = DialecticalComponent(statement=f"Frozen WU2 {pos} {uid}")
-        comp.commit()
-        input_source.statements.connect(comp)
-        components_wu2[pos] = comp
-
-    wu2 = WisdomUnit(intent="frozen_nexus_test_wu2")
-    wu2.save()
-    wu2.t.connect(components_wu2['t'], relationship=TRelationship(alias="T2"))
-    wu2.a.connect(components_wu2['a'], relationship=ARelationship(alias="A2"))
-    wu2.t_plus.connect(components_wu2['t_plus'], relationship=TPlusRelationship(alias="T2+"))
-    wu2.t_minus.connect(components_wu2['t_minus'], relationship=TMinusRelationship(alias="T2-"))
-    wu2.a_plus.connect(components_wu2['a_plus'], relationship=APlusRelationship(alias="A2+"))
-    wu2.a_minus.connect(components_wu2['a_minus'], relationship=AMinusRelationship(alias="A2-"))
-
-    # Should work - no Cycle yet
-    wu2.nexus.connect(nexus)
-    assert nexus.wisdom_units.count() == 2
-    print("✓ Test 1: Can add WU to Nexus before Cycle exists")
-
-    # === Test 2: Create Cycle - Nexus becomes frozen ===
-
-    cycle = Cycle()
-    cycle.save()
-    nexus.cycles.connect(cycle)
-
-    assert nexus.cycles.count() == 1
-    print("✓ Test 2: Cycle created and connected to Nexus")
-
-    # === Test 3: Cannot add WU after Cycle exists (via wu.nexus.connect) ===
-
-    # Create WU3
-    components_wu3 = {}
-    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        comp = DialecticalComponent(statement=f"Frozen WU3 {pos} {uid}")
-        comp.commit()
-        input_source.statements.connect(comp)
-        components_wu3[pos] = comp
-
-    wu3 = WisdomUnit(intent="frozen_nexus_test_wu3")
-    wu3.save()
-    wu3.t.connect(components_wu3['t'], relationship=TRelationship(alias="T3"))
-    wu3.a.connect(components_wu3['a'], relationship=ARelationship(alias="A3"))
-    wu3.t_plus.connect(components_wu3['t_plus'], relationship=TPlusRelationship(alias="T3+"))
-    wu3.t_minus.connect(components_wu3['t_minus'], relationship=TMinusRelationship(alias="T3-"))
-    wu3.a_plus.connect(components_wu3['a_plus'], relationship=APlusRelationship(alias="A3+"))
-    wu3.a_minus.connect(components_wu3['a_minus'], relationship=AMinusRelationship(alias="A3-"))
-
-    # Should FAIL - Nexus is frozen
-    with pytest.raises(ValueError, match="already has.*Cycle"):
-        wu3.nexus.connect(nexus)
-
-    print("✓ Test 3: Cannot add WU to frozen Nexus via wu.nexus.connect()")
-
-    # === Test 4: Cannot add WU after Cycle exists (via nexus.wisdom_units.connect) ===
-
-    # Create WU4
-    components_wu4 = {}
-    for pos in ['t', 'a', 't_plus', 't_minus', 'a_plus', 'a_minus']:
-        comp = DialecticalComponent(statement=f"Frozen WU4 {pos} {uid}")
-        comp.commit()
-        input_source.statements.connect(comp)
-        components_wu4[pos] = comp
-
-    wu4 = WisdomUnit(intent="frozen_nexus_test_wu4")
-    wu4.save()
-    wu4.t.connect(components_wu4['t'], relationship=TRelationship(alias="T4"))
-    wu4.a.connect(components_wu4['a'], relationship=ARelationship(alias="A4"))
-    wu4.t_plus.connect(components_wu4['t_plus'], relationship=TPlusRelationship(alias="T4+"))
-    wu4.t_minus.connect(components_wu4['t_minus'], relationship=TMinusRelationship(alias="T4-"))
-    wu4.a_plus.connect(components_wu4['a_plus'], relationship=APlusRelationship(alias="A4+"))
-    wu4.a_minus.connect(components_wu4['a_minus'], relationship=AMinusRelationship(alias="A4-"))
-
-    # Should FAIL - Nexus is frozen (testing the other direction)
-    with pytest.raises(ValueError, match="already has.*Cycle"):
-        nexus.wisdom_units.connect(wu4)
-
-    print("✓ Test 4: Cannot add WU to frozen Nexus via nexus.wisdom_units.connect()")
-
-    # === Test 5: Evolution pattern - create new Nexus for changes ===
-
-    # The correct way to "expand" a Nexus is to create a new one
-    # Evolution is tracked via origin_hash (not EXPANDED_TO relationship)
-    nexus2 = Nexus(intent=f"nexus2_{uid}", origin_hash=nexus.hash)
-    nexus2.save()
-
-    # Can add WUs to the new Nexus
-    wu3.nexus.connect(nexus2)
-    wu4.nexus.connect(nexus2)
-
-    assert nexus2.wisdom_units.count() == 2
-    assert nexus2.origin_hash == nexus.hash, "New Nexus should track origin via origin_hash"
-    print("✓ Test 5: Evolution pattern works - new Nexus can receive WUs (tracked via origin_hash)")
-
-    print("\n✅ All Nexus frozen validation tests passed!")
 
 
 # =============================================================================
@@ -2832,7 +2629,7 @@ def test_critique_chain_temporal_order():
     import time
 
     # Create base rationale explaining a component
-    component = DialecticalComponent(statement=f"Test comp {random.random()}")
+    component = DialecticalComponent(statement=f"Test comp {random.random()}", meaning="test")
     component.commit()
 
     base = Rationale(text=f"Base rationale {random.random()}")

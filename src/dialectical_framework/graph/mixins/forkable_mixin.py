@@ -17,21 +17,21 @@ if TYPE_CHECKING:
 
 class ForkableMixin(PersistableMixin):
     """
-    Mixin for forking points (WisdomUnit, Nexus).
+    Mixin for forking points (WisdomUnit).
 
     Provides:
     - origin_hash: Lineage tracking (parent's hash when forked)
     - branch: Mutable label for the fork tip (like git refs)
 
     Forking points are the reasoning foundations that can be explored
-    in alternative ways. When you fork a WisdomUnit or Nexus, the new
+    in alternative ways. When you fork a WisdomUnit, the new
     node gets origin_hash set to the source's hash, creating a lineage chain.
 
     Branch is mutable metadata that doesn't affect hash computation.
     It acts as a pointer to identify the tip of a lineage chain.
     Branch names can be hierarchical: "main", "main/feature", "main/feature/sub".
 
-    Used by: WisdomUnit, Nexus
+    Used by: WisdomUnit
 
     Example:
         # Fork a WisdomUnit to explore different framing

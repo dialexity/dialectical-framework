@@ -362,56 +362,12 @@ class BoundRelationshipManager(Generic[T]):
             f"Nodes in the same graph must belong to the same scope (Brainstorm)."
         )
 
-    def _validate_nexus_frozen_after_cycle(self, target_node: BaseNode) -> None:
-        """
-        Validate that WisdomUnits cannot be added to a Nexus that already has Cycles.
-
-        Once a Nexus has been "crystallized" into one or more Cycles, its WisdomUnit
-        membership is frozen. To add more WUs, clone the Nexus to create a new one
-        (lineage tracked via origin_hash).
-
-        This is called automatically by connect() for BELONGS_TO_NEXUS relationships.
-
-        Raises:
-            ValueError: If trying to add a WU to a Nexus that already has Cycles
-        """
-        from dialectical_framework.graph.nodes.nexus import Nexus
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-
-        # Determine which is the Nexus (could be source or target depending on direction)
-        # WU.nexus is RelationshipTo (outgoing from WU to Nexus)
-        # Nexus.wisdom_units is RelationshipFrom (incoming to Nexus from WU)
-        if self.relationship_type != "BELONGS_TO_NEXUS":
-            return  # Not a Nexus-WU connection
-
-        # Identify the Nexus in this connection
-        nexus = None
-        if isinstance(self.source_node, WisdomUnit) and isinstance(target_node, Nexus):
-            # wu.nexus.connect(nexus) - target is the Nexus
-            nexus = target_node
-        elif isinstance(self.source_node, Nexus) and isinstance(target_node, WisdomUnit):
-            # nexus.wisdom_units.connect(wu) - source is the Nexus
-            nexus = self.source_node
-
-        if nexus is None:
-            return  # Not a WU-Nexus connection
-
-        # Check if Nexus already has any Cycles
-        cycle_count = nexus.cycles.count()
-        if cycle_count > 0:
-            raise ValueError(
-                f"Cannot add WisdomUnit to Nexus: Nexus already has {cycle_count} Cycle(s). "
-                f"Once a Nexus has Cycles, its WisdomUnit membership is frozen. "
-                f"To evolve the Nexus, clone it to create a new Nexus with different WisdomUnits "
-                f"(lineage tracked via origin_hash)."
-            )
-
     def _validate_cycle_wheel_connection(self, target_node: BaseNode) -> None:
         """
         Validate Cycle <-> Wheel connections.
 
         When connecting a Cycle to a Wheel (or vice versa), validates that all
-        WisdomUnits referenced by the cycle are already connected to the wheel.
+        components in wheel's transitions belong to WUs in the cycle.
 
         This is called automatically by connect() - works regardless of which
         side initiates the connection.
@@ -427,25 +383,15 @@ class BoundRelationshipManager(Generic[T]):
         else:
             return  # Not a Cycle-Wheel connection, skip validation
 
-        # In the new architecture:
-        # - Wheel gets WUs via wheel → cycle → nexus → wisdom_units
-        # - When connecting, we validate that wheel's transitions reference
-        #   components from the cycle's nexus
-
-        # Get WisdomUnits from cycle's nexus
-        nexus = cycle.get_nexus()
-        if not nexus:
+        # Get WisdomUnits from cycle (Cycle now stores WUs directly as hashes)
+        cycle_wus = cycle.wisdom_units
+        if not cycle_wus:
             raise ValueError(
-                "Cannot connect cycle to wheel: cycle has no Nexus. "
-                "Connect the cycle to a Nexus first."
+                "Cannot connect cycle to wheel: cycle has no WisdomUnits. "
+                "Use cycle.set_wisdom_units() first."
             )
 
-        nexus_wu_ids = {wu.hash for wu, _ in nexus.wisdom_units.all()}
-        if not nexus_wu_ids:
-            raise ValueError(
-                "Cannot connect cycle to wheel: cycle's Nexus has no WisdomUnits. "
-                "Connect WisdomUnits to the Nexus first."
-            )
+        cycle_wu_ids = {wu.hash for wu in cycle_wus}
 
         # Get wheel's transitions
         wheel_transitions = wheel.transitions
@@ -468,7 +414,7 @@ class BoundRelationshipManager(Generic[T]):
                 comp = target_result[0]
                 components_by_id[comp.hash] = comp
 
-        # For each component, verify it belongs to a WU that's in the cycle's Nexus
+        # For each component, verify it belongs to a WU that's in the cycle
         repo = WisdomUnitRepository()
         for component in components_by_id.values():
             from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -482,14 +428,14 @@ class BoundRelationshipManager(Generic[T]):
                     f"(id={component.hash}) does not belong to any WisdomUnit."
                 )
 
-            # Check if at least one of the component's WUs is in the cycle's Nexus
+            # Check if at least one of the component's WUs is in the cycle
             component_wu_ids = {wu.hash for wu, _ in component_wus}
-            if not component_wu_ids.intersection(nexus_wu_ids):
+            if not component_wu_ids.intersection(cycle_wu_ids):
                 stmt = getattr(component, 'statement', str(component.hash))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
-                    f"(id={component.hash}) belongs to WisdomUnit(s) not in the cycle's Nexus. "
-                    f"Connect the WisdomUnit to the Nexus first."
+                    f"(id={component.hash}) belongs to WisdomUnit(s) not in the cycle. "
+                    f"Add the WisdomUnit to the cycle first."
                 )
 
     def _create_polarity_semantic_relationships(self, target_node: BaseNode) -> None:
@@ -900,9 +846,7 @@ class BoundRelationshipManager(Generic[T]):
         self._validate_scope_compatibility(target_node)
         # 2. Cycle <-> Wheel connections require WU validation
         self._validate_cycle_wheel_connection(target_node)
-        # 4. Nexus membership is frozen once Cycles exist
-        self._validate_nexus_frozen_after_cycle(target_node)
-        # 5. Semantic relationship consistency (component-to-component)
+        # 3. Semantic relationship consistency (component-to-component)
         self._validate_semantic_relationship_consistency(target_node)
 
         # Delegate to internal connect (no validation)
@@ -1356,7 +1300,7 @@ def RelationshipTo(
 
     Args:
         target_class: Target node class (name, class, or tuple for Union types).
-                     Examples: "Person", Person, ("Cycle", "Spiral")
+                     Examples: "Person", Person, ("Cycle", "Wheel")
         relationship_type: Cypher relationship type (optional if model is provided,
                           will be inferred from model.type)
         model: Optional relationship model class
@@ -1385,7 +1329,7 @@ def RelationshipFrom(
 
     Args:
         target_class: Target node class (name, class, or tuple for Union types).
-                     Examples: "Person", Person, ("Cycle", "Spiral")
+                     Examples: "Person", Person, ("Cycle", "Wheel")
         relationship_type: Cypher relationship type (optional if model is provided,
                           will be inferred from model.type)
         model: Optional relationship model class
@@ -1423,7 +1367,7 @@ def RelationshipBoth(
 
     Args:
         target_class: Target node class (name, class, or tuple for Union types).
-                     Examples: "Person", Person, ("Cycle", "Spiral")
+                     Examples: "Person", Person, ("Cycle", "Wheel")
         relationship_type: Cypher relationship type (optional if model is provided,
                           will be inferred from model.type)
         model: Optional relationship model class

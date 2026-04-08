@@ -20,7 +20,6 @@ from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.wheel import Wheel
-from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.transition import Transition
@@ -41,10 +40,6 @@ from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.decompose_probability_uniformly import decompose_probability_uniformly
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
-
-if TYPE_CHECKING:
-    from dialectical_framework.graph.mixins.circular_topology_mixin import CircularTopologyMixin
-
 
 class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
     """
@@ -320,44 +315,47 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
 
         return ":".join(canonical)
 
-    def _build_structures(
+    def _build_wheels(
         self,
         sequences: list[list[DialecticalComponent]],
-        node_type: type = Cycle,
-        intent: str = None,
-    ) -> list[Union[Cycle, Wheel]]:
+    ) -> list[Wheel]:
         """
-        Build Cycle/Wheel structures from component sequences.
+        Build Wheel structures from component sequences (idempotent).
 
-        Creates nodes with transitions. Structures are SAVED but NOT COMMITTED.
-        Caller must:
-        1. Connect structures to parents (Cycle→Nexus, Wheel→Cycle)
-        2. Commit structures
+        Creates Wheel nodes with transitions. Returns existing wheels if they
+        match the component sequence (rotation-invariant).
+
+        New wheels are SAVED but NOT COMMITTED. Caller must:
+        1. Connect wheel to parent Cycle
+        2. Commit wheel
         3. Call estimate() to attach AI estimations
 
         Args:
-            sequences: List of component sequences to create structures from
-            node_type: Type of node to create (Cycle or Wheel)
-            intent: Optional intent for Cycle nodes (defaults to settings.cycle_intent)
+            sequences: List of component sequences (T-A arrangements)
 
         Returns:
-            List of saved (uncommitted) Cycle or Wheel nodes
+            List of Wheel nodes (existing or newly created)
         """
-        nodes: list = []
+        from dialectical_framework.graph.repositories.wheel_repository import WheelRepository
+
+        wheels: list[Wheel] = []
+        wheel_repo = WheelRepository()
 
         if not sequences:
-            return nodes
+            return wheels
 
         for sequence in sequences:
-            # Create node (Cycle with intent, or Wheel without)
-            if node_type == Cycle:
-                cycle_intent = intent if intent is not None else self.settings.cycle_intent
-                node = Cycle(intent=cycle_intent)
-            else:
-                node = Wheel()
-            node.save()
+            # Check for existing wheel with same component sequence
+            existing_wheel = wheel_repo.find_by_component_sequence(sequence)
+            if existing_wheel:
+                wheels.append(existing_wheel)
+                continue
 
-            # Create transitions
+            # Create new wheel
+            wheel = Wheel()
+            wheel.save()
+
+            # Create transitions forming the cycle
             if sequence:
                 for i in range(len(sequence)):
                     source_comp = sequence[i]
@@ -367,127 +365,118 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
                     transition.set_source(source_comp)
                     transition.set_target(target_comp)
                     transition.commit()
-                    transition.cycle.connect(node)
+                    transition.cycle.connect(wheel)
 
-            nodes.append(node)
+            wheels.append(wheel)
 
-        return nodes
+        return wheels
 
     def arrange(
         self,
-        nexus: Nexus,
+        wisdom_units: list[WisdomUnit],
         intent: str,
     ) -> list[Cycle]:
         """
-        Arrange WisdomUnits in a Nexus into Cycles and Wheels (idempotent).
+        Arrange WisdomUnits into Cycles and Wheels (idempotent).
 
-        Creates Cycle nodes (from T components) and Wheel nodes (from WisdomUnits).
-        Picks up where it left off:
-        - If some Cycles with this intent exist, only creates missing ones
-        - If some Wheels exist in a Cycle, only creates missing ones
-
-        Commit behavior follows Nexus state:
-        - If Nexus is committed: new Cycles and Wheels are committed
-        - If Nexus is uncommitted: new Cycles and Wheels are saved but not committed
-          (caller is responsible for committing Nexus first, then Cycles, then Wheels)
+        Creates Cycle nodes and Wheel nodes from the provided WisdomUnits.
+        Skips creation of Cycles that already exist with the same WU ordering.
 
         Args:
-            nexus: Nexus containing WisdomUnits to arrange.
-                   Can be uncommitted or committed - new cycles can be added either way.
+            wisdom_units: List of committed WisdomUnits to arrange.
             intent: Causality intent (e.g., "preset:balanced", "preset:realistic").
 
         Returns:
-            List of all Cycle nodes (existing + new). Wheels via cycle.wheels.all().
-            Commit state of new structures matches Nexus commit state.
+            List of Cycle nodes (both existing and newly created).
+            Access Wheels via cycle.wheels.all().
 
         Raises:
-            ValueError: If nexus has no WisdomUnits.
+            ValueError: If wisdom_units is empty or no T components found.
         """
-        # Get WisdomUnits from Nexus
-        wisdom_units = [wu for wu, _ in nexus.wisdom_units.all()]
         if not wisdom_units:
-            raise ValueError("Nexus has no WisdomUnits.")
+            raise ValueError("No WisdomUnits provided.")
 
         if len(wisdom_units) > 4:
             raise ValueError(f"{len(wisdom_units)} wisdom units are not supported yet.")
 
-        # Extract T components from WisdomUnits
+        # Build T component hash → WU map for ordering
+        t_to_wu: dict[str, WisdomUnit] = {}
         t_components: list[DialecticalComponent] = []
         for wu in wisdom_units:
             t_result = wu.t.get()
             if t_result:
-                t_components.append(t_result[0])
+                t_comp = t_result[0]
+                t_to_wu[t_comp.hash] = wu
+                t_components.append(t_comp)
 
         if not t_components:
             raise ValueError("No T components found in WisdomUnits.")
 
-        # Generate all possible sequences
+        # Generate all possible T-sequences (thesis causality orderings)
         t_sequences = self._get_sequences(t_components)
-        wu_sequences = self._get_sequences(wisdom_units)
 
-        # Get existing cycles with this intent
-        existing_cycles = [c for c, _ in nexus.cycles.all() if c.intent == intent]
+        # Find existing cycles for these WUs (for idempotency check)
+        from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
+        cycle_repo = CycleRepository()
+        existing_cycles = cycle_repo.find_by_wisdom_units(wisdom_units, exact_order=True)
+        existing_signatures: set[str] = {
+            self._get_wu_signature(c.wisdom_unit_hashes) for c in existing_cycles
+        }
 
-        # Build signature map of existing cycles
-        existing_cycle_sigs: dict[str, Cycle] = {}
-        for cycle in existing_cycles:
-            sig = self._get_structure_signature(cycle)
-            existing_cycle_sigs[sig] = cycle
+        all_cycles: list[Cycle] = list(existing_cycles)
 
-        # Find missing cycle sequences
-        missing_t_sequences = []
+        # Build cycles for each T-sequence
         for t_seq in t_sequences:
-            sig = self._get_sequence_signature(t_seq)
-            if sig not in existing_cycle_sigs:
-                missing_t_sequences.append(t_seq)
+            # Map T-sequence back to ordered WUs
+            ordered_wus = [t_to_wu[t.hash] for t in t_seq]
+            ordered_hashes = [wu.hash for wu in ordered_wus]
 
-        # Build missing cycles
-        new_cycles = self._build_structures(missing_t_sequences, node_type=Cycle, intent=intent)
+            # Check if cycle with this ordering already exists (rotation-invariant)
+            signature = self._get_wu_signature(ordered_hashes)
+            if signature in existing_signatures:
+                continue  # Skip - cycle already exists
 
-        # Connect new cycles to Nexus
-        for cycle in new_cycles:
-            nexus.cycles.connect(cycle)
+            # Create new Cycle with properly ordered WUs
+            cycle = Cycle(intent=intent)
+            cycle.set_wisdom_units(ordered_wus)
+            cycle.commit()
+            all_cycles.append(cycle)
+            existing_signatures.add(signature)
 
-        # Commit new cycles if Nexus is committed
-        if nexus.is_committed:
-            for cycle in new_cycles:
-                cycle.commit()
+            # Generate WU-sequences (T-A arrangements) for Wheels
+            wu_sequences = self._get_sequences(ordered_wus)
 
-        # All cycles (existing + new)
-        all_cycles = existing_cycles + new_cycles
-
-        # For each cycle, ensure all wheel sequences exist
-        # Note: wu_sequences contains component sequences (from generate_compatible_sequences)
-        for cycle in all_cycles:
-            # Get existing wheel signatures for this cycle
-            existing_wheel_sigs: set[str] = set()
-            for wheel, _ in cycle.wheels.all():
-                sig = self._get_structure_signature(wheel)
-                existing_wheel_sigs.add(sig)
-
-            # Find missing wheel sequences
-            missing_sequences = []
-            for comp_seq in wu_sequences:
-                sig = self._get_sequence_signature(comp_seq)
-                if sig not in existing_wheel_sigs:
-                    missing_sequences.append(comp_seq)
-
-            # Build missing wheels
-            if missing_sequences:
-                new_wheels = self._build_structures(missing_sequences, node_type=Wheel)
+            # Build wheels for this cycle
+            for wu_seq in wu_sequences:
+                new_wheels = self._build_wheels([wu_seq])
                 for wheel in new_wheels:
                     cycle.wheels.connect(wheel)
-
-                # Commit new wheels if Nexus is committed
-                if nexus.is_committed:
-                    for wheel in new_wheels:
-                        wheel.commit()
+                    wheel.commit()
 
         return all_cycles
 
+    @staticmethod
+    def _get_wu_signature(wu_hashes: list[str]) -> str:
+        """
+        Get canonical signature for WU hash ordering (rotation-invariant).
+
+        Args:
+            wu_hashes: List of WisdomUnit hashes in order
+
+        Returns:
+            Canonical string signature (colon-joined, lex-smallest rotation)
+        """
+        if not wu_hashes:
+            return ""
+
+        # Find canonical rotation (lexicographically smallest)
+        rotations = [wu_hashes[i:] + wu_hashes[:i] for i in range(len(wu_hashes))]
+        canonical = min(rotations)
+        return ":".join(canonical)
+
     async def estimate(
         self,
-        cycle: CircularTopologyMixin | list[CircularTopologyMixin],
+        cycle: Union[Cycle, Wheel, list[Cycle], list[Wheel]],
         force: bool = False,
     ) -> None:
         """
@@ -512,7 +501,7 @@ class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
             ValueError: If cycle is empty
         """
         # Normalize to list
-        structures: list[Union[Cycle, Wheel] | CircularTopologyMixin] = [cycle] if not isinstance(cycle, list) else list(cycle)
+        structures: list[Union[Cycle, Wheel]] = [cycle] if not isinstance(cycle, list) else list(cycle)
 
         if not structures:
             raise ValueError("No structures provided.")

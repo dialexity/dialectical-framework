@@ -161,7 +161,7 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         """
     )
     def prompt_summarize(self, text: str, *, transition: Transition) -> "Messages.Type":
-        # Extract segments from transition (uses Nexus internally)
+        # Extract segments from transition
         focus = transition.get_source_wheel_segment()
         next_ws = transition.get_target_wheel_segment()
 
@@ -233,25 +233,12 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
         source_comp, _ = focus_t_minus_result
         target_comp, _ = next_ws_t_plus_result
 
-        # Get or create spiral
-        spiral_result = self._wheel.spiral.get()
-        if not spiral_result:
-            # Create new Spiral node
-            from dialectical_framework.graph.nodes.spiral import Spiral
-            spiral = Spiral()
-            spiral.save()
-
-            # Connect spiral to wheel
-            self._wheel.spiral.connect(spiral)
-        else:
-            spiral = spiral_result[0]
-
-        # Query spiral for existing transition with same source/target components
-        spiral_transitions = spiral.transitions
+        # Query wheel for existing transition with same source/target components
+        wheel_transitions = self._wheel.transitions
         transition = None
 
         # Check for duplicate using shared helper
-        transition = self.find_duplicate_transition(spiral_transitions, source_comp, target_comp)
+        transition = self.find_duplicate_transition(wheel_transitions, source_comp, target_comp)
 
         if transition is None:
             # Create new transition first (rationale needs target before saving)
@@ -260,8 +247,8 @@ class ThinkConstructiveConvergence(StrategicConsultant, SettingsAware):
             transition.set_target(target_comp)
             transition.commit()  # Auto-connects source/target
 
-            # Connect transition to spiral
-            transition.cycle.connect(spiral)
+            # Connect transition to wheel
+            transition.cycle.connect(self._wheel)
 
         # Create rationale with transition as target
         rationale = GraphRationale(

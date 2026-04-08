@@ -4,8 +4,8 @@ Mixin for nodes that can be built incrementally before committing.
 This mixin is for container nodes that need children added incrementally
 before being finalized:
 - Ideas: add DialecticalComponents (statements)
-- Nexus: add WisdomUnits
-- Cycle, Wheel, Spiral: add Transitions
+- Cycle, Wheel: add Transitions
+- Transformation: add Transitions for each position
 
 The pattern follows git's staging area concept:
 - save() persists with hash=None (HEAD state, mutable)
@@ -33,12 +33,12 @@ class IncrementalBuildMixin(PersistableMixin):
     """
     Mixin for nodes that support incremental building before commit.
 
-    Used by: Ideas, Nexus, Cycle, Wheel, Spiral
+    Used by: Ideas, Cycle, Wheel, Transformation
 
     Lifecycle:
         1. Create node: cycle = Cycle(intent="...")
         2. Save as HEAD: cycle.save()  # hash=None, committed_at=None, persisted
-        3. Add children: cycle.add_transition(t1), nexus.add_wisdom_unit(wu1)
+        3. Add children: cycle.set_wisdom_units([wu1, wu2])
         4. Commit: cycle.commit()  # committed_at set, hash computed, immutable
 
     After commit(), the node behaves like any other committed node.
@@ -57,8 +57,8 @@ class IncrementalBuildMixin(PersistableMixin):
         Get all committed children for hash computation.
 
         Override in subclasses to return the appropriate children:
-        - Nexus: yields WisdomUnits
-        - Cycle/Wheel/Spiral: yields Transitions
+        - Cycle/Wheel: yields Transitions
+        - Transformation: yields Transitions for each position
 
         Yields:
             Child nodes that should be included in hash computation

@@ -65,7 +65,7 @@ async def test_full_blown_wheel(number_of_thoughts):
         source_comp, _ = source_result
 
         # Check that source component is from T position (not A position)
-        wu_list_pre = wheel.wisdom_units
+        wu_list_pre = wheel._wisdom_units
         for wu in wu_list_pre:
             t_result = wu.t.get()
             if t_result and t_result[0].hash == source_comp.hash:
@@ -139,7 +139,7 @@ async def test_full_blown_wheel(number_of_thoughts):
     assert spiral_result is not None, "Spiral MUST be created by DecoratorDiscreteSpiral"
 
     # Get wisdom units
-    wu_list = wheel.wisdom_units
+    wu_list = wheel._wisdom_units
     assert len(wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {len(wu_list)}"
 
     # Calculate syntheses for all wisdom units
@@ -169,8 +169,8 @@ async def test_full_blown_wheel(number_of_thoughts):
     print(f"{wheel:scores}")
 
     # Print each wisdom unit with full details (including synthesis and rationales)
-    # Use polar_pairs to get wisdom units in ta_cycle order with correct polarity
-    for i, pair in enumerate(wheel.polar_pairs):
+    # Use polar_segments to get wisdom units in ta_cycle order with correct polarity
+    for i, pair in enumerate(wheel.polar_segments):
         print(f"\n{'='*80}")
         print(f"WisdomUnit {i+1} - Full Details (Polarity: {pair.polarity})")
         print(f"{'='*80}")
@@ -210,7 +210,7 @@ async def test_wheel_spiral(number_of_thoughts):
     await factory1.calculate_transitions(wheel=wheel)
 
     # Get wisdom units
-    wu_list = wheel.wisdom_units
+    wu_list = wheel._wisdom_units
     assert len(wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {len(wu_list)}"
 
     # Verify spiral was created (MUST exist after calculate_transitions)

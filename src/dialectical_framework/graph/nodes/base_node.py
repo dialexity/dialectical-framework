@@ -83,7 +83,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
 
     Note:
         origin_hash and branch are only available on ForkableMixin nodes
-        (WisdomUnit, Nexus) for lineage tracking.
+        (WisdomUnit) for lineage tracking.
     """
 
     hash: Optional[str] = None
@@ -284,7 +284,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
         Clone this node, creating a new uncommitted copy.
 
         Clone semantics:
-        - For ForkableMixin nodes (WisdomUnit, Nexus):
+        - For ForkableMixin nodes (WisdomUnit):
           - origin_hash = source's hash (lineage tracking)
           - branch = provided branch name (mutable metadata)
         - For other nodes:
@@ -303,7 +303,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
             ValueError: If source node has not been committed
 
         Example:
-            # For forkable nodes (WisdomUnit, Nexus)
+            # For forkable nodes (WisdomUnit)
             forked_wu = wu.clone(branch="main")
             forked_wu.commit()  # origin_hash set, branch="main"
 
@@ -329,7 +329,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
         if destination_sid is not None:
             data['sid'] = destination_sid
 
-        # Handle forking points (WisdomUnit, Nexus) - only ForkableMixin nodes get lineage
+        # Handle forking points (WisdomUnit) - only ForkableMixin nodes get lineage
         from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
         if isinstance(self, ForkableMixin):
             # Set lineage: origin_hash = source's hash

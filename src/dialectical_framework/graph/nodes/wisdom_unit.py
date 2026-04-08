@@ -25,21 +25,13 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship,
     HasPolarityRelationship,
 )
-from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
-    BelongsToNexusRelationship,
-)
-from dialectical_framework.graph.relationships.is_spiral_of_relationship import (
-    IsSpiralOfRelationship,
-)
 from dialectical_framework.graph.relationships.synthesis_of_relationship import (
     SynthesisOfRelationship,
 )
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.synthesis import Synthesis
-    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
 # Import Polarity and its position constants (T and A belong to Polarity)
@@ -166,23 +158,6 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             raise ValueError("WisdomUnit has no Polarity connected - cannot access A")
         pol, _ = polarity_result
         return pol.a
-
-    # Relationship to Nexus (pool of WisdomUnits)
-    # WisdomUnits can belong to multiple Nexuses for different analytical perspectives.
-    # Child→parent: WU belongs to Nexus
-    nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
-        "Nexus",
-        model=BelongsToNexusRelationship,
-        cardinality=(0, None)  # Zero or more Nexuses
-    )
-
-    # Internal transformations (Action-Reflection structures)
-    # Many transformation paths → ONE synthesis (synthesis emerges from T-A pair itself)
-    transformations: ClassVar[RelationshipManager[Transformation]] = RelationshipFrom(
-        "Transformation",
-        model=IsSpiralOfRelationship,
-        cardinality=(0, None)  # Zero or more transformation paths
-    )
 
     # Synthesis alternatives (S+/S- pairs) derived from this WisdomUnit
     # Synthesis emerges from the T-A tension, not from specific transformation paths
@@ -683,6 +658,28 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
                 if isinstance(rel, PolarityRelationship) and rel.alias == alias:
                     return component
         return None
+
+    def has_component(self, component: DialecticalComponent) -> bool:
+        """
+        Check if this WisdomUnit contains the given component.
+
+        Searches all 6 positions (T, A, T+, T-, A+, A-) by hash match.
+
+        Args:
+            component: The component to check
+
+        Returns:
+            True if the component is in any position of this WU
+        """
+        if not component.is_committed:
+            return False
+
+        target_hash = component.hash
+        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+            for comp, _ in manager.all():
+                if comp.hash == target_hash:
+                    return True
+        return False
 
     @property
     def core_positions(self) -> list[str]:

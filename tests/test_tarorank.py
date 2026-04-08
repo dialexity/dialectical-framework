@@ -34,9 +34,7 @@ from dialectical_framework.graph.nodes.dialectical_component import DialecticalC
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.cycle import Cycle
-from dialectical_framework.graph.nodes.spiral import Spiral
 from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.estimation import (
@@ -354,74 +352,14 @@ class TestInvalidationTracking:
         # WisdomUnit (parent) should also be invalidated due to propagation
         assert not wu.is_score_valid(), "WisdomUnit should be invalidated when child Component changes"
 
-    def test_invalidation_propagates_wu_to_nexus(self, graph_db_available, di_container):
-        """When a WisdomUnit's component estimation changes, the Nexus containing it should be invalidated."""
-        from dialectical_framework.graph.estimation_manager import EstimationManager
-        from dialectical_framework.graph.nodes.input import Input
-
-        if not graph_db_available:
-            pytest.skip("Graph database not available")
-
-        # Create Input (provides vocabulary context for components)
-        input_node = Input(content=f"Test content {random.random()}")
-        input_node.commit()
-
-        # Create components
-        t_comp = DialecticalComponent(statement=f"T {random.random()}")
-        t_comp.commit()
-        input_node.statements.connect(t_comp)
-
-        a_comp = DialecticalComponent(statement=f"A {random.random()}")
-        a_comp.commit()
-        input_node.statements.connect(a_comp)
-
-        # Add estimations to components
-        t_rel = RelevanceEstimation(value=0.8)
-        t_rel.set_target(t_comp)
-        t_rel.commit()
-
-        a_rel = RelevanceEstimation(value=0.7)
-        a_rel.set_target(a_comp)
-        a_rel.commit()
-
-        # Create WU, connect, and commit
-        wu = WisdomUnit()
-        wu.save()
-        wu.t.connect(t_comp, properties={'alias': 'T'})
-        wu.a.connect(a_comp, properties={'alias': 'A'})
-        wu.commit()
-
-        # Create Nexus, connect WU, and commit
-        nexus = Nexus()
-        nexus.save()
-        wu.nexus.connect(nexus)
-        nexus.commit()
-
-        # Score hierarchy
-        scorer = TaroRank(alpha=1.0)
-        scorer.calculate_score(nexus)
-
-        # Verify scores are valid
-        assert wu.is_score_valid(), "WU should have valid score"
-        assert nexus.is_score_valid(), "Nexus should have valid score"
-
-        # Modify component's estimation (propagates: Component → WU → Nexus)
-        manager = EstimationManager()
-        manager.upsert_estimation(t_comp, RelevanceEstimation, 0.5)
-
-        # Component should be invalidated
-        assert not t_comp.is_score_valid(), "Component should be invalidated"
-
-        # WU should be invalidated (parent of Component)
-        assert not wu.is_score_valid(), "WU should be invalidated when child Component changes"
-
-        # Nexus (parent of WU) should also be invalidated
-        assert not nexus.is_score_valid(), "Nexus should be invalidated when descendant changes"
+    # Note: The test_invalidation_propagates_wu_to_nexus was removed as Nexus no longer exists.
+    # Score invalidation propagation is tested via test_invalidation_propagates_component_to_wu.
+    # Cycle scoring propagation would require a more complex test setup with full WU hierarchy.
 
     # Note: Transition → Transformation/Cycle/Wheel invalidation uses the same
     # invalidate_node_and_parents mechanism tested above. The graph traversal logic
     # is identical - only the edge types differ. Additional tests for these hierarchies
-    # would require complex setup (WisdomUnit for Transformation, Nexus for Cycle, etc.)
+    # would require complex setup (WisdomUnit for Transformation, Cycle for Wheel, etc.)
     # without testing new code paths.
 
     def test_score_invalidated_when_estimation_changes(self, graph_db_available):

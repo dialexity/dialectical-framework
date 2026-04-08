@@ -50,10 +50,18 @@ class DialecticalComponentRepository:
             return []
 
         query = """
-        // Core positions (T, T+, T-, A, A+, A-) directly on WU
+        // Pole positions (T+, T-, A+, A-) directly on WU
         MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
         WHERE id(wu) = $wisdom_unit_id
-        AND type(r) IN ['T', 'T_PLUS', 'T_MINUS', 'A', 'A_PLUS', 'A_MINUS']
+        AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
+        RETURN c, r.alias AS alias
+
+        UNION
+
+        // T and A positions via Polarity
+        MATCH (wu:WisdomUnit)-[:HAS_POLARITY]->(pol:Polarity)<-[r]-(c:DialecticalComponent)
+        WHERE id(wu) = $wisdom_unit_id
+        AND type(r) IN ['T', 'A']
         RETURN c, r.alias AS alias
 
         UNION

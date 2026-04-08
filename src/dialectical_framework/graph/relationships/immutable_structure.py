@@ -12,14 +12,13 @@ The Dialectical Framework has two main relationship layers:
       Blocked if SOURCE node is committed.
 
    b) **ContainerMembership** - Defines container composition:
-      - BELONGS_TO_NEXUS: WisdomUnit → Nexus
-      - BELONGS_TO_CYCLE: Transition → Cycle/Wheel/Spiral/Transformation
+      - BELONGS_TO_CYCLE: Transition → Cycle/Wheel/Transformation
       Blocked if TARGET (container) is committed.
       Committed children can be added to uncommitted containers.
 
 2. **AnalyticalStructure** - The analytical layer that attaches
    insights to the immutable structure:
-   - Transformations, Spirals, Syntheses
+   - Transformations, Syntheses
    - Rationales explaining assessable entities
    - Estimations scoring entities
    - Audit chains (critiques)
@@ -28,7 +27,7 @@ The Dialectical Framework has two main relationship layers:
    structural layer's hash integrity. The "analytical" designation means
    these relationships are not part of the structural Merkle tree.
 
-   Note: Analytical containers (Transformation, Spiral) still follow
+   Note: Analytical containers (Transformation) still follow
    IncrementalBuildMixin rules - once committed, no new members.
 
 Both layers can be exported/imported independently while maintaining integrity.
@@ -70,8 +69,7 @@ class ContainerMembership(ImmutableStructure):
     Structural relationship for container composition (incoming edges).
 
     Use for BELONGS_TO_* relationships where children point TO containers:
-    - BELONGS_TO_NEXUS: WisdomUnit → Nexus
-    - BELONGS_TO_CYCLE: Transition → Cycle/Wheel/Spiral/Transformation
+    - BELONGS_TO_CYCLE: Transition → Cycle/Wheel/Transformation
 
     Validation: Blocked if the TARGET (container) is committed.
     Committed children CAN be added to uncommitted containers,

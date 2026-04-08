@@ -28,19 +28,29 @@ Think of a Dialectical Wheel as a pizza:
 
 ### Structural Elements
 
-- **Nexus**: Pool of WisdomUnits (snapshot - contains specific WU versions)
 - **Transition**: Recipe for moving between segments (T-→A+, A-→T+)
-- **Transformation**: Internal spiral within a WisdomUnit (2 transitions), produces local Synthesis
-- **Synthesis**: Emergent S+/S- pair from Transformation or Spiral
-- **Cycle**: Sequence of transitions derived from a Nexus (intent: "preset:balanced", "preset:realistic", etc.)
-- **Spiral**: Blended navigation across all WU Transformations - **the ultimate artifact**
-- **Wheel**: Top-level container with detailed transitions (belongs to Cycle)
+- **Transformation**: Action-Reflection structure with 6 positions (Ac, Re, Ac+, Ac-, Re+, Re-)
+  - Belongs to Wheel (not WisdomUnit)
+  - Can span multiple WUs using source/target pair indices
+  - Supports recursive decomposition for multi-step transformations
+- **Synthesis**: Emergent S+/S- pair from Transformation
+- **Cycle**: T-cycle - ordered sequence of WisdomUnits defining abstract thesis causality
+  - Stores WU hashes directly (cycle.wisdom_unit_hashes)
+  - Intent field for dynamics type ("preset:balanced", "preset:realistic", etc.)
+- **Wheel**: Concrete T-A arrangement implementing a Cycle's T-cycle
+  - Has flip configuration per WU ("normal" = T-side first, "swapped" = A-side first)
+  - Contains transitions (ta_cycle level)
+  - Contains Transformations
 - **Input**: External content source (URL/IPFS) linked to extracted components
 - **Ideas**: Container of distilled concepts from an Input (uses IncrementalBuildMixin: save → add statements → commit)
 - **Brainstorm**: Multi-input exploration container with unified vocabulary
 
-**Hierarchy:** WisdomUnit → Nexus → Cycle → Wheel
+**Hierarchy:** WisdomUnit → Cycle → Wheel → Transformation
 **Brainstorm flow:** Brainstorm → Input → Ideas → Components
+
+**DEPRECATED nodes (kept for backwards compatibility):**
+- **Nexus**: Replaced by Cycle storing WU hashes directly
+- **Spiral**: Replaced by Transformations on Wheel
 
 ### Intent Levels
 
@@ -49,37 +59,47 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 | Level | Reflection | Question | Lives On |
 |-------|------------|----------|----------|
 | **Discovery** | (Gathering) | What sources to explore? | Ideas |
-| **Focus** | What? | What tensions exist? | Nexus |
-| **Dynamics** | So What? | Why do they matter? | Cycle |
-| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation |
-| **Synthesis** | (Outcome) | What emerges? | Synthesis, Spiral |
+| **Focus** | What? | What tensions exist? | Cycle |
+| **Dynamics** | So What? | Why do they matter? | Cycle (intent field) |
+| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation, Wheel |
+| **Synthesis** | (Outcome) | What emerges? | Synthesis |
 
-**Nodes with IntentMixin:** Ideas, Nexus, Cycle, WisdomUnit, Transformation, Synthesis, Spiral, Wheel
+**Nodes with IntentMixin:** Ideas, Cycle, WisdomUnit, Transformation, Synthesis, Wheel
 
-Note: Brainstorm does not have intent - it's a container for inputs. The intent about what to explore is external to the system.
+Note: Brainstorm does not have intent - it's a container for inputs.
 
-### Transformation vs Spiral
+### Transformation Model
 
-**WU Transformation** (local): Resolves internal dialectic of ONE tension (2 transitions), produces local S+/S-.
+**Transformation (Wheel-level)**: Action-Reflection structure with 6 positions:
+- Ac (Action): T → A
+- Ac+ (Positive Action): T- → A+ (REQUIRED)
+- Ac- (Negative Action): T+ → A-
+- Re (Reflection): A → T
+- Re+ (Positive Reflection): A- → T+ (REQUIRED)
+- Re- (Negative Reflection): A+ → T-
 
-**Wheel Spiral** (global): Weaves all WU Transformations into coherent navigation, produces meta-synthesis.
+**Multi-WU Transformations**: Can span multiple WisdomUnits using source/target pair indices.
+Recursive decomposition allows breaking down T1- → T3+ into smaller steps.
 
-**Calculation order:** WU Transformations first → Wheel Spiral uses those as inputs. Wheel blends WU intents; it doesn't recalculate individual paths.
+**Example:**
+```
+Transformation(T1- → T3+)  [parent/composed]
+  ├── child: Transformation(T1- → T2+)  [step 1]
+  └── child: Transformation(T2- → T3+)  [step 2]
+```
 
 ### Cardinality Design: Where to Branch
 
-Both `WisdomUnit.transformation` and `Wheel.spiral` use **(0, 1)** cardinality because they are **derived structures**.
+**Cycle is a snapshot:** Contains ordered WU hashes directly. Once committed, immutable.
 
-**Nexus is a snapshot:** Contains specific WU versions. `CHANGED_TO` is provenance, not a pointer.
-
-**Spirals are ultimate artifacts:** When a WU evolves, create new Nexus → new Spiral. Old Spiral remains as historical synthesis.
+**Wheel implements Cycle:** Same T-cycle can have multiple Wheel implementations with different flip configurations.
 
 **To explore different paths, branch upstream:**
-- Different transformation interpretations → Create different **WisdomUnits**
-- Different WU combinations → Create different **Nexuses**
-- Different orderings/dynamics intents → Create different **Cycles**
+- Different transformation interpretations → Create different **Transformations** on Wheel
+- Different WU combinations → Create different **Cycles**
+- Different flip configurations → Create different **Wheels** from same Cycle
 
-Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on both Transformation and Spiral.
+Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on Transformation.
 
 See `docs/graph.md` → "Intent Levels" and "Branching and Cardinality Rationale" for detailed explanation.
 
@@ -89,7 +109,7 @@ The graph separates relationships into two layers:
 
 **Structural Layer** (immutable after commit):
 - Forms the Merkle-tree backbone (hash-linked)
-- Components, WisdomUnits, Ideas, Nexus, Cycle, Wheel, Transitions
+- Components, WisdomUnits, Ideas, Cycle, Wheel, Transitions
 - Base classes: `IdentityRelationship`, `ContainerMembership`, `OutgoingContainerMembership`
 
 **Analytical Layer** (can evolve anytime):

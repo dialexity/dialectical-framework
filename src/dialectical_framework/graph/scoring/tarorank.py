@@ -103,10 +103,8 @@ class TaroRank:
             from dialectical_framework.graph.scoring.tarorank_calculators.wisdom_unit_calculator import WisdomUnitCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.synthesis_calculator import SynthesisCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.cycle_calculator import CycleCalculator
-            from dialectical_framework.graph.scoring.tarorank_calculators.spiral_calculator import SpiralCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.transformation_calculator import TransformationCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.wheel_calculator import WheelCalculator
-            from dialectical_framework.graph.scoring.tarorank_calculators.nexus_calculator import NexusCalculator
 
             # Note: Rationale is NOT in this map because it extends BaseNode, not AssessableEntity.
             # Rationales are sources of evidence (they PROVIDE estimations), not targets of scoring.
@@ -117,10 +115,8 @@ class TaroRank:
                 'WisdomUnit': WisdomUnitCalculator,
                 'Synthesis': SynthesisCalculator,
                 'Cycle': CycleCalculator,
-                'Spiral': SpiralCalculator,
                 'Transformation': TransformationCalculator,
                 'Wheel': WheelCalculator,
-                'Nexus': NexusCalculator,
             }
 
             calculator_class = calculator_map.get(node_type)

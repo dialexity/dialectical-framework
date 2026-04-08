@@ -25,7 +25,6 @@ from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
-from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.synthesis import Synthesis, POSITION_S_PLUS, POSITION_S_MINUS
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
@@ -244,7 +243,6 @@ class WheelBuilder(SettingsAware):
         thesis: Optional[Union[str, DialecticalComponent]] = None,
         antithesis: Optional[Union[str, DialecticalComponent]] = None,
         intent: str = "preset:general_concepts",
-        nexus: Optional[Nexus] = None,
     ) -> WisdomUnit:
         """
         Create a complete WisdomUnit using agents.
@@ -261,7 +259,6 @@ class WheelBuilder(SettingsAware):
             thesis: Thesis statement or component (extracted if None)
             antithesis: Antithesis statement or component (extracted if None)
             intent: The reasoning intent
-            nexus: Optional Nexus to connect the WU to
 
         Returns:
             Complete, committed WisdomUnit
@@ -314,10 +311,6 @@ class WheelBuilder(SettingsAware):
         # Connect T and A with typed relationships
         wu.t.connect(t_node, relationship=TRelationship(alias=POSITION_T, heuristic_similarity=1.0))
         wu.a.connect(a_node, relationship=ARelationship(alias=POSITION_A, heuristic_similarity=1.0))
-
-        # Connect to nexus if provided
-        if nexus:
-            wu.nexus.connect(nexus)
 
         # Complete WU with poles using WisdomAgent
         polarity_agent = WisdomAgent(
@@ -589,20 +582,16 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
 
             theses = final_theses
 
-        # Create Nexus for the cycles
-        nexus = Nexus()
-        nexus.save()
-
         # Create WisdomUnits from theses
-        # This is needed because arrange() works from WisdomUnits
         source = await self._get_input_source()
         text = await self._get_text()
+        wisdom_units: list[WisdomUnit] = []
         for thesis in theses:
-            await self._create_wisdom_unit(source=source, text=text, thesis=thesis, nexus=nexus)
-        nexus.commit()
+            wu = await self._create_wisdom_unit(source=source, text=text, thesis=thesis)
+            wisdom_units.append(wu)
 
-        # Arrange creates cycles and wheels from the Nexus (uncommitted since Nexus is uncommitted)
-        cycles: list[Cycle] = self.__sequencer.arrange(nexus, self.settings.cycle_intent)
+        # Arrange creates cycles and wheels from WisdomUnits
+        cycles: list[Cycle] = self.__sequencer.arrange(wisdom_units, self.settings.cycle_intent)
 
         return cycles
 
@@ -611,11 +600,11 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         *,
         theses: Union[list[str | DialecticalComponent | None], list[tuple[str | DialecticalComponent | None, str | DialecticalComponent | None]]] = None,
         t_cycle: Cycle = None,
-    ) -> tuple[Nexus, list[Wheel]]:
+    ) -> tuple[list[Cycle], list[Wheel]]:
         """
         Build Wheel structures without AI estimation (Phase 1).
 
-        Creates Nexus, WisdomUnits, Cycles, and Wheel structures. All structures
+        Creates WisdomUnits, Cycles, and Wheel structures. All structures
         are committed and ready for estimation.
 
         This is Phase 1 of the two-phase workflow. Use `estimate_wheel_structures()`
@@ -627,21 +616,17 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
             t_cycle: Optional pre-computed thesis Cycle. If None, will be generated.
 
         Returns:
-            Tuple of (Nexus, list[Wheel]) - committed structures
+            Tuple of (list[Cycle], list[Wheel]) - committed structures
 
         Example:
             # Phase 1: Build and commit structures
-            nexus, wheels = await builder.build_wheel_structures_only(theses=["thesis1", "thesis2"])
+            cycles, wheels = await builder.build_wheel_structures_only(theses=["thesis1", "thesis2"])
 
             # Phase 2: Attach AI estimations (can be retried)
-            await builder.estimate_wheel_structures(nexus, wheels)
+            await builder.estimate_wheel_structures(cycles, wheels)
         """
         source = await self._get_input_source()
         text = await self._get_text()
-
-        # Create Nexus first (save, not commit - we need to add WUs first)
-        nexus = Nexus()
-        nexus.save()
 
         # Determine thesis components (either from provided t_cycle or generated)
         thesis_components: list[DialecticalComponent] = []
@@ -677,8 +662,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
                     if i < len(generated_list):
                         thesis_components[pos] = generated_list[i]
 
-        # Build WisdomUnits from thesis components (connects them to Nexus)
-        # This MUST happen before connecting Cycles to Nexus (Nexus freezes after Cycle connection)
+        # Build WisdomUnits from thesis components
         wheel_wisdom_units = []
         for dc in thesis_components:
             antithesis = None
@@ -696,30 +680,27 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
                                 antithesis = t[1]
                                 break
 
-            wu = await self._create_wisdom_unit(source=source, text=text, thesis=dc, antithesis=antithesis, nexus=nexus)
+            wu = await self._create_wisdom_unit(source=source, text=text, thesis=dc, antithesis=antithesis)
             wheel_wisdom_units.append(wu)
 
         if len(wheel_wisdom_units) > 1:
             for idx, wu in enumerate(wheel_wisdom_units, start=1):
                 wu.set_human_friendly_index(idx)
 
-        # Arrange creates cycles and wheels from the Nexus (uncommitted since Nexus is uncommitted)
+        # Arrange creates cycles and wheels from WisdomUnits
         if t_cycle is None:
-            cycles: list[Cycle] = self.__sequencer.arrange(nexus, self.settings.cycle_intent)
-            # Commit: Nexus first, then Cycles, then Wheels
-            nexus.commit()
+            cycles: list[Cycle] = self.__sequencer.arrange(wheel_wisdom_units, self.settings.cycle_intent)
+            # Commit Cycles and Wheels
             for cycle in cycles:
                 cycle.commit()
                 for wheel, _ in cycle.wheels.all():
                     wheel.commit()
             t_cycle = cycles[0]
         else:
-            # If t_cycle is provided, connect and commit Nexus, then add wheels
-            nexus.cycles.connect(t_cycle)
-            nexus.commit()
-            # Build wheels for the provided cycle
+            # If t_cycle is provided, build wheels for the cycle
+            cycles = [t_cycle]
             wu_sequences = self.__sequencer._get_sequences(wheel_wisdom_units)
-            wheels_list = self.__sequencer._build_structures(wu_sequences, node_type=Wheel)
+            wheels_list = self.__sequencer._build_wheels(wu_sequences)
             for wheel in wheels_list:
                 t_cycle.wheels.connect(wheel)
                 wheel.commit()
@@ -731,14 +712,12 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         for wheel in wheels:
             wheel._t_cycle = t_cycle
 
-        return nexus, wheels
+        return cycles, wheels
 
     async def estimate_wheel_structures(
         self,
-        nexus: Nexus,
+        cycles: list[Cycle],
         wheels: list[Wheel],
-        *,
-        t_cycle: Cycle = None,
     ) -> list[Wheel]:
         """
         Attach AI estimations to existing skeleton wheel structures (Phase 2).
@@ -749,9 +728,8 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         Estimates both cycles and wheels (idempotent - skips if already estimated).
 
         Args:
-            nexus: Nexus containing the WisdomUnits
+            cycles: List of Cycle nodes created via build_wheel_structures_only()
             wheels: List of skeleton Wheel nodes created via build_wheel_structures_only()
-            t_cycle: Optional thesis Cycle (retrieved from wheels if not provided)
 
         Returns:
             The same wheels list, now with AI estimations attached
@@ -764,10 +742,9 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         if not wheels:
             return wheels
 
-        # Get all cycles from nexus and estimate them (idempotent)
-        all_cycles = [c for c, _ in nexus.cycles.all()]
-        if all_cycles:
-            await self.__sequencer.estimate(all_cycles)
+        # Estimate cycles (idempotent)
+        if cycles:
+            await self.__sequencer.estimate(cycles)
 
         # Attach AI estimations to wheels (idempotent)
         await self.__sequencer.estimate(wheels)
@@ -805,10 +782,12 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
             List of Wheel objects with AI-estimated probabilities, committed and scored.
         """
         # Phase 1: Build and commit structures
-        nexus, wheels = await self.build_wheel_structures_only(theses=theses, t_cycle=t_cycle)
+        cycles, wheels = await self.build_wheel_structures_only(theses=theses, t_cycle=t_cycle)
 
         # Get t_cycle reference
-        if t_cycle is None and wheels:
+        if t_cycle is None and cycles:
+            t_cycle = cycles[0]
+        elif t_cycle is None and wheels:
             t_cycle = getattr(wheels[0], '_t_cycle', None)
             if t_cycle is None:
                 cycle_result = wheels[0].cycle.get() if wheels else None
@@ -816,7 +795,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
 
         # Phase 2: Attach AI estimations (only if multiple wheels need comparison)
         if len(wheels) > 1 or (wheels and len(wheels[0].transitions) > 2):
-            await self.estimate_wheel_structures(nexus, wheels)
+            await self.estimate_wheel_structures(cycles, wheels)
         else:
             # For trivial cases (1 wheel, ≤2 transitions), set default P=1.0, R=1.0
             # This is the only possible arrangement, so probability is 1.0
@@ -885,7 +864,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
             syntheses = await wheel_builder.calculate_syntheses(wheel=wheel)
 
             # Synthesize specific WU
-            wus = wheel.wisdom_units
+            wus = wheel._wisdom_units
             syntheses = await wheel_builder.calculate_syntheses(wheel=wheel, at=wus[0])
 
             # Synthesize multiple WUs
@@ -898,7 +877,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         # Determine which WUs to synthesize
         if at is None:
             # Synthesize all WUs in the wheel
-            wisdom_units = wheel.wisdom_units
+            wisdom_units = wheel._wisdom_units
         elif isinstance(at, list):
             # Synthesize specific WUs (list)
             wisdom_units = at
@@ -1036,7 +1015,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         new_wheels = []
         for wheel in self.__wheels:
             # Check if any WU in this wheel needs modification
-            wus = wheel.wisdom_units
+            wus = wheel._wisdom_units
             wheel_is_dirty = False
 
             new_wus = []
@@ -1076,7 +1055,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
 
                 # Build new wheels from modified WUs
                 wu_sequences = self.__sequencer._get_sequences(new_wus)
-                redefined_wheels: list[Wheel] = self.__sequencer._build_structures(wu_sequences, node_type=Wheel)
+                redefined_wheels: list[Wheel] = self.__sequencer._build_wheels(wu_sequences)
 
                 # Connect and commit wheels
                 for w in redefined_wheels:

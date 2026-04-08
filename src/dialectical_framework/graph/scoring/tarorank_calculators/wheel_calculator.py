@@ -1,7 +1,7 @@
 """
 Calculator for Wheel nodes.
 
-Wheel is the top-level composite containing WisdomUnits via Cycle→Nexus.
+Wheel is the top-level composite containing WisdomUnits via Cycle.
 """
 
 from __future__ import annotations
@@ -19,52 +19,46 @@ class WheelCalculator(BaseCalculator):
     """
     Calculator for Wheel nodes.
 
-    Wheel is the top-level composite. WisdomUnits are accessed via Cycle→Nexus.
+    Wheel is the top-level composite. WisdomUnits are accessed via Cycle.
 
     R calculation (content relevance):
-    - Nexus R (GM of all WisdomUnit Rs - the main content)
-    - Wheel-level Transition Rs (wheel's own transitions only, not cycle's)
-    - Spiral R (aggregated, includes spiral transitions and rationales)
+    - WisdomUnit Rs (GM of all WU Rs via Cycle - the main content)
+    - Wheel-level Transition Rs (wheel's own transitions)
+    - Transformation Rs (wheel's transformations)
     - Wheel-level rationale Rs (with rating)
 
     P calculation (structural feasibility, Markovian):
-    - Product of: Cycle P × Nexus P × Wheel trans P × Spiral P
+    - Product of: Cycle P × WU Ps × Wheel trans P × Transformation Ps
     - All terms are conjunctive requirements (all must work)
     - Skip None values (unknown), keep zeros (hard constraints)
     """
 
     def score_children(self, wheel: Wheel, force: bool = False) -> None:
         """
-        Score Nexus (via Cycle), parent Cycle, and Spiral.
-
-        Nexus scoring recursively scores all WisdomUnits within it.
+        Score parent Cycle (which scores WUs) and Transformations.
 
         Args:
             wheel: Wheel whose children should be scored
             force: If True, force rescore even if children appear valid
         """
-        # Score parent Cycle (which will score its Nexus, which scores WUs)
+        # Score parent Cycle (which scores WisdomUnits)
         cycle_result = wheel.cycle.get()
         if cycle_result:
             self.scorer.calculate_score(cycle_result[0], force=force)
 
-        # Score Spiral if present
-        spiral_result = wheel.spiral.get()
-        if spiral_result:
-            self.scorer.calculate_score(spiral_result[0], force=force)
+        # Score Transformations
+        for transformation, _ in wheel.transformations.all():
+            self.scorer.calculate_score(transformation, force=force)
 
     def calculate_relevance(self, wheel: Wheel) -> Optional[float]:
         """
         Calculate R for Wheel as GM of content relevance signals.
 
-        Per scoring.md, Wheel R includes:
-        - Nexus R (summarizes all WisdomUnit Rs - the main content)
-        - Wheel-level Transition Rs (ta-cycle detail - wheel's own transitions only)
-        - Spiral R (aggregated, if present - includes spiral transitions and rationales)
+        Wheel R includes:
+        - WisdomUnit Rs (via Cycle - the main content)
+        - Wheel-level Transition Rs
+        - Transformation Rs
         - Wheel-level Rationale Rs
-
-        Note: Cycle transitions are NOT included - they belong to Cycle R.
-        R measures content relevance, not structural dependencies.
 
         Args:
             wheel: Wheel to calculate R for
@@ -76,26 +70,26 @@ class WheelCalculator(BaseCalculator):
 
         values = []
 
-        # Nexus R (summarized WisdomUnit relevances - the main content)
-        nexus = wheel.get_nexus()
-        if nexus:
-            nexus_r = nexus.relevance
-            if nexus_r is not None:
-                values.append(nexus_r)
+        # WisdomUnit Rs (via Cycle)
+        cycle_result = wheel.cycle.get()
+        if cycle_result:
+            cycle_obj, _ = cycle_result
+            for wu in cycle_obj.wisdom_units:
+                wu_r = wu.relevance
+                if wu_r is not None:
+                    values.append(wu_r)
 
-        # Wheel-level Transition Rs (wheel's own transitions only, not cycle's)
+        # Wheel-level Transition Rs
         for trans in wheel.transitions:
             trans_r = trans.relevance
             if trans_r is not None and trans_r > 0.0:
                 values.append(trans_r)
 
-        # Spiral R (aggregated - includes spiral transitions and rationales)
-        spiral_result = wheel.spiral.get()
-        if spiral_result:
-            spiral = spiral_result[0]
-            spiral_r = spiral.relevance
-            if spiral_r is not None:
-                values.append(spiral_r)
+        # Transformation Rs
+        for transformation, _ in wheel.transformations.all():
+            trans_r = transformation.relevance
+            if trans_r is not None:
+                values.append(trans_r)
 
         # Wheel-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
@@ -117,16 +111,12 @@ class WheelCalculator(BaseCalculator):
 
     def calculate_probability(self, wheel: Wheel) -> Optional[float]:
         """
-        Calculate P for Wheel as product of Cycle P, Nexus P, Wheel transitions, and Spiral P.
+        Calculate P for Wheel as product of Cycle P, WU Ps, Wheel transitions, and Transformation Ps.
 
-        Wheel P = Cycle P × Nexus P × Wheel_transitions_product × Spiral P
+        Wheel P = Cycle P × WU_Ps × Wheel_transitions_product × Transformation_Ps
 
         Uses Product (not GM) because these are conjunctive requirements - all must
-        work for the Wheel to be structurally feasible. This follows causal/Markovian
-        semantics where the Wheel's feasibility is limited by its weakest link.
-
-        Nexus P is already a summary of WU transformation Ps (via GM, since WUs are
-        independent units in a pool), so we use it directly.
+        work for the Wheel to be structurally feasible.
 
         Args:
             wheel: Wheel to calculate P for
@@ -142,16 +132,16 @@ class WheelCalculator(BaseCalculator):
         # Parent Cycle P (thesis ordering feasibility)
         cycle_result = wheel.cycle.get()
         if cycle_result:
-            cycle_p = cycle_result[0].probability
+            cycle_obj, _ = cycle_result
+            cycle_p = cycle_obj.probability
             if cycle_p is not None:
                 all_terms.append(cycle_p)
 
-        # Nexus P (summarized WU transformation Ps - GM of independent WUs)
-        nexus = wheel.get_nexus()
-        if nexus:
-            nexus_p = nexus.probability
-            if nexus_p is not None:
-                all_terms.append(nexus_p)
+            # WU Ps (via Cycle)
+            for wu in cycle_obj.wisdom_units:
+                wu_p = wu.probability
+                if wu_p is not None:
+                    all_terms.append(wu_p)
 
         # Wheel's own transitions P (product for sequential probability)
         wheel_transitions = wheel.transitions
@@ -165,33 +155,30 @@ class WheelCalculator(BaseCalculator):
                 wheel_trans_p = reduce(operator.mul, trans_probs, 1.0)
                 all_terms.append(wheel_trans_p)
 
-        # Spiral P (transformation path feasibility)
-        spiral_result = wheel.spiral.get()
-        if spiral_result:
-            spiral_p = spiral_result[0].probability
-            if spiral_p is not None:
-                all_terms.append(spiral_p)
+        # Transformation Ps
+        for transformation, _ in wheel.transformations.all():
+            trans_p = transformation.probability
+            if trans_p is not None:
+                all_terms.append(trans_p)
 
         if not all_terms:
             return None
 
         # Product of all terms (conjunctive - all must work)
-        # Skip None values (unknown), but any 0 will result in 0 (hard constraint)
         return reduce(operator.mul, all_terms, 1.0)
 
     def clear_children(self, wheel: Wheel) -> None:
         """
-        Clear scores from Cycle (which clears Nexus→WUs) and Spiral.
+        Clear scores from Cycle (which clears WUs) and Transformations.
 
         Args:
             wheel: Wheel whose children should be cleared
         """
-        # Clear parent Cycle (which will clear its Nexus, which clears WUs)
+        # Clear parent Cycle (which clears WisdomUnits)
         cycle_result = wheel.cycle.get()
         if cycle_result:
             self.scorer.clear_scores(cycle_result[0])
 
-        # Clear Spiral if present
-        spiral_result = wheel.spiral.get()
-        if spiral_result:
-            self.scorer.clear_scores(spiral_result[0])
+        # Clear Transformations
+        for transformation, _ in wheel.transformations.all():
+            self.scorer.clear_scores(transformation)
