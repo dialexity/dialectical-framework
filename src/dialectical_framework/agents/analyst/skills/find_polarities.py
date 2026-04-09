@@ -1,19 +1,19 @@
 """
-PolarityAgent: Orchestrator for creating Polarities (T-A pairs).
+FindPolarities: Orchestrator for creating Polarities (T-A pairs).
 
 Extracts antitheses for theses and creates Polarity nodes (T-A pairs).
 Returns Ideas containing all T and A components with HS metadata.
 
 Flow:
-    AnchoringAgent → Theses (Ideas with all T)
+    SurfaceTheses → Theses (Ideas with all T)
            ↓
-    PolarityAgent → Polarity nodes (T-A pairs with HS) + Ideas with all T and A
+    FindPolarities → Polarity nodes (T-A pairs with HS) + Ideas with all T and A
            ↓
-    WisdomAgent → Creates WisdomUnits from Polarities by adding poles (T+, T-, A+, A-)
+    ExpandPolarities → Creates WisdomUnits from Polarities by adding poles (T+, T-, A+, A-)
 
 Usage:
     # Programmatic (web app)
-    agent = PolarityAgent(thesis_hashes=["abc123", "def456"])
+    agent = FindPolarities(thesis_hashes=["abc123", "def456"])
     ideas = await agent.execute()
 
     # Access T-A pairs from Ideas
@@ -22,7 +22,7 @@ Usage:
             print(f"{comp.statement} vs {antithesis.statement}")
 
     # LLM tool use (returns JSON with HS data)
-    agent = PolarityAgent(thesis_hashes=[...])
+    agent = FindPolarities(thesis_hashes=[...])
     json_result = await agent.call()  # Includes antithesis_data with HS values
 """
 
@@ -34,14 +34,14 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.features.antithesis_extraction import \
-    AntithesisExtraction
-from dialectical_framework.features.statement_deduplication import (
-    DedupResult, StatementDeduplication)
 from dialectical_framework.agents.executable_capability import \
     ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
+from dialectical_framework.features.antithesis_extraction import \
+    AntithesisExtraction
+from dialectical_framework.features.statement_deduplication import (
+    DedupResult, StatementDeduplication)
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -80,7 +80,7 @@ class ThesisResult:
 # --- Main Orchestrator ---
 
 
-class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
+class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
     """
     Orchestrate Polarity creation (T-A pairs).
 

@@ -1,5 +1,5 @@
 """
-Tests for PolarityEditor agent.
+Tests for EditPolarity and EditTetrad skills.
 """
 
 from __future__ import annotations
@@ -7,8 +7,9 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.analyst.skills.polarity_editor import (
-    HS_WRONG_CATEGORY_THRESHOLD, PolarityEditor)
+from dialectical_framework.agents.analyst.skills.edit_polarity import (
+    HS_WRONG_CATEGORY_THRESHOLD, EditPolarity)
+from dialectical_framework.agents.analyst.skills.edit_tetrad import EditTetrad
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -122,7 +123,7 @@ def create_test_wu(sid: str, commit: bool = False) -> WisdomUnit:
         return wu
 
 
-class TestPolarityEditorThesis:
+class TestEditPolarityThesis:
     """Tests for editing thesis (T)."""
 
     @pytest.mark.asyncio
@@ -135,7 +136,7 @@ class TestPolarityEditorThesis:
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_T: "Trust"},
             )
@@ -164,7 +165,7 @@ class TestPolarityEditorThesis:
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_T: "Database Indexing"},
             )
@@ -178,7 +179,7 @@ class TestPolarityEditorThesis:
                 assert result.wisdom_unit is not None
 
 
-class TestPolarityEditorAntithesis:
+class TestEditPolarityAntithesis:
     """Tests for editing antithesis (A)."""
 
     @pytest.mark.asyncio
@@ -191,7 +192,7 @@ class TestPolarityEditorAntithesis:
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_A: "Hate"},
             )
@@ -217,7 +218,7 @@ class TestPolarityEditorAntithesis:
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_A: "Obsession"},
             )
@@ -229,7 +230,7 @@ class TestPolarityEditorAntithesis:
                 assert "pole" in result.error_message.lower() or result.error_message
 
 
-class TestPolarityEditorPole:
+class TestEditTetradPole:
     """Tests for editing poles (T+, T-, A+, A-)."""
 
     @pytest.mark.asyncio
@@ -242,7 +243,7 @@ class TestPolarityEditorPole:
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditTetrad(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_T_PLUS: "Deep bond"},
             )
@@ -266,7 +267,7 @@ class TestPolarityEditorPole:
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditTetrad(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_T_PLUS: "Complete isolation"},
             )
@@ -278,7 +279,7 @@ class TestPolarityEditorPole:
                 pass
 
 
-class TestPolarityEditorForking:
+class TestEditPolarityForking:
     """Tests for forking behavior (committed vs uncommitted WU)."""
 
     @pytest.mark.asyncio
@@ -293,7 +294,7 @@ class TestPolarityEditorForking:
             # Don't commit - leave uncommitted
             wu.save()  # But save so it has _id
 
-            # Note: PolarityEditor requires a committed WU hash or prefix
+            # Note: EditPolarity/EditTetrad require a committed WU hash or prefix
             # For uncommitted WUs, the caller should commit first or use a different pattern
             # This test documents that limitation
 
@@ -308,7 +309,7 @@ class TestPolarityEditorForking:
             wu = create_test_wu(brainstorm.sid, commit=True)
             original_hash = wu.hash
 
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_A: "Hatred"},
             )
@@ -321,7 +322,7 @@ class TestPolarityEditorForking:
                 assert result.wisdom_unit.origin_hash == original_hash
 
 
-class TestPolarityEditorValidation:
+class TestEditPolarityValidation:
     """Tests for validation edge cases."""
 
     @pytest.mark.asyncio
@@ -333,7 +334,7 @@ class TestPolarityEditorValidation:
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
                 changes={POSITION_T: ""},
             )
@@ -344,21 +345,25 @@ class TestPolarityEditorValidation:
 
     @pytest.mark.asyncio
     async def test_edit_invalid_position_fails(self):
-        """Invalid position should fail."""
+        """Invalid position (not T or A) should fail for EditPolarity."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
         with scope(brainstorm.sid):
             wu = create_test_wu(brainstorm.sid, commit=True)
 
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
                 changes={"X+": "Something"},
             )
             result = await editor.execute()
 
             assert not result.is_valid
-            assert "Invalid position" in result.error_message
+            # EditPolarity only accepts T/A, so invalid positions are filtered out
+            assert (
+                "T and/or A" in result.error_message
+                or "EditTetrad" in result.error_message
+            )
 
     @pytest.mark.asyncio
     async def test_edit_nonexistent_wu_fails(self):
@@ -367,7 +372,7 @@ class TestPolarityEditorValidation:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            editor = PolarityEditor(
+            editor = EditPolarity(
                 wisdom_unit_hash="nonexistent123",
                 changes={POSITION_T: "Something"},
             )

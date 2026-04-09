@@ -1,5 +1,5 @@
 """
-AnchoringAgent: Surfaces theses for BrainstormingAgent (Phase 1 of polarity-finder).
+SurfaceTheses: Surfaces theses for BrainstormingAgent (Phase 1 of polarity-finder).
 
 Uses conversational pattern: all steps share context through conversation history,
 enabling prompt caching.
@@ -13,13 +13,13 @@ Extraction-centric approach:
 
 Usage:
     # Programmatic (web app)
-    agent = AnchoringAgent(intent="extract theses about trust")
+    agent = SurfaceTheses(intent="extract theses about trust")
     theses = await agent.execute()
     for t in theses:
         print(t.statement)
 
     # LLM tool use (returns JSON)
-    agent = AnchoringAgent(intent="...")
+    agent = SurfaceTheses(intent="...")
     json_result = await agent.call()
 """
 
@@ -32,18 +32,17 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
-from dialectical_framework.features.statement_classification import (
-    ClassificationResult, StatementClassification)
-from dialectical_framework.features.statement_deduplication import \
-    StatementDeduplication
-from dialectical_framework.features.thesis_extraction import \
-    ThesisExtraction
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.executable_capability import \
     ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
+from dialectical_framework.features.statement_classification import (
+    ClassificationResult, StatementClassification)
+from dialectical_framework.features.statement_deduplication import \
+    StatementDeduplication
+from dialectical_framework.features.thesis_extraction import ThesisExtraction
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -115,7 +114,7 @@ class ParsedIntentDto(BaseModel):
 # --- Main Agent ---
 
 
-class AnchoringAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
+class SurfaceTheses(BaseTool, ExecutableCapability[Optional[Ideas]]):
     """
     Surfaces theses for BrainstormingAgent by fulfilling anchoring intent.
 

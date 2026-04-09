@@ -1,5 +1,5 @@
 """
-Tests for TransformationAgent - Action-Reflection transformation generation.
+Tests for ExploreTransformations - Action-Reflection transformation generation.
 """
 
 from __future__ import annotations
@@ -7,17 +7,16 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
+from dialectical_framework.agents.explorer.skills.transformation import \
+    ExploreTransformations
 from dialectical_framework.features.ac_re_taxonomy import (
     INSIGHT_SCALE, PROACTIVENESS_SCALE, get_polar_pair, insight_label_to_value,
     is_action_category, is_reflection_category, proactiveness_label_to_value)
-from dialectical_framework.features.action_extraction import \
-    ActionExtraction
+from dialectical_framework.features.action_extraction import ActionExtraction
 from dialectical_framework.features.positive_ac_re_apex_derivation import \
     ApexDerivation
 from dialectical_framework.features.transformation_generation import \
     TransformationGeneration
-from dialectical_framework.agents.explorer.skills.transformation import \
-    TransformationAgent
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -316,18 +315,18 @@ class TestTransformationGeneration:
             assert 0.0 <= tetrad.re_plus_hs <= 1.0
 
 
-class TestTransformationAgent:
-    """Tests for TransformationAgent - full pipeline."""
+class TestExploreTransformations:
+    """Tests for ExploreTransformations - full pipeline."""
 
     @pytest.mark.asyncio
     @observe()
     async def test_transformation_agent_requires_valid_wu(self):
-        """TransformationAgent raises error for non-existent WU."""
+        """ExploreTransformations raises error for non-existent WU."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            agent = TransformationAgent(wisdom_unit_hash="nonexistent123")
+            agent = ExploreTransformations(wisdom_unit_hash="nonexistent123")
 
             with pytest.raises(ValueError, match="not found"):
                 await agent.execute()
@@ -335,7 +334,7 @@ class TestTransformationAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_transformation_agent_requires_complete_wu(self):
-        """TransformationAgent raises error for incomplete WU.
+        """ExploreTransformations raises error for incomplete WU.
 
         Note: In practice, incomplete WUs can't be committed (cardinality validation),
         so they can't be found by hash. This test verifies the validation message
@@ -360,7 +359,9 @@ class TestTransformationAgent:
 
             # Since uncommitted WU has no hash, passing its short_hash (None) will fail
             # with "not found" error, which is correct behavior
-            agent = TransformationAgent(wisdom_unit_hash="uncommitted_wu_has_no_hash")
+            agent = ExploreTransformations(
+                wisdom_unit_hash="uncommitted_wu_has_no_hash"
+            )
 
             with pytest.raises(ValueError, match="not found"):
                 await agent.execute()
@@ -368,14 +369,14 @@ class TestTransformationAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_transformation_agent_generates_transformations(self):
-        """TransformationAgent generates new transformations for a complete WU."""
+        """ExploreTransformations generates new transformations for a complete WU."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
         with scope(brainstorm.sid):
             wu = _create_complete_wu()
 
-            agent = TransformationAgent(wisdom_unit_hash=wu.short_hash)
+            agent = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
             result = await agent.execute()
 
             # Should have generated at least one transformation
@@ -403,7 +404,7 @@ class TestTransformationAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_transformation_agent_returns_existing(self):
-        """TransformationAgent returns existing transformations."""
+        """ExploreTransformations returns existing transformations."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -411,14 +412,14 @@ class TestTransformationAgent:
             wu = _create_complete_wu()
 
             # First run
-            agent1 = TransformationAgent(wisdom_unit_hash=wu.short_hash)
+            agent1 = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
             result1 = await agent1.execute()
 
             first_new_count = len(result1.new)
             assert first_new_count >= 1
 
             # Second run
-            agent2 = TransformationAgent(wisdom_unit_hash=wu.short_hash)
+            agent2 = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
             result2 = await agent2.execute()
 
             # Should include previously created transformations as existing
@@ -427,7 +428,7 @@ class TestTransformationAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_transformation_agent_with_input(self):
-        """TransformationAgent uses input from scope for better context."""
+        """ExploreTransformations uses input from scope for better context."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -447,7 +448,7 @@ class TestTransformationAgent:
 
             wu = _create_complete_wu()
 
-            agent = TransformationAgent(wisdom_unit_hash=wu.short_hash)
+            agent = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
             result = await agent.execute()
 
             # Should still work with input in scope

@@ -1,10 +1,10 @@
 """
-PolarityEditor: Agent for editing WisdomUnit components.
+EditPolarity: Skill for editing T or A components of a WisdomUnit.
 
-Handles modifications to T, A, or poles with proper validation and regeneration:
+Handles modifications to T or A with proper validation and regeneration:
 - Changing T -> validate A compatibility, regenerate A if needed, regenerate poles
 - Changing A -> validate T compatibility, handle misclassification
-- Changing pole -> validate position fit
+- Changing both T and A together
 
 Editing behavior based on WU state:
 - Uncommitted WU -> edit in place, commit it
@@ -12,12 +12,13 @@ Editing behavior based on WU state:
 
 In both cases, the returned WU is committed with all 6 poles set.
 
+Use EditTetrad for editing poles (T+, T-, A+, A-).
 Use WisdomUnitValidation capability separately for full tetrad validation.
 
 Uses ForkableMixin: forked WU has origin_hash pointing to the original.
 
 Usage:
-    editor = PolarityEditor(
+    editor = EditPolarity(
         wisdom_unit_hash="abc123...",
         changes={"T": "New thesis statement"},
     )
@@ -32,24 +33,23 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
+from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.features.antithesis_classification import \
     AntithesisClassification
 from dialectical_framework.features.antithesis_extraction import \
     AntithesisExtraction
 from dialectical_framework.features.pole_classification import \
     PoleClassification
-from dialectical_framework.features.pole_generation import \
-    PoleGeneration
+from dialectical_framework.features.pole_generation import PoleGeneration
 from dialectical_framework.features.statement_classification import \
     StatementClassification
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
-from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
@@ -61,9 +61,8 @@ from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
                                                            POSITION_T_PLUS,
                                                            WisdomUnit)
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AMinusRelationship, APlusRelationship, ARelationship,
-    HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
-    TRelationship)
+    AMinusRelationship, APlusRelationship, HasPolarityRelationship,
+    TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 
@@ -74,12 +73,9 @@ POLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A
 HS_WRONG_CATEGORY_THRESHOLD = 0.1
 
 
-# --- Result ---
-
-
 @dataclass
-class PolarityEditorResult:
-    """Result of editing a WisdomUnit.
+class EditPolarityResult:
+    """Result of editing T or A in a WisdomUnit.
 
     Returns a WisdomUnit:
     - If input WU was uncommitted -> edits in place, commits it
@@ -90,34 +86,29 @@ class PolarityEditorResult:
 
     wisdom_unit: Optional[WisdomUnit] = None
     is_valid: bool = True
-    warnings: list[str] = field(
-        default_factory=list
-    )  # Edit-time warnings (e.g., low HS)
+    warnings: list[str] = field(default_factory=list)
     changed_positions: list[str] = field(default_factory=list)
     regenerated_positions: list[str] = field(default_factory=list)
-
-    # Error message if is_valid is False
     error_message: str = ""
 
 
-# --- Agent ---
-
-
-class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
+class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
     """
-    Agent for editing WisdomUnit components with validation.
+    Skill for editing T or A components of a WisdomUnit with validation.
 
-    Validates edits, regenerates affected components, and returns WU with warnings.
+    Validates edits, regenerates affected components (including poles), and returns WU.
     Does NOT mutate the original committed WisdomUnit (clones it instead).
 
+    For editing poles (T+, T-, A+, A-), use EditTetrad instead.
+
     Dual interface:
-    - execute() returns PolarityEditorResult for programmatic use
+    - execute() returns EditPolarityResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
     wisdom_unit_hash: str = Field(description="Hash of the WisdomUnit to edit")
     changes: dict[str, str] = Field(
-        description="Dict of {position: new_statement} for changes (T, A, T+, T-, A+, A-)"
+        description="Dict of {position: new_statement} for T and/or A changes"
     )
     text: str = Field(
         default="", description="Optional context for classification/generation"
@@ -140,19 +131,14 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         await self.execute()
         return str(self._report)
 
-    async def execute(self) -> PolarityEditorResult:
-        """
-        Execute the editing operation.
-
-        Returns:
-            PolarityEditorResult with WU and validation warnings
-        """
+    async def execute(self) -> EditPolarityResult:
+        """Execute the editing operation."""
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Resolve WisdomUnit
         wu = self._resolve_wisdom_unit(self.wisdom_unit_hash)
         if wu is None:
-            result = PolarityEditorResult(
+            result = EditPolarityResult(
                 is_valid=False,
                 error_message=f"WisdomUnit '{self.wisdom_unit_hash}' not found",
             )
@@ -163,34 +149,24 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         self._text = self.text
         self._was_committed = wu.is_committed
 
-        # Clean up changes dict
-        self._changes = {
-            k: v.strip() for k, v in self.changes.items() if v and v.strip()
-        }
+        # Clean up changes dict - only accept T and A
+        self._changes = {}
+        for k, v in self.changes.items():
+            if v and v.strip() and k in [POSITION_T, POSITION_A]:
+                self._changes[k] = v.strip()
 
         if not self._changes:
-            result = PolarityEditorResult(
+            result = EditPolarityResult(
                 is_valid=False,
-                error_message="Must provide at least one non-empty change",
+                error_message="Must provide T and/or A change. For poles, use EditTetrad.",
             )
             self._build_report(result)
             return result
 
-        # Validate positions
-        valid_positions = [POSITION_T, POSITION_A] + POLE_POSITIONS
-        for pos in self._changes:
-            if pos not in valid_positions:
-                result = PolarityEditorResult(
-                    is_valid=False,
-                    error_message=f"Invalid position '{pos}'. Must be one of: {valid_positions}",
-                )
-                self._build_report(result)
-                return result
-
         # Prepare working WU
         if self._was_committed:
             self._working_wu = wu.clone()
-            self._working_wu.save()  # Save so we can connect relationships
+            self._working_wu.save()
         else:
             self._working_wu = wu
             if not self._working_wu._id:
@@ -202,29 +178,24 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         self._build_report(result)
         return result
 
-    async def _route_changes(self) -> PolarityEditorResult:
+    async def _route_changes(self) -> EditPolarityResult:
         """Route changes to appropriate handler."""
         t_changed = POSITION_T in self._changes
         a_changed = POSITION_A in self._changes
-        poles_changed = set(self._changes.keys()) & set(POLE_POSITIONS)
 
         if t_changed and a_changed:
-            return await self._handle_both_ta_changed(poles_changed)
+            return await self._handle_both_ta_changed()
         if t_changed:
-            return await self._handle_thesis_change(poles_changed)
+            return await self._handle_thesis_change()
         if a_changed:
-            return await self._handle_antithesis_change(poles_changed)
-        if poles_changed:
-            return await self._handle_poles_changed(poles_changed)
+            return await self._handle_antithesis_change()
 
-        return PolarityEditorResult(
+        return EditPolarityResult(
             is_valid=False,
             error_message="No valid changes specified",
         )
 
-    async def _handle_both_ta_changed(
-        self, poles_changed: set[str]
-    ) -> PolarityEditorResult:
+    async def _handle_both_ta_changed(self) -> EditPolarityResult:
         """Handle when both T and A are changed together."""
         new_t_statement = self._changes[POSITION_T]
         new_a_statement = self._changes[POSITION_A]
@@ -268,12 +239,11 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         new_a.commit()
         self._report.node_created(new_a)
 
-        # Fill working WU
-        await self._fill_wu_with_custom_poles(
+        # Fill working WU with new T/A and regenerate all poles
+        await self._fill_wu_and_regenerate_poles(
             thesis=new_t,
             antithesis=new_a,
             a_hs=a_validation.heuristic_similarity,
-            pole_changes=poles_changed,
         )
 
         self._create_edit_rationale(
@@ -282,25 +252,22 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             f"(HS={a_validation.heuristic_similarity:.2f})",
         )
 
-        regenerated = [p for p in POLE_POSITIONS if p not in poles_changed]
-
-        return PolarityEditorResult(
+        return EditPolarityResult(
             wisdom_unit=self._working_wu,
             is_valid=True,
-            changed_positions=[POSITION_T, POSITION_A] + list(poles_changed),
-            regenerated_positions=regenerated,
+            warnings=warnings,
+            changed_positions=[POSITION_T, POSITION_A],
+            regenerated_positions=POLE_POSITIONS.copy(),
         )
 
-    async def _handle_thesis_change(
-        self, poles_changed: set[str]
-    ) -> PolarityEditorResult:
-        """Handle T change, possibly with pole changes."""
+    async def _handle_thesis_change(self) -> EditPolarityResult:
+        """Handle T change."""
         new_t_statement = self._changes[POSITION_T]
 
         # Get current antithesis
         current_a = self._original_wu.get_component(POSITION_A)
         if not current_a:
-            return PolarityEditorResult(
+            return EditPolarityResult(
                 is_valid=False,
                 error_message="Original WisdomUnit has no antithesis",
             )
@@ -333,13 +300,10 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         warnings: list[str] = []
         antithesis_to_use = current_a
         a_hs = a_validation.heuristic_similarity
-        regenerated = list(poles_changed)
+        regenerated = []
 
         # Check if A is still valid for new T
-        if a_validation.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD:
-            # A is still valid - keep it
-            pass
-        else:
+        if a_validation.heuristic_similarity <= HS_WRONG_CATEGORY_THRESHOLD:
             # A is no longer valid - regenerate
             extractor = AntithesisExtraction()
             antitheses = await extractor.execute(
@@ -349,7 +313,7 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             self._report = self._report.merge(extractor.report)
 
             if not antitheses:
-                return PolarityEditorResult(
+                return EditPolarityResult(
                     is_valid=False,
                     error_message=(
                         f"Cannot generate valid antithesis for new thesis. "
@@ -366,37 +330,34 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             )
 
         # Fill working WU
-        await self._fill_wu_with_custom_poles(
+        await self._fill_wu_and_regenerate_poles(
             thesis=new_t,
             antithesis=antithesis_to_use,
             a_hs=a_hs,
-            pole_changes=poles_changed,
         )
 
         self._create_edit_rationale(
             new_t, f"Thesis changed to '{new_t_statement}' (HS={a_hs:.2f})"
         )
 
-        regenerated.extend([p for p in POLE_POSITIONS if p not in poles_changed])
+        regenerated.extend(POLE_POSITIONS)
 
-        return PolarityEditorResult(
+        return EditPolarityResult(
             wisdom_unit=self._working_wu,
             is_valid=True,
             warnings=warnings,
-            changed_positions=[POSITION_T] + list(poles_changed),
-            regenerated_positions=list(set(regenerated)),
+            changed_positions=[POSITION_T],
+            regenerated_positions=regenerated,
         )
 
-    async def _handle_antithesis_change(
-        self, poles_changed: set[str]
-    ) -> PolarityEditorResult:
-        """Handle A change, possibly with pole changes."""
+    async def _handle_antithesis_change(self) -> EditPolarityResult:
+        """Handle A change."""
         new_a_statement = self._changes[POSITION_A]
 
         # Get current thesis
         current_t = self._original_wu.get_component(POSITION_T)
         if not current_t:
-            return PolarityEditorResult(
+            return EditPolarityResult(
                 is_valid=False,
                 error_message="Original WisdomUnit has no thesis",
             )
@@ -409,8 +370,6 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             text=self._text,
         )
         self._report = self._report.merge(a_classifier.report)
-
-        warnings: list[str] = []
 
         # Check if new A is valid
         if a_validation.heuristic_similarity <= HS_WRONG_CATEGORY_THRESHOLD:
@@ -431,17 +390,18 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
                             pole_result.heuristic_similarity
                             > HS_WRONG_CATEGORY_THRESHOLD
                         ):
-                            return PolarityEditorResult(
+                            return EditPolarityResult(
                                 is_valid=False,
                                 error_message=(
                                     f"'{new_a_statement}' looks more like {pole_pos} "
-                                    f"(HS={pole_result.heuristic_similarity:.2f}) than an antithesis"
+                                    f"(HS={pole_result.heuristic_similarity:.2f}) than an antithesis. "
+                                    f"Use EditTetrad for pole edits."
                                 ),
                             )
                     except Exception:
                         continue
 
-            return PolarityEditorResult(
+            return EditPolarityResult(
                 is_valid=False,
                 error_message=(
                     f"'{new_a_statement}' is not a valid antithesis for '{current_t.statement}' "
@@ -458,11 +418,10 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         self._report.node_created(new_a)
 
         # Fill working WU
-        await self._fill_wu_with_custom_poles(
+        await self._fill_wu_and_regenerate_poles(
             thesis=current_t,
             antithesis=new_a,
             a_hs=a_validation.heuristic_similarity,
-            pole_changes=poles_changed,
         )
 
         self._create_edit_rationale(
@@ -470,97 +429,23 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             f"Antithesis changed to '{new_a_statement}' (HS={a_validation.heuristic_similarity:.2f})",
         )
 
-        regenerated = [p for p in POLE_POSITIONS if p not in poles_changed]
-
-        return PolarityEditorResult(
+        return EditPolarityResult(
             wisdom_unit=self._working_wu,
             is_valid=True,
-            warnings=warnings,
-            changed_positions=[POSITION_A] + list(poles_changed),
-            regenerated_positions=regenerated,
+            changed_positions=[POSITION_A],
+            regenerated_positions=POLE_POSITIONS.copy(),
         )
 
-    async def _handle_poles_changed(
-        self, poles_changed: set[str]
-    ) -> PolarityEditorResult:
-        """Handle when only poles are changed (T and A unchanged)."""
-        current_t = self._original_wu.get_component(POSITION_T)
-        current_a = self._original_wu.get_component(POSITION_A)
-
-        if not current_t or not current_a:
-            return PolarityEditorResult(
-                is_valid=False,
-                error_message="Original WU must have T and A for pole editing",
-            )
-
-        # Validate all changed poles
-        pole_validations: dict[str, tuple[DialecticalComponent, object]] = {}
-        invalid_poles: list[str] = []
-
-        for pole_pos in poles_changed:
-            pole_stmt = self._changes[pole_pos]
-
-            pole_classifier = PoleClassification()
-            pole_result = await pole_classifier.execute(
-                thesis=current_t,
-                antithesis=current_a,
-                pole_statement=pole_stmt,
-                position=pole_pos,
-                text=self._text,
-            )
-            self._report = self._report.merge(pole_classifier.report)
-
-            if pole_result.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD:
-                new_pole = DialecticalComponent(
-                    statement=pole_stmt,
-                    meaning=pole_result.meaning,
-                )
-                new_pole.commit()
-                self._report.node_created(new_pole)
-                pole_validations[pole_pos] = (new_pole, pole_result)
-            else:
-                # Check other positions
-                suggested = await self._find_better_pole_position(
-                    current_t, current_a, pole_stmt, pole_pos
-                )
-                if suggested:
-                    invalid_poles.append(
-                        f"{pole_pos}: '{pole_stmt}' looks more like {suggested['position']} "
-                        f"(HS={suggested['hs']:.2f})"
-                    )
-                else:
-                    invalid_poles.append(
-                        f"{pole_pos}: '{pole_stmt}' doesn't fit any pole position "
-                        f"(HS={pole_result.heuristic_similarity:.2f})"
-                    )
-
-        if invalid_poles:
-            return PolarityEditorResult(
-                is_valid=False,
-                error_message="Invalid pole(s): " + "; ".join(invalid_poles),
-            )
-
-        # Fill working WU with validated poles
-        await self._fill_wu_with_specific_poles(pole_validations)
-
-        return PolarityEditorResult(
-            wisdom_unit=self._working_wu,
-            is_valid=True,
-            changed_positions=list(poles_changed),
-            regenerated_positions=[],
-        )
-
-    async def _fill_wu_with_custom_poles(
+    async def _fill_wu_and_regenerate_poles(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
         a_hs: float,
-        pole_changes: set[str],
     ) -> None:
-        """Fill working WU with T, A (via Polarity) and handle custom pole changes."""
+        """Fill working WU with T, A (via Polarity) and regenerate all poles."""
         wu = self._working_wu
 
-        # Create Polarity for T-A pair (atomic creation)
+        # Create Polarity for T-A pair
         polarity = Polarity()
         polarity.set_t(thesis, heuristic_similarity=1.0)
         polarity.set_a(antithesis, heuristic_similarity=a_hs)
@@ -570,63 +455,16 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         # Connect WU to Polarity
         wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-        # Validate user-specified poles first
-        user_poles: dict[str, tuple[DialecticalComponent, object]] = {}
-        for pole_pos in pole_changes:
-            pole_stmt = self._changes[pole_pos]
+        # Generate all poles
+        generator = PoleGeneration()
+        generated_poles = await generator.execute(
+            wisdom_unit=wu,
+            positions=POLE_POSITIONS,
+            text=self._text,
+        )
+        self._report = self._report.merge(generator.report)
 
-            pole_classifier = PoleClassification()
-            pole_result = await pole_classifier.execute(
-                thesis=thesis,
-                antithesis=antithesis,
-                pole_statement=pole_stmt,
-                position=pole_pos,
-                text=self._text,
-            )
-            self._report = self._report.merge(pole_classifier.report)
-
-            if pole_result.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD:
-                new_pole = DialecticalComponent(
-                    statement=pole_stmt,
-                    meaning=pole_result.meaning,
-                )
-                new_pole.commit()
-                self._report.node_created(new_pole)
-                user_poles[pole_pos] = (new_pole, pole_result)
-
-        # Generate remaining poles
-        positions_to_generate = [p for p in POLE_POSITIONS if p not in user_poles]
-        if positions_to_generate:
-            generator = PoleGeneration()
-            generated_poles = await generator.execute(
-                wisdom_unit=wu,
-                positions=positions_to_generate,
-                text=self._text,
-            )
-            self._report = self._report.merge(generator.report)
-
-            # Connect generated poles
-            rel_classes = {
-                POSITION_T_PLUS: TPlusRelationship,
-                POSITION_T_MINUS: TMinusRelationship,
-                POSITION_A_PLUS: APlusRelationship,
-                POSITION_A_MINUS: AMinusRelationship,
-            }
-
-            for pole in generated_poles:
-                rel_class = rel_classes[pole.position]
-                manager = wu.get_relationship_manager_by_position(pole.position)
-                manager.connect(
-                    pole.component,
-                    relationship=rel_class(
-                        alias=pole.position,
-                        heuristic_similarity=pole.heuristic_similarity,
-                        complementarity_t=pole.complementarity_t,
-                        complementarity_a=pole.complementarity_a,
-                    ),
-                )
-
-        # Connect user-specified poles
+        # Connect generated poles
         rel_classes = {
             POSITION_T_PLUS: TPlusRelationship,
             POSITION_T_MINUS: TMinusRelationship,
@@ -634,121 +472,21 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             POSITION_A_MINUS: AMinusRelationship,
         }
 
-        for pole_pos, (pole_comp, pole_result) in user_poles.items():
-            rel_class = rel_classes[pole_pos]
-            manager = wu.get_relationship_manager_by_position(pole_pos)
+        for pole in generated_poles:
+            rel_class = rel_classes[pole.position]
+            manager = wu.get_relationship_manager_by_position(pole.position)
             manager.connect(
-                pole_comp,
+                pole.component,
                 relationship=rel_class(
-                    alias=pole_pos,
-                    heuristic_similarity=pole_result.heuristic_similarity,
-                    complementarity_t=pole_result.complementarity_t,
-                    complementarity_a=pole_result.complementarity_a,
+                    alias=pole.position,
+                    heuristic_similarity=pole.heuristic_similarity,
+                    complementarity_t=pole.complementarity_t,
+                    complementarity_a=pole.complementarity_a,
                 ),
             )
 
-        # Always commit - PolarityEditor sets all 6 poles, so WU is complete
         wu.commit()
         self._report.node_created(wu)
-
-    async def _fill_wu_with_specific_poles(
-        self,
-        pole_validations: dict[str, tuple[DialecticalComponent, object]],
-    ) -> None:
-        """Fill working WU with specific poles changed, copying others from original."""
-        wu = self._working_wu
-
-        # Copy Polarity (T-A pair) from original if not connected
-        if wu.polarity.count() == 0:
-            orig_polarity_result = self._original_wu.polarity.get()
-            if orig_polarity_result:
-                orig_polarity, _ = orig_polarity_result
-                wu.polarity.connect(
-                    orig_polarity, relationship=HasPolarityRelationship()
-                )
-
-        # Handle poles
-        rel_classes = {
-            POSITION_T_PLUS: TPlusRelationship,
-            POSITION_T_MINUS: TMinusRelationship,
-            POSITION_A_PLUS: APlusRelationship,
-            POSITION_A_MINUS: AMinusRelationship,
-        }
-
-        for pos in POLE_POSITIONS:
-            manager = wu.get_relationship_manager_by_position(pos)
-            rel_class = rel_classes[pos]
-
-            if pos in pole_validations:
-                new_pole, pole_result = pole_validations[pos]
-                manager.connect(
-                    new_pole,
-                    relationship=rel_class(
-                        alias=pos,
-                        heuristic_similarity=pole_result.heuristic_similarity,
-                        complementarity_t=pole_result.complementarity_t,
-                        complementarity_a=pole_result.complementarity_a,
-                    ),
-                )
-            else:
-                if manager.count() == 0:
-                    orig_result = (
-                        self._original_wu.get_relationship_manager_by_position(
-                            pos
-                        ).get()
-                    )
-                    if orig_result:
-                        orig_comp, orig_rel = orig_result
-                        manager.connect(
-                            orig_comp,
-                            relationship=rel_class(
-                                alias=pos,
-                                heuristic_similarity=(
-                                    orig_rel.heuristic_similarity if orig_rel else None
-                                ),
-                                complementarity_t=(
-                                    orig_rel.complementarity_t if orig_rel else None
-                                ),
-                                complementarity_a=(
-                                    orig_rel.complementarity_a if orig_rel else None
-                                ),
-                            ),
-                        )
-
-        # Always commit - PolarityEditor sets all 6 poles, so WU is complete
-        wu.commit()
-        self._report.node_created(wu)
-
-    async def _find_better_pole_position(
-        self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
-        pole_stmt: str,
-        exclude_position: str,
-    ) -> Optional[dict]:
-        """Check if pole fits better in a different position."""
-        other_positions = [p for p in POLE_POSITIONS if p != exclude_position]
-
-        best_match = None
-        best_hs = HS_WRONG_CATEGORY_THRESHOLD
-
-        for pos in other_positions:
-            try:
-                classifier = PoleClassification()
-                result = await classifier.execute(
-                    thesis=thesis,
-                    antithesis=antithesis,
-                    pole_statement=pole_stmt,
-                    position=pos,
-                    text=self._text,
-                )
-                if result.heuristic_similarity > best_hs:
-                    best_hs = result.heuristic_similarity
-                    best_match = {"position": pos, "hs": result.heuristic_similarity}
-            except Exception:
-                continue
-
-        return best_match
 
     def _resolve_wisdom_unit(self, wu_hash: str) -> Optional[WisdomUnit]:
         """Resolve hash to WisdomUnit."""
@@ -758,7 +496,6 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             if isinstance(node, WisdomUnit):
                 return node
         except ValueError:
-            # Try prefix match
             try:
                 node = repo.find_by_prefix(wu_hash)
                 if isinstance(node, WisdomUnit):
@@ -776,7 +513,7 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         rationale.commit()
         self._report.node_created(rationale)
 
-    def _build_report(self, result: PolarityEditorResult) -> None:
+    def _build_report(self, result: EditPolarityResult) -> None:
         """Build execution report from result."""
         self._report.artifacts["is_valid"] = result.is_valid
         self._report.artifacts["changes"] = self.changes

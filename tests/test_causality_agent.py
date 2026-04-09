@@ -1,7 +1,7 @@
 """
-Tests for CausalityAgent.
+Tests for MapCausalities.
 
-Tests cover the CausalityAgent's ability to create causal cycles from a Nexus.
+Tests cover the MapCausalities's ability to create causal cycles from a Nexus.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from dialectical_framework.agents.explorer.skills.causality import (
-    CausalityAgent, CausalityAgentResult)
+    MapCausalities, MapCausalitiesResult)
 from dialectical_framework.agents.explorer.skills.nexus_agent import NexusAgent
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.dialectical_component import \
@@ -101,8 +101,8 @@ def create_complete_wisdom_unit(index: int = 0) -> WisdomUnit:
     return wu
 
 
-class TestCausalityAgent:
-    """Tests for CausalityAgent.
+class TestMapCausalities:
+    """Tests for MapCausalities.
 
     Note: Full integration tests for causality sequencing require complex setup
     with transformations and wheels. These tests focus on:
@@ -112,8 +112,8 @@ class TestCausalityAgent:
     """
 
     def test_causality_agent_has_correct_fields(self):
-        """Test CausalityAgent has expected fields."""
-        agent = CausalityAgent(
+        """Test MapCausalities has expected fields."""
+        agent = MapCausalities(
             nexus_hash="test-hash",
             intent="preset:balanced",
             estimate=False,
@@ -124,8 +124,8 @@ class TestCausalityAgent:
         assert agent.estimate is False
 
     def test_causality_agent_default_values(self):
-        """Test CausalityAgent default field values."""
-        agent = CausalityAgent(nexus_hash="test-hash")
+        """Test MapCausalities default field values."""
+        agent = MapCausalities(nexus_hash="test-hash")
 
         assert agent.intent == "preset:balanced"
         assert agent.estimate is True
@@ -134,7 +134,7 @@ class TestCausalityAgent:
     async def test_causality_agent_invalid_nexus(self, brainstorm):
         """Test that invalid nexus hash raises ValueError."""
         with scope(brainstorm.sid):
-            agent = CausalityAgent(
+            agent = MapCausalities(
                 nexus_hash="invalid-hash-that-does-not-exist",
                 estimate=False,
             )
@@ -144,7 +144,7 @@ class TestCausalityAgent:
 
     @pytest.mark.asyncio
     async def test_causality_agent_resolves_nexus(self, brainstorm):
-        """Test that CausalityAgent can resolve a valid nexus."""
+        """Test that MapCausalities can resolve a valid nexus."""
         with scope(brainstorm.sid):
             # Create a nexus
             wu = create_complete_wisdom_unit(0)
@@ -152,7 +152,7 @@ class TestCausalityAgent:
             nexus_result = await nexus_agent.execute()
 
             # Verify agent can resolve it
-            causality_agent = CausalityAgent(
+            causality_agent = MapCausalities(
                 nexus_hash=nexus_result.nexus.hash,
                 estimate=False,
             )
@@ -164,7 +164,7 @@ class TestCausalityAgent:
 
     @pytest.mark.asyncio
     async def test_causality_agent_resolves_nexus_by_prefix(self, brainstorm):
-        """Test that CausalityAgent can resolve nexus by hash prefix."""
+        """Test that MapCausalities can resolve nexus by hash prefix."""
         with scope(brainstorm.sid):
             wu = create_complete_wisdom_unit(0)
             nexus_agent = NexusAgent(wisdom_unit_hashes=[wu.hash])
@@ -172,7 +172,7 @@ class TestCausalityAgent:
 
             prefix = nexus_result.nexus.hash[:7]
 
-            causality_agent = CausalityAgent(
+            causality_agent = MapCausalities(
                 nexus_hash=prefix,
                 estimate=False,
             )

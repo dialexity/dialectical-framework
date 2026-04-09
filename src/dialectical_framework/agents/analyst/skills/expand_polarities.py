@@ -1,22 +1,22 @@
 """
-WisdomAgent: Orchestrator for creating WisdomUnits from Polarities.
+ExpandPolarities: Orchestrator for creating WisdomUnits from Polarities.
 
 Takes a T-A Polarity and creates WisdomUnits by adding poles (T+, T-, A+, A-).
 If no Polarity exists for the T-A pair, creates one using AntithesisClassification.
 
 Flow:
-    PolarityAgent → Polarity nodes (T-A pairs with HS)
+    FindPolarities → Polarity nodes (T-A pairs with HS)
            ↓
-    WisdomAgent → WisdomUnits (Polarity + T+, T-, A+, A-)
+    ExpandPolarities → WisdomUnits (Polarity + T+, T-, A+, A-)
 
 Usage:
-    # From PolarityAgent output
-    polarity_agent = PolarityAgent(thesis_hashes=[...])
+    # From FindPolarities output
+    polarity_agent = FindPolarities(thesis_hashes=[...])
     ideas = await polarity_agent.execute()
 
     # Get polarity data from artifacts
     for polarity_data in polarity_agent.report.artifacts["polarity_data"]:
-        wisdom_agent = WisdomAgent(
+        wisdom_agent = ExpandPolarities(
             thesis_hash=tension["thesis_hash"],
             antithesis_hash=tension["antithesis_hash"],
         )
@@ -31,16 +31,16 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.features.antithesis_classification import \
-    AntithesisClassification
-from dialectical_framework.features.pole_generation import (
-    PoleGeneration, PoleResult)
-from dialectical_framework.features.statement_deduplication import \
-    StatementDeduplication
 from dialectical_framework.agents.executable_capability import \
     ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
+from dialectical_framework.features.antithesis_classification import \
+    AntithesisClassification
+from dialectical_framework.features.pole_generation import (PoleGeneration,
+                                                            PoleResult)
+from dialectical_framework.features.statement_deduplication import \
+    StatementDeduplication
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
 
 
-class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
+class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
     """
     Orchestrate WisdomUnit creation for a single T-A tension.
 
@@ -444,4 +444,4 @@ class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
 
 
 # Backward compatibility alias
-PolarityAgent = WisdomAgent
+FindPolarities = ExpandPolarities

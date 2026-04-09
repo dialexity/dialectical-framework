@@ -1,5 +1,5 @@
 """
-TransformationAgent: Subagent for generating Action-Reflection transformations for WisdomUnits.
+ExploreTransformations: Subagent for generating Action-Reflection transformations for WisdomUnits.
 
 Orchestrates the transformation generation pipeline:
 1. Derives contextual apexes (Re+ and Ac+) for the WU
@@ -9,13 +9,13 @@ Orchestrates the transformation generation pipeline:
 
 Usage:
     # Programmatic use
-    agent = TransformationAgent(wisdom_unit_hash="abc123...")
+    agent = ExploreTransformations(wisdom_unit_hash="abc123...")
     result = await agent.execute()
     for t in result.all:
         print(f"{t}")
 
     # LLM tool use
-    agent = TransformationAgent(wisdom_unit_hash="abc123...")
+    agent = ExploreTransformations(wisdom_unit_hash="abc123...")
     json_result = await agent.call()  # Returns JSON string
 """
 
@@ -28,16 +28,15 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.features.action_extraction import \
-    ActionExtraction
-from dialectical_framework.features.positive_ac_re_apex_derivation import (
-    ApexDerivation, ApexDerivationResultDto)
-from dialectical_framework.features.transformation_generation import (
-    TransformationGeneration, TransformationTetradDto)
 from dialectical_framework.agents.executable_capability import \
     ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
+from dialectical_framework.features.action_extraction import ActionExtraction
+from dialectical_framework.features.positive_ac_re_apex_derivation import (
+    ApexDerivation, ApexDerivationResultDto)
+from dialectical_framework.features.transformation_generation import (
+    TransformationGeneration, TransformationTetradDto)
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.rationale import Rationale
@@ -55,8 +54,8 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class TransformationAgentResult:
-    """Result from the TransformationAgent."""
+class ExploreTransformationsResult:
+    """Result from the ExploreTransformations."""
 
     existing: list[Transformation]
     new: list[Transformation]
@@ -68,7 +67,9 @@ class TransformationAgentResult:
         return self.existing + self.new
 
 
-class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResult]):
+class ExploreTransformations(
+    BaseTool, ExecutableCapability[ExploreTransformationsResult]
+):
     """
     Subagent for generating Action-Reflection transformations for WisdomUnits.
 
@@ -76,7 +77,7 @@ class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResu
     producing multiple transformation alternatives for a single WisdomUnit.
 
     Dual interface:
-    - execute() returns TransformationAgentResult for programmatic use
+    - execute() returns ExploreTransformationsResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -91,12 +92,12 @@ class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResu
         await self.execute()
         return str(self._report)
 
-    async def execute(self) -> TransformationAgentResult:
+    async def execute(self) -> ExploreTransformationsResult:
         """
         Execute the transformation generation pipeline.
 
         Returns:
-            TransformationAgentResult with existing and new transformations
+            ExploreTransformationsResult with existing and new transformations
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
@@ -125,7 +126,7 @@ class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResu
 
         if not ac_candidates:
             self._report.summary = f"No new Ac+ candidates for WU {wu.short_hash}"
-            return TransformationAgentResult(
+            return ExploreTransformationsResult(
                 existing=existing,
                 new=[],
                 apexes=apexes,
@@ -151,7 +152,7 @@ class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResu
             f"({len(existing)} existing)"
         )
 
-        return TransformationAgentResult(
+        return ExploreTransformationsResult(
             existing=existing,
             new=new_transformations,
             apexes=apexes,

@@ -1,5 +1,5 @@
 """
-CausalityAgent: Subagent for creating causal cycles from WisdomUnits.
+MapCausalities: Subagent for creating causal cycles from WisdomUnits.
 
 Takes WisdomUnit hashes and intent, then creates Cycles and Wheels representing
 different causal arrangements. Optionally attaches AI estimations for probability
@@ -13,7 +13,7 @@ Intents:
 
 Usage:
     # Programmatic use
-    agent = CausalityAgent(
+    agent = MapCausalities(
         wisdom_unit_hashes=["abc123...", "def456..."],
         intent="preset:balanced",
         estimate=True,
@@ -25,7 +25,7 @@ Usage:
             print(f"  Wheel: {wheel.short_hash}")
 
     # LLM tool use
-    agent = CausalityAgent(wisdom_unit_hashes=["abc123...", "def456..."])
+    agent = MapCausalities(wisdom_unit_hashes=["abc123...", "def456..."])
     json_result = await agent.call()  # Returns JSON string
 """
 
@@ -54,8 +54,8 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class CausalityAgentResult:
-    """Result from the CausalityAgent."""
+class MapCausalitiesResult:
+    """Result from the MapCausalities."""
 
     wisdom_units: list[WisdomUnit]
     cycles: list[Cycle]
@@ -63,7 +63,7 @@ class CausalityAgentResult:
     estimated: bool
 
 
-class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
+class MapCausalities(BaseTool, ExecutableCapability[MapCausalitiesResult]):
     """
     Subagent for creating causal cycles from WisdomUnits.
 
@@ -76,7 +76,7 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
     multiple times with different intent values.
 
     Dual interface:
-    - execute() returns CausalityAgentResult for programmatic use
+    - execute() returns MapCausalitiesResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -99,12 +99,12 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
         await self.execute()
         return str(self._report)
 
-    async def execute(self) -> CausalityAgentResult:
+    async def execute(self) -> MapCausalitiesResult:
         """
         Execute the causality sequencing pipeline.
 
         Returns:
-            CausalityAgentResult with cycles, wheels, and estimation status
+            MapCausalitiesResult with cycles, wheels, and estimation status
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
@@ -145,7 +145,7 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
             + (" (estimated)" if estimated else "")
         )
 
-        return CausalityAgentResult(
+        return MapCausalitiesResult(
             wisdom_units=wisdom_units,
             cycles=cycles,
             wheels=wheels,

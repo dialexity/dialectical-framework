@@ -72,5 +72,5 @@ class AddInput(BaseTool):
             f"Added input to brainstorm.\n"
             f"Input hash: {input_node.short_hash}\n"
             f"Preview: {preview}\n"
-            f"You can now extract theses using AnchoringAgent."
+            f"You can now extract theses using SurfaceTheses."
         )

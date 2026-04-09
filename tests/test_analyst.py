@@ -19,7 +19,7 @@ async def test_full_blown_wheel(number_of_thoughts):
     Full-blown test with spiral decorators: Spiral and Audited Spiral.
     This test includes synthesis calculation.
 
-    Note: Action-Reflection decorator was removed - now uses TransformationAgent directly.
+    Note: Action-Reflection decorator was removed - now uses ExploreTransformations directly.
     """
     factory = DialecticalReasoning.wheel_builder(text=user_message)
     factory1 = DecoratorDiscreteSpiralAudited(DecoratorDiscreteSpiral(builder=factory))

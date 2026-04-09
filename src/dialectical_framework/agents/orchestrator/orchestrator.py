@@ -92,15 +92,18 @@ DialecticalComponent:
 WisdomUnit, Cycle, Wheel, etc.:
 - `intent`: Optional intent/purpose description
 """
+from dialectical_framework.agents.analyst.skills.edit_polarity import \
+    EditPolarity
+from dialectical_framework.agents.analyst.skills.edit_tetrad import EditTetrad
+from dialectical_framework.agents.analyst.skills.expand_polarities import \
+    ExpandPolarities
+from dialectical_framework.agents.analyst.skills.find_polarities import \
+    FindPolarities
 # Import existing subagents
-from dialectical_framework.agents.analyst.skills.anchoring import \
-    AnchoringAgent
-from dialectical_framework.agents.analyst.skills.polarity import PolarityAgent
-from dialectical_framework.agents.analyst.skills.polarity_editor import \
-    PolarityEditor
-from dialectical_framework.agents.analyst.skills.wisdom import WisdomAgent
+from dialectical_framework.agents.analyst.skills.surface_theses import \
+    SurfaceTheses
 from dialectical_framework.agents.explorer.skills.transformation import \
-    TransformationAgent
+    ExploreTransformations
 # Import orchestrator tools
 from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
 from dialectical_framework.agents.orchestrator.tools.query_graph import \
@@ -220,11 +223,12 @@ class Orchestrator:
         ]
 
         build_tools = [
-            AnchoringAgent,
-            PolarityAgent,
-            WisdomAgent,
-            PolarityEditor,
-            TransformationAgent,
+            SurfaceTheses,
+            FindPolarities,
+            ExpandPolarities,
+            EditPolarity,
+            EditTetrad,
+            ExploreTransformations,
         ]
 
         return session_tools + query_tools + build_tools

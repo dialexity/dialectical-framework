@@ -1,5 +1,5 @@
 """
-Tests for WisdomAgent - tetrad expansion (pole generation).
+Tests for ExpandPolarities - tetrad expansion (pole generation).
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ import json
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.analyst.skills.polarity import PolarityAgent
-from dialectical_framework.agents.analyst.skills.wisdom import WisdomAgent
+from dialectical_framework.agents.analyst.skills.polarity import FindPolarities
+from dialectical_framework.agents.analyst.skills.wisdom import ExpandPolarities
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -44,18 +44,18 @@ data consistency across microservices. The system processes 10,000 orders per da
 """
 
 
-class TestWisdomAgent:
-    """Tests for WisdomAgent - tetrad expansion."""
+class TestExpandPolarities:
+    """Tests for ExpandPolarities - tetrad expansion."""
 
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_requires_valid_thesis(self):
-        """WisdomAgent returns error when thesis not found."""
+        """ExpandPolarities returns error when thesis not found."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            agent = WisdomAgent(
+            agent = ExpandPolarities(
                 thesis_hash="nonexistent123",
                 antithesis_hash="nonexistent456",
             )
@@ -67,7 +67,7 @@ class TestWisdomAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_requires_valid_antithesis(self):
-        """WisdomAgent returns error when antithesis not found."""
+        """ExpandPolarities returns error when antithesis not found."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -78,7 +78,7 @@ class TestWisdomAgent:
             )
             thesis.commit()
 
-            agent = WisdomAgent(
+            agent = ExpandPolarities(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash="nonexistent456",
             )
@@ -90,7 +90,7 @@ class TestWisdomAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_generates_all_poles(self):
-        """WisdomAgent generates all 4 poles (T+, T-, A+, A-)."""
+        """ExpandPolarities generates all 4 poles (T+, T-, A+, A-)."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -107,7 +107,7 @@ class TestWisdomAgent:
             )
             antithesis.commit()
 
-            agent = WisdomAgent(
+            agent = ExpandPolarities(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -124,7 +124,7 @@ class TestWisdomAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_creates_wu_from_polarity(self):
-        """WisdomAgent creates WU using PolarityAgent output."""
+        """ExpandPolarities creates WU using FindPolarities output."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -135,17 +135,17 @@ class TestWisdomAgent:
             )
             thesis.commit()
 
-            # Use PolarityAgent to create Polarity (T-A pair)
-            polarity_agent = PolarityAgent(thesis_hashes=[thesis.short_hash])
+            # Use FindPolarities to create Polarity (T-A pair)
+            polarity_agent = FindPolarities(thesis_hashes=[thesis.short_hash])
             await polarity_agent.execute()
 
             # Get the polarity data
             polarity_data = polarity_agent.report.artifacts.get("polarity_data", [])
             assert len(polarity_data) >= 1
 
-            # Complete with WisdomAgent
+            # Complete with ExpandPolarities
             data = polarity_data[0]
-            wisdom_agent = WisdomAgent(
+            wisdom_agent = ExpandPolarities(
                 thesis_hash=data["thesis_hash"],
                 antithesis_hash=data["antithesis_hash"],
             )
@@ -158,7 +158,7 @@ class TestWisdomAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_returns_existing_complete_wus(self):
-        """WisdomAgent returns existing complete WUs along with new ones."""
+        """ExpandPolarities returns existing complete WUs along with new ones."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -176,7 +176,7 @@ class TestWisdomAgent:
             antithesis.commit()
 
             # First run - creates new WU
-            agent1 = WisdomAgent(
+            agent1 = ExpandPolarities(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -185,7 +185,7 @@ class TestWisdomAgent:
             first_wu_hash = wus1[0].hash
 
             # Second run - should return existing + potentially new
-            agent2 = WisdomAgent(
+            agent2 = ExpandPolarities(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -201,7 +201,7 @@ class TestWisdomAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_with_specific_positions(self):
-        """WisdomAgent can generate specific poles only."""
+        """ExpandPolarities can generate specific poles only."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -219,7 +219,7 @@ class TestWisdomAgent:
             antithesis.commit()
 
             # Only generate T+ and T-
-            agent = WisdomAgent(
+            agent = ExpandPolarities(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
                 positions=["T+", "T-"],
@@ -233,7 +233,7 @@ class TestWisdomAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_detects_duplicates(self):
-        """WisdomAgent detects and discards duplicate WUs after deduplication."""
+        """ExpandPolarities detects and discards duplicate WUs after deduplication."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -251,7 +251,7 @@ class TestWisdomAgent:
             antithesis.commit()
 
             # First run
-            agent1 = WisdomAgent(
+            agent1 = ExpandPolarities(
                 thesis_hash=thesis.short_hash,
                 antithesis_hash=antithesis.short_hash,
             )
@@ -261,7 +261,7 @@ class TestWisdomAgent:
             # Multiple runs should not create exact duplicates
             # (though they may create variants with different poles)
             for _ in range(2):
-                agent = WisdomAgent(
+                agent = ExpandPolarities(
                     thesis_hash=thesis.short_hash,
                     antithesis_hash=antithesis.short_hash,
                 )

@@ -1,5 +1,5 @@
 """
-Tests for AnchoringAgent - thesis extraction and anchoring.
+Tests for SurfaceTheses - thesis extraction and anchoring.
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ import json
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.analyst.skills.anchoring import \
-    AnchoringAgent
+from dialectical_framework.agents.analyst.skills.surface_theses import \
+    SurfaceTheses
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.repositories.dialectical_component_repository import \
@@ -50,25 +50,25 @@ operations. Each service maintains its own database (database-per-service patter
 """
 
 
-class TestAnchoringAgent:
-    """Tests for AnchoringAgent - thesis extraction and anchoring."""
+class TestSurfaceTheses:
+    """Tests for SurfaceTheses - thesis extraction and anchoring."""
 
     @pytest.mark.asyncio
     @observe()
     async def test_anchoring_requires_inputs_or_direct_thesis(self):
-        """AnchoringAgent returns message when no inputs and no direct thesis."""
+        """SurfaceTheses returns message when no inputs and no direct thesis."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            agent = AnchoringAgent(intent="extract 3 theses")
+            agent = SurfaceTheses(intent="extract 3 theses")
             result = await agent.call()
             assert "No inputs" in result
 
     @pytest.mark.asyncio
     @observe()
     async def test_anchoring_extract_theses_basic(self):
-        """AnchoringAgent extracts theses from input content."""
+        """SurfaceTheses extracts theses from input content."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -77,9 +77,7 @@ class TestAnchoringAgent:
             input_node.commit()
             brainstorm.inputs.connect(input_node)
 
-            agent = AnchoringAgent(
-                intent="extract 2 theses about software architecture"
-            )
+            agent = SurfaceTheses(intent="extract 2 theses about software architecture")
             result = await agent.call()
 
             report = json.loads(result)
@@ -90,7 +88,7 @@ class TestAnchoringAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_anchoring_creates_ideas_node(self):
-        """AnchoringAgent creates Ideas node with extracted components."""
+        """SurfaceTheses creates Ideas node with extracted components."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
@@ -99,7 +97,7 @@ class TestAnchoringAgent:
             input_node.commit()
             brainstorm.inputs.connect(input_node)
 
-            agent = AnchoringAgent(intent="extract 2 theses")
+            agent = SurfaceTheses(intent="extract 2 theses")
             result = await agent.call()
 
             report = json.loads(result)
@@ -108,12 +106,12 @@ class TestAnchoringAgent:
     @pytest.mark.asyncio
     @observe()
     async def test_anchoring_direct_thesis_without_inputs(self):
-        """AnchoringAgent can anchor direct thesis even without inputs."""
+        """SurfaceTheses can anchor direct thesis even without inputs."""
         brainstorm = Brainstorm()
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            agent = AnchoringAgent(
+            agent = SurfaceTheses(
                 intent="anchor direct thesis 'Trust' - create component for concept of Trust"
             )
             result = await agent.call()

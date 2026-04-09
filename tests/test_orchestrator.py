@@ -196,10 +196,10 @@ class TestOrchestratorInitialization:
         assert "QueryGraph" in tool_names
 
         # Build tools (subagents)
-        assert "AnchoringAgent" in tool_names
+        assert "SurfaceTheses" in tool_names
         assert "TensionAgent" in tool_names
-        assert "PolarityAgent" in tool_names
-        assert "TransformationAgent" in tool_names
+        assert "FindPolarities" in tool_names
+        assert "ExploreTransformations" in tool_names
 
 
 class TestOrchestratorWorkflow:
