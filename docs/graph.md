@@ -5,41 +5,44 @@ Graph-native dialectical framework using Memgraph/Neo4j.
 ## Node Hierarchy
 
 ```
-Wheel (top-level)
-├─ Cycle ────────────────────────────────┐
-│  ├─ Nexus (pool of WisdomUnits) ───────┤ WU → Nexus → Cycle → Wheel
-│  │  └─ WisdomUnits (1+) ───────────────┤
-│  │     ├─ T, A, T+, T-, A+, A- components (1:1 each)
-│  │     └─ Transformation (0-1) internal spiral
-│  │        └─ Synthesis (0-N) with S+, S-
-│  └─ Transitions (2+)                   │
-├─ Wheel-level Transitions (detailed)    │
-└─ Spiral (0-1) ─────────────────────────┘
-   └─ Transitions (2+)
+WisdomUnit → Cycle → Wheel (edges) → Transformation
+     │          │        │               │
+   (tetrad)  (T-cycle) (TA-cycle)    (per-edge)
+                         │
+                    Synthesis (0-N)
 ```
 
-**Key insight:** Nexus serves as a "pool" of WisdomUnits that can be shared
-across different analytical perspectives. Cycles arrange WUs in causal sequences,
-while Wheels provide detailed transition-level analysis.
+**Simplified model:**
+- **WisdomUnit**: Tetrad (T, A, T+, T-, A+, A-) — atomic polar structure
+- **Cycle**: T-cycle — ordered sequence of WUs defining abstract thesis causality
+- **Wheel**: TA-cycle — concrete arrangement with edges between components
+- **Transformation**: Action-Reflection structure per edge (Ac, Re, Ac+, Ac-, Re+, Re-)
+
+**Evolution model:**
+- Cycles evolve by adding WUs to the pool (Cycle → `evolutions` → child Cycle)
+- Wheels grow in layers within a Cycle's pool (Wheel → `evolutions` → child Wheel)
+- All wheels in an evolution chain point to the same parent Cycle
 
 ## Core Nodes
 
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
 | **DialecticalComponent** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
-| **WisdomUnit** | Thesis-antithesis pair | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus` |
-| **Nexus** | Pool of WisdomUnits | `wisdom_units`, `cycles` |
-| **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Transformation or Spiral) |
-| **Transition** | Component relationship | `source`, `target`, `cycle` |
-| **Cycle** | Causal loop | `nexus`, `wheels` |
-| **Spiral** | Transformational sequence | `wheel`, `synthesis` (0-N) |
-| **Transformation** | Internal WU spiral | `wisdom_unit`, `ac_re`, `synthesis` (0-N) |
-| **Wheel** | Top container | `cycle`, `spiral` |
+| **WisdomUnit** | Thesis-antithesis tetrad | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus` |
+| **Cycle** | T-cycle (ordered WU pool) | `wisdom_unit_hashes`, `wheels`, `evolutions`, `evolved_from` |
+| **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `evolutions`, `evolved_from` |
+| **Transition** | Edge between components | `source`, `target`, `cycle` (→Wheel) |
+| **Transformation** | Action-Reflection per edge | `edge` (→Transition), `ac_re`, `synthesis` (0-N) |
+| **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Transformation) |
 | **Rationale** | Evidence/explanation | `explanation`, `critiques`, `provided_estimations` |
 | **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `_provider` (←Rationale via PROVIDES) |
 | **Input** | Content source | `statements`, `ideas` |
 | **Ideas** | Distilled concepts from Input | `input` (→Input), `statements` |
 | **Brainstorm** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
+
+**DEPRECATED** (kept for backwards compatibility):
+- **Nexus**: Replaced by Cycle storing WU hashes directly
+- **Spiral**: Replaced by Transformations on edges
 
 ## Intent Levels
 
@@ -47,49 +50,102 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 
 | Level | Reflection | Question | Lives On | Example Intent |
 |-------|------------|----------|----------|----------------|
-| **Discovery** | (Gathering) | What sources to explore? | Brainstorm, Ideas | "economic_articles", "ethical_perspectives" |
-| **Focus** | What? | What tensions exist? | Nexus | "economic_vs_social", "sustainability" |
-| **Dynamics** | So What? | Why do they matter? | Cycle | "preset:balanced", "preset:realistic" |
-| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation | "preset:general_concepts", "growth_based" |
-| **Synthesis** | (Outcome) | What emerges? | Synthesis, Spiral | "practical_compromise" |
+| **Discovery** | (Gathering) | What sources to explore? | Ideas | "economic_articles", "ethical_perspectives" |
+| **Focus** | What? | What tensions exist? | Cycle | "economic_vs_social", "sustainability" |
+| **Dynamics** | So What? | Why do they matter? | Cycle (intent field) | "preset:balanced", "preset:realistic" |
+| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation, Wheel | "preset:general_concepts", "growth_based" |
+| **Synthesis** | (Outcome) | What emerges? | Synthesis | "practical_compromise" |
 
-**Nodes with IntentMixin:** Brainstorm, Ideas, Nexus, Cycle, WisdomUnit, Transformation, Synthesis, Spiral, Wheel
+**Nodes with IntentMixin:** Ideas, Cycle, WisdomUnit, Transformation, Synthesis, Wheel
+
+**Intent inheritance:** Wheels inherit intent from parent Wheel (via `evolved_from`) or from Cycle. Use `get_effective_intent()` to resolve.
 
 **Intent enables grouping:** Explicit intent on the graph allows finding explorations with similar focus, grouping by dynamics, and making the graph a readable analysis artifact. Presets like "preset:balanced" or "preset:realistic" serve as defaults but can be replaced with natural language.
 
-## Transformation and Spiral: Local vs Global
+## Transformation Model
 
-**WU Transformation** (local, abstract):
-- Internal spiral within ONE WisdomUnit (2 transitions)
-- Resolves the internal dialectic of a single tension
-- Produces local Synthesis (S+/S-)
-- Has its own Path intent
-
-**Wheel Spiral** (global, concrete):
-- Weaves together all WU Transformations in the Nexus
-- Blends Path intents from all WUs into coherent navigation
-- Adds inter-WU transitions and ordering
-- Produces meta-Synthesis (what emerges from the whole journey)
-- **Spirals are the ultimate artifacts** - preserved synthesis decisions
-
-### Calculation Order
-
-**Bottom-up: WU Transformations first, then Wheel Spiral**
-
-1. Each WU calculates its Transformation (local path with local intent)
-2. Wheel Spiral weaves those Transformations together with Wheel-level (blended) intent
-3. Wheel doesn't recalculate WU paths - it sequences and blends them
+**Transformations belong to edges (Transitions)**, not WisdomUnits:
 
 ```
-WU₁.Transformation ──┐
-WU₂.Transformation ──┼──► Wheel.Spiral (blended navigation)
-WU₃.Transformation ──┘
+Wheel
+├── Edge 1 (T1- → A2+) ── Transformation (Ac+, Re+, ...)
+├── Edge 2 (A2- → T1+) ── Transformation (Ac+, Re+, ...)
+├── Edge 3 (T2- → A1+) ── Transformation (Ac+, Re+, ...)
+└── Edge 4 (A1- → T2+) ── Transformation (Ac+, Re+, ...)
 ```
 
-**What Wheel Spiral adds:**
-- Ordering between WU transitions (WU₁'s T-→A+ before WU₂'s A-→T+)
-- Inter-WU transitions (moving from one tension to another)
-- Meta-synthesis (emergent insight from the whole journey)
+**Action-Reflection structure** (6 positions per Transformation):
+- **Ac** (Action): T → A
+- **Ac+** (Positive Action): T- → A+ (REQUIRED)
+- **Ac-** (Negative Action): T+ → A-
+- **Re** (Reflection): A → T
+- **Re+** (Positive Reflection): A- → T+ (REQUIRED)
+- **Re-** (Negative Reflection): A+ → T-
+
+**Each edge can have multiple Transformation alternatives** at different insight/proactiveness levels.
+
+### Layered Transformation Computation
+
+Transformations use parent wheel's Transformations as computation context (coarse → fine refinement):
+
+```
+Layer 1:  Wheel(WU1) ── Transformation (coarse)
+              │
+Layer 2:  Wheel(WU1,WU2) ── Transformation (refines Layer 1)
+              │
+Layer 3:  Wheel(WU1,WU2,WU3) ── Transformation (refines Layer 2)
+```
+
+**Context is snapshot-based:** The parent's Transformations are input to computing child Transformations. No bidirectional feedback.
+
+## Evolution Model (Layered Growth)
+
+### Cycle Evolution
+
+Cycles evolve by adding WisdomUnits to the pool:
+
+```
+Cycle [WU1] ──evolutions──► Cycle [WU1, WU2] ──evolutions──► Cycle [WU1, WU2, WU3]
+```
+
+**Note:** Adding a WU can create multiple child Cycles with different orderings:
+- Cycle [WU1, WU2] + WU3 → Cycle [WU1, WU2, WU3] (different causalities possible)
+
+### Wheel Evolution (Layered Growth)
+
+Wheels grow in layers within a Cycle's WU pool:
+
+```
+Given Cycle [WU1, WU2, WU3]:
+
+Layer 1:  Wheel(WU1)    Wheel(WU2)    Wheel(WU3)
+              │             │             │
+Layer 2:  Wheel(WU1,WU2)  ...          ...
+              │
+Layer 3:  Wheel(WU1,WU2,WU3)
+```
+
+**All wheels in an evolution chain point to the same parent Cycle.**
+
+### Wheel Reuse
+
+Wheels with the same WU set (rotation-invariant hash) are reused across branches:
+
+```
+             Cycle A                    Cycle B
+                │                          │
+    Wheel(WU1,WU2) ◄─────────────────► Wheel(WU1,WU2)  [SAME wheel reused]
+```
+
+**Rotation-invariant:** `Wheel(WU1→WU2)` and `Wheel(WU2→WU1)` hash to the same canonical form.
+
+### Intent Inheritance
+
+Resolve intent via `get_effective_intent()`:
+1. This wheel's intent (if set)
+2. Parent wheel's effective intent (via `evolved_from`)
+3. Parent Cycle's effective intent
+4. Default ("preset:balanced")
 
 ## Brainstorm Layer
 
@@ -152,78 +208,57 @@ with scope(brainstorm.sid):
 
 ## Branching and Cardinality Rationale
 
-The framework uses (0, 1) cardinality for both `WisdomUnit.transformation` and `Wheel.spiral`. This is intentional - different exploration paths require branching **upstream**, not at these nodes.
+### Cycle as Snapshot
 
-### Why (0, 1) for Transformation and Spiral?
+**Critical:** A Cycle contains specific WU hashes (ordered), not "latest" WUs. It is a snapshot.
 
-Both Transformation and Spiral are **derived structures**, fully determined by their inputs:
-
-| Node | Determined By | Cardinality |
-|------|---------------|-------------|
-| **Transformation** | WU's polar structure + Path intent | (0, 1) per WU |
-| **Spiral** | Wheel's segment ordering + all WU Transformations | (0, 1) per Wheel |
-
-**Key insight:** The Spiral doesn't have independent "intentions" - it inherits and blends them from the WU Transformations within the Nexus. Given a fixed Wheel arrangement and fixed WU Transformations, there is exactly one Spiral structure.
-
-### Nexus as Snapshot
-
-**Critical:** A Nexus contains specific WU versions, not "latest" WUs. It is a snapshot, not a living container.
-
-When a WU needs to evolve:
-- The original WU remains in its Nexus (immutable once committed)
-- Create a new WU with the evolved structure
-- Create a new Nexus containing the evolved WU
+When a WU pool needs to grow:
+- The original Cycle remains (immutable once committed)
+- Create a new Cycle with the additional WU via `evolutions` relationship
 
 ```
-WU₁ (original)           WU₁' (evolved version - new node)
- │                         │
- └── Nexus₁ (snapshot)     └── Nexus₂ (new snapshot with evolved WU)
-       │                         │
-    Wheel₁ → Spiral₁          Wheel₂ → Spiral₂
-    (preserved)               (new synthesis)
+Cycle₁ [WU1, WU2] ──evolutions──► Cycle₂ [WU1, WU2, WU3]
 ```
-
-**Why this matters:** Spirals are ultimate artifacts. Spiral₁ remains as historical synthesis - "given these WUs with these intents, here's what emerged." It's a committed insight, not a cache to be invalidated.
 
 ### Where Branching Happens
 
 To explore different dialectical paths, branch at the appropriate upstream level:
 
 ```
-Different polar interpretations     → Create different WisdomUnits
-Different WU combinations           → Create different Nexuses
-Different orderings/causality types → Create different Cycles
-Different detailed implementations  → Create different Wheels
+Different polar interpretations         → Create different WisdomUnits
+Different WU pools                      → Create different Cycles (via evolutions)
+Different WU orderings/causality types  → Create different Cycles
+Different layer subsets                 → Create different Wheels (via evolutions)
+Different transformation interpretations → Create different Transformations on same edge
 ```
 
-**The duplication is the feature:** WUs appearing in multiple Nexuses isn't waste - it's provenance. You can trace "Spiral₂ emerged because WU₁ evolved, while keeping WU₂, WU₃."
-
-**Example:** To explore Love↔Hate through different transformation paths:
+**Example:** Exploring different transformation paths:
 
 ```
-WU1: Love↔Hate (Transformation: fear-based)
-WU2: Love↔Hate (Transformation: growth-based)  ← Different WU, not multiple Transformations
+Cycle [WU1, WU2, WU3]
      │
-     ▼
-Nexus A {WU1, WU3}          Nexus B {WU2, WU3}
-     │                           │
-     ▼                           ▼
-Cycle → Wheel → Spiral A    Cycle → Wheel → Spiral B
+     ├── Wheel(WU1) ── Transformation A (fear-based)
+     │       │
+     │       └── Wheel(WU1,WU2) ── Transformation (refines A)
+     │
+     └── Wheel(WU1) ── Transformation B (growth-based)  [different Transformation on same edge]
+             │
+             └── Wheel(WU1,WU2) ── Transformation (refines B)
 ```
 
 ### Multiple Synthesis Interpretations
 
-While Transformation and Spiral have (0, 1) cardinality, **Synthesis has (0, ∞)**:
+Each edge can have multiple Transformations, and each Transformation can have multiple Syntheses:
 
 ```
-Transformation (0, 1)
-└── Synthesis (0, ∞)  ← Multiple interpretations of the same transformation
-
-Spiral (0, 1)
-└── Synthesis (0, ∞)  ← Multiple interpretations of the same spiral path
+Edge (T1- → A2+)
+├── Transformation A (insight level 1)
+│   └── Synthesis (0, ∞)  ← Multiple interpretations
+└── Transformation B (insight level 2)
+    └── Synthesis (0, ∞)  ← Multiple interpretations
 ```
 
-This allows exploring different synthesis outcomes (S+/S-) without duplicating the structural path.
+This allows exploring different synthesis outcomes without duplicating structural paths.
 
 ## Structural vs Analytical Layers
 
@@ -233,9 +268,9 @@ The graph architecture separates into two distinct layers.
 
 Think of the structural layer as a **3D tree growing downward**:
 
-- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → Nexus → WU → Components)
-- **Horizontal dimension**: Sibling relationships (multiple WUs in a Nexus, multiple Wheels in a Cycle)
-- **Depth dimension**: Branching via clones (Nexus₁ → Nexus₂ with evolved WUs)
+- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → WU → Components)
+- **Horizontal dimension**: Sibling relationships (multiple WUs in a Cycle, multiple Wheels per Cycle)
+- **Depth dimension**: Branching via evolution (Cycle₁ → Cycle₂ with added WU)
 
 **Properties:**
 - **Hash-linked**: Each node's hash includes its children's hashes (Merkle tree)
@@ -245,11 +280,11 @@ Think of the structural layer as a **3D tree growing downward**:
 | Node | Role in Structure |
 |------|-------------------|
 | DialecticalComponent | Atomic leaves (statements) |
-| WisdomUnit | Polar pairs (T/A with +/-) |
+| WisdomUnit | Polar tetrads (T/A with +/-) |
 | Transition | Edges between components |
-| Nexus | Snapshot of WU versions |
-| Cycle | Causal ordering |
-| Wheel | Complete detailed view |
+| Cycle | T-cycle (ordered WU pool + intent) |
+| Wheel | TA-cycle (edges implementing Cycle's pool) |
+| Transformation | Action-Reflection per edge |
 
 ### Analytical Layer: Floating Annotations
 
@@ -270,7 +305,7 @@ Think of the analytical layer as **pins and sticky notes** attached to the struc
 | Rationale | Any AssessableEntity (explains why) |
 | Estimation | Any AssessableEntity (P/R values) |
 | Critique | Rationales (audit/challenge) |
-| Synthesis | Transformation or Spiral (emergent S+/S-) |
+| Synthesis | Transformation (emergent S+/S-) |
 | ac_re WU | Transformation (action-reflection context) |
 
 ### Why This Separation?
@@ -317,11 +352,10 @@ class AnalyticalStructure(Relationship):
 |--------------|-------|------------|
 | Polarity (T, A, T+, etc.) | Structural | IdentityRelationship |
 | `IS_SOURCE_OF`, `IS_TARGET_OF` | Structural | IdentityRelationship |
-| `BELONGS_TO_CYCLE`, `BELONGS_TO_NEXUS` | Structural | ContainerMembership |
-| `HAS_CYCLE`, `HAS_WHEEL` | Structural | ContainerMembership |
+| `BELONGS_TO_CYCLE` | Structural | ContainerMembership |
+| `HAS_WHEEL`, `EVOLVED_TO` | Structural | IdentityRelationship |
 | `EXPLAINS`, `CRITIQUES` | Analytical | AnalyticalStructure |
-| `SYNTHESIS_OF`, `IS_SPIRAL_OF` | Analytical | AnalyticalStructure |
-| `ACTION_REFLECTION` | Analytical | AnalyticalStructure |
+| `SYNTHESIS_OF`, `ACTION_REFLECTION` | Analytical | AnalyticalStructure |
 | `ESTIMATES`, `PROVIDES` | Analytical | AnalyticalStructure |
 
 ### Practical Effect
@@ -341,38 +375,42 @@ rationale.set_explanation_target(any_node)  # OK - pointing into structure
 
 ## Relationship Patterns
 
-**The Nexus-based hierarchy:**
+**The simplified hierarchy:**
 ```
-WisdomUnit → Nexus → Cycle → Wheel
-     ↓          ↓       ↓        ↓
-  (content)  (pool)  (order)  (detail)
+WisdomUnit → Cycle → Wheel → Transformation
+     ↓          ↓       ↓          ↓
+  (tetrad)  (T-cycle) (edges)  (per-edge)
+```
+
+**Evolution hierarchy:**
+```
+Cycle ──evolutions──► Cycle' (WU added)
+Wheel ──evolutions──► Wheel' (layer added)
 ```
 
 **Complete scoring hierarchy (child → parent edges):**
 ```
-DialecticalComponent ──► WisdomUnit ──► Nexus ──► Cycle ──► Wheel
-       │                     ▲                               ▲
-       │                     │                               │
-       │              Transformation ◄── Synthesis           │
-       │                                    │                │
-       └──► Synthesis ──────────────────────┴──► Spiral ─────┘
+DialecticalComponent ──► WisdomUnit
+                              │
+Transition ──► Wheel ◄────────┘ (via edges)
+                │
+         Transformation ◄── Synthesis
 
-Transition ──► Cycle/Wheel/Spiral/Transformation
 Rationale ──► (any AssessableEntity)
 ```
 
 **Same edge, different views:**
 ```python
 # Child defines outgoing edge
-class WisdomUnit:
-    nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")  # WU → Nexus
+class Wheel:
+    cycle = RelationshipFrom("Cycle", model=HasWheelRelationship)
 
 # Parent sees incoming edge (same physical edge)
-class Nexus:
-    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_NEXUS")
+class Cycle:
+    wheels = RelationshipTo("Wheel", model=HasWheelRelationship)
 ```
 
-**Convention:** Child → Parent edges use `RelationshipTo` on child.
+**Convention:** Child → Parent edges use `RelationshipFrom` on child when parent "has" children.
 
 ## Vocabulary
 
@@ -465,13 +503,13 @@ for pos, _ in component.positive_sides.all():
 
 | Method | Use Case |
 |--------|----------|
-| **GM** | Independent evidence (component + rationales, Nexus aggregation) |
+| **GM** | Independent evidence (component + rationales) |
 | **PM (p=4)** | Symmetric pairs (T↔A) |
 | **Product** | Sequential probability (cycle transitions) |
 
-**Score flow:** Component → WU → Nexus → Cycle → Wheel (child to parent)
+**Score flow:** Component → WU → Cycle → Wheel (child to parent)
 
-**Nexus aggregation:** Nexus.R = GM(WU relevances), Nexus.P = GM(WU transformation Ps)
+**Wheel aggregation:** Wheel scores derive from edges and their Transformations.
 
 **Hard veto:** Element's own P=0 or R=0 → returns 0
 **Soft exclusion:** Rationale P=0 or R=0 → filtered out
@@ -496,20 +534,20 @@ component.commit()  # save + compute hash in one step
 
 ### Container Nodes (IncrementalBuildMixin)
 
-Container nodes (Transformation, Spiral, Nexus, Cycle, Wheel) whose hash depends on children use `IncrementalBuildMixin`:
+Container nodes (Transformation, Cycle, Wheel, Ideas) whose hash depends on children use `IncrementalBuildMixin`:
 
 ```python
 # Pattern: save() → add members → commit()
-transformation = Transformation()
-transformation.set_wisdom_unit(wu)  # Set parent reference for hash
-transformation.save()               # HEAD state - allows adding members
+wheel = Wheel()
+wheel.save()               # HEAD state - allows adding members
+cycle.wheels.connect(wheel)  # Connect to parent Cycle
 
-# Add children while uncommitted
-transition1.cycle.connect(transformation)
-transition2.cycle.connect(transformation)
+# Add edges while uncommitted
+edge1.cycle.connect(wheel)
+edge2.cycle.connect(wheel)
 
 # Commit after all members added
-transformation.commit()  # Computes hash from children, makes immutable
+wheel.commit()  # Computes hash from edges, makes immutable
 ```
 
 **Why this pattern?**
@@ -523,42 +561,64 @@ transformation.commit()  # Computes hash from children, makes immutable
 
 ```python
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.wheel import Wheel
+from dialectical_framework.graph.nodes.transition import Transition
+from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
-# Create WisdomUnit with components
-wu = WisdomUnit()
-wu.save()
-component = DialecticalComponent(statement="Remote work improves focus")
-component.commit()
-wu.t.connect(component, relationship=TRelationship(alias='T1'))
+# Create WisdomUnits with components
+wu1 = WisdomUnit()
+wu1.save()
+t1 = DialecticalComponent(statement="Remote work improves focus")
+t1.commit()
+wu1.t.connect(t1, relationship=TRelationship(alias='T1'))
+# ... add other components (t_plus, t_minus, a, a_plus, a_minus)
+wu1.commit()
 
-# Create Nexus and pool WisdomUnits
-nexus = Nexus()
-nexus.save()
-wu.nexus.connect(nexus)
+wu2 = WisdomUnit()
+# ... similar setup
+wu2.commit()
 
-# Create Cycle from Nexus
-cycle = Cycle()
-cycle.save()
-nexus.cycles.connect(cycle)
+# Create Cycle with ordered WUs
+cycle = Cycle(intent="preset:balanced")
+cycle.set_wisdom_units([wu1, wu2])
+cycle.commit()
 
-# Create Wheel from Cycle
+# Create Wheel with edges
 wheel = Wheel()
 wheel.save()
 cycle.wheels.connect(wheel)
 
-# Access WisdomUnits from Wheel (via Cycle→Nexus)
-for wu, _ in wheel.wisdom_units:
-    print(f"WU: {wu.uid}")
+# Add edges (transitions) that define the T-A arrangement
+edge1 = Transition()
+edge1.set_source(t1_minus).set_target(a2_plus)
+edge1.commit()
+edge1.cycle.connect(wheel)
+# ... add more edges to complete the cycle
+
+wheel.commit()
+
+# Create Transformation for an edge
+transformation = Transformation()
+transformation.set_on_edge(edge1)
+transformation.save()
+# ... add ac_plus, re_plus transitions
+transformation.commit()
+
+# Access WisdomUnits from Wheel (derived from edges)
+for wu in wheel._wisdom_units:
+    print(f"WU: {wu.short_hash}")
+
+# Access Transformations
+for tr in wheel.transformations:
+    print(f"Transformation: {tr.short_hash}")
 
 # Score the hierarchy
 scorer = TaroRank(alpha=1.0)
-scorer.calculate_score(wheel)  # Recursively scores: WU → Nexus → Cycle → Wheel
+scorer.calculate_score(wheel)
 print(f"Wheel score: {wheel.score}")
 ```
 
