@@ -37,15 +37,17 @@ from typing import TYPE_CHECKING, ClassVar, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-)
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.features.statement_classification import \
+    StatementClassification
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.dialectical_component import \
+        DialecticalComponent
 
 
 # --- System Prompt (canonical for antithesis taxonomy) ---
@@ -144,15 +146,15 @@ Respond with structured output matching the requested format."""
 # --- Arousal Scale Constants ---
 
 AROUSAL_VALUES = {
-    "dormant": 0.1,     # Completely latent, invisible tension
-    "latent": 0.2,      # Barely perceptible, nascent
-    "low": 0.3,         # Mild, background tension
-    "mild": 0.4,        # Noticeable but subdued
-    "moderate": 0.5,    # Balanced, present tension
-    "elevated": 0.6,    # Becoming prominent
-    "high": 0.7,        # Strong, clearly visible
-    "intense": 0.8,     # Very active, urgent
-    "active": 0.9,      # Fully manifest, immediate
+    "dormant": 0.1,  # Completely latent, invisible tension
+    "latent": 0.2,  # Barely perceptible, nascent
+    "low": 0.3,  # Mild, background tension
+    "mild": 0.4,  # Noticeable but subdued
+    "moderate": 0.5,  # Balanced, present tension
+    "elevated": 0.6,  # Becoming prominent
+    "high": 0.7,  # Strong, clearly visible
+    "intense": 0.8,  # Very active, urgent
+    "active": 0.9,  # Fully manifest, immediate
 }
 
 
@@ -167,32 +169,32 @@ def arousal_label_to_value(label: str) -> float:
 class ContextualizedTaxonomyDto(BaseModel):
     """Contextualized universal taxonomy for a thesis.
 
-    Structure (from docs/r&d/taxonomy-universal.md):
-                            APEX: [T]-lessness
-                                   │
-                ┌──────────────────┴──────────────────┐
-                │                                     │
-           Anti-[T]                            Absence of [T]
-          (Violations)                          (Inhibition)
-                │                                     │
-        ┌───────┴───────┐                     ┌───────┴───────┐
-        │               │                     │               │
-   Corruption     Deformation            Inhibition      Privation
+     Structure (from docs/r&d/taxonomy-universal.md):
+                             APEX: [T]-lessness
+                                    │
+                 ┌──────────────────┴──────────────────┐
+                 │                                     │
+            Anti-[T]                            Absence of [T]
+           (Violations)                          (Inhibition)
+                 │                                     │
+         ┌───────┴───────┐                     ┌───────┴───────┐
+         │               │                     │               │
+    Corruption     Deformation            Inhibition      Privation
     """
 
     # Mode field -> mode value mapping (excludes apex)
     MODE_FIELDS: ClassVar[dict[str, float]] = {
-        "negation": 1.0,      # Direct, active opposition to T
-        "inversion": 0.9,     # Reversal of T's meaning
-        "devaluation": 0.8,   # Diminishing T's worth
-        "hollowing": 0.7,     # Emptying T of substance
-        "corruption": 0.6,    # Degrading/perverting T
-        "distortion": 0.5,    # Twisting T's form
-        "skew": 0.4,          # Imbalancing T
-        "blocking": 0.3,      # Obstructing T
-        "suppression": 0.2,   # Holding T down
-        "distancing": 0.1,    # Drifting from T
-        "privation": 0.0,     # Complete absence of T
+        "negation": 1.0,  # Direct, active opposition to T
+        "inversion": 0.9,  # Reversal of T's meaning
+        "devaluation": 0.8,  # Diminishing T's worth
+        "hollowing": 0.7,  # Emptying T of substance
+        "corruption": 0.6,  # Degrading/perverting T
+        "distortion": 0.5,  # Twisting T's form
+        "skew": 0.4,  # Imbalancing T
+        "blocking": 0.3,  # Obstructing T
+        "suppression": 0.2,  # Holding T down
+        "distancing": 0.1,  # Drifting from T
+        "privation": 0.0,  # Complete absence of T
     }
 
     apex: str = Field(description="[T]-lessness concept (complete absence/negation)")
@@ -215,7 +217,9 @@ class ContextualizedTaxonomyDto(BaseModel):
 # --- Shared Taxonomy Contextualization ---
 
 
-def build_contextualize_prompt(thesis_statement: str, thesis_meaning: str, text: str) -> str:
+def build_contextualize_prompt(
+    thesis_statement: str, thesis_meaning: str, text: str
+) -> str:
     """Build user prompt for taxonomy contextualization.
 
     Shared by AntithesisClassification and AntithesisExtraction.
@@ -280,13 +284,9 @@ class AntithesisEvaluationDto(BaseModel):
     mode_label: str = Field(
         description="Mode level: negation/inversion/devaluation/hollowing/corruption/distortion/skew/blocking/suppression/distancing/privation"
     )
-    mode_value: float = Field(
-        ge=0.0, le=1.0,
-        description="Mode value (0.0-1.0)"
-    )
+    mode_value: float = Field(ge=0.0, le=1.0, description="Mode value (0.0-1.0)")
     heuristic_similarity: float = Field(
-        ge=0.0, le=1.0,
-        description="Heuristic Similarity to apex concept (0.0-1.0)"
+        ge=0.0, le=1.0, description="Heuristic Similarity to apex concept (0.0-1.0)"
     )
     arousal_label: str = Field(
         description="Arousal level: dormant/latent/low/mild/moderate/elevated/high/intense/active"
@@ -300,12 +300,14 @@ class SimpleAntithesisEvaluationDto(BaseModel):
     """Result of evaluating an antithesis for a simple thesis."""
 
     mode_value: float = Field(
-        ge=0.0, le=1.0,
-        description="Mode value (1.0=direct negation, lower values=weaker opposition)"
+        ge=0.0,
+        le=1.0,
+        description="Mode value (1.0=direct negation, lower values=weaker opposition)",
     )
     heuristic_similarity: float = Field(
-        ge=0.0, le=1.0,
-        description="How well does this antithesis represent the negation of the thesis? (0.0-1.0)"
+        ge=0.0,
+        le=1.0,
+        description="How well does this antithesis represent the negation of the thesis? (0.0-1.0)",
     )
     arousal_label: str = Field(
         description="Arousal level: dormant/latent/low/mild/moderate/elevated/high/intense/active"
@@ -435,12 +437,16 @@ class AntithesisClassification(ExecutableCapability[AntithesisClassificationResu
         # Reuse the authoritative mapping from ContextualizedTaxonomyDto
         mode_fields = ContextualizedTaxonomyDto.MODE_FIELDS
         # Find closest match by mode value
-        closest_label = min(mode_fields.keys(), key=lambda k: abs(mode_fields[k] - mode_value))
+        closest_label = min(
+            mode_fields.keys(), key=lambda k: abs(mode_fields[k] - mode_value)
+        )
         return closest_label
 
     def _simple_evaluation_prompt(self) -> str:
         """Build prompt for simple thesis evaluation."""
-        context_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        context_section = (
+            f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        )
         return f"""{context_section}Evaluate this antithesis for a simple (binary/literal) thesis.
 
 Thesis: "{self._thesis.statement}"

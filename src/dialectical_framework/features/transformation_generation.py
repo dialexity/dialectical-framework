@@ -17,24 +17,18 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import (
-    ConversationFacilitator,
-)
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.agents.sensemaking.capabilities.positive_ac_re_apex_derivation import (
-    ApexDerivationResultDto,
-)
-from dialectical_framework.agents.sensemaking.capabilities.ac_re_taxonomy import (
-    INSIGHT_SCALE,
-    PROACTIVENESS_SCALE,
-    get_polar_pair,
-    insight_label_to_value,
-    proactiveness_label_to_value,
-)
-from dialectical_framework.agents.sensemaking.capabilities.action_extraction import (
-    ActionCandidateResultDto,
-)
+from dialectical_framework.features.ac_re_taxonomy import (
+    INSIGHT_SCALE, PROACTIVENESS_SCALE, get_polar_pair, insight_label_to_value,
+    proactiveness_label_to_value)
+from dialectical_framework.features.action_extraction import \
+    ActionCandidateResultDto
+from dialectical_framework.features.positive_ac_re_apex_derivation import \
+    ApexDerivationResultDto
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
@@ -181,7 +175,9 @@ class TransitionDto(BaseModel):
 
     headline: str = Field(description="Short headline (component length)")
     statement: str = Field(description="The transition statement (1-15 words)")
-    explanation: str = Field(description="Full explanation of why this transition makes sense")
+    explanation: str = Field(
+        description="Full explanation of why this transition makes sense"
+    )
     insight: float = Field(ge=0.0, le=1.0, description="Insight level (0.0-1.0)")
     proactiveness: float = Field(
         ge=0.0, le=1.0, description="Proactiveness level (0.0-1.0)"
@@ -198,40 +194,48 @@ class TetradCompletionDto(BaseModel):
     re_plus_statement: str = Field(description="Re+ statement (1-15 words)")
     re_plus_explanation: str = Field(description="How Re+ complements Ac+")
     re_plus_insight_label: str = Field(description="Insight level for Re+")
-    re_plus_proactiveness_label: str = Field(description="Proactiveness category for Re+")
+    re_plus_proactiveness_label: str = Field(
+        description="Proactiveness category for Re+"
+    )
 
     # Re- fields
     re_minus_headline: str = Field(description="Re- headline (component length)")
     re_minus_statement: str = Field(description="Re- statement (1-15 words)")
-    re_minus_explanation: str = Field(description="Why this is the failure mode of unguided action")
+    re_minus_explanation: str = Field(
+        description="Why this is the failure mode of unguided action"
+    )
     re_minus_insight_label: str = Field(description="Insight level for Re-")
-    re_minus_proactiveness_label: str = Field(description="Proactiveness category for Re-")
+    re_minus_proactiveness_label: str = Field(
+        description="Proactiveness category for Re-"
+    )
 
     # Ac- fields
     ac_minus_headline: str = Field(description="Ac- headline (component length)")
     ac_minus_statement: str = Field(description="Ac- statement (1-15 words)")
-    ac_minus_explanation: str = Field(description="Why this is the failure mode of ungrounded reflection")
+    ac_minus_explanation: str = Field(
+        description="Why this is the failure mode of ungrounded reflection"
+    )
     ac_minus_insight_label: str = Field(description="Insight level for Ac-")
-    ac_minus_proactiveness_label: str = Field(description="Proactiveness category for Ac-")
+    ac_minus_proactiveness_label: str = Field(
+        description="Proactiveness category for Ac-"
+    )
 
 
 class HsScoringDto(BaseModel):
     """LLM response for HS scoring of transitions against apexes."""
 
     ac_plus_hs: float = Field(
-        ge=0.0, le=1.0,
-        description="Heuristic Similarity of Ac+ to the Ac+ apex (0.0-1.0)"
+        ge=0.0,
+        le=1.0,
+        description="Heuristic Similarity of Ac+ to the Ac+ apex (0.0-1.0)",
     )
-    ac_plus_reasoning: str = Field(
-        description="Brief reasoning for the Ac+ HS score"
-    )
+    ac_plus_reasoning: str = Field(description="Brief reasoning for the Ac+ HS score")
     re_plus_hs: float = Field(
-        ge=0.0, le=1.0,
-        description="Heuristic Similarity of Re+ to the Re+ apex (0.0-1.0)"
+        ge=0.0,
+        le=1.0,
+        description="Heuristic Similarity of Re+ to the Re+ apex (0.0-1.0)",
     )
-    re_plus_reasoning: str = Field(
-        description="Brief reasoning for the Re+ HS score"
-    )
+    re_plus_reasoning: str = Field(description="Brief reasoning for the Re+ HS score")
 
 
 class CategoryReframingDto(BaseModel):
@@ -240,14 +244,18 @@ class CategoryReframingDto(BaseModel):
     # Ac (neutral action category: T → A)
     ac_headline: str = Field(description="Ac headline (component length)")
     ac_statement: str = Field(description="Ac statement (1-15 words)")
-    ac_explanation: str = Field(description="Why this reframing captures how the action category manifests")
+    ac_explanation: str = Field(
+        description="Why this reframing captures how the action category manifests"
+    )
     ac_insight_label: str = Field(description="Insight level for Ac")
     ac_proactiveness_label: str = Field(description="Proactiveness category for Ac")
 
     # Re (neutral reflection category: A → T)
     re_headline: str = Field(description="Re headline (component length)")
     re_statement: str = Field(description="Re statement (1-15 words)")
-    re_explanation: str = Field(description="Why this reframing captures how the reflection category manifests")
+    re_explanation: str = Field(
+        description="Why this reframing captures how the reflection category manifests"
+    )
     re_insight_label: str = Field(description="Insight level for Re")
     re_proactiveness_label: str = Field(description="Proactiveness category for Re")
 
@@ -257,7 +265,9 @@ class TransformationTetradDto(BaseModel):
 
     # Neutral category transitions (T → A and A → T)
     ac: TransitionDto = Field(description="Neutral action category transition (T → A)")
-    re: TransitionDto = Field(description="Neutral reflection category transition (A → T)")
+    re: TransitionDto = Field(
+        description="Neutral reflection category transition (A → T)"
+    )
 
     # Pole transitions
     ac_plus: TransitionDto
@@ -601,4 +611,3 @@ For each, provide:
             proactiveness_label=proactiveness_label_key,
             explanation=explanation,
         )
-

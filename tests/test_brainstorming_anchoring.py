@@ -9,14 +9,13 @@ import json
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.brainstorming.subagents.anchoring_agent import AnchoringAgent
+from dialectical_framework.agents.analyst.skills.anchoring import \
+    AnchoringAgent
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.nodes.input import Input
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository,
-)
+from dialectical_framework.graph.repositories.dialectical_component_repository import \
+    DialecticalComponentRepository
 from dialectical_framework.graph.scope_context import scope
-
 
 # Sample text for tests - simulates resolved input content
 SAMPLE_INPUT_TEXT = """
@@ -78,7 +77,9 @@ class TestAnchoringAgent:
             input_node.commit()
             brainstorm.inputs.connect(input_node)
 
-            agent = AnchoringAgent(intent="extract 2 theses about software architecture")
+            agent = AnchoringAgent(
+                intent="extract 2 theses about software architecture"
+            )
             result = await agent.call()
 
             report = json.loads(result)

@@ -184,17 +184,21 @@ class ConversationFacilitator(HasBrain, SettingsAware):
         tool_calls = []
         for t in response.common_tools or []:
             tc = t.tool_call
-            tool_calls.append({
-                "id": tc.id,
-                "type": "function",
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                },
-            })
+            tool_calls.append(
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+            )
 
-        self._messages.append({
-            "role": "assistant",
-            "content": response.content or "",
-            "tool_calls": tool_calls,
-        })
+        self._messages.append(
+            {
+                "role": "assistant",
+                "content": response.content or "",
+                "tool_calls": tool_calls,
+            }
+        )

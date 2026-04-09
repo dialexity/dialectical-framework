@@ -17,9 +17,10 @@ from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.orchestrator.system_prompts import ORCHESTRATOR_SYSTEM_PROMPT
-
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.orchestrator.system_prompts import \
+    ORCHESTRATOR_SYSTEM_PROMPT
 
 # Curated schema description derived from GQLAlchemy node/relationship definitions
 GRAPH_SCHEMA = """
@@ -91,20 +92,22 @@ DialecticalComponent:
 WisdomUnit, Cycle, Wheel, etc.:
 - `intent`: Optional intent/purpose description
 """
+# Import existing subagents
+from dialectical_framework.agents.analyst.skills.anchoring import \
+    AnchoringAgent
+from dialectical_framework.agents.analyst.skills.polarity import PolarityAgent
+from dialectical_framework.agents.analyst.skills.polarity_editor import \
+    PolarityEditor
+from dialectical_framework.agents.analyst.skills.wisdom import WisdomAgent
+from dialectical_framework.agents.explorer.skills.transformation import \
+    TransformationAgent
+# Import orchestrator tools
+from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
+from dialectical_framework.agents.orchestrator.tools.query_graph import \
+    QueryGraph
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
 from dialectical_framework.graph.scope_context import scope
-
-# Import existing subagents
-from dialectical_framework.agents.brainstorming.subagents.anchoring_agent import AnchoringAgent
-from dialectical_framework.agents.brainstorming.subagents.polarity_agent import PolarityAgent
-from dialectical_framework.agents.brainstorming.subagents.wisdom_agent import WisdomAgent
-from dialectical_framework.agents.brainstorming.subagents.polarity_editor import PolarityEditor
-from dialectical_framework.agents.sensemaking.subagents.transformation_agent import TransformationAgent
-
-# Import orchestrator tools
-from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
-from dialectical_framework.agents.orchestrator.tools.query_graph import QueryGraph
 
 if TYPE_CHECKING:
     from mirascope import BaseTool
@@ -168,9 +171,11 @@ class Orchestrator:
 
         # Get node labels (works in both Memgraph and Neo4j)
         try:
-            results = list(graph_db.execute_and_fetch(
-                "MATCH (n) RETURN DISTINCT labels(n) AS labels"
-            ))
+            results = list(
+                graph_db.execute_and_fetch(
+                    "MATCH (n) RETURN DISTINCT labels(n) AS labels"
+                )
+            )
             if results:
                 # Flatten and dedupe labels
                 all_labels = set()
@@ -188,9 +193,11 @@ class Orchestrator:
 
         # Get relationship types (works in both Memgraph and Neo4j)
         try:
-            results = list(graph_db.execute_and_fetch(
-                "MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel_type"
-            ))
+            results = list(
+                graph_db.execute_and_fetch(
+                    "MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel_type"
+                )
+            )
             if results:
                 rel_types = sorted(row["rel_type"] for row in results)
                 lines.append("\nRelationship types in DB:")
@@ -278,7 +285,8 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
-    from dialectical_framework.dialectical_reasoning import DialecticalReasoning
+    from dialectical_framework.dialectical_reasoning import \
+        DialecticalReasoning
     from dialectical_framework.settings import Settings
 
     # Initialize DI container

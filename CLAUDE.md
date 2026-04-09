@@ -201,6 +201,7 @@ When connecting components to WisdomUnit positions, semantic relationships are a
 | Relationships | `src/dialectical_framework/graph/relationships/*.py` |
 | Relationship API | `src/dialectical_framework/graph/relationship_manager.py` |
 | Scoring (TaroRank) | `src/dialectical_framework/graph/scoring/tarorank.py` |
+| Framework features (API) | `src/dialectical_framework/features/` |
 | Agentic orchestration | `src/dialectical_framework/agents/` |
 | AI/LLM reasoning | `src/dialectical_framework/synthesist/` |
 | Wisdom reasoning | `src/dialectical_framework/synthesist/wisdom/` |
@@ -259,10 +260,26 @@ src/dialectical_framework/
 │   ├── repositories/        # Data access layer
 │   └── relationship_manager.py    # RelationshipTo/From declarative API
 │
+├── features/                # Framework services (API-callable, standalone)
+│   ├── thesis_extraction.py    # Extract theses from text
+│   ├── pole_generation.py      # Generate T+, T-, A+, A- poles
+│   ├── transformation_generation.py
+│   └── ...                     # 15 feature modules total
+│
 ├── agents/                  # LLM-driven agentic orchestrators
-│   └── brainstorming/      # Brainstorming agent for thesis/antithesis extraction
-│       ├── brainstorming_agent.py  # Agentic orchestrator using tool calling
-│       └── tools/          # Mirascope tools for extraction
+│   ├── executable_capability.py  # Adapter: makes features agent-usable
+│   ├── analyst/            # Analysis mode: Input → Ideas → WisdomUnits
+│   │   ├── skills/         # Reasoning brain centers
+│   │   │   ├── anchoring.py        # Thesis surfacing & anchoring
+│   │   │   ├── polarity.py         # Antithesis finding & polarity creation
+│   │   │   └── wisdom.py           # WisdomUnit building
+│   │   └── tools/          # Mirascope tools for analyst
+│   ├── explorer/           # Exploration mode: WU pool → Cycles → Wheels
+│   │   ├── skills/
+│   │   │   ├── causality.py        # Cycle & Wheel arrangement
+│   │   │   └── transformation.py   # Action-Reflection transformation
+│   │   └── tools/
+│   └── orchestrator/       # Conversation layer, delegates to analyst/explorer
 │
 ├── synthesist/              # Reasoning engines
 │   ├── polarity/           # Polar reasoning (PolarReasoner, WisdomUnit building)

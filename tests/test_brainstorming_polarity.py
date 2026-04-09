@@ -9,26 +9,23 @@ import json
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.brainstorming.subagents.wisdom_agent import WisdomAgent
-from dialectical_framework.agents.brainstorming.subagents.polarity_agent import PolarityAgent
+from dialectical_framework.agents.analyst.skills.polarity import PolarityAgent
+from dialectical_framework.agents.analyst.skills.wisdom import WisdomAgent
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    TRelationship,
-    ARelationship,
-    TPlusRelationship,
-    TMinusRelationship,
-    APlusRelationship,
-    AMinusRelationship,
-    HasPolarityRelationship,
-)
-from dialectical_framework.graph.repositories.polarity_repository import PolarityRepository
-from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+    AMinusRelationship, APlusRelationship, ARelationship,
+    HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
+    TRelationship)
+from dialectical_framework.graph.repositories.polarity_repository import \
+    PolarityRepository
+from dialectical_framework.graph.repositories.wisdom_unit_repository import \
+    WisdomUnitRepository
 from dialectical_framework.graph.scope_context import scope
-
 
 # Sample text for tests
 SAMPLE_INPUT_TEXT = """
@@ -278,7 +275,9 @@ class TestWisdomAgent:
 
             wu_repo = WisdomUnitRepository()
             all_wus = wu_repo.find_by_polarity(polarity)
-            complete_wus = [wu for wu in all_wus if wu.is_complete() and wu.is_committed]
+            complete_wus = [
+                wu for wu in all_wus if wu.is_complete() and wu.is_committed
+            ]
 
             # Should not have exact duplicates (same 6 components)
             seen_signatures: set[frozenset[str]] = set()
@@ -290,7 +289,9 @@ class TestWisdomAgent:
                     if result:
                         comp_hashes.append(result[0].hash)
                 signature = frozenset(comp_hashes)
-                assert signature not in seen_signatures, "Found duplicate WU with same components"
+                assert (
+                    signature not in seen_signatures
+                ), "Found duplicate WU with same components"
                 seen_signatures.add(signature)
 
 
@@ -359,13 +360,21 @@ class TestWisdomUnitIsSame:
             c1.commit()
             c2 = DialecticalComponent(statement="Chaos", meaning="dx://taxonomy/Simple")
             c2.commit()
-            c1_plus = DialecticalComponent(statement="Order+", meaning="dx://taxonomy/Simple")
+            c1_plus = DialecticalComponent(
+                statement="Order+", meaning="dx://taxonomy/Simple"
+            )
             c1_plus.commit()
-            c1_minus = DialecticalComponent(statement="Order-", meaning="dx://taxonomy/Simple")
+            c1_minus = DialecticalComponent(
+                statement="Order-", meaning="dx://taxonomy/Simple"
+            )
             c1_minus.commit()
-            c2_plus = DialecticalComponent(statement="Chaos+", meaning="dx://taxonomy/Simple")
+            c2_plus = DialecticalComponent(
+                statement="Chaos+", meaning="dx://taxonomy/Simple"
+            )
             c2_plus.commit()
-            c2_minus = DialecticalComponent(statement="Chaos-", meaning="dx://taxonomy/Simple")
+            c2_minus = DialecticalComponent(
+                statement="Chaos-", meaning="dx://taxonomy/Simple"
+            )
             c2_minus.commit()
 
             # Polarity 1: T=Order, A=Chaos
@@ -384,19 +393,43 @@ class TestWisdomUnitIsSame:
             wu1 = WisdomUnit()
             wu1.save()
             wu1.polarity.connect(pol1, relationship=HasPolarityRelationship())
-            wu1.t_plus.connect(c1_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.8))
-            wu1.t_minus.connect(c1_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.8))
-            wu1.a_plus.connect(c2_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.8))
-            wu1.a_minus.connect(c2_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.8))
+            wu1.t_plus.connect(
+                c1_plus,
+                relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.8),
+            )
+            wu1.t_minus.connect(
+                c1_minus,
+                relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.8),
+            )
+            wu1.a_plus.connect(
+                c2_plus,
+                relationship=APlusRelationship(alias="A+", heuristic_similarity=0.8),
+            )
+            wu1.a_minus.connect(
+                c2_minus,
+                relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.8),
+            )
 
             # WU2 with Polarity 2 (swapped) and poles matching the swapped orientation
             wu2 = WisdomUnit()
             wu2.save()
             wu2.polarity.connect(pol2, relationship=HasPolarityRelationship())
-            wu2.t_plus.connect(c2_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.8))
-            wu2.t_minus.connect(c2_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.8))
-            wu2.a_plus.connect(c1_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.8))
-            wu2.a_minus.connect(c1_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.8))
+            wu2.t_plus.connect(
+                c2_plus,
+                relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.8),
+            )
+            wu2.t_minus.connect(
+                c2_minus,
+                relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.8),
+            )
+            wu2.a_plus.connect(
+                c1_plus,
+                relationship=APlusRelationship(alias="A+", heuristic_similarity=0.8),
+            )
+            wu2.a_minus.connect(
+                c1_minus,
+                relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.8),
+            )
 
             # They should be considered the same (same tension, swapped orientation)
             assert wu1.is_same(wu2)

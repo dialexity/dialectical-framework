@@ -50,24 +50,43 @@ PROACTIVENESS_SCALE = {
 
 # Ac → Re Polar Pairs (maps Action to complementary Reflection)
 POLAR_PAIRS = {
-    "Coordination": "Framing",        # 0.5 → 0.3
+    "Coordination": "Framing",  # 0.5 → 0.3
     "Intervention": "Interpretation",  # 0.6 → 0.2 (APEX PAIR)
-    "Implementation": "Detection",     # 0.7 → 0.1
-    "Configuration": "Observation",    # 0.8 → 0.0
-    "Governance": "Evaluation",        # 0.9 → 0.4
-    "Stewardship": "Evaluation",       # 1.0 → 0.4
+    "Implementation": "Detection",  # 0.7 → 0.1
+    "Configuration": "Observation",  # 0.8 → 0.0
+    "Governance": "Evaluation",  # 0.9 → 0.4
+    "Stewardship": "Evaluation",  # 1.0 → 0.4
 }
 
 # Target coordinates for apex derivation
 # These are the "ideal" coordinates for Re+ and Ac+ apexes
-AC_PLUS_APEX_TARGET = {"proactiveness": 0.65, "insight": 0.6}  # Intervention zone + Leverage
-RE_PLUS_APEX_TARGET = {"proactiveness": 0.25, "insight": 0.6}  # Interpretation zone + Leverage
+AC_PLUS_APEX_TARGET = {
+    "proactiveness": 0.65,
+    "insight": 0.6,
+}  # Intervention zone + Leverage
+RE_PLUS_APEX_TARGET = {
+    "proactiveness": 0.25,
+    "insight": 0.6,
+}  # Interpretation zone + Leverage
 
 # Reflection labels (Re zone: 0.0-0.4)
-REFLECTION_LABELS = ["Observation", "Detection", "Interpretation", "Framing", "Evaluation"]
+REFLECTION_LABELS = [
+    "Observation",
+    "Detection",
+    "Interpretation",
+    "Framing",
+    "Evaluation",
+]
 
 # Action labels (Ac zone: 0.5-1.0)
-ACTION_LABELS = ["Coordination", "Intervention", "Implementation", "Configuration", "Governance", "Stewardship"]
+ACTION_LABELS = [
+    "Coordination",
+    "Intervention",
+    "Implementation",
+    "Configuration",
+    "Governance",
+    "Stewardship",
+]
 
 
 def insight_label_to_value(label: str) -> float:

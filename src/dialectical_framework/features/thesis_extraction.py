@@ -20,14 +20,15 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-    ClassificationResult,
-)
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.features.statement_classification import (
+    ClassificationResult, StatementClassification)
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.protocols.has_config import SettingsAware
 
@@ -289,7 +290,9 @@ Return:
 
     def _create_component(self, result: ClassificationResult) -> DialecticalComponent:
         """Create component and rationale from classification result."""
-        component = DialecticalComponent(statement=result.statement, meaning=result.meaning)
+        component = DialecticalComponent(
+            statement=result.statement, meaning=result.meaning
+        )
         component.commit()
 
         classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
@@ -300,7 +303,9 @@ Return:
         )
 
         # Add rationale
-        rationale_text = f"Classification: {classification_label}. {result.classification_reasoning}"
+        rationale_text = (
+            f"Classification: {classification_label}. {result.classification_reasoning}"
+        )
         if result.taxonomy_reasoning:
             rationale_text += f" {result.taxonomy_reasoning}"
 

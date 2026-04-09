@@ -37,44 +37,35 @@ from typing import Optional
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
-    AntithesisClassification,
-)
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
-    AntithesisExtraction,
-)
-from dialectical_framework.agents.brainstorming.capabilities.pole_classification import (
-    PoleClassification,
-)
-from dialectical_framework.agents.brainstorming.capabilities.pole_generation import (
-    PoleGeneration,
-)
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-)
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.features.antithesis_classification import \
+    AntithesisClassification
+from dialectical_framework.features.antithesis_extraction import \
+    AntithesisExtraction
+from dialectical_framework.features.pole_classification import \
+    PoleClassification
+from dialectical_framework.features.pole_generation import \
+    PoleGeneration
+from dialectical_framework.features.statement_classification import \
+    StatementClassification
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.graph.nodes.polarity import Polarity, POSITION_T, POSITION_A
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
+from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
+                                                        Polarity)
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_A_MINUS,
-    POSITION_A_PLUS,
-    POSITION_T_MINUS,
-    POSITION_T_PLUS,
-    WisdomUnit,
-)
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS,
+                                                           WisdomUnit)
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AMinusRelationship,
-    APlusRelationship,
-    ARelationship,
-    HasPolarityRelationship,
-    TMinusRelationship,
-    TPlusRelationship,
-    TRelationship,
-)
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
-
+    AMinusRelationship, APlusRelationship, ARelationship,
+    HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
+    TRelationship)
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
 
 # Positions that are poles (not T or A)
 POLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
@@ -99,7 +90,9 @@ class PolarityEditorResult:
 
     wisdom_unit: Optional[WisdomUnit] = None
     is_valid: bool = True
-    warnings: list[str] = field(default_factory=list)  # Edit-time warnings (e.g., low HS)
+    warnings: list[str] = field(
+        default_factory=list
+    )  # Edit-time warnings (e.g., low HS)
     changed_positions: list[str] = field(default_factory=list)
     regenerated_positions: list[str] = field(default_factory=list)
 
@@ -122,15 +115,12 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
     - call() returns JSON string for LLM tool use
     """
 
-    wisdom_unit_hash: str = Field(
-        description="Hash of the WisdomUnit to edit"
-    )
+    wisdom_unit_hash: str = Field(description="Hash of the WisdomUnit to edit")
     changes: dict[str, str] = Field(
         description="Dict of {position: new_statement} for changes (T, A, T+, T-, A+, A-)"
     )
     text: str = Field(
-        default="",
-        description="Optional context for classification/generation"
+        default="", description="Optional context for classification/generation"
     )
 
     _report: ExecutionReport = PrivateAttr()
@@ -174,7 +164,9 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         self._was_committed = wu.is_committed
 
         # Clean up changes dict
-        self._changes = {k: v.strip() for k, v in self.changes.items() if v and v.strip()}
+        self._changes = {
+            k: v.strip() for k, v in self.changes.items() if v and v.strip()
+        }
 
         if not self._changes:
             result = PolarityEditorResult(
@@ -287,7 +279,7 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         self._create_edit_rationale(
             new_t,
             f"Both T and A changed. New opposition: '{new_t_statement}' <-> '{new_a_statement}' "
-            f"(HS={a_validation.heuristic_similarity:.2f})"
+            f"(HS={a_validation.heuristic_similarity:.2f})",
         )
 
         regenerated = [p for p in POLE_POSITIONS if p not in poles_changed]
@@ -382,8 +374,7 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         )
 
         self._create_edit_rationale(
-            new_t,
-            f"Thesis changed to '{new_t_statement}' (HS={a_hs:.2f})"
+            new_t, f"Thesis changed to '{new_t_statement}' (HS={a_hs:.2f})"
         )
 
         regenerated.extend([p for p in POLE_POSITIONS if p not in poles_changed])
@@ -436,7 +427,10 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
                             position=pole_pos,
                             text=self._text,
                         )
-                        if pole_result.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD:
+                        if (
+                            pole_result.heuristic_similarity
+                            > HS_WRONG_CATEGORY_THRESHOLD
+                        ):
                             return PolarityEditorResult(
                                 is_valid=False,
                                 error_message=(
@@ -473,7 +467,7 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
 
         self._create_edit_rationale(
             new_a,
-            f"Antithesis changed to '{new_a_statement}' (HS={a_validation.heuristic_similarity:.2f})"
+            f"Antithesis changed to '{new_a_statement}' (HS={a_validation.heuristic_similarity:.2f})",
         )
 
         regenerated = [p for p in POLE_POSITIONS if p not in poles_changed]
@@ -669,7 +663,9 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             orig_polarity_result = self._original_wu.polarity.get()
             if orig_polarity_result:
                 orig_polarity, _ = orig_polarity_result
-                wu.polarity.connect(orig_polarity, relationship=HasPolarityRelationship())
+                wu.polarity.connect(
+                    orig_polarity, relationship=HasPolarityRelationship()
+                )
 
         # Handle poles
         rel_classes = {
@@ -696,16 +692,26 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
                 )
             else:
                 if manager.count() == 0:
-                    orig_result = self._original_wu.get_relationship_manager_by_position(pos).get()
+                    orig_result = (
+                        self._original_wu.get_relationship_manager_by_position(
+                            pos
+                        ).get()
+                    )
                     if orig_result:
                         orig_comp, orig_rel = orig_result
                         manager.connect(
                             orig_comp,
                             relationship=rel_class(
                                 alias=pos,
-                                heuristic_similarity=orig_rel.heuristic_similarity if orig_rel else None,
-                                complementarity_t=orig_rel.complementarity_t if orig_rel else None,
-                                complementarity_a=orig_rel.complementarity_a if orig_rel else None,
+                                heuristic_similarity=(
+                                    orig_rel.heuristic_similarity if orig_rel else None
+                                ),
+                                complementarity_t=(
+                                    orig_rel.complementarity_t if orig_rel else None
+                                ),
+                                complementarity_a=(
+                                    orig_rel.complementarity_a if orig_rel else None
+                                ),
                             ),
                         )
 
@@ -761,7 +767,9 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
                 pass
         return None
 
-    def _create_edit_rationale(self, component: DialecticalComponent, text: str) -> None:
+    def _create_edit_rationale(
+        self, component: DialecticalComponent, text: str
+    ) -> None:
         """Create and attach rationale for the edit."""
         rationale = Rationale(text=f"Edit: {text}")
         rationale.set_explanation_target(component)
@@ -772,7 +780,9 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
         """Build execution report from result."""
         self._report.artifacts["is_valid"] = result.is_valid
         self._report.artifacts["changes"] = self.changes
-        self._report.artifacts["was_committed"] = self._was_committed if hasattr(self, "_was_committed") else None
+        self._report.artifacts["was_committed"] = (
+            self._was_committed if hasattr(self, "_was_committed") else None
+        )
 
         if result.wisdom_unit:
             if result.wisdom_unit.hash:
@@ -787,13 +797,23 @@ class PolarityEditor(BaseTool, ExecutableCapability[PolarityEditorResult]):
             self._report.artifacts["changed_positions"] = result.changed_positions
 
         if result.regenerated_positions:
-            self._report.artifacts["regenerated_positions"] = result.regenerated_positions
+            self._report.artifacts["regenerated_positions"] = (
+                result.regenerated_positions
+            )
 
         self._report.ok = result.is_valid
         if result.is_valid:
-            positions = ", ".join(result.changed_positions) if result.changed_positions else "none"
+            positions = (
+                ", ".join(result.changed_positions)
+                if result.changed_positions
+                else "none"
+            )
             warning_count = len(result.warnings)
-            action = "Forked and edited" if (hasattr(self, "_was_committed") and self._was_committed) else "Edited"
+            action = (
+                "Forked and edited"
+                if (hasattr(self, "_was_committed") and self._was_committed)
+                else "Edited"
+            )
             self._report.summary = f"{action} {positions}"
             if warning_count > 0:
                 self._report.summary += f" ({warning_count} warning(s))"

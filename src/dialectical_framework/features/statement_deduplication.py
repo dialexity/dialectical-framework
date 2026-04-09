@@ -12,23 +12,24 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository,
-)
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
+from dialectical_framework.graph.repositories.dialectical_component_repository import \
+    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
 
 if TYPE_CHECKING:
     pass
 
 
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    parse_meaning_uri,
-    VIABILITY_CATEGORY,
-)
+from dialectical_framework.features.statement_classification import (
+    VIABILITY_CATEGORY, parse_meaning_uri)
 
 SIMPLE_MEANING = "dx://taxonomy/Simple"
 
@@ -101,13 +102,16 @@ class SemanticMatchDto(BaseModel):
 class IdeaMatchDto(BaseModel):
     """Result of checking a raw idea against vocabulary."""
 
-    is_duplicate: bool = Field(description="Is the idea semantically equivalent to an existing component?")
+    is_duplicate: bool = Field(
+        description="Is the idea semantically equivalent to an existing component?"
+    )
     matched_hash: Optional[str] = Field(
         default=None,
         description="If duplicate, hash of the matching component (null if not duplicate)",
     )
     confidence: float = Field(
-        ge=0.0, le=1.0,
+        ge=0.0,
+        le=1.0,
         default=0.0,
         description="Confidence in the match (0.0-1.0)",
     )
@@ -201,7 +205,8 @@ class StatementDeduplication(ExecutableCapability[DedupResult]):
             self._report.summary = "No deduplication needed"
             # Resolve all extracted to components (they're all kept)
             originals = [
-                comp for h in extracted_hashes
+                comp
+                for h in extracted_hashes
                 if (comp := self._resolve_component(h)) is not None
             ]
             return DedupResult(
@@ -214,13 +219,18 @@ class StatementDeduplication(ExecutableCapability[DedupResult]):
         # The extracted components may have been committed to DB before this call,
         # making them appear in vocabulary. Matching a component to itself is wrong.
         extracted_set = set(extracted_hashes)
-        filtered_vocabulary = [v for v in vocabulary if v.get("hash") not in extracted_set]
+        filtered_vocabulary = [
+            v for v in vocabulary if v.get("hash") not in extracted_set
+        ]
 
         if not filtered_vocabulary:
             self._report.ok = True
-            self._report.summary = "No vocabulary to compare against (after excluding extracted)"
+            self._report.summary = (
+                "No vocabulary to compare against (after excluding extracted)"
+            )
             originals = [
-                comp for h in extracted_hashes
+                comp
+                for h in extracted_hashes
                 if (comp := self._resolve_component(h)) is not None
             ]
             return DedupResult(
@@ -270,15 +280,19 @@ class StatementDeduplication(ExecutableCapability[DedupResult]):
             # All extracted have meaning - filter vocab to matching prefixes
             # Include vocab items with no meaning (match everything) or matching prefix
             non_rejected = [
-                v for v in non_rejected
-                if _extract_meaning_prefix(v.get("meaning")) is None  # No meaning = matches all
+                v
+                for v in non_rejected
+                if _extract_meaning_prefix(v.get("meaning"))
+                is None  # No meaning = matches all
                 or _extract_meaning_prefix(v.get("meaning")) in extracted_prefixes
             ]
 
         # Build vocabulary descriptions (limit tokens)
         vocab_lines = []
         for v in non_rejected[:100]:
-            rationale_hint = f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
+            rationale_hint = (
+                f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
+            )
             vocab_lines.append(
                 f"[{v['hash'][:7]}] {v['statement']} (meaning: {v.get('meaning', 'none')}){rationale_hint}"
             )
@@ -338,7 +352,9 @@ If no match, set db_hash to null."""
                     ext_comp = self._resolve_component(ext_hash)
                     if ext_comp and repo.safe_delete(ext_comp):
                         deleted_count += 1
-                        self._report.node_deleted(ext_comp, meta={"replaced_by": match.db_hash})
+                        self._report.node_deleted(
+                            ext_comp, meta={"replaced_by": match.db_hash}
+                        )
                     replacements[ext_hash] = db_comp
                 else:
                     # Replacement not found (LLM hallucinated hash?) - keep original
@@ -362,7 +378,9 @@ If no match, set db_hash to null."""
     ) -> Optional[SemanticMatchDto]:
         """Find matching SemanticMatchDto for an extracted hash."""
         for m in matches:
-            if ext_hash.startswith(m.extraction_hash) or m.extraction_hash.startswith(ext_hash):
+            if ext_hash.startswith(m.extraction_hash) or m.extraction_hash.startswith(
+                ext_hash
+            ):
                 return m
         return None
 
@@ -407,7 +425,9 @@ If no match, set db_hash to null."""
         non_rejected = [v for v in vocabulary if not v.get("rejected")]
         vocab_lines = []
         for v in non_rejected[:100]:  # Limit for token budget
-            meaning_hint = f" (meaning: {v.get('meaning', 'none')})" if v.get("meaning") else ""
+            meaning_hint = (
+                f" (meaning: {v.get('meaning', 'none')})" if v.get("meaning") else ""
+            )
             vocab_lines.append(f"[{v['hash']}] {v['statement']}{meaning_hint}")
 
         if not vocab_lines:

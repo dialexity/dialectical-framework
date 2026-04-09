@@ -32,28 +32,28 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
-from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
-    StatementDeduplication,
-)
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-    ClassificationResult,
-)
-from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import (
-    ThesisExtraction,
-)
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.features.statement_classification import (
+    ClassificationResult, StatementClassification)
+from dialectical_framework.features.statement_deduplication import \
+    StatementDeduplication
+from dialectical_framework.features.thesis_extraction import \
+    ThesisExtraction
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository,
-)
-from dialectical_framework.graph.repositories.input_repository import InputRepository
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.repositories.dialectical_component_repository import \
+    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.input_repository import \
+    InputRepository
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -169,7 +169,9 @@ class AnchoringAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         input_text = await self._get_input_text()
         comp_repo = DialecticalComponentRepository()
         vocab = comp_repo.get_vocabulary_with_rationales()
-        not_like_these = [c["statement"] for c in vocab]  # Avoid all existing, including rejected
+        not_like_these = [
+            c["statement"] for c in vocab
+        ]  # Avoid all existing, including rejected
 
         # 3. Handle direct theses if specified in intent
         direct_components: list[DialecticalComponent] = []
@@ -204,7 +206,9 @@ class AnchoringAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             self._report.ok = True
             self._report.summary = "No theses extracted"
             if not input_text and not parsed.direct_theses:
-                self._report.summary = "No inputs in scope and no direct theses in intent"
+                self._report.summary = (
+                    "No inputs in scope and no direct theses in intent"
+                )
             self._report.artifacts["thesis_hashes"] = []
             return None
 
@@ -346,7 +350,9 @@ Determine:
         self, result: ClassificationResult
     ) -> DialecticalComponent:
         """Create component and rationale from classification result."""
-        component = DialecticalComponent(statement=result.statement, meaning=result.meaning)
+        component = DialecticalComponent(
+            statement=result.statement, meaning=result.meaning
+        )
         component.commit()
 
         classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
@@ -357,7 +363,9 @@ Determine:
         )
 
         # Add rationale
-        rationale_text = f"Classification: {classification_label}. {result.classification_reasoning}"
+        rationale_text = (
+            f"Classification: {classification_label}. {result.classification_reasoning}"
+        )
         if result.taxonomy_reasoning:
             rationale_text += f" {result.taxonomy_reasoning}"
 
@@ -409,7 +417,8 @@ Determine:
                 count=remaining,
                 focus=params.get("focus", ""),
                 domain_hint=params.get("domain_hint", ""),
-                not_like_these=not_like_these + [c.statement for c in extracted_components],
+                not_like_these=not_like_these
+                + [c.statement for c in extracted_components],
             )
             reports.append(service.report)
 
@@ -427,30 +436,38 @@ Determine:
         variations = []
 
         # First: use parsed parameters
-        variations.append({
-            "domain_hint": parsed.domain_hint,
-            "focus": parsed.focus,
-        })
+        variations.append(
+            {
+                "domain_hint": parsed.domain_hint,
+                "focus": parsed.focus,
+            }
+        )
 
         # Second: try without focus (broader extraction)
         if parsed.focus:
-            variations.append({
-                "domain_hint": parsed.domain_hint,
-                "focus": "",
-            })
+            variations.append(
+                {
+                    "domain_hint": parsed.domain_hint,
+                    "focus": "",
+                }
+            )
 
         # Third: try without domain hint
         if parsed.domain_hint:
-            variations.append({
-                "domain_hint": "",
-                "focus": parsed.focus,
-            })
+            variations.append(
+                {
+                    "domain_hint": "",
+                    "focus": parsed.focus,
+                }
+            )
 
         # Fourth: no hints at all (broadest)
-        variations.append({
-            "domain_hint": "",
-            "focus": "",
-        })
+        variations.append(
+            {
+                "domain_hint": "",
+                "focus": "",
+            }
+        )
 
         return variations
 
@@ -552,8 +569,9 @@ Determine:
             rationale.commit()
             self._report.node_created(rationale)
             self._report.relationship_created(
-                rationale.explains, rationale, ideas,
+                rationale.explains,
+                rationale,
+                ideas,
             )
 
         return ideas
-

@@ -17,9 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.base_node import BaseNode
     from dialectical_framework.graph.relationship_manager import (
-        BoundRelationshipManager,
-        RelationshipManager,
-    )
+        BoundRelationshipManager, RelationshipManager)
 
 # Type alias for relationship type parameter
 RelType = Union[str, "RelationshipManager", "BoundRelationshipManager", type]
@@ -300,4 +298,3 @@ class ExecutionReport(BaseModel):
             effects=self.effects,
             artifacts=merged_artifacts,
         )
-

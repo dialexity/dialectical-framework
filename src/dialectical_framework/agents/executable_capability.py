@@ -8,7 +8,7 @@ The report is reset on each execution, allowing instance reuse.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, TypeVar, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 if TYPE_CHECKING:
     from dialectical_framework.agents.execution_report import ExecutionReport

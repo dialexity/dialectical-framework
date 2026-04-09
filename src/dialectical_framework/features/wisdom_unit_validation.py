@@ -34,13 +34,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
-from dialectical_framework.agents.brainstorming.capabilities.control_statements_check import (
-    ControlStatementsCheck,
-    ControlStatementsCheckResult,
-)
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.relationships.polarity_relationship import PoleRelationship
+from dialectical_framework.features.control_statements_check import (
+    ControlStatementsCheck, ControlStatementsCheckResult)
+from dialectical_framework.graph.relationships.polarity_relationship import \
+    PoleRelationship
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -62,6 +62,7 @@ NEGATIVE_POLE_KS_MAXIMUM = 0.6
 
 
 # --- Result ---
+
 
 @dataclass
 class EmpiricalInequalitiesResult:
@@ -104,6 +105,7 @@ class WisdomUnitValidationResult:
 
 
 # --- Capability ---
+
 
 class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
     """
@@ -200,11 +202,8 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
         3. KS(T-) < 0.6 and KS(A-) < 0.6 (negative poles threshold)
         """
         from dialectical_framework.graph.nodes.wisdom_unit import (
-            POSITION_T_PLUS,
-            POSITION_T_MINUS,
-            POSITION_A_PLUS,
-            POSITION_A_MINUS,
-        )
+            POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS,
+            POSITION_T_PLUS)
 
         failure_reasons: list[str] = []
 
@@ -220,7 +219,9 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
 
         # Check for missing data
         if any(ks is None for ks in [ks_t_plus, ks_t_minus, ks_a_plus, ks_a_minus]):
-            failure_reasons.append("Empirical inequalities: missing complementarity data")
+            failure_reasons.append(
+                "Empirical inequalities: missing complementarity data"
+            )
             return EmpiricalInequalitiesResult(
                 is_valid=None,
                 failure_reasons=failure_reasons,
@@ -285,8 +286,12 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
         ei = result.empirical_inequalities
 
         self._report.artifacts["is_valid"] = result.is_valid
-        self._report.artifacts["t_plus_without_a_plus_yields_t_minus"] = cs.t_plus_without_a_plus_yields_t_minus
-        self._report.artifacts["a_plus_without_t_plus_yields_a_minus"] = cs.a_plus_without_t_plus_yields_a_minus
+        self._report.artifacts["t_plus_without_a_plus_yields_t_minus"] = (
+            cs.t_plus_without_a_plus_yields_t_minus
+        )
+        self._report.artifacts["a_plus_without_t_plus_yields_a_minus"] = (
+            cs.a_plus_without_t_plus_yields_a_minus
+        )
         self._report.artifacts["cs_coherent"] = result.is_conceptually_coherent
         self._report.artifacts["ei_valid"] = ei.is_valid
 

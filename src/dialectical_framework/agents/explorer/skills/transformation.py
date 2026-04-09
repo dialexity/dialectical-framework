@@ -28,40 +28,26 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.features.action_extraction import \
+    ActionExtraction
+from dialectical_framework.features.positive_ac_re_apex_derivation import (
+    ApexDerivation, ApexDerivationResultDto)
+from dialectical_framework.features.transformation_generation import (
+    TransformationGeneration, TransformationTetradDto)
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.agents.sensemaking.capabilities.positive_ac_re_apex_derivation import (
-    ApexDerivation,
-    ApexDerivationResultDto,
-)
-from dialectical_framework.agents.sensemaking.capabilities.action_extraction import (
-    ActionExtraction,
-)
-from dialectical_framework.agents.sensemaking.capabilities.transformation_generation import (
-    TransformationGeneration,
-    TransformationTetradDto,
-)
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.transformation import (
-    POSITION_AC,
-    POSITION_AC_MINUS,
-    POSITION_AC_PLUS,
-    POSITION_RE,
-    POSITION_RE_MINUS,
-    POSITION_RE_PLUS,
-    Transformation,
-)
+    POSITION_AC, POSITION_AC_MINUS, POSITION_AC_PLUS, POSITION_RE,
+    POSITION_RE_MINUS, POSITION_RE_PLUS, Transformation)
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AcMinusRelationship,
-    AcPlusRelationship,
-    AcRelationship,
-    ReMinusRelationship,
-    RePlusRelationship,
-    ReRelationship,
-)
+    AcMinusRelationship, AcPlusRelationship, AcRelationship,
+    ReMinusRelationship, RePlusRelationship, ReRelationship)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -174,9 +160,8 @@ class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResu
     def _resolve_wisdom_unit(self) -> WisdomUnit:
         """Resolve WisdomUnit from hash or prefix."""
         from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-        from dialectical_framework.graph.repositories.node_repository import (
-            NodeRepository,
-        )
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
 
         repo = NodeRepository()
         node = repo.find_by_hash(self.wisdom_unit_hash, node_type=WisdomUnit)
@@ -190,9 +175,8 @@ class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResu
         input_resolver: "InputResolver" = Provide[DI.input_resolver],
     ) -> str:
         """Get concatenated text from all inputs in scope."""
-        from dialectical_framework.graph.repositories.input_repository import (
-            InputRepository,
-        )
+        from dialectical_framework.graph.repositories.input_repository import \
+            InputRepository
 
         repo = InputRepository()
         inputs = repo.get_all()
@@ -230,7 +214,16 @@ class TransformationAgent(BaseTool, ExecutableCapability[TransformationAgentResu
         a_plus_result = wu.a_plus.get()
         a_minus_result = wu.a_minus.get()
 
-        if not all([t_result, t_minus_result, t_plus_result, a_result, a_plus_result, a_minus_result]):
+        if not all(
+            [
+                t_result,
+                t_minus_result,
+                t_plus_result,
+                a_result,
+                a_plus_result,
+                a_minus_result,
+            ]
+        ):
             raise ValueError(
                 "WisdomUnit missing required components for transformation"
             )

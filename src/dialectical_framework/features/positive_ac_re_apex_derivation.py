@@ -21,17 +21,14 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import (
-    ConversationFacilitator,
-)
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.agents.sensemaking.capabilities.ac_re_taxonomy import (
-    AC_PLUS_APEX_TARGET,
-    RE_PLUS_APEX_TARGET,
-    insight_label_to_value,
-    proactiveness_label_to_value,
-)
+from dialectical_framework.features.ac_re_taxonomy import (
+    AC_PLUS_APEX_TARGET, RE_PLUS_APEX_TARGET, insight_label_to_value,
+    proactiveness_label_to_value)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:

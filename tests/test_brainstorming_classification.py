@@ -7,15 +7,13 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.brainstorming.capabilities.idea_placement import (
-    IdeaPlacement,
-    TensionInfo,
-)
-from dialectical_framework.agents.brainstorming.capabilities.pole_classification import (
-    PoleClassification,
-)
+from dialectical_framework.features.idea_placement import (
+    IdeaPlacement, TensionInfo)
+from dialectical_framework.features.pole_classification import \
+    PoleClassification
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.scope_context import scope
 
 

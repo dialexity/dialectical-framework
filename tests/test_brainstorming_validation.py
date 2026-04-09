@@ -7,21 +7,17 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.brainstorming.capabilities.control_statements_check import (
-    ControlStatementsCheck,
-)
-from dialectical_framework.agents.brainstorming.capabilities.wisdom_unit_validation import (
-    WisdomUnitValidation,
-)
+from dialectical_framework.features.control_statements_check import \
+    ControlStatementsCheck
+from dialectical_framework.features.wisdom_unit_validation import \
+    WisdomUnitValidation
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    TPlusRelationship,
-    TMinusRelationship,
-    APlusRelationship,
-    AMinusRelationship,
-)
+    AMinusRelationship, APlusRelationship, TMinusRelationship,
+    TPlusRelationship)
 from dialectical_framework.graph.scope_context import scope
 
 
@@ -159,7 +155,14 @@ class TestControlStatementsCheck:
             est = result.estimation
             assert est.t_plus_without_a_plus_yields_t_minus is not None
             assert est.a_plus_without_t_plus_yields_a_minus is not None
-            assert est.value == (est.t_plus_without_a_plus_yields_t_minus + est.a_plus_without_t_plus_yields_a_minus) / 2
+            assert (
+                est.value
+                == (
+                    est.t_plus_without_a_plus_yields_t_minus
+                    + est.a_plus_without_t_plus_yields_a_minus
+                )
+                / 2
+            )
 
 
 class TestWisdomUnitValidation:

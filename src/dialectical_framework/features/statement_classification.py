@@ -21,20 +21,21 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_T,
-    POSITION_T_PLUS,
-    POSITION_T_MINUS,
-    POSITION_A,
-    POSITION_A_PLUS,
-    POSITION_A_MINUS,
-)
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A,
+                                                           POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.dialectical_component import \
+        DialecticalComponent
 
 
 # --- Taxonomy Constants ---
@@ -93,9 +94,21 @@ SYSTEMIC_TAXONOMY = {
 }
 
 VALID_DOMAINS = ["General", "Engineering", "Ecology", "Institutions", "Love"]
-VALID_BRANCHES = ["Apex", "Integrity", "Fidelity", "Exchange", "Flexibility", "Resilience"]
+VALID_BRANCHES = [
+    "Apex",
+    "Integrity",
+    "Fidelity",
+    "Exchange",
+    "Flexibility",
+    "Resilience",
+]
 VALID_ELEMENTS = ["Fire", "Earth", "Air", "Water"]
-VALID_POLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
+VALID_POLE_POSITIONS = [
+    POSITION_T_PLUS,
+    POSITION_T_MINUS,
+    POSITION_A_PLUS,
+    POSITION_A_MINUS,
+]
 
 # Systemic taxonomy URI prefix for matching
 SYSTEMIC_PREFIX = "dx://taxonomy/System("
@@ -349,7 +362,9 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
             Meaning URI for the pole
         """
         if position not in VALID_POLE_POSITIONS:
-            raise ValueError(f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}")
+            raise ValueError(
+                f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}"
+            )
 
         if parent.is_simple:
             return "dx://taxonomy/Simple"
@@ -394,7 +409,9 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
             Apex concept name (e.g., "Coherence", "Differentiation")
         """
         if position not in VALID_POLE_POSITIONS:
-            raise ValueError(f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}")
+            raise ValueError(
+                f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}"
+            )
 
         if parent.is_simple:
             return "Simple"
@@ -430,7 +447,9 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
             POSITION_T_MINUS: POSITION_A_PLUS,
         }
         if position not in contradiction_map:
-            raise ValueError(f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}")
+            raise ValueError(
+                f"Invalid position '{position}'. Must be one of: {VALID_POLE_POSITIONS}"
+            )
         return contradiction_map[position]
 
     # --- LLM-based Classification ---

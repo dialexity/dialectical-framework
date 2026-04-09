@@ -33,21 +33,21 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-)
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_A_MINUS,
-    POSITION_A_PLUS,
-    POSITION_T_MINUS,
-    POSITION_T_PLUS,
-)
+from dialectical_framework.features.statement_classification import \
+    StatementClassification
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.dialectical_component import \
+        DialecticalComponent
 
 
 # --- System Prompt ---
@@ -229,7 +229,9 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         # Get meaning and apex from taxonomy (deterministic)
-        parent = thesis if position in [POSITION_T_PLUS, POSITION_T_MINUS] else antithesis
+        parent = (
+            thesis if position in [POSITION_T_PLUS, POSITION_T_MINUS] else antithesis
+        )
         meaning = StatementClassification.lookup_pole_meaning(parent, position)
         apex_concept = StatementClassification.lookup_pole_apex(parent, position)
 
@@ -272,7 +274,9 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
 
     def _build_evaluation_prompt(self, apex_concept: str) -> str:
         """Build prompt for pole evaluation."""
-        context_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        context_section = (
+            f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        )
 
         position_description = {
             POSITION_T_PLUS: "positive aspect (benefit/strength) of the THESIS",

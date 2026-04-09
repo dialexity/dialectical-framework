@@ -7,31 +7,23 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.brainstorming.subagents.polarity_editor import (
-    PolarityEditor,
-    HS_WRONG_CATEGORY_THRESHOLD,
-)
+from dialectical_framework.agents.analyst.skills.polarity_editor import (
+    HS_WRONG_CATEGORY_THRESHOLD, PolarityEditor)
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_A,
-    POSITION_A_MINUS,
-    POSITION_A_PLUS,
-    POSITION_T,
-    POSITION_T_MINUS,
-    POSITION_T_PLUS,
-    WisdomUnit,
-)
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import Polarity
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A,
+                                                           POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS,
+                                                           WisdomUnit)
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    ARelationship,
-    TRelationship,
-    TPlusRelationship,
-    TMinusRelationship,
-    APlusRelationship,
-    AMinusRelationship,
-    HasPolarityRelationship,
-)
+    AMinusRelationship, APlusRelationship, ARelationship,
+    HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
+    TRelationship)
 from dialectical_framework.graph.scope_context import scope
 
 
@@ -95,22 +87,34 @@ def create_test_wu(sid: str, commit: bool = False) -> WisdomUnit:
         wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
         # Connect poles
-        wu.t_plus.connect(t_plus, relationship=TPlusRelationship(
-            alias=POSITION_T_PLUS,
-            heuristic_similarity=0.9,
-        ))
-        wu.t_minus.connect(t_minus, relationship=TMinusRelationship(
-            alias=POSITION_T_MINUS,
-            heuristic_similarity=0.85,
-        ))
-        wu.a_plus.connect(a_plus, relationship=APlusRelationship(
-            alias=POSITION_A_PLUS,
-            heuristic_similarity=0.88,
-        ))
-        wu.a_minus.connect(a_minus, relationship=AMinusRelationship(
-            alias=POSITION_A_MINUS,
-            heuristic_similarity=0.82,
-        ))
+        wu.t_plus.connect(
+            t_plus,
+            relationship=TPlusRelationship(
+                alias=POSITION_T_PLUS,
+                heuristic_similarity=0.9,
+            ),
+        )
+        wu.t_minus.connect(
+            t_minus,
+            relationship=TMinusRelationship(
+                alias=POSITION_T_MINUS,
+                heuristic_similarity=0.85,
+            ),
+        )
+        wu.a_plus.connect(
+            a_plus,
+            relationship=APlusRelationship(
+                alias=POSITION_A_PLUS,
+                heuristic_similarity=0.88,
+            ),
+        )
+        wu.a_minus.connect(
+            a_minus,
+            relationship=AMinusRelationship(
+                alias=POSITION_A_MINUS,
+                heuristic_similarity=0.82,
+            ),
+        )
 
         if commit:
             wu.commit()
@@ -371,5 +375,3 @@ class TestPolarityEditorValidation:
 
             assert not result.is_valid
             assert "not found" in result.error_message.lower()
-
-

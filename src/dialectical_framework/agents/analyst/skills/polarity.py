@@ -34,31 +34,32 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
-    AntithesisExtraction,
-)
-from dialectical_framework.agents.executable_capability import ExecutableCapability
-from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
-    DedupResult,
-    StatementDeduplication,
-)
+from dialectical_framework.features.antithesis_extraction import \
+    AntithesisExtraction
+from dialectical_framework.features.statement_deduplication import (
+    DedupResult, StatementDeduplication)
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
-from dialectical_framework.graph.nodes.polarity import POSITION_A, POSITION_T, Polarity
+from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
+                                                        Polarity)
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    ARelationship,
-    TRelationship,
-)
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository,
-)
-from dialectical_framework.graph.repositories.input_repository import InputRepository
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
-from dialectical_framework.graph.repositories.polarity_repository import PolarityRepository
-from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+    ARelationship, TRelationship)
+from dialectical_framework.graph.repositories.dialectical_component_repository import \
+    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.input_repository import \
+    InputRepository
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
+from dialectical_framework.graph.repositories.polarity_repository import \
+    PolarityRepository
+from dialectical_framework.graph.repositories.wisdom_unit_repository import \
+    WisdomUnitRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -147,7 +148,9 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             result = ThesisResult(thesis=thesis)
 
             # 1a. Collect existing oppositions from database
-            existing_antitheses, existing_data = await self._get_existing_oppositions(thesis, input_text)
+            existing_antitheses, existing_data = await self._get_existing_oppositions(
+                thesis, input_text
+            )
             result.antithesis_data.extend(existing_data)
             all_existing.extend(existing_antitheses)
 
@@ -157,10 +160,12 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
                     not_like_these.append(comp.statement)
 
             # 1b. Extract new antitheses (with retry if none found)
-            antitheses, antithesis_data, extraction_reports = await self._extract_with_retry(
-                thesis=thesis,
-                text=input_text,
-                not_like_these=not_like_these,
+            antitheses, antithesis_data, extraction_reports = (
+                await self._extract_with_retry(
+                    thesis=thesis,
+                    text=input_text,
+                    not_like_these=not_like_these,
+                )
             )
             for r in extraction_reports:
                 self._report = self._report.merge(r)
@@ -216,13 +221,15 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             if result.error:
                 continue
             for data in result.antithesis_data:
-                polarity_data.append({
-                    "thesis_hash": result.thesis.hash,
-                    "antithesis_hash": data["hash"],
-                    "heuristic_similarity": data["heuristic_similarity"],
-                    "existing": data.get("existing", False),
-                    "deduped": data.get("deduped", False),
-                })
+                polarity_data.append(
+                    {
+                        "thesis_hash": result.thesis.hash,
+                        "antithesis_hash": data["hash"],
+                        "heuristic_similarity": data["heuristic_similarity"],
+                        "existing": data.get("existing", False),
+                        "deduped": data.get("deduped", False),
+                    }
+                )
 
         # Build summary
         existing_count = len(all_existing)
@@ -300,9 +307,8 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         self, thesis: DialecticalComponent, text: str = ""
     ) -> tuple[list[DialecticalComponent], list[dict]]:
         """Get existing oppositions for a thesis from the database."""
-        from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
-            AntithesisClassification,
-        )
+        from dialectical_framework.features.antithesis_classification import \
+            AntithesisClassification
 
         existing_components: list[DialecticalComponent] = []
         existing_data: list[dict] = []
@@ -325,11 +331,13 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
                 self._report.artifacts.setdefault("estimated_hs_count", 0)
                 self._report.artifacts["estimated_hs_count"] += 1
 
-            existing_data.append({
-                "hash": antithesis.hash,
-                "heuristic_similarity": hs,
-                "existing": True,
-            })
+            existing_data.append(
+                {
+                    "hash": antithesis.hash,
+                    "heuristic_similarity": hs,
+                    "existing": True,
+                }
+            )
 
         return existing_components, existing_data
 
@@ -346,7 +354,10 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
             a_result = polarity.a.get()
             if a_result:
                 _, a_rel = a_result
-                if isinstance(a_rel, ARelationship) and a_rel.heuristic_similarity is not None:
+                if (
+                    isinstance(a_rel, ARelationship)
+                    and a_rel.heuristic_similarity is not None
+                ):
                     return a_rel.heuristic_similarity
 
         return None
@@ -424,11 +435,15 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
                 # Create new Polarity (atomic creation)
                 polarity = Polarity()
                 polarity.set_t(result.thesis, heuristic_similarity=1.0)
-                polarity.set_a(antithesis, heuristic_similarity=data["heuristic_similarity"])
+                polarity.set_a(
+                    antithesis, heuristic_similarity=data["heuristic_similarity"]
+                )
                 polarity.commit()
 
                 created_polarities.append(polarity)
-                self._report.node_created(polarity, meta={"hs": data["heuristic_similarity"]})
+                self._report.node_created(
+                    polarity, meta={"hs": data["heuristic_similarity"]}
+                )
 
         self._report.artifacts["created_polarity_count"] = len(created_polarities)
         return created_polarities
@@ -466,7 +481,9 @@ class PolarityAgent(BaseTool, ExecutableCapability[Optional[Ideas]]):
         # Add rationale
         total_theses = len(valid_results)
         total_antitheses = sum(len(r.antithesis_data) for r in valid_results)
-        all_hs = [d["heuristic_similarity"] for r in valid_results for d in r.antithesis_data]
+        all_hs = [
+            d["heuristic_similarity"] for r in valid_results for d in r.antithesis_data
+        ]
         max_hs = max(all_hs) if all_hs else 0.0
 
         rationale = Rationale(

@@ -18,16 +18,13 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import (
-    ConversationFacilitator,
-)
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.agents.sensemaking.capabilities.ac_re_taxonomy import (
-    AC_PLUS_APEX_TARGET,
-    insight_label_to_value,
-    proactiveness_label_to_value,
-)
+from dialectical_framework.features.ac_re_taxonomy import (
+    AC_PLUS_APEX_TARGET, insight_label_to_value, proactiveness_label_to_value)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 # Insight hierarchy categories for exploration
@@ -35,7 +32,13 @@ from dialectical_framework.protocols.has_config import SettingsAware
 INSIGHT_CATEGORIES = {
     "Generative": {
         "description": "High depth insight - strategic or transformational actions",
-        "levels": ["Leverage", "Anticipation", "Inversion", "Redirection", "Transcendence"],
+        "levels": [
+            "Leverage",
+            "Anticipation",
+            "Inversion",
+            "Redirection",
+            "Transcendence",
+        ],
     },
     "Configurational": {
         "description": "Medium depth insight - restructuring or combining approaches",

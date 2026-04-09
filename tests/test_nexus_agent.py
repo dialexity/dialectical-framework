@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from dialectical_framework.agents.sensemaking.subagents.nexus_agent import (
+from dialectical_framework.agents.explorer.skills.nexus_agent import (
     NexusAgent,
     NexusAgentResult,
 )

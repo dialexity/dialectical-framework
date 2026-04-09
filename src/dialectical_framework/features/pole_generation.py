@@ -49,22 +49,22 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-)
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_A,
-    POSITION_A_MINUS,
-    POSITION_A_PLUS,
-    POSITION_T,
-    POSITION_T_MINUS,
-    POSITION_T_PLUS,
-    WisdomUnit,
-)
+from dialectical_framework.features.statement_classification import \
+    StatementClassification
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A,
+                                                           POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS,
+                                                           WisdomUnit)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
@@ -135,16 +135,17 @@ class PoleDto(BaseModel):
 
     statement: str = Field(description="Pole statement")
     heuristic_similarity: float = Field(
-        ge=0.0, le=1.0,
-        description="Heuristic Similarity to taxonomy apex (0.0-1.0)"
+        ge=0.0, le=1.0, description="Heuristic Similarity to taxonomy apex (0.0-1.0)"
     )
     complementarity_t: float = Field(
-        ge=0.0, le=1.0,
-        description="K_T: How well this complements, balances, or contributes positively to the thesis (0.0-1.0)"
+        ge=0.0,
+        le=1.0,
+        description="K_T: How well this complements, balances, or contributes positively to the thesis (0.0-1.0)",
     )
     complementarity_a: float = Field(
-        ge=0.0, le=1.0,
-        description="K_A: How well this complements, balances, or contributes positively to the antithesis (0.0-1.0)"
+        ge=0.0,
+        le=1.0,
+        description="K_A: How well this complements, balances, or contributes positively to the antithesis (0.0-1.0)",
     )
     explanation: str = Field(description="Brief reasoning for the pole and scores")
 
@@ -238,12 +239,22 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         self._not_like_these = self._filter_relevant_wus(not_like_these or [])
 
         # Default to all 4 poles if positions not specified
-        all_positions = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
+        all_positions = [
+            POSITION_T_PLUS,
+            POSITION_T_MINUS,
+            POSITION_A_PLUS,
+            POSITION_A_MINUS,
+        ]
         positions = positions if positions else all_positions
 
         # Check which positions already have components
         self._existing_poles: dict[str, DialecticalComponent] = {}
-        for pos in [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]:
+        for pos in [
+            POSITION_T_PLUS,
+            POSITION_T_MINUS,
+            POSITION_A_PLUS,
+            POSITION_A_MINUS,
+        ]:
             manager = wisdom_unit.get_relationship_manager_by_position(pos)
             result = manager.get()
             if result:
@@ -256,12 +267,16 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         if is_template:
             positions_to_generate = positions
         else:
-            positions_to_generate = [p for p in positions if p not in self._existing_poles]
+            positions_to_generate = [
+                p for p in positions if p not in self._existing_poles
+            ]
 
         # Validate positions
         for pos in positions_to_generate:
             if pos not in all_positions:
-                raise ValueError(f"Invalid position '{pos}'. Must be one of: {all_positions}")
+                raise ValueError(
+                    f"Invalid position '{pos}'. Must be one of: {all_positions}"
+                )
 
         if not positions_to_generate:
             # All requested positions already filled (only in non-template mode)
@@ -292,9 +307,12 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         self._report.artifacts["generated"] = {
             r.position: r.component.hash for r in results
         }
-        self._report.summary = f"Generated {len(results)} pole(s): " + ", ".join(
-            f"{r.position}={r.component.short_hash}" for r in results
-        ) if results else "No poles generated"
+        self._report.summary = (
+            f"Generated {len(results)} pole(s): "
+            + ", ".join(f"{r.position}={r.component.short_hash}" for r in results)
+            if results
+            else "No poles generated"
+        )
 
         return results
 
@@ -332,7 +350,9 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
 
         return results
 
-    async def _generate_contradiction_pair(self, positions: list[str]) -> list[PoleResult]:
+    async def _generate_contradiction_pair(
+        self, positions: list[str]
+    ) -> list[PoleResult]:
         """Generate a contradiction pair (T+/A- or A+/T-)."""
         # Determine which pair
         pos_set = set(positions)
@@ -345,12 +365,22 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
 
         result = await self._conversation.submit(
             response_model=ContradictionPairDto,
-            user_content=self._contradiction_pair_prompt(positive_pos, negative_pos, existing_context),
+            user_content=self._contradiction_pair_prompt(
+                positive_pos, negative_pos, existing_context
+            ),
         )
 
         results = []
-        results.append(self._create_pole_result(positive_pos, result.positive_pole.statement, result.positive_pole))
-        results.append(self._create_pole_result(negative_pos, result.negative_pole.statement, result.negative_pole))
+        results.append(
+            self._create_pole_result(
+                positive_pos, result.positive_pole.statement, result.positive_pole
+            )
+        )
+        results.append(
+            self._create_pole_result(
+                negative_pos, result.negative_pole.statement, result.negative_pole
+            )
+        )
 
         return results
 
@@ -373,7 +403,11 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
     ) -> PoleResult:
         """Create PoleResult with DialecticalComponent."""
         # Get parent for meaning lookup
-        parent = self._thesis if position in [POSITION_T_PLUS, POSITION_T_MINUS] else self._antithesis
+        parent = (
+            self._thesis
+            if position in [POSITION_T_PLUS, POSITION_T_MINUS]
+            else self._antithesis
+        )
 
         # Get meaning and apex from taxonomy
         meaning = StatementClassification.lookup_pole_meaning(parent, position)
@@ -417,7 +451,8 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         """Build context string for existing poles NOT being regenerated."""
         # Only show poles that exist AND are not being regenerated
         relevant_poles = {
-            pos: comp for pos, comp in self._existing_poles.items()
+            pos: comp
+            for pos, comp in self._existing_poles.items()
             if pos not in positions_to_generate
         }
 
@@ -426,7 +461,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
 
         lines = ["The following pole(s) are already defined:"]
         for pos, component in relevant_poles.items():
-            lines.append(f"- {pos} = \"{component.statement}\"")
+            lines.append(f'- {pos} = "{component.statement}"')
         lines.append("Generate the remaining poles to be coherent with these.")
         return "\n".join(lines)
 
@@ -452,15 +487,22 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
             wu_t = wu.t.get()
             is_swapped = wu_t and wu_t[0].hash == self._antithesis.hash
 
-            for pos in [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]:
+            for pos in [
+                POSITION_T_PLUS,
+                POSITION_T_MINUS,
+                POSITION_A_PLUS,
+                POSITION_A_MINUS,
+            ]:
                 manager = wu.get_relationship_manager_by_position(pos)
                 result = manager.get()
                 if result:
                     # Remap position if T-A are swapped
                     display_pos = self._swap_position(pos) if is_swapped else pos
-                    lines.append(f"  - {display_pos}: \"{result[0].statement}\"")
+                    lines.append(f'  - {display_pos}: "{result[0].statement}"')
         lines.append("")
-        lines.append("Generate semantically distinct poles while maintaining contradiction relationships.")
+        lines.append(
+            "Generate semantically distinct poles while maintaining contradiction relationships."
+        )
         return "\n".join(lines)
 
     def _swap_position(self, position: str) -> str:
@@ -477,10 +519,18 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         """Build prompt for full tetrad generation."""
         max_words = self.settings.component_length
 
-        t_plus_apex = StatementClassification.lookup_pole_apex(self._thesis, POSITION_T_PLUS)
-        t_minus_apex = StatementClassification.lookup_pole_apex(self._thesis, POSITION_T_MINUS)
-        a_plus_apex = StatementClassification.lookup_pole_apex(self._antithesis, POSITION_A_PLUS)
-        a_minus_apex = StatementClassification.lookup_pole_apex(self._antithesis, POSITION_A_MINUS)
+        t_plus_apex = StatementClassification.lookup_pole_apex(
+            self._thesis, POSITION_T_PLUS
+        )
+        t_minus_apex = StatementClassification.lookup_pole_apex(
+            self._thesis, POSITION_T_MINUS
+        )
+        a_plus_apex = StatementClassification.lookup_pole_apex(
+            self._antithesis, POSITION_A_PLUS
+        )
+        a_minus_apex = StatementClassification.lookup_pole_apex(
+            self._antithesis, POSITION_A_MINUS
+        )
 
         text_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
         existing_section = f"\n{existing_context}\n" if existing_context else ""
@@ -524,8 +574,16 @@ Ensure T+ contradicts A-, and A+ contradicts T-."""
         max_words = self.settings.component_length
 
         # Get parent for each position
-        pos_parent = self._thesis if positive_pos in [POSITION_T_PLUS, POSITION_T_MINUS] else self._antithesis
-        neg_parent = self._thesis if negative_pos in [POSITION_T_PLUS, POSITION_T_MINUS] else self._antithesis
+        pos_parent = (
+            self._thesis
+            if positive_pos in [POSITION_T_PLUS, POSITION_T_MINUS]
+            else self._antithesis
+        )
+        neg_parent = (
+            self._thesis
+            if negative_pos in [POSITION_T_PLUS, POSITION_T_MINUS]
+            else self._antithesis
+        )
 
         pos_apex = StatementClassification.lookup_pole_apex(pos_parent, positive_pos)
         neg_apex = StatementClassification.lookup_pole_apex(neg_parent, negative_pos)
@@ -567,7 +625,11 @@ They must contradict each other - they cannot both be true/good simultaneously."
         """Build prompt for single pole generation."""
         max_words = self.settings.component_length
 
-        parent = self._thesis if position in [POSITION_T_PLUS, POSITION_T_MINUS] else self._antithesis
+        parent = (
+            self._thesis
+            if position in [POSITION_T_PLUS, POSITION_T_MINUS]
+            else self._antithesis
+        )
         apex = StatementClassification.lookup_pole_apex(parent, position)
 
         # Get description based on position

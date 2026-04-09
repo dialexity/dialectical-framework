@@ -36,26 +36,25 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.estimation import (
-    ConceptualCoherenceEstimation,
-    CONCEPTUAL_COHERENCE_THRESHOLD,
-)
+    CONCEPTUAL_COHERENCE_THRESHOLD, ConceptualCoherenceEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_T_PLUS,
-    POSITION_T_MINUS,
-    POSITION_A_PLUS,
-    POSITION_A_MINUS,
-)
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
 # --- DTOs ---
+
 
 class CoherenceEvaluationDto(BaseModel):
     """Result of evaluating a single control statement."""
@@ -65,12 +64,11 @@ class CoherenceEvaluationDto(BaseModel):
         le=1.0,
         description="Logical coherence score (0.0-1.0). >= 0.7 is considered coherent.",
     )
-    reasoning: str = Field(
-        description="Brief explanation of the coherence assessment"
-    )
+    reasoning: str = Field(description="Brief explanation of the coherence assessment")
 
 
 # --- Result ---
+
 
 @dataclass
 class ControlStatementsCheckResult:
@@ -98,6 +96,7 @@ class ControlStatementsCheckResult:
 
 
 # --- Capability ---
+
 
 class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult]):
     """

@@ -45,25 +45,24 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
-    AntithesisClassification,
-)
-from dialectical_framework.agents.brainstorming.capabilities.pole_classification import (
-    PoleClassification,
-)
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-)
-from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
-    StatementDeduplication,
-)
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.features.antithesis_classification import \
+    AntithesisClassification
+from dialectical_framework.features.pole_classification import \
+    PoleClassification
+from dialectical_framework.features.statement_classification import \
+    StatementClassification
+from dialectical_framework.features.statement_deduplication import \
+    StatementDeduplication
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
-
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
 
 # --- System Prompt ---
 
@@ -332,7 +331,9 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
         return None
 
-    async def _classify_and_create(self, analysis: PlacementAnalysisDto) -> IdeaPlacementResult:
+    async def _classify_and_create(
+        self, analysis: PlacementAnalysisDto
+    ) -> IdeaPlacementResult:
         """Run appropriate classification based on placement and create component."""
         placement = analysis.placement.lower()
 
@@ -344,7 +345,9 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
             # Default to thesis
             return await self._handle_thesis(analysis)
 
-    async def _handle_thesis(self, analysis: PlacementAnalysisDto) -> IdeaPlacementResult:
+    async def _handle_thesis(
+        self, analysis: PlacementAnalysisDto
+    ) -> IdeaPlacementResult:
         """Handle idea as new thesis."""
         # Run StatementClassification
         classifier = StatementClassification()
@@ -377,7 +380,9 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
             component=component,
         )
 
-    async def _handle_antithesis(self, analysis: PlacementAnalysisDto) -> IdeaPlacementResult:
+    async def _handle_antithesis(
+        self, analysis: PlacementAnalysisDto
+    ) -> IdeaPlacementResult:
         """Handle idea as antithesis of existing thesis."""
         # Find the thesis component
         repo = NodeRepository()
@@ -429,7 +434,11 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         # Find thesis and antithesis components
         repo = NodeRepository()
         thesis = repo.find_by_hash(analysis.tension_thesis_hash)
-        antithesis = repo.find_by_hash(analysis.tension_antithesis_hash) if analysis.tension_antithesis_hash else None
+        antithesis = (
+            repo.find_by_hash(analysis.tension_antithesis_hash)
+            if analysis.tension_antithesis_hash
+            else None
+        )
 
         if not thesis or not isinstance(thesis, DialecticalComponent):
             return await self._handle_thesis(analysis)
@@ -457,7 +466,9 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         self._report.node_created(component)
 
         # Create rationale (HS > 0.1 means valid for position)
-        validity = "valid" if classification.heuristic_similarity > 0.1 else "wrong category"
+        validity = (
+            "valid" if classification.heuristic_similarity > 0.1 else "wrong category"
+        )
         rationale_text = (
             f"Placement: {position} pole of tension '{thesis.statement}' ↔ '{antithesis.statement}'\n"
             f"Reasoning: {analysis.reasoning}\n\n"
@@ -505,7 +516,9 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
     def _build_analysis_prompt(self) -> str:
         """Build prompt for placement analysis."""
-        context_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        context_section = (
+            f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        )
 
         # Build vocabulary list (use full hash for accurate matching)
         vocab_lines = []
@@ -520,7 +533,9 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
                 f"  T:[{t.thesis_hash}] {t.thesis_statement} ↔ "
                 f"A:[{t.antithesis_hash}] {t.antithesis_statement}"
             )
-        tension_section = "\n".join(tension_lines) if tension_lines else "  (no tensions yet)"
+        tension_section = (
+            "\n".join(tension_lines) if tension_lines else "  (no tensions yet)"
+        )
 
         return f"""{context_section}Determine where this idea belongs in the dialectical structure.
 Note: This idea has already been checked and is NOT a duplicate of existing vocabulary.

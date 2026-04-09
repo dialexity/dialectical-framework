@@ -30,28 +30,27 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.estimation import (
-    DiagonalContradictionEstimation,
-    ORTHOGONALITY_THRESHOLD,
-)
+    ORTHOGONALITY_THRESHOLD, DiagonalContradictionEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_T,
-    POSITION_A,
-    POSITION_T_PLUS,
-    POSITION_T_MINUS,
-    POSITION_A_PLUS,
-    POSITION_A_MINUS,
-)
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A,
+                                                           POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
 # --- DTOs ---
+
 
 class ContradictionEvaluationDto(BaseModel):
     """Result of evaluating a single contradiction pair."""
@@ -67,6 +66,7 @@ class ContradictionEvaluationDto(BaseModel):
 
 
 # --- Result ---
+
 
 @dataclass
 class DiagonalOppositionsCheckResult:
@@ -92,6 +92,7 @@ class DiagonalOppositionsCheckResult:
 
 
 # --- Capability ---
+
 
 class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResult]):
     """
@@ -165,7 +166,8 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
 
         # Create estimation and rationale nodes
         avg_score = (
-            result_t_plus_a_minus.contradiction_score + result_a_plus_t_minus.contradiction_score
+            result_t_plus_a_minus.contradiction_score
+            + result_a_plus_t_minus.contradiction_score
         ) / 2
         is_valid = (
             result_t_plus_a_minus.contradiction_score >= ORTHOGONALITY_THRESHOLD
@@ -182,10 +184,10 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
         rationale_text = (
             f"Diagonal Contradiction Evaluation: {status}\n\n"
             f"T+ vs A- (score={result_t_plus_a_minus.contradiction_score:.2f}):\n"
-            f"  \"{t_plus.statement}\" contradicts \"{a_minus.statement}\"?\n"
+            f'  "{t_plus.statement}" contradicts "{a_minus.statement}"?\n'
             f"  Reasoning: {result_t_plus_a_minus.reasoning}\n\n"
             f"A+ vs T- (score={result_a_plus_t_minus.contradiction_score:.2f}):\n"
-            f"  \"{a_plus.statement}\" contradicts \"{t_minus.statement}\"?\n"
+            f'  "{a_plus.statement}" contradicts "{t_minus.statement}"?\n'
             f"  Reasoning: {result_a_plus_t_minus.reasoning}\n\n"
             f"Average: {avg_score:.2f} (threshold: {ORTHOGONALITY_THRESHOLD})"
         )

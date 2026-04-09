@@ -7,38 +7,24 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.sensemaking.capabilities.positive_ac_re_apex_derivation import (
-    ApexDerivation,
-)
-from dialectical_framework.agents.sensemaking.capabilities.ac_re_taxonomy import (
-    INSIGHT_SCALE,
-    PROACTIVENESS_SCALE,
-    get_polar_pair,
-    insight_label_to_value,
-    is_action_category,
-    is_reflection_category,
-    proactiveness_label_to_value,
-)
-from dialectical_framework.agents.sensemaking.capabilities.action_extraction import (
-    ActionExtraction,
-)
-from dialectical_framework.agents.sensemaking.capabilities.transformation_generation import (
-    TransformationGeneration,
-)
-from dialectical_framework.agents.sensemaking.subagents.transformation_agent import (
-    TransformationAgent,
-)
+from dialectical_framework.features.ac_re_taxonomy import (
+    INSIGHT_SCALE, PROACTIVENESS_SCALE, get_polar_pair, insight_label_to_value,
+    is_action_category, is_reflection_category, proactiveness_label_to_value)
+from dialectical_framework.features.action_extraction import \
+    ActionExtraction
+from dialectical_framework.features.positive_ac_re_apex_derivation import \
+    ApexDerivation
+from dialectical_framework.features.transformation_generation import \
+    TransformationGeneration
+from dialectical_framework.agents.explorer.skills.transformation import \
+    TransformationAgent
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AMinusRelationship,
-    APlusRelationship,
-    ARelationship,
-    TMinusRelationship,
-    TPlusRelationship,
-    TRelationship,
-)
+    AMinusRelationship, APlusRelationship, ARelationship, TMinusRelationship,
+    TPlusRelationship, TRelationship)
 from dialectical_framework.graph.scope_context import scope
 
 
@@ -328,7 +314,6 @@ class TestTransformationGeneration:
             # Check HS scores are valid
             assert 0.0 <= tetrad.ac_plus_hs <= 1.0
             assert 0.0 <= tetrad.re_plus_hs <= 1.0
-
 
 
 class TestTransformationAgent:

@@ -56,6 +56,7 @@ def _inject_sid_scoping(query: str) -> str:
     - (n:Label {prop: val}) -> (n:Label {sid: $sid, prop: val})
     - (n:Label {sid: $sid}) -> (n:Label {sid: $sid})  # Already has it, don't duplicate
     """
+
     def transform_node_pattern(match: re.Match) -> str:
         var_name = match.group(1)  # Variable name (could be empty for anonymous)
         labels = match.group(2) or ""  # :Label or :Label1:Label2 (could be None)
@@ -64,7 +65,7 @@ def _inject_sid_scoping(query: str) -> str:
         if props:
             props_content = props.strip()[1:-1]  # Remove { }
             # Check if sid: $sid is already present - don't duplicate
-            if re.search(r'\bsid\s*:\s*\$sid\b', props_content):
+            if re.search(r"\bsid\s*:\s*\$sid\b", props_content):
                 return match.group(0)  # Return unchanged
             # Has existing properties - prepend sid
             # {foo: bar} -> {sid: $sid, foo: bar}
@@ -81,7 +82,7 @@ def _inject_sid_scoping(query: str) -> str:
     # Group 1: variable name (optional, could be empty string)
     # Group 2: labels like :Label or :Label1:Label2 (optional)
     # Group 3: properties like {foo: bar} (optional)
-    node_pattern = r'\((\w*)((?::\w+)*)(\s*\{[^}]*\})?\)'
+    node_pattern = r"\((\w*)((?::\w+)*)(\s*\{[^}]*\})?\)"
 
     return re.sub(node_pattern, transform_node_pattern, query)
 
@@ -97,7 +98,7 @@ def _has_hardcoded_sid(query: str) -> bool:
     if re.search(r'\bsid\s*:\s*["\'][^"\']+["\']', query, re.IGNORECASE):
         return True
     # Look for sid with a different parameter (not $sid)
-    if re.search(r'\bsid\s*:\s*\$(?!sid\b)\w+', query, re.IGNORECASE):
+    if re.search(r"\bsid\s*:\s*\$(?!sid\b)\w+", query, re.IGNORECASE):
         return True
     return False
 
@@ -135,7 +136,7 @@ class QueryGraph(BaseTool):
     )
     limit: int = Field(
         default=50,
-        description="Maximum rows to return (safety limit, not applied to schema queries)"
+        description="Maximum rows to return (safety limit, not applied to schema queries)",
     )
 
     @inject
@@ -148,10 +149,20 @@ class QueryGraph(BaseTool):
         query_upper = self.cypher.upper()
 
         # Security: Block write operations
-        blocked_keywords = ["CREATE", "MERGE", "DELETE", "DETACH", "SET", "REMOVE", "DROP"]
+        blocked_keywords = [
+            "CREATE",
+            "MERGE",
+            "DELETE",
+            "DETACH",
+            "SET",
+            "REMOVE",
+            "DROP",
+        ]
         for keyword in blocked_keywords:
             if keyword in query_upper:
-                return f"Error: Write operations not allowed. Found '{keyword}' in query."
+                return (
+                    f"Error: Write operations not allowed. Found '{keyword}' in query."
+                )
 
         # Security: Block hardcoded sid values (injection attempt)
         if _has_hardcoded_sid(self.cypher):
@@ -185,14 +196,20 @@ class QueryGraph(BaseTool):
         # Format results
         lines = [f"Found {len(results)} result(s):", ""]
 
-        for i, row in enumerate(results[:self.limit]):
+        for i, row in enumerate(results[: self.limit]):
             row_parts = []
             for key, value in row.items():
                 # Format node objects nicely
                 if hasattr(value, "short_hash"):
-                    row_parts.append(f"{key}: [{value.__class__.__name__} {value.short_hash}]")
+                    row_parts.append(
+                        f"{key}: [{value.__class__.__name__} {value.short_hash}]"
+                    )
                 elif hasattr(value, "statement"):
-                    stmt = value.statement[:50] + "..." if len(str(value.statement)) > 50 else value.statement
+                    stmt = (
+                        value.statement[:50] + "..."
+                        if len(str(value.statement)) > 50
+                        else value.statement
+                    )
                     row_parts.append(f"{key}: {stmt}")
                 else:
                     val_str = str(value)[:100]

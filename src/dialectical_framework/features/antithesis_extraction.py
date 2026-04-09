@@ -21,21 +21,21 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
-    SYSTEM_PROMPT,
-    ContextualizedTaxonomyDto,
-    arousal_label_to_value,
-    contextualize_taxonomy,
-)
-from dialectical_framework.agents.brainstorming.capabilities.statement_classification import (
-    StatementClassification,
-)
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.features.antithesis_classification import (
+    SYSTEM_PROMPT, ContextualizedTaxonomyDto, arousal_label_to_value,
+    contextualize_taxonomy)
+from dialectical_framework.features.statement_classification import \
+    StatementClassification
 from dialectical_framework.graph.estimation_manager import EstimationManager
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.graph.nodes.estimation import ArousalEstimation, ModeEstimation
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
+from dialectical_framework.graph.nodes.estimation import (ArousalEstimation,
+                                                          ModeEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.protocols.has_config import SettingsAware
 
@@ -54,22 +54,29 @@ class ModePointResultDto(BaseModel):
     into a single LLM call to reduce API calls from 3 to 1 per mode point.
     """
 
-    statement: str = Field(description="Antithesis candidate statement (similar length to thesis)")
+    statement: str = Field(
+        description="Antithesis candidate statement (similar length to thesis)"
+    )
     heuristic_similarity: float = Field(
-        ge=0.0, le=1.0,
-        description="Heuristic Similarity to apex concept (0.0-1.0)"
+        ge=0.0, le=1.0, description="Heuristic Similarity to apex concept (0.0-1.0)"
     )
     arousal_label: str = Field(
         description="Arousal level: dormant/latent/low/mild/moderate/elevated/high/intense/active"
     )
-    explanation: str = Field(description="Combined reasoning for statement, HS, and arousal")
+    explanation: str = Field(
+        description="Combined reasoning for statement, HS, and arousal"
+    )
 
 
 class SimpleNegationDto(BaseModel):
     """Result of generating negation for a simple thesis."""
 
-    negation: str = Field(description="Direct negation statement (similar length to thesis)")
-    arousal_label: str = Field(description="dormant/latent/low/mild/moderate/elevated/high/intense/active")
+    negation: str = Field(
+        description="Direct negation statement (similar length to thesis)"
+    )
+    arousal_label: str = Field(
+        description="dormant/latent/low/mild/moderate/elevated/high/intense/active"
+    )
     arousal_explanation: str = Field(description="Reasoning for arousal level")
 
 
@@ -89,7 +96,9 @@ class AntithesisProcessed:
 # --- Service ---
 
 
-class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], SettingsAware):
+class AntithesisExtraction(
+    ExecutableCapability[list[AntithesisProcessed]], SettingsAware
+):
     """
     Capability for extracting antitheses for a thesis.
 
@@ -146,7 +155,9 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
 
         # Build artifacts
         self._report.artifacts["thesis_hash"] = thesis.hash
-        self._report.artifacts["antithesis_hashes"] = [r.component.hash for r in results]
+        self._report.artifacts["antithesis_hashes"] = [
+            r.component.hash for r in results
+        ]
         self._report.artifacts["heuristic_similarity_by_hash"] = {
             r.component.hash: r.heuristic_similarity for r in results
         }
@@ -157,7 +168,8 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
         thesis_type = "simple" if thesis.is_simple else "complex"
         self._report.summary = (
             f"Extracted {len(results)} antithesis(es) for {thesis_type} thesis "
-            f"'{thesis.statement[:50]}...'" if len(thesis.statement) > 50
+            f"'{thesis.statement[:50]}...'"
+            if len(thesis.statement) > 50
             else f"Extracted {len(results)} antithesis(es) for {thesis_type} thesis '{thesis.statement}'"
         )
 
@@ -165,7 +177,9 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
 
     # --- Simple Thesis Processing ---
 
-    async def _process_simple_thesis(self, thesis: DialecticalComponent) -> list[AntithesisProcessed]:
+    async def _process_simple_thesis(
+        self, thesis: DialecticalComponent
+    ) -> list[AntithesisProcessed]:
         """Process a simple thesis: generate direct negation."""
         result = await self._conversation.submit(
             response_model=SimpleNegationDto,
@@ -182,12 +196,16 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
             meaning="dx://taxonomy/Simple",
         )
         antithesis.commit()
-        self._report.node_created(antithesis, meta={"mode": 1.0, "type": "simple_negation"})
+        self._report.node_created(
+            antithesis, meta={"mode": 1.0, "type": "simple_negation"}
+        )
 
         # Connect OPPOSITE_OF
         thesis.oppositions.connect(antithesis)
         self._report.relationship_created(
-            thesis.oppositions, thesis, antithesis,
+            thesis.oppositions,
+            thesis,
+            antithesis,
         )
 
         # Add rationale (created first so it can be provider for estimations)
@@ -201,8 +219,12 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
 
         # Store estimations with rationale as provider
         manager = EstimationManager()
-        mode_est = manager.upsert_estimation(antithesis, ModeEstimation, 1.0, provider=rationale)
-        arousal_est = manager.upsert_estimation(antithesis, ArousalEstimation, arousal_value, provider=rationale)
+        mode_est = manager.upsert_estimation(
+            antithesis, ModeEstimation, 1.0, provider=rationale
+        )
+        arousal_est = manager.upsert_estimation(
+            antithesis, ArousalEstimation, arousal_value, provider=rationale
+        )
         if mode_est:
             self._report.node_updated(mode_est, patch={"value": 1.0})
         if arousal_est:
@@ -219,7 +241,9 @@ class AntithesisExtraction(ExecutableCapability[list[AntithesisProcessed]], Sett
 
     def _simple_negation_prompt(self, thesis: str) -> str:
         """Build user prompt for simple thesis negation."""
-        context_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        context_section = (
+            f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        )
         return f"""{context_section}Generate a direct negation for this simple thesis.
 
 Thesis: "{thesis}"
@@ -294,13 +318,19 @@ Generate:
             antithesis.commit()
             self._report.node_created(
                 antithesis,
-                meta={"mode": mode_value, "branch": field_name, "heuristic_similarity": mode_result.heuristic_similarity}
+                meta={
+                    "mode": mode_value,
+                    "branch": field_name,
+                    "heuristic_similarity": mode_result.heuristic_similarity,
+                },
             )
 
             # Connect OPPOSITE_OF
             thesis.oppositions.connect(antithesis)
             self._report.relationship_created(
-                thesis.oppositions, thesis, antithesis,
+                thesis.oppositions,
+                thesis,
+                antithesis,
             )
 
             # Add rationale (created first so it can be provider for estimations)
@@ -317,8 +347,12 @@ Generate:
             self._report.node_created(rationale)
 
             # Store estimations with rationale as provider
-            mode_est = manager.upsert_estimation(antithesis, ModeEstimation, mode_value, provider=rationale)
-            arousal_est = manager.upsert_estimation(antithesis, ArousalEstimation, arousal_value, provider=rationale)
+            mode_est = manager.upsert_estimation(
+                antithesis, ModeEstimation, mode_value, provider=rationale
+            )
+            arousal_est = manager.upsert_estimation(
+                antithesis, ArousalEstimation, arousal_value, provider=rationale
+            )
             if mode_est:
                 self._report.node_updated(mode_est, patch={"value": mode_value})
             if arousal_est:

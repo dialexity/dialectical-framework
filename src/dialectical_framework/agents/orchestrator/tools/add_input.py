@@ -64,7 +64,9 @@ class AddInput(BaseTool):
         brainstorm.inputs.connect(input_node)
 
         # Preview for response
-        preview = self.content[:100] + "..." if len(self.content) > 100 else self.content
+        preview = (
+            self.content[:100] + "..." if len(self.content) > 100 else self.content
+        )
 
         return (
             f"Added input to brainstorm.\n"

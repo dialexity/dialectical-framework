@@ -14,9 +14,9 @@ from dialectical_framework.enums.di import DI
 from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
-from dialectical_framework.agents.brainstorming.capabilities.thesis_extraction import ThesisExtraction
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import AntithesisExtraction
-from dialectical_framework.agents.brainstorming.subagents.wisdom_agent import WisdomAgent
+from dialectical_framework.features.thesis_extraction import ThesisExtraction
+from dialectical_framework.features.antithesis_extraction import AntithesisExtraction
+from dialectical_framework.agents.analyst.skills.wisdom import WisdomAgent
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 

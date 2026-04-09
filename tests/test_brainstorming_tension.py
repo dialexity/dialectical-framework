@@ -9,15 +9,15 @@ import json
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_extraction import (
-    AntithesisExtraction,
-)
-from dialectical_framework.agents.brainstorming.subagents.tension_agent import TensionAgent
+from dialectical_framework.agents.analyst.skills.tension_agent import \
+    TensionAgent
+from dialectical_framework.features.antithesis_extraction import \
+    AntithesisExtraction
 from dialectical_framework.graph.nodes.brainstorm import Brainstorm
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.scope_context import scope
-
 
 # Sample text for tests - simulates resolved input content
 SAMPLE_INPUT_TEXT = """
@@ -192,7 +192,9 @@ class TestAntithesisExtraction:
 
         with scope(brainstorm.sid):
             # Simple thesis (short statement, is_simple=True)
-            thesis = DialecticalComponent(statement="Trust", meaning="dx://taxonomy/Simple")
+            thesis = DialecticalComponent(
+                statement="Trust", meaning="dx://taxonomy/Simple"
+            )
             thesis.commit()
 
             service = AntithesisExtraction()
@@ -233,7 +235,9 @@ class TestAntithesisExtraction:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            thesis = DialecticalComponent(statement="Love", meaning="dx://taxonomy/Simple")
+            thesis = DialecticalComponent(
+                statement="Love", meaning="dx://taxonomy/Simple"
+            )
             thesis.commit()
 
             service = AntithesisExtraction()
@@ -271,7 +275,9 @@ class TestAntithesisExtraction:
         brainstorm.commit()
 
         with scope(brainstorm.sid):
-            thesis = DialecticalComponent(statement="Trust", meaning="dx://taxonomy/Simple")
+            thesis = DialecticalComponent(
+                statement="Trust", meaning="dx://taxonomy/Simple"
+            )
             thesis.commit()
 
             # Run twice - second time should avoid first result
@@ -288,5 +294,3 @@ class TestAntithesisExtraction:
 
             # Should still generate
             assert service2.report.ok
-
-

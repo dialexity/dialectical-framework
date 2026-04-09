@@ -31,44 +31,39 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.brainstorming.capabilities.antithesis_classification import (
-    AntithesisClassification,
-)
-from dialectical_framework.agents.brainstorming.capabilities.pole_generation import (
-    PoleGeneration,
-    PoleResult,
-)
-from dialectical_framework.agents.brainstorming.capabilities.statement_deduplication import (
-    StatementDeduplication,
-)
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.features.antithesis_classification import \
+    AntithesisClassification
+from dialectical_framework.features.pole_generation import (
+    PoleGeneration, PoleResult)
+from dialectical_framework.features.statement_deduplication import \
+    StatementDeduplication
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-from dialectical_framework.graph.nodes.polarity import POSITION_A, POSITION_T, Polarity
-from dialectical_framework.graph.nodes.wisdom_unit import (
-    POSITION_A_MINUS,
-    POSITION_A_PLUS,
-    POSITION_T_MINUS,
-    POSITION_T_PLUS,
-    WisdomUnit,
-)
+from dialectical_framework.graph.nodes.dialectical_component import \
+    DialecticalComponent
+from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
+                                                        Polarity)
+from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS,
+                                                           WisdomUnit)
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    ARelationship,
-    APlusRelationship,
-    AMinusRelationship,
-    HasPolarityRelationship,
-    TRelationship,
-    TPlusRelationship,
-    TMinusRelationship,
-)
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository,
-)
-from dialectical_framework.graph.repositories.input_repository import InputRepository
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
-from dialectical_framework.graph.repositories.polarity_repository import PolarityRepository
-from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+    AMinusRelationship, APlusRelationship, ARelationship,
+    HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
+    TRelationship)
+from dialectical_framework.graph.repositories.dialectical_component_repository import \
+    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.input_repository import \
+    InputRepository
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
+from dialectical_framework.graph.repositories.polarity_repository import \
+    PolarityRepository
+from dialectical_framework.graph.repositories.wisdom_unit_repository import \
+    WisdomUnitRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -93,15 +88,11 @@ class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
     - call() returns JSON string for LLM tool use
     """
 
-    thesis_hash: str = Field(
-        description="Hash of the thesis component"
-    )
-    antithesis_hash: str = Field(
-        description="Hash of the antithesis component"
-    )
+    thesis_hash: str = Field(description="Hash of the thesis component")
+    antithesis_hash: str = Field(description="Hash of the antithesis component")
     positions: Optional[list[str]] = Field(
         default=None,
-        description="Which poles to generate (T+, T-, A+, A-). If None, generates all 4."
+        description="Which poles to generate (T+, T-, A+, A-). If None, generates all 4.",
     )
 
     _report: ExecutionReport = PrivateAttr()
@@ -162,7 +153,9 @@ class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         if not partial_wus:
             # All WUs are already complete - nothing to do
             self._report.ok = True
-            self._report.summary = f"{len(complete_wus)} complete WisdomUnit(s), no partial WUs to expand"
+            self._report.summary = (
+                f"{len(complete_wus)} complete WisdomUnit(s), no partial WUs to expand"
+            )
             self._report.artifacts["wisdom_unit_hashes"] = [
                 wu.hash for wu in complete_wus if wu.hash
             ]
@@ -199,19 +192,23 @@ class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
             if duplicate_of:
                 # Discard the duplicate - delete uncommitted WU
                 wu_repo.safe_delete(wu)
-                self._report.artifacts.setdefault("duplicates_discarded", []).append({
-                    "discarded": wu.short_hash if wu.hash else "uncommitted",
-                    "duplicate_of": duplicate_of.short_hash,
-                })
+                self._report.artifacts.setdefault("duplicates_discarded", []).append(
+                    {
+                        "discarded": wu.short_hash if wu.hash else "uncommitted",
+                        "duplicate_of": duplicate_of.short_hash,
+                    }
+                )
                 continue
 
             # Only commit complete WUs (Polarity + 4 poles)
             # If specific positions were requested, WU may remain incomplete
             if not wu.is_complete():
-                self._report.artifacts.setdefault("incomplete_wus", []).append({
-                    "status": "kept_uncommitted",
-                    "reason": "missing positions",
-                })
+                self._report.artifacts.setdefault("incomplete_wus", []).append(
+                    {
+                        "status": "kept_uncommitted",
+                        "reason": "missing positions",
+                    }
+                )
                 continue
 
             # Commit WisdomUnit
@@ -231,9 +228,7 @@ class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         self._report.artifacts["existing_count"] = len(complete_wus)
         self._report.artifacts["new_count"] = len(completed_wus)
 
-        self._report.summary = (
-            f"{len(all_wus)} WisdomUnit(s) ({len(complete_wus)} existing, {len(completed_wus)} new)"
-        )
+        self._report.summary = f"{len(all_wus)} WisdomUnit(s) ({len(complete_wus)} existing, {len(completed_wus)} new)"
 
         return all_wus
 
@@ -268,7 +263,9 @@ class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         # Create Polarity (atomic creation)
         polarity = Polarity()
         polarity.set_t(thesis, heuristic_similarity=1.0)
-        polarity.set_a(antithesis, heuristic_similarity=classification.heuristic_similarity)
+        polarity.set_a(
+            antithesis, heuristic_similarity=classification.heuristic_similarity
+        )
         polarity.commit()
 
         self._report.node_created(polarity)
@@ -372,19 +369,23 @@ class WisdomAgent(BaseTool, ExecutableCapability[list[WisdomUnit]]):
             if pole.component.hash in dedup_result.replacements:
                 # Replace with existing component (keeps original meaning)
                 replacement = dedup_result.replacements[pole.component.hash]
-                updated_poles.append(PoleResult(
-                    component=replacement,
-                    position=pole.position,
-                    apex_concept=pole.apex_concept,
-                    heuristic_similarity=pole.heuristic_similarity,
-                    complementarity_t=pole.complementarity_t,
-                    complementarity_a=pole.complementarity_a,
-                ))
-                self._report.artifacts.setdefault("deduped_poles", []).append({
-                    "position": pole.position,
-                    "original": pole.component.short_hash,
-                    "replaced_with": replacement.short_hash,
-                })
+                updated_poles.append(
+                    PoleResult(
+                        component=replacement,
+                        position=pole.position,
+                        apex_concept=pole.apex_concept,
+                        heuristic_similarity=pole.heuristic_similarity,
+                        complementarity_t=pole.complementarity_t,
+                        complementarity_a=pole.complementarity_a,
+                    )
+                )
+                self._report.artifacts.setdefault("deduped_poles", []).append(
+                    {
+                        "position": pole.position,
+                        "original": pole.component.short_hash,
+                        "replaced_with": replacement.short_hash,
+                    }
+                )
             else:
                 updated_poles.append(pole)
 

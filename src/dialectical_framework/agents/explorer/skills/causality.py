@@ -38,16 +38,19 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.executable_capability import \
+    ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-    from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
+    from dialectical_framework.protocols.causality_sequencer import \
+        CausalitySequencer
 
 
 @dataclass
@@ -82,11 +85,11 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
     )
     intent: str = Field(
         default="preset:balanced",
-        description="Causality intent: 'preset:balanced', 'preset:desirable', 'preset:feasible', or 'preset:realistic'"
+        description="Causality intent: 'preset:balanced', 'preset:desirable', 'preset:feasible', or 'preset:realistic'",
     )
     estimate: bool = Field(
         default=True,
-        description="If True, attach AI-generated probability estimations to cycles and wheels"
+        description="If True, attach AI-generated probability estimations to cycles and wheels",
     )
 
     _report: ExecutionReport = PrivateAttr()
@@ -108,7 +111,9 @@ class CausalityAgent(BaseTool, ExecutableCapability[CausalityAgentResult]):
         # 1. Resolve WisdomUnits
         wisdom_units = self._resolve_wisdom_units()
         self._report.artifacts["wisdom_unit_count"] = len(wisdom_units)
-        self._report.artifacts["wisdom_unit_hashes"] = [wu.short_hash for wu in wisdom_units]
+        self._report.artifacts["wisdom_unit_hashes"] = [
+            wu.short_hash for wu in wisdom_units
+        ]
 
         # 2. Arrange into Cycles and Wheels
         sequencer = self._get_sequencer()
