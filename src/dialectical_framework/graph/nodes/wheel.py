@@ -13,12 +13,15 @@ from typing import ClassVar, Union, TYPE_CHECKING, Literal
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
 )
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
+)
+from dialectical_framework.graph.relationships.evolved_to_relationship import (
+    EvolvedToRelationship,
 )
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
@@ -111,6 +114,21 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         cardinality=(2, None)  # At least two edges to form a cycle
     )
 
+    # Evolution lineage: Wheels that evolved from this one (added layer/WU)
+    # Parent→children: This Wheel evolved to child Wheels
+    evolutions: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
+        "Wheel",
+        model=EvolvedToRelationship,
+        cardinality=(0, None)  # Zero or more child wheels
+    )
+
+    # Reverse lookup: The parent Wheel this one evolved from
+    evolved_from: ClassVar[RelationshipManager[Wheel]] = RelationshipFrom(
+        "Wheel",
+        model=EvolvedToRelationship,
+        cardinality=(0, 1)  # At most one parent
+    )
+
     @property
     def edges(self) -> list[Transition]:
         """
@@ -143,19 +161,38 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     @property
     def _wisdom_units(self) -> list[WisdomUnit]:
         """
-        Get WisdomUnits in cycle order (internal use).
+        Get WisdomUnits derived from edges (unique WUs used in this wheel).
 
         For public API, use polar_segments which includes orientation.
 
         Returns:
-            List of WisdomUnit nodes in cycle order
+            List of unique WisdomUnit nodes used in this wheel's edges
         """
-        cycle_result = self.cycle.get()
-        if not cycle_result:
-            return []
+        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
 
-        cycle_obj, _ = cycle_result
-        return cycle_obj.wisdom_units
+        seen_hashes: set[str] = set()
+        result: list[WisdomUnit] = []
+        wu_repo = WisdomUnitRepository()
+
+        for edge in self.edges:
+            source_result = edge.source.get()
+            target_result = edge.target.get()
+
+            components = []
+            if source_result:
+                components.append(source_result[0])
+            if target_result:
+                components.append(target_result[0])
+
+            for component in components:
+                # Find the WU this component belongs to
+                wu_tuples = wu_repo.find_by_dialectical_component(component)
+                for wu, _ in wu_tuples:
+                    if wu.hash not in seen_hashes:
+                        seen_hashes.add(wu.hash)
+                        result.append(wu)
+
+        return result
 
     def _get_commit_dependents(self):
         """
@@ -1098,3 +1135,36 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     def __str__(self) -> str:
         """String representation using default format."""
         return self.__format__("")
+
+    def get_effective_intent(self, default: str = "preset:balanced") -> str:
+        """
+        Get the effective intent, inheriting from parent Wheel or Cycle if None.
+
+        Resolution order:
+        1. This wheel's intent (if set)
+        2. Parent wheel's effective intent (via evolved_from)
+        3. Parent Cycle's effective intent
+        4. Default value
+
+        Args:
+            default: Default intent if none found in lineage
+
+        Returns:
+            The effective intent string
+        """
+        if self.intent:
+            return self.intent
+
+        # Check parent wheel first (via evolved_from relationship)
+        parent_result = self.evolved_from.get()
+        if parent_result:
+            parent_wheel, _ = parent_result
+            return parent_wheel.get_effective_intent(default)
+
+        # Fall back to Cycle's intent
+        cycle_result = self.cycle.get()
+        if cycle_result:
+            cycle_obj, _ = cycle_result
+            return cycle_obj.get_effective_intent(default)
+
+        return default

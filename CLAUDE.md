@@ -37,10 +37,16 @@ Think of a Dialectical Wheel as a pizza:
 - **Cycle**: T-cycle - ordered sequence of WisdomUnits defining abstract thesis causality
   - Stores WU hashes directly (cycle.wisdom_unit_hashes)
   - Intent field for dynamics type ("preset:balanced", "preset:realistic", etc.)
-- **Wheel**: Concrete T-A arrangement implementing a Cycle's T-cycle
-  - Has flip configuration per WU ("normal" = T-side first, "swapped" = A-side first)
+  - `evolutions` relationship: points to child Cycles (WU added to pool)
+  - `evolved_from` relationship: points to parent Cycle
+- **Wheel**: Concrete T-A arrangement implementing a subset of Cycle's WUs
+  - `_wisdom_units`: WUs derived from edge components (internal)
+  - `polarity_count`: number of WUs (derived from edges)
   - Contains `edges` (causality sequence / ta_cycle level)
   - Transformations belong to individual edges (access via `wheel.transformations`)
+  - `evolutions` relationship: points to child Wheels (layer added)
+  - `evolved_from` relationship: points to parent Wheel
+  - Wheels are reused across branches if same WU set (rotation-invariant hash)
 - **Input**: External content source (URL/IPFS) linked to extracted components
 - **Ideas**: Container of distilled concepts from an Input (uses IncrementalBuildMixin: save → add statements → commit)
 - **Brainstorm**: Multi-input exploration container with unified vocabulary
@@ -106,14 +112,38 @@ for tr in wheel.transformations:
 
 **Cycle is a snapshot:** Contains ordered WU hashes directly. Once committed, immutable.
 
-**Wheel implements Cycle:** Same T-cycle can have multiple Wheel implementations with different flip configurations.
+**Wheel implements subset of Cycle:** Each Wheel uses a subset of the Cycle's WUs, building up in layers.
 
 **To explore different paths, branch upstream:**
 - Different transformation interpretations → Create different **Transformations** on same edge
-- Different WU combinations → Create different **Cycles**
-- Different flip configurations → Create different **Wheels** from same Cycle
+- Different WU pools → Create different **Cycles** (via `Cycle.evolutions`)
+- Different WU arrangements → Create different **Wheels** (via `Wheel.evolutions`)
 
 Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on Transformation.
+
+### Evolution Model (Layered Growth)
+
+**Cycle evolution:** Adding WUs to the pool (T-cycle grows)
+```
+Cycle [WU1] --evolutions--> Cycle [WU1, WU2] --evolutions--> Cycle [WU1, WU2, WU3]
+```
+
+**Wheel evolution:** Building layers within a Cycle's pool
+```
+Given Cycle [WU1, WU2, WU3]:
+
+Layer 1:  Wheel(WU1)    Wheel(WU2)    Wheel(WU3)
+              │             │             │
+Layer 2:  Wheel(WU1,WU2)  ...          ...
+              │
+Layer 3:  Wheel(WU1,WU2,WU3)
+```
+
+**Wheel reuse:** Wheels with same WU set (rotation-invariant hash) are reused across branches.
+When looking up wheels, traverse `evolved_from` chain and match effective intent.
+
+**Transformation context:** When computing Transformations for a wheel, use parent wheel's
+Transformations as input (coarse → fine refinement).
 
 See `docs/graph.md` → "Intent Levels" and "Branching and Cardinality Rationale" for detailed explanation.
 

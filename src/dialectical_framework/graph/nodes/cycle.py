@@ -15,9 +15,12 @@ from typing import ClassVar, Optional, TYPE_CHECKING
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
-from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
+)
+from dialectical_framework.graph.relationships.evolved_to_relationship import (
+    EvolvedToRelationship,
 )
 
 if TYPE_CHECKING:
@@ -81,6 +84,21 @@ class Cycle(ForkableMixin, IntentMixin, AssessableEntity, label="Cycle"):
         "Wheel",
         model=HasWheelRelationship,
         cardinality=(0, None)  # Zero or more wheels can implement this cycle
+    )
+
+    # Evolution lineage: Cycles that evolved from this one (added WU)
+    # Parent→children: This Cycle evolved to child Cycles
+    evolutions: ClassVar[RelationshipManager[Cycle]] = RelationshipTo(
+        "Cycle",
+        model=EvolvedToRelationship,
+        cardinality=(0, None)  # Zero or more child cycles
+    )
+
+    # Reverse lookup: The parent Cycle this one evolved from
+    evolved_from: ClassVar[RelationshipManager[Cycle]] = RelationshipFrom(
+        "Cycle",
+        model=EvolvedToRelationship,
+        cardinality=(0, 1)  # At most one parent
     )
 
     def set_wisdom_units(self, wisdom_units: list[WisdomUnit]) -> Cycle:
@@ -237,3 +255,26 @@ class Cycle(ForkableMixin, IntentMixin, AssessableEntity, label="Cycle"):
         hash_str = self.short_hash if self.is_committed else "uncommitted"
         wu_count = len(self.wisdom_unit_hashes)
         return f"Cycle({hash_str}, wu_count={wu_count}, intent={self.intent})"
+
+    def get_effective_intent(self, default: str = "preset:balanced") -> str:
+        """
+        Get the effective intent, inheriting from parent if None.
+
+        Traverses the evolved_from chain until an explicit intent is found,
+        or returns the default if no intent is set in the lineage.
+
+        Args:
+            default: Default intent if none found in lineage
+
+        Returns:
+            The effective intent string
+        """
+        if self.intent:
+            return self.intent
+
+        parent_result = self.evolved_from.get()
+        if parent_result:
+            parent, _ = parent_result
+            return parent.get_effective_intent(default)
+
+        return default

@@ -15,6 +15,7 @@ from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.transformation import Transformation
 
@@ -143,3 +144,72 @@ class WheelRepository:
             if tr and isinstance(tr, TransformationNode):
                 all_transformations.append(tr)
         return all_transformations
+
+    @inject
+    def find_parent_wheels(
+        self,
+        wheel: Wheel,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        sid: Optional[str] = Provide[DI.sid],
+    ) -> list[Wheel]:
+        """
+        Find all potential parent wheels for Transformation computation.
+
+        Returns wheels that:
+        - Have one fewer WU than this wheel
+        - Have a WU set that is a subset of this wheel's WUs
+        - Match the effective intent
+
+        Args:
+            wheel: The Wheel to find parents for
+            graph_db: Graph database (injected)
+            sid: Scope ID (injected from DI context)
+
+        Returns:
+            List of parent Wheel nodes
+        """
+        from dialectical_framework.graph.nodes.wheel import Wheel as WheelNode
+
+        wheel_wu_hashes = [wu.hash for wu in wheel._wisdom_units]
+        if len(wheel_wu_hashes) <= 1:
+            return []  # Layer 1 wheels have no parents
+
+        effective_intent = wheel.get_effective_intent()
+        wheel_wu_set = set(wheel_wu_hashes)
+        target_layer = len(wheel_wu_hashes) - 1
+
+        # Get the Cycle
+        cycle_result = wheel.cycle.get()
+        if not cycle_result:
+            return []
+        cycle_obj, _ = cycle_result
+
+        # Query all wheels belonging to this Cycle, filter in Python
+        query = """
+        MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
+        WHERE id(c) = $cycle_id AND w.sid = $sid
+        RETURN w
+        """
+        results = list(graph_db.execute_and_fetch(query, {
+            "cycle_id": cycle_obj._id,
+            "sid": sid,
+        }))
+
+        parents: list[WheelNode] = []
+        for row in results:
+            candidate: WheelNode = row["w"]
+            candidate_wu_hashes = [wu.hash for wu in candidate._wisdom_units]
+
+            # Check layer match (one fewer WU)
+            if len(candidate_wu_hashes) != target_layer:
+                continue
+
+            candidate_wu_set = set(candidate_wu_hashes)
+
+            # Check if candidate's WUs are a subset of this wheel's WUs
+            if candidate_wu_set.issubset(wheel_wu_set):
+                # Check intent match
+                if candidate.get_effective_intent() == effective_intent:
+                    parents.append(candidate)
+
+        return parents
