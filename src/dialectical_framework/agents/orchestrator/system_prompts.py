@@ -46,7 +46,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **ExpandPolarities**: Complete WisdomUnits with positive/negative poles (T+, T-, A+, A-)
 - **EditPolarity**: Modify T or A of existing WisdomUnit (regenerates poles)
 - **EditTetrad**: Modify poles (T+, T-, A+, A-) of existing WisdomUnit
-- **MapCausalities**: Arrange WisdomUnits into Cycles and Wheels
+- **BuildWheels**: Combine WisdomUnits into Cycles and Wheels within a Nexus, then estimate causality
 - **ExploreTransformations**: Generate action-reflection transformations
 
 ### Querying

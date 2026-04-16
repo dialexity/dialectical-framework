@@ -102,7 +102,9 @@ from dialectical_framework.agents.analyst.skills.find_polarities import \
 # Import existing subagents
 from dialectical_framework.agents.analyst.skills.surface_theses import \
     SurfaceTheses
-from dialectical_framework.agents.explorer.skills.transformation import \
+from dialectical_framework.agents.explorer.skills.build_wheels import \
+    BuildWheels
+from dialectical_framework.agents.explorer.skills.explore_transformations import \
     ExploreTransformations
 # Import orchestrator tools
 from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
@@ -228,6 +230,7 @@ class Orchestrator:
             ExpandPolarities,
             EditPolarity,
             EditTetrad,
+            BuildWheels,
             ExploreTransformations,
         ]
 

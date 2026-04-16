@@ -1,0 +1,129 @@
+"""
+Nexus node for the dialectical framework.
+
+This module provides the Nexus class which represents an exploration container
+for WisdomUnits. A Nexus groups WUs with a specific intent for exploration,
+enabling systematic combination into Cycles and Wheels.
+"""
+
+from __future__ import annotations
+
+from typing import ClassVar, Union, TYPE_CHECKING, Self
+
+from dependency_injector.wiring import Provide, inject
+from gqlalchemy import Memgraph, Neo4j
+
+from dialectical_framework.enums.causality_preset import CausalityPreset
+from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.nodes.base_node import BaseNode
+from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
+    BelongsToNexusRelationship,
+)
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+
+
+class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
+    """
+    Exploration container for WisdomUnits.
+
+    A Nexus provides required exploration context for combining WisdomUnits
+    into Cycles and Wheels. It groups WUs with a specific intent for exploration,
+    enabling layer-by-layer combination:
+
+    - Layer 1: Single WU Cycles/Wheels
+    - Layer 2: Pairs of WUs -> multiple T-cycle orderings -> multiple TA-wheel arrangements
+    - Layer 3: Triplets -> more orderings -> more wheel arrangements
+    - etc.
+
+    Two separate concerns:
+    - intent: Free-form exploration purpose (e.g., "deep meaning of love").
+      From IntentMixin. Describes what the user wants to understand.
+    - preset: Prompt strategy for causality estimation (e.g., "preset:balanced").
+      Selects which sequencer class estimates Cycles/Wheels.
+
+    Identity is hash-based (Merkle): hash = sha256(preset + intent + committed_at).
+
+    Other key properties:
+    - sid: Inherited from BaseNode - the Brainstorm's sid (required, links to parent)
+
+    Relationships:
+    - wisdom_units: WisdomUnits in this exploration (RelationshipFrom)
+
+    Note: Cycles are derived from the WUs in this Nexus, not stored as a relationship.
+
+    Example:
+        brainstorm = Brainstorm()
+        brainstorm.commit()
+
+        nexus = Nexus(
+            sid=brainstorm.sid,
+            intent="I want to understand the deep meaning of love",
+            preset=CausalityPreset.BALANCED,
+        )
+        nexus.commit()
+
+        wu1.nexus.connect(nexus)
+        wu2.nexus.connect(nexus)
+    """
+
+    # Prompt strategy for causality estimation (preset selector)
+    preset: str = CausalityPreset.BALANCED
+
+    # WisdomUnits in this exploration
+    # WU→Nexus: WisdomUnit belongs to this Nexus
+    wisdom_units: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
+        "WisdomUnit",
+        model=BelongsToNexusRelationship,
+        cardinality=(0, None)  # Zero or more WUs
+    )
+
+    # NOTE: Cycles are derived from WUs, not stored as relationship.
+
+    def _collect_structure_hash_parts(self) -> list[str]:
+        """
+        Collect the parts that make up this Nexus's structure hash.
+
+        Nexus identity is based on its preset. Intent is added by
+        compute_hash() via IntentMixin, and committed_at ensures uniqueness.
+        """
+        return [self.preset]
+
+    @inject
+    def commit(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> Self:
+        """
+        Commit this Nexus to the database.
+
+        Computes hash from preset + intent + committed_at and persists.
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ValueError: If sid is not set
+        """
+        if not self.sid:
+            raise ValueError("Nexus must have sid set before commit (use Brainstorm's sid)")
+
+        return super().commit(graph_db=graph_db)
+
+    def __repr__(self) -> str:
+        """Debug representation of the Nexus."""
+        id_str = self.short_hash or "uncommitted"
+        wu_count = self.wisdom_units.count()
+        return f"Nexus({id_str}, wus={wu_count}, preset={self.preset}, intent={self.intent})"
+
+    def __str__(self) -> str:
+        """String representation of the Nexus."""
+        id_str = self.short_hash or "uncommitted"
+        parts = [f"hash={id_str}", f"preset={self.preset}"]
+        if self.intent:
+            parts.append(f"intent={self.intent}")
+        return f"Nexus({', '.join(parts)})"

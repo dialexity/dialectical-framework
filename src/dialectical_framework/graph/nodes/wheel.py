@@ -8,20 +8,17 @@ implementing a Cycle's abstract T-cycle via causality edges.
 
 from __future__ import annotations
 
-from typing import ClassVar, Union, TYPE_CHECKING, Literal
+from typing import ClassVar, Literal, Optional, Union, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
 )
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
-)
-from dialectical_framework.graph.relationships.evolved_to_relationship import (
-    EvolvedToRelationship,
 )
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
@@ -112,21 +109,6 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         "Transition",
         model=BelongsToCycleRelationship,
         cardinality=(2, None)  # At least two edges to form a cycle
-    )
-
-    # Evolution lineage: Wheels that evolved from this one (added layer/WU)
-    # Parent→children: This Wheel evolved to child Wheels
-    evolutions: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
-        "Wheel",
-        model=EvolvedToRelationship,
-        cardinality=(0, None)  # Zero or more child wheels
-    )
-
-    # Reverse lookup: The parent Wheel this one evolved from
-    evolved_from: ClassVar[RelationshipManager[Wheel]] = RelationshipFrom(
-        "Wheel",
-        model=EvolvedToRelationship,
-        cardinality=(0, 1)  # At most one parent
     )
 
     @property
@@ -1136,35 +1118,23 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         """String representation using default format."""
         return self.__format__("")
 
-    def get_effective_intent(self, default: str = "preset:balanced") -> str:
+    def get_effective_intent(self) -> Optional[str]:
         """
-        Get the effective intent, inheriting from parent Wheel or Cycle if None.
+        Get the effective intent, inheriting from Cycle if not set on Wheel.
 
         Resolution order:
         1. This wheel's intent (if set)
-        2. Parent wheel's effective intent (via evolved_from)
-        3. Parent Cycle's effective intent
-        4. Default value
-
-        Args:
-            default: Default intent if none found in lineage
+        2. Parent Cycle's intent (set from Nexus preset at creation)
 
         Returns:
-            The effective intent string
+            The intent string, or None if not found in lineage
         """
         if self.intent:
             return self.intent
 
-        # Check parent wheel first (via evolved_from relationship)
-        parent_result = self.evolved_from.get()
-        if parent_result:
-            parent_wheel, _ = parent_result
-            return parent_wheel.get_effective_intent(default)
-
-        # Fall back to Cycle's intent
         cycle_result = self.cycle.get()
         if cycle_result:
             cycle_obj, _ = cycle_result
-            return cycle_obj.get_effective_intent(default)
+            return cycle_obj.intent
 
-        return default
+        return None

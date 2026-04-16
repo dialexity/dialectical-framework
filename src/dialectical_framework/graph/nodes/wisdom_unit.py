@@ -28,11 +28,15 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.graph.relationships.synthesis_of_relationship import (
     SynthesisOfRelationship,
 )
+from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
+    BelongsToNexusRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.wheel_segment import WheelSegment
+    from dialectical_framework.graph.nodes.nexus import Nexus
 
 # Import Polarity and its position constants (T and A belong to Polarity)
 from dialectical_framework.graph.nodes.polarity import Polarity, POSITION_T, POSITION_A
@@ -167,7 +171,14 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
-    # Note: Evolution relationships (CHANGED_TO) have been removed.
+    # Exploration context: Nexuses this WU belongs to
+    # WU→Nexus: WU can belong to multiple exploration contexts
+    nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
+        "Nexus",
+        model=BelongsToNexusRelationship,
+        cardinality=(0, None)  # Zero or more nexuses (explored in different contexts)
+    )
+
     # History tracking now uses origin_hash chain (set during clone).
 
     def _get_commit_dependents(self):

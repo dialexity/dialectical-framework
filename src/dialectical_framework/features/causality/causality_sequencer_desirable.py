@@ -1,11 +1,13 @@
+from __future__ import annotations
 
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
+from dialectical_framework.features.causality.causality_sequencer_balanced import \
     CausalitySequencerBalanced
 
 
 class CausalitySequencerDesirable(CausalitySequencerBalanced):
+
     @prompt_template(
         """
         USER:

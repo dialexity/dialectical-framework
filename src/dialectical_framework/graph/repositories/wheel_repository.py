@@ -17,7 +17,10 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.settings import Settings
+    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
 class WheelRepository:
@@ -146,11 +149,69 @@ class WheelRepository:
         return all_transformations
 
     @inject
+    def find_by_layer(
+        self,
+        wisdom_units: list[WisdomUnit],
+        nexus: Optional[Nexus] = None,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        sid: Optional[str] = Provide[DI.sid],
+    ) -> list[Wheel]:
+        """
+        Find all Wheels in the same layer (same WU set, any arrangement).
+
+        A "layer" consists of all Wheels whose parent Cycles have exactly
+        the same set of WisdomUnits (regardless of order).
+
+        When nexus is provided, scopes to Wheels whose parent Cycle's WU
+        hashes are all within the Nexus's WU set.
+
+        This is used for probability normalization across competing alternatives.
+
+        Args:
+            wisdom_units: List of WisdomUnits defining the layer
+            nexus: Optional Nexus to scope results to
+            sid: Scope ID (injected from DI context)
+            graph_db: Graph database (injected)
+
+        Returns:
+            List of Wheel nodes in this layer
+        """
+        if not wisdom_units:
+            return []
+
+        wu_hashes = sorted([wu.hash for wu in wisdom_units])
+
+        # Find all Wheels belonging to Cycles with exactly these WU hashes
+        query = """
+            MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
+            WHERE w.sid = $sid
+            AND size(c.wisdom_unit_hashes) = $hash_count
+            AND ALL(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
+        """
+        params: dict = {
+            "sid": sid,
+            "wu_hashes": wu_hashes,
+            "hash_count": len(wu_hashes),
+        }
+
+        if nexus is not None:
+            nexus_wu_hashes = [wu.hash for wu, _ in nexus.wisdom_units.all()]
+            query += "    AND ALL(h IN c.wisdom_unit_hashes WHERE h IN $nexus_wu_hashes)\n"
+            params["nexus_wu_hashes"] = nexus_wu_hashes
+
+        query += "    RETURN w"
+
+        results = list(graph_db.execute_and_fetch(query, params))
+
+        return [row["w"] for row in results]
+
+    @inject
     def find_parent_wheels(
         self,
         wheel: Wheel,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         sid: Optional[str] = Provide[DI.sid],
+        settings: Settings = Provide[DI.settings],
     ) -> list[Wheel]:
         """
         Find all potential parent wheels for Transformation computation.
@@ -174,7 +235,7 @@ class WheelRepository:
         if len(wheel_wu_hashes) <= 1:
             return []  # Layer 1 wheels have no parents
 
-        effective_intent = wheel.get_effective_intent()
+        effective_intent = wheel.get_effective_intent() or settings.cycle_preset
         wheel_wu_set = set(wheel_wu_hashes)
         target_layer = len(wheel_wu_hashes) - 1
 
@@ -209,7 +270,8 @@ class WheelRepository:
             # Check if candidate's WUs are a subset of this wheel's WUs
             if candidate_wu_set.issubset(wheel_wu_set):
                 # Check intent match
-                if candidate.get_effective_intent() == effective_intent:
+                candidate_intent = candidate.get_effective_intent() or settings.cycle_preset
+                if candidate_intent == effective_intent:
                     parents.append(candidate)
 
         return parents

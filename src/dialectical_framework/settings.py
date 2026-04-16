@@ -6,6 +6,8 @@ from typing import Optional, Self
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
 
+from dialectical_framework.enums.causality_preset import CausalityPreset
+
 
 class Settings(BaseModel):
     model_config = ConfigDict(
@@ -15,7 +17,7 @@ class Settings(BaseModel):
     ai_model: str = Field(..., description="AI model alias/deployment to use.")
     ai_provider: Optional[str] = Field(default=None, description="AI model provider to use.")
     component_length: int = Field(default=7, description="Approximate length in words of the dialectical component.")
-    cycle_intent: str = Field(default="preset:balanced", description="Default intent for cycles (e.g., preset:realistic, preset:desirable, preset:feasible, preset:balanced).")
+    cycle_preset: str = Field(default=CausalityPreset.BALANCED, description="Default preset for causality estimation (e.g., preset:realistic, preset:desirable, preset:feasible, preset:balanced).")
     tarorank_default_transition_probability: Optional[float] = Field(
         default=None,
         ge=0.0,
@@ -111,7 +113,7 @@ class Settings(BaseModel):
             ai_model=model,
             ai_provider=provider,
             component_length=int(os.getenv("DIALEXITY_DEFAULT_COMPONENT_LENGTH", 7)),
-            cycle_intent=os.getenv("DIALEXITY_DEFAULT_CYCLE_INTENT", "preset:balanced"),
+            cycle_preset=os.getenv("DIALEXITY_DEFAULT_CYCLE_PRESET", CausalityPreset.BALANCED),
             tarorank_default_transition_probability=default_prob,
             tarorank_alpha=tarorank_alpha,
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),

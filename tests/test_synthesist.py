@@ -2,11 +2,13 @@ import pytest
 from langfuse.decorators import observe
 
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
+from dialectical_framework.enums.causality_preset import CausalityPreset
 # Graph-native imports
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as GraphDialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as GraphWisdomUnit
-from tests.test_analyst import user_message
+
+user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
 
 
 @pytest.mark.asyncio
@@ -73,109 +75,136 @@ async def test_causality_sequencer(di_container):
     """Test causality sequencer with graph-native WisdomUnits.
 
     Workflow:
-    1. build_wheels() - creates saved (uncommitted) structures
-    2. Connect to parent Cycle and commit
-    3. estimate() - attaches AI-generated Rationale and Estimation nodes
+    1. BuildWheels skill creates Cycles and Wheels from WisdomUnits in a Nexus
+    2. Estimation attaches AI-generated Rationale and Estimation nodes
     """
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation
-    from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
-        CausalitySequencerBalanced
+    from dialectical_framework.graph.nodes.polarity import Polarity
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        HasPolarityRelationship, TPlusRelationship, TMinusRelationship,
+        APlusRelationship, AMinusRelationship,
+    )
+    from dialectical_framework.agents.explorer.skills.build_wheels import BuildWheels
+    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.scope_context import scope
 
-    # Create graph-native components
-    t1 = GraphDialecticalComponent(statement="Remote work increases flexibility")
-    t1.commit()
-    a1 = GraphDialecticalComponent(statement="Remote work reduces collaboration")
-    a1.commit()
+    def create_wu(index: int) -> GraphWisdomUnit:
+        """Create a complete WisdomUnit with Polarity and poles."""
+        # Create T and A
+        t = GraphDialecticalComponent(
+            statement=f"Thesis {index}", meaning=f"thesis:test:{index}"
+        )
+        t.commit()
+        a = GraphDialecticalComponent(
+            statement=f"Antithesis {index}", meaning=f"antithesis:test:{index}"
+        )
+        a.commit()
 
-    t2 = GraphDialecticalComponent(statement="Async communication enables focus")
-    t2.commit()
-    a2 = GraphDialecticalComponent(statement="Async communication creates delays")
-    a2.commit()
+        # Create Polarity
+        polarity = Polarity(intent="test")
+        polarity.set_t(t, heuristic_similarity=1.0)
+        polarity.set_a(a, heuristic_similarity=0.8)
+        polarity.commit()
 
-    # Create two graph-native WisdomUnits
-    wu1 = GraphWisdomUnit(reasoning_mode="work_context")
-    wu1.save()
-    wu1.t.connect(t1, properties={'alias': 'T1'})
-    wu1.a.connect(a1, properties={'alias': 'A1'})
+        # Create WU
+        wu = GraphWisdomUnit(intent="test")
+        wu.save()
+        wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-    wu2 = GraphWisdomUnit(reasoning_mode="communication_context")
-    wu2.save()
-    wu2.t.connect(t2, properties={'alias': 'T2'})
-    wu2.a.connect(a2, properties={'alias': 'A2'})
+        # Create poles
+        t_plus = GraphDialecticalComponent(
+            statement=f"T+ benefit {index}", meaning=f"thesis:positive:{index}"
+        )
+        t_plus.commit()
+        t_minus = GraphDialecticalComponent(
+            statement=f"T- drawback {index}", meaning=f"thesis:negative:{index}"
+        )
+        t_minus.commit()
+        a_plus = GraphDialecticalComponent(
+            statement=f"A+ benefit {index}", meaning=f"antithesis:positive:{index}"
+        )
+        a_plus.commit()
+        a_minus = GraphDialecticalComponent(
+            statement=f"A- drawback {index}", meaning=f"antithesis:negative:{index}"
+        )
+        a_minus.commit()
 
-    # Test causality sequencer (DI will inject brain and settings automatically)
-    sequencer = CausalitySequencerBalanced()
+        wu.t_plus.connect(
+            t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9)
+        )
+        wu.t_minus.connect(
+            t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9)
+        )
+        wu.a_plus.connect(
+            a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9)
+        )
+        wu.a_minus.connect(
+            a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9)
+        )
 
-    # Commit WisdomUnits first
-    wu1.commit()
-    wu2.commit()
+        wu.commit()
+        return wu
 
-    # Use arrange() to create Cycles and Wheels from WisdomUnits
-    # In the new model, arrange takes a list of WisdomUnits directly
-    cycles = sequencer.arrange([wu1, wu2], intent="preset:balanced")
+    # Create scope
+    brainstorm = Brainstorm()
+    brainstorm.commit()
 
-    # Commit Cycles and Wheels
-    for cycle in cycles:
-        cycle.commit()
-        for wheel, _ in cycle.wheels.all():
-            wheel.commit()
+    with scope(brainstorm.sid):
+        # Create two WisdomUnits
+        wu1 = create_wu(1)
+        wu2 = create_wu(2)
 
-    # Get wheels from the first cycle
-    wheels = [w for w, _ in cycles[0].wheels.all()]
+        # Create Nexus and use BuildWheels to create and estimate cycles
+        nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+        nexus.commit()
 
-    # Assertions
-    assert len(cycles) > 0, "Should generate at least one cycle"
-    assert len(wheels) > 0, "Should generate at least one wheel"
-    assert all(isinstance(wheel, Wheel) for wheel in wheels), "All should be Wheel objects"
-    assert all(wheel.is_committed for wheel in wheels), "All wheels should be committed"
+        skill = BuildWheels(
+            nexus_hash=nexus.hash,
+            wisdom_unit_hashes=[wu1.hash, wu2.hash],
+        )
+        result = await skill.execute()
 
-    # Attach AI estimations (creates Rationale + Estimation nodes directly)
-    await sequencer.estimate(wheels)
+        cycles = result.new_cycles
 
-    # Verify Rationale and Estimation nodes were created
-    rationale_probs = []
-    for wheel in wheels:
-        rationales = list(wheel.rationales.all())
-        assert len(rationales) > 0, "Wheel should have rationale after estimate()"
-        rat, _ = rationales[0]
-        # Get ProbabilityEstimation provided by this rationale
-        for est, _ in rat.provided_estimations.all():
-            if isinstance(est, ProbabilityEstimation):
-                rationale_probs.append(est.value)
-                break
+        # Assertions
+        assert len(cycles) > 0, "Should generate at least one cycle"
+        assert all(isinstance(cycle, Cycle) for cycle in cycles), "All should be Cycle objects"
+        assert all(cycle.is_committed for cycle in cycles), "All cycles should be committed"
 
-    # Verify probability normalization
-    total_prob = sum(rationale_probs)
-    assert abs(total_prob - 1.0) < 0.01, f"Total probability should be ~1.0, got {total_prob}"
-
-    print("\n=== Generated Wheels (committed with estimations) ===")
-    for i, wheel in enumerate(wheels, 1):
-        print(f"\nWheel {i}:")
-        rationales = list(wheel.rationales.all())
-        if rationales:
+        # Verify Rationale and Estimation nodes were created on cycles
+        rationale_probs = []
+        for cycle in cycles:
+            rationales = list(cycle.rationales.all())
+            assert len(rationales) > 0, "Cycle should have rationale after estimate()"
             rat, _ = rationales[0]
-            print(f"  Rationale: {rat.summary[:100] if rat.summary else 'N/A'}...")
-
-            # Get probability from estimation
+            # Get ProbabilityEstimation provided by this rationale
             for est, _ in rat.provided_estimations.all():
                 if isinstance(est, ProbabilityEstimation):
-                    print(f"  Probability: {est.value}")
+                    rationale_probs.append(est.value)
                     break
 
-        print(f"  Components: {len(wheel.dialectical_components) if wheel.dialectical_components else 0}")
+        # Verify probability normalization
+        total_prob = sum(rationale_probs)
+        assert abs(total_prob - 1.0) < 0.01, f"Total probability should be ~1.0, got {total_prob}"
 
-        # Verify transition probabilities were set
-        transitions = wheel.edges
-        if transitions:
-            trans_probs = [t.probability for t in transitions if t.probability is not None]
-            if trans_probs:
-                product = 1.0
-                for p in trans_probs:
-                    product *= p
-                print(f"  Transition probabilities: {trans_probs}")
-                print(f"  Product: {product:.6f}")
+        print("\n=== Generated Cycles (committed with estimations) ===")
+        for i, cycle in enumerate(cycles, 1):
+            print(f"\nCycle {i}:")
+            rationales = list(cycle.rationales.all())
+            if rationales:
+                rat, _ = rationales[0]
+                print(f"  Rationale: {rat.summary[:100] if rat.summary else 'N/A'}...")
+
+                # Get probability from estimation
+                for est, _ in rat.provided_estimations.all():
+                    if isinstance(est, ProbabilityEstimation):
+                        print(f"  Probability: {est.value}")
+                        break
+
+            print(f"  WisdomUnits: {cycle.wisdom_unit_count}")
 
 @pytest.mark.asyncio
 async def test_redefine_is_dirty_optimization():

@@ -15,6 +15,7 @@ from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
 
@@ -113,3 +114,60 @@ class CycleRepository:
             }))
 
             return [row["c"] for row in results]
+
+    @inject
+    def find_by_layer(
+        self,
+        wisdom_units: list[WisdomUnit],
+        nexus: Optional[Nexus] = None,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        sid: Optional[str] = Provide[DI.sid],
+    ) -> list[Cycle]:
+        """
+        Find all Cycles in the same layer (same WU set, any ordering).
+
+        A "layer" consists of all Cycles with exactly the same set of
+        WisdomUnits (regardless of order).
+
+        When nexus is provided, scopes to Cycles whose WU hashes are all
+        within the Nexus's WU set (excludes Cycles from other Nexuses
+        that share some WUs).
+
+        Args:
+            wisdom_units: List of WisdomUnits defining the layer
+            nexus: Optional Nexus to scope results to
+            sid: Scope ID (injected from DI context)
+            graph_db: Graph database (injected)
+
+        Returns:
+            List of Cycle nodes in this layer
+        """
+        from dialectical_framework.graph.nodes.cycle import Cycle
+
+        if not wisdom_units:
+            return []
+
+        wu_hashes = sorted([wu.hash for wu in wisdom_units])  # Sort for set comparison
+
+        query = """
+            MATCH (c:Cycle)
+            WHERE c.sid = $sid
+            AND size(c.wisdom_unit_hashes) = $hash_count
+            AND ALL(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
+        """
+        params: dict = {
+            "sid": sid,
+            "wu_hashes": wu_hashes,
+            "hash_count": len(wu_hashes),
+        }
+
+        if nexus is not None:
+            nexus_wu_hashes = [wu.hash for wu, _ in nexus.wisdom_units.all()]
+            query += "    AND ALL(h IN c.wisdom_unit_hashes WHERE h IN $nexus_wu_hashes)\n"
+            params["nexus_wu_hashes"] = nexus_wu_hashes
+
+        query += "    RETURN c"
+
+        results = list(graph_db.execute_and_fetch(query, params))
+
+        return [row["c"] for row in results]

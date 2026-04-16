@@ -10,3 +10,4 @@ class CausalityPreset(str, Enum):
     DESIRABLE = "preset:desirable"
     FEASIBLE = "preset:feasible"
     BALANCED = "preset:balanced"
+    AUTO = "preset:auto"

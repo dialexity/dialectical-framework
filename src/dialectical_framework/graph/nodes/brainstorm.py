@@ -52,6 +52,8 @@ class Brainstorm(BaseNode, label="Brainstorm"):
     - Each Input can have Ideas extracted from it
     - Vocabulary includes all components reachable via HAS_STATEMENT
 
+    Nexuses (explorations) reference this Brainstorm via sid field.
+
     Example:
         from dialectical_framework.graph.repositories.dialectical_component_repository import (
             DialecticalComponentRepository
@@ -86,10 +88,6 @@ class Brainstorm(BaseNode, label="Brainstorm"):
         model=HasInputRelationship,
         cardinality=(1, None),  # At least one Input required
     )
-
-    # Reverse relationship for Inputs to find their Brainstorms
-    # This is not used directly but allows bidirectional traversal
-    # Defined on Input as _brainstorms
 
     def __init__(self, **data: Any) -> None:
         """

@@ -7,7 +7,6 @@ class DI(str, Enum):
     settings = "settings"
     graph_db = "graph_db"
     brain = "brain"
-    causality_sequencer = "causality_sequencer"
 
     tarorank = "tarorank"
 

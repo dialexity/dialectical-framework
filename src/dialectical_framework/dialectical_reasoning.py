@@ -7,17 +7,7 @@ from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.brain import Brain
 from dialectical_framework.graph.scoring.tarorank import TaroRank
-from dialectical_framework.protocols.causality_sequencer import CausalitySequencer
 from dialectical_framework.settings import Settings
-from dialectical_framework.synthesist.causality.causality_sequencer_balanced import \
-    CausalitySequencerBalanced
-from dialectical_framework.synthesist.causality.causality_sequencer_desirable import \
-    CausalitySequencerDesirable
-from dialectical_framework.synthesist.causality.causality_sequencer_feasible import \
-    CausalitySequencerFeasible
-from dialectical_framework.synthesist.causality.causality_sequencer_realistic import \
-    CausalitySequencerRealistic
-from dialectical_framework.synthesist.wheel_builder import WheelBuilder
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
@@ -185,27 +175,6 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         lambda settings: Brain(ai_model=settings.ai_model, ai_provider=settings.ai_provider),
         settings=settings
     )
-
-    @staticmethod
-    def _create_causality_sequencer(settings: Settings) -> CausalitySequencer:
-        """Factory method to create the appropriate causality sequencer based on config"""
-        cycle_intent = settings.cycle_intent.lower()
-
-        if cycle_intent in ("preset:desirable", "desirable"):
-            return CausalitySequencerDesirable()
-        elif cycle_intent in ("preset:feasible", "feasible"):
-            return CausalitySequencerFeasible()
-        elif cycle_intent in ("preset:realistic", "realistic"):
-            return CausalitySequencerRealistic()
-        else:
-            return CausalitySequencerBalanced()
-
-    causality_sequencer: providers.Factory[CausalitySequencer] = providers.Factory(
-        _create_causality_sequencer,
-        settings=settings,
-    )
-
-    wheel_builder: providers.Factory[WheelBuilder] = providers.Factory(WheelBuilder)
 
     @staticmethod
     def _create_tarorank(settings: Settings) -> TaroRank:

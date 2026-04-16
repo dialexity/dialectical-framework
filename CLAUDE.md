@@ -37,16 +37,12 @@ Think of a Dialectical Wheel as a pizza:
 - **Cycle**: T-cycle - ordered sequence of WisdomUnits defining abstract thesis causality
   - Stores WU hashes directly (cycle.wisdom_unit_hashes)
   - Intent field for dynamics type ("preset:balanced", "preset:realistic", etc.)
-  - `evolutions` relationship: points to child Cycles (WU added to pool)
-  - `evolved_from` relationship: points to parent Cycle
 - **Wheel**: Concrete T-A arrangement implementing a subset of Cycle's WUs
   - `_wisdom_units`: WUs derived from edge components (internal)
   - `polarity_count`: number of WUs (derived from edges)
   - Contains `edges` (causality sequence / ta_cycle level)
   - Transformations belong to individual edges (access via `wheel.transformations`)
-  - `evolutions` relationship: points to child Wheels (layer added)
-  - `evolved_from` relationship: points to parent Wheel
-  - Wheels are reused across branches if same WU set (rotation-invariant hash)
+  - Wheels are reused across Cycles if same WU set (rotation-invariant hash)
 - **Input**: External content source (URL/IPFS) linked to extracted components
 - **Ideas**: Container of distilled concepts from an Input (uses IncrementalBuildMixin: save → add statements → commit)
 - **Brainstorm**: Multi-input exploration container with unified vocabulary
@@ -54,8 +50,11 @@ Think of a Dialectical Wheel as a pizza:
 **Hierarchy:** WisdomUnit → Cycle → Wheel (edges) → Transformation
 **Brainstorm flow:** Brainstorm → Input → Ideas → Components
 
+**Exploration flow:** WisdomUnits → Nexus (exploration context) → Cycles (T-cycle orderings) → Wheels (TA arrangements)
+
+- **Nexus**: Required exploration container for WisdomUnits. Groups WUs with a specific intent for layer-by-layer combination into Cycles and Wheels.
+
 **DEPRECATED nodes (kept for backwards compatibility):**
-- **Nexus**: Replaced by Cycle storing WU hashes directly
 - **Spiral**: Replaced by Transformations on edges
 
 ### Intent Levels
@@ -116,33 +115,29 @@ for tr in wheel.transformations:
 
 **To explore different paths, branch upstream:**
 - Different transformation interpretations → Create different **Transformations** on same edge
-- Different WU pools → Create different **Cycles** (via `Cycle.evolutions`)
-- Different WU arrangements → Create different **Wheels** (via `Wheel.evolutions`)
+- Different WU pools → Create different **Cycles** within the same **Nexus**
+- Different WU arrangements → Create different **Wheels** for the same **Cycle**
 
 Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on Transformation.
 
-### Evolution Model (Layered Growth)
+### Layered Combination Model
 
-**Cycle evolution:** Adding WUs to the pool (T-cycle grows)
-```
-Cycle [WU1] --evolutions--> Cycle [WU1, WU2] --evolutions--> Cycle [WU1, WU2, WU3]
-```
+**Nexus-based exploration:** All Cycles/Wheels are generated from a Nexus containing WisdomUnits.
+The layer structure is implicit in the WU overlap:
 
-**Wheel evolution:** Building layers within a Cycle's pool
 ```
-Given Cycle [WU1, WU2, WU3]:
+Given Nexus with [WU1, WU2, WU3]:
 
-Layer 1:  Wheel(WU1)    Wheel(WU2)    Wheel(WU3)
-              │             │             │
-Layer 2:  Wheel(WU1,WU2)  ...          ...
-              │
-Layer 3:  Wheel(WU1,WU2,WU3)
+Layer 1:  Cycle(WU1)    Cycle(WU2)    Cycle(WU3)
+Layer 2:  Cycle(WU1,WU2)  Cycle(WU1,WU3)  Cycle(WU2,WU3)
+Layer 3:  Cycle(WU1,WU2,WU3)
+
+Each Cycle can have multiple Wheels (different TA arrangements).
 ```
 
-**Wheel reuse:** Wheels with same WU set (rotation-invariant hash) are reused across branches.
-When looking up wheels, traverse `evolved_from` chain and match effective intent.
+**Wheel reuse:** Wheels with same WU set (rotation-invariant hash) are reused across Cycles.
 
-**Transformation context:** When computing Transformations for a wheel, use parent wheel's
+**Transformation context:** When computing Transformations for a wheel, use related wheels'
 Transformations as input (coarse → fine refinement).
 
 See `docs/graph.md` → "Intent Levels" and "Branching and Cardinality Rationale" for detailed explanation.
@@ -422,17 +417,19 @@ class Nexus(AssessableEntity):
 
 **Full hierarchy (simplified):**
 ```
-WU.nexus → Nexus.cycles → Cycle.wheels → Wheel
+WU.nexus → Nexus.wisdom_units (reverse)
+Cycle.wheels → Wheel
+Cycle.wisdom_unit_hashes → [WU hashes] (field, not relationship)
 ```
 
 **Complete scoring hierarchy:**
 ```
-Component → WU → Nexus → Cycle → Wheel
-    │        ▲                     ▲
-    │        │                     │
-    │   Transformation ← Synthesis │
-    │                       │      │
-    └→ Synthesis ───────────┴→ Spiral
+Component → WU → Cycle → Wheel
+    │        ▲            ▲
+    │        │            │
+    │   Transformation ← Synthesis
+    │                │
+    └→ Synthesis ────┘
 ```
 
 ### Scoring
@@ -466,7 +463,7 @@ Optional:
 - `DIALEXITY_GRAPH_DB_HOST`: Database host (default: "127.0.0.1")
 - `DIALEXITY_GRAPH_DB_PORT`: Database port (default: 7687)
 - `DIALEXITY_TARORANK_ALPHA`: Relevance exponent (default: 1.0)
-- `DIALEXITY_DEFAULT_CYCLE_INTENT`: Default cycle intent (default: "preset:balanced")
+- `DIALEXITY_DEFAULT_CYCLE_PRESET`: Default causality preset (default: "preset:balanced"). Also reads legacy `DIALEXITY_DEFAULT_CYCLE_INTENT`.
 
 Store these in a `.env` file in the project root.
 
