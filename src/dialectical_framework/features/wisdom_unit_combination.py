@@ -30,7 +30,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import combinations, permutations
+from itertools import combinations
 from typing import Optional, TYPE_CHECKING
 
 from dialectical_framework.agents.executable_capability import ExecutableCapability
@@ -40,6 +40,10 @@ from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.repositories.wheel_repository import WheelRepository
+from dialectical_framework.utils.sequence_generation import (
+    generate_compatible_sequences,
+    generate_permutation_sequences,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
@@ -238,6 +242,11 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
                 all_wheels.extend(wheels_for_cycle)
                 new_wheels.extend(new_wheels_for_cycle)
 
+        # Connect opposite-direction pairs (queries DB for full layer scope)
+        self._connect_opposite_direction_pairs(
+            nexus, [list(combo) for combo in wu_combinations]
+        )
+
         return LayerResult(
             layer=layer,
             cycles=all_cycles,
@@ -254,8 +263,8 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         """
         Generate T-cycle permutations for a WU combination.
 
-        For N WUs, generates (N-1)!/2 unique T-cycles (accounting for rotation
-        and reversal equivalence).
+        Uses generate_permutation_sequences to produce all (N-1)! unique
+        T-cycle orderings (first element fixed to eliminate rotational duplicates).
 
         Returns:
             Tuple of (all_cycles, new_cycles)
@@ -271,18 +280,26 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
                 new_cycles.append(cycle)
             return all_cycles, new_cycles
 
-        # Generate unique permutations (first WU fixed to avoid rotational duplicates)
-        first_wu = wisdom_units[0]
-        rest_wus = wisdom_units[1:]
-
-        for perm in permutations(rest_wus):
-            # Create ordered list with first WU fixed
-            ordered_wus = [first_wu] + list(perm)
-
-            # Skip reversals (we only need one direction)
-            reversed_order = [first_wu] + list(reversed(perm))
-            if ordered_wus > reversed_order:
+        # Extract T components and build component→WU lookup
+        t_components: list[DialecticalComponent] = []
+        comp_hash_to_wu: dict[str, WisdomUnit] = {}
+        for wu in wisdom_units:
+            t_result = wu.t.get()
+            if not t_result:
                 continue
+            t_comp = t_result[0]
+            t_components.append(t_comp)
+            comp_hash_to_wu[t_comp.hash] = wu
+
+        if not t_components:
+            return all_cycles, new_cycles
+
+        # Generate all (N-1)! permutation sequences
+        sequences = generate_permutation_sequences(t_components)
+
+        for sequence in sequences:
+            # Map component sequence back to WU ordering
+            ordered_wus = [comp_hash_to_wu[comp.hash] for comp in sequence]
 
             cycle, is_new = self._find_or_create_cycle(ordered_wus)
             all_cycles.append(cycle)
@@ -330,18 +347,12 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         """
         Generate Wheel arrangements for a Cycle.
 
-        For each Cycle, generates all compatible TA-wheel arrangements.
-        Currently uses simplified approach: one wheel per cycle with
-        standard T- → A+ transitions.
+        Uses generate_compatible_sequences to produce all valid TA-wheel
+        arrangements with diagonal symmetry (T and A neutral components).
 
         Returns:
             Tuple of (all_wheels, new_wheels)
         """
-        from dialectical_framework.graph.nodes.wisdom_unit import (
-            POSITION_A_PLUS,
-            POSITION_T_MINUS,
-        )
-
         all_wheels: list[Wheel] = []
         new_wheels: list[Wheel] = []
 
@@ -349,51 +360,131 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         if not wisdom_units:
             return all_wheels, new_wheels
 
-        # Build component sequence: T1- → A1+ → T2- → A2+ → ...
-        components: list[DialecticalComponent] = []
-        for wu in wisdom_units:
-            t_minus = wu.get_component(POSITION_T_MINUS)
-            a_plus = wu.get_component(POSITION_A_PLUS)
-            if t_minus:
-                components.append(t_minus)
-            if a_plus:
-                components.append(a_plus)
+        # Generate all compatible TA arrangements
+        arrangements = generate_compatible_sequences(wisdom_units)
 
-        if not components:
+        if not arrangements:
             return all_wheels, new_wheels
 
-        # Check for existing wheel with same component sequence
         wheel_repo = WheelRepository()
-        existing_wheel = wheel_repo.find_by_component_sequence(components)
-        if existing_wheel:
-            # Reuse existing wheel — connect to this cycle if not already
-            cycle_result = existing_wheel.cycle.get()
-            if not cycle_result or cycle_result[0].hash != cycle.hash:
-                cycle.wheels.connect(existing_wheel)
-            all_wheels.append(existing_wheel)
-            return all_wheels, new_wheels
 
-        # Create new wheel
-        wheel = Wheel(intent=cycle.intent)
-        wheel.save()
+        for components in arrangements:
+            # Check for existing wheel with same component sequence
+            existing_wheel = wheel_repo.find_by_component_sequence(components)
+            if existing_wheel:
+                # Reuse existing wheel — connect to this cycle if not already
+                cycle_result = existing_wheel.cycle.get()
+                if not cycle_result or cycle_result[0].hash != cycle.hash:
+                    cycle.wheels.connect(existing_wheel)
+                all_wheels.append(existing_wheel)
+                continue
 
-        # Create transitions forming the causality sequence
-        for i in range(len(components)):
-            source_comp = components[i]
-            target_comp = components[(i + 1) % len(components)]
+            # Create new wheel
+            wheel = Wheel(intent=cycle.intent)
+            wheel.save()
 
-            transition = Transition()
-            transition.set_source(source_comp)
-            transition.set_target(target_comp)
-            transition.commit()
-            transition.cycle.connect(wheel)
+            # Create transitions forming the circular causality sequence
+            for i in range(len(components)):
+                source_comp = components[i]
+                target_comp = components[(i + 1) % len(components)]
 
-        # Connect to cycle
-        cycle.wheels.connect(wheel)
+                transition = Transition()
+                transition.set_source(source_comp)
+                transition.set_target(target_comp)
+                transition.commit()
+                transition.cycle.connect(wheel)
 
-        wheel.commit()
+            # Connect to cycle
+            cycle.wheels.connect(wheel)
 
-        all_wheels.append(wheel)
-        new_wheels.append(wheel)
+            wheel.commit()
+
+            all_wheels.append(wheel)
+            new_wheels.append(wheel)
 
         return all_wheels, new_wheels
+
+    def _connect_opposite_direction_pairs(
+        self,
+        nexus: Nexus,
+        wu_combo_list: list[list[WisdomUnit]],
+    ) -> None:
+        """
+        Detect and connect opposite-direction pairs among cycles and wheels.
+
+        Queries the DB for ALL cycles/wheels in each WU combo's layer scope,
+        so pairs are connected even if one side was created in a previous run.
+
+        Two sequences are opposite-direction if one is a circular reverse of the other.
+        Connects pairs via the OPPOSITE_DIRECTION symmetric relationship.
+        """
+        from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
+
+        cycle_repo = CycleRepository()
+        wheel_repo = WheelRepository()
+
+        for wu_combo in wu_combo_list:
+            if len(wu_combo) <= 1:
+                continue  # Single WU has no opposite direction
+
+            # Get ALL cycles and wheels for this WU set from DB
+            all_layer_cycles = cycle_repo.find_by_layer(wu_combo, nexus=nexus)
+            all_layer_wheels = wheel_repo.find_by_layer(wu_combo, nexus=nexus)
+
+            # Cycles: reversal needs 3+ WUs (2-element circular sequences
+            # have no distinct reverse). Wheels always have 2n components,
+            # so 2 WUs → 4-component sequences which can have reversals.
+            if len(wu_combo) >= 3:
+                _connect_opposite_direction_cycles(all_layer_cycles)
+            _connect_opposite_direction_wheels(all_layer_wheels)
+
+
+def _connect_opposite_direction_cycles(cycles: list[Cycle]) -> None:
+    """Connect cycles that are circular reverses of each other."""
+    connected: set[tuple[str, str]] = set()
+
+    for i, cycle_a in enumerate(cycles):
+        seq_a = cycle_a.wisdom_unit_hashes
+        for cycle_b in cycles[i + 1:]:
+            seq_b = cycle_b.wisdom_unit_hashes
+            if _is_circular_reverse(seq_a, seq_b):
+                pair_id = tuple(sorted([cycle_a.hash, cycle_b.hash]))
+                if pair_id not in connected:
+                    cycle_a.opposite_direction.connect(cycle_b)
+                    connected.add(pair_id)
+
+
+def _connect_opposite_direction_wheels(wheels: list[Wheel]) -> None:
+    """Connect wheels that are circular reverses of each other."""
+    connected: set[tuple[str, str]] = set()
+
+    # Pre-compute component hash sequences
+    wheel_sequences: list[tuple[Wheel, list[str]]] = []
+    for wheel in wheels:
+        comp_hashes = [c.hash for c in wheel.dialectical_components]
+        wheel_sequences.append((wheel, comp_hashes))
+
+    for i, (wheel_a, seq_a) in enumerate(wheel_sequences):
+        for wheel_b, seq_b in wheel_sequences[i + 1:]:
+            if _is_circular_reverse(seq_a, seq_b):
+                pair_id = tuple(sorted([wheel_a.hash, wheel_b.hash]))
+                if pair_id not in connected:
+                    wheel_a.opposite_direction.connect(wheel_b)
+                    connected.add(pair_id)
+
+
+def _is_circular_reverse(seq_a: list[str], seq_b: list[str]) -> bool:
+    """
+    Check if seq_b is any rotation of the reverse of seq_a.
+
+    Returns False for sequences of length <= 2 (no distinct reversal).
+    """
+    if len(seq_a) != len(seq_b) or set(seq_a) != set(seq_b):
+        return False
+    if len(seq_a) <= 2:
+        return False
+    reversed_a = list(reversed(seq_a))
+    return any(
+        reversed_a[i:] + reversed_a[:i] == seq_b
+        for i in range(len(reversed_a))
+    )

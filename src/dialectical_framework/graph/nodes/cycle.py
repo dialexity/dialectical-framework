@@ -14,9 +14,12 @@ from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
-from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipBoth, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
+)
+from dialectical_framework.graph.relationships.opposite_direction_relationship import (
+    OppositeDirectionRelationship,
 )
 
 if TYPE_CHECKING:
@@ -80,6 +83,13 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         "Wheel",
         model=HasWheelRelationship,
         cardinality=(0, None)  # Zero or more wheels can implement this cycle
+    )
+
+    # Opposite-direction counterpart (symmetric)
+    # Links cycles that are circular reverses of each other
+    opposite_direction: ClassVar[RelationshipManager[Cycle]] = RelationshipBoth(
+        "Cycle",
+        model=OppositeDirectionRelationship,
     )
 
     def set_wisdom_units(self, wisdom_units: list[WisdomUnit]) -> Cycle:

@@ -13,12 +13,15 @@ from typing import ClassVar, Literal, Optional, Union, TYPE_CHECKING
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipBoth, RelationshipManager
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
 )
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
+)
+from dialectical_framework.graph.relationships.opposite_direction_relationship import (
+    OppositeDirectionRelationship,
 )
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_T,
@@ -109,6 +112,13 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         "Transition",
         model=BelongsToCycleRelationship,
         cardinality=(2, None)  # At least two edges to form a cycle
+    )
+
+    # Opposite-direction counterpart (symmetric)
+    # Links wheels that are circular reverses of each other
+    opposite_direction: ClassVar[RelationshipManager[Wheel]] = RelationshipBoth(
+        "Wheel",
+        model=OppositeDirectionRelationship,
     )
 
     @property

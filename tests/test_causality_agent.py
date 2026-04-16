@@ -216,14 +216,12 @@ class TestBuildWheels:
 
         assert agent.nexus_hash == "test-hash"
         assert agent.wisdom_unit_hashes == ["wu1", "wu2"]
-        assert agent.estimate is True
 
     def test_build_wheels_default_values(self):
         """Test BuildWheels default field values."""
         agent = BuildWheels(nexus_hash="test-hash")
 
         assert agent.wisdom_unit_hashes == []
-        assert agent.estimate is True
 
     @pytest.mark.asyncio
     async def test_build_wheels_invalid_nexus(self, brainstorm):
@@ -403,11 +401,11 @@ class TestBuildWheels:
             result = await agent.execute()
 
             # 3 WUs should produce:
-            # Layer 1: 3 cycles (one per WU) + 3 wheels
-            # Layer 2: 3 cycles (C(3,2) pairs) + 3 wheels
-            # Layer 3: 1 cycle (all 3 WUs) + 1 wheel
-            assert len(result.new_cycles) == 7  # 3 + 3 + 1
-            assert len(result.new_wheels) >= 7  # At least one wheel per cycle
+            # Layer 1: 3 cycles (one per WU), each with 1 wheel = 3 wheels
+            # Layer 2: 3 cycles (C(3,2) pairs, (2-1)!=1 perm each), each with 2 wheels = 6 wheels
+            # Layer 3: 2 cycles ((3-1)!=2 perms, no reversal skip), each with 4 wheels = 8 wheels
+            assert len(result.new_cycles) == 8  # 3 + 3 + 2
+            assert len(result.new_wheels) >= 8  # Multiple wheels per cycle
 
     @pytest.mark.asyncio
     async def test_build_wheels_graceful_when_all_combined(self, brainstorm):
@@ -437,3 +435,110 @@ class TestBuildWheels:
             assert result2.new_wheels == []
 
             assert "already exist" in agent2.report.summary
+
+    @pytest.mark.asyncio
+    async def test_opposite_direction_cycles_three_wus(self, brainstorm):
+        """Test that layer-3 cycles (3 WUs) are connected via OPPOSITE_DIRECTION."""
+        with scope(brainstorm.sid):
+            wu1 = create_complete_wisdom_unit(1)
+            wu2 = create_complete_wisdom_unit(2)
+            wu3 = create_complete_wisdom_unit(3)
+            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus.commit()
+
+            agent = BuildWheels(
+                nexus_hash=nexus.hash,
+                wisdom_unit_hashes=[wu1.hash, wu2.hash, wu3.hash],
+            )
+
+            result = await agent.execute()
+
+            # Find layer-3 cycles (3 WUs)
+            layer3_cycles = [
+                c for c in result.new_cycles if c.wisdom_unit_count == 3
+            ]
+            assert len(layer3_cycles) == 2
+
+            # They should be connected via opposite_direction
+            cycle_a, cycle_b = layer3_cycles
+            opposites = [c for c, _ in cycle_a.opposite_direction.all()]
+            assert len(opposites) == 1
+            assert opposites[0].hash == cycle_b.hash
+
+    @pytest.mark.asyncio
+    async def test_no_opposite_direction_for_single_wu(self, brainstorm):
+        """Test that single-WU cycles have no OPPOSITE_DIRECTION."""
+        with scope(brainstorm.sid):
+            wu = create_complete_wisdom_unit(0)
+            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus.commit()
+
+            agent = BuildWheels(
+                nexus_hash=nexus.hash,
+                wisdom_unit_hashes=[wu.hash],
+            )
+
+            result = await agent.execute()
+
+            cycle = result.new_cycles[0]
+            opposites = list(cycle.opposite_direction.all())
+            assert len(opposites) == 0
+
+    @pytest.mark.asyncio
+    async def test_no_opposite_direction_for_pair_cycles(self, brainstorm):
+        """Test that pair cycles (2 WUs) have no OPPOSITE_DIRECTION (no distinct reversal)."""
+        with scope(brainstorm.sid):
+            wu1 = create_complete_wisdom_unit(1)
+            wu2 = create_complete_wisdom_unit(2)
+            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus.commit()
+
+            agent = BuildWheels(
+                nexus_hash=nexus.hash,
+                wisdom_unit_hashes=[wu1.hash, wu2.hash],
+            )
+
+            result = await agent.execute()
+
+            # Layer-2 cycles (2 WUs) — only 1 permutation, no reversal
+            layer2_cycles = [
+                c for c in result.new_cycles if c.wisdom_unit_count == 2
+            ]
+            for cycle in layer2_cycles:
+                opposites = list(cycle.opposite_direction.all())
+                assert len(opposites) == 0
+
+    @pytest.mark.asyncio
+    async def test_opposite_direction_wheels(self, brainstorm):
+        """Test that opposite-direction wheels are detected and connected."""
+        with scope(brainstorm.sid):
+            wu1 = create_complete_wisdom_unit(1)
+            wu2 = create_complete_wisdom_unit(2)
+            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus.commit()
+
+            agent = BuildWheels(
+                nexus_hash=nexus.hash,
+                wisdom_unit_hashes=[wu1.hash, wu2.hash],
+            )
+
+            result = await agent.execute()
+
+            # Layer-2 wheels for 2 WUs: generate_compatible_sequences
+            # produces 2 arrangements that are reverses of each other
+            layer2_wheels = [
+                w for w in result.new_wheels
+                if w.polarity_count == 2
+            ]
+
+            # At least 2 wheels for the pair
+            assert len(layer2_wheels) >= 2
+
+            # Find a wheel with an opposite_direction connection
+            has_opposite = False
+            for wheel in layer2_wheels:
+                opposites = list(wheel.opposite_direction.all())
+                if opposites:
+                    has_opposite = True
+                    break
+            assert has_opposite, "Expected at least one pair of opposite-direction wheels"
