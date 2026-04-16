@@ -1,7 +1,7 @@
 """
 Repository for content-hash based node lookups.
 
-All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -24,12 +24,12 @@ class NodeRepository:
     """
     Repository for content-hash based node lookups.
 
-    All queries are automatically scoped by sid (injected from DI context).
+    All queries are automatically scoped by case_id (injected from DI context).
 
     Example:
         from dialectical_framework.graph.scope_context import scope
 
-        with scope(brainstorm.sid):
+        with scope(case.case_id):
             repo = NodeRepository()
             node = repo.find_by_hash("abc123...")  # Only searches within scope
     """
@@ -39,7 +39,7 @@ class NodeRepository:
         self,
         hash: str,
         node_type: Optional[type[T]] = None,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> Optional[T]:
         """
@@ -52,7 +52,7 @@ class NodeRepository:
         Args:
             hash: The hash or hash prefix to search for
             node_type: If provided, validates the node is of this type
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             The node if exactly one match found, None if no matches
@@ -61,13 +61,13 @@ class NodeRepository:
             ValueError: If multiple nodes match (ambiguous prefix)
             TypeError: If node_type is provided and the found node is not of that type
         """
-        if sid:
+        if case_id:
             query = """
                 MATCH (n:Node)
-                WHERE n.hash STARTS WITH $hash AND n.sid = $sid
+                WHERE n.hash STARTS WITH $hash AND n.case_id = $case_id
                 RETURN n
             """
-            results = list(graph_db.execute_and_fetch(query, {"hash": hash, "sid": sid}))
+            results = list(graph_db.execute_and_fetch(query, {"hash": hash, "case_id": case_id}))
         else:
             query = """
                 MATCH (n:Node)
@@ -97,7 +97,7 @@ class NodeRepository:
         self,
         origin_hash: str,
         node_type: Optional[type[T]] = None,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[BaseNode]:
         """
@@ -106,7 +106,7 @@ class NodeRepository:
         Args:
             origin_hash: The hash of the original node
             node_type: If provided, validates all nodes are of this type
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of nodes that have this origin_hash
@@ -114,12 +114,12 @@ class NodeRepository:
         Raises:
             TypeError: If node_type is provided and any found node is not of that type
         """
-        if sid:
+        if case_id:
             query = """
-                MATCH (n:Node {origin_hash: $origin, sid: $sid})
+                MATCH (n:Node {origin_hash: $origin, case_id: $case_id})
                 RETURN n
             """
-            results = list(graph_db.execute_and_fetch(query, {"origin": origin_hash, "sid": sid}))
+            results = list(graph_db.execute_and_fetch(query, {"origin": origin_hash, "case_id": case_id}))
         else:
             query = """
                 MATCH (n:Node {origin_hash: $origin})
@@ -201,15 +201,15 @@ class NodeRepository:
         if node.branch == branch:
             return True
 
-        # Use node's sid for scoped query
-        if not hasattr(node, 'sid') or not node.sid:
+        # Use node's case_id for scoped query
+        if not hasattr(node, 'case_id') or not node.case_id:
             return False
 
         query = """
-            MATCH (tip:Node {branch: $branch, sid: $sid})
+            MATCH (tip:Node {branch: $branch, case_id: $case_id})
             RETURN tip
         """
-        results = list(graph_db.execute_and_fetch(query, {"branch": branch, "sid": node.sid}))
+        results = list(graph_db.execute_and_fetch(query, {"branch": branch, "case_id": node.case_id}))
 
         if not results:
             return False

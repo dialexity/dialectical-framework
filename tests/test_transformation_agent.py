@@ -17,7 +17,7 @@ from dialectical_framework.features.positive_ac_re_apex_derivation import \
     ApexDerivation
 from dialectical_framework.features.transformation_generation import \
     TransformationGeneration
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -180,10 +180,10 @@ class TestApexDerivation:
     @observe()
     async def test_apex_derivation_requires_complete_wu(self):
         """ApexDerivation raises error for incomplete WU."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = WisdomUnit()
             wu.save()  # Incomplete - no components
 
@@ -195,10 +195,10 @@ class TestApexDerivation:
     @observe()
     async def test_apex_derivation_returns_valid_apexes(self):
         """ApexDerivation returns Re+ and Ac+ apexes with coordinates."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_complete_wu()
 
             service = ApexDerivation()
@@ -233,10 +233,10 @@ class TestActionExtraction:
     @observe()
     async def test_action_extraction_generates_candidates(self):
         """ActionExtraction generates Ac+ candidates at different insight levels."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_complete_wu()
 
             service = ActionExtraction()
@@ -257,10 +257,10 @@ class TestActionExtraction:
     @observe()
     async def test_action_extraction_avoids_existing(self):
         """ActionExtraction avoids generating duplicates of existing transformations."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_complete_wu()
 
             # First extraction
@@ -285,10 +285,10 @@ class TestTransformationGeneration:
     @observe()
     async def test_transformation_generation_creates_tetrad(self):
         """TransformationGeneration creates complete tetrad from Ac+."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_complete_wu()
 
             # Get apex and Ac+ candidate
@@ -322,10 +322,10 @@ class TestExploreTransformations:
     @observe()
     async def test_transformation_agent_requires_valid_wu(self):
         """ExploreTransformations raises error for non-existent WU."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = ExploreTransformations(wisdom_unit_hash="nonexistent123")
 
             with pytest.raises(ValueError, match="not found"):
@@ -340,10 +340,10 @@ class TestExploreTransformations:
         so they can't be found by hash. This test verifies the validation message
         when passed a hash that resolves to None (uncommitted WU has no hash).
         """
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create incomplete WU - note: it can't be committed so has no hash
             wu = WisdomUnit()
             t = DialecticalComponent(
@@ -370,10 +370,10 @@ class TestExploreTransformations:
     @observe()
     async def test_transformation_agent_generates_transformations(self):
         """ExploreTransformations generates new transformations for a complete WU."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_complete_wu()
 
             agent = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
@@ -405,10 +405,10 @@ class TestExploreTransformations:
     @observe()
     async def test_transformation_agent_returns_existing(self):
         """ExploreTransformations returns existing transformations."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_complete_wu()
 
             # First run
@@ -429,10 +429,10 @@ class TestExploreTransformations:
     @observe()
     async def test_transformation_agent_with_input(self):
         """ExploreTransformations uses input from scope for better context."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create an Input node with content
             from dialectical_framework.graph.nodes.input import Input
 
@@ -444,7 +444,7 @@ class TestExploreTransformations:
                 """
             )
             input_node.commit()
-            brainstorm.inputs.connect(input_node)
+            case_node.inputs.connect(input_node)
 
             wu = _create_complete_wu()
 

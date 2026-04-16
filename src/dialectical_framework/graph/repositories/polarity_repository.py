@@ -1,7 +1,7 @@
 """
 PolarityRepository for complex query operations.
 
-All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class PolarityRepository:
     """
     Repository for Polarity query operations.
 
-    All queries are automatically scoped by sid (injected from DI context).
+    All queries are automatically scoped by case_id (injected from DI context).
     """
 
     @inject
@@ -30,7 +30,7 @@ class PolarityRepository:
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Polarity]:
         """
@@ -39,7 +39,7 @@ class PolarityRepository:
         Args:
             thesis: The DialecticalComponent at position T
             antithesis: The DialecticalComponent at position A
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of Polarities where T=thesis AND A=antithesis
@@ -48,8 +48,8 @@ class PolarityRepository:
             return []
 
         # Validate both components belong to current scope
-        if sid:
-            if thesis.sid != sid or antithesis.sid != sid:
+        if case_id:
+            if thesis.case_id != case_id or antithesis.case_id != case_id:
                 return []
 
         query = """
@@ -69,7 +69,7 @@ class PolarityRepository:
         self,
         component: DialecticalComponent,
         position: Optional[str] = None,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[tuple[Polarity, str]]:
         """
@@ -78,7 +78,7 @@ class PolarityRepository:
         Args:
             component: The DialecticalComponent to query for
             position: Optional position filter ('T' or 'A')
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of tuples: (Polarity, position) where position is 'T' or 'A'
@@ -87,7 +87,7 @@ class PolarityRepository:
             return []
 
         # Validate component belongs to current scope
-        if sid and component.sid != sid:
+        if case_id and component.case_id != case_id:
             return []
 
         if position:
@@ -115,7 +115,7 @@ class PolarityRepository:
     def find_by_thesis(
         self,
         thesis: DialecticalComponent,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Polarity]:
         """
@@ -123,19 +123,19 @@ class PolarityRepository:
 
         Args:
             thesis: The DialecticalComponent at position T
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of Polarities
         """
-        results = self.find_by_component(thesis, position='T', sid=sid, graph_db=graph_db)
+        results = self.find_by_component(thesis, position='T', case_id=case_id, graph_db=graph_db)
         return [p for p, _ in results]
 
     @inject
     def find_by_antithesis(
         self,
         antithesis: DialecticalComponent,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Polarity]:
         """
@@ -143,19 +143,19 @@ class PolarityRepository:
 
         Args:
             antithesis: The DialecticalComponent at position A
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of Polarities
         """
-        results = self.find_by_component(antithesis, position='A', sid=sid, graph_db=graph_db)
+        results = self.find_by_component(antithesis, position='A', case_id=case_id, graph_db=graph_db)
         return [p for p, _ in results]
 
     @inject
     def find_all(
         self,
         committed_only: bool = True,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Polarity]:
         """
@@ -163,26 +163,26 @@ class PolarityRepository:
 
         Args:
             committed_only: If True, only return committed Polarities (with hash)
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of Polarities
         """
-        if not sid:
+        if not case_id:
             return []
 
         if committed_only:
             query = """
             MATCH (p:Polarity)
-            WHERE p.sid = $sid AND p.hash IS NOT NULL
+            WHERE p.case_id = $case_id AND p.hash IS NOT NULL
             RETURN p
             """
         else:
             query = """
             MATCH (p:Polarity)
-            WHERE p.sid = $sid
+            WHERE p.case_id = $case_id
             RETURN p
             """
 
-        results = graph_db.execute_and_fetch(query, {"sid": sid})
+        results = graph_db.execute_and_fetch(query, {"case_id": case_id})
         return [result["p"] for result in results]

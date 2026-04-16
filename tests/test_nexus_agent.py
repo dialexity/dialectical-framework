@@ -12,7 +12,7 @@ from dialectical_framework.agents.explorer.skills.nexus_agent import (
     NexusAgent,
     NexusAgentResult,
 )
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.wisdom_unit import (
     POSITION_A,
@@ -35,9 +35,9 @@ from dialectical_framework.graph.scope_context import scope
 
 
 @pytest.fixture
-def brainstorm():
-    """Create a committed brainstorm for scoping."""
-    bs = Brainstorm()
+def case_node():
+    """Create a committed case for scoping."""
+    bs = Case()
     bs.commit()
     return bs
 
@@ -88,9 +88,9 @@ class TestNexusAgent:
     """Tests for NexusAgent."""
 
     @pytest.mark.asyncio
-    async def test_create_nexus_from_single_wu(self, brainstorm):
+    async def test_create_nexus_from_single_wu(self, case_node):
         """Test creating a Nexus from a single WisdomUnit."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
 
             agent = NexusAgent(wisdom_unit_hashes=[wu.hash])
@@ -101,9 +101,9 @@ class TestNexusAgent:
             assert result.wisdom_unit_count == 1
 
     @pytest.mark.asyncio
-    async def test_create_nexus_from_multiple_wus(self, brainstorm):
+    async def test_create_nexus_from_multiple_wus(self, case_node):
         """Test creating a Nexus from multiple WisdomUnits."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu1 = create_complete_wisdom_unit(0)
             wu2 = create_complete_wisdom_unit(1)
 
@@ -114,9 +114,9 @@ class TestNexusAgent:
             assert result.wisdom_unit_count == 2
 
     @pytest.mark.asyncio
-    async def test_create_nexus_with_intent(self, brainstorm):
+    async def test_create_nexus_with_intent(self, case_node):
         """Test creating a Nexus with an intent."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
 
             agent = NexusAgent(
@@ -129,9 +129,9 @@ class TestNexusAgent:
             assert result.nexus.intent == "economic_vs_social"
 
     @pytest.mark.asyncio
-    async def test_nexus_agent_report(self, brainstorm):
+    async def test_nexus_agent_report(self, case_node):
         """Test that NexusAgent produces correct report."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
 
             agent = NexusAgent(
@@ -148,9 +148,9 @@ class TestNexusAgent:
             assert "Created Nexus" in report.summary
 
     @pytest.mark.asyncio
-    async def test_nexus_agent_call_returns_json(self, brainstorm):
+    async def test_nexus_agent_call_returns_json(self, case_node):
         """Test that call() returns JSON string."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
 
             agent = NexusAgent(wisdom_unit_hashes=[wu.hash])
@@ -160,18 +160,18 @@ class TestNexusAgent:
             assert "nexus_hash" in json_result
 
     @pytest.mark.asyncio
-    async def test_nexus_agent_empty_hashes_raises(self, brainstorm):
+    async def test_nexus_agent_empty_hashes_raises(self, case_node):
         """Test that empty hashes list raises ValueError."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = NexusAgent(wisdom_unit_hashes=[])
 
             with pytest.raises(ValueError, match="At least one WisdomUnit hash is required"):
                 await agent.execute()
 
     @pytest.mark.asyncio
-    async def test_nexus_agent_with_hash_prefix(self, brainstorm):
+    async def test_nexus_agent_with_hash_prefix(self, case_node):
         """Test that NexusAgent works with hash prefixes."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
             prefix = wu.hash[:7]
 

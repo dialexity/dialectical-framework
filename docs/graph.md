@@ -38,7 +38,7 @@ WisdomUnit → Cycle → Wheel (edges) → Transformation
 | **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `_provider` (←Rationale via PROVIDES) |
 | **Input** | Content source | `statements`, `ideas` |
 | **Ideas** | Distilled concepts from Input | `input` (→Input), `statements` |
-| **Brainstorm** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
+| **Case** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
 
 **DEPRECATED** (kept for backwards compatibility):
 - **Nexus**: Replaced by Cycle storing WU hashes directly
@@ -147,12 +147,12 @@ Resolve intent via `get_effective_intent()`:
 3. Parent Cycle's effective intent
 4. Default ("preset:balanced")
 
-## Brainstorm Layer
+## Case Layer
 
-The Brainstorm layer provides multi-input exploration before WisdomUnit construction:
+The Case layer provides multi-input exploration before WisdomUnit construction:
 
 ```
-Brainstorm (multi-input exploration)
+Case (multi-input exploration)
 ├── HAS_INPUT → Input₁
 │              └── DISTILLED_TO → Ideas₁ (intent: "thesis_extraction")
 │                                └── HAS_STATEMENT → Components...
@@ -165,7 +165,7 @@ Brainstorm (multi-input exploration)
 
 | Node | Purpose | Cardinality |
 |------|---------|-------------|
-| **Brainstorm** | Multi-input exploration with shared vocabulary | HAS_INPUT (1, ∞) to Input |
+| **Case** | Multi-input exploration with shared vocabulary | HAS_INPUT (1, ∞) to Input |
 | **Ideas** | Distilled concepts from a single Input | DISTILLED_TO (1, 1) from Input |
 
 **Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
@@ -175,7 +175,7 @@ Brainstorm (multi-input exploration)
 ### Usage
 
 ```python
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
@@ -183,18 +183,18 @@ from dialectical_framework.graph.repositories.dialectical_component_repository i
 )
 from dialectical_framework.graph.scope_context import scope
 
-# Create brainstorm (scope root)
-brainstorm = Brainstorm()
-brainstorm.commit()
+# Create case (scope root)
+case = Case()
+case.commit()
 
-with scope(brainstorm.sid):
-    # Create inputs (inherit sid from scope)
+with scope(case.case_id):
+    # Create inputs (inherit case_id from scope)
     input_a = Input(content="https://article.com/pro")
     input_b = Input(content="https://article.com/con")
     input_a.commit()
     input_b.commit()
-    brainstorm.inputs.connect(input_a)
-    brainstorm.inputs.connect(input_b)
+    case.inputs.connect(input_a)
+    case.inputs.connect(input_b)
 
     # Create ideas
     ideas_thesis = Ideas(intent="thesis_extraction")
@@ -414,7 +414,7 @@ class Cycle:
 
 ## Vocabulary
 
-**Vocabulary** is simply all DialecticalComponents within a scope (by `sid`). Components can be combined freely within the same scope.
+**Vocabulary** is simply all DialecticalComponents within a scope (by `case_id`). Components can be combined freely within the same scope.
 
 ### Querying Vocabulary
 
@@ -427,7 +427,7 @@ from dialectical_framework.graph.scope_context import scope
 repo = DialecticalComponentRepository()
 
 # Get vocabulary (always uses current DI scope)
-with scope(brainstorm.sid):
+with scope(case.case_id):
     vocab = repo.get_vocabulary()
 ```
 
@@ -660,5 +660,5 @@ node.is_score_valid()  # True if score hasn't been invalidated
 ## Further Reading
 
 - **Scoring specification:** `docs/scoring.md`
-- **Portability & identifiers:** `docs/graph-portability.md` (uid, sid, nid, scopes, cloning, realms)
+- **Portability & identifiers:** `docs/graph-portability.md` (uid, case_id, nid, scopes, cloning, realms)
 - **Project conventions:** `CLAUDE.md`

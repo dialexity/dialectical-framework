@@ -73,15 +73,15 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     the contextual alias (e.g., "T1+", "A2-") on the relationship edge.
     This allows the same component to have different positions in different contexts.
 
-    Brainstorming:
-    - Components can be marked as rejected during brainstorming via the `rejected` field
+    Analysis:
+    - Components can be marked as rejected during analysis via the `rejected` field
     - Rejected components are excluded from suggestions but remain in vocabulary
     - The rejection reason (if provided) can be used for UX feedback
     """
 
     statement: str
 
-    # Optional rejection marker for brainstorming suggestions
+    # Optional rejection marker for analyst suggestions
     # When set, this component is excluded from future suggestions
     # The value can be a reason string or just "rejected" to indicate rejection
     # Does NOT affect hash computation (analytical metadata)

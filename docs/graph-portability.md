@@ -31,7 +31,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
 ## Terminology
 
 - **Scope**: A "site-like" container for a portable exploration graph.
-- **Site**: Synonym for scope; conceptually a Brainstorm acts as the site root.
+- **Site**: Synonym for scope; conceptually a Case acts as the site root.
 - **Page**: Any node within a scope/site.
 - **Realm**: Access realm of a scope (e.g., private/protected/public). Realms are properties of scopes.
 - **Clone**: Copying a graph/subgraph into a new scope such that identities are regenerated but lineage is preserved.
@@ -54,17 +54,17 @@ This document defines the Merkle-based identifier model used in the dialectical 
 - **Notes**:
   - This is the primary identifier used by application code.
   - Supports short prefix lookups (minimum 7 characters).
-  - **Exception**: Brainstorm has `hash = None` (uses UUID `sid` as identity).
+  - **Exception**: Case has `hash = None` (uses UUID `case_id` as identity).
 
-### 2) `sid` — Scope Identity (Site ID)
-- **Type**: String (UUID for Brainstorm, propagated to descendants)
+### 2) `case_id` — Scope Identity (Site ID)
+- **Type**: String (UUID for Case, propagated to descendants)
 - **Meaning**: Identifies the "site" (scope) to which this node belongs.
 - **Stability**:
   - Stable for a node as long as it belongs to the same scope.
   - Changes when a node is cloned into a different scope.
 - **Root convention**:
-  - The scope root (Brainstorm) generates a UUID for `sid` on creation.
-  - All nodes under that Brainstorm carry the same `sid` value.
+  - The scope root (Case) generates a UUID for `case_id` on creation.
+  - All nodes under that Case carry the same `case_id` value.
 
 ### 3) `origin_hash` — Lineage Identity (Forking Points Only)
 - **Type**: SHA256 hex string (64 characters) or None
@@ -93,15 +93,15 @@ This document defines the Merkle-based identifier model used in the dialectical 
 
 ## Scoped Address
 
-While `hash` provides content-based identity, the same content can exist in different scopes. For globally unique addressing, use `sid:hash`:
+While `hash` provides content-based identity, the same content can exist in different scopes. For globally unique addressing, use `case_id:hash`:
 
-- **Format**: `<sid>:<hash>` (e.g., `a1b2c3d4-...:e5f6g7h8...`)
-- **Brainstorm**: Since `hash = None`, use just `sid`
+- **Format**: `<case_id>:<hash>` (e.g., `a1b2c3d4-...:e5f6g7h8...`)
+- **Case**: Since `hash = None`, use just `case_id`
 - **Within scope**: `hash` alone is sufficient when scope is known
 
 This pattern ensures:
 - Identical content in different scopes has the same `hash` (content-addressable)
-- Each node instance is still uniquely addressable via `sid:hash`
+- Each node instance is still uniquely addressable via `case_id:hash`
 
 ## Node Lifecycle
 
@@ -157,17 +157,17 @@ assert nexus.hash is not None
 # Cannot add more wisdom_units after commit
 ```
 
-**Brainstorm** (scope root):
+**Case** (scope root):
 
 ```python
-# Brainstorm uses UUID for sid, never computes hash
-brainstorm = Brainstorm()
-assert brainstorm.sid is not None  # UUID generated
-assert len(brainstorm.sid) == 36   # UUID format
+# Case uses UUID for case_id, never computes hash
+case = Case()
+assert case.case_id is not None  # UUID generated
+assert len(case.case_id) == 36   # UUID format
 
-brainstorm.commit()
-assert brainstorm.hash is None     # Always None for Brainstorm
-assert brainstorm._id is not None  # Persisted
+case.commit()
+assert case.hash is None     # Always None for Case
+assert case._id is not None  # Persisted
 ```
 
 ## Node Categories and Identity
@@ -178,7 +178,7 @@ Nodes are organized into categories based on their role and identity model.
 
 | Node | hash | origin_hash | Role |
 |------|------|-------------|------|
-| **Brainstorm** | None (UUID sid) | No | Scope root, never finished |
+| **Case** | None (UUID case_id) | No | Scope root, never finished |
 
 ### Atoms — Content
 
@@ -256,14 +256,14 @@ Atoms don't fork (same content = same node globally). Derived structures don't f
 
 ```python
 # Fork a WisdomUnit to try different polarity framing
-forked_wu = original_wu.clone(destination_sid=new_scope_sid)
+forked_wu = original_wu.clone(destination_case_id=new_scope_case_id)
 forked_wu.t_plus.disconnect(old_component)
 forked_wu.t_plus.connect(new_component)
 forked_wu.commit()
 
 # Result:
 # - forked_wu.origin_hash = original_wu.hash
-# - forked_wu.sid = new_scope_sid
+# - forked_wu.case_id = new_scope_case_id
 # - forked_wu.hash is different (new framing + origin_hash in computation)
 ```
 
@@ -323,8 +323,8 @@ We recognize these access realms:
 
 ### Where access is stored
 Access is a **scope-level property**, not part of identifiers:
-- A scope (Brainstorm/site) has an access realm stored by the application.
-- Nodes inherit access from their scope via `sid`.
+- A scope (Case/site) has an access realm stored by the application.
+- Nodes inherit access from their scope via `case_id`.
 
 ## Database Indexes
 
@@ -332,7 +332,7 @@ The following indexes support efficient lookups:
 
 - `hash`: Primary identity lookups, unique constraint
 - `origin_hash`: Lineage queries (find clones of a node)
-- `sid`: Scope-based queries (find all nodes in a scope)
+- `case_id`: Scope-based queries (find all nodes in a scope)
 
 ## Summary
 
@@ -340,8 +340,8 @@ The following indexes support efficient lookups:
 
 | Field | Type | Used By | Purpose |
 |-------|------|---------|---------|
-| `hash` | SHA256 | All except Brainstorm | Primary identity (content-derived) |
-| `sid` | UUID | All | Scope identity (Brainstorm's UUID) |
+| `hash` | SHA256 | All except Case | Primary identity (content-derived) |
+| `case_id` | UUID | All | Scope identity (Case's UUID) |
 | `origin_hash` | SHA256 | WisdomUnit, Nexus only | Lineage tracking for forks |
 | `committed_at` | Float | Forking points + derived | Temporal ordering |
 | `intent` | String | Intent-aware nodes | Reasoning purpose |
@@ -350,7 +350,7 @@ The following indexes support efficient lookups:
 
 | Category | Nodes | origin_hash | Role |
 |----------|-------|-------------|------|
-| Container | Brainstorm | No | Scope root |
+| Container | Case | No | Scope root |
 | Atoms (Content) | DialecticalComponent, Input | No | Global facts |
 | Atoms (Effect) | Transition, Rationale, Estimation, Synthesis | No | Computed outcomes |
 | Forking Points | WisdomUnit, Nexus | **Yes** | Reasoning foundations |
@@ -361,4 +361,4 @@ The following indexes support efficient lookups:
 - **Atoms are global**: Same content = same hash = same node across all of Indranet
 - **Forking at foundations**: Only WisdomUnit and Nexus support lineage tracking
 - **Derived structures flow down**: Fork upstream (Nexus/WU) to explore alternatives
-- **Scoped address**: `sid:hash` for global uniqueness across scopes
+- **Scoped address**: `case_id:hash` for global uniqueness across scopes

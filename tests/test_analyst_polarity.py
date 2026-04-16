@@ -11,7 +11,7 @@ from langfuse.decorators import observe
 
 from dialectical_framework.agents.analyst.skills.polarity import FindPolarities
 from dialectical_framework.agents.analyst.skills.wisdom import ExpandPolarities
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
@@ -51,10 +51,10 @@ class TestExpandPolarities:
     @observe()
     async def test_wisdom_requires_valid_thesis(self):
         """ExpandPolarities returns error when thesis not found."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = ExpandPolarities(
                 thesis_hash="nonexistent123",
                 antithesis_hash="nonexistent456",
@@ -68,10 +68,10 @@ class TestExpandPolarities:
     @observe()
     async def test_wisdom_requires_valid_antithesis(self):
         """ExpandPolarities returns error when antithesis not found."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Integration",
@@ -91,10 +91,10 @@ class TestExpandPolarities:
     @observe()
     async def test_wisdom_generates_all_poles(self):
         """ExpandPolarities generates all 4 poles (T+, T-, A+, A-)."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Integration",
@@ -125,10 +125,10 @@ class TestExpandPolarities:
     @observe()
     async def test_wisdom_creates_wu_from_polarity(self):
         """ExpandPolarities creates WU using FindPolarities output."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Data Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Cohesion",
@@ -159,10 +159,10 @@ class TestExpandPolarities:
     @observe()
     async def test_wisdom_returns_existing_complete_wus(self):
         """ExpandPolarities returns existing complete WUs along with new ones."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Performance",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Efficiency/Speed",
@@ -202,10 +202,10 @@ class TestExpandPolarities:
     @observe()
     async def test_wisdom_with_specific_positions(self):
         """ExpandPolarities can generate specific poles only."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Simplicity",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Efficiency/Elegance",
@@ -234,10 +234,10 @@ class TestExpandPolarities:
     @observe()
     async def test_wisdom_detects_duplicates(self):
         """ExpandPolarities detects and discards duplicate WUs after deduplication."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Order",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Structure/Organization",
@@ -301,10 +301,10 @@ class TestWisdomUnitIsSame:
     @pytest.mark.asyncio
     async def test_is_same_identical_wu(self):
         """is_same returns True for identical WU."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = WisdomUnit()
             wu.save()
 
@@ -314,10 +314,10 @@ class TestWisdomUnitIsSame:
     @pytest.mark.asyncio
     async def test_is_same_different_components(self):
         """is_same returns False for WUs with different components."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create components
             t1 = DialecticalComponent(statement="Trust", meaning="dx://taxonomy/Simple")
             t1.commit()
@@ -351,10 +351,10 @@ class TestWisdomUnitIsSame:
     @pytest.mark.asyncio
     async def test_is_same_swapped_orientation(self):
         """is_same returns True for WUs with swapped T-A orientation."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create components
             c1 = DialecticalComponent(statement="Order", meaning="dx://taxonomy/Simple")
             c1.commit()

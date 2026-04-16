@@ -34,7 +34,7 @@ from dialectical_framework.graph.relationships.has_input_relationship import (
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.ideas import Ideas
-    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.nodes.case import Case
 
 
 class Input(BaseNode, label="Input"):
@@ -96,12 +96,12 @@ class Input(BaseNode, label="Input"):
         cardinality=(0, None),  # Zero or more Ideas
     )
 
-    # Brainstorms that include this input (reverse relationship)
-    # Child→parent: Brainstorm has this Input
-    _brainstorms: ClassVar[RelationshipManager[Brainstorm]] = RelationshipFrom(
-        "Brainstorm",
+    # Cases that include this input (reverse relationship)
+    # Child→parent: Case has this Input
+    _cases: ClassVar[RelationshipManager[Case]] = RelationshipFrom(
+        "Case",
         model=HasInputRelationship,
-        cardinality=(0, None),  # Zero or more Brainstorms
+        cardinality=(0, None),  # Zero or more Cases
     )
 
     def _collect_structure_hash_parts(self) -> list[str]:
@@ -189,16 +189,16 @@ class Input(BaseNode, label="Input"):
             return False
 
         # Transform content to dx:// reference
-        # Use the existing node's sid for the reference
-        node_sid = existing.sid or self.sid
-        if not node_sid:
+        # Use the existing node's case_id for the reference
+        node_case_id = existing.case_id or self.case_id
+        if not node_case_id:
             raise ValueError(
-                f"Cannot transform Input to dx:// reference: no sid available. "
-                f"Both Input and matching node have sid=None. "
+                f"Cannot transform Input to dx:// reference: no case_id available. "
+                f"Both Input and matching node have case_id=None. "
                 f"Node hash: {existing.hash[:8]}..."
             )
 
-        self.content = f"dx://{node_sid}/{existing.hash}"
+        self.content = f"dx://{node_case_id}/{existing.hash}"
         return True
 
     @inject

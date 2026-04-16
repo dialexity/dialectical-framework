@@ -11,7 +11,7 @@ from dialectical_framework.features.control_statements_check import \
     ControlStatementsCheck
 from dialectical_framework.features.wisdom_unit_validation import \
     WisdomUnitValidation
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
@@ -106,10 +106,10 @@ class TestControlStatementsCheck:
     @observe()
     async def test_evaluates_control_statements(self):
         """ControlStatementsCheck evaluates both control statements."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_test_wisdom_unit(
                 t_plus_statement="Confidence",
                 t_minus_statement="Naivety",
@@ -138,10 +138,10 @@ class TestControlStatementsCheck:
     @observe()
     async def test_creates_estimation_and_rationale(self):
         """ControlStatementsCheck creates estimation and rationale nodes."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_test_wisdom_unit()
 
             capability = ControlStatementsCheck()
@@ -172,10 +172,10 @@ class TestWisdomUnitValidation:
     @observe()
     async def test_runs_both_validations(self):
         """WisdomUnitValidation runs both control statements and empirical checks."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = _create_test_wisdom_unit()
 
             validator = WisdomUnitValidation()
@@ -192,10 +192,10 @@ class TestWisdomUnitValidation:
     @observe()
     async def test_valid_wisdom_unit(self):
         """WisdomUnitValidation passes for valid tetrad."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create WU with valid empirical conditions
             wu = _create_test_wisdom_unit(
                 t_plus_statement="Confidence",
@@ -225,10 +225,10 @@ class TestWisdomUnitValidation:
     @observe()
     async def test_fails_empirical_conditions(self):
         """WisdomUnitValidation fails when empirical conditions not met."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create WU that fails empirical conditions (KS(T+) <= 0.4)
             wu = _create_test_wisdom_unit(
                 ks_t_plus=0.35,
@@ -248,10 +248,10 @@ class TestWisdomUnitValidation:
     @observe()
     async def test_requires_committed_wisdom_unit(self):
         """WisdomUnitValidation requires committed WisdomUnit."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = WisdomUnit()
             wu.save()  # Not committed
 
@@ -263,10 +263,10 @@ class TestWisdomUnitValidation:
     @observe()
     async def test_requires_complete_wisdom_unit(self):
         """WisdomUnitValidation requires complete WisdomUnit."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = WisdomUnit()
             wu.save()
 

@@ -8,13 +8,13 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
 
 
 class InputResolver(ABC):
     """
-    Resolves Input or Brainstorm nodes to text content.
+    Resolves Input or Case nodes to text content.
 
     Apps implement this class to handle their specific content sources
     (uploaded files, URLs, session storage, etc.).
@@ -52,12 +52,12 @@ class InputResolver(ABC):
         ...
 
     @abstractmethod
-    async def resolve_all(self, source: Brainstorm | list[Input]) -> str:
+    async def resolve_all(self, source: Case | list[Input]) -> str:
         """
         Resolve multiple inputs to combined text content.
 
         Args:
-            source: Either a Brainstorm node (resolves all connected Inputs)
+            source: Either a Case node (resolves all connected Inputs)
                    or a list of Input nodes to resolve
 
         Returns:

@@ -2,7 +2,7 @@
 Scope context for the dialectical framework.
 
 Provides async-safe scope propagation using contextvars, allowing nodes
-created within a scope context to automatically inherit the scope ID (sid).
+created within a scope context to automatically inherit the case ID (case_id).
 
 IMPORTANT: The application layer is responsible for SETTING the scope
 (typically after authorization checks). The framework only READS the scope.
@@ -10,14 +10,14 @@ IMPORTANT: The application layer is responsible for SETTING the scope
 Application layer usage:
     from dialectical_framework.graph.scope_context import scope
 
-    with scope(brainstorm.sid):  # App sets scope after auth check
+    with scope(case.case_id):  # App sets scope after auth check
         # Call framework methods here
-        vocab = repo.get_vocabulary()  # Framework reads sid via DI
+        vocab = repo.get_vocabulary()  # Framework reads case_id via DI
 
 Framework layer usage:
     @inject
-    def get_vocabulary(self, sid: Optional[str] = Provide[DI.sid]):
-        # sid is injected, framework never sets it
+    def get_vocabulary(self, case_id: Optional[str] = Provide[DI.case_id]):
+        # case_id is injected, framework never sets it
         ...
 """
 
@@ -33,21 +33,21 @@ _current_scope: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
 )
 
 
-def get_current_sid() -> Optional[str]:
+def get_current_case_id() -> Optional[str]:
     """
-    Get the current scope ID (sid) from context.
+    Get the current case ID (case_id) from context.
 
-    This is the DI-compatible function for injecting sid.
+    This is the DI-compatible function for injecting case_id.
     Returns None if no scope is set.
 
     Example:
         # In DI container:
-        sid = providers.Callable(get_current_sid)
+        case_id = providers.Callable(get_current_case_id)
 
         # In framework code:
         @inject
-        def my_method(self, sid: Optional[str] = Provide[DI.sid]):
-            if not sid:
+        def my_method(self, case_id: Optional[str] = Provide[DI.case_id]):
+            if not case_id:
                 raise ValueError("No scope set")
             ...
     """
@@ -57,14 +57,14 @@ def get_current_sid() -> Optional[str]:
 class _ScopeContextManager:
     """Internal context manager for scope boundaries."""
 
-    def __init__(self, sid: str) -> None:
-        self._sid = sid
+    def __init__(self, case_id: str) -> None:
+        self._case_id = case_id
         self._token: Optional[contextvars.Token] = None
 
     def __enter__(self) -> str:
-        """Enter scope context, returning the sid."""
-        self._token = _current_scope.set(self._sid)
-        return self._sid
+        """Enter scope context, returning the case_id."""
+        self._token = _current_scope.set(self._case_id)
+        return self._case_id
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit scope context, restoring previous scope."""
@@ -72,7 +72,7 @@ class _ScopeContextManager:
             _current_scope.reset(self._token)
 
 
-def scope(sid: str) -> _ScopeContextManager:
+def scope(case_id: str) -> _ScopeContextManager:
     """
     Context manager for setting scope (APPLICATION LAYER ONLY).
 
@@ -80,7 +80,7 @@ def scope(sid: str) -> _ScopeContextManager:
     sets scope after authorization checks.
 
     Args:
-        sid: The scope ID (typically brainstorm.sid)
+        case_id: The case ID (typically case.case_id)
 
     Returns:
         Context manager that sets/restores the scope
@@ -89,10 +89,10 @@ def scope(sid: str) -> _ScopeContextManager:
         from dialectical_framework.graph.scope_context import scope
 
         # App layer sets scope after auth check
-        with scope(brainstorm.sid):
-            # All framework calls here see this sid
+        with scope(case.case_id):
+            # All framework calls here see this case_id
             vocab = repo.get_vocabulary()
             comp = DialecticalComponent(statement="...")
-            comp.commit()  # Inherits sid from scope
+            comp.commit()  # Inherits case_id from scope
     """
-    return _ScopeContextManager(sid)
+    return _ScopeContextManager(case_id)

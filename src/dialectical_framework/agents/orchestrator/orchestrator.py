@@ -27,8 +27,8 @@ GRAPH_SCHEMA = """
 ## Node Types
 
 ### Session & Input
-- **Brainstorm**: Session container. The root of a brainstorming session.
-- **Input**: External content (text, URL) added to a brainstorm for analysis.
+- **Case**: Case container. The root of a case analysis session.
+- **Input**: External content (text, URL) added to a case for analysis.
 - **Ideas**: Collection of extracted statements from inputs.
 
 ### Dialectical Structure
@@ -64,7 +64,7 @@ GRAPH_SCHEMA = """
 - **SIMILAR_TO**: Semantic similarity
 
 ### Structural Relations
-- **HAS_INPUT**: Brainstorm → Input
+- **HAS_INPUT**: Case → Input
 - **HAS_STATEMENT**: Ideas → DialecticalComponent
 - **HAS_WHEEL**: Cycle → Wheel
 - **HAS_TRANSFORMATION**: Wheel → Transformation
@@ -81,7 +81,7 @@ GRAPH_SCHEMA = """
 
 All nodes have:
 - `hash`: Content-addressable identifier (Merkle hash)
-- `sid`: Session/scope identifier (for multi-tenant isolation)
+- `case_id`: Case identifier (for multi-tenant isolation)
 - `committed_at`: Timestamp when committed
 
 DialecticalComponent:
@@ -111,7 +111,7 @@ from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
 from dialectical_framework.agents.orchestrator.tools.query_graph import \
     QueryGraph
 from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.scope_context import scope
 
 if TYPE_CHECKING:
@@ -128,34 +128,34 @@ class Orchestrator:
     """
     Main LLM orchestrator for dialectical framework exploration.
 
-    One orchestrator instance = one session = one sid.
-    Either creates a new brainstorm or loads an existing one.
+    One orchestrator instance = one session = one case_id.
+    Either creates a new case or loads an existing one.
 
     Usage:
         # Interactive REPL
         Orchestrator().run()
 
         # Or with existing session
-        Orchestrator(sid="existing-sid").run()
+        Orchestrator(case_id="existing-case-id").run()
 
         # Programmatic
         orchestrator = Orchestrator()
         response = await orchestrator.chat("Extract theses about remote work")
     """
 
-    def __init__(self, sid: Optional[str] = None) -> None:
+    def __init__(self, case_id: Optional[str] = None) -> None:
         """
         Initialize the orchestrator.
 
         Args:
-            sid: Optional existing session ID to load. If None, creates new session.
+            case_id: Optional existing case ID to load. If None, creates new session.
         """
-        if sid:
-            self._sid = sid
+        if case_id:
+            self._case_id = case_id
         else:
-            brainstorm = Brainstorm()
-            brainstorm.commit()
-            self._sid = brainstorm.sid
+            case = Case()
+            case.commit()
+            self._case_id = case.case_id
 
         self._tools = self._build_tool_list()
         self._conversation = ConversationFacilitator(tools=self._tools)
@@ -248,14 +248,14 @@ class Orchestrator:
         Returns:
             The assistant's response text
         """
-        with scope(self._sid):
+        with scope(self._case_id):
             result = await self._conversation.submit(ChatResponse, user_message)
         return result.message
 
     @property
-    def sid(self) -> str:
-        """Get the session ID."""
-        return self._sid
+    def case_id(self) -> str:
+        """Get the case ID."""
+        return self._case_id
 
     def run(self) -> None:
         """
@@ -268,7 +268,7 @@ class Orchestrator:
     async def _run_loop(self) -> None:
         """Internal async REPL loop."""
         print(f"Dialectical Orchestrator")
-        print(f"Session: {self._sid}")
+        print(f"Session: {self._case_id}")
         print("Type 'exit' to quit.\n")
 
         while True:

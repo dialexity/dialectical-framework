@@ -44,7 +44,7 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
     save() → add statements → commit(). Statements must be connected before commit.
 
     Hierarchy:
-        Brainstorm → Input → Ideas → DialecticalComponent
+        Case → Input → Ideas → DialecticalComponent
 
     Relationships:
     - Ideas comes from one or more Inputs (via DISTILLED_TO)
@@ -67,7 +67,7 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
 
     # Source Inputs (optional - explicit provenance when needed)
     # Ideas→Input: Ideas distilled from specific Input(s)
-    # When empty: Ideas uses all Inputs available in Brainstorm at creation time (inferred via timestamp)
+    # When empty: Ideas uses all Inputs available in Case at creation time (inferred via timestamp)
     # When specified: Ideas derived from these specific Inputs (e.g., Rationale-spawned Input)
     inputs: ClassVar[RelationshipManager[Input]] = RelationshipTo(
         "Input",

@@ -2187,14 +2187,14 @@ def test_wheel_multiple_transformations():
     at different insight/proactiveness levels.
     """
     from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.scope_context import scope
 
-    # Create brainstorm for sid scoping
-    brainstorm = Brainstorm()
-    brainstorm.commit()
+    # Create case for case_id scoping
+    case_node = Case()
+    case_node.commit()
 
-    with scope(brainstorm.sid):
+    with scope(case_node.case_id):
         # Create components for WisdomUnit
         uid = random.random()
         components = []
@@ -2517,11 +2517,11 @@ def test_input_transforms_to_dx_reference_when_component_exists():
     statement = f"Democracy empowers citizens {uid}"
 
     # First, create a DialecticalComponent
-    comp = DialecticalComponent(statement=statement, meaning="test", sid="test-sid")
+    comp = DialecticalComponent(statement=statement, meaning="test", case_id="test-case-id")
     comp.commit()
 
     # Now create Input with the same content
-    input_node = Input(content=statement, sid="test-sid")
+    input_node = Input(content=statement, case_id="test-case-id")
     input_node.commit()
 
     # Input content should have been transformed to dx:// reference
@@ -2547,7 +2547,7 @@ def test_input_keeps_plain_text_when_no_component_collision():
     uid = random.random()
     content = f"Some unique content that has no matching component {uid}"
 
-    input_node = Input(content=content, sid="test-sid")
+    input_node = Input(content=content, case_id="test-case-id")
     input_node.commit()
 
     # Content should remain as plain text
@@ -2571,13 +2571,13 @@ def test_input_keeps_uri_content_unchanged():
     uri_contents = [
         f"https://example.com/article-{uid}",
         f"http://example.com/page-{uid}",
-        f"dx://test-sid/abc123def456",
+        f"dx://test-case-id/abc123def456",
         f"ipfs://QmTest{uid}",
         f"data:text/plain,test-{uid}",
     ]
 
     for content in uri_contents:
-        input_node = Input(content=content, sid="test-sid")
+        input_node = Input(content=content, case_id="test-case-id")
         input_node.commit()
 
         assert input_node.content == content, \
@@ -2588,11 +2588,11 @@ def test_input_keeps_uri_content_unchanged():
 
 def test_scope_vocabulary():
     """
-    Test that get_vocabulary(sid) includes all components in the scope.
+    Test that get_vocabulary(case_id) includes all components in the scope.
 
-    Vocabulary is simply all DialecticalComponents with matching sid.
+    Vocabulary is simply all DialecticalComponents with matching case_id.
     """
-    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
     from dialectical_framework.graph.nodes.ideas import Ideas
     from dialectical_framework.graph.repositories.dialectical_component_repository import (
@@ -2603,17 +2603,17 @@ def test_scope_vocabulary():
     repo = DialecticalComponentRepository()
     uid = random.random()
 
-    # Create Brainstorm (scope root)
-    brainstorm = Brainstorm()
-    brainstorm.commit()
+    # Create Case (scope root)
+    case_node = Case()
+    case_node.commit()
 
-    with scope(brainstorm.sid):
+    with scope(case_node.case_id):
         # Create Input
         input_node = Input(content=f"https://example.com/article-{uid}")
         input_node.commit()
-        brainstorm.inputs.connect(input_node)
+        case_node.inputs.connect(input_node)
 
-        # Create component (inherits sid from scope context)
+        # Create component (inherits case_id from scope context)
         comp1 = DialecticalComponent(statement=f"Component 1 {uid}", meaning="test")
         comp1.commit()
 

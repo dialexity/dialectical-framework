@@ -1,7 +1,7 @@
 """
 WisdomUnitRepository for complex query operations and lifecycle management.
 
-All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -23,14 +23,14 @@ class WisdomUnitRepository:
     """
     Repository for WisdomUnit query operations and lifecycle management.
 
-    All queries are automatically scoped by sid (injected from DI context).
+    All queries are automatically scoped by case_id (injected from DI context).
     """
 
     @inject
     def find_by_polarity(
         self,
         polarity: Polarity,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[WisdomUnit]:
         """
@@ -38,7 +38,7 @@ class WisdomUnitRepository:
 
         Args:
             polarity: The Polarity (T-A pair) to query for
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of WisdomUnits connected to this Polarity
@@ -47,7 +47,7 @@ class WisdomUnitRepository:
             return []
 
         # Validate polarity belongs to current scope
-        if sid and polarity.sid != sid:
+        if case_id and polarity.case_id != case_id:
             return []
 
         query = """
@@ -63,7 +63,7 @@ class WisdomUnitRepository:
     def find_by_dialectical_component(
         self,
         component: DialecticalComponent,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[tuple[WisdomUnit, str]]:
         """
@@ -71,7 +71,7 @@ class WisdomUnitRepository:
 
         Args:
             component: The DialecticalComponent to query for
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of tuples: (WisdomUnit, relationship_type)
@@ -80,7 +80,7 @@ class WisdomUnitRepository:
             return []
 
         # Validate component belongs to current scope
-        if sid and component.sid != sid:
+        if case_id and component.case_id != case_id:
             return []
 
         query = """
@@ -115,7 +115,7 @@ class WisdomUnitRepository:
         self,
         wisdom_unit: WisdomUnit,
         force_gc: bool = True,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -124,7 +124,7 @@ class WisdomUnitRepository:
         Args:
             wisdom_unit: The WisdomUnit to delete
             force_gc: If True (default), aggressive GC mode. If False, conservative mode.
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             True if deleted, False if kept or not in scope
@@ -133,14 +133,14 @@ class WisdomUnitRepository:
             return False
 
         # Validate WU belongs to current scope
-        if sid and wisdom_unit.sid != sid:
+        if case_id and wisdom_unit.case_id != case_id:
             return False
 
         if force_gc:
-            if self.in_use(wisdom_unit, sid=sid, graph_db=graph_db):
+            if self.in_use(wisdom_unit, case_id=case_id, graph_db=graph_db):
                 return False
         else:
-            if not self.is_isolated(wisdom_unit, sid=sid, graph_db=graph_db):
+            if not self.is_isolated(wisdom_unit, case_id=case_id, graph_db=graph_db):
                 return False
 
         # Delete orphaned HAS_STATEMENT components
@@ -273,7 +273,7 @@ class WisdomUnitRepository:
     def is_isolated(
         self,
         wisdom_unit: WisdomUnit,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -281,7 +281,7 @@ class WisdomUnitRepository:
 
         Args:
             wisdom_unit: The WisdomUnit to check
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             True if isolated, False if in vocabulary or not in scope
@@ -290,7 +290,7 @@ class WisdomUnitRepository:
             return True
 
         # Validate WU belongs to current scope
-        if sid and wisdom_unit.sid != sid:
+        if case_id and wisdom_unit.case_id != case_id:
             return False  # Not in scope = treat as not isolated (don't allow operations)
 
         query = """
@@ -348,7 +348,7 @@ class WisdomUnitRepository:
     def count_usage(
         self,
         wisdom_unit: WisdomUnit,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> int:
         """
@@ -356,7 +356,7 @@ class WisdomUnitRepository:
 
         Args:
             wisdom_unit: The WisdomUnit to count usage for
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             Count of distinct containers (0 if not in scope)
@@ -365,7 +365,7 @@ class WisdomUnitRepository:
             return 0
 
         # Validate WU belongs to current scope
-        if sid and wisdom_unit.sid != sid:
+        if case_id and wisdom_unit.case_id != case_id:
             return 0
 
         query = """
@@ -391,7 +391,7 @@ class WisdomUnitRepository:
     def in_use(
         self,
         wisdom_unit: WisdomUnit,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -399,18 +399,18 @@ class WisdomUnitRepository:
 
         Args:
             wisdom_unit: The WisdomUnit to check
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             True if in use, False if orphaned or not in scope
         """
-        return self.count_usage(wisdom_unit, sid=sid, graph_db=graph_db) > 0
+        return self.count_usage(wisdom_unit, case_id=case_id, graph_db=graph_db) > 0
 
     @inject
     def is_shared(
         self,
         wisdom_unit: WisdomUnit,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -418,7 +418,7 @@ class WisdomUnitRepository:
 
         Args:
             wisdom_unit: The WisdomUnit to check
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             True if any component is shared, False otherwise or not in scope
@@ -427,7 +427,7 @@ class WisdomUnitRepository:
             return False
 
         # Validate WU belongs to current scope
-        if sid and wisdom_unit.sid != sid:
+        if case_id and wisdom_unit.case_id != case_id:
             return False
 
         query = """

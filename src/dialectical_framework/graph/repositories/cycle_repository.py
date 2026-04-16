@@ -1,7 +1,7 @@
 """
 Repository for Cycle node queries.
 
-All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ class CycleRepository:
     """
     Repository for Cycle node queries.
 
-    All queries are automatically scoped by sid (injected from DI context).
+    All queries are automatically scoped by case_id (injected from DI context).
     """
 
     @staticmethod
@@ -51,7 +51,7 @@ class CycleRepository:
         wisdom_units: list[WisdomUnit],
         exact_order: bool = True,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
     ) -> list[Cycle]:
         """
         Find Cycles containing the given WisdomUnits.
@@ -61,7 +61,7 @@ class CycleRepository:
             exact_order: If True, only return cycles with exactly these WUs
                         in the same order (rotation-invariant).
                         If False, return cycles containing any of these WUs.
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
         Returns:
@@ -79,13 +79,13 @@ class CycleRepository:
             # Then filter by signature match in Python
             query = """
                 MATCH (c:Cycle)
-                WHERE c.sid = $sid
+                WHERE c.case_id = $case_id
                 AND size(c.wisdom_unit_hashes) = $hash_count
                 AND ALL(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
                 RETURN c
             """
             results = list(graph_db.execute_and_fetch(query, {
-                "sid": sid,
+                "case_id": case_id,
                 "wu_hashes": wu_hashes,
                 "hash_count": len(wu_hashes),
             }))
@@ -104,12 +104,12 @@ class CycleRepository:
             # Return cycles containing ANY of these WUs
             query = """
                 MATCH (c:Cycle)
-                WHERE c.sid = $sid
+                WHERE c.case_id = $case_id
                 AND ANY(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
                 RETURN c
             """
             results = list(graph_db.execute_and_fetch(query, {
-                "sid": sid,
+                "case_id": case_id,
                 "wu_hashes": wu_hashes,
             }))
 
@@ -121,7 +121,7 @@ class CycleRepository:
         wisdom_units: list[WisdomUnit],
         nexus: Optional[Nexus] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
     ) -> list[Cycle]:
         """
         Find all Cycles in the same layer (same WU set, any ordering).
@@ -136,7 +136,7 @@ class CycleRepository:
         Args:
             wisdom_units: List of WisdomUnits defining the layer
             nexus: Optional Nexus to scope results to
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
         Returns:
@@ -151,12 +151,12 @@ class CycleRepository:
 
         query = """
             MATCH (c:Cycle)
-            WHERE c.sid = $sid
+            WHERE c.case_id = $case_id
             AND size(c.wisdom_unit_hashes) = $hash_count
             AND ALL(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
         """
         params: dict = {
-            "sid": sid,
+            "case_id": case_id,
             "wu_hashes": wu_hashes,
             "hash_count": len(wu_hashes),
         }

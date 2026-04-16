@@ -20,11 +20,11 @@ class IntentMixin(PersistableMixin):
     for a node's analysis. It helps document why this node exists and what
     question it's trying to answer.
 
-    Used by: Brainstorm, Ideas, WisdomUnit, Cycle, Wheel,
+    Used by: Case, Ideas, WisdomUnit, Cycle, Wheel,
              Transformation, Synthesis
 
     Example:
-        brainstorm = Brainstorm(intent="Explore remote work dynamics")
+        case = Case(intent="Explore remote work dynamics")
         ideas = Ideas(intent="Extract productivity claims")
         wu = WisdomUnit(intent="Analyze work-life balance tension")
     """

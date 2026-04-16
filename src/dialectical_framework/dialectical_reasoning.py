@@ -12,7 +12,7 @@ from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
 from dialectical_framework.graph.composite_input_resolver import CompositeInputResolver
-from dialectical_framework.graph.scope_context import get_current_sid
+from dialectical_framework.graph.scope_context import get_current_case_id
 
 
 class DialecticalReasoning(containers.DeclarativeContainer):
@@ -86,12 +86,12 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         """
         Ensure required indexes and constraints exist on the graph database.
 
-        Creates indexes on :Node for Merkle identity fields (hash, origin_hash, sid).
-        Creates a unique constraint on :Node(hash, sid) - composite constraint ensures
+        Creates indexes on :Node for Merkle identity fields (hash, origin_hash, case_id).
+        Creates a unique constraint on :Node(hash, case_id) - composite constraint ensures
         uniqueness within scope while allowing same content in different scopes.
         Works with both Memgraph and Neo4j by detecting DB type and using appropriate syntax.
         """
-        required_indexes = {"hash", "origin_hash", "sid"}
+        required_indexes = {"hash", "origin_hash", "case_id"}
         is_neo4j = isinstance(graph_db, Neo4j)
 
         # Get existing indexes
@@ -125,10 +125,10 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                 # Memgraph syntax
                 graph_db.execute(f"CREATE INDEX ON :Node({prop})")
 
-        # Check for existing unique constraint on (hash, sid)
+        # Check for existing unique constraint on (hash, case_id)
         # This composite constraint ensures uniqueness within scope while allowing
-        # same content (same hash) in different scopes (different sid)
-        has_hash_sid_constraint = False
+        # same content (same hash) in different scopes (different case_id)
+        has_hash_case_id_constraint = False
         try:
             if is_neo4j:
                 # Neo4j: SHOW CONSTRAINTS returns labelsOrTypes, properties
@@ -136,31 +136,31 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                 for row in results:
                     labels = row.get("labelsOrTypes", [])
                     props = row.get("properties", [])
-                    if "Node" in labels and "hash" in props and "sid" in props:
-                        has_hash_sid_constraint = True
+                    if "Node" in labels and "hash" in props and "case_id" in props:
+                        has_hash_case_id_constraint = True
                         break
             else:
                 # Memgraph: SHOW CONSTRAINT INFO returns constraint_type, label, properties
                 results = graph_db.execute_and_fetch("SHOW CONSTRAINT INFO")
                 for row in results:
                     props = row.get("properties", [])
-                    if row.get("label") == "Node" and "hash" in props and "sid" in props:
-                        has_hash_sid_constraint = True
+                    if row.get("label") == "Node" and "hash" in props and "case_id" in props:
+                        has_hash_case_id_constraint = True
                         break
         except Exception:
             pass  # Fresh DB or no constraints
 
-        # Create unique constraint on (hash, sid) if missing
-        if not has_hash_sid_constraint:
+        # Create unique constraint on (hash, case_id) if missing
+        if not has_hash_case_id_constraint:
             try:
                 if is_neo4j:
                     graph_db.execute(
-                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Node) REQUIRE (n.hash, n.sid) IS UNIQUE"
+                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Node) REQUIRE (n.hash, n.case_id) IS UNIQUE"
                     )
                 else:
                     # Memgraph syntax: no parentheses around properties
                     graph_db.execute(
-                        "CREATE CONSTRAINT ON (n:Node) ASSERT n.hash, n.sid IS UNIQUE"
+                        "CREATE CONSTRAINT ON (n:Node) ASSERT n.hash, n.case_id IS UNIQUE"
                     )
             except Exception:
                 pass  # Constraint may already exist or DB doesn't support it
@@ -221,13 +221,13 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         dialexity_resolver=dialexity_resolver
     )
 
-    # -- Scope ID (sid) --
+    # -- Case ID (case_id) --
     # Injectable provider that reads from contextvar.
-    # Application layer sets scope via `with scope(brainstorm.sid):`,
-    # framework code injects sid via `sid: Optional[str] = Provide[DI.sid]`
-    # Framework should ONLY read sid, never set it.
-    sid: providers.Callable[Optional[str]] = providers.Callable(
-        get_current_sid
+    # Application layer sets scope via `with scope(case.case_id):`,
+    # framework code injects case_id via `case_id: Optional[str] = Provide[DI.case_id]`
+    # Framework should ONLY read case_id, never set it.
+    case_id: providers.Callable[Optional[str]] = providers.Callable(
+        get_current_case_id
     )
 
     # -- Wiring --

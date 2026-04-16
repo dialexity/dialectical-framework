@@ -87,7 +87,7 @@ async def test_causality_sequencer(di_container):
         APlusRelationship, AMinusRelationship,
     )
     from dialectical_framework.agents.explorer.skills.build_wheels import BuildWheels
-    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.scope_context import scope
 
@@ -149,16 +149,16 @@ async def test_causality_sequencer(di_container):
         return wu
 
     # Create scope
-    brainstorm = Brainstorm()
-    brainstorm.commit()
+    case_node = Case()
+    case_node.commit()
 
-    with scope(brainstorm.sid):
+    with scope(case_node.case_id):
         # Create two WisdomUnits
         wu1 = create_wu(1)
         wu2 = create_wu(2)
 
         # Create Nexus and use BuildWheels to create and estimate cycles
-        nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+        nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
         nexus.commit()
 
         skill = BuildWheels(

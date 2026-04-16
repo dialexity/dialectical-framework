@@ -1,7 +1,7 @@
 """
 DialecticalComponentRepository for complex query operations.
 
-All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -22,14 +22,14 @@ class DialecticalComponentRepository:
     """
     Repository for DialecticalComponent query operations.
 
-    All queries are automatically scoped by sid (injected from DI context).
+    All queries are automatically scoped by case_id (injected from DI context).
     """
 
     @inject
     def find_by_wisdom_unit(
         self,
         wisdom_unit: WisdomUnit,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[tuple[DialecticalComponent, str]]:
         """
@@ -37,7 +37,7 @@ class DialecticalComponentRepository:
 
         Args:
             wisdom_unit: The WisdomUnit to query for
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             List of tuples: (DialecticalComponent, alias)
@@ -46,7 +46,7 @@ class DialecticalComponentRepository:
             return []
 
         # Validate WU belongs to current scope
-        if sid and wisdom_unit.sid != sid:
+        if case_id and wisdom_unit.case_id != case_id:
             return []
 
         query = """
@@ -79,34 +79,34 @@ class DialecticalComponentRepository:
     @inject
     def get_vocabulary(
         self,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> set[DialecticalComponent]:
         """
         Get all DialecticalComponents in the current scope.
 
         Args:
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
-            Set of DialecticalComponents with matching sid
+            Set of DialecticalComponents with matching case_id
         """
-        if not sid:
+        if not case_id:
             return set()
 
         query = """
         MATCH (c:DialecticalComponent)
-        WHERE c.sid = $sid
+        WHERE c.case_id = $case_id
         RETURN c
         """
-        results = graph_db.execute_and_fetch(query, {"sid": sid})
+        results = graph_db.execute_and_fetch(query, {"case_id": case_id})
         return {record["c"] for record in results if record["c"] is not None}
 
     @inject
     def safe_delete(
         self,
         component: DialecticalComponent,
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> bool:
         """
@@ -122,7 +122,7 @@ class DialecticalComponentRepository:
 
         Args:
             component: The component to delete
-            sid: Scope ID (injected from DI context)
+            case_id: Case ID (injected from DI context)
 
         Returns:
             True if deleted, False if not orphaned or wrong scope
@@ -131,7 +131,7 @@ class DialecticalComponentRepository:
             return False
 
         # Validate component belongs to current scope
-        if sid and component.sid != sid:
+        if case_id and component.case_id != case_id:
             return False
 
         # Check if orphaned (no structural connections)

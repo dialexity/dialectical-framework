@@ -1,5 +1,5 @@
 """
-SurfaceTheses: Surfaces theses for BrainstormingAgent (Phase 1 of polarity-finder).
+SurfaceTheses: Surfaces theses for AnalystAgent (Phase 1 of polarity-finder).
 
 Uses conversational pattern: all steps share context through conversation history,
 enabling prompt caching.
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 
 # --- System Prompt ---
 
-SYSTEM_PROMPT = """You are an anchoring agent for dialectical brainstorming.
+SYSTEM_PROMPT = """You are an anchoring agent for dialectical analysis.
 
 Your task is to:
 1. Parse unstructured intent into structured parameters
@@ -116,12 +116,12 @@ class ParsedIntentDto(BaseModel):
 
 class SurfaceTheses(BaseTool, ExecutableCapability[Optional[Ideas]]):
     """
-    Surfaces theses for BrainstormingAgent by fulfilling anchoring intent.
+    Surfaces theses for AnalystAgent by fulfilling anchoring intent.
 
     Uses conversational pattern where all steps share context through
     conversation history, enabling prompt caching.
 
-    Receives unstructured intent from BrainstormingAgent and:
+    Receives unstructured intent from AnalystAgent and:
     1. Parses intent to understand requirements (count, constraints, focus)
     2. Extracts fresh theses via ThesisExtraction (with retries)
     3. Deduplicates against existing vocabulary (prefers DB versions)
@@ -137,7 +137,7 @@ class SurfaceTheses(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
     intent: str = Field(
         description=(
-            "Unstructured intent from BrainstormingAgent describing what theses to surface. "
+            "Unstructured intent from AnalystAgent describing what theses to surface. "
             "Examples: 'extract 5 theses about trust and integrity', "
             "'find theses from inputs, prefer existing ones if suitable', "
             "'surface 3 new theses about security, avoid anything about performance'"

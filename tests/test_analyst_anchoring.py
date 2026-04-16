@@ -11,7 +11,7 @@ from langfuse.decorators import observe
 
 from dialectical_framework.agents.analyst.skills.surface_theses import \
     SurfaceTheses
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.repositories.dialectical_component_repository import \
     DialecticalComponentRepository
@@ -57,10 +57,10 @@ class TestSurfaceTheses:
     @observe()
     async def test_anchoring_requires_inputs_or_direct_thesis(self):
         """SurfaceTheses returns message when no inputs and no direct thesis."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = SurfaceTheses(intent="extract 3 theses")
             result = await agent.call()
             assert "No inputs" in result
@@ -69,13 +69,13 @@ class TestSurfaceTheses:
     @observe()
     async def test_anchoring_extract_theses_basic(self):
         """SurfaceTheses extracts theses from input content."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             input_node = Input(content=SAMPLE_INPUT_TEXT)
             input_node.commit()
-            brainstorm.inputs.connect(input_node)
+            case_node.inputs.connect(input_node)
 
             agent = SurfaceTheses(intent="extract 2 theses about software architecture")
             result = await agent.call()
@@ -89,13 +89,13 @@ class TestSurfaceTheses:
     @observe()
     async def test_anchoring_creates_ideas_node(self):
         """SurfaceTheses creates Ideas node with extracted components."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             input_node = Input(content=SAMPLE_INPUT_TEXT)
             input_node.commit()
-            brainstorm.inputs.connect(input_node)
+            case_node.inputs.connect(input_node)
 
             agent = SurfaceTheses(intent="extract 2 theses")
             result = await agent.call()
@@ -107,10 +107,10 @@ class TestSurfaceTheses:
     @observe()
     async def test_anchoring_direct_thesis_without_inputs(self):
         """SurfaceTheses can anchor direct thesis even without inputs."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = SurfaceTheses(
                 intent="anchor direct thesis 'Trust' - create component for concept of Trust"
             )

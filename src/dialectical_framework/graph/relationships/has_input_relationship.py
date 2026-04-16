@@ -1,4 +1,4 @@
-"""Relationship model for Brainstorm to Input connection."""
+"""Relationship model for Case to Input connection."""
 from __future__ import annotations
 
 from gqlalchemy import Relationship
@@ -6,9 +6,9 @@ from gqlalchemy import Relationship
 
 class HasInputRelationship(Relationship, type="HAS_INPUT"):
     """
-    Links a Brainstorm to its Input sources.
+    Links a Case to its Input sources.
 
-    Not a BackboneStructure - Brainstorm doesn't have immutable structure.
+    Not a BackboneStructure - Case doesn't have immutable structure.
     """
 
     pass

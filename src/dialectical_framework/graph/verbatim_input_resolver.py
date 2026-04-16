@@ -14,7 +14,7 @@ from urllib.parse import unquote
 from dialectical_framework.protocols.input_resolver import InputResolver
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+    from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
 
 
@@ -68,7 +68,7 @@ class VerbatimInputResolver(InputResolver):
         # Otherwise, treat as plain text
         return content
 
-    async def resolve_all(self, source: Union[Brainstorm, list[Input]]) -> str:
+    async def resolve_all(self, source: Union[Case, list[Input]]) -> str:
         """
         Resolve multiple inputs to combined text content.
 
@@ -76,7 +76,7 @@ class VerbatimInputResolver(InputResolver):
         <input content="...">resolved text</input>
 
         Args:
-            source: Either a Brainstorm node (resolves all connected Inputs)
+            source: Either a Case node (resolves all connected Inputs)
                    or a list of Input nodes to resolve
 
         Returns:
@@ -85,10 +85,10 @@ class VerbatimInputResolver(InputResolver):
         Raises:
             ValueError: If no inputs provided
         """
-        from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+        from dialectical_framework.graph.nodes.case import Case
 
         # Get inputs list
-        if isinstance(source, Brainstorm):
+        if isinstance(source, Case):
             inputs = [inp for inp, _ in source.inputs.all()]
         else:
             inputs = source

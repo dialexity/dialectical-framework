@@ -1,10 +1,10 @@
 """
-Tests for the Merkle identity system: hash, origin_hash, sid.
+Tests for the Merkle identity system: hash, origin_hash, case_id.
 
 These tests verify the identifier model:
 - hash (primary identity): sha256 of node's structure + origin_hash
 - origin_hash (lineage ID): Parent's hash, preserved across clones
-- sid (scope ID): Brainstorm's hash propagates to all descendants
+- case_id (scope ID): Case's hash propagates to all descendants
 """
 
 from __future__ import annotations
@@ -12,12 +12,12 @@ from __future__ import annotations
 import pytest
 
 from dialectical_framework.graph.nodes.base_node import ImmutableNodeError
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
-from dialectical_framework.graph.scope_context import scope, get_current_sid
+from dialectical_framework.graph.scope_context import scope, get_current_case_id
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository
 )
@@ -28,31 +28,31 @@ class TestScopeContext:
 
     def test_default_scope_is_none(self):
         """Default scope should be None."""
-        assert get_current_sid() is None
+        assert get_current_case_id() is None
 
     def test_context_manager_sets_scope(self):
         """Context manager should set scope within the block."""
-        test_sid = "test-scope-123"
+        test_case_id = "test-scope-123"
 
-        with scope(test_sid):
-            assert get_current_sid() == test_sid
+        with scope(test_case_id):
+            assert get_current_case_id() == test_case_id
 
         # After exiting, scope should be restored to None
-        assert get_current_sid() is None
+        assert get_current_case_id() is None
 
     def test_nested_scopes(self):
         """Nested context managers should work correctly."""
         with scope("outer"):
-            assert get_current_sid() == "outer"
+            assert get_current_case_id() == "outer"
 
             with scope("inner"):
-                assert get_current_sid() == "inner"
+                assert get_current_case_id() == "inner"
 
             # After exiting inner, should be back to outer
-            assert get_current_sid() == "outer"
+            assert get_current_case_id() == "outer"
 
         # After exiting outer, should be None
-        assert get_current_sid() is None
+        assert get_current_case_id() is None
 
 
 class TestCommitWorkflow:
@@ -134,94 +134,94 @@ class TestCommitWorkflow:
         assert comp1.hash == hash1
 
 
-class TestBrainstormIdentifiers:
-    """Tests for Brainstorm as scope root."""
+class TestCaseIdentifiers:
+    """Tests for Case as scope root."""
 
-    def test_brainstorm_has_uuid_sid_on_creation(self):
-        """Brainstorm generates UUID for sid on creation."""
-        brainstorm = Brainstorm()
+    def test_case_has_uuid_case_id_on_creation(self):
+        """Case generates UUID for case_id on creation."""
+        case_node = Case()
 
-        # sid is set immediately (UUID)
-        assert brainstorm.sid is not None
-        assert len(brainstorm.sid) == 36  # UUID format
+        # case_id is set immediately (UUID)
+        assert case_node.case_id is not None
+        assert len(case_node.case_id) == 36  # UUID format
 
-    def test_brainstorm_workflow(self):
-        """Full Brainstorm workflow: create -> commit (sid already set)."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+    def test_case_workflow(self):
+        """Full Case workflow: create -> commit (case_id already set)."""
+        case_node = Case()
+        case_node.commit()
 
-        # sid is UUID, hash is None (Brainstorm never commits)
-        assert brainstorm.sid is not None
-        assert brainstorm.hash is None
+        # case_id is UUID, hash is None (Case never commits)
+        assert case_node.case_id is not None
+        assert case_node.hash is None
 
 
 class TestNodeIdentifierInheritance:
-    """Tests for sid inheritance via scope context."""
+    """Tests for case_id inheritance via scope context."""
 
-    def test_input_inherits_sid_from_context(self):
-        """Input created within scope context should inherit sid."""
+    def test_input_inherits_case_id_from_context(self):
+        """Input created within scope context should inherit case_id."""
         import random
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
-        assert input_node.sid == brainstorm.sid
+        assert input_node.case_id == case_node.case_id
 
-    def test_component_inherits_sid_from_context(self):
-        """Component created within scope context should inherit sid."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+    def test_component_inherits_case_id_from_context(self):
+        """Component created within scope context should inherit case_id."""
+        case_node = Case()
+        case_node.commit()
 
         import random
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             comp = DialecticalComponent(statement=f"Test statement {random.random()}")
             comp.commit()
 
-        assert comp.sid == brainstorm.sid
+        assert comp.case_id == case_node.case_id
 
-    def test_ideas_inherits_sid_from_context(self):
-        """Ideas created within scope context should inherit sid."""
+    def test_ideas_inherits_case_id_from_context(self):
+        """Ideas created within scope context should inherit case_id."""
         import random
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             ideas = Ideas(intent=f"Test extraction {random.random()}")
             ideas.save()
             ideas.commit()
 
-        assert ideas.sid == brainstorm.sid
+        assert ideas.case_id == case_node.case_id
 
-    def test_explicit_sid_overrides_context(self):
-        """Explicit sid parameter should override context."""
+    def test_explicit_case_id_overrides_context(self):
+        """Explicit case_id parameter should override context."""
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        brainstorm2 = Brainstorm()
-        brainstorm2.commit()
+        case_node2 = Case()
+        case_node2.commit()
 
-        with scope(brainstorm1.sid):
-            # Explicit sid takes precedence
-            comp = DialecticalComponent(statement=f"Test {random.random()}", sid=brainstorm2.sid)
+        with scope(case_node1.case_id):
+            # Explicit case_id takes precedence
+            comp = DialecticalComponent(statement=f"Test {random.random()}", case_id=case_node2.case_id)
             comp.commit()
 
-        assert comp.sid == brainstorm2.sid
+        assert comp.case_id == case_node2.case_id
 
 
 class TestOrphanNodes:
     """Tests for nodes created without scope context."""
 
-    def test_node_without_context_has_no_sid(self):
-        """Node created without scope context should have sid=None."""
+    def test_node_without_context_has_no_case_id(self):
+        """Node created without scope context should have case_id=None."""
         import random
         comp = DialecticalComponent(statement=f"Orphan {random.random()}")
         comp.commit()
 
-        assert comp.sid is None
+        assert comp.case_id is None
 
 
 class TestCloneOperation:
@@ -237,17 +237,17 @@ class TestCloneOperation:
     def test_atom_clone_has_same_hash(self):
         """Cloned atom (DialecticalComponent) should have same hash - content-addressable."""
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        brainstorm2 = Brainstorm()
-        brainstorm2.commit()
+        case_node2 = Case()
+        case_node2.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             original = DialecticalComponent(statement=f"Original statement {random.random()}")
             original.commit()
 
-        cloned = original.clone(destination_sid=brainstorm2.sid)
+        cloned = original.clone(destination_case_id=case_node2.case_id)
         cloned.commit()
 
         # Atoms are content-addressable: same content = same hash
@@ -256,48 +256,48 @@ class TestCloneOperation:
     def test_atom_clone_has_no_origin_hash(self):
         """Cloned atom should NOT have origin_hash - atoms don't track lineage."""
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
-        cloned = original.clone(destination_sid=brainstorm1.sid)
+        cloned = original.clone(destination_case_id=case_node1.case_id)
 
         # Atoms don't have origin_hash attribute (not ForkableMixin)
         assert not hasattr(cloned, 'origin_hash') or cloned.origin_hash is None
 
-    def test_clone_sets_new_sid(self):
-        """Cloned node should have the destination sid."""
+    def test_clone_sets_new_case_id(self):
+        """Cloned node should have the destination case_id."""
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        brainstorm2 = Brainstorm()
-        brainstorm2.commit()
+        case_node2 = Case()
+        case_node2.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
-        cloned = original.clone(destination_sid=brainstorm2.sid)
+        cloned = original.clone(destination_case_id=case_node2.case_id)
         cloned.commit()
 
-        assert cloned.sid == brainstorm2.sid
+        assert cloned.case_id == case_node2.case_id
 
     def test_forking_point_clone_sets_origin_hash(self):
         """Cloned forking point (WisdomUnit) should have origin_hash pointing to original."""
         from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        brainstorm2 = Brainstorm()
-        brainstorm2.commit()
+        case_node2 = Case()
+        case_node2.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             # Create a complete WisdomUnit (forking point)
             t = DialecticalComponent(statement=f"Thesis {random.random()}")
             t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}")
@@ -319,7 +319,7 @@ class TestCloneOperation:
             original_wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
             original_wu.commit()
 
-        cloned_wu = original_wu.clone(destination_sid=brainstorm2.sid)
+        cloned_wu = original_wu.clone(destination_case_id=case_node2.case_id)
 
         # Forking points have origin_hash pointing to source
         assert cloned_wu.origin_hash == original_wu.hash
@@ -329,13 +329,13 @@ class TestCloneOperation:
         from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        brainstorm2 = Brainstorm()
-        brainstorm2.commit()
+        case_node2 = Case()
+        case_node2.commit()
 
-        # Create orphan components (sid=None) so they can be shared across scopes
+        # Create orphan components (case_id=None) so they can be shared across scopes
         # This matches real usage: atoms are global facts, shared across scopes
         t = DialecticalComponent(statement=f"Thesis {random.random()}")
         t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}")
@@ -347,7 +347,7 @@ class TestCloneOperation:
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             original_wu = WisdomUnit()
             original_wu.save()
             original_wu.t.connect(t, properties={'alias': 'T'})
@@ -360,7 +360,7 @@ class TestCloneOperation:
 
         # Clone and reconnect components (clone doesn't copy relationships)
         # Components are orphans, so they can be connected to WU in any scope
-        cloned_wu = original_wu.clone(destination_sid=brainstorm2.sid)
+        cloned_wu = original_wu.clone(destination_case_id=case_node2.case_id)
         cloned_wu.save()
         cloned_wu.t.connect(t, properties={'alias': 'T'})
         cloned_wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
@@ -377,14 +377,14 @@ class TestCloneOperation:
     def test_clone_returns_uncommitted_node(self):
         """Clone should return uncommitted (draft) node."""
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
-        cloned = original.clone(destination_sid=brainstorm1.sid)
+        cloned = original.clone(destination_case_id=case_node1.case_id)
 
         # Cloned node should be uncommitted
         assert not cloned.is_committed
@@ -393,17 +393,17 @@ class TestCloneOperation:
     def test_clone_copies_content_fields(self):
         """Cloned node should copy content fields."""
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        brainstorm2 = Brainstorm()
-        brainstorm2.commit()
+        case_node2 = Case()
+        case_node2.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             original = DialecticalComponent(statement=f"Test statement {random.random()}")
             original.commit()
 
-        cloned = original.clone(destination_sid=brainstorm2.sid)
+        cloned = original.clone(destination_case_id=case_node2.case_id)
 
         assert cloned.statement == original.statement
 
@@ -414,52 +414,52 @@ class TestScopeValidationOnConnect:
     def test_same_scope_connection_allowed(self):
         """Nodes from the same scope should connect successfully."""
         import random
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
-        # Connect Input to its Brainstorm (same scope)
-        brainstorm.inputs.connect(input_node)
+        # Connect Input to its Case (same scope)
+        case_node.inputs.connect(input_node)
 
-        assert brainstorm.inputs.count() == 1
+        assert case_node.inputs.count() == 1
 
     def test_different_scope_connection_raises_error(self):
         """Nodes from different scopes should raise ValueError on connect."""
         import random
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
-        brainstorm2 = Brainstorm()
-        brainstorm2.commit()
+        case_node2 = Case()
+        case_node2.commit()
 
-        with scope(brainstorm2.sid):
+        with scope(case_node2.case_id):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
-        # Try to connect Input (scope2) to Brainstorm1 (scope1)
+        # Try to connect Input (scope2) to Case1 (scope1)
         with pytest.raises(ValueError) as exc_info:
-            brainstorm1.inputs.connect(input_node)
+            case_node1.inputs.connect(input_node)
 
         assert "different scopes" in str(exc_info.value).lower()
 
     def test_orphan_node_connection_allowed(self):
-        """Orphan nodes (sid=None) should be connectable to any scope."""
+        """Orphan nodes (case_id=None) should be connectable to any scope."""
         import random
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
         # Create Input without scope context
         input_node = Input(content=f"https://example.com/{random.random()}")
         input_node.commit()
 
-        assert input_node.sid is None
+        assert input_node.case_id is None
 
-        # Should be able to connect to brainstorm
-        brainstorm.inputs.connect(input_node)
-        assert brainstorm.inputs.count() == 1
+        # Should be able to connect to case
+        case_node.inputs.connect(input_node)
+        assert case_node.inputs.count() == 1
 
 
 class TestHashLookup:
@@ -517,8 +517,8 @@ class TestLineageTracking:
         import random
         from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
 
-        brainstorm1 = Brainstorm()
-        brainstorm1.commit()
+        case_node1 = Case()
+        case_node1.commit()
 
         # Create orphan components (shared globally)
         t = DialecticalComponent(statement=f"Thesis {random.random()}")
@@ -531,7 +531,7 @@ class TestLineageTracking:
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
 
-        with scope(brainstorm1.sid):
+        with scope(case_node1.case_id):
             original_wu = WisdomUnit(intent="original")
             original_wu.save()
             original_wu.t.connect(t, properties={'alias': 'T'})
@@ -546,7 +546,7 @@ class TestLineageTracking:
         assert original_wu.origin_hash is None
 
         # Create fork
-        clone = original_wu.clone(destination_sid=brainstorm1.sid)
+        clone = original_wu.clone(destination_case_id=case_node1.case_id)
         clone.intent = "fork"
 
         # Before commit, origin_hash should be set
@@ -571,14 +571,14 @@ class TestLineageTracking:
         """Atoms (DialecticalComponent) should NOT have origin_hash after clone."""
         import random
 
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             original = DialecticalComponent(statement=f"Original {random.random()}")
             original.commit()
 
-        clone = original.clone(destination_sid=brainstorm.sid)
+        clone = original.clone(destination_case_id=case_node.case_id)
         clone.commit()
 
         # Atoms don't have origin_hash (ForkableMixin is not in inheritance)
@@ -591,23 +591,23 @@ class TestLineageTracking:
 class TestIntegration:
     """Integration tests for full workflow with identifiers."""
 
-    def test_full_brainstorm_workflow_with_uuid_scope(self):
-        """Test complete workflow from Brainstorm to components with UUID scope."""
+    def test_full_case_workflow_with_uuid_scope(self):
+        """Test complete workflow from Case to components with UUID scope."""
         import random
-        # Create brainstorm (scope root with UUID)
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        # Create case (scope root with UUID)
+        case_node = Case()
+        case_node.commit()
 
-        assert brainstorm.sid is not None
-        assert len(brainstorm.sid) == 36  # UUID format
-        assert brainstorm.hash is None  # Brainstorm never commits
+        assert case_node.case_id is not None
+        assert len(case_node.case_id) == 36  # UUID format
+        assert case_node.hash is None  # Case never commits
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create Input
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
-            assert input_node.sid == brainstorm.sid
+            assert input_node.case_id == case_node.case_id
 
             # Create Ideas (container - save first, commit after statements)
             ideas = Ideas(intent=f"Extract claims {random.random()}")
@@ -622,17 +622,17 @@ class TestIntegration:
             ideas.commit()
 
         # Connect container relationships
-        brainstorm.inputs.connect(input_node)
+        case_node.inputs.connect(input_node)
         input_node.ideas.connect(ideas)
 
         # Verify all have same scope
-        assert input_node.sid == brainstorm.sid
-        assert ideas.sid == brainstorm.sid
-        assert comp.sid == brainstorm.sid
+        assert input_node.case_id == case_node.case_id
+        assert ideas.case_id == case_node.case_id
+        assert comp.case_id == case_node.case_id
 
         # Verify vocabulary
         repo = DialecticalComponentRepository()
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             vocab = repo.get_vocabulary()
         assert comp in vocab
 
@@ -662,7 +662,7 @@ class TestHashIntegrityOnSave:
         original_hash = comp.hash
 
         # Modify metadata field
-        comp.sid = "new-scope-id"
+        comp.case_id = "new-scope-id"
 
         # save() should succeed
         comp.save()

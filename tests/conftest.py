@@ -49,7 +49,7 @@ class TestMemgraph(Memgraph):
         IMPORTANT: Always adds test label to ALL saved nodes (even those without hash)
         so that test cleanup works correctly even when tests fail mid-execution.
 
-        NOTE: Hash lookup includes the node's specific label AND sid to avoid
+        NOTE: Hash lookup includes the node's specific label AND case_id to avoid
         cross-scope collisions.
         """
         # For content-addressable nodes, check if a node with this hash already exists
@@ -57,22 +57,22 @@ class TestMemgraph(Memgraph):
             # Get the node's primary label for type-specific lookup
             # GQLAlchemy nodes have 'label' class attribute from @label decorator
             node_label = getattr(node.__class__, 'label', None)
-            node_sid = getattr(node, 'sid', None)
+            node_case_id = getattr(node, 'case_id', None)
             if node_label and isinstance(node_label, str):
-                # Look up by hash AND specific label AND sid to ensure proper scoping
+                # Look up by hash AND specific label AND case_id to ensure proper scoping
                 query = f"""
-                    MATCH (n:{node_label} {{hash: $hash, sid: $sid}})
+                    MATCH (n:{node_label} {{hash: $hash, case_id: $case_id}})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
             else:
                 # Fallback to generic Node label
                 query = """
-                    MATCH (n:Node {hash: $hash, sid: $sid})
+                    MATCH (n:Node {hash: $hash, case_id: $case_id})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
-            results = list(self.execute_and_fetch(query, {"hash": node.hash, "sid": node_sid}))
+            results = list(self.execute_and_fetch(query, {"hash": node.hash, "case_id": node_case_id}))
             if results:
                 # Node exists - reuse it
                 existing_node = results[0]["n"]
@@ -119,7 +119,7 @@ class TestNeo4j(Neo4j):
         IMPORTANT: Always adds test label to ALL saved nodes (even those without hash)
         so that test cleanup works correctly even when tests fail mid-execution.
 
-        NOTE: Hash lookup includes the node's specific label AND sid to avoid
+        NOTE: Hash lookup includes the node's specific label AND case_id to avoid
         cross-scope collisions.
         """
         # For content-addressable nodes, check if a node with this hash already exists
@@ -127,22 +127,22 @@ class TestNeo4j(Neo4j):
             # Get the node's primary label for type-specific lookup
             # GQLAlchemy nodes have 'label' class attribute from @label decorator
             node_label = getattr(node.__class__, 'label', None)
-            node_sid = getattr(node, 'sid', None)
+            node_case_id = getattr(node, 'case_id', None)
             if node_label and isinstance(node_label, str):
-                # Look up by hash AND specific label AND sid to ensure proper scoping
+                # Look up by hash AND specific label AND case_id to ensure proper scoping
                 query = f"""
-                    MATCH (n:{node_label} {{hash: $hash, sid: $sid}})
+                    MATCH (n:{node_label} {{hash: $hash, case_id: $case_id}})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
             else:
                 # Fallback to generic Node label
                 query = """
-                    MATCH (n:Node {hash: $hash, sid: $sid})
+                    MATCH (n:Node {hash: $hash, case_id: $case_id})
                     RETURN n, id(n) as node_id
                     LIMIT 1
                 """
-            results = list(self.execute_and_fetch(query, {"hash": node.hash, "sid": node_sid}))
+            results = list(self.execute_and_fetch(query, {"hash": node.hash, "case_id": node_case_id}))
             if results:
                 # Node exists - reuse it
                 existing_node = results[0]["n"]

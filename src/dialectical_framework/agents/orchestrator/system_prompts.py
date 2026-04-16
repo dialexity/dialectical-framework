@@ -54,7 +54,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **GetWisdomUnit**: Get detailed view of a specific WisdomUnit
 - **GetComponent**: Get details of a dialectical component
 - **ListVocabulary**: Show all components in scope
-- **ListInputs**: Show all inputs in the brainstorm
+- **ListInputs**: Show all inputs in the case
 - **SearchGraph**: Search statements across the graph
 - **GetCycle**: Get Cycle details and its WisdomUnits
 - **GetWheel**: Get Wheel details and its structure

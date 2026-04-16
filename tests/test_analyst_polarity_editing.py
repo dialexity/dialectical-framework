@@ -10,7 +10,7 @@ from langfuse.decorators import observe
 from dialectical_framework.agents.analyst.skills.edit_polarity import (
     HS_WRONG_CATEGORY_THRESHOLD, EditPolarity)
 from dialectical_framework.agents.analyst.skills.edit_tetrad import EditTetrad
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import Polarity
@@ -28,17 +28,17 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.graph.scope_context import scope
 
 
-def create_test_wu(sid: str, commit: bool = False) -> WisdomUnit:
+def create_test_wu(case_id: str, commit: bool = False) -> WisdomUnit:
     """Create a test WisdomUnit with T, A and all poles via Polarity.
 
     Args:
-        sid: Session ID
+        case_id: Case ID
         commit: If True, commits the WU (default: False, returns uncommitted)
 
     Returns:
         WisdomUnit with Polarity (T+A) and all 4 poles connected
     """
-    with scope(sid):
+    with scope(case_id):
         t = DialecticalComponent(
             statement="Love",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -130,11 +130,11 @@ class TestEditPolarityThesis:
     @observe()
     async def test_change_thesis_with_compatible_antithesis(self):
         """Changing T when A is still compatible."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
@@ -159,11 +159,11 @@ class TestEditPolarityThesis:
     @observe()
     async def test_change_thesis_with_incompatible_antithesis(self):
         """Changing T to something incompatible with current A."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
@@ -186,11 +186,11 @@ class TestEditPolarityAntithesis:
     @observe()
     async def test_change_antithesis_valid(self):
         """Changing A to a valid antithesis."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
@@ -212,11 +212,11 @@ class TestEditPolarityAntithesis:
     @observe()
     async def test_change_antithesis_to_pole_suggests_correction(self):
         """Changing A to something that's actually a pole."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
@@ -237,11 +237,11 @@ class TestEditTetradPole:
     @observe()
     async def test_change_pole_valid(self):
         """Changing a pole to a valid value."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditTetrad(
                 wisdom_unit_hash=wu.hash,
@@ -261,11 +261,11 @@ class TestEditTetradPole:
     @observe()
     async def test_change_pole_wrong_position_suggests_correct(self):
         """Changing a pole to something that belongs elsewhere."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditTetrad(
                 wisdom_unit_hash=wu.hash,
@@ -286,11 +286,11 @@ class TestEditPolarityForking:
     @observe()
     async def test_uncommitted_wu_edited_in_place(self):
         """Editing uncommitted WU fills it in place and commits it."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id)
             # Don't commit - leave uncommitted
             wu.save()  # But save so it has _id
 
@@ -302,11 +302,11 @@ class TestEditPolarityForking:
     @observe()
     async def test_committed_wu_creates_fork(self):
         """Editing committed WU creates a fork with origin_hash."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
             original_hash = wu.hash
 
             editor = EditPolarity(
@@ -328,11 +328,11 @@ class TestEditPolarityValidation:
     @pytest.mark.asyncio
     async def test_edit_empty_changes_fails(self):
         """Empty changes dict should fail."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
@@ -346,11 +346,11 @@ class TestEditPolarityValidation:
     @pytest.mark.asyncio
     async def test_edit_invalid_position_fails(self):
         """Invalid position (not T or A) should fail for EditPolarity."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
-            wu = create_test_wu(brainstorm.sid, commit=True)
+        with scope(case_node.case_id):
+            wu = create_test_wu(case_node.case_id, commit=True)
 
             editor = EditPolarity(
                 wisdom_unit_hash=wu.hash,
@@ -368,10 +368,10 @@ class TestEditPolarityValidation:
     @pytest.mark.asyncio
     async def test_edit_nonexistent_wu_fails(self):
         """Nonexistent WU hash should fail."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             editor = EditPolarity(
                 wisdom_unit_hash="nonexistent123",
                 changes={POSITION_T: "Something"},

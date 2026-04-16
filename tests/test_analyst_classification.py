@@ -11,7 +11,7 @@ from dialectical_framework.features.idea_placement import (IdeaPlacement,
                                                            TensionInfo)
 from dialectical_framework.features.pole_classification import \
     PoleClassification
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.scope_context import scope
@@ -24,10 +24,10 @@ class TestPoleClassification:
     @observe()
     async def test_pole_classification_valid_t_plus(self):
         """PoleClassification validates a valid T+ pole."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -57,10 +57,10 @@ class TestPoleClassification:
     @observe()
     async def test_pole_classification_valid_a_minus(self):
         """PoleClassification validates a valid A- pole."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -90,10 +90,10 @@ class TestPoleClassification:
     @observe()
     async def test_pole_classification_wrong_position(self):
         """PoleClassification detects pole in wrong position."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -125,10 +125,10 @@ class TestPoleClassification:
     @observe()
     async def test_pole_classification_with_context(self):
         """PoleClassification uses context for evaluation."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Data Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Cohesion",
@@ -162,10 +162,10 @@ class TestPoleClassification:
     @pytest.mark.asyncio
     async def test_pole_classification_invalid_position(self):
         """PoleClassification rejects invalid position."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Test",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -194,10 +194,10 @@ class TestIdeaPlacement:
     @observe()
     async def test_idea_placement_empty_vocabulary(self):
         """IdeaPlacement treats idea as thesis when vocabulary is empty."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             placer = IdeaPlacement()
             result = await placer.execute(
                 idea="Trust",
@@ -215,10 +215,10 @@ class TestIdeaPlacement:
     @observe()
     async def test_idea_placement_detects_antithesis(self):
         """IdeaPlacement detects idea as antithesis of existing thesis."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             love = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -242,10 +242,10 @@ class TestIdeaPlacement:
     @observe()
     async def test_idea_placement_detects_duplicate(self):
         """IdeaPlacement detects semantic duplicate."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             trust = DialecticalComponent(
                 statement="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -270,10 +270,10 @@ class TestIdeaPlacement:
     @observe()
     async def test_idea_placement_detects_pole(self):
         """IdeaPlacement detects idea as pole of existing tension."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             love = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -311,10 +311,10 @@ class TestIdeaPlacement:
     @observe()
     async def test_idea_placement_new_thesis(self):
         """IdeaPlacement treats unrelated idea as new thesis."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             love = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -336,10 +336,10 @@ class TestIdeaPlacement:
     @observe()
     async def test_idea_placement_with_context(self):
         """IdeaPlacement uses context for better placement."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             consistency = DialecticalComponent(
                 statement="Strong Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Cohesion",

@@ -13,7 +13,7 @@ from dialectical_framework.agents.analyst.skills.tension_agent import \
     TensionAgent
 from dialectical_framework.features.antithesis_extraction import \
     AntithesisExtraction
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
@@ -59,10 +59,10 @@ class TestTensionAgent:
     @observe()
     async def test_tension_requires_thesis_hashes(self):
         """TensionAgent returns message when no thesis hashes provided."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = TensionAgent(thesis_hashes=[])
             result = await agent.call()
             report = json.loads(result)
@@ -72,10 +72,10 @@ class TestTensionAgent:
     @observe()
     async def test_tension_invalid_hash(self):
         """TensionAgent handles invalid thesis hash gracefully."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = TensionAgent(thesis_hashes=["nonexistent123"])
             result = await agent.call()
             report = json.loads(result)
@@ -86,10 +86,10 @@ class TestTensionAgent:
     @observe()
     async def test_tension_generates_antitheses(self):
         """TensionAgent generates antitheses for a thesis."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Create a thesis component
             thesis = DialecticalComponent(
                 statement="Trust",
@@ -108,10 +108,10 @@ class TestTensionAgent:
     @observe()
     async def test_tension_creates_ideas(self):
         """TensionAgent creates Ideas node with theses and antitheses."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Integration",
@@ -128,14 +128,14 @@ class TestTensionAgent:
     @observe()
     async def test_tension_with_context(self):
         """TensionAgent uses input text as context for antithesis generation."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Add input for context
             input_node = Input(content=SAMPLE_INPUT_TEXT)
             input_node.commit()
-            brainstorm.inputs.connect(input_node)
+            case_node.inputs.connect(input_node)
 
             thesis = DialecticalComponent(
                 statement="Data Consistency",
@@ -153,10 +153,10 @@ class TestTensionAgent:
     @observe()
     async def test_tension_creates_partial_wisdom_units(self):
         """TensionAgent creates partial WisdomUnits (T + A only)."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Integration",
@@ -187,10 +187,10 @@ class TestAntithesisExtraction:
     @observe()
     async def test_antithesis_extraction_simple_thesis(self):
         """AntithesisExtraction handles simple thesis with direct negation."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Simple thesis (short statement, is_simple=True)
             thesis = DialecticalComponent(
                 statement="Trust", meaning="dx://taxonomy/Simple"
@@ -207,10 +207,10 @@ class TestAntithesisExtraction:
     @observe()
     async def test_antithesis_extraction_complex_thesis(self):
         """AntithesisExtraction handles complex thesis with taxonomy."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             # Complex thesis (has meaning/taxonomy)
             thesis = DialecticalComponent(
                 statement="Data consistency ensures reliable operations",
@@ -231,10 +231,10 @@ class TestAntithesisExtraction:
     @observe()
     async def test_antithesis_extraction_creates_opposite_of_relationship(self):
         """AntithesisExtraction creates OPPOSITE_OF relationship between thesis and antithesis."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Love", meaning="dx://taxonomy/Simple"
             )
@@ -251,10 +251,10 @@ class TestAntithesisExtraction:
     @observe()
     async def test_antithesis_extraction_with_context(self):
         """AntithesisExtraction uses text context for generation."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="System Resilience",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Resilience/Recovery",
@@ -271,10 +271,10 @@ class TestAntithesisExtraction:
     @observe()
     async def test_antithesis_extraction_respects_not_like_these(self):
         """AntithesisExtraction avoids generating statements in not_like_these."""
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case_node = Case()
+        case_node.commit()
 
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             thesis = DialecticalComponent(
                 statement="Trust", meaning="dx://taxonomy/Simple"
             )

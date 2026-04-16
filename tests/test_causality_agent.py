@@ -25,7 +25,7 @@ from dialectical_framework.features.causality.causality_sequencer_feasible impor
     CausalitySequencerFeasible)
 from dialectical_framework.features.causality.causality_sequencer_realistic import (
     CausalitySequencerRealistic)
-from dialectical_framework.graph.nodes.brainstorm import Brainstorm
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -39,9 +39,9 @@ from dialectical_framework.graph.scope_context import scope
 
 
 @pytest.fixture
-def brainstorm():
-    """Create a committed brainstorm for scoping."""
-    bs = Brainstorm()
+def case_node():
+    """Create a committed case for scoping."""
+    bs = Case()
     bs.commit()
     return bs
 
@@ -180,7 +180,7 @@ class TestNexusPresetIntentSeparation:
     def test_nexus_explicit_preset_and_intent(self):
         """Nexus with both preset and intent keeps them separate."""
         nexus = Nexus(
-            sid="test-sid",
+            case_id="test-case-id",
             preset=CausalityPreset.REALISTIC,
             intent="deep meaning of love",
         )
@@ -189,13 +189,13 @@ class TestNexusPresetIntentSeparation:
 
     def test_nexus_default_preset(self):
         """Nexus defaults to balanced preset."""
-        nexus = Nexus(sid="test-sid")
+        nexus = Nexus(case_id="test-case-id")
         assert nexus.preset == CausalityPreset.BALANCED
         assert nexus.intent is None
 
     def test_nexus_intent_is_freeform(self):
         """Intent is always free-form text, never migrated."""
-        nexus = Nexus(sid="test-sid", intent="deep meaning of love")
+        nexus = Nexus(case_id="test-case-id", intent="deep meaning of love")
         assert nexus.preset == CausalityPreset.BALANCED
         assert nexus.intent == "deep meaning of love"
 
@@ -224,9 +224,9 @@ class TestBuildWheels:
         assert agent.wisdom_unit_hashes == []
 
     @pytest.mark.asyncio
-    async def test_build_wheels_invalid_nexus(self, brainstorm):
+    async def test_build_wheels_invalid_nexus(self, case_node):
         """Test that invalid nexus hash returns error."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             agent = BuildWheels(
                 nexus_hash="invalid-hash-that-does-not-exist",
 
@@ -239,10 +239,10 @@ class TestBuildWheels:
             assert "Nexus not found" in agent.report.summary
 
     @pytest.mark.asyncio
-    async def test_build_wheels_empty_nexus_no_wus(self, brainstorm):
+    async def test_build_wheels_empty_nexus_no_wus(self, case_node):
         """Test BuildWheels with an empty Nexus and no WU hashes."""
-        with scope(brainstorm.sid):
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+        with scope(case_node.case_id):
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -256,11 +256,11 @@ class TestBuildWheels:
             assert "No WisdomUnits" in agent.report.summary
 
     @pytest.mark.asyncio
-    async def test_build_wheels_single_wu(self, brainstorm):
+    async def test_build_wheels_single_wu(self, case_node):
         """Test BuildWheels with a single WisdomUnit."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -281,12 +281,12 @@ class TestBuildWheels:
             assert cycle.intent is None
 
     @pytest.mark.asyncio
-    async def test_build_wheels_multiple_wus(self, brainstorm):
+    async def test_build_wheels_multiple_wus(self, case_node):
         """Test BuildWheels with multiple WisdomUnits creates layers."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu1 = create_complete_wisdom_unit(1)
             wu2 = create_complete_wisdom_unit(2)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.REALISTIC)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.REALISTIC)
             nexus.commit()
 
             agent = BuildWheels(
@@ -309,11 +309,11 @@ class TestBuildWheels:
                     assert cycle.intent is None
 
     @pytest.mark.asyncio
-    async def test_build_wheels_empty_hashes_does_nothing(self, brainstorm):
+    async def test_build_wheels_empty_hashes_does_nothing(self, case_node):
         """Test BuildWheels with empty WU hashes does nothing."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # Add WU to Nexus manually
@@ -332,11 +332,11 @@ class TestBuildWheels:
             assert "No WisdomUnits" in agent.report.summary
 
     @pytest.mark.asyncio
-    async def test_build_wheels_idempotent(self, brainstorm):
+    async def test_build_wheels_idempotent(self, case_node):
         """Test that BuildWheels is idempotent — no duplicates on re-run."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # First call
@@ -362,11 +362,11 @@ class TestBuildWheels:
             assert len(result2.new_wheels) == 0
 
     @pytest.mark.asyncio
-    async def test_build_wheels_resolves_nexus_by_prefix(self, brainstorm):
+    async def test_build_wheels_resolves_nexus_by_prefix(self, case_node):
         """Test that BuildWheels resolves Nexus by hash prefix."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             prefix = nexus.hash[:8]
@@ -383,13 +383,13 @@ class TestBuildWheels:
             assert len(result.new_cycles) >= 1
 
     @pytest.mark.asyncio
-    async def test_build_wheels_three_wu_layers(self, brainstorm):
+    async def test_build_wheels_three_wu_layers(self, case_node):
         """Test BuildWheels with three WUs creates all layers."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu1 = create_complete_wisdom_unit(1)
             wu2 = create_complete_wisdom_unit(2)
             wu3 = create_complete_wisdom_unit(3)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -408,11 +408,11 @@ class TestBuildWheels:
             assert len(result.new_wheels) >= 8  # Multiple wheels per cycle
 
     @pytest.mark.asyncio
-    async def test_build_wheels_graceful_when_all_combined(self, brainstorm):
+    async def test_build_wheels_graceful_when_all_combined(self, case_node):
         """Test BuildWheels is graceful when all structures already exist."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # First call creates structures
@@ -437,13 +437,13 @@ class TestBuildWheels:
             assert "already exist" in agent2.report.summary
 
     @pytest.mark.asyncio
-    async def test_opposite_direction_cycles_three_wus(self, brainstorm):
+    async def test_opposite_direction_cycles_three_wus(self, case_node):
         """Test that layer-3 cycles (3 WUs) are connected via OPPOSITE_DIRECTION."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu1 = create_complete_wisdom_unit(1)
             wu2 = create_complete_wisdom_unit(2)
             wu3 = create_complete_wisdom_unit(3)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -466,11 +466,11 @@ class TestBuildWheels:
             assert opposites[0].hash == cycle_b.hash
 
     @pytest.mark.asyncio
-    async def test_no_opposite_direction_for_single_wu(self, brainstorm):
+    async def test_no_opposite_direction_for_single_wu(self, case_node):
         """Test that single-WU cycles have no OPPOSITE_DIRECTION."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu = create_complete_wisdom_unit(0)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -485,12 +485,12 @@ class TestBuildWheels:
             assert len(opposites) == 0
 
     @pytest.mark.asyncio
-    async def test_no_opposite_direction_for_pair_cycles(self, brainstorm):
+    async def test_no_opposite_direction_for_pair_cycles(self, case_node):
         """Test that pair cycles (2 WUs) have no OPPOSITE_DIRECTION (no distinct reversal)."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu1 = create_complete_wisdom_unit(1)
             wu2 = create_complete_wisdom_unit(2)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -509,12 +509,12 @@ class TestBuildWheels:
                 assert len(opposites) == 0
 
     @pytest.mark.asyncio
-    async def test_opposite_direction_wheels(self, brainstorm):
+    async def test_opposite_direction_wheels(self, case_node):
         """Test that opposite-direction wheels are detected and connected."""
-        with scope(brainstorm.sid):
+        with scope(case_node.case_id):
             wu1 = create_complete_wisdom_unit(1)
             wu2 = create_complete_wisdom_unit(2)
-            nexus = Nexus(sid=brainstorm.sid, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(

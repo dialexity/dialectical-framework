@@ -20,7 +20,7 @@ from dialectical_framework.graph.nodes.input import Input
 
 class AddInput(BaseTool):
     """
-    Add SOURCE MATERIAL for analysis to the current brainstorm.
+    Add SOURCE MATERIAL for analysis to the current case.
 
     ONLY use this for external content the user wants to analyze:
     - Text the user pastes or provides
@@ -43,25 +43,25 @@ class AddInput(BaseTool):
     async def call(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        sid: Optional[str] = Provide[DI.sid],
+        case_id: Optional[str] = Provide[DI.case_id],
     ) -> str:
-        """Add input content to the current brainstorm."""
-        # Find the brainstorm
+        """Add input content to the current case."""
+        # Find the case
         query = """
-        MATCH (b:Brainstorm {sid: $sid})
-        RETURN b
+        MATCH (c:Case {case_id: $case_id})
+        RETURN c
         """
-        results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
+        results = list(graph_db.execute_and_fetch(query, {"case_id": case_id}))
 
         if not results:
-            return f"Brainstorm not found: {sid}"
+            return f"Case not found: {case_id}"
 
-        brainstorm = results[0]["b"]
+        case = results[0]["c"]
 
         # Create and connect input
         input_node = Input(content=self.content)
         input_node.commit()
-        brainstorm.inputs.connect(input_node)
+        case.inputs.connect(input_node)
 
         # Preview for response
         preview = (
@@ -69,7 +69,7 @@ class AddInput(BaseTool):
         )
 
         return (
-            f"Added input to brainstorm.\n"
+            f"Added input to case.\n"
             f"Input hash: {input_node.short_hash}\n"
             f"Preview: {preview}\n"
             f"You can now extract theses using SurfaceTheses."

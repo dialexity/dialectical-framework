@@ -49,7 +49,7 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
     Identity is hash-based (Merkle): hash = sha256(preset + intent + committed_at).
 
     Other key properties:
-    - sid: Inherited from BaseNode - the Brainstorm's sid (required, links to parent)
+    - case_id: Inherited from BaseNode - the Case's case_id (required, links to parent)
 
     Relationships:
     - wisdom_units: WisdomUnits in this exploration (RelationshipFrom)
@@ -57,11 +57,11 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
     Note: Cycles are derived from the WUs in this Nexus, not stored as a relationship.
 
     Example:
-        brainstorm = Brainstorm()
-        brainstorm.commit()
+        case = Case()
+        case.commit()
 
         nexus = Nexus(
-            sid=brainstorm.sid,
+            case_id=case.case_id,
             intent="I want to understand the deep meaning of love",
             preset=CausalityPreset.BALANCED,
         )
@@ -107,10 +107,10 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
             Self for chaining
 
         Raises:
-            ValueError: If sid is not set
+            ValueError: If case_id is not set
         """
-        if not self.sid:
-            raise ValueError("Nexus must have sid set before commit (use Brainstorm's sid)")
+        if not self.case_id:
+            raise ValueError("Nexus must have case_id set before commit (use Case's case_id)")
 
         return super().commit(graph_db=graph_db)
 
