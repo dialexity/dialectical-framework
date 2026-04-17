@@ -56,9 +56,9 @@ Transformation - How to make sequences happen
 The causation analysis (like in your PDF) is indeed a separate and valuable analytical tool that we hadn't explicitly captured in our previous prompts.
 ```
 
-[] Control statements calculation for wisdom units
+[] Control statements calculation for perspectives
 
-[] Consolidate wisdom units if the provided theses contain among them also antitheses. The overall number of theses must be ensured still
+[] Consolidate perspectives if the provided theses contain among them also antitheses. The overall number of theses must be ensured still
 
 [] Make sure everything works when passing thesis (or multiple theses) without the context, i.e. thesis is the context and it's possible to apply dialectics purely based on semantics
 

@@ -57,14 +57,14 @@ At the core of the dialectical framework is a dialectical wheel. It is a fancy s
 The main architectural parts are:
 - Wheel
 - Wheel Segment
-- Wisdom Unit
+- Perspective
 - Dialectical Component
 - Transition
 
 
 **Wheel** is composed of segments. Think of a dialectical wheel as a pizza, a segment is a slice of pizza. In the simplest case it represents some thesis (a statement, a concept, an action, a thought, an idea, etc.). A thesis can have positive and negative things related to it. Hence, a segment of a wheel is composed of these dialectical components: a thesis (T), positive side of that thesis (T+) and a negative side of that thesis (T-). In more detailed wheels, a segment could have more than 3 layers.
 
-If we take two opposite segments, we get the basic (and the most important) structure: **Wisdom Unit** (half-wheel, verified by diagonal constraints: control statements). It's composed of:
+If we take two opposite segments, we get the basic (and the most important) structure: **Perspective** (half-wheel, verified by diagonal constraints: control statements). It's composed of:
 
 | Dialectical Component | Description                      |
 |-----------------------|----------------------------------|
@@ -77,7 +77,7 @@ If we take two opposite segments, we get the basic (and the most important) stru
 
 In a Wheel, segments next to each other are related. We wrap that relationship into a **Transition**. Practically, a Transition is a recipe for how to go from one segment to another in a way that we approach synthesis. Essentially, it shows how the negative side of a given thesis (Tn-) converts into the positive side of the following thesis (T(n+1)+). If we were to look at a wheel as a sliced pizza, the lines that separate the slices would be Transitions.
 
-If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they are symmetrical and represent a special kind of Wisdom Unit, we call it Action (Ac) and Reflection (Re). As any Wisdom Unit, Action and Reflection must be verified by diagonal constraints as well.
+If we derive Transitions in a Wheel with only 2 segments (aka half-wheel), they are symmetrical and represent a special kind of Perspective, we call it Action (Ac) and Reflection (Re). As any Perspective, Action and Reflection must be verified by diagonal constraints as well.
 
 ## Prototyping & App Ideas
 

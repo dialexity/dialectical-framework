@@ -11,7 +11,7 @@ A semantic graph system for dialectical reasoning - modeling thesis-antithesis-s
 Think of a Dialectical Wheel as a pizza:
 - **Wheel** = entire pizza (top-level container)
 - **Segment** = pizza slice (contains T, T+, T- components)
-- **WisdomUnit** = half-pizza (T-segment + opposing A-segment)
+- **Perspective** = half-pizza (T-segment + opposing A-segment)
 
 ### Key Positions (6 core + 2 synthesis)
 
@@ -34,25 +34,25 @@ Think of a Dialectical Wheel as a pizza:
   - Each edge can have multiple Transformation alternatives at different insight/proactiveness levels
   - Source/target segments derived from Ac+ transition's source/target components
 - **Synthesis**: Emergent S+/S- pair from Transformation
-- **Cycle**: T-cycle - ordered sequence of WisdomUnits defining abstract thesis causality
-  - Stores WU hashes directly (cycle.wisdom_unit_hashes)
+- **Cycle**: T-cycle - ordered sequence of Perspectives defining abstract thesis causality
+  - Stores PP hashes directly (cycle.perspective_hashes)
   - Intent field for dynamics type ("preset:balanced", "preset:realistic", etc.)
-- **Wheel**: Concrete T-A arrangement implementing a subset of Cycle's WUs
-  - `_wisdom_units`: WUs derived from edge components (internal)
-  - `polarity_count`: number of WUs (derived from edges)
+- **Wheel**: Concrete T-A arrangement implementing a subset of Cycle's PPs
+  - `_perspectives`: PPs derived from edge components (internal)
+  - `polarity_count`: number of PPs (derived from edges)
   - Contains `edges` (causality sequence / ta_cycle level)
   - Transformations belong to individual edges (access via `wheel.transformations`)
-  - Wheels are reused across Cycles if same WU set (rotation-invariant hash)
+  - Wheels are reused across Cycles if same PP set (rotation-invariant hash)
 - **Input**: External content source (URL/IPFS) linked to extracted components
 - **Ideas**: Container of distilled concepts from an Input (uses IncrementalBuildMixin: save → add statements → commit)
 - **Case**: Multi-input exploration container with unified vocabulary
 
-**Hierarchy:** WisdomUnit → Cycle → Wheel (edges) → Transformation
+**Hierarchy:** Perspective → Cycle → Wheel (edges) → Transformation
 **Case flow:** Case → Input → Ideas → Components
 
-**Exploration flow:** WisdomUnits → Nexus (exploration context) → Cycles (T-cycle orderings) → Wheels (TA arrangements)
+**Exploration flow:** Perspectives → Nexus (exploration context) → Cycles (T-cycle orderings) → Wheels (TA arrangements)
 
-- **Nexus**: Required exploration container for WisdomUnits. Groups WUs with a specific intent for layer-by-layer combination into Cycles and Wheels.
+- **Nexus**: Required exploration container for Perspectives. Groups PPs with a specific intent for layer-by-layer combination into Cycles and Wheels.
 
 **DEPRECATED nodes (kept for backwards compatibility):**
 - **Spiral**: Replaced by Transformations on edges
@@ -66,10 +66,10 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 | **Discovery** | (Gathering) | What sources to explore? | Ideas |
 | **Focus** | What? | What tensions exist? | Cycle |
 | **Dynamics** | So What? | Why do they matter? | Cycle (intent field) |
-| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation, Wheel |
+| **Path** | Now What? | How to navigate? | Perspective, Transformation, Wheel |
 | **Synthesis** | (Outcome) | What emerges? | Synthesis |
 
-**Nodes with IntentMixin:** Ideas, Cycle, WisdomUnit, Transformation, Synthesis, Wheel
+**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Synthesis, Wheel
 
 Note: Case does not have intent - it's a container for inputs.
 
@@ -109,33 +109,33 @@ for tr in wheel.transformations:
 
 ### Cardinality Design: Where to Branch
 
-**Cycle is a snapshot:** Contains ordered WU hashes directly. Once committed, immutable.
+**Cycle is a snapshot:** Contains ordered PP hashes directly. Once committed, immutable.
 
-**Wheel implements subset of Cycle:** Each Wheel uses a subset of the Cycle's WUs, building up in layers.
+**Wheel implements subset of Cycle:** Each Wheel uses a subset of the Cycle's PPs, building up in layers.
 
 **To explore different paths, branch upstream:**
 - Different transformation interpretations → Create different **Transformations** on same edge
-- Different WU pools → Create different **Cycles** within the same **Nexus**
-- Different WU arrangements → Create different **Wheels** for the same **Cycle**
+- Different PP pools → Create different **Cycles** within the same **Nexus**
+- Different PP arrangements → Create different **Wheels** for the same **Cycle**
 
 Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on Transformation.
 
 ### Layered Combination Model
 
-**Nexus-based exploration:** All Cycles/Wheels are generated from a Nexus containing WisdomUnits.
-The layer structure is implicit in the WU overlap:
+**Nexus-based exploration:** All Cycles/Wheels are generated from a Nexus containing Perspectives.
+The layer structure is implicit in the PP overlap:
 
 ```
-Given Nexus with [WU1, WU2, WU3]:
+Given Nexus with [PP1, PP2, PP3]:
 
-Layer 1:  Cycle(WU1)    Cycle(WU2)    Cycle(WU3)
-Layer 2:  Cycle(WU1,WU2)  Cycle(WU1,WU3)  Cycle(WU2,WU3)
-Layer 3:  Cycle(WU1,WU2,WU3)
+Layer 1:  Cycle(PP1)    Cycle(PP2)    Cycle(PP3)
+Layer 2:  Cycle(PP1,PP2)  Cycle(PP1,PP3)  Cycle(PP2,PP3)
+Layer 3:  Cycle(PP1,PP2,PP3)
 
 Each Cycle can have multiple Wheels (different TA arrangements).
 ```
 
-**Wheel reuse:** Wheels with same WU set (rotation-invariant hash) are reused across Cycles.
+**Wheel reuse:** Wheels with same PP set (rotation-invariant hash) are reused across Cycles.
 
 **Transformation context:** When computing Transformations for a wheel, use related wheels'
 Transformations as input (coarse → fine refinement).
@@ -148,7 +148,7 @@ The graph separates relationships into two layers:
 
 **Structural Layer** (immutable after commit):
 - Forms the Merkle-tree backbone (hash-linked)
-- Components, WisdomUnits, Ideas, Cycle, Wheel, Transitions
+- Components, Perspectives, Ideas, Cycle, Wheel, Transitions
 - Base classes: `IdentityRelationship`, `ContainerMembership`, `OutgoingContainerMembership`
 
 **Analytical Layer** (can evolve anytime):
@@ -166,14 +166,14 @@ transformation.commit()
 transition.cycle.connect(transformation)  # BLOCKED
 
 # Analytical: always allowed
-transformation.ac_re.connect(new_wu)      # OK even after commit
+transformation.ac_re.connect(new_pp)      # OK even after commit
 ```
 
 See `docs/graph.md` → "Structural vs Analytical Layers" for full details.
 
 ### Semantic Relationships (auto-created)
 
-When connecting components to WisdomUnit positions, semantic relationships are automatically created:
+When connecting components to Perspective positions, semantic relationships are automatically created:
 
 | Relationship | Direction | When Created |
 |--------------|-----------|--------------|
@@ -247,7 +247,7 @@ src/dialectical_framework/
 ├── dialectical_reasoning.py  # DI container (START HERE)
 │
 ├── graph/                    # Core graph-native data model
-│   ├── nodes/               # BaseNode → AssessableEntity → {Component, WU, Wheel, ...}
+│   ├── nodes/               # BaseNode → AssessableEntity → {Component, PP, Wheel, ...}
 │   ├── mixins/              # Shared node behaviors (IntentMixin)
 │   ├── relationships/       # Polarity, opposition relationship models
 │   ├── scoring/             # TaroRank: Score = P × R^α
@@ -263,13 +263,13 @@ src/dialectical_framework/
 │
 ├── agents/                  # LLM-driven agentic orchestrators
 │   ├── executable_capability.py  # Adapter: makes features agent-usable
-│   ├── analyst/            # Analysis mode: Input → Ideas → WisdomUnits
+│   ├── analyst/            # Analysis mode: Input → Ideas → Perspectives
 │   │   ├── skills/         # Reasoning brain centers
 │   │   │   ├── anchoring.py        # Thesis surfacing & anchoring
 │   │   │   ├── polarity.py         # Antithesis finding & polarity creation
-│   │   │   └── wisdom.py           # WisdomUnit building
+│   │   │   └── wisdom.py           # Perspective building
 │   │   └── tools/          # Mirascope tools for analyst
-│   ├── explorer/           # Exploration mode: WU pool → Cycles → Wheels
+│   ├── explorer/           # Exploration mode: PP pool → Cycles → Wheels
 │   │   ├── skills/
 │   │   │   ├── causality.py        # Cycle & Wheel arrangement
 │   │   │   └── transformation.py   # Action-Reflection transformation
@@ -277,7 +277,7 @@ src/dialectical_framework/
 │   └── orchestrator/       # Conversation layer, delegates to analyst/explorer
 │
 ├── synthesist/              # Reasoning engines
-│   ├── polarity/           # Polar reasoning (PolarReasoner, WisdomUnit building)
+│   ├── polarity/           # Polar reasoning (PolarReasoner, Perspective building)
 │   ├── causality/          # Order transitions (preset:balanced, preset:realistic, etc.)
 │   ├── concepts/           # Concept extraction
 │   └── wisdom/             # Transition analysis & validation
@@ -372,7 +372,7 @@ component.commit()  # save + compute hash in one step
 ```python
 # Pattern: save() → add members → commit()
 transformation = Transformation()
-transformation.set_wisdom_unit(wu)
+transformation.set_perspective(pp)
 transformation.save()  # HEAD state - no hash yet
 
 # Add members while uncommitted
@@ -384,19 +384,19 @@ transformation.commit()  # Computes hash from members, makes immutable
 
 **Relationship operations:**
 ```python
-wu = WisdomUnit()
-wu.save()
+pp = Perspective()
+pp.save()
 
 # Connect (child→parent direction)
-wu.t.connect(component)
+pp.t.connect(component)
 
 # Access
-result = wu.t.get()  # Returns (node, relationship) or None
-all_items = wu.t.all()  # Returns [(node, rel), ...]
-count = wu.t.count()
+result = pp.t.get()  # Returns (node, relationship) or None
+all_items = pp.t.all()  # Returns [(node, rel), ...]
+count = pp.t.count()
 
 # Disconnect
-wu.t.disconnect(component)
+pp.t.disconnect(component)
 ```
 
 ### Relationship Pattern (CRITICAL)
@@ -405,26 +405,26 @@ RelationshipTo and RelationshipFrom define the **SAME edge** from different pers
 
 ```python
 # Child defines outgoing edge TO parent
-class WisdomUnit(AssessableEntity):
-    nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")  # WU→Nexus
+class Perspective(AssessableEntity):
+    nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")  # PP→Nexus
 
 # Parent sees incoming edge FROM children (SAME edge!)
 class Nexus(AssessableEntity):
-    wisdom_units = RelationshipFrom("WisdomUnit", "BELONGS_TO_NEXUS")
+    perspectives = RelationshipFrom("Perspective", "BELONGS_TO_NEXUS")
 ```
 
 **Convention**: Child→Parent edges use `RelationshipTo` on child.
 
 **Full hierarchy (simplified):**
 ```
-WU.nexus → Nexus.wisdom_units (reverse)
+PP.nexus → Nexus.perspectives (reverse)
 Cycle.wheels → Wheel
-Cycle.wisdom_unit_hashes → [WU hashes] (field, not relationship)
+Cycle.perspective_hashes → [PP hashes] (field, not relationship)
 ```
 
 **Complete scoring hierarchy:**
 ```
-Component → WU → Cycle → Wheel
+Component → PP → Cycle → Wheel
     │        ▲            ▲
     │        │            │
     │   Transformation ← Synthesis
@@ -561,7 +561,7 @@ Since different users/sessions have different `case_id` values, unscoped queries
 # GOOD - Use repository methods (case_id auto-injected)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
-from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
 
 repo = NodeRepository()
 node = repo.find_by_hash("abc123...")       # Scoped by case_id
@@ -570,11 +570,11 @@ nodes = repo.find_by_origin("origin_hash")  # Scoped by case_id
 
 comp_repo = DialecticalComponentRepository()
 vocab = comp_repo.get_vocabulary()                    # Scoped by case_id
-comps = comp_repo.find_by_wisdom_unit(wu)             # Validates WU belongs to scope
+comps = comp_repo.find_by_perspective(pp)             # Validates PP belongs to scope
 
-wu_repo = WisdomUnitRepository()
-wus = wu_repo.find_by_dialectical_component(comp)    # Validates component belongs to scope
-wu_repo.safe_delete(wu)                               # Validates WU belongs to scope
+pp_repo = PerspectiveRepository()
+pps = pp_repo.find_by_dialectical_component(comp)    # Validates component belongs to scope
+pp_repo.safe_delete(pp)                               # Validates PP belongs to scope
 
 # BAD - Raw queries without case_id scoping (DATA LEAK RISK!)
 graph_db.execute_and_fetch("MATCH (n:Node {hash: $hash}) RETURN n", {"hash": hash})
@@ -585,7 +585,7 @@ graph_db.execute_and_fetch("MATCH (n:Node {hash: $hash}) RETURN n", {"hash": has
 **Key repositories:**
 - `NodeRepository` - Hash lookups, lineage queries
 - `DialecticalComponentRepository` - Vocabulary queries
-- `WisdomUnitRepository` - WU lifecycle and usage queries
+- `PerspectiveRepository` - PP lifecycle and usage queries
 
 ---
 
@@ -719,7 +719,7 @@ def get_items() -> List[str]:  # Don't use List
 
 ### Key Test Files
 
-- `test_graph.py` (64KB): Core graph operations, WisdomUnits, components
+- `test_graph.py` (64KB): Core graph operations, Perspectives, components
 - `test_tarorank.py` (48KB): Comprehensive scoring tests
 - `test_synthesist.py`: Reasoning engines
 - `conftest.py`: DI setup and fixtures
@@ -741,16 +741,16 @@ def di_container():
 ### Writing Tests
 
 ```python
-def test_create_wisdom_unit():
-    wu = WisdomUnit()
-    wu.save()
+def test_create_perspective():
+    pp = Perspective()
+    pp.save()
 
     t = DialecticalComponent(statement="Democracy empowers citizens")
     t.save()
-    wu.t.connect(t)
+    pp.t.connect(t)
 
-    assert wu.t.count() == 1
-    result = wu.t.get()
+    assert pp.t.count() == 1
+    result = pp.t.get()
     assert result is not None
     component, rel = result
     assert component.statement == "Democracy empowers citizens"

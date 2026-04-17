@@ -5,7 +5,7 @@ Graph-native dialectical framework using Memgraph/Neo4j.
 ## Node Hierarchy
 
 ```
-WisdomUnit → Cycle → Wheel (edges) → Transformation
+Perspective → Cycle → Wheel (edges) → Transformation
      │          │        │               │
    (tetrad)  (T-cycle) (TA-cycle)    (per-edge)
                          │
@@ -13,13 +13,13 @@ WisdomUnit → Cycle → Wheel (edges) → Transformation
 ```
 
 **Simplified model:**
-- **WisdomUnit**: Tetrad (T, A, T+, T-, A+, A-) — atomic polar structure
-- **Cycle**: T-cycle — ordered sequence of WUs defining abstract thesis causality
+- **Perspective**: Tetrad (T, A, T+, T-, A+, A-) — atomic polar structure
+- **Cycle**: T-cycle — ordered sequence of PPs defining abstract thesis causality
 - **Wheel**: TA-cycle — concrete arrangement with edges between components
 - **Transformation**: Action-Reflection structure per edge (Ac, Re, Ac+, Ac-, Re+, Re-)
 
 **Evolution model:**
-- Cycles evolve by adding WUs to the pool (Cycle → `evolutions` → child Cycle)
+- Cycles evolve by adding PPs to the pool (Cycle → `evolutions` → child Cycle)
 - Wheels grow in layers within a Cycle's pool (Wheel → `evolutions` → child Wheel)
 - All wheels in an evolution chain point to the same parent Cycle
 
@@ -28,8 +28,8 @@ WisdomUnit → Cycle → Wheel (edges) → Transformation
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
 | **DialecticalComponent** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
-| **WisdomUnit** | Thesis-antithesis tetrad | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus` |
-| **Cycle** | T-cycle (ordered WU pool) | `wisdom_unit_hashes`, `wheels`, `evolutions`, `evolved_from` |
+| **Perspective** | Thesis-antithesis tetrad | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus` |
+| **Cycle** | T-cycle (ordered PP pool) | `perspective_hashes`, `wheels`, `evolutions`, `evolved_from` |
 | **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `evolutions`, `evolved_from` |
 | **Transition** | Edge between components | `source`, `target`, `cycle` (→Wheel) |
 | **Transformation** | Action-Reflection per edge | `edge` (→Transition), `ac_re`, `synthesis` (0-N) |
@@ -41,7 +41,7 @@ WisdomUnit → Cycle → Wheel (edges) → Transformation
 | **Case** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
 
 **DEPRECATED** (kept for backwards compatibility):
-- **Nexus**: Replaced by Cycle storing WU hashes directly
+- **Nexus**: Replaced by Cycle storing PP hashes directly
 - **Spiral**: Replaced by Transformations on edges
 
 ## Intent Levels
@@ -53,10 +53,10 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 | **Discovery** | (Gathering) | What sources to explore? | Ideas | "economic_articles", "ethical_perspectives" |
 | **Focus** | What? | What tensions exist? | Cycle | "economic_vs_social", "sustainability" |
 | **Dynamics** | So What? | Why do they matter? | Cycle (intent field) | "preset:balanced", "preset:realistic" |
-| **Path** | Now What? | How to navigate? | WisdomUnit, Transformation, Wheel | "preset:general_concepts", "growth_based" |
+| **Path** | Now What? | How to navigate? | Perspective, Transformation, Wheel | "preset:general_concepts", "growth_based" |
 | **Synthesis** | (Outcome) | What emerges? | Synthesis | "practical_compromise" |
 
-**Nodes with IntentMixin:** Ideas, Cycle, WisdomUnit, Transformation, Synthesis, Wheel
+**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Synthesis, Wheel
 
 **Intent inheritance:** Wheels inherit intent from parent Wheel (via `evolved_from`) or from Cycle. Use `get_effective_intent()` to resolve.
 
@@ -64,7 +64,7 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 
 ## Transformation Model
 
-**Transformations belong to edges (Transitions)**, not WisdomUnits:
+**Transformations belong to edges (Transitions)**, not Perspectives:
 
 ```
 Wheel
@@ -89,11 +89,11 @@ Wheel
 Transformations use parent wheel's Transformations as computation context (coarse → fine refinement):
 
 ```
-Layer 1:  Wheel(WU1) ── Transformation (coarse)
+Layer 1:  Wheel(PP1) ── Transformation (coarse)
               │
-Layer 2:  Wheel(WU1,WU2) ── Transformation (refines Layer 1)
+Layer 2:  Wheel(PP1,PP2) ── Transformation (refines Layer 1)
               │
-Layer 3:  Wheel(WU1,WU2,WU3) ── Transformation (refines Layer 2)
+Layer 3:  Wheel(PP1,PP2,PP3) ── Transformation (refines Layer 2)
 ```
 
 **Context is snapshot-based:** The parent's Transformations are input to computing child Transformations. No bidirectional feedback.
@@ -102,42 +102,42 @@ Layer 3:  Wheel(WU1,WU2,WU3) ── Transformation (refines Layer 2)
 
 ### Cycle Evolution
 
-Cycles evolve by adding WisdomUnits to the pool:
+Cycles evolve by adding Perspectives to the pool:
 
 ```
-Cycle [WU1] ──evolutions──► Cycle [WU1, WU2] ──evolutions──► Cycle [WU1, WU2, WU3]
+Cycle [PP1] ──evolutions──► Cycle [PP1, PP2] ──evolutions──► Cycle [PP1, PP2, PP3]
 ```
 
-**Note:** Adding a WU can create multiple child Cycles with different orderings:
-- Cycle [WU1, WU2] + WU3 → Cycle [WU1, WU2, WU3] (different causalities possible)
+**Note:** Adding a PP can create multiple child Cycles with different orderings:
+- Cycle [PP1, PP2] + PP3 → Cycle [PP1, PP2, PP3] (different causalities possible)
 
 ### Wheel Evolution (Layered Growth)
 
-Wheels grow in layers within a Cycle's WU pool:
+Wheels grow in layers within a Cycle's PP pool:
 
 ```
-Given Cycle [WU1, WU2, WU3]:
+Given Cycle [PP1, PP2, PP3]:
 
-Layer 1:  Wheel(WU1)    Wheel(WU2)    Wheel(WU3)
+Layer 1:  Wheel(PP1)    Wheel(PP2)    Wheel(PP3)
               │             │             │
-Layer 2:  Wheel(WU1,WU2)  ...          ...
+Layer 2:  Wheel(PP1,PP2)  ...          ...
               │
-Layer 3:  Wheel(WU1,WU2,WU3)
+Layer 3:  Wheel(PP1,PP2,PP3)
 ```
 
 **All wheels in an evolution chain point to the same parent Cycle.**
 
 ### Wheel Reuse
 
-Wheels with the same WU set (rotation-invariant hash) are reused across branches:
+Wheels with the same PP set (rotation-invariant hash) are reused across branches:
 
 ```
              Cycle A                    Cycle B
                 │                          │
-    Wheel(WU1,WU2) ◄─────────────────► Wheel(WU1,WU2)  [SAME wheel reused]
+    Wheel(PP1,PP2) ◄─────────────────► Wheel(PP1,PP2)  [SAME wheel reused]
 ```
 
-**Rotation-invariant:** `Wheel(WU1→WU2)` and `Wheel(WU2→WU1)` hash to the same canonical form.
+**Rotation-invariant:** `Wheel(PP1→PP2)` and `Wheel(PP2→PP1)` hash to the same canonical form.
 
 ### Intent Inheritance
 
@@ -149,7 +149,7 @@ Resolve intent via `get_effective_intent()`:
 
 ## Case Layer
 
-The Case layer provides multi-input exploration before WisdomUnit construction:
+The Case layer provides multi-input exploration before Perspective construction:
 
 ```
 Case (multi-input exploration)
@@ -170,7 +170,7 @@ Case (multi-input exploration)
 
 **Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
 
-**Vocabulary:** `repo.get_vocabulary()` returns all DialecticalComponents in the current scope. This enables cross-input WisdomUnit construction.
+**Vocabulary:** `repo.get_vocabulary()` returns all DialecticalComponents in the current scope. This enables cross-input Perspective construction.
 
 ### Usage
 
@@ -210,14 +210,14 @@ with scope(case.case_id):
 
 ### Cycle as Snapshot
 
-**Critical:** A Cycle contains specific WU hashes (ordered), not "latest" WUs. It is a snapshot.
+**Critical:** A Cycle contains specific PP hashes (ordered), not "latest" PPs. It is a snapshot.
 
-When a WU pool needs to grow:
+When a PP pool needs to grow:
 - The original Cycle remains (immutable once committed)
-- Create a new Cycle with the additional WU via `evolutions` relationship
+- Create a new Cycle with the additional PP via `evolutions` relationship
 
 ```
-Cycle₁ [WU1, WU2] ──evolutions──► Cycle₂ [WU1, WU2, WU3]
+Cycle₁ [PP1, PP2] ──evolutions──► Cycle₂ [PP1, PP2, PP3]
 ```
 
 ### Where Branching Happens
@@ -225,9 +225,9 @@ Cycle₁ [WU1, WU2] ──evolutions──► Cycle₂ [WU1, WU2, WU3]
 To explore different dialectical paths, branch at the appropriate upstream level:
 
 ```
-Different polar interpretations         → Create different WisdomUnits
-Different WU pools                      → Create different Cycles (via evolutions)
-Different WU orderings/causality types  → Create different Cycles
+Different polar interpretations         → Create different Perspectives
+Different PP pools                      → Create different Cycles (via evolutions)
+Different PP orderings/causality types  → Create different Cycles
 Different layer subsets                 → Create different Wheels (via evolutions)
 Different transformation interpretations → Create different Transformations on same edge
 ```
@@ -235,15 +235,15 @@ Different transformation interpretations → Create different Transformations on
 **Example:** Exploring different transformation paths:
 
 ```
-Cycle [WU1, WU2, WU3]
+Cycle [PP1, PP2, PP3]
      │
-     ├── Wheel(WU1) ── Transformation A (fear-based)
+     ├── Wheel(PP1) ── Transformation A (fear-based)
      │       │
-     │       └── Wheel(WU1,WU2) ── Transformation (refines A)
+     │       └── Wheel(PP1,PP2) ── Transformation (refines A)
      │
-     └── Wheel(WU1) ── Transformation B (growth-based)  [different Transformation on same edge]
+     └── Wheel(PP1) ── Transformation B (growth-based)  [different Transformation on same edge]
              │
-             └── Wheel(WU1,WU2) ── Transformation (refines B)
+             └── Wheel(PP1,PP2) ── Transformation (refines B)
 ```
 
 ### Multiple Synthesis Interpretations
@@ -268,9 +268,9 @@ The graph architecture separates into two distinct layers.
 
 Think of the structural layer as a **3D tree growing downward**:
 
-- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → WU → Components)
-- **Horizontal dimension**: Sibling relationships (multiple WUs in a Cycle, multiple Wheels per Cycle)
-- **Depth dimension**: Branching via evolution (Cycle₁ → Cycle₂ with added WU)
+- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → PP → Components)
+- **Horizontal dimension**: Sibling relationships (multiple PPs in a Cycle, multiple Wheels per Cycle)
+- **Depth dimension**: Branching via evolution (Cycle₁ → Cycle₂ with added PP)
 
 **Properties:**
 - **Hash-linked**: Each node's hash includes its children's hashes (Merkle tree)
@@ -280,9 +280,9 @@ Think of the structural layer as a **3D tree growing downward**:
 | Node | Role in Structure |
 |------|-------------------|
 | DialecticalComponent | Atomic leaves (statements) |
-| WisdomUnit | Polar tetrads (T/A with +/-) |
+| Perspective | Polar tetrads (T/A with +/-) |
 | Transition | Edges between components |
-| Cycle | T-cycle (ordered WU pool + intent) |
+| Cycle | T-cycle (ordered PP pool + intent) |
 | Wheel | TA-cycle (edges implementing Cycle's pool) |
 | Transformation | Action-Reflection per edge |
 
@@ -306,7 +306,7 @@ Think of the analytical layer as **pins and sticky notes** attached to the struc
 | Estimation | Any AssessableEntity (P/R values) |
 | Critique | Rationales (audit/challenge) |
 | Synthesis | Transformation (emergent S+/S-) |
-| ac_re WU | Transformation (action-reflection context) |
+| ac_re PP | Transformation (action-reflection context) |
 
 ### Why This Separation?
 
@@ -368,8 +368,8 @@ transformation.commit()
 transition.cycle.connect(transformation)  # BLOCKED - container committed
 
 # Analytical: attach/detach anytime
-transformation.ac_re.connect(new_wu)  # OK even after commit
-transformation.ac_re.disconnect(old_wu)  # OK - just removes annotation
+transformation.ac_re.connect(new_pp)  # OK even after commit
+transformation.ac_re.disconnect(old_pp)  # OK - just removes annotation
 rationale.set_explanation_target(any_node)  # OK - pointing into structure
 ```
 
@@ -377,20 +377,20 @@ rationale.set_explanation_target(any_node)  # OK - pointing into structure
 
 **The simplified hierarchy:**
 ```
-WisdomUnit → Cycle → Wheel → Transformation
+Perspective → Cycle → Wheel → Transformation
      ↓          ↓       ↓          ↓
   (tetrad)  (T-cycle) (edges)  (per-edge)
 ```
 
 **Evolution hierarchy:**
 ```
-Cycle ──evolutions──► Cycle' (WU added)
+Cycle ──evolutions──► Cycle' (PP added)
 Wheel ──evolutions──► Wheel' (layer added)
 ```
 
 **Complete scoring hierarchy (child → parent edges):**
 ```
-DialecticalComponent ──► WisdomUnit
+DialecticalComponent ──► Perspective
                               │
 Transition ──► Wheel ◄────────┘ (via edges)
                 │
@@ -458,23 +458,23 @@ Components have semantic relationships that capture dialectical structure:
 | `NEGATIVE_SIDE_OF` | T- → T, A- → A | Negative aspect of neutral |
 | `SIMILAR_TO` | Directed | Semantic similarity between components |
 
-**Auto-creation:** When connecting components to WisdomUnit positions, semantic relationships are automatically created:
+**Auto-creation:** When connecting components to Perspective positions, semantic relationships are automatically created:
 
 ```python
-wu = WisdomUnit()
-wu.save()
+pp = Perspective()
+pp.save()
 
 t = DialecticalComponent(statement="Democracy")
 t.save()
-wu.t.connect(t)
+pp.t.connect(t)
 
 a = DialecticalComponent(statement="Autocracy")
 a.save()
-wu.a.connect(a)  # Auto-creates: t.oppositions ↔ a
+pp.a.connect(a)  # Auto-creates: t.oppositions ↔ a
 
 t_plus = DialecticalComponent(statement="Citizen empowerment")
 t_plus.save()
-wu.t_plus.connect(t_plus)  # Auto-creates: t_plus.positive_side_of → t
+pp.t_plus.connect(t_plus)  # Auto-creates: t_plus.positive_side_of → t
                            # Auto-creates: t_plus.oppositions ↔ a_minus (if exists)
 ```
 
@@ -507,7 +507,7 @@ for pos, _ in component.positive_sides.all():
 | **PM (p=4)** | Symmetric pairs (T↔A) |
 | **Product** | Sequential probability (cycle transitions) |
 
-**Score flow:** Component → WU → Cycle → Wheel (child to parent)
+**Score flow:** Component → PP → Cycle → Wheel (child to parent)
 
 **Wheel aggregation:** Wheel scores derive from edges and their Transformations.
 
@@ -560,7 +560,7 @@ wheel.commit()  # Computes hash from edges, makes immutable
 ## Common Operations
 
 ```python
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.transition import Transition
@@ -569,22 +569,22 @@ from dialectical_framework.graph.nodes.dialectical_component import DialecticalC
 from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
-# Create WisdomUnits with components
-wu1 = WisdomUnit()
-wu1.save()
+# Create Perspectives with components
+pp1 = Perspective()
+pp1.save()
 t1 = DialecticalComponent(statement="Remote work improves focus")
 t1.commit()
-wu1.t.connect(t1, relationship=TRelationship(alias='T1'))
+pp1.t.connect(t1, relationship=TRelationship(alias='T1'))
 # ... add other components (t_plus, t_minus, a, a_plus, a_minus)
-wu1.commit()
+pp1.commit()
 
-wu2 = WisdomUnit()
+pp2 = Perspective()
 # ... similar setup
-wu2.commit()
+pp2.commit()
 
-# Create Cycle with ordered WUs
+# Create Cycle with ordered PPs
 cycle = Cycle(intent="preset:balanced")
-cycle.set_wisdom_units([wu1, wu2])
+cycle.set_perspectives([pp1, pp2])
 cycle.commit()
 
 # Create Wheel with edges
@@ -608,9 +608,9 @@ transformation.save()
 # ... add ac_plus, re_plus transitions
 transformation.commit()
 
-# Access WisdomUnits from Wheel (derived from edges)
-for wu in wheel._wisdom_units:
-    print(f"WU: {wu.short_hash}")
+# Access Perspectives from Wheel (derived from edges)
+for pp in wheel._perspectives:
+    print(f"PP: {pp.short_hash}")
 
 # Access Transformations
 for tr in wheel.transformations:

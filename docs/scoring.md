@@ -74,8 +74,8 @@ The scoring system is built on the `Assessable` protocol with the following inhe
   - `AssessableCycle` - Abstract base for cycles (inherits from Assessable)
     - `Cycle` - Sequences of transitions between components
     - `Spiral` - Transformational cycles between segments
-  - `WisdomUnit` - Thesis-antithesis pairs with synthesis and transformation
-  - `Nexus` - Pool of WisdomUnits where collective insights emerge (staging area before cycle arrangement)
+  - `Perspective` - Thesis-antithesis pairs with synthesis and transformation
+  - `Nexus` - Pool of Perspectives where collective insights emerge (staging area before cycle arrangement)
   - `Wheel` - Complete dialectical systems (detailed implementation of a cycle arrangement)
 
 **Key Behavioral Differences:**
@@ -99,11 +99,11 @@ Level 4: Cycle
          ├─ Includes cycle-level Transition Rs
          └─ Includes cycle-level Rationale Rs
 
-Level 3: Nexus (pool of WisdomUnits)
-         ├─ Aggregates all WisdomUnit Rs (GM)
+Level 3: Nexus (pool of Perspectives)
+         ├─ Aggregates all Perspective Rs (GM)
          └─ Includes nexus-level Rationale Rs
 
-Level 2: WisdomUnit
+Level 2: Perspective
          ├─ Aggregates both WheelSegment Rs (T-side + A-side)
          ├─ Includes Transformation R (internal spiral, includes ac_re R and Synthesis R)
          └─ Includes unit-level Rationale Rs
@@ -142,14 +142,14 @@ Level 3: Cycle (Product of transitions - sequential)
          ├─ Product of member Transition probabilities (in sequence)
          └─ Does NOT include Nexus P (Nexus feeds into Wheel, not Cycle)
 
-Level 2: Nexus (GM of WUs - parallel/independent pool)
-         └─ GM of WisdomUnit transformation probabilities
+Level 2: Nexus (GM of PPs - parallel/independent pool)
+         └─ GM of Perspective transformation probabilities
 
 Level 1: Transition (leaf for probability)
          ├─ Manual probability × confidence
          └─ Transition-level rationale probabilities × confidence
 
-         WisdomUnit (feeds into Nexus P)
+         Perspective (feeds into Nexus P)
          └─ Transformation probability (internal spiral product)
 
          Rationale (evidence, contributes to P when it has probability data)
@@ -213,7 +213,7 @@ SCORING FLOW (scores aggregate upward):
 
                                     ┌─────────────────────────────────────────────┐
                                     ▼                                             │
-DialecticalComponent ──► WisdomUnit ──► Nexus ──► Cycle ──► Wheel                 │
+DialecticalComponent ──► Perspective ──► Nexus ──► Cycle ──► Wheel                 │
        │                     ▲                               ▲                    │
        │                     │                               │                    │
        │              Transformation ◄── Synthesis           │                    │
@@ -229,12 +229,12 @@ Rationale ──► (any AssessableEntity)
 
 | From (Child) | To (Parent) | Edge Type | Meaning |
 |--------------|-------------|-----------|---------|
-| DialecticalComponent | WisdomUnit | T/A/T+/T-/A+/A- (polarity) | Component score contributes to WU |
+| DialecticalComponent | Perspective | T/A/T+/T-/A+/A- (polarity) | Component score contributes to PP |
 | DialecticalComponent | Synthesis | S+/S- (polarity) | Component score contributes to Synthesis |
 | Synthesis | Transformation | SYNTHESIS_OF | Synthesis score contributes to Transformation |
 | Synthesis | Spiral | SYNTHESIS_OF | Synthesis score contributes to Spiral (meta-synthesis) |
-| Transformation | WisdomUnit | IS_SPIRAL_OF | Transformation score contributes to WU |
-| WisdomUnit | Nexus | BELONGS_TO_NEXUS | WU score contributes to Nexus score |
+| Transformation | Perspective | IS_SPIRAL_OF | Transformation score contributes to PP |
+| Perspective | Nexus | BELONGS_TO_NEXUS | PP score contributes to Nexus score |
 | Nexus | Cycle | HAS_CYCLE | Nexus score contributes to Cycle score |
 | Cycle | Wheel | HAS_WHEEL | Cycle score contributes to Wheel score |
 | Transition | Cycle/Wheel/Spiral/Transformation | TRANSITION_OF | Transition score contributes to parent |
@@ -244,15 +244,15 @@ Rationale ──► (any AssessableEntity)
 
 **Invalidation Propagation:**
 
-When WisdomUnit changes:
-1. Query finds outgoing edge: `(WU)-[BELONGS_TO_NEXUS]->(Nexus)` → Nexus invalidated
+When Perspective changes:
+1. Query finds outgoing edge: `(PP)-[BELONGS_TO_NEXUS]->(Nexus)` → Nexus invalidated
 2. Query finds outgoing edge: `(Nexus)-[HAS_CYCLE]->(Cycle)` → Cycle invalidated
 3. Query finds outgoing edge: `(Cycle)-[HAS_WHEEL]->(Wheel)` → Wheel invalidated
 
 When Synthesis changes (e.g., S+ component updated):
 1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Transformation)` → Transformation invalidated
-2. Query finds outgoing edge: `(Transformation)-[IS_SPIRAL_OF]->(WU)` → WU invalidated
-3. Continues: WU → Nexus → Cycle → Wheel (as above)
+2. Query finds outgoing edge: `(Transformation)-[IS_SPIRAL_OF]->(PP)` → PP invalidated
+3. Continues: PP → Nexus → Cycle → Wheel (as above)
 
 Or for Spiral-level Synthesis:
 1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Spiral)` → Spiral invalidated
@@ -262,22 +262,22 @@ This ensures that when a scoring input changes, all nodes that depend on it are 
 
 **Multi-Parent Handling:**
 
-WisdomUnits can belong to multiple Nexuses (shared across analytical perspectives). The scoring system handles this correctly:
+Perspectives can belong to multiple Nexuses (shared across analytical perspectives). The scoring system handles this correctly:
 
-1. **Invalidation**: When a shared WU changes, ALL parent Nexuses are invalidated (the query follows all outgoing BELONGS_TO_NEXUS edges), cascading to all dependent Cycles and Wheels.
+1. **Invalidation**: When a shared PP changes, ALL parent Nexuses are invalidated (the query follows all outgoing BELONGS_TO_NEXUS edges), cascading to all dependent Cycles and Wheels.
 
-2. **Scoring**: Each node is scored once and cached via `is_score_valid()`. When scoring multiple Wheels that share a WU:
-   - First Wheel's scoring path: Wheel → Cycle → Nexus → scores WU (marked valid)
-   - Second Wheel's scoring path: Wheel → Cycle → Nexus → WU already valid (skipped)
-   - Both Nexuses read the same cached WU.probability and WU.relevance values
+2. **Scoring**: Each node is scored once and cached via `is_score_valid()`. When scoring multiple Wheels that share a PP:
+   - First Wheel's scoring path: Wheel → Cycle → Nexus → scores PP (marked valid)
+   - Second Wheel's scoring path: Wheel → Cycle → Nexus → PP already valid (skipped)
+   - Both Nexuses read the same cached PP.probability and PP.relevance values
 
 This ensures efficient scoring without redundant calculations while maintaining correctness across shared structures.
 
 ## Complete Example: How Wheel Score is Calculated
 
 ```
-Wheel: "Work Environment Optimization" (single WisdomUnit)
-└── WisdomUnit: "Productivity vs Collaboration"
+Wheel: "Work Environment Optimization" (single Perspective)
+└── Perspective: "Productivity vs Collaboration"
     ├── T-Segment (Thesis side):
     │   ├── T: "Remote work increases productivity" (R=0.8, rating=0.9)
     │   ├── T+: "Eliminates commute time" (R=0.9, rating=0.7)
@@ -306,7 +306,7 @@ External Transitions (wheel-level cycles):
 │   ├── T→A: "Productivity needs → collaboration tools" (P=0.7, R=0.6)
 │   │   └── Rationale: "Digital transformation necessity" (R=0.85, P=0.8, confidence=0.9)
 │   └── A→T: "Collaboration insights → productivity" (P=0.6, R=0.5)
-└── Spiral: T- → A+ and A- → T+ (same as WisdomUnit transformation)
+└── Spiral: T- → A+ and A- → T+ (same as Perspective transformation)
     ├── T-→A+: "Isolation → face-to-face need" (P=0.7, R=0.8)
     └── A-→T+: "Physical limits → remote benefits" (P=0.6, R=0.7)
 ```
@@ -331,20 +331,20 @@ External Transitions (wheel-level cycles):
   - Element: GM(0.85×0.8, 0.81, 0.42) = GM(0.68, 0.81, 0.42) = 0.61
 - **S-**: 0.4 × 0.3 = 0.12
 
-**Step 2: WisdomUnit R** (symmetric pairs + transformation w/ synthesis)
+**Step 2: Perspective R** (symmetric pairs + transformation w/ synthesis)
 - **T ↔ A pair**: PowerMean(0.72, 0.56, p=4) = 0.66
 - **T+ ↔ A- pair**: PowerMean(0.67, 0.20, p=4) = 0.57
 - **T- ↔ A+ pair**: PowerMean(0.32, 0.48, p=4) = 0.43
-- **Transformation R** (includes ac_re WU and Synthesis S+ ↔ S-):
+- **Transformation R** (includes ac_re PP and Synthesis S+ ↔ S-):
   - Transition Rs: GM(0.8, 0.7) = 0.75
-  - ac_re WisdomUnit R: 0.58 (action-reflection context)
+  - ac_re Perspective R: 0.58 (action-reflection context)
   - Synthesis pair: PowerMean(0.61, 0.12, p=4) = 0.51
   - **Transformation R** = GM(0.75, 0.58, 0.51) = 0.61
-- **WisdomUnit R** = GM(0.66, 0.57, 0.43, 0.61) = 0.56
+- **Perspective R** = GM(0.66, 0.57, 0.43, 0.61) = 0.56
 
-**Step 3: WisdomUnit P** (from Transformation)
+**Step 3: Perspective P** (from Transformation)
 - **Transformation P** = Product(0.7, 0.6) = 0.42
-- **WisdomUnit P** = 0.42
+- **Perspective P** = 0.42
 
 **Step 4: External Transitions (Wheel Cycles)**
 - **T-Cycle**: T→T transition P = 1.0, R = 1.0 (trivial dummy cycle)
@@ -355,7 +355,7 @@ External Transitions (wheel-level cycles):
 - **Spiral**: Same transitions as transformation = Product(0.7, 0.6) = 0.42
 
 **Step 5: Wheel Aggregation**
-- **Wheel R** = GM(WisdomUnit_r, TA_transition_rs)
+- **Wheel R** = GM(Perspective_r, TA_transition_rs)
   = GM(0.56, 0.71, 0.5) = 0.58
 - **Wheel P** = GM(T_cycle_p, TA_cycle_p, Spiral_p, unit_transformations)
   = GM(1.0, 0.43, 0.42, 0.42) = 0.55
@@ -368,7 +368,7 @@ External Transitions (wheel-level cycles):
 1. Leaves (DialecticalComponent, Transition, Rationale) never invent neutral values - they return None when there's no evidence.
 2. Empty rationales return None for both R and P calculations.
 3. **Auditor-wins semantics**: When rationales have child rationales (critiques), the critiques override the parent rationale's values at the deepest level. Multiple critiques aggregate via weighted average (if rated) or GM (if unrated).
-4. WisdomUnit axis R aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
+4. Perspective axis R aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
 5. The final wheel score in actual implementation may be lower (around 0.15) due to differences in cycle probability calculations and transition probability contributions.
 
 These implementation differences are expected and the key behaviors (leaves not inventing values, auditor-wins for critiques, power mean usage, axis veto) are correctly modeled in the system.
@@ -545,7 +545,7 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 
 * R = GM of its three DialecticalComponents (+ rated segment-level rationales).
 
-**WisdomUnit** *(non-leaf)*
+**Perspective** *(non-leaf)*
 
 * R = GM of:
 
@@ -553,16 +553,16 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
     * **T ↔ A**: Power mean of thesis and antithesis Rs
     * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis Rs
     * **T- ↔ A+**: Power mean of negative thesis and positive antithesis Rs
-  * **Transformation R** (internal spiral transitions, ac_re WisdomUnit R, and Synthesis S+ ↔ S-),
+  * **Transformation R** (internal spiral transitions, ac_re Perspective R, and Synthesis S+ ↔ S-),
   * **rated unit-level rationales**,
 
-*Note: WisdomUnit R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis R to 0.0.*
+*Note: Perspective R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing poles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on a pole collapses that axis R to 0.0.*
 
-**Nexus** *(pool of WisdomUnits)*
+**Nexus** *(pool of Perspectives)*
 
-* R = GM of all **WisdomUnit Rs** in the pool (+ rated nexus-level rationales).
-* Represents the collective quality/relevance of the WisdomUnit pool.
-* Acts as an intermediate aggregation layer between WisdomUnits and Cycles.
+* R = GM of all **Perspective Rs** in the pool (+ rated nexus-level rationales).
+* Represents the collective quality/relevance of the Perspective pool.
+* Acts as an intermediate aggregation layer between Perspectives and Cycles.
 
 **Cycle** *(T, TA, Spiral, Transformation — diagnostic)*
 
@@ -573,7 +573,7 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 
 * R = GM of:
 
-  * **Nexus R** (accessed via parent Cycle → Nexus, summarizes all WisdomUnit Rs),
+  * **Nexus R** (accessed via parent Cycle → Nexus, summarizes all Perspective Rs),
   * **Wheel-level Transition Rs** (wheel's own ta-cycle transitions only, not cycle's),
   * **Spiral R** (aggregated, if present - includes spiral transitions, synthesis, and rationales),
   * **rated wheel-level rationales**.
@@ -625,26 +625,26 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 * No cycle-level opinions in probability.
 * Cycle scores its Nexus as part of score_children but does not include Nexus P in its own P.
 
-**WisdomUnit**
+**Perspective**
 
 * P = probability of its **Transformation** cycle (the two internal transitions)
 * Represents the structural feasibility of the thesis-antithesis dialectical relationship
 
-**Nexus** *(pool of WisdomUnits)*
+**Nexus** *(pool of Perspectives)*
 
-* P = GM of all **WisdomUnit Ps** in the pool.
-* Represents the collective structural feasibility of the WisdomUnit transformations.
-* This is the summarized WU transformation probability that feeds into Wheel P.
+* P = GM of all **Perspective Ps** in the pool.
+* Represents the collective structural feasibility of the Perspective transformations.
+* This is the summarized PP transformation probability that feeds into Wheel P.
 
 **Wheel**
 
 * P = **product** of (conjunctive - all must work for Wheel to be feasible):
   * **Parent Cycle P** (product of cycle-level transitions)
-  * **Nexus P** (accessed via Cycle → Nexus, GM of WU transformation Ps)
+  * **Nexus P** (accessed via Cycle → Nexus, GM of PP transformation Ps)
   * **Wheel-level Transitions P** (product of wheel's own transitions)
   * **Spiral P** (if present)
 * Uses Product (not GM) because these are conjunctive requirements following causal/Markovian semantics
-* Nexus P uses GM internally because WUs are independent units in a pool (parallel), but at the Wheel level these components are sequential requirements
+* Nexus P uses GM internally because PPs are independent units in a pool (parallel), but at the Wheel level these components are sequential requirements
 * Keep zeros (hard constraints); skip unknowns (insufficient data)
 * If all terms are unknown → wheel P = unknown
 

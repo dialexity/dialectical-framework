@@ -19,7 +19,7 @@ A "slice" of the dialectical wheel containing three dialectical components:
 
 Supports flexible field access through both field names and aliases (e.g., accessing "t" field via "T" alias).
 
-### 3. Wisdom Unit (`wisdom_unit.py`)
+### 3. Perspective (`perspective.py`)
 The fundamental "molecule" of dialectical analysis, extending WheelSegment to include antithesis components:
 - **T, T+, T-**: Thesis and its positive/negative aspects
 - **A, A+, A-**: Antithesis and its positive/negative aspects
@@ -27,8 +27,8 @@ The fundamental "molecule" of dialectical analysis, extending WheelSegment to in
 Represents complementary opposing relationships and includes methods to swap thesis/antithesis positions and extract individual segments.
 
 ### 4. Wheel (`wheel.py`)
-The complete dialectical structure composed of multiple wisdom units arranged in a circular pattern. Manages the relationships between segments and provides methods for:
-- Accessing wisdom units by position/reference
+The complete dialectical structure composed of multiple perspectives arranged in a circular pattern. Manages the relationships between segments and provides methods for:
+- Accessing perspectives by position/reference
 - Spinning the wheel to different orientations
 - Managing cycles and spiral progressions
 - Converting to chain-of-thought representations

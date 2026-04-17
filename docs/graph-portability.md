@@ -22,7 +22,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
    - Queries and references must not accidentally cross between explorations.
 
 4. **Fork-friendly provenance**
-   - Forking points (WisdomUnit, Nexus) preserve lineage via `origin_hash` when exploring alternative framings.
+   - Forking points (Perspective, Nexus) preserve lineage via `origin_hash` when exploring alternative framings.
    - Atoms are globally shared — same content = same node, no forking needed.
 
 5. **Immutable committed state**
@@ -44,7 +44,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
 - **Meaning**: Identifies this specific node based on its content.
 - **Computed from** (varies by node category):
   - Structure parts: Node's structural content (type-specific, see tables below)
-  - `origin_hash`: Only for forking points (WisdomUnit, Nexus)
+  - `origin_hash`: Only for forking points (Perspective, Nexus)
   - `intent`: Only for intent-aware nodes
   - `committed_at`: Only for forking points and derived structures
 - **Stability**:
@@ -69,7 +69,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
 ### 3) `origin_hash` — Lineage Identity (Forking Points Only)
 - **Type**: SHA256 hex string (64 characters) or None
 - **Meaning**: Points to the hash of the node this was forked from.
-- **Available on**: WisdomUnit, Nexus only (the forking points)
+- **Available on**: Perspective, Nexus only (the forking points)
 - **Stability**:
   - Set during fork/clone operation; never changes after.
 - **Rules**:
@@ -81,7 +81,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
 ### 4) `branch` — Alternative Interpretation (Optional)
 - **Type**: String or None
 - **Meaning**: Human-readable label for alternative interpretations.
-- **Available on**: WisdomUnit, Nexus (forking points with `ForkableMixin`)
+- **Available on**: Perspective, Nexus (forking points with `ForkableMixin`)
 - **Purpose**: Label forks for easier identification (e.g., "conservative-framing", "aggressive-collection").
 
 ### 5) `committed_at` — Temporal Ordering
@@ -147,14 +147,14 @@ assert nexus._id is not None  # In database
 assert nexus.hash is None     # Not committed yet
 
 # 3. Add children incrementally
-nexus.wisdom_units.connect(wu1)
-nexus.wisdom_units.connect(wu2)
+nexus.perspectives.connect(pp1)
+nexus.perspectives.connect(pp2)
 
 # 4. Commit (computes Merkle hash, makes immutable)
 nexus.commit()
 assert nexus.is_committed
 assert nexus.hash is not None
-# Cannot add more wisdom_units after commit
+# Cannot add more perspectives after commit
 ```
 
 **Case** (scope root):
@@ -215,7 +215,7 @@ when you want to explore alternative framings or collections.
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
-| **WisdomUnit** | t.hash, t+.hash, t-.hash, a.hash, a+.hash, a-.hash, [origin_hash], [intent], committed_at | Tension framing |
+| **Perspective** | t.hash, t+.hash, t-.hash, a.hash, a+.hash, a-.hash, [origin_hash], [intent], committed_at | Tension framing |
 | **Nexus** | sorted(wu_hashes), [origin_hash], [intent], committed_at | Tension collection |
 
 ### Derived Structures
@@ -228,7 +228,7 @@ Uses `IncrementalBuildMixin` for staged building (save → add children → comm
 | **Ideas** | input.hash, sorted(statement_hashes), [intent], committed_at | Extraction (from Input) |
 | **Cycle** | nexus.hash, sorted(transition_hashes), [intent], committed_at | Ordering (from Nexus) |
 | **Wheel** | cycle.hash, sorted(transition_hashes), [intent], committed_at | Detail (from Cycle) |
-| **Transformation** | wu.hash, ordered(transition_hashes), [intent], committed_at | Resolution (from WU) |
+| **Transformation** | pp.hash, ordered(transition_hashes), [intent], committed_at | Resolution (from PP) |
 | **Spiral** | wheel.hash, sorted(transition_hashes), [intent], committed_at | Navigation (from Wheel) |
 
 [brackets] = optional, only included if non-None
@@ -236,26 +236,26 @@ Uses `IncrementalBuildMixin` for staged building (save → add children → comm
 ### Key Observations
 
 - **Atoms have no `origin_hash`**: They're global facts/effects. Same content = same node.
-- **Forking happens at WisdomUnit and Nexus**: These are the reasoning foundations.
-- **Derived structures don't fork**: To explore alternatives, fork the upstream Nexus or WU.
+- **Forking happens at Perspective and Nexus**: These are the reasoning foundations.
+- **Derived structures don't fork**: To explore alternatives, fork the upstream Nexus or PP.
 - **`committed_at`** on forking points and derived structures ensures temporal ordering.
 - **`nonce`** (Transition only) ensures uniqueness for repeated source→target pairs.
 - **Sorting** makes order-independent containers produce consistent hashes.
 
 ## Forking Semantics
 
-Forking applies only to **WisdomUnit** and **Nexus** — the reasoning foundations.
+Forking applies only to **Perspective** and **Nexus** — the reasoning foundations.
 Atoms don't fork (same content = same node globally). Derived structures don't fork (fork upstream instead).
 
 ### Why fork?
 
-- **WisdomUnit**: "I want to explore a different framing of this tension" (different T+/T-/A+/A-)
-- **Nexus**: "I want to explore a different collection of tensions" (add/remove WisdomUnits)
+- **Perspective**: "I want to explore a different framing of this tension" (different T+/T-/A+/A-)
+- **Nexus**: "I want to explore a different collection of tensions" (add/remove Perspectives)
 
 ### Fork operation
 
 ```python
-# Fork a WisdomUnit to try different polarity framing
+# Fork a Perspective to try different polarity framing
 forked_wu = original_wu.clone(destination_case_id=new_scope_case_id)
 forked_wu.t_plus.disconnect(old_component)
 forked_wu.t_plus.connect(new_component)
@@ -272,10 +272,10 @@ forked_wu.commit()
 The `origin_hash` field creates a lineage tree for forking points:
 
 ```
-WU-Original (origin_hash=None)
-    ├── WU-Fork-A (origin_hash=WU-Original.hash)
-    │       └── WU-Fork-A2 (origin_hash=WU-Fork-A.hash)
-    └── WU-Fork-B (origin_hash=WU-Original.hash)
+PP-Original (origin_hash=None)
+    ├── PP-Fork-A (origin_hash=PP-Original.hash)
+    │       └── PP-Fork-A2 (origin_hash=PP-Fork-A.hash)
+    └── PP-Fork-B (origin_hash=PP-Original.hash)
 ```
 
 Use `NodeRepository` to traverse lineage:
@@ -285,17 +285,17 @@ from dialectical_framework.graph.repositories.node_repository import NodeReposit
 
 repo = NodeRepository()
 
-# Find all WisdomUnits forked from an original
+# Find all Perspectives forked from an original
 forks = repo.find_by_origin(original_wu.hash)
 
 # Trace full ancestry chain
-lineage = repo.find_lineage(wu.hash)
+lineage = repo.find_lineage(pp.hash)
 ```
 
 ### Cross-scope references
 
 Atoms (DialecticalComponent, Input, etc.) are globally addressable by hash.
-A WisdomUnit in scope B can reference the same DialecticalComponent as one in scope A — they share the atom.
+A Perspective in scope B can reference the same DialecticalComponent as one in scope A — they share the atom.
 
 ## Short Hash Lookup
 
@@ -342,7 +342,7 @@ The following indexes support efficient lookups:
 |-------|------|---------|---------|
 | `hash` | SHA256 | All except Case | Primary identity (content-derived) |
 | `case_id` | UUID | All | Scope identity (Case's UUID) |
-| `origin_hash` | SHA256 | WisdomUnit, Nexus only | Lineage tracking for forks |
+| `origin_hash` | SHA256 | Perspective, Nexus only | Lineage tracking for forks |
 | `committed_at` | Float | Forking points + derived | Temporal ordering |
 | `intent` | String | Intent-aware nodes | Reasoning purpose |
 
@@ -353,12 +353,12 @@ The following indexes support efficient lookups:
 | Container | Case | No | Scope root |
 | Atoms (Content) | DialecticalComponent, Input | No | Global facts |
 | Atoms (Effect) | Transition, Rationale, Estimation, Synthesis | No | Computed outcomes |
-| Forking Points | WisdomUnit, Nexus | **Yes** | Reasoning foundations |
+| Forking Points | Perspective, Nexus | **Yes** | Reasoning foundations |
 | Derived | Ideas, Cycle, Wheel, Transformation, Spiral | No | Computed from inputs/forking points |
 
 ### Key Properties
 
 - **Atoms are global**: Same content = same hash = same node across all of Indranet
-- **Forking at foundations**: Only WisdomUnit and Nexus support lineage tracking
-- **Derived structures flow down**: Fork upstream (Nexus/WU) to explore alternatives
+- **Forking at foundations**: Only Perspective and Nexus support lineage tracking
+- **Derived structures flow down**: Fork upstream (Nexus/PP) to explore alternatives
 - **Scoped address**: `case_id:hash` for global uniqueness across scopes
