@@ -68,7 +68,7 @@ class BaseCalculator(ABC):
         """
         Recursively score all children nodes.
 
-        Override in composite calculators (WisdomUnit, Cycle, Wheel).
+        Override in composite calculators (Perspective, Cycle, Wheel).
         Leaf calculators (Component, Transition) do nothing here.
 
         Args:

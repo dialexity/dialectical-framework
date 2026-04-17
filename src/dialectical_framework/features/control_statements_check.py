@@ -1,7 +1,7 @@
 """
 ControlStatementsCheck: Capability for validating tetrad logical coherence.
 
-Tests the logical coherence of a WisdomUnit's tetrad structure using control statements.
+Tests the logical coherence of a Perspective's tetrad structure using control statements.
 
 Control statements (from paper Table 4):
 - "T+ without A+ yields T-"
@@ -14,12 +14,12 @@ Example (T=Love, A=Hate):
 Each statement is evaluated for logical coherence (CC score 0.0-1.0).
 A tetrad passes validation if the average CC score >= 0.7.
 
-Creates a ConceptualCoherenceEstimation node attached to the WisdomUnit,
+Creates a ConceptualCoherenceEstimation node attached to the Perspective,
 with optional Rationale explaining the evaluation.
 
 Usage:
     checker = ControlStatementsCheck()
-    result = await checker.execute(wisdom_unit=wu)
+    result = await checker.execute(perspective=pp)
 
     if result.estimation.is_coherent:
         print("Tetrad is logically coherent")
@@ -44,13 +44,13 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.estimation import (
     CONCEPTUAL_COHERENCE_THRESHOLD, ConceptualCoherenceEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
-                                                           POSITION_A_PLUS,
-                                                           POSITION_T_MINUS,
-                                                           POSITION_T_PLUS)
+from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
+                                                          POSITION_A_PLUS,
+                                                          POSITION_T_MINUS,
+                                                          POSITION_T_PLUS)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 # --- DTOs ---
@@ -109,7 +109,7 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
     Average of both scores must be >= 0.7 for the tetrad to be considered coherent.
 
     Creates:
-    - ConceptualCoherenceEstimation node attached to the WisdomUnit
+    - ConceptualCoherenceEstimation node attached to the Perspective
     - Rationale node explaining the evaluation
     """
 
@@ -118,35 +118,35 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
 
     async def execute(
         self,
-        wisdom_unit: WisdomUnit,
+        perspective: Perspective,
         text: str = "",
     ) -> ControlStatementsCheckResult:
         """
-        Validate the conceptual coherence of a WisdomUnit's tetrad.
+        Validate the conceptual coherence of a Perspective's tetrad.
 
-        Creates a ConceptualCoherenceEstimation node if WU is committed.
+        Creates a ConceptualCoherenceEstimation node if PP is committed.
         For uncommitted WUs, returns coherence scores without creating nodes.
 
         Args:
-            wisdom_unit: The WisdomUnit to validate (must be complete with all 6 positions)
+            perspective: The Perspective to validate (must be complete with all 6 positions)
             text: Optional context for evaluation
 
         Returns:
             ControlStatementsCheckResult with coherence status and optional estimation node
 
         Raises:
-            ValueError: If WisdomUnit is missing required components
+            ValueError: If Perspective is missing required components
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not wisdom_unit.is_complete():
-            raise ValueError("WisdomUnit must be complete (have all 6 positions)")
+        if not perspective.is_complete():
+            raise ValueError("Perspective must be complete (have all 6 positions)")
 
         # Get pole statements
-        t_plus = wisdom_unit.get_component(POSITION_T_PLUS)
-        t_minus = wisdom_unit.get_component(POSITION_T_MINUS)
-        a_plus = wisdom_unit.get_component(POSITION_A_PLUS)
-        a_minus = wisdom_unit.get_component(POSITION_A_MINUS)
+        t_plus = perspective.get_component(POSITION_T_PLUS)
+        t_minus = perspective.get_component(POSITION_T_MINUS)
+        a_plus = perspective.get_component(POSITION_A_PLUS)
+        a_minus = perspective.get_component(POSITION_A_MINUS)
 
         # Build control statements
         stmt_1 = f'"{t_plus.statement}" without "{a_plus.statement}" yields "{t_minus.statement}"'
@@ -181,10 +181,10 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
         )
         rationale = Rationale(text=rationale_text)
 
-        # Only commit and attach if WU is committed
-        if wisdom_unit.is_committed:
-            estimation.set_target(wisdom_unit)
-            rationale.set_explanation_target(wisdom_unit)
+        # Only commit and attach if PP is committed
+        if perspective.is_committed:
+            estimation.set_target(perspective)
+            rationale.set_explanation_target(perspective)
             rationale.commit()
             self._report.node_created(rationale)
 

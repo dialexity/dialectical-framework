@@ -2,7 +2,7 @@
 Cycle node for the dialectical framework.
 
 This module provides the Cycle class which represents the T-cycle:
-an ordered sequence of WisdomUnits defining abstract thesis causality.
+an ordered sequence of Perspectives defining abstract thesis causality.
 
 A Cycle captures the order in which theses relate causally (T1 → T2 → T3).
 Multiple Wheels can share the same T-cycle with different flip configurations.
@@ -24,41 +24,41 @@ from dialectical_framework.graph.relationships.opposite_direction_relationship i
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
     """
-    Represents the T-cycle: an ordered sequence of WisdomUnits.
+    Represents the T-cycle: an ordered sequence of Perspectives.
 
     A Cycle defines abstract thesis causality - the order in which theses
-    relate to each other (T1 → T2 → T3). This is the "pool" of WisdomUnits
+    relate to each other (T1 → T2 → T3). This is the "pool" of Perspectives
     in a specific causal arrangement.
 
     The intent field captures the dynamics/causality type of this cycle
     (e.g., "preset:realistic", "preset:desirable", "preset:feasible", "preset:balanced").
 
     Multiple Wheels can implement the same Cycle with different flip configurations,
-    where each WU can have its T and A sides swapped.
+    where each PP can have its T and A sides swapped.
 
     Hierarchy:
-        WisdomUnit → Cycle (ordered pool + intent) → Wheel (flips + transitions)
+        Perspective → Cycle (ordered pool + intent) → Wheel (flips + transitions)
 
     Relationships:
-    - Cycle contains ordered WU hashes (stored as field, not relationships)
+    - Cycle contains ordered PP hashes (stored as field, not relationships)
     - Cycle can have multiple Wheels (different flip configurations)
-    - Use wisdom_units property to get WU instances
+    - Use perspectives property to get PP instances
     - Use wheels.all() to find associated Wheels
 
     Example:
-        # Create WUs
-        wu1.commit()
-        wu2.commit()
-        wu3.commit()
+        # Create PPs
+        pp1.commit()
+        pp2.commit()
+        pp3.commit()
 
-        # Create cycle with ordered WUs
+        # Create cycle with ordered PPs
         cycle = Cycle(intent="preset:balanced")
-        cycle.set_wisdom_units([wu1, wu2, wu3])  # Order matters
+        cycle.set_perspectives([pp1, pp2, pp3])  # Order matters
         cycle.commit()
 
         # Create wheel with transitions
@@ -71,11 +71,11 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         wheel.commit()
     """
 
-    # Ordered list of WisdomUnit hashes - defines the T-cycle order
-    wisdom_unit_hashes: list[str] = []
+    # Ordered list of Perspective hashes - defines the T-cycle order
+    perspective_hashes: list[str] = []
 
-    # Transient refs for setting WUs before commit (not persisted)
-    _wu_refs: Optional[list[WisdomUnit]] = None
+    # Transient refs for setting PPs before commit (not persisted)
+    _pp_refs: Optional[list[Perspective]] = None
 
     # Wheels that implement this cycle's arrangement
     # Parent→child: Cycle has Wheels
@@ -92,68 +92,68 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         model=OppositeDirectionRelationship,
     )
 
-    def set_wisdom_units(self, wisdom_units: list[WisdomUnit]) -> Cycle:
+    def set_perspectives(self, perspectives: list[Perspective]) -> Cycle:
         """
-        Set the ordered list of WisdomUnits for this cycle.
+        Set the ordered list of Perspectives for this cycle.
 
-        Must be called before commit(). All WUs must be committed.
+        Must be called before commit(). All PPs must be committed.
         Order determines the T-cycle: T1 → T2 → T3 → T1...
 
         Args:
-            wisdom_units: Ordered list of committed WisdomUnits
+            perspectives: Ordered list of committed Perspectives
 
         Returns:
             Self for chaining
 
         Raises:
-            ValueError: If any WU is not committed
+            ValueError: If any PP is not committed
         """
         hashes = []
-        for wu in wisdom_units:
-            if not wu.is_committed:
+        for pp in perspectives:
+            if not pp.is_committed:
                 raise ValueError(
-                    "WisdomUnit must be committed before adding to Cycle"
+                    "Perspective must be committed before adding to Cycle"
                 )
-            hashes.append(wu.hash)
+            hashes.append(pp.hash)
 
-        self.wisdom_unit_hashes = hashes
-        self._wu_refs = wisdom_units  # Keep refs for potential use
+        self.perspective_hashes = hashes
+        self._pp_refs = perspectives  # Keep refs for potential use
         return self
 
     @property
-    def wisdom_units(self) -> list[WisdomUnit]:
+    def perspectives(self) -> list[Perspective]:
         """
-        Get the WisdomUnits in cycle order.
+        Get the Perspectives in cycle order.
 
-        Returns WU instances by looking up their hashes.
+        Returns PP instances by looking up their hashes.
 
         Returns:
-            List of WisdomUnit instances in T-cycle order
+            List of Perspective instances in T-cycle order
         """
-        if not self.wisdom_unit_hashes:
+        if not self.perspective_hashes:
             return []
 
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
         repo = NodeRepository()
 
         result = []
-        for wu_hash in self.wisdom_unit_hashes:
-            wu = repo.find_by_hash(wu_hash)
-            if wu:
-                result.append(wu)
+        for pp_hash in self.perspective_hashes:
+            pp = repo.find_by_hash(pp_hash)
+            if pp:
+                result.append(pp)
         return result
 
     @property
-    def wisdom_unit_count(self) -> int:
-        """Number of WisdomUnits in this cycle."""
-        return len(self.wisdom_unit_hashes)
+    def perspective_count(self) -> int:
+        """Number of Perspectives in this cycle."""
+        return len(self.perspective_hashes)
 
     @property
     def dialectical_components(self) -> list:
         """
         Get the dialectical components (T components) for this cycle.
 
-        Returns the thesis components from each WisdomUnit in cycle order.
+        Returns the thesis components from each Perspective in cycle order.
         Used by CausalitySequencer.estimate() for building estimation prompts.
 
         Returns:
@@ -164,8 +164,8 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         )
 
         components: list[DialecticalComponent] = []
-        for wu in self.wisdom_units:
-            t_result = wu.t.get()
+        for pp in self.perspectives:
+            t_result = pp.t.get()
             if t_result:
                 components.append(t_result[0])
         return components
@@ -174,23 +174,23 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         """
         Collect structure hash parts for this Cycle.
 
-        Parts: ordered WU hashes (NOT sorted - order matters for T-cycle).
+        Parts: ordered PP hashes (NOT sorted - order matters for T-cycle).
         The intent is added separately by BaseNode.compute_hash().
 
         Returns:
-            List of strings: [wu_hash1, wu_hash2, wu_hash3, ...]
+            List of strings: [pp_hash1, pp_hash2, pp_hash3, ...]
 
         Raises:
-            ValueError: If no WisdomUnits are set
+            ValueError: If no Perspectives are set
         """
-        if not self.wisdom_unit_hashes:
+        if not self.perspective_hashes:
             raise ValueError(
-                "Cycle must have WisdomUnits set before computing structure hash. "
-                "Use set_wisdom_units()."
+                "Cycle must have Perspectives set before computing structure hash. "
+                "Use set_perspectives()."
             )
 
         # Return hashes in order (NOT sorted - order defines the T-cycle)
-        return list(self.wisdom_unit_hashes)
+        return list(self.perspective_hashes)
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -209,13 +209,13 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         Returns:
             Formatted string representing the cycle
         """
-        # Build T-cycle sequence from WU order
-        wus = self.wisdom_units
-        if not wus:
-            sequence = "[no WisdomUnits]"
+        # Build T-cycle sequence from PP order
+        pps = self.perspectives
+        if not pps:
+            sequence = "[no Perspectives]"
         else:
             # T-cycle shows thesis positions: T1 → T2 → T3 → T1...
-            labels = [f"T{i+1}" for i in range(len(wus))]
+            labels = [f"T{i+1}" for i in range(len(pps))]
             if len(labels) > 1:
                 # Add wrap-around
                 sequence = " → ".join(labels) + f" → {labels[0]}..."
@@ -266,6 +266,6 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
     def __repr__(self) -> str:
         """Debug representation of the cycle."""
         hash_str = self.short_hash if self.is_committed else "uncommitted"
-        wu_count = len(self.wisdom_unit_hashes)
-        return f"Cycle({hash_str}, wu_count={wu_count}, intent={self.intent})"
+        pp_count = len(self.perspective_hashes)
+        return f"Cycle({hash_str}, pp_count={pp_count}, intent={self.intent})"
 

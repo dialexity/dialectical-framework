@@ -39,7 +39,7 @@ class Rationale(BaseNode, label="Rationale"):
 
     Rationales provide contextual explanations for why a particular
     assessment (score, relevance, probability) was assigned to an
-    assessable entity (Component, WisdomUnit, Cycle, Wheel, etc.).
+    assessable entity (Component, Perspective, Cycle, Wheel, etc.).
 
     Semantic Model (new design):
         Rationale is the SOURCE of evidence, not the TARGET of estimations.

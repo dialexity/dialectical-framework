@@ -17,34 +17,34 @@ if TYPE_CHECKING:
 
 class ForkableMixin(PersistableMixin):
     """
-    Mixin for forking points (WisdomUnit).
+    Mixin for forking points (Perspective).
 
     Provides:
     - origin_hash: Lineage tracking (parent's hash when forked)
     - branch: Mutable label for the fork tip (like git refs)
 
     Forking points are the reasoning foundations that can be explored
-    in alternative ways. When you fork a WisdomUnit, the new
+    in alternative ways. When you fork a Perspective, the new
     node gets origin_hash set to the source's hash, creating a lineage chain.
 
     Branch is mutable metadata that doesn't affect hash computation.
     It acts as a pointer to identify the tip of a lineage chain.
     Branch names can be hierarchical: "main", "main/feature", "main/feature/sub".
 
-    Used by: WisdomUnit
+    Used by: Perspective
 
     Example:
-        # Fork a WisdomUnit to explore different framing
-        forked_wu = wu.clone(branch="main")
-        forked_wu.t_plus.disconnect(old_component)
-        forked_wu.t_plus.connect(new_component)
-        forked_wu.commit()
+        # Fork a Perspective to explore different framing
+        forked_pp = pp.clone(branch="main")
+        forked_pp.t_plus.disconnect(old_component)
+        forked_pp.t_plus.connect(new_component)
+        forked_pp.commit()
 
         # Extend the branch
-        next_wu = forked_wu.clone()
+        next_pp = forked_pp.clone()
         # ... modify ...
-        next_wu.commit()
-        forked_wu.move_branch_to(next_wu)  # Move branch pointer to new tip
+        next_pp.commit()
+        forked_pp.move_branch_to(next_pp)  # Move branch pointer to new tip
     """
 
     origin_hash: Optional[str] = None
@@ -66,9 +66,9 @@ class ForkableMixin(PersistableMixin):
 
         Example:
             # Extend a branch
-            new_wu = old_wu.clone()
-            new_wu.commit()
-            old_wu.move_branch_to(new_wu)  # "main" now points to new_wu
+            new_pp = old_pp.clone()
+            new_pp.commit()
+            old_pp.move_branch_to(new_pp)  # "main" now points to new_pp
         """
         # Runtime import to avoid circular dependency
         from dialectical_framework.graph.nodes.base_node import BaseNode

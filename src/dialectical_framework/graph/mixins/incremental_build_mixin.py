@@ -38,7 +38,7 @@ class IncrementalBuildMixin(PersistableMixin):
     Lifecycle:
         1. Create node: cycle = Cycle(intent="...")
         2. Save as HEAD: cycle.save()  # hash=None, committed_at=None, persisted
-        3. Add children: cycle.set_wisdom_units([wu1, wu2])
+        3. Add children: cycle.set_perspectives([pp1, pp2])
         4. Commit: cycle.commit()  # committed_at set, hash computed, immutable
 
     After commit(), the node behaves like any other committed node.

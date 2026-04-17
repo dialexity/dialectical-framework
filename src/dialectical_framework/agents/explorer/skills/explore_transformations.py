@@ -1,21 +1,21 @@
 """
-ExploreTransformations: Subagent for generating Action-Reflection transformations for WisdomUnits.
+ExploreTransformations: Subagent for generating Action-Reflection transformations for Perspectives.
 
 Orchestrates the transformation generation pipeline:
-1. Derives contextual apexes (Re+ and Ac+) for the WU
+1. Derives contextual apexes (Re+ and Ac+) for the PP
 2. Extracts Ac+ candidates along the Insight axis
 3. Generates full tetrads from each Ac+ candidate
 4. Creates Transformation nodes in the graph
 
 Usage:
     # Programmatic use
-    agent = ExploreTransformations(wisdom_unit_hash="abc123...")
+    agent = ExploreTransformations(perspective_hash="abc123...")
     result = await agent.execute()
     for t in result.all:
         print(f"{t}")
 
     # LLM tool use
-    agent = ExploreTransformations(wisdom_unit_hash="abc123...")
+    agent = ExploreTransformations(perspective_hash="abc123...")
     json_result = await agent.call()  # Returns JSON string
 """
 
@@ -49,7 +49,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     ReMinusRelationship, RePlusRelationship, ReRelationship)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.protocols.input_resolver import InputResolver
 
 
@@ -71,18 +71,18 @@ class ExploreTransformations(
     BaseTool, ExecutableCapability[ExploreTransformationsResult]
 ):
     """
-    Subagent for generating Action-Reflection transformations for WisdomUnits.
+    Subagent for generating Action-Reflection transformations for Perspectives.
 
     This agent orchestrates the full transformation generation pipeline,
-    producing multiple transformation alternatives for a single WisdomUnit.
+    producing multiple transformation alternatives for a single Perspective.
 
     Dual interface:
     - execute() returns ExploreTransformationsResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
-    wisdom_unit_hash: str = Field(
-        description="Hash (full or prefix) of the WisdomUnit to transform"
+    perspective_hash: str = Field(
+        description="Hash (full or prefix) of the Perspective to transform"
     )
 
     _report: ExecutionReport = PrivateAttr()
@@ -101,31 +101,31 @@ class ExploreTransformations(
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        # 1. Resolve and validate WU
-        wu = self._resolve_wisdom_unit()
-        if not wu.is_complete():
+        # 1. Resolve and validate PP
+        pp = self._resolve_perspective()
+        if not pp.is_complete():
             raise ValueError(
-                f"WisdomUnit {wu.short_hash} must have all 6 positions to generate transformations"
+                f"Perspective {pp.short_hash} must have all 6 positions to generate transformations"
             )
 
         # 2. Get existing committed transformations
-        existing = [t for t, _ in wu.transformations.all() if t.is_committed]
+        existing = [t for t, _ in pp.transformations.all() if t.is_committed]
 
         # 3. Get input text from scope
         input_text = await self._get_input_text()
 
-        # 4. Derive apexes for this WU context
+        # 4. Derive apexes for this PP context
         apex_service = ApexDerivation()
-        apexes = await apex_service.execute(wu, input_text)
+        apexes = await apex_service.execute(pp, input_text)
         self._report.merge(apex_service.report)
 
         # 5. Extract Ac+ candidates (avoiding existing)
         extractor = ActionExtraction()
-        ac_candidates = await extractor.execute(wu, input_text, not_like_these=existing)
+        ac_candidates = await extractor.execute(pp, input_text, not_like_these=existing)
         self._report.merge(extractor.report)
 
         if not ac_candidates:
-            self._report.summary = f"No new Ac+ candidates for WU {wu.short_hash}"
+            self._report.summary = f"No new Ac+ candidates for PP {pp.short_hash}"
             return ExploreTransformationsResult(
                 existing=existing,
                 new=[],
@@ -136,19 +136,19 @@ class ExploreTransformations(
         new_transformations = []
         for ac_plus in ac_candidates:
             generator = TransformationGeneration()
-            tetrad = await generator.execute(wu, ac_plus, apexes, input_text)
+            tetrad = await generator.execute(pp, ac_plus, apexes, input_text)
             self._report.merge(generator.report)
 
             # 6. Create graph nodes
-            transformation = self._create_transformation(wu, tetrad)
+            transformation = self._create_transformation(pp, tetrad)
             new_transformations.append(transformation)
 
         # Summary
-        self._report.artifacts["wu_hash"] = wu.short_hash
+        self._report.artifacts["pp_hash"] = pp.short_hash
         self._report.artifacts["existing_count"] = len(existing)
         self._report.artifacts["new_count"] = len(new_transformations)
         self._report.summary = (
-            f"Generated {len(new_transformations)} new transformation(s) for WU {wu.short_hash} "
+            f"Generated {len(new_transformations)} new transformation(s) for PP {pp.short_hash} "
             f"({len(existing)} existing)"
         )
 
@@ -158,16 +158,16 @@ class ExploreTransformations(
             apexes=apexes,
         )
 
-    def _resolve_wisdom_unit(self) -> WisdomUnit:
-        """Resolve WisdomUnit from hash or prefix."""
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    def _resolve_perspective(self) -> Perspective:
+        """Resolve Perspective from hash or prefix."""
+        from dialectical_framework.graph.nodes.perspective import Perspective
         from dialectical_framework.graph.repositories.node_repository import \
             NodeRepository
 
         repo = NodeRepository()
-        node = repo.find_by_hash(self.wisdom_unit_hash, node_type=WisdomUnit)
+        node = repo.find_by_hash(self.perspective_hash, node_type=Perspective)
         if node is None:
-            raise ValueError(f"WisdomUnit not found: {self.wisdom_unit_hash}")
+            raise ValueError(f"Perspective not found: {self.perspective_hash}")
         return node
 
     @inject
@@ -194,26 +194,26 @@ class ExploreTransformations(
 
     def _create_transformation(
         self,
-        wu: WisdomUnit,
+        pp: Perspective,
         tetrad: TransformationTetradDto,
     ) -> Transformation:
         """
         Create a Transformation node with all 6 positions.
 
         Args:
-            wu: The containing WisdomUnit
+            pp: The containing Perspective
             tetrad: The generated tetrad with category reframings and poles
 
         Returns:
             The committed Transformation node
         """
-        # Get all WU components for transitions
-        t_result = wu.t.get()
-        t_minus_result = wu.t_minus.get()
-        t_plus_result = wu.t_plus.get()
-        a_result = wu.a.get()
-        a_plus_result = wu.a_plus.get()
-        a_minus_result = wu.a_minus.get()
+        # Get all PP components for transitions
+        t_result = pp.t.get()
+        t_minus_result = pp.t_minus.get()
+        t_plus_result = pp.t_plus.get()
+        a_result = pp.a.get()
+        a_plus_result = pp.a_plus.get()
+        a_minus_result = pp.a_minus.get()
 
         if not all(
             [
@@ -226,7 +226,7 @@ class ExploreTransformations(
             ]
         ):
             raise ValueError(
-                "WisdomUnit missing required components for transformation"
+                "Perspective missing required components for transformation"
             )
 
         t, _ = t_result
@@ -238,7 +238,7 @@ class ExploreTransformations(
 
         # Create Transformation node
         transformation = Transformation()
-        transformation.set_wisdom_unit(wu)
+        transformation.set_perspective(pp)
         transformation.save()
 
         # Create neutral category transitions (Ac: T → A, Re: A → T)
@@ -376,13 +376,13 @@ class ExploreTransformations(
         explanation: str,
     ) -> Transition:
         """
-        Create a Transition node between WU poles.
+        Create a Transition node between PP angles.
 
         Args:
             headline: Short headline (~7 words) - stored on Transition.statement and Rationale.headline
             statement: Fuller statement (1-15 words) - stored on Rationale.summary
-            source: The source component from the WisdomUnit (e.g., T-)
-            target: The target component from the WisdomUnit (e.g., A+)
+            source: The source component from the Perspective (e.g., T-)
+            target: The target component from the Perspective (e.g., A+)
             explanation: Full explanation - stored on Rationale.text
 
         Returns:

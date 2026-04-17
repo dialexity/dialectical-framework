@@ -1,8 +1,8 @@
 """
 WheelSegmentPolarPair for graph-based dialectical framework.
 
-This module provides a flexible "window" into a WisdomUnit with swappable polarity,
-allowing you to view the dialectical structure from different perspectives:
+This module provides a flexible "window" into a Perspective with swappable polarity,
+allowing you to view the dialectical structure from different viewpoints:
 - Normal polarity: T-side has theses (T, T+, T-), A-side has antitheses (A, A+, A-)
 - Swapped polarity: T-side has antitheses (A, A+, A-), A-side has theses (T, T+, T-)
 """
@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Literal, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
 from dialectical_framework.graph.wheel_segment import WheelSegment
@@ -20,14 +20,14 @@ from dialectical_framework.graph.wheel_segment import WheelSegment
 
 class WheelSegmentPolarPair:
     """
-    A "window" into a WisdomUnit with swappable polarity.
+    A "window" into a Perspective with swappable polarity.
 
     Provides two sides (segment_left and segment_right) where the polarity determines
     which components appear on which side:
     - "normal": Left has theses (T, T+, T-), right has antitheses (A, A+, A-)
     - "swapped": Left has antitheses (A, A+, A-), right has theses (T, T+, T-)
 
-    This allows viewing the same dialectical structure from different perspectives,
+    This allows viewing the same dialectical structure from different viewpoints,
     which can be useful for:
     - Exploring alternative interpretations
     - Testing symmetry of arguments
@@ -35,19 +35,19 @@ class WheelSegmentPolarPair:
 
     Example:
         # Normal polarity view
-        pair = WheelSegmentPolarPair(wu, "normal")
+        pair = WheelSegmentPolarPair(pp, "normal")
         thesis = pair.segment_left.t.get()  # Gets T component
         antithesis = pair.segment_right.t.get()  # Gets A component
 
         # Swapped polarity view
-        pair = WheelSegmentPolarPair(wu, "swapped")
+        pair = WheelSegmentPolarPair(pp, "swapped")
         antithesis = pair.segment_left.t.get()  # Gets A component (swapped!)
         thesis = pair.segment_right.t.get()  # Gets T component (swapped!)
     """
 
     def __init__(
         self,
-        wisdom_unit: WisdomUnit,
+        perspective: Perspective,
         polarity: Literal["normal", "swapped"] = "normal",
         t_segment: Optional[WheelSegment] = None,
         a_segment: Optional[WheelSegment] = None
@@ -56,7 +56,7 @@ class WheelSegmentPolarPair:
         Initialize a polar wheel segment pair.
 
         Args:
-            wisdom_unit: The WisdomUnit to view
+            perspective: The Perspective to view
             polarity: Either "normal" (T=thesis, A=antithesis) or
                      "swapped" (T=antithesis, A=thesis)
             t_segment: Optional existing T-side WheelSegment to reuse
@@ -65,14 +65,14 @@ class WheelSegmentPolarPair:
         if polarity not in ('normal', 'swapped'):
             raise ValueError(f"polarity must be 'normal' or 'swapped', got: {polarity}")
 
-        self._wisdom_unit = wisdom_unit
+        self._perspective = perspective
         self._polarity = polarity
 
         # Use existing segments or create new ones
         if t_segment is None:
-            t_segment = WheelSegment(wisdom_unit, "T")
+            t_segment = WheelSegment(perspective, "T")
         if a_segment is None:
-            a_segment = WheelSegment(wisdom_unit, "A")
+            a_segment = WheelSegment(perspective, "A")
 
         # Configure sides based on polarity
         # _left and _right are positional properties that map to T/A segments based on polarity
@@ -86,9 +86,9 @@ class WheelSegmentPolarPair:
             self._right = t_segment
 
     @property
-    def wisdom_unit(self) -> WisdomUnit:
-        """Get the WisdomUnit being viewed."""
-        return self._wisdom_unit
+    def perspective(self) -> Perspective:
+        """Get the Perspective being viewed."""
+        return self._perspective
 
     @property
     def polarity(self) -> Literal["normal", "swapped"]:
@@ -122,7 +122,7 @@ class WheelSegmentPolarPair:
         Swaps t_side and a_side and updates the polarity state.
 
         Example:
-            pair = WheelSegmentPolarPair(wu, "normal")
+            pair = WheelSegmentPolarPair(pp, "normal")
             assert pair.polarity == "normal"
             pair.swap()
             assert pair.polarity == "swapped"
@@ -145,7 +145,7 @@ class WheelSegmentPolarPair:
         Returns:
             The matching component, or None if not found
         """
-        return self.wisdom_unit.get_component(alias)
+        return self.perspective.get_component(alias)
 
     def is_complete(self) -> bool:
         """
@@ -234,7 +234,7 @@ class WheelSegmentPolarPair:
         sections = []
 
         # Section 1: Synthesis (now on WU, not transformation)
-        synthesis_list = list(self._wisdom_unit.synthesis.all())
+        synthesis_list = list(self._perspective.synthesis.all())
 
         if synthesis_list:
             synthesis_parts = ["=== Synthesis ==="]
@@ -245,11 +245,11 @@ class WheelSegmentPolarPair:
             sections.append("\n\n".join(synthesis_parts))
 
         # Section 2: Both segments (6 core positions total)
-        sections.append("=== WisdomUnit ===")
+        sections.append("=== Perspective ===")
         sections.append(self.__format__(""))  # Default format with explanations
 
         # Section 3: Transformation (if exists)
-        transformation_result = self._wisdom_unit.transformations.get()
+        transformation_result = self._perspective.transformations.get()
         if transformation_result:
             transformation, _ = transformation_result
             sections.append("=== Transformation ===")
@@ -259,27 +259,27 @@ class WheelSegmentPolarPair:
         sections.append("=== Rationales ===")
 
         # Collect rationales from each source
-        wu_rationales = [r.text for r, _ in self._wisdom_unit.rationales.all() if r.text]
+        pp_rationales = [r.text for r, _ in self._perspective.rationales.all() if r.text]
 
         trans_rationales = []
         if transformation_result:
             transformation, _ = transformation_result
             trans_rationales = [r.text for r, _ in transformation.rationales.all() if r.text]
 
-        # Build rationale table (2 columns: WU | Transformation)
-        max_rows = max(len(wu_rationales), len(trans_rationales), 0)
+        # Build rationale table (2 columns: PP | Transformation)
+        max_rows = max(len(pp_rationales), len(trans_rationales), 0)
 
         if max_rows > 0:
             rationale_table = []
             for i in range(max_rows):
                 row = [
-                    wu_rationales[i] if i < len(wu_rationales) else "",
+                    pp_rationales[i] if i < len(pp_rationales) else "",
                     trans_rationales[i] if i < len(trans_rationales) else "",
                 ]
                 rationale_table.append(row)
 
             # Add headers
-            headers = ["WisdomUnit", "Transformation"]
+            headers = ["Perspective", "Transformation"]
             sections.append(tabulate(rationale_table, headers=headers, tablefmt="plain"))
         else:
             sections.append("[No rationales]")
@@ -298,8 +298,8 @@ class WheelSegmentPolarPair:
 
         lines = []
 
-        # Section 1: Synthesis (now on WU, not transformation)
-        synthesis_list = list(self._wisdom_unit.synthesis.all())
+        # Section 1: Synthesis (now on PP, not transformation)
+        synthesis_list = list(self._perspective.synthesis.all())
 
         if synthesis_list:
             lines.append("=== Synthesis ===")
@@ -320,8 +320,8 @@ class WheelSegmentPolarPair:
 
             lines.append("")  # Blank line separator
 
-        # Section 2: WisdomUnit and Transformation side-by-side (tabular)
-        lines.append("=== WisdomUnit / Transformation ===")
+        # Section 2: Perspective and Transformation side-by-side (tabular)
+        lines.append("=== Perspective / Transformation ===")
 
         # Helper to get component info
         def _get_component_info(manager):
@@ -333,13 +333,13 @@ class WheelSegmentPolarPair:
             return "", ""
 
         # Get Transformation (if exists) - transformation has its own 6 positions now
-        transformation_result = self._wisdom_unit.transformations.get()
+        transformation_result = self._perspective.transformations.get()
         transformation = None
         if transformation_result:
             transformation, _ = transformation_result
 
         # Build table rows: one row per position
-        from dialectical_framework.graph.nodes.wisdom_unit import (
+        from dialectical_framework.graph.nodes.perspective import (
             POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
             POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
         )
@@ -349,8 +349,8 @@ class WheelSegmentPolarPair:
             POSITION_RE_PLUS, POSITION_RE_MINUS,
         )
 
-        # Map WU positions to Transformation positions for side-by-side display
-        wu_to_trans_position = {
+        # Map PP positions to Transformation positions for side-by-side display
+        pp_to_trans_position = {
             POSITION_T: POSITION_AC,
             POSITION_T_PLUS: POSITION_AC_PLUS,
             POSITION_T_MINUS: POSITION_AC_MINUS,
@@ -374,14 +374,14 @@ class WheelSegmentPolarPair:
 
             # Determine which segment to use (left 3 = left segment, right 3 = right segment)
             segment = self._left if i < 3 else self._right
-            wu_manager = getattr(segment, attr_name)
-            wu_alias, wu_statement = _get_component_info(wu_manager)
-            row.append(wu_alias)
-            row.append(wu_statement)
+            pp_manager = getattr(segment, attr_name)
+            pp_alias, pp_statement = _get_component_info(pp_manager)
+            row.append(pp_alias)
+            row.append(pp_statement)
 
             # Transformation column (if exists)
             if transformation:
-                trans_position = wu_to_trans_position.get(position_label)
+                trans_position = pp_to_trans_position.get(position_label)
                 if trans_position:
                     trans_manager = transformation.get_relationship_manager_by_position(trans_position)
                     trans_alias, trans_statement = _get_component_info(trans_manager)
@@ -392,32 +392,32 @@ class WheelSegmentPolarPair:
 
         lines.append(tabulate(table, tablefmt="plain"))
 
-        # Section 3: Rationales (2-column table: WU, Transformation)
+        # Section 3: Rationales (2-column table: PP, Transformation)
         lines.append("")
         lines.append("=== Rationales ===")
 
         # Collect rationales from each source
-        wu_rationales = [r.text for r, _ in self._wisdom_unit.rationales.all() if r.text]
+        pp_rationales = [r.text for r, _ in self._perspective.rationales.all() if r.text]
 
         trans_rationales = []
         if transformation_result:
             transformation, _ = transformation_result
             trans_rationales = [r.text for r, _ in transformation.rationales.all() if r.text]
 
-        # Build rationale table (2 columns: WU | Transformation)
-        max_rows = max(len(wu_rationales), len(trans_rationales))
+        # Build rationale table (2 columns: PP | Transformation)
+        max_rows = max(len(pp_rationales), len(trans_rationales))
 
         if max_rows > 0:
             rationale_table = []
             for i in range(max_rows):
                 row = [
-                    wu_rationales[i] if i < len(wu_rationales) else "",
+                    pp_rationales[i] if i < len(pp_rationales) else "",
                     trans_rationales[i] if i < len(trans_rationales) else "",
                 ]
                 rationale_table.append(row)
 
             # Add headers
-            headers = ["WisdomUnit", "Transformation"]
+            headers = ["Perspective", "Transformation"]
             lines.append(tabulate(rationale_table, headers=headers, tablefmt="plain"))
         else:
             lines.append("[No rationales]")
@@ -433,7 +433,7 @@ class WheelSegmentPolarPair:
         return (
             f"WheelSegmentPolarPair("
             f"polarity={self._polarity}, "
-            f"wisdom_unit={self._wisdom_unit.hash}, "
+            f"perspective={self._perspective.hash}, "
             f"left={self._left.side}, "
             f"right={self._right.side})"
         )

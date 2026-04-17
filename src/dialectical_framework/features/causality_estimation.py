@@ -143,7 +143,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         for structure in structures:
             if isinstance(structure, Cycle):
                 type_name = "Cycle"
-                size = structure.wisdom_unit_count
+                size = structure.perspective_count
             else:
                 type_name = "Wheel"
                 size = structure.polarity_count
@@ -212,18 +212,18 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         ref = structures[0]
 
         if isinstance(ref, Cycle):
-            wisdom_units = ref.wisdom_units
+            perspectives = ref.perspectives
             cycle_repo = CycleRepository()
-            return cycle_repo.find_by_layer(wisdom_units)
+            return cycle_repo.find_by_layer(perspectives)
 
-        # Wheel: find all wheels with same WU set via their parent Cycles
+        # Wheel: find all wheels with same PP set via their parent Cycles
         from dialectical_framework.graph.repositories.wheel_repository import (
             WheelRepository,
         )
 
-        wisdom_units = ref._wisdom_units
+        perspectives = ref._perspectives
         wheel_repo = WheelRepository()
-        return wheel_repo.find_by_layer(wisdom_units)
+        return wheel_repo.find_by_layer(perspectives)
 
     def _normalize_layer(self, all_structures: list[Union[Cycle, Wheel]]) -> None:
         """

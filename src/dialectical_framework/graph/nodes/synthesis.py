@@ -25,7 +25,7 @@ from dialectical_framework.graph.relationships.synthesis_of_relationship import 
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 # Position constants for S+/S- (canonical names)
 POSITION_S_PLUS = "S+"
@@ -40,10 +40,10 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
     - S+ (exactly one): Positive synthesis - complementary harmony (1+1>2)
     - S- (exactly one): Negative synthesis - reinforcing uniformity (1+1<2)
 
-    Synthesis emerges from WisdomUnit: The T-A tension itself
+    Synthesis emerges from Perspective: The T-A tension itself
     (many transformation paths → ONE synthesis).
 
-    A WisdomUnit can have multiple Synthesis nodes to explore
+    A Perspective can have multiple Synthesis nodes to explore
     alternative synthesis interpretations.
     """
 
@@ -61,10 +61,10 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
         cardinality=(1, 1)  # Exactly one
     )
 
-    # Target relationship (WisdomUnit only)
-    # Synthesis emerges from WU-level tension (many Ac-Re paths → ONE synthesis)
-    target: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipTo(
-        "WisdomUnit",
+    # Target relationship (Perspective only)
+    # Synthesis emerges from PP-level tension (many Ac-Re paths → ONE synthesis)
+    target: ClassVar[RelationshipManager[Perspective]] = RelationshipTo(
+        "Perspective",
         model=SynthesisOfRelationship,
         cardinality=(1, 1)  # Exactly one target
     )
@@ -72,7 +72,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
     @property
     def target_type(self) -> str:
         """
-        Return type of target: 'wisdomunit' or 'none'.
+        Return type of target: 'perspective' or 'none'.
 
         Returns:
             Lowercase name of the target class, or 'none' if not connected.
@@ -107,7 +107,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
             List of strings: [s+_hash, s-_hash]
 
         Note:
-            Target (WisdomUnit/Transformation) and S+/S- components must be committed.
+            Target (Perspective/Transformation) and S+/S- components must be committed.
         """
         # Verify target is committed - Synthesis only makes sense for finalized structures
         target_result = self.target.get()
@@ -120,7 +120,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
                 )
         else:
             raise ValueError(
-                "Synthesis must be connected to a target WisdomUnit "
+                "Synthesis must be connected to a target Perspective "
                 "before computing structure hash."
             )
 
@@ -210,7 +210,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
                 # alias is guaranteed to be non-empty by PolarityRelationship validation
                 old_alias = rel.alias  # Direct access, fully typed
 
-                # Apply same logic as WisdomUnit.set_human_friendly_index
+                # Apply same logic as Perspective.set_human_friendly_index
                 if human_friendly_index == 0:
                     # Remove the last sequence of digits entirely
                     new_alias = re.sub(r"(\d+)(?!.*\d)", "", old_alias)
@@ -243,7 +243,7 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
 
         Compares by checking if both S+ and S- components match by UID.
         Two syntheses are considered the same if they contain the exact same
-        S+/S- component pair, regardless of which WisdomUnit they belong to.
+        S+/S- component pair, regardless of which Perspective they belong to.
 
         Args:
             other: Another Synthesis to compare with

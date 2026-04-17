@@ -220,7 +220,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         Args:
             idea: The idea/concept to place
             vocabulary: Existing components in the graph
-            tensions: Existing T-A tensions (from WisdomUnits or OPPOSITE_OF)
+            tensions: Existing T-A tensions (from Perspectives or OPPOSITE_OF)
             text: Optional source context
 
         Returns:

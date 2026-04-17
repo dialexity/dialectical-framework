@@ -383,15 +383,15 @@ class BoundRelationshipManager(Generic[T]):
         else:
             return  # Not a Cycle-Wheel connection, skip validation
 
-        # Get WisdomUnits from cycle (Cycle now stores WUs directly as hashes)
-        cycle_wus = cycle.wisdom_units
-        if not cycle_wus:
+        # Get Perspectives from cycle (Cycle now stores PPs directly as hashes)
+        cycle_pps = cycle.perspectives
+        if not cycle_pps:
             raise ValueError(
-                "Cannot connect cycle to wheel: cycle has no WisdomUnits. "
-                "Use cycle.set_wisdom_units() first."
+                "Cannot connect cycle to wheel: cycle has no Perspectives. "
+                "Use cycle.set_perspectives() first."
             )
 
-        cycle_wu_ids = {wu.hash for wu in cycle_wus}
+        cycle_pp_ids = {pp.hash for pp in cycle_pps}
 
         # Get wheel's transitions
         wheel_transitions = wheel.edges
@@ -402,7 +402,7 @@ class BoundRelationshipManager(Generic[T]):
             )
 
         # Collect all unique components from wheel's transitions
-        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+        from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
         components_by_id: dict[str, Node] = {}
         for transition in wheel_transitions:
             source_result = transition.source.get()
@@ -414,28 +414,28 @@ class BoundRelationshipManager(Generic[T]):
                 comp = target_result[0]
                 components_by_id[comp.hash] = comp
 
-        # For each component, verify it belongs to a WU that's in the cycle
-        repo = WisdomUnitRepository()
+        # For each component, verify it belongs to a PP that's in the cycle
+        repo = PerspectiveRepository()
         for component in components_by_id.values():
             from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
             assert isinstance(component, DialecticalComponent)
-            component_wus = repo.find_by_dialectical_component(component)
+            component_pps = repo.find_by_dialectical_component(component)
 
-            if not component_wus:
+            if not component_pps:
                 stmt = getattr(component, 'statement', str(component.hash))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
-                    f"(id={component.hash}) does not belong to any WisdomUnit."
+                    f"(id={component.hash}) does not belong to any Perspective."
                 )
 
-            # Check if at least one of the component's WUs is in the cycle
-            component_wu_ids = {wu.hash for wu, _ in component_wus}
-            if not component_wu_ids.intersection(cycle_wu_ids):
+            # Check if at least one of the component's PPs is in the cycle
+            component_pp_ids = {pp.hash for pp, _ in component_pps}
+            if not component_pp_ids.intersection(cycle_pp_ids):
                 stmt = getattr(component, 'statement', str(component.hash))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
-                    f"(id={component.hash}) belongs to WisdomUnit(s) not in the cycle. "
-                    f"Add the WisdomUnit to the cycle first."
+                    f"(id={component.hash}) belongs to Perspective(s) not in the cycle. "
+                    f"Add the Perspective to the cycle first."
                 )
 
     def _create_polarity_semantic_relationships(self, target_node: BaseNode) -> None:
@@ -488,9 +488,9 @@ class BoundRelationshipManager(Generic[T]):
                 safe_connect_semantic(new_comp, 'oppositions', t_comp)
                 safe_connect_semantic(t_comp, 'oppositions', new_comp)
 
-    def _create_wisdom_unit_semantic_relationships(self, target_node: BaseNode) -> None:
+    def _create_perspective_semantic_relationships(self, target_node: BaseNode) -> None:
         """
-        Auto-create semantic relationships when connecting poles to WisdomUnit.
+        Auto-create semantic relationships when connecting poles to Perspective.
 
         Creates:
         - CONTRADICTION_OF: T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity pairs)
@@ -498,22 +498,22 @@ class BoundRelationshipManager(Generic[T]):
         - NEGATIVE_SIDE_OF: T- → T, A- → A (via Polarity)
 
         This is called automatically by connect() after successfully connecting
-        a DialecticalComponent to a WisdomUnit pole position (T+, T-, A+, A-).
+        a DialecticalComponent to a Perspective pole position (T+, T-, A+, A-).
 
-        Note: OPPOSITE_OF (T ↔ A) is created when connecting to Polarity, not WisdomUnit.
+        Note: OPPOSITE_OF (T ↔ A) is created when connecting to Polarity, not Perspective.
         """
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+        from dialectical_framework.graph.nodes.perspective import Perspective
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
-        # Only for WU -> Component pole connections (not T or A - those are on Polarity)
+        # Only for PP -> Component pole connections (not T or A - those are on Polarity)
         pole_types = {'T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS'}
 
-        if not (isinstance(self.source_node, WisdomUnit) and
+        if not (isinstance(self.source_node, Perspective) and
                 isinstance(target_node, DialecticalComponent) and
                 self.relationship_type in pole_types):
-            return  # Not a WU-pole connection
+            return  # Not a PP-pole connection
 
-        wu = self.source_node
+        pp = self.source_node
         new_comp = target_node
         position = self.relationship_type
 
@@ -528,7 +528,7 @@ class BoundRelationshipManager(Generic[T]):
                 manager._connect_internal(target_comp)
 
         # Get T and A from Polarity (if connected)
-        polarity_result = wu.polarity.get()
+        polarity_result = pp.polarity.get()
         polarity = polarity_result[0] if polarity_result else None
         t_comp = polarity.get_t_component() if polarity else None
         a_comp = polarity.get_a_component() if polarity else None
@@ -548,25 +548,25 @@ class BoundRelationshipManager(Generic[T]):
         # Cross-polarity contradictions: T+ ↔ A-, A+ ↔ T- (bidirectional)
         # These are mutually exclusive statements (CONTRADICTION_OF, not OPPOSITE_OF)
         if position == 'T_PLUS':
-            a_minus_result = wu.a_minus.get()
+            a_minus_result = pp.a_minus.get()
             if a_minus_result:
                 a_minus_comp, _ = a_minus_result
                 safe_connect_semantic(new_comp, 'contradictions', a_minus_comp)
                 safe_connect_semantic(a_minus_comp, 'contradictions', new_comp)
         elif position == 'A_MINUS':
-            t_plus_result = wu.t_plus.get()
+            t_plus_result = pp.t_plus.get()
             if t_plus_result:
                 t_plus_comp, _ = t_plus_result
                 safe_connect_semantic(new_comp, 'contradictions', t_plus_comp)
                 safe_connect_semantic(t_plus_comp, 'contradictions', new_comp)
         elif position == 'A_PLUS':
-            t_minus_result = wu.t_minus.get()
+            t_minus_result = pp.t_minus.get()
             if t_minus_result:
                 t_minus_comp, _ = t_minus_result
                 safe_connect_semantic(new_comp, 'contradictions', t_minus_comp)
                 safe_connect_semantic(t_minus_comp, 'contradictions', new_comp)
         elif position == 'T_MINUS':
-            a_plus_result = wu.a_plus.get()
+            a_plus_result = pp.a_plus.get()
             if a_plus_result:
                 a_plus_comp, _ = a_plus_result
                 safe_connect_semantic(new_comp, 'contradictions', a_plus_comp)
@@ -574,21 +574,21 @@ class BoundRelationshipManager(Generic[T]):
 
     def _validate_semantic_relationship_consistency(self, target_node: BaseNode) -> None:
         """
-        Validate that manual semantic relationships don't contradict WisdomUnit structure.
+        Validate that manual semantic relationships don't contradict Perspective structure.
 
         When manually creating semantic relationships between components,
         this validates that the relationship doesn't contradict how the
-        components are positioned within shared WisdomUnits.
+        components are positioned within shared Perspectives.
 
         For example:
-        - If T+ and T are in the same WU, T+ should be POSITIVE_SIDE_OF T, not OPPOSITE_OF T
-        - If T and A are in the same WU, they should be OPPOSITE_OF, not POSITIVE_SIDE_OF
+        - If T+ and T are in the same PP, T+ should be POSITIVE_SIDE_OF T, not OPPOSITE_OF T
+        - If T and A are in the same PP, they should be OPPOSITE_OF, not POSITIVE_SIDE_OF
 
         This is called automatically by connect() for semantic relationships
         (OPPOSITE_OF, CONTRADICTION_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO).
 
         Raises:
-            ValueError: If the relationship contradicts WisdomUnit structure
+            ValueError: If the relationship contradicts Perspective structure
         """
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
@@ -604,23 +604,23 @@ class BoundRelationshipManager(Generic[T]):
         target_comp = target_node
         rel_type = self.relationship_type
 
-        # Find shared WisdomUnits
-        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
-        repo = WisdomUnitRepository()
+        # Find shared Perspectives
+        from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
+        repo = PerspectiveRepository()
 
-        source_wus = {wu.hash: (wu, pos) for wu, pos in repo.find_by_dialectical_component(source_comp)}
-        target_wus = {wu.hash: (wu, pos) for wu, pos in repo.find_by_dialectical_component(target_comp)}
+        source_pps = {pp.hash: (pp, pos) for pp, pos in repo.find_by_dialectical_component(source_comp)}
+        target_pps = {pp.hash: (pp, pos) for pp, pos in repo.find_by_dialectical_component(target_comp)}
 
-        # Find common WisdomUnits
-        common_wu_uids = set(source_wus.keys()) & set(target_wus.keys())
+        # Find common Perspectives
+        common_pp_uids = set(source_pps.keys()) & set(target_pps.keys())
 
-        if not common_wu_uids:
-            return  # No shared WisdomUnits, no structural constraint
+        if not common_pp_uids:
+            return  # No shared Perspectives, no structural constraint
 
-        # Check each shared WisdomUnit for contradictions
-        for wu_uid in common_wu_uids:
-            _, source_pos = source_wus[wu_uid]
-            _, target_pos = target_wus[wu_uid]
+        # Check each shared Perspective for contradictions
+        for pp_uid in common_pp_uids:
+            _, source_pos = source_pps[pp_uid]
+            _, target_pos = target_pps[pp_uid]
 
             # Define expected relationships based on positions
             # POSITIVE_SIDE_OF: T+ → T, A+ → A
@@ -642,19 +642,19 @@ class BoundRelationshipManager(Generic[T]):
                 if pos_pair in opposite_pairs:
                     raise ValueError(
                         f"Cannot create POSITIVE_SIDE_OF between components that are opposites "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have OPPOSITE_OF relationship, not POSITIVE_SIDE_OF."
                     )
                 if pos_pair in contradiction_pairs:
                     raise ValueError(
                         f"Cannot create POSITIVE_SIDE_OF between components that are contradictions "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have CONTRADICTION_OF relationship, not POSITIVE_SIDE_OF."
                     )
                 if pos_pair in negative_side_pairs:
                     raise ValueError(
                         f"Cannot create POSITIVE_SIDE_OF between components where source is "
-                        f"a negative side ({source_pos}) in WisdomUnit. "
+                        f"a negative side ({source_pos}) in Perspective. "
                         f"Use NEGATIVE_SIDE_OF instead."
                     )
 
@@ -663,19 +663,19 @@ class BoundRelationshipManager(Generic[T]):
                 if pos_pair in opposite_pairs:
                     raise ValueError(
                         f"Cannot create NEGATIVE_SIDE_OF between components that are opposites "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have OPPOSITE_OF relationship, not NEGATIVE_SIDE_OF."
                     )
                 if pos_pair in contradiction_pairs:
                     raise ValueError(
                         f"Cannot create NEGATIVE_SIDE_OF between components that are contradictions "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have CONTRADICTION_OF relationship, not NEGATIVE_SIDE_OF."
                     )
                 if pos_pair in positive_side_pairs:
                     raise ValueError(
                         f"Cannot create NEGATIVE_SIDE_OF between components where source is "
-                        f"a positive side ({source_pos}) in WisdomUnit. "
+                        f"a positive side ({source_pos}) in Perspective. "
                         f"Use POSITIVE_SIDE_OF instead."
                     )
 
@@ -684,13 +684,13 @@ class BoundRelationshipManager(Generic[T]):
                 if pos_pair in positive_side_pairs or pos_pair in negative_side_pairs:
                     raise ValueError(
                         f"Cannot create OPPOSITE_OF between components that are on the same side "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
                     )
                 if pos_pair in contradiction_pairs:
                     raise ValueError(
                         f"Cannot create OPPOSITE_OF between cross-polarity components "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have CONTRADICTION_OF relationship, not OPPOSITE_OF."
                     )
 
@@ -699,13 +699,13 @@ class BoundRelationshipManager(Generic[T]):
                 if pos_pair in positive_side_pairs or pos_pair in negative_side_pairs:
                     raise ValueError(
                         f"Cannot create CONTRADICTION_OF between components that are on the same side "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have POSITIVE_SIDE_OF or NEGATIVE_SIDE_OF relationship."
                     )
                 if pos_pair in opposite_pairs:
                     raise ValueError(
                         f"Cannot create CONTRADICTION_OF between T and A components "
-                        f"in WisdomUnit. Source is at {source_pos}, target is at {target_pos}. "
+                        f"in Perspective. Source is at {source_pos}, target is at {target_pos}. "
                         f"These positions should have OPPOSITE_OF relationship, not CONTRADICTION_OF."
                     )
 
@@ -806,7 +806,7 @@ class BoundRelationshipManager(Generic[T]):
         Two calling patterns supported:
 
         1. Pass typed relationship instance (recommended - type-safe and validated):
-            wu.t.connect(component, relationship=TRelationship(alias='T1'))
+            pp.t.connect(component, relationship=TRelationship(alias='T1'))
 
             Benefits:
             - Type-safe: IDE autocomplete for relationship properties
@@ -814,7 +814,7 @@ class BoundRelationshipManager(Generic[T]):
             - Refactor-safe: renaming .alias updates all usages
 
         2. Pass properties dict (legacy - for backward compatibility):
-            wu.t.connect(component, properties={'alias': 'T1'})
+            pp.t.connect(component, properties={'alias': 'T1'})
 
             Drawbacks:
             - Hardcoded strings (not refactor-safe)
@@ -1010,7 +1010,7 @@ class BoundRelationshipManager(Generic[T]):
 
         # Auto-create semantic relationships when connecting components
         self._create_polarity_semantic_relationships(target_node)
-        self._create_wisdom_unit_semantic_relationships(target_node)
+        self._create_perspective_semantic_relationships(target_node)
 
         return rel
 

@@ -415,7 +415,7 @@ class ArousalEstimation(Estimation, label="Arousal"):
 
 class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
     """
-    Conceptual coherence estimation for WisdomUnit validation.
+    Conceptual coherence estimation for Perspective validation.
 
     Tests the logical coherence of a tetrad structure using control statements:
     - t_plus_without_a_plus_yields_t_minus: "{T+} without {A+} yields {T-}"
@@ -426,7 +426,7 @@ class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
 
     Validation threshold: Average of both scores must be >= CONCEPTUAL_COHERENCE_THRESHOLD.
 
-    Stored on WisdomUnit as it validates the entire tetrad structure.
+    Stored on Perspective as it validates the entire tetrad structure.
     """
 
     t_plus_without_a_plus_yields_t_minus: float
@@ -440,7 +440,7 @@ class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
 
 class DiagonalContradictionEstimation(Estimation, label="DiagonalContradiction"):
     """
-    Diagonal contradiction estimation for WisdomUnit validation.
+    Diagonal contradiction estimation for Perspective validation.
 
     Tests the contradiction validity of diagonal pole pairs:
     - t_plus_vs_a_minus: Does T+ contradict A-? (They should be mutually exclusive)
@@ -458,7 +458,7 @@ class DiagonalContradictionEstimation(Estimation, label="DiagonalContradiction")
     Strong contradiction means the poles cannot both be true/good simultaneously.
     Weak contradiction suggests the tetrad structure may need refinement.
 
-    Stored on WisdomUnit as it validates the entire tetrad structure.
+    Stored on Perspective as it validates the entire tetrad structure.
     """
 
     t_plus_vs_a_minus: float

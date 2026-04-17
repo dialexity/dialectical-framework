@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.settings import Settings
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 class WheelRepository:
@@ -151,24 +151,24 @@ class WheelRepository:
     @inject
     def find_by_layer(
         self,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
         nexus: Optional[Nexus] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         case_id: Optional[str] = Provide[DI.case_id],
     ) -> list[Wheel]:
         """
-        Find all Wheels in the same layer (same WU set, any arrangement).
+        Find all Wheels in the same layer (same Perspective set, any arrangement).
 
         A "layer" consists of all Wheels whose parent Cycles have exactly
-        the same set of WisdomUnits (regardless of order).
+        the same set of Perspectives (regardless of order).
 
-        When nexus is provided, scopes to Wheels whose parent Cycle's WU
-        hashes are all within the Nexus's WU set.
+        When nexus is provided, scopes to Wheels whose parent Cycle's
+        Perspective hashes are all within the Nexus's Perspective set.
 
         This is used for probability normalization across competing alternatives.
 
         Args:
-            wisdom_units: List of WisdomUnits defining the layer
+            perspectives: List of Perspectives defining the layer
             nexus: Optional Nexus to scope results to
             case_id: Case ID (injected from DI context)
             graph_db: Graph database (injected)
@@ -176,28 +176,28 @@ class WheelRepository:
         Returns:
             List of Wheel nodes in this layer
         """
-        if not wisdom_units:
+        if not perspectives:
             return []
 
-        wu_hashes = sorted([wu.hash for wu in wisdom_units])
+        pp_hashes = sorted([pp.hash for pp in perspectives])
 
-        # Find all Wheels belonging to Cycles with exactly these WU hashes
+        # Find all Wheels belonging to Cycles with exactly these Perspective hashes
         query = """
             MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
             WHERE w.case_id = $case_id
-            AND size(c.wisdom_unit_hashes) = $hash_count
-            AND ALL(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
+            AND size(c.perspective_hashes) = $hash_count
+            AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
         """
         params: dict = {
             "case_id": case_id,
-            "wu_hashes": wu_hashes,
-            "hash_count": len(wu_hashes),
+            "pp_hashes": pp_hashes,
+            "hash_count": len(pp_hashes),
         }
 
         if nexus is not None:
-            nexus_wu_hashes = [wu.hash for wu, _ in nexus.wisdom_units.all()]
-            query += "    AND ALL(h IN c.wisdom_unit_hashes WHERE h IN $nexus_wu_hashes)\n"
-            params["nexus_wu_hashes"] = nexus_wu_hashes
+            nexus_pp_hashes = [pp.hash for pp, _ in nexus.perspectives.all()]
+            query += "    AND ALL(h IN c.perspective_hashes WHERE h IN $nexus_pp_hashes)\n"
+            params["nexus_pp_hashes"] = nexus_pp_hashes
 
         query += "    RETURN w"
 
@@ -217,8 +217,8 @@ class WheelRepository:
         Find all potential parent wheels for Transformation computation.
 
         Returns wheels that:
-        - Have one fewer WU than this wheel
-        - Have a WU set that is a subset of this wheel's WUs
+        - Have one fewer Perspective than this wheel
+        - Have a Perspective set that is a subset of this wheel's Perspectives
         - Match the effective intent
 
         Args:
@@ -231,13 +231,13 @@ class WheelRepository:
         """
         from dialectical_framework.graph.nodes.wheel import Wheel as WheelNode
 
-        wheel_wu_hashes = [wu.hash for wu in wheel._wisdom_units]
-        if len(wheel_wu_hashes) <= 1:
+        wheel_pp_hashes = [pp.hash for pp in wheel._perspectives]
+        if len(wheel_pp_hashes) <= 1:
             return []  # Layer 1 wheels have no parents
 
         effective_intent = wheel.get_effective_intent() or settings.cycle_preset
-        wheel_wu_set = set(wheel_wu_hashes)
-        target_layer = len(wheel_wu_hashes) - 1
+        wheel_pp_set = set(wheel_pp_hashes)
+        target_layer = len(wheel_pp_hashes) - 1
 
         # Get the Cycle
         cycle_result = wheel.cycle.get()
@@ -259,16 +259,16 @@ class WheelRepository:
         parents: list[WheelNode] = []
         for row in results:
             candidate: WheelNode = row["w"]
-            candidate_wu_hashes = [wu.hash for wu in candidate._wisdom_units]
+            candidate_pp_hashes = [pp.hash for pp in candidate._perspectives]
 
-            # Check layer match (one fewer WU)
-            if len(candidate_wu_hashes) != target_layer:
+            # Check layer match (one fewer Perspective)
+            if len(candidate_pp_hashes) != target_layer:
                 continue
 
-            candidate_wu_set = set(candidate_wu_hashes)
+            candidate_pp_set = set(candidate_pp_hashes)
 
-            # Check if candidate's WUs are a subset of this wheel's WUs
-            if candidate_wu_set.issubset(wheel_wu_set):
+            # Check if candidate's Perspectives are a subset of this wheel's Perspectives
+            if candidate_pp_set.issubset(wheel_pp_set):
                 # Check intent match
                 candidate_intent = candidate.get_effective_intent() or settings.cycle_preset
                 if candidate_intent == effective_intent:

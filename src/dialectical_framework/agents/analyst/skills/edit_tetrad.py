@@ -1,30 +1,30 @@
 """
-EditTetrad: Skill for editing poles (T+, T-, A+, A-) of a WisdomUnit.
+EditTetrad: Skill for editing poles (T+, T-, A+, A-) of a Perspective.
 
 Handles modifications to poles with proper validation:
 - Validates each pole against its position
 - Suggests correct position if pole doesn't fit
 
-Editing behavior based on WU state:
-- Uncommitted WU -> edit in place, commit it
-- Committed WU -> clone (fork with origin_hash), edit the copy, commit it
+Editing behavior based on PP state:
+- Uncommitted PP -> edit in place, commit it
+- Committed PP -> clone (fork with origin_hash), edit the copy, commit it
 
-In both cases, the returned WU is committed with all 6 positions filled.
+In both cases, the returned PP is committed with all 6 positions filled.
 
 Use EditPolarity for editing T or A.
-Use WisdomUnitValidation capability separately for full tetrad validation.
+Use PerspectiveValidation capability separately for full tetrad validation.
 
-Uses ForkableMixin: forked WU has origin_hash pointing to the original.
+Uses ForkableMixin: forked PP has origin_hash pointing to the original.
 
 Usage:
     editor = EditTetrad(
-        wisdom_unit_hash="abc123...",
+        perspective_hash="abc123...",
         changes={"T+": "New positive thesis aspect"},
     )
     result = await editor.execute()
 
     if result.is_valid:
-        wu = result.wisdom_unit  # Committed WU with all 6 poles
+        pp = result.perspective  # Committed PP with all 6 poles
 """
 
 from __future__ import annotations
@@ -43,11 +43,11 @@ from dialectical_framework.features.pole_classification import \
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import POSITION_A, POSITION_T
-from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
+from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_A_PLUS,
                                                            POSITION_T_MINUS,
                                                            POSITION_T_PLUS,
-                                                           WisdomUnit)
+                                                           Perspective)
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, HasPolarityRelationship,
     TMinusRelationship, TPlusRelationship)
@@ -63,14 +63,14 @@ HS_WRONG_CATEGORY_THRESHOLD = 0.1
 
 @dataclass
 class EditTetradResult:
-    """Result of editing poles in a WisdomUnit.
+    """Result of editing poles in a Perspective.
 
-    Returns a WisdomUnit:
-    - If input WU was uncommitted -> edits in place, commits it
-    - If input WU was committed -> clones (forks with origin_hash), edits the copy, commits it
+    Returns a Perspective:
+    - If input PP was uncommitted -> edits in place, commits it
+    - If input PP was committed -> clones (forks with origin_hash), edits the copy, commits it
     """
 
-    wisdom_unit: Optional[WisdomUnit] = None
+    perspective: Optional[Perspective] = None
     is_valid: bool = True
     warnings: list[str] = field(default_factory=list)
     changed_positions: list[str] = field(default_factory=list)
@@ -79,10 +79,10 @@ class EditTetradResult:
 
 class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
     """
-    Skill for editing poles (T+, T-, A+, A-) of a WisdomUnit with validation.
+    Skill for editing poles (T+, T-, A+, A-) of a Perspective with validation.
 
-    Validates pole edits and returns WU with updated poles.
-    Does NOT mutate the original committed WisdomUnit (clones it instead).
+    Validates pole edits and returns PP with updated poles.
+    Does NOT mutate the original committed Perspective (clones it instead).
 
     For editing T or A, use EditPolarity instead.
 
@@ -91,15 +91,15 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
     - call() returns JSON string for LLM tool use
     """
 
-    wisdom_unit_hash: str = Field(description="Hash of the WisdomUnit to edit")
+    perspective_hash: str = Field(description="Hash of the Perspective to edit")
     changes: dict[str, str] = Field(
         description="Dict of {position: new_statement} for pole changes (T+, T-, A+, A-)"
     )
     text: str = Field(default="", description="Optional context for classification")
 
     _report: ExecutionReport = PrivateAttr()
-    _working_wu: WisdomUnit = PrivateAttr()
-    _original_wu: WisdomUnit = PrivateAttr()
+    _working_pp: Perspective = PrivateAttr()
+    _original_pp: Perspective = PrivateAttr()
     _was_committed: bool = PrivateAttr()
     _changes: dict[str, str] = PrivateAttr()
     _text: str = PrivateAttr()
@@ -118,19 +118,19 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         """Execute the editing operation."""
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        # Resolve WisdomUnit
-        wu = self._resolve_wisdom_unit(self.wisdom_unit_hash)
-        if wu is None:
+        # Resolve Perspective
+        pp = self._resolve_perspective(self.perspective_hash)
+        if pp is None:
             result = EditTetradResult(
                 is_valid=False,
-                error_message=f"WisdomUnit '{self.wisdom_unit_hash}' not found",
+                error_message=f"Perspective '{self.perspective_hash}' not found",
             )
             self._build_report(result)
             return result
 
-        self._original_wu = wu
+        self._original_pp = pp
         self._text = self.text
-        self._was_committed = wu.is_committed
+        self._was_committed = pp.is_committed
 
         # Clean up changes dict - only accept pole positions
         self._changes = {}
@@ -146,26 +146,26 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             self._build_report(result)
             return result
 
-        # Verify WU has T and A
-        current_t = self._original_wu.get_component(POSITION_T)
-        current_a = self._original_wu.get_component(POSITION_A)
+        # Verify PP has T and A
+        current_t = self._original_pp.get_component(POSITION_T)
+        current_a = self._original_pp.get_component(POSITION_A)
 
         if not current_t or not current_a:
             result = EditTetradResult(
                 is_valid=False,
-                error_message="WisdomUnit must have T and A for pole editing",
+                error_message="Perspective must have T and A for pole editing",
             )
             self._build_report(result)
             return result
 
-        # Prepare working WU
+        # Prepare working PP
         if self._was_committed:
-            self._working_wu = wu.clone()
-            self._working_wu.save()
+            self._working_pp = pp.clone()
+            self._working_pp.save()
         else:
-            self._working_wu = wu
-            if not self._working_wu._id:
-                self._working_wu.save()
+            self._working_pp = pp
+            if not self._working_pp._id:
+                self._working_pp.save()
 
         # Handle pole changes
         result = await self._handle_poles_changed(current_t, current_a)
@@ -230,7 +230,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         await self._fill_wu_with_poles(pole_validations)
 
         return EditTetradResult(
-            wisdom_unit=self._working_wu,
+            perspective=self._working_pp,
             is_valid=True,
             changed_positions=list(self._changes.keys()),
         )
@@ -239,15 +239,15 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         self,
         pole_validations: dict[str, tuple[DialecticalComponent, object]],
     ) -> None:
-        """Fill working WU with changed poles, copying unchanged from original."""
-        wu = self._working_wu
+        """Fill working PP with changed poles, copying unchanged from original."""
+        pp = self._working_pp
 
         # Copy Polarity (T-A pair) from original if not connected
-        if wu.polarity.count() == 0:
-            orig_polarity_result = self._original_wu.polarity.get()
+        if pp.polarity.count() == 0:
+            orig_polarity_result = self._original_pp.polarity.get()
             if orig_polarity_result:
                 orig_polarity, _ = orig_polarity_result
-                wu.polarity.connect(
+                pp.polarity.connect(
                     orig_polarity, relationship=HasPolarityRelationship()
                 )
 
@@ -260,7 +260,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         }
 
         for pos in POLE_POSITIONS:
-            manager = wu.get_relationship_manager_by_position(pos)
+            manager = pp.get_relationship_manager_by_position(pos)
             rel_class = rel_classes[pos]
 
             if pos in pole_validations:
@@ -279,7 +279,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
                 # Copy from original if not already connected
                 if manager.count() == 0:
                     orig_result = (
-                        self._original_wu.get_relationship_manager_by_position(
+                        self._original_pp.get_relationship_manager_by_position(
                             pos
                         ).get()
                     )
@@ -301,8 +301,8 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
                             ),
                         )
 
-        wu.commit()
-        self._report.node_created(wu)
+        pp.commit()
+        self._report.node_created(pp)
 
     async def _find_better_pole_position(
         self,
@@ -335,17 +335,17 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
 
         return best_match
 
-    def _resolve_wisdom_unit(self, wu_hash: str) -> Optional[WisdomUnit]:
-        """Resolve hash to WisdomUnit."""
+    def _resolve_perspective(self, pp_hash: str) -> Optional[Perspective]:
+        """Resolve hash to Perspective."""
         repo = NodeRepository()
         try:
-            node = repo.find_by_hash(wu_hash)
-            if isinstance(node, WisdomUnit):
+            node = repo.find_by_hash(pp_hash)
+            if isinstance(node, Perspective):
                 return node
         except ValueError:
             try:
-                node = repo.find_by_prefix(wu_hash)
-                if isinstance(node, WisdomUnit):
+                node = repo.find_by_prefix(pp_hash)
+                if isinstance(node, Perspective):
                     return node
             except ValueError:
                 pass
@@ -359,11 +359,11 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             self._was_committed if hasattr(self, "_was_committed") else None
         )
 
-        if result.wisdom_unit:
-            if result.wisdom_unit.hash:
-                self._report.artifacts["wisdom_unit_hash"] = result.wisdom_unit.hash
-            if result.wisdom_unit.origin_hash:
-                self._report.artifacts["origin_hash"] = result.wisdom_unit.origin_hash
+        if result.perspective:
+            if result.perspective.hash:
+                self._report.artifacts["perspective_hash"] = result.perspective.hash
+            if result.perspective.origin_hash:
+                self._report.artifacts["origin_hash"] = result.perspective.origin_hash
 
         if result.warnings:
             self._report.artifacts["warnings"] = result.warnings

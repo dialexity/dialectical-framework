@@ -1,11 +1,11 @@
 """
-WisdomUnitValidation: Validates a WisdomUnit's tetrad structure.
+PerspectiveValidation: Validates a Perspective's tetrad structure.
 
 Runs two validation checks:
 1. Control Statements Check - Tests logical coherence via control statements (LLM)
 2. Empirical Inequalities - Checks pole complementarities for synthesis viability
 
-A WisdomUnit passes validation if:
+A Perspective passes validation if:
 - Both control statement scores >= 0.7 (conceptually coherent)
 - Empirical inequalities are satisfied (synthesis is possible)
 
@@ -20,11 +20,11 @@ Empirical Inequalities:
     - KS = complementarity_s = (complementarity_t + complementarity_a) / 2
 
 Usage:
-    validator = WisdomUnitValidation()
-    result = await validator.execute(wisdom_unit=wu, text="optional context")
+    validator = PerspectiveValidation()
+    result = await validator.execute(perspective=pp, text="optional context")
 
     if result.is_valid:
-        print("WisdomUnit is valid")
+        print("Perspective is valid")
     else:
         print(f"Validation failed: {result.failure_reasons}")
 """
@@ -43,7 +43,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import \
     PoleRelationship
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 # --- Thresholds ---
@@ -68,7 +68,7 @@ NEGATIVE_POLE_KS_MAXIMUM = 0.6
 class EmpiricalInequalitiesResult:
     """Result of empirical inequalities validation.
 
-    Raw values (KS, diff_t, diff_a) are available on WisdomUnit.
+    Raw values (KS, diff_t, diff_a) are available on Perspective.
     """
 
     is_valid: Optional[bool] = None  # None if data missing
@@ -76,8 +76,8 @@ class EmpiricalInequalitiesResult:
 
 
 @dataclass
-class WisdomUnitValidationResult:
-    """Result of WisdomUnit validation."""
+class PerspectiveValidationResult:
+    """Result of Perspective validation."""
 
     control_statements: ControlStatementsCheckResult
     empirical_inequalities: EmpiricalInequalitiesResult
@@ -107,9 +107,9 @@ class WisdomUnitValidationResult:
 # --- Capability ---
 
 
-class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
+class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
     """
-    Validates a WisdomUnit's tetrad structure.
+    Validates a Perspective's tetrad structure.
 
     Runs two validation checks:
     1. Control Statements Check - Uses LLM to evaluate control statements
@@ -125,35 +125,35 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
 
     async def execute(
         self,
-        wisdom_unit: WisdomUnit,
+        perspective: Perspective,
         text: str = "",
-    ) -> WisdomUnitValidationResult:
+    ) -> PerspectiveValidationResult:
         """
-        Validate a WisdomUnit's tetrad structure.
+        Validate a Perspective's tetrad structure.
 
         Args:
-            wisdom_unit: The WisdomUnit to validate (must be committed and complete)
+            perspective: The Perspective to validate (must be committed and complete)
             text: Optional context for control statements evaluation
 
         Returns:
-            WisdomUnitValidationResult with validation results
+            PerspectiveValidationResult with validation results
 
         Raises:
-            ValueError: If WisdomUnit is not committed or not complete
+            ValueError: If Perspective is not committed or not complete
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not wisdom_unit.is_committed:
-            raise ValueError("WisdomUnit must be committed before validation")
+        if not perspective.is_committed:
+            raise ValueError("Perspective must be committed before validation")
 
-        if not wisdom_unit.is_complete():
-            raise ValueError("WisdomUnit must be complete (have all 6 positions)")
+        if not perspective.is_complete():
+            raise ValueError("Perspective must be complete (have all 6 positions)")
 
         failure_reasons: list[str] = []
 
         # Run control statements check (LLM-based)
         cs_result = await self._cs_capability.execute(
-            wisdom_unit=wisdom_unit,
+            perspective=perspective,
             text=text,
         )
 
@@ -166,10 +166,10 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
             )
 
         # Run empirical inequalities check
-        ei_result = self._check_empirical_inequalities(wisdom_unit)
+        ei_result = self._check_empirical_inequalities(perspective)
         failure_reasons.extend(ei_result.failure_reasons)
 
-        result = WisdomUnitValidationResult(
+        result = PerspectiveValidationResult(
             control_statements=cs_result,
             empirical_inequalities=ei_result,
             failure_reasons=failure_reasons,
@@ -178,9 +178,9 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
         self._build_report(result)
         return result
 
-    def _get_pole_ks(self, wisdom_unit: WisdomUnit, position: str) -> Optional[float]:
+    def _get_pole_ks(self, perspective: Perspective, position: str) -> Optional[float]:
         """Get complementarity_s (KS) for a pole position."""
-        manager = wisdom_unit.get_relationship_manager_by_position(position)
+        manager = perspective.get_relationship_manager_by_position(position)
         result = manager.get()
         if not result:
             return None
@@ -191,7 +191,7 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
 
     def _check_empirical_inequalities(
         self,
-        wisdom_unit: WisdomUnit,
+        perspective: Perspective,
     ) -> EmpiricalInequalitiesResult:
         """
         Check empirical inequalities for synthesis viability.
@@ -201,21 +201,21 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
         2. KS(T+) > 0.4 and KS(A+) > 0.4 (positive poles threshold)
         3. KS(T-) < 0.6 and KS(A-) < 0.6 (negative poles threshold)
         """
-        from dialectical_framework.graph.nodes.wisdom_unit import (
+        from dialectical_framework.graph.nodes.perspective import (
             POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS,
             POSITION_T_PLUS)
 
         failure_reasons: list[str] = []
 
         # Get KS values for all poles
-        ks_t_plus = self._get_pole_ks(wisdom_unit, POSITION_T_PLUS)
-        ks_t_minus = self._get_pole_ks(wisdom_unit, POSITION_T_MINUS)
-        ks_a_plus = self._get_pole_ks(wisdom_unit, POSITION_A_PLUS)
-        ks_a_minus = self._get_pole_ks(wisdom_unit, POSITION_A_MINUS)
+        ks_t_plus = self._get_pole_ks(perspective, POSITION_T_PLUS)
+        ks_t_minus = self._get_pole_ks(perspective, POSITION_T_MINUS)
+        ks_a_plus = self._get_pole_ks(perspective, POSITION_A_PLUS)
+        ks_a_minus = self._get_pole_ks(perspective, POSITION_A_MINUS)
 
-        # Calculate differentials (use WisdomUnit properties)
-        diff_t = wisdom_unit.diff_t
-        diff_a = wisdom_unit.diff_a
+        # Calculate differentials (use Perspective properties)
+        diff_t = perspective.diff_t
+        diff_a = perspective.diff_a
 
         # Check for missing data
         if any(ks is None for ks in [ks_t_plus, ks_t_minus, ks_a_plus, ks_a_minus]):
@@ -280,7 +280,7 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
             failure_reasons=failure_reasons,
         )
 
-    def _build_report(self, result: WisdomUnitValidationResult) -> None:
+    def _build_report(self, result: PerspectiveValidationResult) -> None:
         """Build execution report from result."""
         cs = result.control_statements.estimation
         ei = result.empirical_inequalities
@@ -301,6 +301,6 @@ class WisdomUnitValidation(ExecutableCapability[WisdomUnitValidationResult]):
         self._report.ok = True
         status = "VALID" if result.is_valid else "INVALID"
         self._report.summary = (
-            f"WisdomUnit Validation: {status} "
+            f"Perspective Validation: {status} "
             f"(CS={result.is_conceptually_coherent}, EI={ei.is_valid})"
         )

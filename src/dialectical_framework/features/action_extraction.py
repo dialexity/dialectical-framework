@@ -6,7 +6,7 @@ allowing exploration of various transformation depths.
 
 Usage:
     service = ActionExtraction()
-    candidates = await service.execute(wu, input_text, not_like_these=existing)
+    candidates = await service.execute(pp, input_text, not_like_these=existing)
     for c in candidates:
         print(f"{c.insight_label}: {c.statement}")
 """
@@ -52,7 +52,7 @@ INSIGHT_CATEGORIES = {
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 SYSTEM_PROMPT = """You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
@@ -156,15 +156,15 @@ class ActionExtraction(
 
     async def execute(
         self,
-        wu: WisdomUnit,
+        pp: Perspective,
         input_text: str = "",
         not_like_these: Optional[list[Transformation]] = None,
     ) -> list[ActionCandidateResultDto]:
         """
-        Extract Ac+ candidates for a WisdomUnit.
+        Extract Ac+ candidates for a Perspective.
 
         Args:
-            wu: The WisdomUnit to generate candidates for (must be complete)
+            pp: The Perspective to generate candidates for (must be complete)
             input_text: Optional source content context
             not_like_these: Existing transformations to avoid duplicating
 
@@ -173,14 +173,14 @@ class ActionExtraction(
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not wu.is_complete():
-            raise ValueError("WisdomUnit must have all 6 positions to extract actions")
+        if not pp.is_complete():
+            raise ValueError("Perspective must have all 6 positions to extract actions")
 
         # Initialize conversation
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        # Get WU context
-        wu_context = self._build_wu_context(wu)
+        # Get PP context
+        pp_context = self._build_pp_context(pp)
 
         # Build exclusion list
         exclusion_statements = self._build_exclusion_list(not_like_these or [])
@@ -188,7 +188,7 @@ class ActionExtraction(
         # Generate candidates in parallel - one per hierarchy category
         tasks = [
             self._generate_candidate_for_category(
-                wu_context, input_text, category, info, exclusion_statements
+                pp_context, input_text, category, info, exclusion_statements
             )
             for category, info in INSIGHT_CATEGORIES.items()
         ]
@@ -201,26 +201,26 @@ class ActionExtraction(
         results = [r for r in results if r.statement not in exclusion_statements]
 
         # Report artifacts
-        self._report.artifacts["wu_hash"] = wu.short_hash
+        self._report.artifacts["pp_hash"] = pp.short_hash
         self._report.artifacts["candidate_count"] = len(results)
         self._report.artifacts["insight_categories"] = list(INSIGHT_CATEGORIES.keys())
         self._report.summary = (
-            f"Extracted {len(results)} Ac+ candidates for WU {wu.short_hash}"
+            f"Extracted {len(results)} Ac+ candidates for PP {pp.short_hash}"
         )
 
         return results
 
-    def _build_wu_context(self, wu: WisdomUnit) -> str:
-        """Build context string from WisdomUnit components."""
+    def _build_pp_context(self, pp: Perspective) -> str:
+        """Build context string from Perspective components."""
         parts = []
 
         positions = [
-            ("T", wu.t),
-            ("T+", wu.t_plus),
-            ("T-", wu.t_minus),
-            ("A", wu.a),
-            ("A+", wu.a_plus),
-            ("A-", wu.a_minus),
+            ("T", pp.t),
+            ("T+", pp.t_plus),
+            ("T-", pp.t_minus),
+            ("A", pp.a),
+            ("A+", pp.a_plus),
+            ("A-", pp.a_minus),
         ]
 
         for name, manager in positions:
@@ -246,7 +246,7 @@ class ActionExtraction(
 
     async def _generate_candidate_for_category(
         self,
-        wu_context: str,
+        pp_context: str,
         input_text: str,
         category: str,
         category_info: dict,
@@ -271,9 +271,9 @@ Generate something DIFFERENT from the statements above.
         levels_str = ", ".join(category_info["levels"])
         prompt = f"""{context_section}Given this dialectical polarity:
 
-<wisdom_unit>
-{wu_context}
-</wisdom_unit>
+<perspective>
+{pp_context}
+</perspective>
 {exclusion_section}
 Generate an Ac+ (Positive Action) statement at the **{category.upper()}** insight level.
 

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.nodes.wheel import Wheel
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
 
@@ -149,15 +149,15 @@ class Transition(AssessableEntity, label="Transition"):
         self._target_ref = component
         return self
 
-    def _get_wisdom_units(self) -> list[WisdomUnit]:
+    def _get_perspectives(self) -> list[Perspective]:
         """
-        Get WisdomUnits for alias resolution via the container chain.
+        Get Perspectives for alias resolution via the container chain.
 
-        Follows: Transition → Wheel → Cycle → wisdom_units
-              or Transition → Cycle → wisdom_units
+        Follows: Transition → Wheel → Cycle → perspectives
+              or Transition → Cycle → perspectives
 
         Returns:
-            List of WisdomUnits, or empty list if not found
+            List of Perspectives, or empty list if not found
         """
         cycle_result = self.cycle.get()
         if not cycle_result:
@@ -165,19 +165,19 @@ class Transition(AssessableEntity, label="Transition"):
 
         container, _ = cycle_result
 
-        # For Wheel: get from cycle.wisdom_units
+        # For Wheel: get from cycle.perspectives
         from dialectical_framework.graph.nodes.wheel import Wheel
         if isinstance(container, Wheel):
             cycle_res = container.cycle.get()
             if cycle_res:
                 cycle_obj, _ = cycle_res
-                return cycle_obj.wisdom_units
+                return cycle_obj.perspectives
             return []
 
-        # For Cycle: get wisdom_units directly
+        # For Cycle: get perspectives directly
         from dialectical_framework.graph.nodes.cycle import Cycle
         if isinstance(container, Cycle):
-            return container.wisdom_units
+            return container.perspectives
 
         return []
 
@@ -282,27 +282,27 @@ class Transition(AssessableEntity, label="Transition"):
 
         return self
 
-    def _find_wu_for_component(self, component: DialecticalComponent) -> WisdomUnit | None:
+    def _find_pp_for_component(self, component: DialecticalComponent) -> Perspective | None:
         """
-        Find which WisdomUnit contains this component.
+        Find which Perspective contains this component.
 
-        Searches through all WisdomUnits via get_wisdom_units() to find the one
+        Searches through all Perspectives via _get_perspectives() to find the one
         containing the given component.
 
         Args:
             component: The dialectical component to find
 
         Returns:
-            The WisdomUnit containing this component, or None if not found
+            The Perspective containing this component, or None if not found
         """
-        wisdom_units = self._get_wisdom_units()
-        if not wisdom_units:
+        perspectives = self._get_perspectives()
+        if not perspectives:
             return None
 
-        for wu in wisdom_units:
+        for pp in perspectives:
             try:
-                component.get_alias(wu)
-                return wu
+                component.get_alias(pp)
+                return pp
             except ValueError:
                 continue
 
@@ -320,12 +320,12 @@ class Transition(AssessableEntity, label="Transition"):
             return None
 
         source_comp, _ = source_result
-        wu = self._find_wu_for_component(source_comp)
-        if not wu:
+        pp = self._find_pp_for_component(source_comp)
+        if not pp:
             return None
 
         # Determine which side (T or A) based on component's position
-        position = source_comp.get_position(wu)
+        position = source_comp.get_position(pp)
         if not position:
             return None
 
@@ -334,7 +334,7 @@ class Transition(AssessableEntity, label="Transition"):
 
         # Import here to avoid circular dependency at module level
         from dialectical_framework.graph.wheel_segment import WheelSegment
-        return WheelSegment(wu, side)
+        return WheelSegment(pp, side)
 
     def get_target_wheel_segment(self) -> WheelSegment | None:
         """
@@ -348,12 +348,12 @@ class Transition(AssessableEntity, label="Transition"):
             return None
 
         target_comp, _ = target_result
-        wu = self._find_wu_for_component(target_comp)
-        if not wu:
+        pp = self._find_pp_for_component(target_comp)
+        if not pp:
             return None
 
         # Determine which side (T or A) based on component's position
-        position = target_comp.get_position(wu)
+        position = target_comp.get_position(pp)
         if not position:
             return None
 
@@ -362,13 +362,13 @@ class Transition(AssessableEntity, label="Transition"):
 
         # Import here to avoid circular dependency at module level
         from dialectical_framework.graph.wheel_segment import WheelSegment
-        return WheelSegment(wu, side)
+        return WheelSegment(pp, side)
 
     @staticmethod
     def _get_component_label(
         comp: DialecticalComponent,
         mode: str,
-        wisdom_units: list[WisdomUnit] | None
+        perspectives: list[Perspective] | None
     ) -> str:
         """
         Get label for a component based on format mode.
@@ -376,18 +376,18 @@ class Transition(AssessableEntity, label="Transition"):
         Args:
             comp: The dialectical component
             mode: Format mode ("aliases", "statements", "explicit")
-            wisdom_units: Optional list of WisdomUnits for alias resolution
+            perspectives: Optional list of Perspectives for alias resolution
 
         Returns:
             Formatted label string
         """
         alias = None
 
-        # Try to resolve alias through WisdomUnit context
-        if wisdom_units and mode in ("", "aliases", "explicit"):
-            for wu in wisdom_units:
+        # Try to resolve alias through Perspective context
+        if perspectives and mode in ("", "aliases", "explicit"):
+            for pp in perspectives:
                 try:
-                    alias = comp.get_alias(wu)
+                    alias = comp.get_alias(pp)
                     break
                 except ValueError:
                     continue
@@ -427,7 +427,7 @@ class Transition(AssessableEntity, label="Transition"):
         self,
         source_comp: DialecticalComponent,
         mode: str,
-        wisdom_units: list[WisdomUnit] | None
+        perspectives: list[Perspective] | None
     ) -> str:
         """
         Get source labels for segment-based transitions (Transformation).
@@ -438,7 +438,7 @@ class Transition(AssessableEntity, label="Transition"):
         Args:
             source_comp: The source component (minus component)
             mode: Format mode
-            wisdom_units: Optional list of WisdomUnits for alias resolution
+            perspectives: Optional list of Perspectives for alias resolution
 
         Returns:
             Formatted source label with segment aliases (e.g., "T1-, T1")
@@ -446,28 +446,28 @@ class Transition(AssessableEntity, label="Transition"):
         # Find the segment containing this source component
         source_segment = self.get_source_wheel_segment()
         if not source_segment:
-            return self._get_component_label(source_comp, mode, wisdom_units)
+            return self._get_component_label(source_comp, mode, perspectives)
 
-        wu = source_segment.wisdom_unit
+        pp = source_segment.perspective
 
         # Get the minus and core components from the segment
         # Source component should be the minus (T- or A-)
         if source_segment.side == "T":
-            minus_result = wu.t_minus.get()
-            core_result = wu.t.get()
+            minus_result = pp.t_minus.get()
+            core_result = pp.t.get()
         else:  # A-side
-            minus_result = wu.a_minus.get()
-            core_result = wu.a.get()
+            minus_result = pp.a_minus.get()
+            core_result = pp.a.get()
 
         if not minus_result or not core_result:
-            return self._get_component_label(source_comp, mode, wisdom_units)
+            return self._get_component_label(source_comp, mode, perspectives)
 
         minus_comp, _ = minus_result
         core_comp, _ = core_result
 
         # Get labels for both components
-        minus_label = self._get_component_label(minus_comp, mode, wisdom_units)
-        core_label = self._get_component_label(core_comp, mode, wisdom_units)
+        minus_label = self._get_component_label(minus_comp, mode, perspectives)
+        core_label = self._get_component_label(core_comp, mode, perspectives)
 
         return f"{minus_label}, {core_label}"
 
@@ -506,8 +506,8 @@ class Transition(AssessableEntity, label="Transition"):
         source_comp, _ = source_result
         target_comp, _ = target_result
 
-        # Get WisdomUnits for alias resolution (replaces nexus)
-        wisdom_units = self._get_wisdom_units()
+        # Get Perspectives for alias resolution (replaces nexus)
+        perspectives = self._get_perspectives()
 
         # Normalize mode
         mode = format_spec if format_spec else "aliases"
@@ -518,19 +518,19 @@ class Transition(AssessableEntity, label="Transition"):
         # Helper to get source label (segment or component based)
         def get_source_label(label_mode: str) -> str:
             if is_segment and label_mode != "statements":
-                return self._get_segment_source_labels(source_comp, label_mode, wisdom_units)
-            return self._get_component_label(source_comp, label_mode, wisdom_units)
+                return self._get_segment_source_labels(source_comp, label_mode, perspectives)
+            return self._get_component_label(source_comp, label_mode, perspectives)
 
         if mode == "verbose":
             # Verbose: aliases + rationale
             source_label = get_source_label("aliases")
-            target_label = self._get_component_label(target_comp, "aliases", wisdom_units)
+            target_label = self._get_component_label(target_comp, "aliases", perspectives)
 
             result = f"{source_label} → {target_label}"
 
             # Add explicit format on new line
             source_explicit = get_source_label("explicit")
-            target_explicit = self._get_component_label(target_comp, "explicit", wisdom_units)
+            target_explicit = self._get_component_label(target_comp, "explicit", perspectives)
             result = f"{result}\n{source_explicit} → {target_explicit}"
 
             # Add rationales
@@ -554,7 +554,7 @@ class Transition(AssessableEntity, label="Transition"):
 
         elif mode in ("", "aliases", "statements", "explicit"):
             source_label = get_source_label(mode)
-            target_label = self._get_component_label(target_comp, mode, wisdom_units)
+            target_label = self._get_component_label(target_comp, mode, perspectives)
             return f"{source_label} → {target_label}"
 
         else:

@@ -1,31 +1,31 @@
 """
-EditPolarity: Skill for editing T or A components of a WisdomUnit.
+EditPolarity: Skill for editing T or A components of a Perspective.
 
 Handles modifications to T or A with proper validation and regeneration:
 - Changing T -> validate A compatibility, regenerate A if needed, regenerate poles
 - Changing A -> validate T compatibility, handle misclassification
 - Changing both T and A together
 
-Editing behavior based on WU state:
-- Uncommitted WU -> edit in place, commit it
-- Committed WU -> clone (fork with origin_hash), edit the copy, commit it
+Editing behavior based on PP state:
+- Uncommitted PP -> edit in place, commit it
+- Committed PP -> clone (fork with origin_hash), edit the copy, commit it
 
-In both cases, the returned WU is committed with all 6 poles set.
+In both cases, the returned PP is committed with all 6 poles set.
 
 Use EditTetrad for editing poles (T+, T-, A+, A-).
-Use WisdomUnitValidation capability separately for full tetrad validation.
+Use PerspectiveValidation capability separately for full tetrad validation.
 
-Uses ForkableMixin: forked WU has origin_hash pointing to the original.
+Uses ForkableMixin: forked PP has origin_hash pointing to the original.
 
 Usage:
     editor = EditPolarity(
-        wisdom_unit_hash="abc123...",
+        perspective_hash="abc123...",
         changes={"T": "New thesis statement"},
     )
     result = await editor.execute()
 
     if result.is_valid:
-        wu = result.wisdom_unit  # Committed WU with all 6 poles
+        pp = result.perspective  # Committed PP with all 6 poles
         if result.warnings:
             print("Edit-time warnings:", result.warnings)
 """
@@ -55,11 +55,11 @@ from dialectical_framework.graph.nodes.dialectical_component import \
 from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
                                                         Polarity)
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
+from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_A_PLUS,
                                                            POSITION_T_MINUS,
                                                            POSITION_T_PLUS,
-                                                           WisdomUnit)
+                                                           Perspective)
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, HasPolarityRelationship,
     TMinusRelationship, TPlusRelationship)
@@ -75,16 +75,16 @@ HS_WRONG_CATEGORY_THRESHOLD = 0.1
 
 @dataclass
 class EditPolarityResult:
-    """Result of editing T or A in a WisdomUnit.
+    """Result of editing T or A in a Perspective.
 
-    Returns a WisdomUnit:
-    - If input WU was uncommitted -> edits in place, commits it
-    - If input WU was committed -> clones (forks with origin_hash), edits the copy, commits it
+    Returns a Perspective:
+    - If input PP was uncommitted -> edits in place, commits it
+    - If input PP was committed -> clones (forks with origin_hash), edits the copy, commits it
 
-    Use WisdomUnitValidation capability separately if full validation is needed.
+    Use PerspectiveValidation capability separately if full validation is needed.
     """
 
-    wisdom_unit: Optional[WisdomUnit] = None
+    perspective: Optional[Perspective] = None
     is_valid: bool = True
     warnings: list[str] = field(default_factory=list)
     changed_positions: list[str] = field(default_factory=list)
@@ -94,10 +94,10 @@ class EditPolarityResult:
 
 class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
     """
-    Skill for editing T or A components of a WisdomUnit with validation.
+    Skill for editing T or A components of a Perspective with validation.
 
-    Validates edits, regenerates affected components (including poles), and returns WU.
-    Does NOT mutate the original committed WisdomUnit (clones it instead).
+    Validates edits, regenerates affected components (including poles), and returns PP.
+    Does NOT mutate the original committed Perspective (clones it instead).
 
     For editing poles (T+, T-, A+, A-), use EditTetrad instead.
 
@@ -106,7 +106,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
     - call() returns JSON string for LLM tool use
     """
 
-    wisdom_unit_hash: str = Field(description="Hash of the WisdomUnit to edit")
+    perspective_hash: str = Field(description="Hash of the Perspective to edit")
     changes: dict[str, str] = Field(
         description="Dict of {position: new_statement} for T and/or A changes"
     )
@@ -115,8 +115,8 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
     )
 
     _report: ExecutionReport = PrivateAttr()
-    _working_wu: WisdomUnit = PrivateAttr()
-    _original_wu: WisdomUnit = PrivateAttr()
+    _working_pp: Perspective = PrivateAttr()
+    _original_pp: Perspective = PrivateAttr()
     _was_committed: bool = PrivateAttr()
     _changes: dict[str, str] = PrivateAttr()
     _text: str = PrivateAttr()
@@ -135,19 +135,19 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         """Execute the editing operation."""
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        # Resolve WisdomUnit
-        wu = self._resolve_wisdom_unit(self.wisdom_unit_hash)
-        if wu is None:
+        # Resolve Perspective
+        pp = self._resolve_perspective(self.perspective_hash)
+        if pp is None:
             result = EditPolarityResult(
                 is_valid=False,
-                error_message=f"WisdomUnit '{self.wisdom_unit_hash}' not found",
+                error_message=f"Perspective '{self.perspective_hash}' not found",
             )
             self._build_report(result)
             return result
 
-        self._original_wu = wu
+        self._original_pp = pp
         self._text = self.text
-        self._was_committed = wu.is_committed
+        self._was_committed = pp.is_committed
 
         # Clean up changes dict - only accept T and A
         self._changes = {}
@@ -163,14 +163,14 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
             self._build_report(result)
             return result
 
-        # Prepare working WU
+        # Prepare working PP
         if self._was_committed:
-            self._working_wu = wu.clone()
-            self._working_wu.save()
+            self._working_pp = pp.clone()
+            self._working_pp.save()
         else:
-            self._working_wu = wu
-            if not self._working_wu._id:
-                self._working_wu.save()
+            self._working_pp = pp
+            if not self._working_pp._id:
+                self._working_pp.save()
 
         # Route based on what's being changed
         result = await self._route_changes()
@@ -239,8 +239,8 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         new_a.commit()
         self._report.node_created(new_a)
 
-        # Fill working WU with new T/A and regenerate all poles
-        await self._fill_wu_and_regenerate_poles(
+        # Fill working PP with new T/A and regenerate all poles
+        await self._fill_pp_and_regenerate_poles(
             thesis=new_t,
             antithesis=new_a,
             a_hs=a_validation.heuristic_similarity,
@@ -253,7 +253,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         )
 
         return EditPolarityResult(
-            wisdom_unit=self._working_wu,
+            perspective=self._working_pp,
             is_valid=True,
             warnings=warnings,
             changed_positions=[POSITION_T, POSITION_A],
@@ -265,11 +265,11 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         new_t_statement = self._changes[POSITION_T]
 
         # Get current antithesis
-        current_a = self._original_wu.get_component(POSITION_A)
+        current_a = self._original_pp.get_component(POSITION_A)
         if not current_a:
             return EditPolarityResult(
                 is_valid=False,
-                error_message="Original WisdomUnit has no antithesis",
+                error_message="Original Perspective has no antithesis",
             )
 
         # Classify the new thesis
@@ -329,8 +329,8 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
                 f"Antithesis regenerated (original had HS={a_validation.heuristic_similarity:.2f})"
             )
 
-        # Fill working WU
-        await self._fill_wu_and_regenerate_poles(
+        # Fill working PP
+        await self._fill_pp_and_regenerate_poles(
             thesis=new_t,
             antithesis=antithesis_to_use,
             a_hs=a_hs,
@@ -343,7 +343,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         regenerated.extend(POLE_POSITIONS)
 
         return EditPolarityResult(
-            wisdom_unit=self._working_wu,
+            perspective=self._working_pp,
             is_valid=True,
             warnings=warnings,
             changed_positions=[POSITION_T],
@@ -355,11 +355,11 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         new_a_statement = self._changes[POSITION_A]
 
         # Get current thesis
-        current_t = self._original_wu.get_component(POSITION_T)
+        current_t = self._original_pp.get_component(POSITION_T)
         if not current_t:
             return EditPolarityResult(
                 is_valid=False,
-                error_message="Original WisdomUnit has no thesis",
+                error_message="Original Perspective has no thesis",
             )
 
         # Validate new A against current T
@@ -374,7 +374,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         # Check if new A is valid
         if a_validation.heuristic_similarity <= HS_WRONG_CATEGORY_THRESHOLD:
             # Check if it might be a pole
-            current_a = self._original_wu.get_component(POSITION_A)
+            current_a = self._original_pp.get_component(POSITION_A)
             if current_a:
                 for pole_pos in POLE_POSITIONS:
                     pole_classifier = PoleClassification()
@@ -417,8 +417,8 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         new_a.commit()
         self._report.node_created(new_a)
 
-        # Fill working WU
-        await self._fill_wu_and_regenerate_poles(
+        # Fill working PP
+        await self._fill_pp_and_regenerate_poles(
             thesis=current_t,
             antithesis=new_a,
             a_hs=a_validation.heuristic_similarity,
@@ -430,20 +430,20 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         )
 
         return EditPolarityResult(
-            wisdom_unit=self._working_wu,
+            perspective=self._working_pp,
             is_valid=True,
             changed_positions=[POSITION_A],
             regenerated_positions=POLE_POSITIONS.copy(),
         )
 
-    async def _fill_wu_and_regenerate_poles(
+    async def _fill_pp_and_regenerate_poles(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
         a_hs: float,
     ) -> None:
-        """Fill working WU with T, A (via Polarity) and regenerate all poles."""
-        wu = self._working_wu
+        """Fill working PP with T, A (via Polarity) and regenerate all poles."""
+        pp = self._working_pp
 
         # Create Polarity for T-A pair
         polarity = Polarity()
@@ -452,13 +452,13 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         polarity.commit()
         self._report.node_created(polarity)
 
-        # Connect WU to Polarity
-        wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+        # Connect PP to Polarity
+        pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
         # Generate all poles
         generator = PoleGeneration()
         generated_poles = await generator.execute(
-            wisdom_unit=wu,
+            perspective=pp,
             positions=POLE_POSITIONS,
             text=self._text,
         )
@@ -474,7 +474,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         for pole in generated_poles:
             rel_class = rel_classes[pole.position]
-            manager = wu.get_relationship_manager_by_position(pole.position)
+            manager = pp.get_relationship_manager_by_position(pole.position)
             manager.connect(
                 pole.component,
                 relationship=rel_class(
@@ -485,20 +485,20 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
                 ),
             )
 
-        wu.commit()
-        self._report.node_created(wu)
+        pp.commit()
+        self._report.node_created(pp)
 
-    def _resolve_wisdom_unit(self, wu_hash: str) -> Optional[WisdomUnit]:
-        """Resolve hash to WisdomUnit."""
+    def _resolve_perspective(self, pp_hash: str) -> Optional[Perspective]:
+        """Resolve hash to Perspective."""
         repo = NodeRepository()
         try:
-            node = repo.find_by_hash(wu_hash)
-            if isinstance(node, WisdomUnit):
+            node = repo.find_by_hash(pp_hash)
+            if isinstance(node, Perspective):
                 return node
         except ValueError:
             try:
-                node = repo.find_by_prefix(wu_hash)
-                if isinstance(node, WisdomUnit):
+                node = repo.find_by_prefix(pp_hash)
+                if isinstance(node, Perspective):
                     return node
             except ValueError:
                 pass
@@ -521,11 +521,11 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
             self._was_committed if hasattr(self, "_was_committed") else None
         )
 
-        if result.wisdom_unit:
-            if result.wisdom_unit.hash:
-                self._report.artifacts["wisdom_unit_hash"] = result.wisdom_unit.hash
-            if result.wisdom_unit.origin_hash:
-                self._report.artifacts["origin_hash"] = result.wisdom_unit.origin_hash
+        if result.perspective:
+            if result.perspective.hash:
+                self._report.artifacts["perspective_hash"] = result.perspective.hash
+            if result.perspective.origin_hash:
+                self._report.artifacts["origin_hash"] = result.perspective.origin_hash
 
         if result.warnings:
             self._report.artifacts["warnings"] = result.warnings

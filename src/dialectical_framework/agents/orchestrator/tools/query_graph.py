@@ -119,11 +119,11 @@ class QueryGraph(BaseTool):
     - "MATCH (c:Case) RETURN c" - get session case
     - "MATCH (c:DialecticalComponent) RETURN c.statement LIMIT 10" - list components
     - "MATCH (c:Case)-[:HAS_INPUT]->(i:Input) RETURN i.content" - list inputs
-    - "MATCH (wu:WisdomUnit)<-[:T]-(t) RETURN wu, t.statement" - WisdomUnits with thesis
+    - "MATCH (pp:Perspective)<-[:T]-(t) RETURN pp, t.statement" - Perspectives with thesis
     - "MATCH (a)-[:OPPOSITE_OF]->(b) RETURN a.statement, b.statement" - oppositions
     - "MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel) RETURN c, w" - cycle and wheels
 
-    KEY NODE TYPES: Case, Input, DialecticalComponent, WisdomUnit,
+    KEY NODE TYPES: Case, Input, DialecticalComponent, Perspective,
                     Cycle, Wheel, Transformation, Transition, Synthesis, Rationale
 
     KEY RELATIONSHIPS: T, A, T_PLUS, T_MINUS, A_PLUS, A_MINUS (positions),

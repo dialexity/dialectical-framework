@@ -1,8 +1,8 @@
 """
-AcReApexDerivation: Capability for deriving Re+ and Ac+ apex statements for a WisdomUnit.
+AcReApexDerivation: Capability for deriving Re+ and Ac+ apex statements for a Perspective.
 
 The apex statements represent the reference transformation paths for this specific
-WisdomUnit context, against which other transformations are measured (via HS).
+Perspective context, against which other transformations are measured (via HS).
 
 Apexes are generated within fixed coordinate ranges (sweet spots):
 - Re+ apex: X (proactiveness) = 0.2-0.3, Y (insight) = 0.5-0.7
@@ -10,7 +10,7 @@ Apexes are generated within fixed coordinate ranges (sweet spots):
 
 Usage:
     service = AcReApexDerivation()
-    apexes = await service.execute(wu, input_text)
+    apexes = await service.execute(pp, input_text)
     print(f"Re+ apex: {apexes.re_plus_apex.statement}")
     print(f"Ac+ apex: {apexes.ac_plus_apex.statement}")
 """
@@ -32,7 +32,7 @@ from dialectical_framework.features.ac_re_taxonomy import (
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 # Sweet spot margin around apex targets
@@ -60,7 +60,7 @@ Your task is to derive apex statements that represent reference transformation p
 
 ## Transformation Structure
 
-A WisdomUnit has 6 positions forming a dialectical polarity:
+A Perspective has 6 positions forming a dialectical polarity:
 - T (Thesis): A neutral statement of one pole
 - T+: The healthy/productive form of T
 - T-: The problematic/excessive form of T
@@ -219,7 +219,7 @@ class AcReApexDerivation(
     ExecutableCapability[AcReApexDerivationResultDto], SettingsAware
 ):
     """
-    Capability for deriving Re+ and Ac+ apex statements for a WisdomUnit context.
+    Capability for deriving Re+ and Ac+ apex statements for a Perspective context.
 
     The derived apexes serve as reference points for calculating Heuristic Similarity (HS)
     of other transformation candidates. Apexes are constrained to sweet spot ranges.
@@ -230,14 +230,14 @@ class AcReApexDerivation(
 
     async def execute(
         self,
-        wu: WisdomUnit,
+        pp: Perspective,
         input_text: str = "",
     ) -> AcReApexDerivationResultDto:
         """
-        Derive Re+ and Ac+ apex statements for a WisdomUnit.
+        Derive Re+ and Ac+ apex statements for a Perspective.
 
         Args:
-            wu: The WisdomUnit to derive apexes for (must be complete)
+            pp: The Perspective to derive apexes for (must be complete)
             input_text: Optional source content context
 
         Returns:
@@ -245,17 +245,17 @@ class AcReApexDerivation(
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not wu.is_complete():
-            raise ValueError("WisdomUnit must have all 6 positions to derive apexes")
+        if not pp.is_complete():
+            raise ValueError("Perspective must have all 6 positions to derive apexes")
 
         # Initialize conversation
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        # Get WU context
-        wu_context = self._build_wu_context(wu)
+        # Get PP context
+        pp_context = self._build_pp_context(pp)
 
         # Generate apex pair
-        apex_pair = await self._generate_apex_pair(wu_context, input_text)
+        apex_pair = await self._generate_apex_pair(pp_context, input_text)
 
         # Convert to result with numeric coordinates (clamped to sweet spots)
         re_plus_apex = self._to_apex_dto(apex_pair.re_plus_apex, RE_PLUS_SWEET_SPOT)
@@ -267,28 +267,28 @@ class AcReApexDerivation(
         )
 
         # Report artifacts
-        self._report.artifacts["wu_hash"] = wu.short_hash
+        self._report.artifacts["pp_hash"] = pp.short_hash
         self._report.artifacts["re_plus_apex"] = re_plus_apex.model_dump()
         self._report.artifacts["ac_plus_apex"] = ac_plus_apex.model_dump()
         self._report.summary = (
-            f"Derived apexes for WU {wu.short_hash}: "
+            f"Derived apexes for PP {pp.short_hash}: "
             f"Re+ ({re_plus_apex.proactiveness:.1f}, {re_plus_apex.insight:.1f}), "
             f"Ac+ ({ac_plus_apex.proactiveness:.1f}, {ac_plus_apex.insight:.1f})"
         )
 
         return result
 
-    def _build_wu_context(self, wu: WisdomUnit) -> str:
-        """Build context string from WisdomUnit components."""
+    def _build_pp_context(self, pp: Perspective) -> str:
+        """Build context string from Perspective components."""
         parts = []
 
         positions = [
-            ("T", wu.t),
-            ("T+", wu.t_plus),
-            ("T-", wu.t_minus),
-            ("A", wu.a),
-            ("A+", wu.a_plus),
-            ("A-", wu.a_minus),
+            ("T", pp.t),
+            ("T+", pp.t_plus),
+            ("T-", pp.t_minus),
+            ("A", pp.a),
+            ("A+", pp.a_plus),
+            ("A-", pp.a_minus),
         ]
 
         for name, manager in positions:
@@ -301,7 +301,7 @@ class AcReApexDerivation(
 
     async def _generate_apex_pair(
         self,
-        wu_context: str,
+        pp_context: str,
         input_text: str,
     ) -> ApexPairDto:
         """Generate Re+ and Ac+ apex candidates."""
@@ -311,9 +311,9 @@ class AcReApexDerivation(
 
         prompt = f"""{context_section}Given this dialectical polarity:
 
-<wisdom_unit>
-{wu_context}
-</wisdom_unit>
+<perspective>
+{pp_context}
+</perspective>
 
 Generate apex statements for both transformation paths within the specified sweet spots:
 

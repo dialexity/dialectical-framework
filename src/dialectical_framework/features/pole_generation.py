@@ -8,30 +8,30 @@ Generates poles with:
 Supports generating 1, 2, 3, or 4 poles. Contradiction pairs (T+/A-, A+/T-)
 should be generated together to ensure semantic coherence.
 
-Takes a WisdomUnit (saved but not committed) with T and A already connected.
-User-provided poles should be connected to the WU before calling execute().
-Returns generated poles - caller is responsible for connecting them to WU.
+Takes a Perspective (saved but not committed) with T and A already connected.
+User-provided poles should be connected to the PP before calling execute().
+Returns generated poles - caller is responsible for connecting them to PP.
 
 Usage:
     service = PoleGeneration()
 
-    # Create WU with T and A
-    wu = WisdomUnit()
-    wu.save()
-    wu.t.connect(thesis_component, relationship=TRelationship(alias=POSITION_T))
-    wu.a.connect(antithesis_component, relationship=ARelationship(alias=POSITION_A))
+    # Create PP with T and A
+    pp = Perspective()
+    pp.save()
+    pp.t.connect(thesis_component, relationship=TRelationship(alias=POSITION_T))
+    pp.a.connect(antithesis_component, relationship=ARelationship(alias=POSITION_A))
 
     # Generate a contradiction pair
     results = await service.execute(
-        wisdom_unit=wu,
+        perspective=pp,
         positions=[POSITION_T_PLUS, POSITION_A_MINUS],
         text=source_text,
     )
 
-    # Connect results to WU
+    # Connect results to PP
     for result in results:
-        manager = wu.get_relationship_manager_by_position(result.position)
-        rel_class = WisdomUnit.get_relationship_class_for_position(result.position)
+        manager = pp.get_relationship_manager_by_position(result.position)
+        rel_class = Perspective.get_relationship_class_for_position(result.position)
         manager.connect(result.component, relationship=rel_class(
             alias=result.position,
             heuristic_similarity=result.heuristic_similarity,
@@ -39,7 +39,7 @@ Usage:
             complementarity_a=result.complementarity_a,
         ))
 
-    wu.commit()
+    pp.commit()
 """
 
 from __future__ import annotations
@@ -58,13 +58,13 @@ from dialectical_framework.features.statement_classification import \
     StatementClassification
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
-from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A,
-                                                           POSITION_A_MINUS,
-                                                           POSITION_A_PLUS,
-                                                           POSITION_T,
-                                                           POSITION_T_MINUS,
-                                                           POSITION_T_PLUS,
-                                                           WisdomUnit)
+from dialectical_framework.graph.nodes.perspective import (POSITION_A,
+                                                          POSITION_A_MINUS,
+                                                          POSITION_A_PLUS,
+                                                          POSITION_T,
+                                                          POSITION_T_MINUS,
+                                                          POSITION_T_PLUS,
+                                                          Perspective)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
@@ -197,46 +197,46 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
 
     async def execute(
         self,
-        wisdom_unit: WisdomUnit,
+        perspective: Perspective,
         positions: Optional[list[str]] = None,
         text: str = "",
-        not_like_these: Optional[list[WisdomUnit]] = None,
+        not_like_these: Optional[list[Perspective]] = None,
     ) -> list[PoleResult]:
         """
-        Generate poles for a WisdomUnit.
+        Generate poles for a Perspective.
 
-        The WisdomUnit must have T and A already connected. Any poles already
-        connected to the WU (user-provided) will be used as context for generating
+        The Perspective must have T and A already connected. Any poles already
+        connected to the PP (user-provided) will be used as context for generating
         the remaining poles.
 
         Args:
-            wisdom_unit: WisdomUnit with T and A connected (saved but not committed)
+            perspective: Perspective with T and A connected (saved but not committed)
             positions: Which poles to generate (POSITION_T_PLUS, etc.). If None or empty, generates all 4.
             text: Optional source text for context
-            not_like_these: WisdomUnits with tetrads to avoid (must share T or A with wisdom_unit)
+            not_like_these: Perspectives with tetrads to avoid (must share T or A with perspective)
 
         Returns:
             List of PoleResult with components and scoring.
-            Caller is responsible for connecting these to the WU.
+            Caller is responsible for connecting these to the PP.
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
-        self._wisdom_unit = wisdom_unit
+        self._pp = perspective
         self._text = text
 
-        # Extract T and A from WisdomUnit
-        t_result = wisdom_unit.t.get()
-        a_result = wisdom_unit.a.get()
+        # Extract T and A from Perspective
+        t_result = perspective.t.get()
+        a_result = perspective.a.get()
 
         if not t_result:
-            raise ValueError("WisdomUnit must have T connected")
+            raise ValueError("Perspective must have T connected")
         if not a_result:
-            raise ValueError("WisdomUnit must have A connected")
+            raise ValueError("Perspective must have A connected")
 
         self._thesis = t_result[0]
         self._antithesis = a_result[0]
 
-        # Filter and validate not_like_these WisdomUnits
-        self._not_like_these = self._filter_relevant_wus(not_like_these or [])
+        # Filter and validate not_like_these Perspectives
+        self._not_like_these = self._filter_relevant_pps(not_like_these or [])
 
         # Default to all 4 poles if positions not specified
         all_positions = [
@@ -255,15 +255,15 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
             POSITION_A_PLUS,
             POSITION_A_MINUS,
         ]:
-            manager = wisdom_unit.get_relationship_manager_by_position(pos)
+            manager = perspective.get_relationship_manager_by_position(pos)
             result = manager.get()
             if result:
                 self._existing_poles[pos] = result[0]
 
         # Determine which positions to generate
-        # If WU is complete, it's a template - generate all requested positions
-        # If WU is incomplete, skip positions that already exist
-        is_template = wisdom_unit.is_complete()
+        # If PP is complete, it's a template - generate all requested positions
+        # If PP is incomplete, skip positions that already exist
+        is_template = perspective.is_complete()
         if is_template:
             positions_to_generate = positions
         else:
@@ -430,20 +430,20 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
             complementarity_a=dto.complementarity_a,
         )
 
-    def _filter_relevant_wus(self, wus: list[WisdomUnit]) -> list[WisdomUnit]:
-        """Filter WisdomUnits to only those with the same tension (T-A pair, either orientation)."""
+    def _filter_relevant_pps(self, pps: list[Perspective]) -> list[Perspective]:
+        """Filter Perspectives to only those with the same tension (T-A pair, either orientation)."""
         relevant = []
         target_hashes = {self._thesis.hash, self._antithesis.hash}
 
-        for wu in wus:
-            wu_t = wu.t.get()
-            wu_a = wu.a.get()
-            wu_t_hash = wu_t[0].hash if wu_t else None
-            wu_a_hash = wu_a[0].hash if wu_a else None
+        for pp in pps:
+            pp_t = pp.t.get()
+            pp_a = pp.a.get()
+            pp_t_hash = pp_t[0].hash if pp_t else None
+            pp_a_hash = pp_a[0].hash if pp_a else None
 
             # Both T and A must match (same orientation or swapped)
-            if {wu_t_hash, wu_a_hash} == target_hashes:
-                relevant.append(wu)
+            if {pp_t_hash, pp_a_hash} == target_hashes:
+                relevant.append(pp)
 
         return relevant
 
@@ -468,24 +468,24 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
     def _build_avoid_context(self) -> str:
         """Build context string for tetrads to avoid.
 
-        Handles T-A symmetry: if an existing WU has T and A swapped relative to
-        the current WU, the pole positions are remapped when displaying.
+        Handles T-A symmetry: if an existing PP has T and A swapped relative to
+        the current PP, the pole positions are remapped when displaying.
         """
         if not self._not_like_these:
             return ""
 
-        # Only avoid complete WUs; partial ones are still in progress
-        complete_wus = [wu for wu in self._not_like_these if wu.is_complete()]
-        if not complete_wus:
+        # Only avoid complete PPs; partial ones are still in progress
+        complete_pps = [pp for pp in self._not_like_these if pp.is_complete()]
+        if not complete_pps:
             return ""
 
         lines = ["\n## Previous Tetrads (generate different interpretations)"]
-        for i, wu in enumerate(complete_wus, 1):
+        for i, pp in enumerate(complete_pps, 1):
             lines.append(f"Tetrad {i}:")
 
-            # Check if this WU has T and A swapped relative to current
-            wu_t = wu.t.get()
-            is_swapped = wu_t and wu_t[0].hash == self._antithesis.hash
+            # Check if this PP has T and A swapped relative to current
+            pp_t = pp.t.get()
+            is_swapped = pp_t and pp_t[0].hash == self._antithesis.hash
 
             for pos in [
                 POSITION_T_PLUS,
@@ -493,7 +493,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
                 POSITION_A_PLUS,
                 POSITION_A_MINUS,
             ]:
-                manager = wu.get_relationship_manager_by_position(pos)
+                manager = pp.get_relationship_manager_by_position(pos)
                 result = manager.get()
                 if result:
                     # Remap position if T-A are swapped

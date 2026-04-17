@@ -1,4 +1,4 @@
-"""Relationship model for linking Synthesis to its target WisdomUnit."""
+"""Relationship model for linking Synthesis to its target Perspective."""
 from __future__ import annotations
 
 from dialectical_framework.graph.relationships.immutable_structure import AnalyticalStructure
@@ -6,10 +6,10 @@ from dialectical_framework.graph.relationships.immutable_structure import Analyt
 
 class SynthesisOfRelationship(AnalyticalStructure, type="SYNTHESIS_OF"):
     """
-    Links a Synthesis to its source WisdomUnit.
+    Links a Synthesis to its source Perspective.
 
     Part of the analytical layer - connects emergent insights to
-    the WisdomUnit's T-A tension that produced them.
+    the Perspective's T-A tension that produced them.
     """
 
     pass

@@ -2,7 +2,7 @@
 Assessable entity class for scored entities in the dialectical framework.
 
 This module provides the AssessableEntity class which serves as the base for all
-nodes that can be assessed/scored (Components, WisdomUnits, Wheels, Cycles, etc.).
+nodes that can be assessed/scored (Components, Perspectives, Wheels, Cycles, etc.).
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 """
-Polarity relationships for connecting DialecticalComponents to WisdomUnits.
+Polarity relationships for connecting DialecticalComponents to Perspectives.
 
 Each polarity position has its own relationship type for fine-grained querying,
 but all store the contextual alias property.
@@ -18,7 +18,7 @@ class PolarityRelationship(IdentityRelationship):
     Base for all polarity relationships with alias and heuristic similarity.
 
     The alias stores the component's contextual position (e.g., "T1", "A2+").
-    Same component can have different aliases in different WisdomUnits.
+    Same component can have different aliases in different Perspectives.
 
     Scoring properties:
     - heuristic_similarity: How similar the component is to its taxonomy apex (0.0-1.0)
@@ -163,9 +163,9 @@ class ReMinusRelationship(TransitionPoleRelationship, type="RE_MINUS"):
 # Structural relationships for Polarity node
 class HasPolarityRelationship(IdentityRelationship, type="HAS_POLARITY"):
     """
-    Links WisdomUnit to its Polarity (T-A pair).
+    Links Perspective to its Polarity (T-A pair).
 
     The Polarity contains the thesis (T) and antithesis (A) reference points.
-    WisdomUnit references Polarity and adds the 4 poles (T+, T-, A+, A-).
+    Perspective references Polarity and adds the 4 poles (T+, T-, A+, A-).
     """
     pass

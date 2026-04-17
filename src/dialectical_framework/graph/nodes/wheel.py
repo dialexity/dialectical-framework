@@ -23,7 +23,7 @@ from dialectical_framework.graph.relationships.belongs_to_cycle_relationship imp
 from dialectical_framework.graph.relationships.opposite_direction_relationship import (
     OppositeDirectionRelationship,
 )
-from dialectical_framework.graph.nodes.wisdom_unit import (
+from dialectical_framework.graph.nodes.perspective import (
     POSITION_T,
     POSITION_T_PLUS,
     POSITION_T_MINUS,
@@ -34,7 +34,7 @@ from dialectical_framework.graph.nodes.wisdom_unit import (
 from dialectical_framework.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.wheel_segment import WheelSegment
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
@@ -50,15 +50,15 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     """
     Represents a concrete T-A arrangement implementing a Cycle's T-cycle.
 
-    A Wheel = Cycle + Edges. The Cycle defines which WisdomUnits are
+    A Wheel = Cycle + Edges. The Cycle defines which Perspectives are
     included and their T-cycle order. The Edges define the concrete
     component-to-component causality flow (T1- → A2+ → A1- → T2+ → ...).
 
-    The polarity (which side appears first - T or A) for each WU is derived
+    The polarity (which side appears first - T or A) for each PP is derived
     from the edges, not stored separately.
 
     Hierarchy:
-        WisdomUnit → Cycle (T-cycle + intent) → Wheel (edges)
+        Perspective → Cycle (T-cycle + intent) → Wheel (edges)
 
     The wheel metaphor represents the circular, iterative nature of
     dialectical reasoning where thesis and antithesis are arranged in segments.
@@ -69,13 +69,13 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     - Each edge can have Transformations (via ACTION_REFLECTION)
 
     Properties:
-        polarity_count: Number of wisdom units (computed via cycle)
+        polarity_count: Number of perspectives (computed via cycle)
         segment_count: Total segments = polarity_count × 2 (computed)
-        polar_segments: WUs with L/R orientation derived from edges (use this!)
+        polar_segments: PPs with L/R orientation derived from edges (use this!)
 
     Example:
         cycle = Cycle(intent="preset:balanced")
-        cycle.set_wisdom_units([wu1, wu2, wu3])
+        cycle.set_perspectives([pp1, pp2, pp3])
         cycle.commit()
 
         wheel = Wheel()
@@ -96,7 +96,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     def __init__(self, **data):
         """Initialize wheel with polar pair cache."""
         super().__init__(**data)
-        # Cache for polar pairs: wu_key:polarity -> WheelSegmentPolarPair
+        # Cache for polar pairs: pp_key:polarity -> WheelSegmentPolarPair
         self._polar_pair_cache: dict[str, WheelSegmentPolarPair] = {}
 
     # Parent Cycle (required)
@@ -151,20 +151,20 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         return repo.get_transformations(self)
 
     @property
-    def _wisdom_units(self) -> list[WisdomUnit]:
+    def _perspectives(self) -> list[Perspective]:
         """
-        Get WisdomUnits derived from edges (unique WUs used in this wheel).
+        Get Perspectives derived from edges (unique PPs used in this wheel).
 
         For public API, use polar_segments which includes orientation.
 
         Returns:
-            List of unique WisdomUnit nodes used in this wheel's edges
+            List of unique Perspective nodes used in this wheel's edges
         """
-        from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+        from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
 
         seen_hashes: set[str] = set()
-        result: list[WisdomUnit] = []
-        wu_repo = WisdomUnitRepository()
+        result: list[Perspective] = []
+        pp_repo = PerspectiveRepository()
 
         for edge in self.edges:
             source_result = edge.source.get()
@@ -177,12 +177,12 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 components.append(target_result[0])
 
             for component in components:
-                # Find the WU this component belongs to
-                wu_tuples = wu_repo.find_by_dialectical_component(component)
-                for wu, _ in wu_tuples:
-                    if wu.hash not in seen_hashes:
-                        seen_hashes.add(wu.hash)
-                        result.append(wu)
+                # Find the PP this component belongs to
+                pp_tuples = pp_repo.find_by_dialectical_component(component)
+                for pp, _ in pp_tuples:
+                    if pp.hash not in seen_hashes:
+                        seen_hashes.add(pp.hash)
+                        result.append(pp)
 
         return result
 
@@ -245,28 +245,28 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     @property
     def polarity_count(self) -> int:
         """
-        The number of polarities (wisdom units) in the wheel.
+        The number of polarities (perspectives) in the wheel.
 
-        Each wisdom unit represents one polarity - a thesis/antithesis pair.
-        Computed via Wheel → Cycle → wisdom_units.
+        Each perspective represents one polarity - a thesis/antithesis pair.
+        Computed via Wheel → Cycle → perspectives.
 
         Returns:
-            Number of wisdom units in the wheel
+            Number of perspectives in the wheel
 
         Raises:
-            ValueError: If the wheel has no WisdomUnits
+            ValueError: If the wheel has no Perspectives
         """
-        wus = self._wisdom_units
-        if not wus:
-            raise ValueError("The wheel has no WisdomUnits, therefore polarity_count is undefined.")
-        return len(wus)
+        pps = self._perspectives
+        if not pps:
+            raise ValueError("The wheel has no Perspectives, therefore polarity_count is undefined.")
+        return len(pps)
 
     @property
     def segment_count(self) -> int:
         """
         The total number of segments in the wheel.
 
-        Each wisdom unit contains 2 segments (T-side and A-side), so
+        Each perspective contains 2 segments (T-side and A-side), so
         segment_count = polarity_count × 2.
 
         Returns:
@@ -276,111 +276,111 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
     def polar_segment_at(
         self,
-        key: Union[str, WisdomUnit, DialecticalComponent, WheelSegment]
+        key: Union[str, Perspective, DialecticalComponent, WheelSegment]
     ) -> WheelSegmentPolarPair:
         """
-        Get polar pair (WU with orientation) by various identifiers.
+        Get polar pair (PP with orientation) by various identifiers.
 
         Note: No integer indexing - use cycles to determine ordering.
 
         Args:
             key: Can be:
                - str: Tries in order:
-                 1. WisdomUnit UID (e.g., "wu_12345")
+                 1. Perspective UID (e.g., "pp_12345")
                  2. Component UID (e.g., "comp_67890")
                  3. Component alias (e.g., "T1", "A2+")
-               - WisdomUnit: match by uid
+               - Perspective: match by uid
                - DialecticalComponent: find polar pair containing this component
                - WheelSegment: find polar pair containing this segment
 
         Returns:
-            The matching WheelSegmentPolarPair (WU with orientation derived from transitions)
+            The matching WheelSegmentPolarPair (PP with orientation derived from transitions)
 
         Raises:
             ValueError: If no matching polar pair is found
 
         Examples:
-            pair = wheel.polar_segment_at("wu_123")  # By WU UID
+            pair = wheel.polar_segment_at("pp_123")  # By PP UID
             pair = wheel.polar_segment_at("comp_456")  # By component UID
             pair = wheel.polar_segment_at("T1")  # By component alias
             pair = wheel.polar_segment_at(component)  # By component instance
             pair = wheel.polar_segment_at(segment)  # By segment instance
-            pair = wheel.polar_segment_at(wisdom_unit)  # By WU instance
+            pair = wheel.polar_segment_at(perspective)  # By PP instance
         """
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as WUClass
+        from dialectical_framework.graph.nodes.perspective import Perspective as PPClass
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as DCClass
         from dialectical_framework.graph.wheel_segment import WheelSegment
 
-        # Get polar pairs (WUs with orientation)
+        # Get polar pairs (PPs with orientation)
         pairs = self.polar_segments
 
-        def find_pair_for_wu(target_wu: WisdomUnit) -> WheelSegmentPolarPair:
-            """Find the polar pair containing the target WU."""
-            target_key = target_wu._id if target_wu._id is not None else id(target_wu)
+        def find_pair_for_pp(target_pp: Perspective) -> WheelSegmentPolarPair:
+            """Find the polar pair containing the target PP."""
+            target_key = target_pp._id if target_pp._id is not None else id(target_pp)
             for pair in pairs:
-                pair_key = pair.wisdom_unit._id if pair.wisdom_unit._id is not None else id(pair.wisdom_unit)
+                pair_key = pair.perspective._id if pair.perspective._id is not None else id(pair.perspective)
                 if pair_key == target_key:
                     return pair
                 # Also check by hash
-                if target_wu.hash and pair.wisdom_unit.hash == target_wu.hash:
+                if target_pp.hash and pair.perspective.hash == target_pp.hash:
                     return pair
-            raise ValueError(f"WisdomUnit not found in polar pairs")
+            raise ValueError(f"Perspective not found in polar pairs")
 
-        if isinstance(key, WUClass):
-            return find_pair_for_wu(key)
+        if isinstance(key, PPClass):
+            return find_pair_for_pp(key)
 
         elif isinstance(key, WheelSegment):
             # Match by segment
             for pair in pairs:
-                wu = pair.wisdom_unit
-                t_seg = wu.segment_t
+                pp = pair.perspective
+                t_seg = pp.segment_t
                 if t_seg.is_same(key):
                     return pair
 
-                a_seg = wu.segment_a
+                a_seg = pp.segment_a
                 if a_seg.is_same(key):
                     return pair
 
             raise ValueError(f"Cannot find polar pair containing segment")
 
         elif isinstance(key, str):
-            # Try string as three possibilities: WU identity, component identity, or component alias
+            # Try string as three possibilities: PP identity, component identity, or component alias
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
-            # 1. Try as WisdomUnit identity (fast, direct lookup by hash or _id)
+            # 1. Try as Perspective identity (fast, direct lookup by hash or _id)
             for pair in pairs:
-                wu = pair.wisdom_unit
-                if wu.hash == key or str(wu._id) == key:
+                pp = pair.perspective
+                if pp.hash == key or str(pp._id) == key:
                     return pair
 
             # 2. Try as component identity
             for pair in pairs:
-                wu = pair.wisdom_unit
-                components_with_aliases = repo.find_by_wisdom_unit(wu)
+                pp = pair.perspective
+                components_with_aliases = repo.find_by_perspective(pp)
                 for comp, alias in components_with_aliases:
                     if comp.hash == key:
                         return pair
 
             # 3. Finally try as component alias
             for pair in pairs:
-                wu = pair.wisdom_unit
-                components_with_aliases = repo.find_by_wisdom_unit(wu)
+                pp = pair.perspective
+                components_with_aliases = repo.find_by_perspective(pp)
                 for comp, alias in components_with_aliases:
                     if alias == key:
                         return pair
 
-            raise ValueError(f"Cannot find polar pair with key: {key} (tried as WU identity, component identity, and component alias)")
+            raise ValueError(f"Cannot find polar pair with key: {key} (tried as PP identity, component identity, and component alias)")
 
         elif isinstance(key, DCClass):
             # Search by component
             for pair in pairs:
-                wu = pair.wisdom_unit
+                pp = pair.perspective
                 try:
-                    key.get_alias(wu)
+                    key.get_alias(pp)
                     return pair  # Found it
                 except ValueError:
-                    continue  # Not in this WU
+                    continue  # Not in this PP
             raise ValueError(f"Cannot find polar pair containing component: {key.hash}")
 
         raise ValueError(f"Cannot find polar pair with key: {key}")
@@ -419,23 +419,23 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
         # If key is a WheelSegment, validate it exists in this wheel and return it
         if isinstance(key, WSClass):
-            wus = self._wisdom_units
-            for wu in wus:
-                if wu.segment_t.is_same(key) or wu.segment_a.is_same(key):
+            pps = self._perspectives
+            for pp in pps:
+                if pp.segment_t.is_same(key) or pp.segment_a.is_same(key):
                     return key
             raise ValueError(f"WheelSegment not found in this wheel")
 
         # If key is a DialecticalComponent instance, use it directly
         elif isinstance(key, DCClass):
-            wus = self._wisdom_units
-            for wu in wus:
+            pps = self._perspectives
+            for pp in pps:
                 # Check T-side segment
-                t_seg = wu.segment_t
+                t_seg = pp.segment_t
                 if t_seg.is_set(key):
                     return t_seg
 
                 # Check A-side segment
-                a_seg = wu.segment_a
+                a_seg = pp.segment_a
                 if a_seg.is_set(key):
                     return a_seg
 
@@ -446,30 +446,30 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
             repo = DialecticalComponentRepository()
 
-            wus = self._wisdom_units
+            pps = self._perspectives
 
             # 1. Try as component identity
-            for wu in wus:
-                components_with_aliases = repo.find_by_wisdom_unit(wu)
+            for pp in pps:
+                components_with_aliases = repo.find_by_perspective(pp)
                 for comp, alias in components_with_aliases:
                     if comp.hash == key:
                         # Found component by identity, now find which segment it's in
-                        t_seg = wu.segment_t
+                        t_seg = pp.segment_t
                         if t_seg.is_set(comp):
                             return t_seg
-                        a_seg = wu.segment_a
+                        a_seg = pp.segment_a
                         if a_seg.is_set(comp):
                             return a_seg
 
             # 2. Try as component alias
-            for wu in wus:
+            for pp in pps:
                 # Check T-side segment
-                t_seg = wu.segment_t
+                t_seg = pp.segment_t
                 if t_seg.is_set(key):
                     return t_seg
 
                 # Check A-side segment
-                a_seg = wu.segment_a
+                a_seg = pp.segment_a
                 if a_seg.is_set(key):
                     return a_seg
 
@@ -484,7 +484,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Args:
             key: Can be:
                - str: component alias (e.g., "T", "T+", "A1")
-               - DialecticalComponent: check if component exists in any WU
+               - DialecticalComponent: check if component exists in any PP
                - WheelSegment: check if segment exists in the wheel
 
         Returns:
@@ -507,19 +507,19 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     @property
     def polar_segments(self) -> list[WheelSegmentPolarPair]:
         """
-        Get all wisdom units as WheelSegmentPolarPair objects in edge order.
+        Get all perspectives as WheelSegmentPolarPair objects in edge order.
 
         Orientation (which side appears first - T or A) is derived from edges.
-        The first component of each WU seen in the edge chain determines
+        The first component of each PP seen in the edge chain determines
         whether it's "normal" (T-side first) or "swapped" (A-side first).
 
-        Polar pairs are cached per wisdom unit to ensure the same instances are reused.
+        Polar pairs are cached per perspective to ensure the same instances are reused.
 
         Returns:
             List of WheelSegmentPolarPair objects in edge order with derived orientation
 
         Raises:
-            ValueError: If wheel has no WisdomUnits
+            ValueError: If wheel has no Perspectives
 
         Example:
             pairs = wheel.polar_segments
@@ -527,9 +527,9 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 print(f"Left: {pair.segment_left.t.get()[0].statement}")
                 print(f"Right: {pair.segment_right.t.get()[0].statement}")
         """
-        wus = self._wisdom_units
-        if not wus:
-            raise ValueError("Wheel has no WisdomUnits")
+        pps = self._perspectives
+        if not pps:
+            raise ValueError("Wheel has no Perspectives")
 
         return self._derive_polar_segments_from_edges()
 
@@ -537,8 +537,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         """
         Derive polar pair orientations from edges.
 
-        Traverses edges to determine which side of each WU appears first.
-        The first component from each WU seen in the edge chain determines
+        Traverses edges to determine which side of each PP appears first.
+        The first component from each PP seen in the edge chain determines
         the polarity: T-side components → "normal", A-side components → "swapped".
 
         Returns:
@@ -550,26 +550,26 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         if not ordered_edges:
             # Fall back to default "normal" orientation
             return [
-                WheelSegmentPolarPair(wu, "normal")
-                for wu in self._wisdom_units
+                WheelSegmentPolarPair(pp, "normal")
+                for pp in self._perspectives
             ]
 
-        # Build a lookup map: component_hash -> (wisdom_unit, position)
-        component_to_wu_map = {}
-        for wu in self._wisdom_units:
+        # Build a lookup map: component_hash -> (perspective, position)
+        component_to_pp_map = {}
+        for pp in self._perspectives:
             positions = [
-                (POSITION_T, wu.t),
-                (POSITION_T_PLUS, wu.t_plus),
-                (POSITION_T_MINUS, wu.t_minus),
-                (POSITION_A, wu.a),
-                (POSITION_A_PLUS, wu.a_plus),
-                (POSITION_A_MINUS, wu.a_minus),
+                (POSITION_T, pp.t),
+                (POSITION_T_PLUS, pp.t_plus),
+                (POSITION_T_MINUS, pp.t_minus),
+                (POSITION_A, pp.a),
+                (POSITION_A_PLUS, pp.a_plus),
+                (POSITION_A_MINUS, pp.a_minus),
             ]
             for position, manager in positions:
                 for comp, _ in manager.all():
-                    component_to_wu_map[comp.hash] = (wu, position)
+                    component_to_pp_map[comp.hash] = (pp, position)
 
-        seen_wisdom_units = set()
+        seen_perspectives = set()
         pairs = []
 
         for edge in ordered_edges:
@@ -578,13 +578,13 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 continue
 
             source_component, _ = source_result
-            wu_info = component_to_wu_map.get(source_component.hash)
-            if wu_info is None:
+            pp_info = component_to_pp_map.get(source_component.hash)
+            if pp_info is None:
                 continue
 
-            wu, position = wu_info
-            wu_key = wu._id if wu._id is not None else id(wu)
-            if wu_key in seen_wisdom_units:
+            pp, position = pp_info
+            pp_key = pp._id if pp._id is not None else id(pp)
+            if pp_key in seen_perspectives:
                 continue
 
             # Determine polarity based on which side appears first
@@ -596,12 +596,12 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             else:
                 continue
 
-            cache_key = f"{wu_key}:{polarity}"
+            cache_key = f"{pp_key}:{polarity}"
             if cache_key not in self._polar_pair_cache:
-                self._polar_pair_cache[cache_key] = WheelSegmentPolarPair(wu, polarity)
+                self._polar_pair_cache[cache_key] = WheelSegmentPolarPair(pp, polarity)
 
             pairs.append(self._polar_pair_cache[cache_key])
-            seen_wisdom_units.add(wu_key)
+            seen_perspectives.add(pp_key)
 
         return pairs
 
@@ -647,22 +647,22 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             source_component, _ = source_result
 
             # Find which segment this component belongs to
-            for wu in self._wisdom_units:
+            for pp in self._perspectives:
                 # Use _id for tracking since uncommitted nodes have hash=None
-                wu_key = wu._id if wu._id is not None else id(wu)
+                pp_key = pp._id if pp._id is not None else id(pp)
 
                 # Try to get segment containing this component
-                t_seg = wu.segment_t
+                t_seg = pp.segment_t
                 if t_seg.is_set(source_component):
-                    seg_key = (wu_key, t_seg.side)
+                    seg_key = (pp_key, t_seg.side)
                     if seg_key not in seen_segments:
                         segments.append(t_seg)
                         seen_segments.add(seg_key)
                     break
 
-                a_seg = wu.segment_a
+                a_seg = pp.segment_a
                 if a_seg.is_set(source_component):
-                    seg_key = (wu_key, a_seg.side)
+                    seg_key = (pp_key, a_seg.side)
                     if seg_key not in seen_segments:
                         segments.append(a_seg)
                         seen_segments.add(seg_key)
@@ -708,7 +708,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             True if both have same components in same order (allowing rotation)
 
         Raises:
-            ValueError: If compare='alias' but wisdom units not available
+            ValueError: If compare='alias' but perspectives not available
         """
         if not isinstance(other, Wheel):
             return False
@@ -720,21 +720,21 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             return False
 
         if compare == 'alias':
-            self_wus = self._wisdom_units
-            other_wus = other._wisdom_units
+            self_pps = self._perspectives
+            other_pps = other._perspectives
 
-            if not self_wus or not other_wus:
+            if not self_pps or not other_pps:
                 raise ValueError(
-                    "Cannot compare by alias: wisdom units not available. "
-                    "Use compare='statement' or ensure wheels have wisdom units."
+                    "Cannot compare by alias: perspectives not available. "
+                    "Use compare='statement' or ensure wheels have perspectives."
                 )
 
             self_aliases = []
             for comp in self_components:
                 alias = None
-                for wu in self_wus:
+                for pp in self_pps:
                     try:
-                        alias = comp.get_alias(wu)
+                        alias = comp.get_alias(pp)
                         break
                     except ValueError:
                         continue
@@ -745,9 +745,9 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             other_aliases = []
             for comp in other_components:
                 alias = None
-                for wu in other_wus:
+                for pp in other_pps:
                     try:
-                        alias = comp.get_alias(wu)
+                        alias = comp.get_alias(pp)
                         break
                     except ValueError:
                         continue
@@ -798,16 +798,16 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         if not components:
             return ""
 
-        wus = self._wisdom_units
+        pps = self._perspectives
 
         # Get aliases if needed
         aliases = []
         if mode in ("", "aliases", "explicit"):
             for i, comp in enumerate(components):
                 alias = None
-                for wu in wus:
+                for pp in pps:
                     try:
-                        alias = comp.get_alias(wu)
+                        alias = comp.get_alias(pp)
                         break
                     except ValueError:
                         continue
@@ -880,8 +880,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     def __repr__(self) -> str:
         """String representation of the wheel."""
         try:
-            wus = self._wisdom_units
-            polarity_count = len(wus) if wus else 0
+            pps = self._perspectives
+            polarity_count = len(pps) if pps else 0
         except (ValueError, AttributeError):
             polarity_count = 0
         hash_str = self.hash[:7] if self.is_committed else "uncommitted"
@@ -906,7 +906,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Shows:
         - Parent Cycle (t_cycle) with rationale
         - Wheel transitions (ta_cycle level)
-        - Tabular view of all wisdom units using WheelSegmentPolarPair
+        - Tabular view of all perspectives using WheelSegmentPolarPair
 
         Examples:
         ---------
@@ -981,16 +981,16 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             output.extend(lines)
             output.append("")
 
-        # Wisdom Units (tabular with transformations)
-        # Use polar_segments to get wisdom units in transition order with correct polarity
-        output.append("=== Wisdom Units / Transformations ===")
+        # Perspectives (tabular with transformations)
+        # Use polar_segments to get perspectives in transition order with correct polarity
+        output.append("=== Perspectives / Transformations ===")
 
         try:
             polar_segments = self.polar_segments
         except ValueError:
-            # No transitions, fall back to unordered wisdom units
+            # No transitions, fall back to unordered perspectives
             from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
-            polar_segments = [WheelSegmentPolarPair(wu, "normal") for wu in self._wisdom_units]
+            polar_segments = [WheelSegmentPolarPair(pp, "normal") for pp in self._perspectives]
 
         if polar_segments:
             from tabulate import tabulate
@@ -1005,15 +1005,15 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 ("a_minus", POSITION_A_MINUS),
             ]
 
-            # Build table: each row is a position, columns are (alias, statement) pairs for each WU
+            # Build table: each row is a position, columns are (alias, statement) pairs for each PP
             table = []
             for position_attr, position_label in positions:
                 row = []
                 for pair in polar_segments:
-                    wu = pair.wisdom_unit
+                    pp = pair.perspective
 
-                    # WisdomUnit columns
-                    manager = getattr(wu, position_attr)
+                    # Perspective columns
+                    manager = getattr(pp, position_attr)
                     result = manager.get()
                     if result:
                         component, rel = result
@@ -1029,14 +1029,14 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             output.append(tabulate(table, tablefmt="plain"))
 
             # Show transformation scores if in scores mode
-            # Transformations now belong to Transitions (causality steps), not WUs
+            # Transformations now belong to Transitions (causality steps), not PPs
             if show_scores and self.transformations:
                 output.append("")
                 output.append("Transformation Scores:")
                 for idx, transformation in enumerate(self.transformations, 1):
                     output.append(f"  Step {idx}: [{fmt_scores(transformation, colorize=True)}]")
         else:
-            output.append("[No wisdom units]")
+            output.append("[No perspectives]")
         output.append("")
 
         # Transitions table with scores (only in scores mode)

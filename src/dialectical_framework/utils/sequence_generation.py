@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 def generate_permutation_sequences(
@@ -51,12 +51,12 @@ def generate_permutation_sequences(
 
 
 def generate_compatible_sequences(
-    ordered_wisdom_units: list[WisdomUnit],
+    ordered_perspectives: list[Perspective],
 ) -> list[list[DialecticalComponent]]:
     """
     Generate circular arrangements with diagonal symmetry for thesis/antithesis pairs.
 
-    Each WisdomUnit contains a thesis (T) and antithesis (A). This function arranges
+    Each Perspective contains a thesis (T) and antithesis (A). This function arranges
     all T/A components around a conceptual circle of size 2n (where n = number of units)
     such that:
 
@@ -70,7 +70,7 @@ def generate_compatible_sequences(
        rotationally equivalent arrangements.
 
     Args:
-        ordered_wisdom_units: WisdomUnits in desired priority order. Each unit must have
+        ordered_perspectives: Perspectives in desired priority order. Each must have
             both T and A components connected.
 
     Returns:
@@ -79,10 +79,10 @@ def generate_compatible_sequences(
         half" (diagonally mirrored).
 
     Raises:
-        ValueError: If any WisdomUnit is missing its T or A component.
+        ValueError: If any Perspective is missing its T or A component.
 
     Example:
-        For units [WU1(T1/A1), WU2(T2/A2), WU3(T3/A3), WU4(T4/A4)], a valid output:
+        For units [PP1(T1/A1), PP2(T2/A2), PP3(T3/A3), PP4(T4/A4)], a valid output:
             [T1, T2, A4, T3, A1, A2, T4, A3]
 
         Interpreted as a circle:
@@ -95,25 +95,25 @@ def generate_compatible_sequences(
         The number of valid arrangements grows combinatorially. For practical use,
         this function is designed for small unit counts (2-4 units).
     """
-    n = len(ordered_wisdom_units)
+    n = len(ordered_perspectives)
 
-    # Extract T and A components from graph-native WisdomUnits
+    # Extract T and A components from graph-native Perspectives
     ts: list[DialecticalComponent] = []
     as_: list[DialecticalComponent] = []
-    for u in ordered_wisdom_units:
+    for u in ordered_perspectives:
         # Get T component (returns tuple of (component, relationship) or None)
         t_result = u.t.get()
         if t_result:
             ts.append(t_result[0])  # Extract component from tuple
         else:
-            raise ValueError(f"WisdomUnit {u.hash} missing T component")
+            raise ValueError(f"Perspective {u.hash} missing T component")
 
         # Get A component (returns tuple of (component, relationship) or None)
         a_result = u.a.get()
         if a_result:
             as_.append(a_result[0])  # Extract component from tuple
         else:
-            raise ValueError(f"WisdomUnit {u.hash} missing A component")
+            raise ValueError(f"Perspective {u.hash} missing A component")
 
     size = 2 * n
 

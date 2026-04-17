@@ -49,7 +49,7 @@ from dialectical_framework.graph.relationships.similar_to_relationship import (
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.input import Input
     from dialectical_framework.graph.nodes.ideas import Ideas
@@ -62,7 +62,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     Components are the building blocks of the dialectical framework.
     They can play different roles in different contexts:
 
-    Core WisdomUnit positions (6):
+    Core Perspective positions (6):
     - T (neutral thesis), T+ (positive thesis), T- (negative thesis)
     - A (neutral antithesis), A+ (positive antithesis), A- (negative antithesis)
 
@@ -169,7 +169,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
 
     # Note: Inverse relationships for polarity positions (T, T+, T-, A, A+, A-)
     # are NOT defined here because DialecticalComponents have no cardinality
-    # constraints - the same component can be used in unlimited WisdomUnits.
+    # constraints - the same component can be used in unlimited Perspectives.
     # No inverse = implicit (0, None) cardinality.
 
     def _collect_structure_hash_parts(self) -> list[str]:
@@ -366,49 +366,49 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         """Human-readable string representation (defaults to long format)."""
         return self.__format__("")
 
-    def get_alias(self, wisdom_unit: WisdomUnit) -> str:
+    def get_alias(self, perspective: Perspective) -> str:
         """
-        Get the alias of this component within a specific WisdomUnit's context.
+        Get the alias of this component within a specific Perspective's context.
 
-        This method searches all relationship managers on the WisdomUnit (6 core positions)
+        This method searches all relationship managers on the Perspective (6 core positions)
         and the optional Synthesis node (S+, S-) to find where this component is connected
         and returns the alias from the edge properties. If no custom alias is set, returns
         the position constant as the default alias.
 
         Args:
-            wisdom_unit: The WisdomUnit to look up the alias in
+            perspective: The Perspective to look up the alias in
 
         Returns:
             The alias string (e.g., "T1", "A2+") or position constant (e.g., "T", "T+", "A-")
 
         Raises:
-            ValueError: If component is not connected to the wisdom unit
+            ValueError: If component is not connected to the perspective
 
         Example:
             from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
             comp = DialecticalComponent(statement="Democracy")
-            wu = WisdomUnit(...)
-            wu.t.connect(comp, relationship=TRelationship(alias='T1'))
+            pp = Perspective(...)
+            pp.t.connect(comp, relationship=TRelationship(alias='T1'))
 
-            alias = comp.get_alias(wu)  # Returns "T1"
+            alias = comp.get_alias(pp)  # Returns "T1"
 
             # If alias not set on relationship:
-            wu2.t.connect(comp2, relationship=TRelationship(alias=None))
-            alias2 = comp2.get_alias(wu2)  # Returns "T" (position constant)
+            pp2.t.connect(comp2, relationship=TRelationship(alias=None))
+            alias2 = comp2.get_alias(pp2)  # Returns "T" (position constant)
         """
         # Get position first to use as fallback
-        position = self.get_position(wisdom_unit)
+        position = self.get_position(perspective)
         if not position:
-            raise ValueError(f"Component {self.hash} is not connected to WisdomUnit {wisdom_unit.hash}")
+            raise ValueError(f"Component {self.hash} is not connected to Perspective {perspective.hash}")
 
-        # Search through all 6 core position relationship managers on the wisdom unit
+        # Search through all 6 core position relationship managers on the perspective
         rel_managers = [
-            wisdom_unit.t,
-            wisdom_unit.t_plus,
-            wisdom_unit.t_minus,
-            wisdom_unit.a,
-            wisdom_unit.a_plus,
-            wisdom_unit.a_minus,
+            perspective.t,
+            perspective.t_plus,
+            perspective.t_minus,
+            perspective.a,
+            perspective.a_plus,
+            perspective.a_minus,
         ]
 
         for manager in rel_managers:
@@ -423,8 +423,8 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
                         return rel.alias if rel.alias else position
                     return position  # Non-polarity relationship, use position
 
-        # Also check synthesis on WU (synthesis is now on WisdomUnit, not Transformation)
-        for synthesis, _ in wisdom_unit.synthesis.all():
+        # Also check synthesis on PP (synthesis is now on Perspective, not Transformation)
+        for synthesis, _ in perspective.synthesis.all():
             # Check S+ and S- on the Synthesis node
             for manager in [synthesis.s_plus, synthesis.s_minus]:
                 components = manager.all()
@@ -439,35 +439,35 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         # Should not reach here since get_position() already validated connection
         return position
 
-    def get_position(self, wisdom_unit: WisdomUnit) -> Optional[str]:
+    def get_position(self, perspective: Perspective) -> Optional[str]:
         """
-        Get the position name of this component within a specific WisdomUnit's context.
+        Get the position name of this component within a specific Perspective's context.
 
-        This method searches all relationship managers on the WisdomUnit (6 core positions)
+        This method searches all relationship managers on the Perspective (6 core positions)
         and the optional Synthesis node (S+, S-) to find where this component is connected
         and returns the position constant.
 
         Args:
-            wisdom_unit: The WisdomUnit to look up the position in
+            perspective: The Perspective to look up the position in
 
         Returns:
             The position constant (e.g., "T", "T+", "A-", "S+", "S-") or None if not connected
 
         Example:
             from dialectical_framework.graph.nodes.polarity import POSITION_T
-            from dialectical_framework.graph.nodes.wisdom_unit import POSITION_T_PLUS
+            from dialectical_framework.graph.nodes.perspective import POSITION_T_PLUS
             comp = DialecticalComponent(statement="Democracy")
-            wu = WisdomUnit(...)
-            wu.t.connect(comp, relationship=TRelationship(alias='T1'))
+            pp = Perspective(...)
+            pp.t.connect(comp, relationship=TRelationship(alias='T1'))
 
-            position = comp.get_position(wu)  # Returns "T" (POSITION_T)
+            position = comp.get_position(pp)  # Returns "T" (POSITION_T)
 
             comp2 = DialecticalComponent(statement="Trust")
-            wu.t_plus.connect(comp2, relationship=TPlusRelationship(alias='T1+'))
-            position2 = comp2.get_position(wu)  # Returns "T+" (POSITION_T_PLUS)
+            pp.t_plus.connect(comp2, relationship=TPlusRelationship(alias='T1+'))
+            position2 = comp2.get_position(pp)  # Returns "T+" (POSITION_T_PLUS)
         """
         from dialectical_framework.graph.nodes.polarity import POSITION_T, POSITION_A
-        from dialectical_framework.graph.nodes.wisdom_unit import (
+        from dialectical_framework.graph.nodes.perspective import (
             POSITION_T_PLUS, POSITION_T_MINUS,
             POSITION_A_PLUS, POSITION_A_MINUS,
         )
@@ -475,14 +475,14 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
             POSITION_S_PLUS, POSITION_S_MINUS
         )
 
-        # Search through all 6 core position relationship managers on the wisdom unit
+        # Search through all 6 core position relationship managers on the perspective
         positions = [
-            (POSITION_T, wisdom_unit.t),
-            (POSITION_T_PLUS, wisdom_unit.t_plus),
-            (POSITION_T_MINUS, wisdom_unit.t_minus),
-            (POSITION_A, wisdom_unit.a),
-            (POSITION_A_PLUS, wisdom_unit.a_plus),
-            (POSITION_A_MINUS, wisdom_unit.a_minus),
+            (POSITION_T, perspective.t),
+            (POSITION_T_PLUS, perspective.t_plus),
+            (POSITION_T_MINUS, perspective.t_minus),
+            (POSITION_A, perspective.a),
+            (POSITION_A_PLUS, perspective.a_plus),
+            (POSITION_A_MINUS, perspective.a_minus),
         ]
 
         for position_name, manager in positions:
@@ -493,8 +493,8 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
                 if comp.hash == self.hash:
                     return position_name
 
-        # Also check synthesis on WU (synthesis is now on WisdomUnit, not Transformation)
-        for synthesis, _ in wisdom_unit.synthesis.all():
+        # Also check synthesis on PP (synthesis is now on Perspective, not Transformation)
+        for synthesis, _ in perspective.synthesis.all():
             # Check S+ and S- on the Synthesis node
             synth_positions = [
                 (POSITION_S_PLUS, synthesis.s_plus),

@@ -16,7 +16,7 @@ from dialectical_framework.enums.di import DI
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.nexus import Nexus
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 class CycleRepository:
@@ -46,21 +46,21 @@ class CycleRepository:
         return ":".join(canonical)
 
     @inject
-    def find_by_wisdom_units(
+    def find_by_perspectives(
         self,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
         exact_order: bool = True,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         case_id: Optional[str] = Provide[DI.case_id],
     ) -> list[Cycle]:
         """
-        Find Cycles containing the given WisdomUnits.
+        Find Cycles containing the given Perspectives.
 
         Args:
-            wisdom_units: List of WisdomUnits to search for
-            exact_order: If True, only return cycles with exactly these WUs
+            perspectives: List of Perspectives to search for
+            exact_order: If True, only return cycles with exactly these Perspectives
                         in the same order (rotation-invariant).
-                        If False, return cycles containing any of these WUs.
+                        If False, return cycles containing any of these Perspectives.
             case_id: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
@@ -69,48 +69,48 @@ class CycleRepository:
         """
         from dialectical_framework.graph.nodes.cycle import Cycle
 
-        if not wisdom_units:
+        if not perspectives:
             return []
 
-        wu_hashes = [wu.hash for wu in wisdom_units]
+        pp_hashes = [pp.hash for pp in perspectives]
 
         if exact_order:
-            # Query cycles with exactly the same number of WUs
+            # Query cycles with exactly the same number of Perspectives
             # Then filter by signature match in Python
             query = """
                 MATCH (c:Cycle)
                 WHERE c.case_id = $case_id
-                AND size(c.wisdom_unit_hashes) = $hash_count
-                AND ALL(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
+                AND size(c.perspective_hashes) = $hash_count
+                AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
                 RETURN c
             """
             results = list(graph_db.execute_and_fetch(query, {
                 "case_id": case_id,
-                "wu_hashes": wu_hashes,
-                "hash_count": len(wu_hashes),
+                "pp_hashes": pp_hashes,
+                "hash_count": len(pp_hashes),
             }))
 
             # Filter by canonical signature (rotation-invariant)
-            target_signature = self._get_canonical_signature(wu_hashes)
+            target_signature = self._get_canonical_signature(pp_hashes)
             matching_cycles = []
             for row in results:
                 cycle: Cycle = row["c"]
-                cycle_signature = self._get_canonical_signature(cycle.wisdom_unit_hashes)
+                cycle_signature = self._get_canonical_signature(cycle.perspective_hashes)
                 if cycle_signature == target_signature:
                     matching_cycles.append(cycle)
 
             return matching_cycles
         else:
-            # Return cycles containing ANY of these WUs
+            # Return cycles containing ANY of these Perspectives
             query = """
                 MATCH (c:Cycle)
                 WHERE c.case_id = $case_id
-                AND ANY(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
+                AND ANY(h IN $pp_hashes WHERE h IN c.perspective_hashes)
                 RETURN c
             """
             results = list(graph_db.execute_and_fetch(query, {
                 "case_id": case_id,
-                "wu_hashes": wu_hashes,
+                "pp_hashes": pp_hashes,
             }))
 
             return [row["c"] for row in results]
@@ -118,23 +118,23 @@ class CycleRepository:
     @inject
     def find_by_layer(
         self,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
         nexus: Optional[Nexus] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         case_id: Optional[str] = Provide[DI.case_id],
     ) -> list[Cycle]:
         """
-        Find all Cycles in the same layer (same WU set, any ordering).
+        Find all Cycles in the same layer (same Perspective set, any ordering).
 
         A "layer" consists of all Cycles with exactly the same set of
-        WisdomUnits (regardless of order).
+        Perspectives (regardless of order).
 
-        When nexus is provided, scopes to Cycles whose WU hashes are all
-        within the Nexus's WU set (excludes Cycles from other Nexuses
-        that share some WUs).
+        When nexus is provided, scopes to Cycles whose Perspective hashes are all
+        within the Nexus's Perspective set (excludes Cycles from other Nexuses
+        that share some Perspectives).
 
         Args:
-            wisdom_units: List of WisdomUnits defining the layer
+            perspectives: List of Perspectives defining the layer
             nexus: Optional Nexus to scope results to
             case_id: Case ID (injected from DI context)
             graph_db: Graph database (injected)
@@ -144,27 +144,27 @@ class CycleRepository:
         """
         from dialectical_framework.graph.nodes.cycle import Cycle
 
-        if not wisdom_units:
+        if not perspectives:
             return []
 
-        wu_hashes = sorted([wu.hash for wu in wisdom_units])  # Sort for set comparison
+        pp_hashes = sorted([pp.hash for pp in perspectives])  # Sort for set comparison
 
         query = """
             MATCH (c:Cycle)
             WHERE c.case_id = $case_id
-            AND size(c.wisdom_unit_hashes) = $hash_count
-            AND ALL(h IN $wu_hashes WHERE h IN c.wisdom_unit_hashes)
+            AND size(c.perspective_hashes) = $hash_count
+            AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
         """
         params: dict = {
             "case_id": case_id,
-            "wu_hashes": wu_hashes,
-            "hash_count": len(wu_hashes),
+            "pp_hashes": pp_hashes,
+            "hash_count": len(pp_hashes),
         }
 
         if nexus is not None:
-            nexus_wu_hashes = [wu.hash for wu, _ in nexus.wisdom_units.all()]
-            query += "    AND ALL(h IN c.wisdom_unit_hashes WHERE h IN $nexus_wu_hashes)\n"
-            params["nexus_wu_hashes"] = nexus_wu_hashes
+            nexus_pp_hashes = [pp.hash for pp, _ in nexus.perspectives.all()]
+            query += "    AND ALL(h IN c.perspective_hashes WHERE h IN $nexus_pp_hashes)\n"
+            params["nexus_pp_hashes"] = nexus_pp_hashes
 
         query += "    RETURN c"
 

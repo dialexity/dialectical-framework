@@ -12,7 +12,7 @@ from dialectical_framework.utils.extend_tpl import extend_tpl
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.wheel import Wheel
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.relationship_manager import BoundRelationshipManager
 
@@ -120,16 +120,16 @@ class ReverseEngineer:
         </instructions>
         
         ASSISTANT:
-        ## Wisdom Units:
-        {wisdom_units:lists}
+        ## Perspectives:
+        {perspectives:lists}
         """
     )
-    def prompt_find_wisdom_units__general_concepts(
+    def prompt_find_perspectives__general_concepts(
         self,
         *,
         intent: str,
         theses: list[list[str]],
-        wisdom_units: list[list[str]],
+        perspectives: list[list[str]],
     ) -> "Messages.Type": ...
 
     @prompt_template(
@@ -159,15 +159,15 @@ class ReverseEngineer:
         </instructions>
 
         ASSISTANT:
-        {wisdom_units:lists}
+        {perspectives:lists}
         """
     )
-    def prompt_find_wisdom_units__major_tension(
+    def prompt_find_perspectives__major_tension(
         self,
         *,
         intent: str,
         theses: list[list[str]],
-        wisdom_units: list[list[str]],
+        perspectives: list[list[str]],
     ) -> "Messages.Type": ...
 
     @prompt_template(
@@ -308,7 +308,7 @@ class ReverseEngineer:
                 f"### Concept/Statement {index + 1} ({dc.alias})",
                 f"Alias: {dc.alias}",
                 f"Statement: {dc.statement}",
-                # Don't render explanations here, as these might be referring to other places in the wisdom unit,
+                # Don't render explanations here, as these might be referring to other places in the perspective,
                 # which might be confusing or even misleading in further prompt
             ]
             for index, dc in enumerate(theses)
@@ -322,8 +322,8 @@ class ReverseEngineer:
         return tpl
 
     @staticmethod
-    def till_wisdom_units(
-        wisdom_units: list[WisdomUnit], text: str = None
+    def till_perspectives(
+        perspectives: list[Perspective], text: str = None
     ) -> list[BaseMessageParam]:
         reverse_engineer = ReverseEngineer()
         tpl: list[BaseMessageParam] = []
@@ -333,17 +333,17 @@ class ReverseEngineer:
             input_messages = reverse_engineer.prompt_input_text(text=text)
             extend_tpl(tpl, input_messages)
 
-        wus: Dict[str, list[WisdomUnit]] = (
-            _wisdom_units_grouped_by_intent(wisdom_units)
+        pps: Dict[str, list[Perspective]] = (
+            _perspectives_grouped_by_intent(perspectives)
         )
-        for intent_mode, wisdom_units in wus.items():
-            # Extract component info for all WUs using graph-native helper
+        for intent_mode, perspectives in pps.items():
+            # Extract component info for all PPs using graph-native helper
             theses = []
-            wu_lists = []
+            pp_lists = []
 
-            for index, wu in enumerate(wisdom_units):
+            for index, pp in enumerate(perspectives):
                 # Get T component info
-                t_alias, t_statement, t_rationale = _get_component_info(wu.t, 'T')
+                t_alias, t_statement, t_rationale = _get_component_info(pp.t, 'T')
 
                 theses.append([
                     f"### Thesis {index + 1} ({t_alias})",
@@ -352,15 +352,15 @@ class ReverseEngineer:
                     f"Explanation: {t_rationale}",
                 ])
 
-                # Get all component info for this WU
-                a_alias, a_statement, a_rationale = _get_component_info(wu.a, 'A')
-                tm_alias, tm_statement, tm_rationale = _get_component_info(wu.t_minus, 'T-')
-                tp_alias, tp_statement, tp_rationale = _get_component_info(wu.t_plus, 'T+')
-                ap_alias, ap_statement, ap_rationale = _get_component_info(wu.a_plus, 'A+')
-                am_alias, am_statement, am_rationale = _get_component_info(wu.a_minus, 'A-')
+                # Get all component info for this PP
+                a_alias, a_statement, a_rationale = _get_component_info(pp.a, 'A')
+                tm_alias, tm_statement, tm_rationale = _get_component_info(pp.t_minus, 'T-')
+                tp_alias, tp_statement, tp_rationale = _get_component_info(pp.t_plus, 'T+')
+                ap_alias, ap_statement, ap_rationale = _get_component_info(pp.a_plus, 'A+')
+                am_alias, am_statement, am_rationale = _get_component_info(pp.a_minus, 'A-')
 
-                wu_lists.append([
-                    f"### Wisdom Unit for {t_alias}",
+                pp_lists.append([
+                    f"### Perspective for {t_alias}",
                     f"{t_alias} = {t_statement}",
                     f"{a_alias} = {a_statement}",
                     f"{a_alias} explanation: {a_rationale}",
@@ -375,34 +375,34 @@ class ReverseEngineer:
                 ])
 
             if intent_mode == "major_tension":
-                wu_messages = reverse_engineer.prompt_find_wisdom_units__major_tension(
+                pp_messages = reverse_engineer.prompt_find_perspectives__major_tension(
                     intent=intent_mode,
                     theses=theses,
-                    wisdom_units=wu_lists,
+                    perspectives=pp_lists,
                 )
             else:
-                wu_messages = (
-                    reverse_engineer.prompt_find_wisdom_units__general_concepts(
+                pp_messages = (
+                    reverse_engineer.prompt_find_perspectives__general_concepts(
                         intent=intent_mode,
                         theses=theses,
-                        wisdom_units=wu_lists,
+                        perspectives=pp_lists,
                     )
                 )
 
-            extend_tpl(tpl, wu_messages)
+            extend_tpl(tpl, pp_messages)
 
         return tpl
 
     @staticmethod
     def till_cycle(
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
         t_cycle: Cycle,
         ta_cycle: Cycle = None,
         text: str = None,
     ) -> list[BaseMessageParam]:
         reverse_engineer = ReverseEngineer()
-        tpl: list[BaseMessageParam] = ReverseEngineer.till_wisdom_units(
-            wisdom_units, text
+        tpl: list[BaseMessageParam] = ReverseEngineer.till_perspectives(
+            perspectives, text
         )
 
         cycles = {
@@ -447,28 +447,28 @@ class ReverseEngineer:
 
     @staticmethod
     def till_wheel_without_convergent_transitions(wheel: Wheel, text: str = None) -> list[BaseMessageParam]:
-        # Wheel belongs to Cycle which stores WU hashes
+        # Wheel belongs to Cycle which stores PP hashes
         # Get the parent cycle from wheel
         cycle_result = wheel.cycle.get()
         cycle = cycle_result[0] if cycle_result else None
 
-        # Get wisdom units list
-        wisdom_units_list = wheel._wisdom_units
+        # Get perspectives list
+        perspectives_list = wheel._perspectives
 
         # In the new architecture, the wheel IS the ta-cycle level
         # Pass the same cycle for both t_cycle and ta_cycle
         return ReverseEngineer.till_cycle(
-            wisdom_units_list, cycle, None, text
+            perspectives_list, cycle, None, text
         )
 
 
-def _wisdom_units_grouped_by_intent(
-    wisdom_units: list[WisdomUnit],
-) -> Dict[str, list[WisdomUnit]]:
-    grouped_units: Dict[str, list[WisdomUnit]] = {}
-    for wu in wisdom_units:
-        intent_key = wu.intent or "preset:general_concepts"
+def _perspectives_grouped_by_intent(
+    perspectives: list[Perspective],
+) -> Dict[str, list[Perspective]]:
+    grouped_units: Dict[str, list[Perspective]] = {}
+    for pp in perspectives:
+        intent_key = pp.intent or "preset:general_concepts"
         if intent_key not in grouped_units:
             grouped_units[intent_key] = []
-        grouped_units[intent_key].append(wu)
+        grouped_units[intent_key].append(pp)
     return grouped_units

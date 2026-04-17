@@ -1,7 +1,7 @@
 """
 Calculator for Wheel nodes.
 
-Wheel is the top-level composite containing WisdomUnits via Cycle.
+Wheel is the top-level composite containing Perspectives via Cycle.
 """
 
 from __future__ import annotations
@@ -19,29 +19,29 @@ class WheelCalculator(BaseCalculator):
     """
     Calculator for Wheel nodes.
 
-    Wheel is the top-level composite. WisdomUnits are accessed via Cycle.
+    Wheel is the top-level composite. Perspectives are accessed via Cycle.
 
     R calculation (content relevance):
-    - WisdomUnit Rs (GM of all WU Rs via Cycle - the main content)
+    - Perspective Rs (GM of all PP Rs via Cycle - the main content)
     - Wheel-level Transition Rs (wheel's own transitions)
     - Transformation Rs (wheel's transformations)
     - Wheel-level rationale Rs (with rating)
 
     P calculation (structural feasibility, Markovian):
-    - Product of: Cycle P × WU Ps × Wheel trans P × Transformation Ps
+    - Product of: Cycle P × PP Ps × Wheel trans P × Transformation Ps
     - All terms are conjunctive requirements (all must work)
     - Skip None values (unknown), keep zeros (hard constraints)
     """
 
     def score_children(self, wheel: Wheel, force: bool = False) -> None:
         """
-        Score parent Cycle (which scores WUs) and Transformations.
+        Score parent Cycle (which scores PPs) and Transformations.
 
         Args:
             wheel: Wheel whose children should be scored
             force: If True, force rescore even if children appear valid
         """
-        # Score parent Cycle (which scores WisdomUnits)
+        # Score parent Cycle (which scores Perspectives)
         cycle_result = wheel.cycle.get()
         if cycle_result:
             self.scorer.calculate_score(cycle_result[0], force=force)
@@ -55,7 +55,7 @@ class WheelCalculator(BaseCalculator):
         Calculate R for Wheel as GM of content relevance signals.
 
         Wheel R includes:
-        - WisdomUnit Rs (via Cycle - the main content)
+        - Perspective Rs (via Cycle - the main content)
         - Wheel-level Transition Rs
         - Transformation Rs
         - Wheel-level Rationale Rs
@@ -70,14 +70,14 @@ class WheelCalculator(BaseCalculator):
 
         values = []
 
-        # WisdomUnit Rs (via Cycle)
+        # Perspective Rs (via Cycle)
         cycle_result = wheel.cycle.get()
         if cycle_result:
             cycle_obj, _ = cycle_result
-            for wu in cycle_obj.wisdom_units:
-                wu_r = wu.relevance
-                if wu_r is not None:
-                    values.append(wu_r)
+            for pp in cycle_obj.perspectives:
+                pp_r = pp.relevance
+                if pp_r is not None:
+                    values.append(pp_r)
 
         # Wheel-level Transition Rs
         for trans in wheel.edges:
@@ -111,9 +111,9 @@ class WheelCalculator(BaseCalculator):
 
     def calculate_probability(self, wheel: Wheel) -> Optional[float]:
         """
-        Calculate P for Wheel as product of Cycle P, WU Ps, Wheel transitions, and Transformation Ps.
+        Calculate P for Wheel as product of Cycle P, PP Ps, Wheel transitions, and Transformation Ps.
 
-        Wheel P = Cycle P × WU_Ps × Wheel_transitions_product × Transformation_Ps
+        Wheel P = Cycle P × PP_Ps × Wheel_transitions_product × Transformation_Ps
 
         Uses Product (not GM) because these are conjunctive requirements - all must
         work for the Wheel to be structurally feasible.
@@ -137,11 +137,11 @@ class WheelCalculator(BaseCalculator):
             if cycle_p is not None:
                 all_terms.append(cycle_p)
 
-            # WU Ps (via Cycle)
-            for wu in cycle_obj.wisdom_units:
-                wu_p = wu.probability
-                if wu_p is not None:
-                    all_terms.append(wu_p)
+            # PP Ps (via Cycle)
+            for pp in cycle_obj.perspectives:
+                pp_p = pp.probability
+                if pp_p is not None:
+                    all_terms.append(pp_p)
 
         # Wheel's own transitions P (product for sequential probability)
         wheel_transitions = wheel.edges
@@ -169,12 +169,12 @@ class WheelCalculator(BaseCalculator):
 
     def clear_children(self, wheel: Wheel) -> None:
         """
-        Clear scores from Cycle (which clears WUs) and Transformations.
+        Clear scores from Cycle (which clears PPs) and Transformations.
 
         Args:
             wheel: Wheel whose children should be cleared
         """
-        # Clear parent Cycle (which clears WisdomUnits)
+        # Clear parent Cycle (which clears Perspectives)
         cycle_result = wheel.cycle.get()
         if cycle_result:
             self.scorer.clear_scores(cycle_result[0])

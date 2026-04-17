@@ -33,8 +33,8 @@ GRAPH_SCHEMA = """
 
 ### Dialectical Structure
 - **DialecticalComponent**: A statement/thesis/position. Has `statement` (text) and optional `meaning` (semantic URI).
-- **WisdomUnit**: A dialectical tension pairing thesis (T) with antithesis (A), plus their poles (T+, T-, A+, A-).
-- **Cycle**: T-cycle - an ordered sequence of WisdomUnits defining abstract thesis causality.
+- **Perspective**: A dialectical tension pairing thesis (T) with antithesis (A), plus their poles (T+, T-, A+, A-).
+- **Cycle**: T-cycle - an ordered sequence of Perspectives defining abstract thesis causality.
 - **Wheel**: Concrete T-A arrangement implementing a Cycle with flip configurations and transitions.
 
 ### Transformation & Synthesis
@@ -48,7 +48,7 @@ GRAPH_SCHEMA = """
 
 ## Relationship Types
 
-### WisdomUnit Positions (DialecticalComponent → WisdomUnit)
+### Perspective Positions (DialecticalComponent → Perspective)
 - **T**: Thesis position (neutral statement)
 - **A**: Antithesis position (opposing statement)
 - **T_PLUS**: Positive aspect of thesis
@@ -89,7 +89,7 @@ DialecticalComponent:
 - `meaning`: Optional semantic URI
 - `rejected`: Boolean if rejected
 
-WisdomUnit, Cycle, Wheel, etc.:
+Perspective, Cycle, Wheel, etc.:
 - `intent`: Optional intent/purpose description
 """
 from dialectical_framework.agents.analyst.skills.edit_polarity import \

@@ -35,15 +35,15 @@ class CycleCalculator(BaseCalculator):
 
     def score_children(self, cycle: Cycle, force: bool = False) -> None:
         """
-        Score WisdomUnits and all transitions in this cycle.
+        Score Perspectives and all transitions in this cycle.
 
         Args:
             cycle: Cycle whose children should be scored
             force: If True, force rescore even if children appear valid
         """
-        # Score WisdomUnits
-        for wu in cycle.wisdom_units:
-            self.scorer.calculate_score(wu, force=force)
+        # Score Perspectives
+        for pp in cycle.perspectives:
+            self.scorer.calculate_score(pp, force=force)
 
         # Score transitions
         transitions = cycle.transitions
@@ -120,14 +120,14 @@ class CycleCalculator(BaseCalculator):
 
     def clear_children(self, cycle: Cycle) -> None:
         """
-        Clear scores from WisdomUnits and all transitions.
+        Clear scores from Perspectives and all transitions.
 
         Args:
             cycle: Cycle whose children should be cleared
         """
-        # Clear WisdomUnits
-        for wu in cycle.wisdom_units:
-            self.scorer.clear_scores(wu)
+        # Clear Perspectives
+        for pp in cycle.perspectives:
+            self.scorer.clear_scores(pp)
 
         # Clear transitions
         transitions = cycle.transitions

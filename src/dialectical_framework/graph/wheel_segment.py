@@ -1,7 +1,7 @@
 """
 WheelSegment for graph-based dialectical framework.
 
-This module provides a lightweight "window" into one side of a WisdomUnit,
+This module provides a lightweight "window" into one side of a Perspective,
 exposing a unified interface regardless of which side (T or A) is being viewed.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Literal, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
     from dialectical_framework.graph.relationship_manager import BoundRelationshipManager
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
@@ -20,7 +20,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import Pola
 
 class WheelSegment:
     """
-    A "window" into one side (T or A) of a WisdomUnit.
+    A "window" into one side (T or A) of a Perspective.
 
     Provides direct access to the underlying relationship managers with
     naming consistent with the domain model:
@@ -30,31 +30,31 @@ class WheelSegment:
     This is a lightweight view object, not a node itself.
     """
 
-    def __init__(self, wisdom_unit: WisdomUnit, side: Literal["T", "A"]):
+    def __init__(self, perspective: Perspective, side: Literal["T", "A"]):
         """
         Initialize a wheel segment window.
 
         Args:
-            wisdom_unit: The WisdomUnit containing this segment
+            perspective: The Perspective containing this segment
             side: Either 'T' or 'A' to specify which side
         """
         if side not in ('T', 'A'):
             raise ValueError(f"side must be 'T' or 'A', got: {side}")
 
-        self._wisdom_unit = wisdom_unit
+        self._perspective = perspective
         self._side = side
         self._opposite: Optional[WheelSegment] = None
         self._polar_pair: Optional[WheelSegmentPolarPair] = None
 
     @property
-    def wisdom_unit(self) -> WisdomUnit:
-        """Get the WisdomUnit containing this segment."""
-        return self._wisdom_unit
+    def perspective(self) -> Perspective:
+        """Get the Perspective containing this segment."""
+        return self._perspective
 
     @property
     def opposite(self) -> WheelSegment:
         """
-        Get the opposite WheelSegment (the other side of the same wisdom_unit).
+        Get the opposite WheelSegment (the other side of the same perspective).
 
         For T-side segments, returns the A-side segment.
         For A-side segments, returns the T-side segment.
@@ -62,13 +62,13 @@ class WheelSegment:
         The opposite segment is constructed lazily and cached for reuse.
 
         Example:
-            t_seg = wu.extract_segment_t()
+            t_seg = pp.extract_segment_t()
             a_seg = t_seg.opposite  # Get the A-side segment
             assert a_seg.opposite is t_seg  # Returns the same T-side instance
         """
         if self._opposite is None:
             opposite_side: Literal["T", "A"] = "A" if self._side == "T" else "T"
-            self._opposite = WheelSegment(self._wisdom_unit, opposite_side)
+            self._opposite = WheelSegment(self._perspective, opposite_side)
             # Link back to ensure both sides share the same instances
             self._opposite._opposite = self
         return self._opposite
@@ -76,7 +76,7 @@ class WheelSegment:
     @property
     def polar_pair(self) -> WheelSegmentPolarPair:
         """
-        Get a WheelSegmentPolarPair view of this segment's wisdom unit.
+        Get a WheelSegmentPolarPair view of this segment's perspective.
 
         The pair is lazily created and cached. The same instance is shared
         between this segment and its opposite. Calling swap() on the returned
@@ -86,8 +86,8 @@ class WheelSegment:
         the existing WheelSegment instances.
 
         Example:
-            t_seg = wu.extract_segment_t()
-            a_seg = wu.extract_segment_a()
+            t_seg = pp.extract_segment_t()
+            a_seg = pp.extract_segment_a()
 
             pair1 = t_seg.as_pair
             pair2 = a_seg.as_pair
@@ -110,11 +110,11 @@ class WheelSegment:
                 # Create pair with existing segments
                 if self._side == "T":
                     self._polar_pair = WheelSegmentPolarPair(
-                        self._wisdom_unit, "normal", t_segment=self, a_segment=opposite_seg
+                        self._perspective, "normal", t_segment=self, a_segment=opposite_seg
                     )
                 else:
                     self._polar_pair = WheelSegmentPolarPair(
-                        self._wisdom_unit, "normal", t_segment=opposite_seg, a_segment=self
+                        self._perspective, "normal", t_segment=opposite_seg, a_segment=self
                     )
 
                 # Cache on opposite segment too
@@ -132,45 +132,45 @@ class WheelSegment:
         """
         Get the t or a relationship manager (depending on side).
 
-        For T-side segments, returns wisdom_unit.t
-        For A-side segments, returns wisdom_unit.a
+        For T-side segments, returns perspective.t
+        For A-side segments, returns perspective.a
 
         Example:
-            t_seg = wu.extract_segment_t()
+            t_seg = pp.extract_segment_t()
             t_comp = t_seg.t.get()  # Get T component
 
-            a_seg = wu.extract_segment_a()
+            a_seg = pp.extract_segment_a()
             a_comp = a_seg.t.get()  # Get A component (named 't' for consistency)
         """
-        return self._wisdom_unit.t if self._side == 'T' else self._wisdom_unit.a
+        return self._perspective.t if self._side == 'T' else self._perspective.a
 
     @property
     def t_plus(self) -> BoundRelationshipManager[DialecticalComponent]:
         """
         Get the t_plus or a_plus relationship manager (depending on side).
 
-        For T-side segments, returns wisdom_unit.t_plus
-        For A-side segments, returns wisdom_unit.a_plus
+        For T-side segments, returns perspective.t_plus
+        For A-side segments, returns perspective.a_plus
 
         Example:
-            t_seg = wu.extract_segment_t()
+            t_seg = pp.extract_segment_t()
             t_plus_comps = [c for c, _ in t_seg.t_plus.all()]
         """
-        return self._wisdom_unit.t_plus if self._side == 'T' else self._wisdom_unit.a_plus
+        return self._perspective.t_plus if self._side == 'T' else self._perspective.a_plus
 
     @property
     def t_minus(self) -> BoundRelationshipManager[DialecticalComponent]:
         """
         Get the t_minus or a_minus relationship manager (depending on side).
 
-        For T-side segments, returns wisdom_unit.t_minus
-        For A-side segments, returns wisdom_unit.a_minus
+        For T-side segments, returns perspective.t_minus
+        For A-side segments, returns perspective.a_minus
 
         Example:
-            t_seg = wu.extract_segment_t()
+            t_seg = pp.extract_segment_t()
             t_minus_comps = [c for c, _ in t_seg.t_minus.all()]
         """
-        return self._wisdom_unit.t_minus if self._side == 'T' else self._wisdom_unit.a_minus
+        return self._perspective.t_minus if self._side == 'T' else self._perspective.a_minus
 
     def get_component(self, alias: str) -> Optional[DialecticalComponent]:
         """
@@ -186,7 +186,7 @@ class WheelSegment:
             The matching component, or None if not found in this segment
 
         Example:
-            t_seg = wu.extract_segment_t()
+            t_seg = pp.extract_segment_t()
             t_seg.get_component("T1")   # Returns T component if found
             t_seg.get_component("A1")   # Returns None (not in this segment)
         """
@@ -264,7 +264,7 @@ class WheelSegment:
             True if the key exists in this segment
 
         Example:
-            seg = wu.extract_segment_t()
+            seg = pp.extract_segment_t()
             seg.is_set("T1")  # Check by alias
             seg.is_set(component)  # Check by component
         """
@@ -332,7 +332,7 @@ class WheelSegment:
             Formatted string with t, t_plus, t_minus components
         """
         import re
-        from dialectical_framework.graph.nodes.wisdom_unit import (
+        from dialectical_framework.graph.nodes.perspective import (
             POSITION_T, POSITION_T_PLUS, POSITION_T_MINUS,
             POSITION_A, POSITION_A_PLUS, POSITION_A_MINUS
         )
@@ -399,4 +399,4 @@ class WheelSegment:
         """Debug representation of the segment."""
         t_result = self.t.get()
         t_id = t_result[0].hash if t_result else "None"
-        return f"WheelSegment(side={self._side}, wisdom_unit={self._wisdom_unit.hash}, t={t_id})"
+        return f"WheelSegment(side={self._side}, perspective={self._perspective.hash}, t={t_id})"

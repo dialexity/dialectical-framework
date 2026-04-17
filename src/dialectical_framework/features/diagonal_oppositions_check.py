@@ -1,19 +1,19 @@
 """
 DiagonalOppositionsCheck: Capability for validating diagonal opposition pairs.
 
-Tests the opposition validity of diagonal pole pairs in a WisdomUnit:
+Tests the opposition validity of diagonal pole pairs in a Perspective:
 - T+ vs A-: Does T+ oppose A-?
 - A+ vs T-: Does A+ oppose T-?
 
 These diagonal pairs should be mutually exclusive - they cannot both be true/good
 simultaneously. Strong oppositions (>= 0.7) indicate valid tetrad structure.
 
-Creates a DiagonalContradictionEstimation node attached to the WisdomUnit,
+Creates a DiagonalContradictionEstimation node attached to the Perspective,
 with Rationale explaining the evaluation.
 
 Usage:
     checker = DiagonalOppositionsCheck()
-    result = await checker.execute(wisdom_unit=wu)
+    result = await checker.execute(perspective=pp)
 
     if result.is_valid:
         print("Diagonal oppositions are valid")
@@ -38,15 +38,15 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.estimation import (
     ORTHOGONALITY_THRESHOLD, DiagonalContradictionEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A,
-                                                           POSITION_A_MINUS,
-                                                           POSITION_A_PLUS,
-                                                           POSITION_T,
-                                                           POSITION_T_MINUS,
-                                                           POSITION_T_PLUS)
+from dialectical_framework.graph.nodes.perspective import (POSITION_A,
+                                                          POSITION_A_MINUS,
+                                                          POSITION_A_PLUS,
+                                                          POSITION_T,
+                                                          POSITION_T_MINUS,
+                                                          POSITION_T_PLUS)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 # --- DTOs ---
@@ -105,7 +105,7 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
     Both must score >= 0.7 for the tetrad to have valid oppositions.
 
     Creates:
-    - DiagonalContradictionEstimation node attached to the WisdomUnit
+    - DiagonalContradictionEstimation node attached to the Perspective
     - Rationale node explaining the evaluation
     """
 
@@ -114,37 +114,37 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
 
     async def execute(
         self,
-        wisdom_unit: WisdomUnit,
+        perspective: Perspective,
         text: str = "",
     ) -> DiagonalOppositionsCheckResult:
         """
-        Validate the diagonal opposition pairs of a WisdomUnit's tetrad.
+        Validate the diagonal opposition pairs of a Perspective's tetrad.
 
-        Creates a DiagonalContradictionEstimation node if WU is committed.
+        Creates a DiagonalContradictionEstimation node if PP is committed.
         For uncommitted WUs, returns validation scores without creating nodes.
 
         Args:
-            wisdom_unit: The WisdomUnit to validate (must be complete with all 6 positions)
+            perspective: The Perspective to validate (must be complete with all 6 positions)
             text: Optional context for evaluation
 
         Returns:
             DiagonalOppositionsCheckResult with validity status and optional estimation node
 
         Raises:
-            ValueError: If WisdomUnit is missing required components
+            ValueError: If Perspective is missing required components
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not wisdom_unit.is_complete():
-            raise ValueError("WisdomUnit must be complete (have all 6 positions)")
+        if not perspective.is_complete():
+            raise ValueError("Perspective must be complete (have all 6 positions)")
 
         # Get statements for context and poles
-        t_stmt = wisdom_unit.get_component(POSITION_T)
-        a_stmt = wisdom_unit.get_component(POSITION_A)
-        t_plus = wisdom_unit.get_component(POSITION_T_PLUS)
-        t_minus = wisdom_unit.get_component(POSITION_T_MINUS)
-        a_plus = wisdom_unit.get_component(POSITION_A_PLUS)
-        a_minus = wisdom_unit.get_component(POSITION_A_MINUS)
+        t_stmt = perspective.get_component(POSITION_T)
+        a_stmt = perspective.get_component(POSITION_A)
+        t_plus = perspective.get_component(POSITION_T_PLUS)
+        t_minus = perspective.get_component(POSITION_T_MINUS)
+        a_plus = perspective.get_component(POSITION_A_PLUS)
+        a_minus = perspective.get_component(POSITION_A_MINUS)
 
         # Evaluate both diagonal pairs in parallel
         result_t_plus_a_minus, result_a_plus_t_minus = await asyncio.gather(
@@ -193,10 +193,10 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
         )
         rationale = Rationale(text=rationale_text)
 
-        # Only commit and attach if WU is committed
-        if wisdom_unit.is_committed:
-            estimation.set_target(wisdom_unit)
-            rationale.set_explanation_target(wisdom_unit)
+        # Only commit and attach if PP is committed
+        if perspective.is_committed:
+            estimation.set_target(perspective)
+            rationale.set_explanation_target(perspective)
             rationale.commit()
             self._report.node_created(rationale)
 

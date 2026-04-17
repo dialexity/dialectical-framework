@@ -100,7 +100,7 @@ class TaroRank:
             # Import calculators lazily to avoid circular imports
             from dialectical_framework.graph.scoring.tarorank_calculators.dialectical_component_calculator import ComponentCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.transition_calculator import TransitionCalculator
-            from dialectical_framework.graph.scoring.tarorank_calculators.wisdom_unit_calculator import WisdomUnitCalculator
+            from dialectical_framework.graph.scoring.tarorank_calculators.perspective_calculator import PerspectiveCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.synthesis_calculator import SynthesisCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.cycle_calculator import CycleCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.transformation_calculator import TransformationCalculator
@@ -112,7 +112,7 @@ class TaroRank:
             calculator_map = {
                 'DialecticalComponent': ComponentCalculator,
                 'Transition': TransitionCalculator,
-                'WisdomUnit': WisdomUnitCalculator,
+                'Perspective': PerspectiveCalculator,
                 'Synthesis': SynthesisCalculator,
                 'Cycle': CycleCalculator,
                 'Transformation': TransformationCalculator,

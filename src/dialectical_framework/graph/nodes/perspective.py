@@ -1,5 +1,5 @@
 """
-WisdomUnit with declarative relationships and cardinality constraints.
+Perspective with declarative relationships and cardinality constraints.
 
 This version uses the enhanced RelationshipManager with cardinality support
 for automatic validation and enforcement.
@@ -43,32 +43,32 @@ from dialectical_framework.graph.nodes.polarity import Polarity, POSITION_T, POS
 
 # Position constants for poles - module level to avoid GQLAlchemy metaclass interference
 # Note: POSITION_T and POSITION_A are in polarity.py (T/A belong to Polarity)
-# Note: S+ and S- constants are in synthesis.py (Synthesis belongs to WisdomUnit)
+# Note: S+ and S- constants are in synthesis.py (Synthesis belongs to Perspective)
 POSITION_T_PLUS = "T+"
 POSITION_T_MINUS = "T-"
 POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
 
 
-class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEntity, label="WisdomUnit"):
+class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEntity, label="Perspective"):
     """
     Represents ONE coherent dialectical analysis with enforced cardinality.
 
-    A WisdomUnit references a Polarity (T-A pair) and adds four poles:
+    A Perspective references a Polarity (T-A pair) and adds four poles:
     - Polarity: contains T and A (the fundamental tension)
     - Poles: T+, T-, A+, A- (healthy/problematic forms of each side)
 
     Structure:
-        Polarity(T, A) + Poles(T+, T-, A+, A-) = WisdomUnit
+        Polarity(T, A) + Poles(T+, T-, A+, A-) = Perspective
 
-    Each WisdomUnit represents ONE dialectical exploration. To explore multiple
+    Each Perspective represents ONE dialectical exploration. To explore multiple
     consequences or alternative perspectives on the same T-A pair, create multiple
-    WisdomUnits that share the same Polarity (different tetrad interpretations).
+    Perspectives that share the same Polarity (different tetrad interpretations).
 
-    Synthesis (S+, S-) emerges from the WisdomUnit's T-A tension, not from individual
-    transformation paths. A WU can have multiple transformations (different Ac-Re paths)
-    but synthesis belongs to the WU level.
-    Access synthesis via: wu.synthesis.all()
+    Synthesis (S+, S-) emerges from the Perspective's T-A tension, not from individual
+    transformation paths. A PP can have multiple transformations (different Ac-Re paths)
+    but synthesis belongs to the PP level.
+    Access synthesis via: pp.synthesis.all()
 
     The cardinality constraints are enforced at the RelationshipManager level,
     providing automatic validation and runtime checks.
@@ -77,14 +77,14 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
     Lifecycle:
         1. Create or find a committed Polarity (T-A pair)
-        2. wu = WisdomUnit()
-        3. wu.save()
-        4. wu.polarity.connect(polarity)
-        5. wu.t_plus.connect(t_plus_comp, relationship=TPlusRelationship(...))
-        6. wu.t_minus.connect(t_minus_comp, relationship=TMinusRelationship(...))
-        7. wu.a_plus.connect(a_plus_comp, relationship=APlusRelationship(...))
-        8. wu.a_minus.connect(a_minus_comp, relationship=AMinusRelationship(...))
-        9. wu.commit()
+        2. pp = Perspective()
+        3. pp.save()
+        4. pp.polarity.connect(polarity)
+        5. pp.t_plus.connect(t_plus_comp, relationship=TPlusRelationship(...))
+        6. pp.t_minus.connect(t_minus_comp, relationship=TMinusRelationship(...))
+        7. pp.a_plus.connect(a_plus_comp, relationship=APlusRelationship(...))
+        8. pp.a_minus.connect(a_minus_comp, relationship=AMinusRelationship(...))
+        9. pp.commit()
     """
 
     def __init__(self, **data: Any):
@@ -135,14 +135,14 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         Access T component through Polarity.
 
         Returns a BoundRelationshipManager that delegates to the Polarity's T manager.
-        This provides backward compatibility for code that accesses wu.t directly.
+        This provides backward compatibility for code that accesses pp.t directly.
 
         Raises:
             ValueError: If no Polarity is connected
         """
         polarity_result = self.polarity.get()
         if not polarity_result:
-            raise ValueError("WisdomUnit has no Polarity connected - cannot access T")
+            raise ValueError("Perspective has no Polarity connected - cannot access T")
         pol, _ = polarity_result
         return pol.t
 
@@ -152,18 +152,18 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         Access A component through Polarity.
 
         Returns a BoundRelationshipManager that delegates to the Polarity's A manager.
-        This provides backward compatibility for code that accesses wu.a directly.
+        This provides backward compatibility for code that accesses pp.a directly.
 
         Raises:
             ValueError: If no Polarity is connected
         """
         polarity_result = self.polarity.get()
         if not polarity_result:
-            raise ValueError("WisdomUnit has no Polarity connected - cannot access A")
+            raise ValueError("Perspective has no Polarity connected - cannot access A")
         pol, _ = polarity_result
         return pol.a
 
-    # Synthesis alternatives (S+/S- pairs) derived from this WisdomUnit
+    # Synthesis alternatives (S+/S- pairs) derived from this Perspective
     # Synthesis emerges from the T-A tension, not from specific transformation paths
     synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
         "Synthesis",
@@ -171,8 +171,8 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
-    # Exploration context: Nexuses this WU belongs to
-    # WU→Nexus: WU can belong to multiple exploration contexts
+    # Exploration context: Nexuses this PP belongs to
+    # PP→Nexus: PP can belong to multiple exploration contexts
     nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
         "Nexus",
         model=BelongsToNexusRelationship,
@@ -185,7 +185,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         """
         Get all committed children for hash computation.
 
-        For WisdomUnit, yields the Polarity and all 4 pole components.
+        For Perspective, yields the Polarity and all 4 pole components.
 
         Yields:
             Polarity node and Component nodes (poles)
@@ -205,7 +205,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
     def _collect_structure_hash_parts(self) -> list[str]:
         """
-        Collect structure hash parts for this WisdomUnit.
+        Collect structure hash parts for this Perspective.
 
         Parts: Polarity hash + hashes of 4 pole components (t+, t-, a+, a-).
 
@@ -224,7 +224,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             if not pol.is_committed:
                 raise ValueError(
                     "Polarity must be committed before computing "
-                    "WisdomUnit structure hash"
+                    "Perspective structure hash"
                 )
             parts.append(pol.hash)
         else:
@@ -238,7 +238,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
                 if not comp.is_committed:
                     raise ValueError(
                         "Component must be committed before computing "
-                        "WisdomUnit structure hash"
+                        "Perspective structure hash"
                     )
                 parts.append(comp.hash)
             else:
@@ -247,15 +247,15 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         return parts
 
     def __repr__(self) -> str:
-        """String representation of the wisdom unit."""
+        """String representation of the perspective."""
         hash_str = self.hash[:7] if self.is_committed else "uncommitted"
-        return f"WisdomUnit({hash_str}, intent={self.intent})"
+        return f"Perspective({hash_str}, intent={self.intent})"
 
     def is_complete(self) -> bool:
         """
-        Check if this wisdom unit has all required components.
+        Check if this perspective has all required components.
 
-        A WisdomUnit is complete when it has:
+        A Perspective is complete when it has:
         - Required: polarity (with T and A), t_plus, t_minus, a_plus, a_minus
         - Optional: s_plus, s_minus (don't affect completeness)
 
@@ -270,30 +270,30 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             and self.a_minus.count() >= 1
         )
 
-    def is_same(self, other: WisdomUnit) -> bool:
+    def is_same(self, other: Perspective) -> bool:
         """
-        Check if this WisdomUnit has the same components as another.
+        Check if this Perspective has the same components as another.
 
-        Compares by component hashes, not WU hashes (which include timestamps).
-        Handles T-A symmetry: two WUs are the same if their T and A sides match,
+        Compares by component hashes, not PP hashes (which include timestamps).
+        Handles T-A symmetry: two PPs are the same if their T and A sides match,
         even if T and A are swapped between them.
 
         Args:
-            other: Another WisdomUnit to compare with
+            other: Another Perspective to compare with
 
         Returns:
-            True if both WUs have the same 6 components (possibly swapped)
+            True if both PPs have the same 6 components (possibly swapped)
 
         Example:
             # Same orientation
-            wu1: T=X, A=Y → wu2: T=X, A=Y → is_same = True
+            pp1: T=X, A=Y → pp2: T=X, A=Y → is_same = True
 
             # Swapped orientation (still the same tension)
-            wu1: T=X, A=Y → wu2: T=Y, A=X → is_same = True
+            pp1: T=X, A=Y → pp2: T=Y, A=X → is_same = True
         """
         if self is other:
             return True
-        if not isinstance(other, WisdomUnit):
+        if not isinstance(other, Perspective):
             return False
 
         # Check normal orientation: T↔T, A↔A
@@ -443,7 +443,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
              └─────────────────→
 
         Use case:
-            When selecting among sibling WisdomUnits (same T-A, different tetrads),
+            When selecting among sibling Perspectives (same T-A, different tetrads),
             prefer the one with lower rectangularity for a more balanced structure.
 
         Example scores:
@@ -569,9 +569,9 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             ValueError: If position is not recognized
 
         Example:
-            rel_class = WisdomUnit.get_relationship_class_for_position(POSITION_T)
+            rel_class = Perspective.get_relationship_class_for_position(POSITION_T)
             # rel_class is TRelationship
-            wu.t.connect(component, relationship=rel_class(alias='T1'))
+            pp.t.connect(component, relationship=rel_class(alias='T1'))
         """
         position_to_rel_class = {
             POSITION_T: TRelationship,
@@ -598,7 +598,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             position: Position name (e.g., 'T', 'A', 'T+', 'T-', 'A+', 'A-')
 
         Returns:
-            The corresponding BoundRelationshipManager (bound to this WU instance)
+            The corresponding BoundRelationshipManager (bound to this PP instance)
 
         Raises:
             ValueError: If position is not recognized (including S+/S- which are on Synthesis node)
@@ -625,7 +625,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             'a_minus': self.a_minus,
         }
         if position not in position_map:
-            raise ValueError(f"Unknown position: {position}. Note: S+/S- are on the Synthesis node, not WisdomUnit.")
+            raise ValueError(f"Unknown position: {position}. Note: S+/S- are on the Synthesis node, not Perspective.")
         return position_map[position]
 
     def is_set(self, position: str) -> bool:
@@ -659,8 +659,8 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             The component if found, None otherwise
 
         Example:
-            wu.get_component('T1')  # Finds component with alias='T1'
-            wu.get_component('Democracy')  # Finds component with alias='Democracy'
+            pp.get_component('T1')  # Finds component with alias='T1'
+            pp.get_component('Democracy')  # Finds component with alias='Democracy'
         """
         # Search all 6 core positions
         for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
@@ -672,7 +672,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
     def has_component(self, component: DialecticalComponent) -> bool:
         """
-        Check if this WisdomUnit contains the given component.
+        Check if this Perspective contains the given component.
 
         Searches all 6 positions (T, A, T+, T-, A+, A-) by hash match.
 
@@ -680,7 +680,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             component: The component to check
 
         Returns:
-            True if the component is in any position of this WU
+            True if the component is in any position of this PP
         """
         if not component.is_committed:
             return False
@@ -702,7 +702,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
         Note:
             - T and A are accessed through the Polarity node
-            - S+/S- are on the Synthesis node, not WisdomUnit
+            - S+/S- are on the Synthesis node, not Perspective
         """
         return [
             POSITION_T,
@@ -718,7 +718,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         """
         Get list of the 4 pole position names (excluding T and A).
 
-        These are the positions directly on WisdomUnit (not on Polarity).
+        These are the positions directly on Perspective (not on Polarity).
 
         Returns:
             List of pole position names: [T+, T-, A+, A-]
@@ -732,7 +732,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
     def get_human_friendly_index(self) -> int:
         """
-        Extract the human-friendly index from component aliases in this WU.
+        Extract the human-friendly index from component aliases in this PP.
 
         Looks at the T component's alias and extracts the numeric index.
         If no index exists, returns 0.
@@ -741,8 +741,8 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             The numeric index (e.g., T3 → 3, T → 0)
 
         Example:
-            wu.set_human_friendly_index(3)  # T → T3
-            wu.get_human_friendly_index()   # Returns 3
+            pp.set_human_friendly_index(3)  # T → T3
+            pp.get_human_friendly_index()   # Returns 3
         """
         import re
 
@@ -753,7 +753,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
         _, rel = t_result
 
-        # WisdomUnit.t relationship is always PolarityRelationship
+        # Perspective.t relationship is always PolarityRelationship
         assert isinstance(rel, PolarityRelationship), f"Expected PolarityRelationship for T, got {type(rel)}"
         alias = rel.alias  # Direct access, fully typed and validated
 
@@ -763,7 +763,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
     def set_human_friendly_index(self, human_friendly_index: int) -> None:
         """
-        Updates the alias of all components in this WU by setting the numeric index.
+        Updates the alias of all components in this PP by setting the numeric index.
 
         If the index is 0, removes any existing digits entirely.
         If no digits exist and index > 0, inserts the index before any trailing signs.
@@ -774,18 +774,18 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             human_friendly_index: The integer index (0 = strip numbers, >0 = add/replace)
 
         Note:
-            T and A aliases are stored on the Polarity's edges. If multiple WisdomUnits
+            T and A aliases are stored on the Polarity's edges. If multiple Perspectives
             share the same Polarity, updating these aliases affects all of them.
-            The 4 pole aliases (T+, T-, A+, A-) are WisdomUnit-specific.
+            The 4 pole aliases (T+, T-, A+, A-) are Perspective-specific.
 
         Example:
-            wu.set_human_friendly_index(3)
+            pp.set_human_friendly_index(3)
             # T → T3, A+ → A3+, T- → T3-, etc.
         """
         import re
 
         # Build list of (manager, rel_class) tuples
-        # Note: T and A managers come from Polarity, poles from this WisdomUnit
+        # Note: T and A managers come from Polarity, poles from this Perspective
         managers_and_types: list[tuple[BoundRelationshipManager, type]] = [
             (self.t, TRelationship),
             (self.t_plus, TPlusRelationship),
@@ -834,7 +834,7 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
 
     def __format__(self, format_spec: str) -> str:
         """
-        Format this WisdomUnit using Python's format string protocol.
+        Format this Perspective using Python's format string protocol.
 
         Format Specifications:
         ----------------------
@@ -845,8 +845,8 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
             (empty) - Uses custom aliases as stored, core positions only
             "positions" - Uses canonical positions (T, T+, T-, A, A+, A-)
             "strip_index" - Strips numeric indexes: "T1" → "T", "Foo2+" → "Foo+"
-            "full" - Synthesis + WisdomUnit + Transformation (vertical)
-            "full:compact" - Synthesis + WisdomUnit/Transformation side-by-side (tabular, no explanations)
+            "full" - Synthesis + Perspective + Transformation (vertical)
+            "full:compact" - Synthesis + Perspective/Transformation side-by-side (tabular, no explanations)
 
         Newlines (optional):
             Default: 2 newlines between components (if not specified)
@@ -860,8 +860,8 @@ class WisdomUnit(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEn
         "positions"     - Canonical positions, 2 newlines, with explanations
         ":0"            - Core positions, comma separated, NO explanations
         "positions:0"   - Canonical positions, comma separated, NO explanations
-        "full"          - Synthesis, WisdomUnit, Transformation (vertical)
-        "full:compact"  - Synthesis, WisdomUnit/Transformation tabular (no explanations)
+        "full"          - Synthesis, Perspective, Transformation (vertical)
+        "full:compact"  - Synthesis, Perspective/Transformation tabular (no explanations)
 
         Returns:
             Formatted string

@@ -15,7 +15,7 @@ from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 class DialecticalComponentRepository:
@@ -26,54 +26,54 @@ class DialecticalComponentRepository:
     """
 
     @inject
-    def find_by_wisdom_unit(
+    def find_by_perspective(
         self,
-        wisdom_unit: WisdomUnit,
+        perspective: Perspective,
         case_id: Optional[str] = Provide[DI.case_id],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[tuple[DialecticalComponent, str]]:
         """
-        Find all DialecticalComponents belonging to a WisdomUnit with their aliases.
+        Find all DialecticalComponents belonging to a Perspective with their aliases.
 
         Args:
-            wisdom_unit: The WisdomUnit to query for
+            perspective: The Perspective to query for
             case_id: Case ID (injected from DI context)
 
         Returns:
             List of tuples: (DialecticalComponent, alias)
         """
-        if wisdom_unit._id is None:
+        if perspective._id is None:
             return []
 
-        # Validate WU belongs to current scope
-        if case_id and wisdom_unit.case_id != case_id:
+        # Validate Perspective belongs to current scope
+        if case_id and perspective.case_id != case_id:
             return []
 
         query = """
-        // Pole positions (T+, T-, A+, A-) directly on WU
-        MATCH (c:DialecticalComponent)-[r]->(wu:WisdomUnit)
-        WHERE id(wu) = $wisdom_unit_id
+        // Pole positions (T+, T-, A+, A-) directly on Perspective
+        MATCH (c:DialecticalComponent)-[r]->(pp:Perspective)
+        WHERE id(pp) = $perspective_id
         AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
         RETURN c, r.alias AS alias
 
         UNION
 
         // T and A positions via Polarity
-        MATCH (wu:WisdomUnit)-[:HAS_POLARITY]->(pol:Polarity)<-[r]-(c:DialecticalComponent)
-        WHERE id(wu) = $wisdom_unit_id
+        MATCH (pp:Perspective)-[:HAS_POLARITY]->(pol:Polarity)<-[r]-(c:DialecticalComponent)
+        WHERE id(pp) = $perspective_id
         AND type(r) IN ['T', 'A']
         RETURN c, r.alias AS alias
 
         UNION
 
         // Synthesis positions (S+, S-) via Synthesis node
-        MATCH (c:DialecticalComponent)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(wu:WisdomUnit)
-        WHERE id(wu) = $wisdom_unit_id
+        MATCH (c:DialecticalComponent)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)
+        WHERE id(pp) = $perspective_id
         AND type(r) IN ['S_PLUS', 'S_MINUS']
         RETURN c, r.alias AS alias
         """
 
-        results = graph_db.execute_and_fetch(query, {"wisdom_unit_id": wisdom_unit._id})
+        results = graph_db.execute_and_fetch(query, {"perspective_id": perspective._id})
         return [(result["c"], result["alias"]) for result in results]
 
     @inject
@@ -113,7 +113,7 @@ class DialecticalComponentRepository:
         Safely delete a DialecticalComponent if it's orphaned.
 
         A component is orphaned (safe to delete) if it has no structural connections:
-        - Not connected to any WisdomUnit
+        - Not connected to any Perspective
         - Not connected to any Synthesis
         - Not connected to any Ideas or Input (via HAS_STATEMENT)
         - Not connected to any Transition
@@ -138,17 +138,17 @@ class DialecticalComponentRepository:
         check_query = """
         MATCH (c:DialecticalComponent)
         WHERE id(c) = $comp_id
-        OPTIONAL MATCH (c)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(wu:WisdomUnit)
+        OPTIONAL MATCH (c)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(pp:Perspective)
         OPTIONAL MATCH (c)-[:S_PLUS|S_MINUS]->(synth:Synthesis)
         OPTIONAL MATCH (c)<-[:HAS_STATEMENT]-(container)
         OPTIONAL MATCH (c)-[:SOURCE|TARGET]->(trans:Transition)
         OPTIONAL MATCH (c)<-[:SOURCE|TARGET]-(trans2:Transition)
         WITH c,
-             count(DISTINCT wu) AS wu_count,
+             count(DISTINCT pp) AS pp_count,
              count(DISTINCT synth) AS synth_count,
              count(DISTINCT container) AS container_count,
              count(DISTINCT trans) + count(DISTINCT trans2) AS trans_count
-        RETURN wu_count + synth_count + container_count + trans_count AS connection_count
+        RETURN pp_count + synth_count + container_count + trans_count AS connection_count
         """
         result = list(graph_db.execute_and_fetch(check_query, {"comp_id": component._id}))
 

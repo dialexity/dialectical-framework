@@ -4,7 +4,7 @@ from enum import Enum
 
 
 class PolarReasonerPreset(str, Enum):
-    """Preset intents for WisdomUnit/Transformation path (Now What? level)."""
+    """Preset intents for Perspective/Transformation path (Now What? level)."""
 
     GENERAL_CONCEPTS = "preset:general_concepts"
     MAJOR_TENSION = "preset:major_tension"

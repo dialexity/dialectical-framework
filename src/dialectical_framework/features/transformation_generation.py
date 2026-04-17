@@ -6,7 +6,7 @@ following the Coherence Constraint (CC).
 
 Usage:
     service = TransformationGeneration()
-    tetrad = await service.execute(wu, ac_plus, apexes, input_text)
+    tetrad = await service.execute(pp, ac_plus, apexes, input_text)
     print(f"Ac+: {tetrad.ac_plus.statement}")
     print(f"Re+: {tetrad.re_plus.statement}")
 """
@@ -32,7 +32,7 @@ from dialectical_framework.features.positive_ac_re_apex_derivation import \
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 SYSTEM_PROMPT = """You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
@@ -295,7 +295,7 @@ class TransformationGeneration(
 
     async def execute(
         self,
-        wu: WisdomUnit,
+        pp: Perspective,
         ac_plus: ActionCandidateResultDto,
         apexes: ApexDerivationResultDto,
         input_text: str = "",
@@ -304,7 +304,7 @@ class TransformationGeneration(
         Generate a complete transformation tetrad from an Ac+ candidate.
 
         Args:
-            wu: The WisdomUnit context
+            pp: The Perspective context
             ac_plus: The Ac+ candidate to build the tetrad around
             apexes: Derived apex statements for HS calculation
             input_text: Optional source content context
@@ -314,14 +314,14 @@ class TransformationGeneration(
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not wu.is_complete():
-            raise ValueError("WisdomUnit must have all 6 positions")
+        if not pp.is_complete():
+            raise ValueError("Perspective must have all 6 positions")
 
         # Initialize conversation
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        # Get WU context
-        wu_context = self._build_wu_context(wu)
+        # Get PP context
+        pp_context = self._build_pp_context(pp)
 
         # Determine expected Re+ category based on Ac+ polar pair
         expected_re_category = self._get_expected_re_category(
@@ -330,7 +330,7 @@ class TransformationGeneration(
 
         # Generate tetrad completion
         completion = await self._generate_tetrad_completion(
-            wu_context, input_text, ac_plus, expected_re_category
+            pp_context, input_text, ac_plus, expected_re_category
         )
 
         # Build transition DTOs
@@ -423,17 +423,17 @@ class TransformationGeneration(
 
         return result
 
-    def _build_wu_context(self, wu: WisdomUnit) -> str:
-        """Build context string from WisdomUnit components."""
+    def _build_pp_context(self, pp: Perspective) -> str:
+        """Build context string from Perspective components."""
         parts = []
 
         positions = [
-            ("T", wu.t),
-            ("T+", wu.t_plus),
-            ("T-", wu.t_minus),
-            ("A", wu.a),
-            ("A+", wu.a_plus),
-            ("A-", wu.a_minus),
+            ("T", pp.t),
+            ("T+", pp.t_plus),
+            ("T-", pp.t_minus),
+            ("A", pp.a),
+            ("A+", pp.a_plus),
+            ("A-", pp.a_minus),
         ]
 
         for name, manager in positions:
@@ -454,7 +454,7 @@ class TransformationGeneration(
 
     async def _generate_tetrad_completion(
         self,
-        wu_context: str,
+        pp_context: str,
         input_text: str,
         ac_plus: ActionCandidateResultDto,
         expected_re_category: str,
@@ -466,9 +466,9 @@ class TransformationGeneration(
 
         prompt = f"""{context_section}Given this dialectical polarity:
 
-<wisdom_unit>
-{wu_context}
-</wisdom_unit>
+<perspective>
+{pp_context}
+</perspective>
 
 And this Ac+ (action targeting A+) statement:
 - Statement: "{ac_plus.statement}"

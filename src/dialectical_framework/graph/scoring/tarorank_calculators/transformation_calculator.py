@@ -1,7 +1,7 @@
 """
 Calculator for Transformation nodes.
 
-Transformations are Action-Reflection structures within WisdomUnits.
+Transformations are Action-Reflection structures within Perspectives.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ class TransformationCalculator(BaseCalculator):
     """
     Calculator for Transformation nodes.
 
-    Transformations are Action-Reflection structures within WisdomUnits,
+    Transformations are Action-Reflection structures within Perspectives,
     containing 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-).
 
     P calculation:

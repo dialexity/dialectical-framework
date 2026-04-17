@@ -1,13 +1,13 @@
 """
-ExpandPolarities: Orchestrator for creating WisdomUnits from Polarities.
+ExpandPolarities: Orchestrator for creating Perspectives from Polarities.
 
-Takes a T-A Polarity and creates WisdomUnits by adding poles (T+, T-, A+, A-).
+Takes a T-A Polarity and creates Perspectives by adding poles (T+, T-, A+, A-).
 If no Polarity exists for the T-A pair, creates one using AntithesisClassification.
 
 Flow:
     FindPolarities → Polarity nodes (T-A pairs with HS)
            ↓
-    ExpandPolarities → WisdomUnits (Polarity + T+, T-, A+, A-)
+    ExpandPolarities → Perspectives (Polarity + T+, T-, A+, A-)
 
 Usage:
     # From FindPolarities output
@@ -16,11 +16,11 @@ Usage:
 
     # Get polarity data from artifacts
     for polarity_data in polarity_agent.report.artifacts["polarity_data"]:
-        wisdom_agent = ExpandPolarities(
+        perspective_agent = ExpandPolarities(
             thesis_hash=tension["thesis_hash"],
             antithesis_hash=tension["antithesis_hash"],
         )
-        wus = await wisdom_agent.execute()
+        pps = await perspective_agent.execute()
 """
 
 from __future__ import annotations
@@ -45,11 +45,11 @@ from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
                                                         Polarity)
-from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A_MINUS,
+from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_A_PLUS,
                                                            POSITION_T_MINUS,
                                                            POSITION_T_PLUS,
-                                                           WisdomUnit)
+                                                           Perspective)
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, ARelationship,
     HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
@@ -62,29 +62,29 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
-from dialectical_framework.graph.repositories.wisdom_unit_repository import \
-    WisdomUnitRepository
+from dialectical_framework.graph.repositories.perspective_repository import \
+    PerspectiveRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
 
 
-class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
+class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
     """
-    Orchestrate WisdomUnit creation for a single T-A tension.
+    Orchestrate Perspective creation for a single T-A tension.
 
-    Creates WisdomUnits from a Polarity by generating and connecting poles
+    Creates Perspectives from a Polarity by generating and connecting poles
     (T+, T-, A+, A-). If no Polarity exists for the T-A pair, creates one first.
 
     Flow:
     1. Look up or create Polarity for this T-A pair
-    2. Look up existing WisdomUnits for this Polarity
-    3. If none exist, create a new WisdomUnit
-    4. Complete all partial WUs by generating poles
-    5. Return list of completed WisdomUnits
+    2. Look up existing Perspectives for this Polarity
+    3. If none exist, create a new Perspective
+    4. Complete all partial PPs by generating poles
+    5. Return list of completed Perspectives
 
     Dual interface:
-    - execute() returns list[WisdomUnit] for programmatic use
+    - execute() returns list[Perspective] for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -103,19 +103,19 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         return self._report
 
     async def call(self) -> str:
-        """Execute WisdomUnit creation and return ExecutionReport as JSON."""
+        """Execute Perspective creation and return ExecutionReport as JSON."""
         await self.execute()
         return str(self._report)
 
-    async def execute(self) -> list[WisdomUnit]:
+    async def execute(self) -> list[Perspective]:
         """
-        Execute WisdomUnit creation for a single T-A tension.
+        Execute Perspective creation for a single T-A tension.
 
         If no Polarity exists for the T-A pair, creates one using AntithesisClassification.
-        Then creates/completes WisdomUnits for that Polarity.
+        Then creates/completes Perspectives for that Polarity.
 
         Returns:
-            List of complete, committed WisdomUnits
+            List of complete, committed Perspectives
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
@@ -138,42 +138,42 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         # Step 1: Look up or create Polarity for this T-A pair
         polarity = await self._get_or_create_polarity(thesis, antithesis, input_text)
 
-        # Step 2: Look up existing WisdomUnits for this Polarity
-        wu_repo = WisdomUnitRepository()
-        existing_wus = wu_repo.find_by_polarity(polarity)
+        # Step 2: Look up existing Perspectives for this Polarity
+        pp_repo = PerspectiveRepository()
+        existing_pps = pp_repo.find_by_polarity(polarity)
 
-        if not existing_wus:
-            # No WU exists - create one referencing the Polarity
-            wu = self._create_wisdom_unit_for_polarity(polarity)
-            existing_wus = [wu]
+        if not existing_pps:
+            # No PP exists - create one referencing the Polarity
+            pp = self._create_perspective_for_polarity(polarity)
+            existing_pps = [pp]
 
-        complete_wus = [wu for wu in existing_wus if wu.is_complete()]
-        partial_wus = [wu for wu in existing_wus if not wu.is_complete()]
+        complete_pps = [pp for pp in existing_pps if pp.is_complete()]
+        partial_pps = [pp for pp in existing_pps if not pp.is_complete()]
 
-        if not partial_wus:
-            # All WUs are already complete - nothing to do
+        if not partial_pps:
+            # All PPs are already complete - nothing to do
             self._report.ok = True
             self._report.summary = (
-                f"{len(complete_wus)} complete WisdomUnit(s), no partial WUs to expand"
+                f"{len(complete_pps)} complete Perspective(s), no partial PPs to expand"
             )
-            self._report.artifacts["wisdom_unit_hashes"] = [
-                wu.hash for wu in complete_wus if wu.hash
+            self._report.artifacts["perspective_hashes"] = [
+                pp.hash for pp in complete_pps if pp.hash
             ]
-            self._report.artifacts["total_count"] = len(complete_wus)
-            self._report.artifacts["existing_count"] = len(complete_wus)
+            self._report.artifacts["total_count"] = len(complete_pps)
+            self._report.artifacts["existing_count"] = len(complete_pps)
             self._report.artifacts["new_count"] = 0
-            return complete_wus
+            return complete_pps
 
-        # Step 3: Complete all partial WUs
-        completed_wus: list[WisdomUnit] = []
+        # Step 3: Complete all partial PPs
+        completed_pps: list[Perspective] = []
 
-        for wu in partial_wus:
-            # Use complete WUs + already completed in this run as not_like_these
-            not_like_these = complete_wus + completed_wus
+        for pp in partial_pps:
+            # Use complete PPs + already completed in this run as not_like_these
+            not_like_these = complete_pps + completed_pps
 
             generator = PoleGeneration()
             poles = await generator.execute(
-                wisdom_unit=wu,
+                perspective=pp,
                 positions=self.positions,
                 text=input_text,
                 not_like_these=not_like_these,
@@ -183,27 +183,27 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
             # Deduplicate poles against vocabulary (within same branch)
             poles = await self._deduplicate_poles(poles, input_text)
 
-            # Connect poles to WisdomUnit
+            # Connect poles to Perspective
             for pole in poles:
-                self._connect_pole(wu, pole)
+                self._connect_pole(pp, pole)
 
-            # Check if WU (after deduplication) is identical to an existing complete WU
-            duplicate_of = self._find_duplicate(wu, complete_wus + completed_wus)
+            # Check if PP (after deduplication) is identical to an existing complete PP
+            duplicate_of = self._find_duplicate(pp, complete_pps + completed_pps)
             if duplicate_of:
-                # Discard the duplicate - delete uncommitted WU
-                wu_repo.safe_delete(wu)
+                # Discard the duplicate - delete uncommitted PP
+                pp_repo.safe_delete(pp)
                 self._report.artifacts.setdefault("duplicates_discarded", []).append(
                     {
-                        "discarded": wu.short_hash if wu.hash else "uncommitted",
+                        "discarded": pp.short_hash if pp.hash else "uncommitted",
                         "duplicate_of": duplicate_of.short_hash,
                     }
                 )
                 continue
 
-            # Only commit complete WUs (Polarity + 4 poles)
-            # If specific positions were requested, WU may remain incomplete
-            if not wu.is_complete():
-                self._report.artifacts.setdefault("incomplete_wus", []).append(
+            # Only commit complete PPs (Polarity + 4 poles)
+            # If specific positions were requested, PP may remain incomplete
+            if not pp.is_complete():
+                self._report.artifacts.setdefault("incomplete_pps", []).append(
                     {
                         "status": "kept_uncommitted",
                         "reason": "missing positions",
@@ -211,26 +211,26 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
                 )
                 continue
 
-            # Commit WisdomUnit
-            wu.commit()
-            self._report.node_created(wu)
-            completed_wus.append(wu)
+            # Commit Perspective
+            pp.commit()
+            self._report.node_created(pp)
+            completed_pps.append(pp)
 
-        # Return all WUs: existing complete + newly completed
-        all_wus = complete_wus + completed_wus
+        # Return all PPs: existing complete + newly completed
+        all_pps = complete_pps + completed_pps
 
         # Build summary
         self._report.ok = True
-        self._report.artifacts["wisdom_unit_hashes"] = [
-            wu.hash for wu in all_wus if wu.hash
+        self._report.artifacts["perspective_hashes"] = [
+            pp.hash for pp in all_pps if pp.hash
         ]
-        self._report.artifacts["total_count"] = len(all_wus)
-        self._report.artifacts["existing_count"] = len(complete_wus)
-        self._report.artifacts["new_count"] = len(completed_wus)
+        self._report.artifacts["total_count"] = len(all_pps)
+        self._report.artifacts["existing_count"] = len(complete_pps)
+        self._report.artifacts["new_count"] = len(completed_pps)
 
-        self._report.summary = f"{len(all_wus)} WisdomUnit(s) ({len(complete_wus)} existing, {len(completed_wus)} new)"
+        self._report.summary = f"{len(all_pps)} Perspective(s) ({len(complete_pps)} existing, {len(completed_pps)} new)"
 
-        return all_wus
+        return all_pps
 
     async def _get_or_create_polarity(
         self,
@@ -274,27 +274,27 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
 
         return polarity
 
-    def _create_wisdom_unit_for_polarity(self, polarity: Polarity) -> WisdomUnit:
+    def _create_perspective_for_polarity(self, polarity: Polarity) -> Perspective:
         """
-        Create a partial WisdomUnit referencing a Polarity.
+        Create a partial Perspective referencing a Polarity.
 
         Args:
-            polarity: The Polarity (T-A pair) for this WisdomUnit
+            polarity: The Polarity (T-A pair) for this Perspective
 
         Returns:
-            A partial WisdomUnit (Polarity connected, no poles yet)
+            A partial Perspective (Polarity connected, no poles yet)
         """
-        wu = WisdomUnit()
-        wu.save()
+        pp = Perspective()
+        pp.save()
 
         # Connect to Polarity
-        wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+        pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-        self._report.node_created(wu)
-        return wu
+        self._report.node_created(pp)
+        return pp
 
-    def _connect_pole(self, wu: WisdomUnit, pole: PoleResult) -> None:
-        """Connect a generated pole to the WisdomUnit."""
+    def _connect_pole(self, pp: Perspective, pole: PoleResult) -> None:
+        """Connect a generated pole to the Perspective."""
         relationship_classes = {
             POSITION_T_PLUS: TPlusRelationship,
             POSITION_T_MINUS: TMinusRelationship,
@@ -303,7 +303,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         }
 
         rel_class = relationship_classes[pole.position]
-        manager = wu.get_relationship_manager_by_position(pole.position)
+        manager = pp.get_relationship_manager_by_position(pole.position)
 
         manager.connect(
             pole.component,
@@ -317,7 +317,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
 
         self._report.relationship_created(
             manager,
-            wu,
+            pp,
             pole.component,
             meta={
                 "position": pole.position,
@@ -392,23 +392,23 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[WisdomUnit]]):
         return updated_poles
 
     def _find_duplicate(
-        self, wu: WisdomUnit, existing_wus: list[WisdomUnit]
-    ) -> Optional[WisdomUnit]:
+        self, pp: Perspective, existing_pps: list[Perspective]
+    ) -> Optional[Perspective]:
         """
-        Find an existing committed WU that has the same components as the given WU.
+        Find an existing committed PP that has the same components as the given PP.
 
-        Uses WisdomUnit.is_same which handles T-A symmetry.
-        Only considers committed WUs as valid duplicates.
+        Uses Perspective.is_same which handles T-A symmetry.
+        Only considers committed PPs as valid duplicates.
 
         Args:
-            wu: The WisdomUnit to check
-            existing_wus: List of existing WisdomUnits to compare against
+            pp: The Perspective to check
+            existing_pps: List of existing Perspectives to compare against
 
         Returns:
-            The matching committed WU if found, None otherwise
+            The matching committed PP if found, None otherwise
         """
-        for existing in existing_wus:
-            if existing.is_committed and wu.is_same(existing):
+        for existing in existing_pps:
+            if existing.is_committed and pp.is_same(existing):
                 return existing
         return None
 

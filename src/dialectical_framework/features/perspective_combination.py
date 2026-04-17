@@ -1,24 +1,24 @@
 """
-WisdomUnitCombination: Feature for combining WisdomUnits into Cycles and Wheels.
+PerspectiveCombination: Feature for combining Perspectives into Cycles and Wheels.
 
 Purely structural — creates the graph topology, no estimation.
 
-Takes a Nexus and WisdomUnits, adds WUs to the Nexus (idempotent),
+Takes a Nexus and Perspectives, adds PPs to the Nexus (idempotent),
 then creates all layer-by-layer combinations:
-- Layer 1: Single WU Cycles/Wheels
-- Layer 2: Pairs of WUs → multiple T-cycle orderings → multiple TA-wheel arrangements
+- Layer 1: Single PP Cycles/Wheels
+- Layer 2: Pairs of PPs → multiple T-cycle orderings → multiple TA-wheel arrangements
 - Layer 3: Triplets → more orderings → more wheel arrangements
 - etc.
 
 Existing Cycles and Wheels are reused (no duplicates).
 
 Usage:
-    from dialectical_framework.features.wisdom_unit_combination import WisdomUnitCombination
+    from dialectical_framework.features.perspective_combination import PerspectiveCombination
 
-    feature = WisdomUnitCombination()
+    feature = PerspectiveCombination()
     result = feature.execute(
         nexus=nexus,
-        wisdom_units=[wu1, wu2, wu3],
+        perspectives=[pp1, pp2, pp3],
     )
 
     for cycle in result.cycles:
@@ -47,7 +47,7 @@ from dialectical_framework.utils.sequence_generation import (
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 @dataclass
@@ -63,7 +63,7 @@ class LayerResult:
 
 @dataclass
 class CombinationResult:
-    """Result from WisdomUnitCombination. Contains only newly created structures."""
+    """Result from PerspectiveCombination. Contains only newly created structures."""
 
     nexus: Nexus
     cycles: list[Cycle]
@@ -72,14 +72,14 @@ class CombinationResult:
     wheels_by_layer: dict[int, list[Wheel]]
 
 
-class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
+class PerspectiveCombination(ExecutableCapability[CombinationResult]):
     """
-    Feature for combining WisdomUnits into Cycles and Wheels.
+    Feature for combining Perspectives into Cycles and Wheels.
 
     Purely structural — creates graph topology, no estimation.
 
-    - Adds WisdomUnits to Nexus (idempotent, no duplicates)
-    - Generates T-cycle permutations for each WU combination
+    - Adds Perspectives to Nexus (idempotent, no duplicates)
+    - Generates T-cycle permutations for each PP combination
     - Creates Cycle nodes (connected to Nexus)
     - Generates Wheel arrangements for each Cycle
     - Reuses existing Cycles and Wheels where possible
@@ -98,18 +98,18 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
     def execute(
         self,
         nexus: Nexus,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
         preset: Optional[str] = None,
     ) -> CombinationResult:
         """
-        Combine WisdomUnits into Cycles and Wheels.
+        Combine Perspectives into Cycles and Wheels.
 
         Adds WUs to the Nexus (skipping duplicates), then builds all
         layer-by-layer structural combinations.
 
         Args:
             nexus: Required exploration context (must be committed)
-            wisdom_units: WUs to combine (must be committed)
+            perspectives: WUs to combine (must be committed)
             preset: Concrete preset for Cycle intent. If None, reads from nexus.preset.
                 Must not be "preset:auto" — caller resolves that first.
 
@@ -127,33 +127,33 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
                 cycles_by_layer={}, wheels_by_layer={},
             )
 
-        if not wisdom_units:
+        if not perspectives:
             self._report.ok = False
-            self._report.summary = "No WisdomUnits provided"
+            self._report.summary = "No Perspectives provided"
             return CombinationResult(
                 nexus=nexus, cycles=[], wheels=[],
                 cycles_by_layer={}, wheels_by_layer={},
             )
 
-        # Validate all WUs are committed
-        for wu in wisdom_units:
-            if not wu.is_committed:
+        # Validate all PPs are committed
+        for pp in perspectives:
+            if not pp.is_committed:
                 self._report.ok = False
-                self._report.summary = "WisdomUnit must be committed before combination"
+                self._report.summary = "Perspective must be committed before combination"
                 return CombinationResult(
                     nexus=nexus, cycles=[], wheels=[],
                     cycles_by_layer={}, wheels_by_layer={},
                 )
 
-        # Add WUs to Nexus (idempotent — skip already connected)
-        self._add_wisdom_units_to_nexus(nexus, wisdom_units)
+        # Add PPs to Nexus (idempotent — skip already connected)
+        self._add_perspectives_to_nexus(nexus, perspectives)
 
         self._report.artifacts["nexus_hash"] = nexus.short_hash
-        self._report.artifacts["wu_count"] = len(wisdom_units)
+        self._report.artifacts["pp_count"] = len(perspectives)
 
-        # Build from all WUs in Nexus (not just the ones passed in)
-        all_nexus_wus = [wu for wu, _ in nexus.wisdom_units.all()]
-        total_wus = len(all_nexus_wus)
+        # Build from all PPs in Nexus (not just the ones passed in)
+        all_nexus_pps = [pp for pp, _ in nexus.perspectives.all()]
+        total_pps = len(all_nexus_pps)
 
         # Build combinations layer by layer, collect only new structures
         new_cycles: list[Cycle] = []
@@ -161,8 +161,8 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         cycles_by_layer: dict[int, list[Cycle]] = {}
         wheels_by_layer: dict[int, list[Wheel]] = {}
 
-        for layer in range(1, total_wus + 1):
-            layer_result = self._build_layer(nexus, all_nexus_wus, layer)
+        for layer in range(1, total_pps + 1):
+            layer_result = self._build_layer(nexus, all_nexus_pps, layer)
 
             if layer_result.new_cycles:
                 cycles_by_layer[layer] = layer_result.new_cycles
@@ -173,10 +173,10 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
 
         self._report.artifacts["new_cycles"] = len(new_cycles)
         self._report.artifacts["new_wheels"] = len(new_wheels)
-        self._report.artifacts["layers_built"] = total_wus
+        self._report.artifacts["layers_built"] = total_pps
 
         self._report.summary = (
-            f"Combined {total_wus} WUs: created {len(new_cycles)} new cycles "
+            f"Combined {total_pps} PPs: created {len(new_cycles)} new cycles "
             f"and {len(new_wheels)} new wheels"
         )
 
@@ -188,31 +188,31 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
             wheels_by_layer=wheels_by_layer,
         )
 
-    def _add_wisdom_units_to_nexus(
+    def _add_perspectives_to_nexus(
         self,
         nexus: Nexus,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
     ) -> None:
         """
-        Add WisdomUnits to Nexus, skipping any already connected.
+        Add Perspectives to Nexus, skipping any already connected.
         """
-        existing_hashes = {wu.hash for wu, _ in nexus.wisdom_units.all()}
+        existing_hashes = {pp.hash for pp, _ in nexus.perspectives.all()}
 
-        for wu in wisdom_units:
-            if wu.hash not in existing_hashes:
-                wu.nexus.connect(nexus)
-                existing_hashes.add(wu.hash)
+        for pp in perspectives:
+            if pp.hash not in existing_hashes:
+                pp.nexus.connect(nexus)
+                existing_hashes.add(pp.hash)
 
     def _build_layer(
         self,
         nexus: Nexus,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
         layer: int,
     ) -> LayerResult:
         """
         Build all Cycles and Wheels for a specific layer.
 
-        For each WU combination of size `layer`:
+        For each PP combination of size `layer`:
         1. Generate T-cycle permutations
         2. Create missing Cycle nodes (connected to Nexus)
         3. For each Cycle, generate Wheel arrangements
@@ -223,13 +223,13 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         new_cycles: list[Cycle] = []
         new_wheels: list[Wheel] = []
 
-        # Generate all combinations of WUs for this layer size
-        wu_combinations = list(combinations(wisdom_units, layer))
+        # Generate all combinations of PPs for this layer size
+        pp_combinations = list(combinations(perspectives, layer))
 
-        for wu_combo in wu_combinations:
+        for pp_combo in pp_combinations:
             # Generate T-cycle permutations for this combination
-            cycles_for_combo, new_for_combo = self._build_cycles_for_wus(
-                nexus, list(wu_combo)
+            cycles_for_combo, new_for_combo = self._build_cycles_for_perspectives(
+                nexus, list(pp_combo)
             )
             all_cycles.extend(cycles_for_combo)
             new_cycles.extend(new_for_combo)
@@ -244,7 +244,7 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
 
         # Connect opposite-direction pairs (queries DB for full layer scope)
         self._connect_opposite_direction_pairs(
-            nexus, [list(combo) for combo in wu_combinations]
+            nexus, [list(combo) for combo in pp_combinations]
         )
 
         return LayerResult(
@@ -255,13 +255,13 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
             new_wheels=new_wheels,
         )
 
-    def _build_cycles_for_wus(
+    def _build_cycles_for_perspectives(
         self,
         nexus: Nexus,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
     ) -> tuple[list[Cycle], list[Cycle]]:
         """
-        Generate T-cycle permutations for a WU combination.
+        Generate T-cycle permutations for a PP combination.
 
         Uses generate_permutation_sequences to produce all (N-1)! unique
         T-cycle orderings (first element fixed to eliminate rotational duplicates).
@@ -272,24 +272,24 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         all_cycles: list[Cycle] = []
         new_cycles: list[Cycle] = []
 
-        # For single WU, only one trivial T-cycle
-        if len(wisdom_units) == 1:
-            cycle, is_new = self._find_or_create_cycle(wisdom_units)
+        # For single PP, only one trivial T-cycle
+        if len(perspectives) == 1:
+            cycle, is_new = self._find_or_create_cycle(perspectives)
             all_cycles.append(cycle)
             if is_new:
                 new_cycles.append(cycle)
             return all_cycles, new_cycles
 
-        # Extract T components and build component→WU lookup
+        # Extract T components and build component→PP lookup
         t_components: list[DialecticalComponent] = []
-        comp_hash_to_wu: dict[str, WisdomUnit] = {}
-        for wu in wisdom_units:
-            t_result = wu.t.get()
+        comp_hash_to_pp: dict[str, Perspective] = {}
+        for pp in perspectives:
+            t_result = pp.t.get()
             if not t_result:
                 continue
             t_comp = t_result[0]
             t_components.append(t_comp)
-            comp_hash_to_wu[t_comp.hash] = wu
+            comp_hash_to_pp[t_comp.hash] = pp
 
         if not t_components:
             return all_cycles, new_cycles
@@ -298,10 +298,10 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         sequences = generate_permutation_sequences(t_components)
 
         for sequence in sequences:
-            # Map component sequence back to WU ordering
-            ordered_wus = [comp_hash_to_wu[comp.hash] for comp in sequence]
+            # Map component sequence back to PP ordering
+            ordered_pps = [comp_hash_to_pp[comp.hash] for comp in sequence]
 
-            cycle, is_new = self._find_or_create_cycle(ordered_wus)
+            cycle, is_new = self._find_or_create_cycle(ordered_pps)
             all_cycles.append(cycle)
             if is_new:
                 new_cycles.append(cycle)
@@ -310,24 +310,24 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
 
     def _find_or_create_cycle(
         self,
-        wisdom_units: list[WisdomUnit],
+        perspectives: list[Perspective],
     ) -> tuple[Cycle, bool]:
         """
         Find existing Cycle or create new one.
 
-        Checks if a Cycle with the same WU ordering and intent already exists.
-        Layer-1 Cycles (single WU) have no intent — causality requires 2+ WUs.
+        Checks if a Cycle with the same PP ordering and intent already exists.
+        Layer-1 Cycles (single PP) have no intent — causality requires 2+ PPs.
 
         Returns:
             Tuple of (Cycle, is_new)
         """
         from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
 
-        # Layer-1 (single WU) Cycles have no intent
-        intent = self._preset if len(wisdom_units) >= 2 else None
+        # Layer-1 (single PP) Cycles have no intent
+        intent = self._preset if len(perspectives) >= 2 else None
 
         cycle_repo = CycleRepository()
-        existing_cycles = cycle_repo.find_by_wisdom_units(wisdom_units, exact_order=True)
+        existing_cycles = cycle_repo.find_by_perspectives(perspectives, exact_order=True)
 
         for cycle in existing_cycles:
             if cycle.intent == intent:
@@ -335,7 +335,7 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
 
         # Create new Cycle
         cycle = Cycle(intent=intent)
-        cycle.set_wisdom_units(wisdom_units)
+        cycle.set_perspectives(perspectives)
         cycle.commit()
 
         return cycle, True
@@ -356,12 +356,12 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         all_wheels: list[Wheel] = []
         new_wheels: list[Wheel] = []
 
-        wisdom_units = cycle.wisdom_units
-        if not wisdom_units:
+        perspectives = cycle.perspectives
+        if not perspectives:
             return all_wheels, new_wheels
 
         # Generate all compatible TA arrangements
-        arrangements = generate_compatible_sequences(wisdom_units)
+        arrangements = generate_compatible_sequences(perspectives)
 
         if not arrangements:
             return all_wheels, new_wheels
@@ -407,12 +407,12 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
     def _connect_opposite_direction_pairs(
         self,
         nexus: Nexus,
-        wu_combo_list: list[list[WisdomUnit]],
+        pp_combo_list: list[list[Perspective]],
     ) -> None:
         """
         Detect and connect opposite-direction pairs among cycles and wheels.
 
-        Queries the DB for ALL cycles/wheels in each WU combo's layer scope,
+        Queries the DB for ALL cycles/wheels in each PP combo's layer scope,
         so pairs are connected even if one side was created in a previous run.
 
         Two sequences are opposite-direction if one is a circular reverse of the other.
@@ -423,18 +423,18 @@ class WisdomUnitCombination(ExecutableCapability[CombinationResult]):
         cycle_repo = CycleRepository()
         wheel_repo = WheelRepository()
 
-        for wu_combo in wu_combo_list:
-            if len(wu_combo) <= 1:
-                continue  # Single WU has no opposite direction
+        for pp_combo in pp_combo_list:
+            if len(pp_combo) <= 1:
+                continue  # Single PP has no opposite direction
 
-            # Get ALL cycles and wheels for this WU set from DB
-            all_layer_cycles = cycle_repo.find_by_layer(wu_combo, nexus=nexus)
-            all_layer_wheels = wheel_repo.find_by_layer(wu_combo, nexus=nexus)
+            # Get ALL cycles and wheels for this PP set from DB
+            all_layer_cycles = cycle_repo.find_by_layer(pp_combo, nexus=nexus)
+            all_layer_wheels = wheel_repo.find_by_layer(pp_combo, nexus=nexus)
 
-            # Cycles: reversal needs 3+ WUs (2-element circular sequences
+            # Cycles: reversal needs 3+ PPs (2-element circular sequences
             # have no distinct reverse). Wheels always have 2n components,
-            # so 2 WUs → 4-component sequences which can have reversals.
-            if len(wu_combo) >= 3:
+            # so 2 PPs → 4-component sequences which can have reversals.
+            if len(pp_combo) >= 3:
                 _connect_opposite_direction_cycles(all_layer_cycles)
             _connect_opposite_direction_wheels(all_layer_wheels)
 
@@ -444,9 +444,9 @@ def _connect_opposite_direction_cycles(cycles: list[Cycle]) -> None:
     connected: set[tuple[str, str]] = set()
 
     for i, cycle_a in enumerate(cycles):
-        seq_a = cycle_a.wisdom_unit_hashes
+        seq_a = cycle_a.perspective_hashes
         for cycle_b in cycles[i + 1:]:
-            seq_b = cycle_b.wisdom_unit_hashes
+            seq_b = cycle_b.perspective_hashes
             if _is_circular_reverse(seq_a, seq_b):
                 pair_id = tuple(sorted([cycle_a.hash, cycle_b.hash]))
                 if pair_id not in connected:

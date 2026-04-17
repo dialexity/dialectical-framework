@@ -26,12 +26,12 @@ from dialectical_framework.agents.conversation_facilitator import \
 from dialectical_framework.agents.executable_capability import \
     ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.wisdom_unit import (POSITION_A,
-                                                           POSITION_A_MINUS,
-                                                           POSITION_A_PLUS,
-                                                           POSITION_T,
-                                                           POSITION_T_MINUS,
-                                                           POSITION_T_PLUS)
+from dialectical_framework.graph.nodes.perspective import (POSITION_A,
+                                                          POSITION_A_MINUS,
+                                                          POSITION_A_PLUS,
+                                                          POSITION_T,
+                                                          POSITION_T_MINUS,
+                                                          POSITION_T_PLUS)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import \

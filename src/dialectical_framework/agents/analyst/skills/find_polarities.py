@@ -9,7 +9,7 @@ Flow:
            ↓
     FindPolarities → Polarity nodes (T-A pairs with HS) + Ideas with all T and A
            ↓
-    ExpandPolarities → Creates WisdomUnits from Polarities by adding poles (T+, T-, A+, A-)
+    ExpandPolarities → Creates Perspectives from Polarities by adding poles (T+, T-, A+, A-)
 
 Usage:
     # Programmatic (web app)
@@ -58,8 +58,8 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
-from dialectical_framework.graph.repositories.wisdom_unit_repository import \
-    WisdomUnitRepository
+from dialectical_framework.graph.repositories.perspective_repository import \
+    PerspectiveRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -320,7 +320,7 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
             hs = self._lookup_hs_from_polarity(thesis, antithesis)
 
             if hs is None:
-                # No WisdomUnit found - estimate HS
+                # No Perspective found - estimate HS
                 classifier = AntithesisClassification()
                 result = await classifier.execute(
                     thesis=thesis,

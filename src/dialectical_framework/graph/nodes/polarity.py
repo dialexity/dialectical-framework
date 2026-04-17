@@ -3,7 +3,7 @@ Polarity node for the dialectical framework.
 
 Polarity represents a T-A dialectical pair - the fundamental opposition
 between thesis (T) and antithesis (A). This is the first structural step
-in building a WisdomUnit.
+in building a Perspective.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 # Position constants for Polarity
@@ -55,10 +55,10 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
         3. polarity.set_a(antithesis, heuristic_similarity=0.75)
         4. polarity.commit()  # Saves, connects, computes hash atomically
 
-    After commit(), the Polarity can be used to create WisdomUnits by adding poles.
+    After commit(), the Polarity can be used to create Perspectives by adding poles.
 
     Hierarchy:
-        DialecticalComponent(T) + DialecticalComponent(A) → Polarity → WisdomUnit
+        DialecticalComponent(T) + DialecticalComponent(A) → Polarity → Perspective
 
     Example:
         thesis = DialecticalComponent(statement="Remote work increases productivity")
@@ -100,10 +100,10 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
         cardinality=(1, 1)  # Exactly one
     )
 
-    # WisdomUnits that reference this Polarity
-    # One Polarity can have multiple WisdomUnits (different tetrad interpretations)
-    wisdom_units: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
-        "WisdomUnit",
+    # Perspectives that reference this Polarity
+    # One Polarity can have multiple Perspectives (different tetrad interpretations)
+    perspectives: ClassVar[RelationshipManager[Perspective]] = RelationshipFrom(
+        "Perspective",
         model=HasPolarityRelationship,
         cardinality=(0, None)  # Zero or more
     )

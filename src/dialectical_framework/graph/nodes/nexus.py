@@ -2,7 +2,7 @@
 Nexus node for the dialectical framework.
 
 This module provides the Nexus class which represents an exploration container
-for WisdomUnits. A Nexus groups WUs with a specific intent for exploration,
+for Perspectives. A Nexus groups PPs with a specific intent for exploration,
 enabling systematic combination into Cycles and Wheels.
 """
 
@@ -24,19 +24,19 @@ from dialectical_framework.graph.relationships.belongs_to_nexus_relationship imp
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
     """
-    Exploration container for WisdomUnits.
+    Exploration container for Perspectives.
 
-    A Nexus provides required exploration context for combining WisdomUnits
-    into Cycles and Wheels. It groups WUs with a specific intent for exploration,
+    A Nexus provides required exploration context for combining Perspectives
+    into Cycles and Wheels. It groups PPs with a specific intent for exploration,
     enabling layer-by-layer combination:
 
-    - Layer 1: Single WU Cycles/Wheels
-    - Layer 2: Pairs of WUs -> multiple T-cycle orderings -> multiple TA-wheel arrangements
+    - Layer 1: Single PP Cycles/Wheels
+    - Layer 2: Pairs of PPs -> multiple T-cycle orderings -> multiple TA-wheel arrangements
     - Layer 3: Triplets -> more orderings -> more wheel arrangements
     - etc.
 
@@ -52,9 +52,9 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
     - case_id: Inherited from BaseNode - the Case's case_id (required, links to parent)
 
     Relationships:
-    - wisdom_units: WisdomUnits in this exploration (RelationshipFrom)
+    - perspectives: Perspectives in this exploration (RelationshipFrom)
 
-    Note: Cycles are derived from the WUs in this Nexus, not stored as a relationship.
+    Note: Cycles are derived from the PPs in this Nexus, not stored as a relationship.
 
     Example:
         case = Case()
@@ -67,22 +67,22 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
         )
         nexus.commit()
 
-        wu1.nexus.connect(nexus)
-        wu2.nexus.connect(nexus)
+        pp1.nexus.connect(nexus)
+        pp2.nexus.connect(nexus)
     """
 
     # Prompt strategy for causality estimation (preset selector)
     preset: str = CausalityPreset.BALANCED
 
-    # WisdomUnits in this exploration
-    # WU→Nexus: WisdomUnit belongs to this Nexus
-    wisdom_units: ClassVar[RelationshipManager[WisdomUnit]] = RelationshipFrom(
-        "WisdomUnit",
+    # Perspectives in this exploration
+    # PP→Nexus: Perspective belongs to this Nexus
+    perspectives: ClassVar[RelationshipManager[Perspective]] = RelationshipFrom(
+        "Perspective",
         model=BelongsToNexusRelationship,
-        cardinality=(0, None)  # Zero or more WUs
+        cardinality=(0, None)  # Zero or more PPs
     )
 
-    # NOTE: Cycles are derived from WUs, not stored as relationship.
+    # NOTE: Cycles are derived from PPs, not stored as relationship.
 
     def _collect_structure_hash_parts(self) -> list[str]:
         """
@@ -117,8 +117,8 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
     def __repr__(self) -> str:
         """Debug representation of the Nexus."""
         id_str = self.short_hash or "uncommitted"
-        wu_count = self.wisdom_units.count()
-        return f"Nexus({id_str}, wus={wu_count}, preset={self.preset}, intent={self.intent})"
+        pp_count = self.perspectives.count()
+        return f"Nexus({id_str}, pps={pp_count}, preset={self.preset}, intent={self.intent})"
 
     def __str__(self) -> str:
         """String representation of the Nexus."""

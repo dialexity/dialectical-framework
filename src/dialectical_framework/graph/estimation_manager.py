@@ -85,7 +85,7 @@ def invalidate_node_and_parents(
     # - HAS_WHEEL: Cycle→Wheel (Wheel depends on Cycle)
     # - TRANSITION_OF: Transition→Cycle/Wheel (Cycle/Wheel depends on Transition)
     # - HAS_TRANSFORMATION: Transformation→Wheel (Wheel depends on Transformation)
-    # - SYNTHESIS_OF: Synthesis→WisdomUnit (WisdomUnit depends on Synthesis)
+    # - SYNTHESIS_OF: Synthesis→Perspective (Perspective depends on Synthesis)
     # - EXPLAINS: Rationale→Entity (Entity depends on Rationale)
     # - CRITIQUES: Critique→Rationale (Rationale depends on critique)
     #

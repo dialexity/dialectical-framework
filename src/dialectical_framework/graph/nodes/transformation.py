@@ -385,7 +385,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
             return None
 
         for pair in wheel.polar_segments:
-            if pair.wisdom_unit.has_component(source):
+            if pair.perspective.has_component(source):
                 return pair
         return None
 
@@ -414,7 +414,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
             return None
 
         for pair in wheel.polar_segments:
-            if pair.wisdom_unit.has_component(target):
+            if pair.perspective.has_component(target):
                 return pair
         return None
 
@@ -423,12 +423,12 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         Get the human-friendly index from the source polar segment.
 
         Returns:
-            The numeric index (e.g., 3 if WU components have T3, A3+, etc.), or 0 if not set
+            The numeric index (e.g., 3 if PP components have T3, A3+, etc.), or 0 if not set
         """
         segment = self.get_source_polar_segment()
         if not segment:
             return 0
-        return segment.wisdom_unit.get_human_friendly_index()
+        return segment.perspective.get_human_friendly_index()
 
     def __format__(self, format_spec: str) -> str:
         """

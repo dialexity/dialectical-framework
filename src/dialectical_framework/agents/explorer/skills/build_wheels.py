@@ -2,7 +2,7 @@
 BuildWheels: Main LLM-facing entry point for dialectical exploration.
 
 Takes a Nexus (exploration context with intent and preset) and optional
-WisdomUnit hashes, then creates all structural combinations (Cycles + Wheels)
+Perspective hashes, then creates all structural combinations (Cycles + Wheels)
 and estimates them.
 
 The Nexus has two separate concerns:
@@ -16,7 +16,7 @@ from the intent — either matching a system preset or formulating custom criter
 Usage:
     agent = BuildWheels(
         nexus_hash="abc123...",
-        wisdom_unit_hashes=["def456...", "ghi789..."],
+        perspective_hashes=["def456...", "ghi789..."],
     )
     result = await agent.execute()
     for cycle in result.new_cycles:
@@ -48,7 +48,7 @@ from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
     from dialectical_framework.brain import Brain
-    from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 class _AutoPresetResolutionDto(BaseModel):
@@ -121,14 +121,14 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
     """
     Main LLM-facing entry point for dialectical exploration.
 
-    Creates structural combinations (Cycles + Wheels) from WisdomUnits
+    Creates structural combinations (Cycles + Wheels) from Perspectives
     within a Nexus, then estimates them using the appropriate sequencer
     based on the Nexus intent.
 
     Flow:
     1. Resolve Nexus by hash
-    2. Add WisdomUnits to Nexus (idempotent)
-    3. Create all Cycle/Wheel combinations (via WisdomUnitCombination)
+    2. Add Perspectives to Nexus (idempotent)
+    3. Create all Cycle/Wheel combinations (via PerspectiveCombination)
     4. Estimate new structures (via CausalityEstimation)
 
     Idempotent: re-running with same inputs creates no duplicates.
@@ -141,9 +141,9 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
     nexus_hash: str = Field(
         description="Hash (or prefix) of the Nexus to explore"
     )
-    wisdom_unit_hashes: list[str] = Field(
+    perspective_hashes: list[str] = Field(
         default_factory=list,
-        description="WisdomUnit hashes to add to the Nexus and combine. "
+        description="Perspective hashes to add to the Nexus and combine. "
         "If empty, does nothing.",
     )
     _report: ExecutionReport = PrivateAttr()
@@ -201,12 +201,12 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
 
         self._report.artifacts["cycle_intent"] = cycle_intent
 
-        # 3. Resolve WisdomUnits
-        wisdom_units = self._resolve_wisdom_units()
+        # 3. Resolve Perspectives
+        perspectives = self._resolve_perspectives()
 
-        if not wisdom_units:
+        if not perspectives:
             self._report.summary = (
-                f"No WisdomUnits to combine in Nexus {nexus.short_hash}"
+                f"No Perspectives to combine in Nexus {nexus.short_hash}"
             )
             return BuildWheelsResult(
                 nexus=nexus,
@@ -214,17 +214,17 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
                 new_wheels=[],
             )
 
-        self._report.artifacts["wu_count"] = len(wisdom_units)
+        self._report.artifacts["pp_count"] = len(perspectives)
 
         # 4. Create structural combinations (Cycles + Wheels)
         #    cycle_intent flows onto Cycle.intent — never "preset:auto"
-        from dialectical_framework.features.wisdom_unit_combination import (
-            WisdomUnitCombination,
+        from dialectical_framework.features.perspective_combination import (
+            PerspectiveCombination,
         )
 
-        combination = WisdomUnitCombination()
+        combination = PerspectiveCombination()
         combination_result = combination.execute(
-            nexus=nexus, wisdom_units=wisdom_units, preset=cycle_intent
+            nexus=nexus, perspectives=perspectives, preset=cycle_intent
         )
         self._report.merge(combination.report)
 
@@ -234,9 +234,9 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
         self._report.artifacts["new_cycles"] = len(new_cycles)
         self._report.artifacts["new_wheels"] = len(new_wheels)
 
-        # 5. Estimate new structures (layer 2+ only — single-WU cycles are tautological)
+        # 5. Estimate new structures (layer 2+ only — single-PP cycles are tautological)
         #    CausalityEstimation resolves the sequencer from Cycle.intent
-        causal_cycles = [c for c in new_cycles if c.wisdom_unit_count >= 2]
+        causal_cycles = [c for c in new_cycles if c.perspective_count >= 2]
         causal_wheels = [w for w in new_wheels if w.polarity_count >= 2]
         if causal_cycles or causal_wheels:
             await self._run_estimation(causal_cycles, causal_wheels)
@@ -245,7 +245,7 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
         if not new_cycles and not new_wheels:
             self._report.summary = (
                 f"All structures already exist for Nexus {nexus.short_hash} "
-                f"({len(wisdom_units)} WUs, intent: {cycle_intent})"
+                f"({len(perspectives)} PPs, intent: {cycle_intent})"
             )
         else:
             self._report.summary = (
@@ -318,7 +318,7 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
         When preset:auto was resolved in a previous run, the resolved intent
         is already on existing Cycles. Reuse it to avoid redundant LLM calls.
 
-        Looks at layer 2+ Cycles (2+ WUs) since layer-1 (single WU)
+        Looks at layer 2+ Cycles (2+ PPs) since layer-1 (single PP)
         Cycles are tautological and not estimated.
 
         Returns:
@@ -328,15 +328,15 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
             CycleRepository,
         )
 
-        wu_pairs = nexus.wisdom_units.all()
-        if len(wu_pairs) < 2:
+        pp_pairs = nexus.perspectives.all()
+        if len(pp_pairs) < 2:
             return None
 
         # Check layer-2 Cycles (pairs) scoped to this Nexus
-        first_wu, _ = wu_pairs[0]
-        second_wu, _ = wu_pairs[1]
+        first_pp, _ = pp_pairs[0]
+        second_pp, _ = pp_pairs[1]
         cycle_repo = CycleRepository()
-        cycles = cycle_repo.find_by_layer([first_wu, second_wu], nexus=nexus)
+        cycles = cycle_repo.find_by_layer([first_pp, second_pp], nexus=nexus)
 
         if cycles:
             return cycles[0].intent
@@ -372,15 +372,15 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
 
         return CausalityPreset.BALANCED
 
-    def _resolve_wisdom_units(self) -> list[WisdomUnit]:
-        """Resolve WisdomUnits from hashes or prefixes."""
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+    def _resolve_perspectives(self) -> list[Perspective]:
+        """Resolve Perspectives from hashes or prefixes."""
+        from dialectical_framework.graph.nodes.perspective import Perspective
 
         repo = NodeRepository()
-        wisdom_units = []
-        for wu_hash in self.wisdom_unit_hashes:
-            node = repo.find_by_hash(wu_hash, node_type=WisdomUnit)
+        perspectives = []
+        for pp_hash in self.perspective_hashes:
+            node = repo.find_by_hash(pp_hash, node_type=Perspective)
             if node is None:
-                raise ValueError(f"WisdomUnit not found: {wu_hash}")
-            wisdom_units.append(node)
-        return wisdom_units
+                raise ValueError(f"Perspective not found: {pp_hash}")
+            perspectives.append(node)
+        return perspectives
