@@ -1,5 +1,5 @@
 """
-Tests for ExpandPolarities - tetrad expansion (pole generation).
+Tests for ExpandPolarities - tetrad expansion (angle generation).
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class TestExpandPolarities:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_generates_all_poles(self):
-        """ExpandPolarities generates all 4 poles (T+, T-, A+, A-)."""
+        """ExpandPolarities generates all 4 angles (T+, T-, A+, A-)."""
         case_node = Case()
         case_node.commit()
 
@@ -201,7 +201,7 @@ class TestExpandPolarities:
     @pytest.mark.asyncio
     @observe()
     async def test_wisdom_with_specific_positions(self):
-        """ExpandPolarities can generate specific poles only."""
+        """ExpandPolarities can generate specific angles only."""
         case_node = Case()
         case_node.commit()
 
@@ -259,7 +259,7 @@ class TestExpandPolarities:
             initial_count = len(wus1)
 
             # Multiple runs should not create exact duplicates
-            # (though they may create variants with different poles)
+            # (though they may create variants with different angles)
             for _ in range(2):
                 agent = ExpandPolarities(
                     thesis_hash=thesis.short_hash,
@@ -389,7 +389,7 @@ class TestPerspectiveIsSame:
             pol2.set_a(c1, heuristic_similarity=0.5)
             pol2.commit()
 
-            # WU1 with Polarity 1 and Order poles for T, Chaos poles for A
+            # PP1 with Polarity 1 and Order angles for T, Chaos angles for A
             pp1 = Perspective()
             pp1.save()
             pp1.polarity.connect(pol1, relationship=HasPolarityRelationship())
@@ -410,7 +410,7 @@ class TestPerspectiveIsSame:
                 relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.8),
             )
 
-            # WU2 with Polarity 2 (swapped) and poles matching the swapped orientation
+            # PP2 with Polarity 2 (swapped) and angles matching the swapped orientation
             pp2 = Perspective()
             pp2.save()
             pp2.polarity.connect(pol2, relationship=HasPolarityRelationship())

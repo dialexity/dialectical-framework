@@ -140,7 +140,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         cardinality=(0, 1)  # Optional: A → T
     )
 
-    # Pole positions (have complementarity)
+    # Angle positions (have complementarity)
     # Ac+ and Re+ are REQUIRED - the core transformation path
     ac_plus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",

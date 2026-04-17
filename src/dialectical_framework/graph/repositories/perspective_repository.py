@@ -84,7 +84,7 @@ class PerspectiveRepository:
             return []
 
         query = """
-        // Pole positions (T+, T-, A+, A-) directly on Perspective
+        // Angle positions (T+, T-, A+, A-) directly on Perspective
         MATCH (c:DialecticalComponent)-[r]->(pp:Perspective)
         WHERE id(c) = $component_id
         AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
@@ -157,13 +157,13 @@ class PerspectiveRepository:
         delete_subgraph_query = """
         MATCH (pp:Perspective) WHERE id(pp) = $pp_id
 
-        // Get pole components directly on Perspective (T+, T-, A+, A-)
-        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(pole_component)
+        // Get angle components directly on Perspective (T+, T-, A+, A-)
+        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(angle_component)
         // Get Polarity and T/A components through it
         OPTIONAL MATCH (pp)-[:HAS_POLARITY]->(polarity:Polarity)
         OPTIONAL MATCH (polarity)<-[:T|A]-(polarity_comp)
         OPTIONAL MATCH (pp)<-[:EXPLAINS]-(pp_rationale)
-        OPTIONAL MATCH (pole_component)<-[:EXPLAINS]-(comp_rationale)
+        OPTIONAL MATCH (angle_component)<-[:EXPLAINS]-(comp_rationale)
         OPTIONAL MATCH (polarity_comp)<-[:EXPLAINS]-(pol_comp_rationale)
         OPTIONAL MATCH (pp)<-[:IS_SPIRAL_OF]-(transformation:Transformation)
         OPTIONAL MATCH (transformation)<-[:EXPLAINS]-(trans_rationale)
@@ -173,7 +173,7 @@ class PerspectiveRepository:
         OPTIONAL MATCH (synthesis)<-[:S_PLUS|S_MINUS]-(synth_component)
 
         WITH pp, polarity,
-             collect(DISTINCT pole_component) + collect(DISTINCT polarity_comp) AS components,
+             collect(DISTINCT angle_component) + collect(DISTINCT polarity_comp) AS components,
              collect(DISTINCT pp_rationale) + collect(DISTINCT comp_rationale) + collect(DISTINCT pol_comp_rationale) +
              collect(DISTINCT trans_rationale) +
              collect(DISTINCT synth_rationale) AS direct_rationales,
@@ -304,8 +304,8 @@ class PerspectiveRepository:
         OPTIONAL MATCH (wheel2:Wheel)-[:HAS_TRANSFORMATION]->(external_trans:Transformation)
         WHERE pp.hash IN (()-[:HAS_WHEEL]->(wheel2)<-[:HAS_WHEEL]-(cycle2:Cycle)).perspective_hashes
 
-        // Get pole components directly on Perspective (T+, T-, A+, A-)
-        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(pole_component:DialecticalComponent)
+        // Get angle components directly on Perspective (T+, T-, A+, A-)
+        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(angle_component:DialecticalComponent)
         // Get T/A components through Polarity
         OPTIONAL MATCH (pp)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:DialecticalComponent)
 
@@ -314,7 +314,7 @@ class PerspectiveRepository:
         WITH pp,
              count(DISTINCT wheel) AS wheel_count,
              count(DISTINCT external_trans) AS ac_re_count,
-             collect(DISTINCT pole_component) + collect(DISTINCT polarity_comp) + collect(DISTINCT synth_comp) AS all_components
+             collect(DISTINCT angle_component) + collect(DISTINCT polarity_comp) + collect(DISTINCT synth_comp) AS all_components
 
         UNWIND CASE WHEN size(all_components) > 0 THEN all_components ELSE [null] END AS comp
 
@@ -433,14 +433,14 @@ class PerspectiveRepository:
         query = """
         MATCH (pp:Perspective) WHERE id(pp) = $pp_id
 
-        // Get pole components directly on Perspective (T+, T-, A+, A-)
-        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(pole_component:DialecticalComponent)
+        // Get angle components directly on Perspective (T+, T-, A+, A-)
+        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(angle_component:DialecticalComponent)
         // Get T/A components through Polarity
         OPTIONAL MATCH (pp)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:DialecticalComponent)
 
         OPTIONAL MATCH (pp)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
 
-        WITH pp, collect(DISTINCT pole_component) + collect(DISTINCT polarity_comp) + collect(DISTINCT synth_comp) AS all_components
+        WITH pp, collect(DISTINCT angle_component) + collect(DISTINCT polarity_comp) + collect(DISTINCT synth_comp) AS all_components
 
         UNWIND CASE WHEN size(all_components) > 0 THEN all_components ELSE [null] END AS comp
 

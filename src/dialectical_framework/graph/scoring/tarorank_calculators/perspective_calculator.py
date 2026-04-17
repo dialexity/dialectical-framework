@@ -65,7 +65,7 @@ class PerspectiveCalculator(BaseCalculator):
         Calculate R for Perspective using power mean for pairs.
 
         Uses power mean (p=4) for dialectically symmetric pairs,
-        which allows dominance of the stronger pole while balancing opposites.
+        which allows dominance of the stronger angle while balancing opposites.
 
         Args:
             pp: Perspective to calculate R for

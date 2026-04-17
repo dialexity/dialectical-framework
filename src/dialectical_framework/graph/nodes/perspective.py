@@ -16,7 +16,7 @@ from dialectical_framework.graph.mixins.incremental_build_mixin import Increment
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager, BoundRelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
-    PoleRelationship,
+    AngleRelationship,
     TRelationship,
     TPlusRelationship,
     TMinusRelationship,
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # Import Polarity and its position constants (T and A belong to Polarity)
 from dialectical_framework.graph.nodes.polarity import Polarity, POSITION_T, POSITION_A
 
-# Position constants for poles - module level to avoid GQLAlchemy metaclass interference
+# Position constants for angles - module level to avoid GQLAlchemy metaclass interference
 # Note: POSITION_T and POSITION_A are in polarity.py (T/A belong to Polarity)
 # Note: S+ and S- constants are in synthesis.py (Synthesis belongs to Perspective)
 POSITION_T_PLUS = "T+"
@@ -54,12 +54,12 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
     """
     Represents ONE coherent dialectical analysis with enforced cardinality.
 
-    A Perspective references a Polarity (T-A pair) and adds four poles:
+    A Perspective references a Polarity (T-A pair) and adds four angles:
     - Polarity: contains T and A (the fundamental tension)
-    - Poles: T+, T-, A+, A- (healthy/problematic forms of each side)
+    - Angles: T+, T-, A+, A- (healthy/problematic forms of each side)
 
     Structure:
-        Polarity(T, A) + Poles(T+, T-, A+, A-) = Perspective
+        Polarity(T, A) + Angles(T+, T-, A+, A-) = Perspective
 
     Each Perspective represents ONE dialectical exploration. To explore multiple
     consequences or alternative perspectives on the same T-A pair, create multiple
@@ -99,29 +99,29 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         cardinality=(1, 1)  # Exactly one Polarity
     )
 
-    # Four pole positions (each exactly one)
-    # T+ side (exactly one positive thesis pole)
+    # Four angle positions (each exactly one)
+    # T+ side (exactly one positive thesis angle)
     t_plus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=TPlusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
-    # T- side (exactly one negative thesis pole)
+    # T- side (exactly one negative thesis angle)
     t_minus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=TMinusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
-    # A+ side (exactly one positive antithesis pole)
+    # A+ side (exactly one positive antithesis angle)
     a_plus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=APlusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
-    # A- side (exactly one negative antithesis pole)
+    # A- side (exactly one negative antithesis angle)
     a_minus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
         "DialecticalComponent",
         model=AMinusRelationship,
@@ -185,10 +185,10 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         """
         Get all committed children for hash computation.
 
-        For Perspective, yields the Polarity and all 4 pole components.
+        For Perspective, yields the Polarity and all 4 angle components.
 
         Yields:
-            Polarity node and Component nodes (poles)
+            Polarity node and Component nodes (angles)
         """
         # Yield Polarity
         polarity_result = self.polarity.get()
@@ -196,7 +196,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
             pol, _ = polarity_result
             yield pol
 
-        # Yield 4 poles
+        # Yield 4 angles
         for manager in [self.t_plus, self.t_minus, self.a_plus, self.a_minus]:
             result = manager.get()
             if result:
@@ -207,7 +207,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         """
         Collect structure hash parts for this Perspective.
 
-        Parts: Polarity hash + hashes of 4 pole components (t+, t-, a+, a-).
+        Parts: Polarity hash + hashes of 4 angle components (t+, t-, a+, a-).
 
         Returns:
             List of strings: [polarity_hash, t+_hash, t-_hash, a+_hash, a-_hash]
@@ -230,7 +230,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         else:
             parts.append("")  # Empty placeholder
 
-        # Get hashes for all 4 pole positions in order
+        # Get hashes for all 4 angle positions in order
         for manager in [self.t_plus, self.t_minus, self.a_plus, self.a_minus]:
             result = manager.get()
             if result:
@@ -332,13 +332,13 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
             self._cached_segment_a = WheelSegment(self, 'A')
         return self._cached_segment_a
 
-    def _get_pole_ks(self, manager) -> Optional[float]:
-        """Get complementarity_s (KS) for a pole relationship manager."""
+    def _get_angle_ks(self, manager) -> Optional[float]:
+        """Get complementarity_s (KS) for an angle relationship manager."""
         result = manager.get()
         if not result:
             return None
         _, rel = result
-        if isinstance(rel, PoleRelationship):
+        if isinstance(rel, AngleRelationship):
             return rel.complementarity_s
         return None
 
@@ -348,7 +348,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Quality gap on the T-side: KS(T+) - KS(T-).
 
         Measures how much better the healthy form of T is compared to the problematic form.
-        This differential indicates how well-differentiated the T poles are.
+        This differential indicates how well-differentiated the T angles are.
 
         Formula:
             diff_t = KS(T+) - KS(T-)
@@ -357,7 +357,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
 
         Interpretation:
             High diff_t (e.g., 0.30) → Clear distinction between healthy T+ and problematic T-
-            Low diff_t  (e.g., 0.05) → Poles are poorly differentiated, may need refinement
+            Low diff_t  (e.g., 0.05) → Angles are poorly differentiated, may need refinement
 
         Example (Love/Indifference tetrad):
             T+ (Bonding)      KS = 0.55  ─┐
@@ -367,8 +367,8 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Returns:
             The differential value, or None if T+ or T- complementarity data is missing.
         """
-        ks_t_plus = self._get_pole_ks(self.t_plus)
-        ks_t_minus = self._get_pole_ks(self.t_minus)
+        ks_t_plus = self._get_angle_ks(self.t_plus)
+        ks_t_minus = self._get_angle_ks(self.t_minus)
 
         if ks_t_plus is None or ks_t_minus is None:
             return None
@@ -381,7 +381,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Quality gap on the A-side: KS(A+) - KS(A-).
 
         Measures how much better the healthy form of A is compared to the problematic form.
-        This differential indicates how well-differentiated the A poles are.
+        This differential indicates how well-differentiated the A angles are.
 
         Formula:
             diff_a = KS(A+) - KS(A-)
@@ -390,7 +390,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
 
         Interpretation:
             High diff_a (e.g., 0.60) → Clear distinction between healthy A+ and problematic A-
-            Low diff_a  (e.g., 0.05) → Poles are poorly differentiated, may need refinement
+            Low diff_a  (e.g., 0.05) → Angles are poorly differentiated, may need refinement
 
         Example (Love/Indifference tetrad):
             A+ (Autonomy)     KS = 0.80  ─┐
@@ -400,8 +400,8 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Returns:
             The differential value, or None if A+ or A- complementarity data is missing.
         """
-        ks_a_plus = self._get_pole_ks(self.a_plus)
-        ks_a_minus = self._get_pole_ks(self.a_minus)
+        ks_a_plus = self._get_angle_ks(self.a_plus)
+        ks_a_minus = self._get_angle_ks(self.a_minus)
 
         if ks_a_plus is None or ks_a_minus is None:
             return None
@@ -411,7 +411,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
     @property
     def rectangularity(self) -> Optional[float]:
         """
-        Measures symmetry between T-side and A-side poles. Lower is better.
+        Measures symmetry between T-side and A-side angles. Lower is better.
 
         Formula:
             rectangularity = (KS(T+) - KS(A+))² + (KS(T-) - KS(A-))²
@@ -419,7 +419,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Where KS = complementarity_s = (complementarity_t + complementarity_a) / 2
 
         Interpretation:
-            Low rectangularity  (e.g., 0.002) → Balanced tetrad, like-signed poles have similar KS
+            Low rectangularity  (e.g., 0.002) → Balanced tetrad, like-signed angles have similar KS
             High rectangularity (e.g., 0.090) → Skewed tetrad, one side dominates
 
         Visual intuition - a rectangular tetrad forms a proper rectangle when plotting KS:
@@ -458,10 +458,10 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Returns:
             The rectangularity score (lower is better), or None if data is missing.
         """
-        ks_t_plus = self._get_pole_ks(self.t_plus)
-        ks_t_minus = self._get_pole_ks(self.t_minus)
-        ks_a_plus = self._get_pole_ks(self.a_plus)
-        ks_a_minus = self._get_pole_ks(self.a_minus)
+        ks_t_plus = self._get_angle_ks(self.t_plus)
+        ks_t_minus = self._get_angle_ks(self.t_minus)
+        ks_a_plus = self._get_angle_ks(self.a_plus)
+        ks_a_minus = self._get_angle_ks(self.a_minus)
 
         if any(ks is None for ks in [ks_t_plus, ks_t_minus, ks_a_plus, ks_a_minus]):
             return None
@@ -471,18 +471,18 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
     @property
     def area(self) -> Optional[float]:
         """
-        Total spread between positive and negative poles. Higher is better.
+        Total spread between positive and negative angles. Higher is better.
 
         Formula:
             area = KS(T+) + KS(A+) - KS(T-) - KS(A-)
-                 = (sum of positive poles) - (sum of negative poles)
+                 = (sum of positive angles) - (sum of negative angles)
                  = diff_t + diff_a
 
         Where KS = complementarity_s = (complementarity_t + complementarity_a) / 2
 
         Interpretation:
-            High area (e.g., 1.00) → Strong differentiation between healthy and problematic poles
-            Low area  (e.g., 0.30) → Weak distinction, poles are "mushed together"
+            High area (e.g., 1.00) → Strong differentiation between healthy and problematic angles
+            Low area  (e.g., 0.30) → Weak distinction, angles are "mushed together"
 
         Visual intuition:
 
@@ -534,7 +534,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Formula:
             area_normalized = area / 2
 
-        The maximum theoretical area is 2.0 (when positive poles = 1.0 and negative poles = 0.0),
+        The maximum theoretical area is 2.0 (when positive angles = 1.0 and negative angles = 0.0),
         so dividing by 2 normalizes to a 0-1 range.
 
         Interpretation:
@@ -714,14 +714,14 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         ]
 
     @property
-    def pole_positions(self) -> list[str]:
+    def angle_positions(self) -> list[str]:
         """
-        Get list of the 4 pole position names (excluding T and A).
+        Get list of the 4 angle position names (excluding T and A).
 
         These are the positions directly on Perspective (not on Polarity).
 
         Returns:
-            List of pole position names: [T+, T-, A+, A-]
+            List of angle position names: [T+, T-, A+, A-]
         """
         return [
             POSITION_T_PLUS,
@@ -776,7 +776,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         Note:
             T and A aliases are stored on the Polarity's edges. If multiple Perspectives
             share the same Polarity, updating these aliases affects all of them.
-            The 4 pole aliases (T+, T-, A+, A-) are Perspective-specific.
+            The 4 angle aliases (T+, T-, A+, A-) are Perspective-specific.
 
         Example:
             pp.set_human_friendly_index(3)
@@ -785,7 +785,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         import re
 
         # Build list of (manager, rel_class) tuples
-        # Note: T and A managers come from Polarity, poles from this Perspective
+        # Note: T and A managers come from Polarity, angles from this Perspective
         managers_and_types: list[tuple[BoundRelationshipManager, type]] = [
             (self.t, TRelationship),
             (self.t_plus, TPlusRelationship),

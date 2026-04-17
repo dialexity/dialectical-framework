@@ -92,7 +92,7 @@ async def test_causality_sequencer(di_container):
     from dialectical_framework.graph.scope_context import scope
 
     def create_pp(index: int) -> GraphPerspective:
-        """Create a complete Perspective with Polarity and poles."""
+        """Create a complete Perspective with Polarity and angles."""
         # Create T and A
         t = GraphDialecticalComponent(
             statement=f"Thesis {index}", meaning=f"thesis:test:{index}"
@@ -114,7 +114,7 @@ async def test_causality_sequencer(di_container):
         pp.save()
         pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-        # Create poles
+        # Create angles
         t_plus = GraphDialecticalComponent(
             statement=f"T+ benefit {index}", meaning=f"thesis:positive:{index}"
         )

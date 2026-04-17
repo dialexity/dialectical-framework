@@ -61,10 +61,10 @@ Your task is to derive apex statements that represent reference transformation p
 ## Transformation Structure
 
 A Perspective has 6 positions forming a dialectical polarity:
-- T (Thesis): A neutral statement of one pole
+- T (Thesis): A neutral statement of one side
 - T+: The healthy/productive form of T
 - T-: The problematic/excessive form of T
-- A (Antithesis): The opposing pole
+- A (Antithesis): The opposing side
 - A+: The healthy/productive form of A
 - A-: The problematic/excessive form of A
 

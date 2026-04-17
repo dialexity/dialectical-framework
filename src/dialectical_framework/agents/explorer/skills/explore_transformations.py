@@ -202,7 +202,7 @@ class ExploreTransformations(
 
         Args:
             pp: The containing Perspective
-            tetrad: The generated tetrad with category reframings and poles
+            tetrad: The generated tetrad with category reframings and angles
 
         Returns:
             The committed Transformation node
@@ -276,7 +276,7 @@ class ExploreTransformations(
         )
         self._report.node_created(re_transition, meta={"position": POSITION_RE})
 
-        # Create transitions for each position using WU poles as source/target
+        # Create transitions for each position using PP angles as source/target
         # Ac+: T- → A+ (positive action: escape T- problems toward A+ benefits)
         ac_plus_transition = self._create_transition(
             headline=tetrad.ac_plus.headline,
@@ -331,7 +331,7 @@ class ExploreTransformations(
             re_minus_transition,
             relationship=ReMinusRelationship(
                 alias=POSITION_RE_MINUS,
-                heuristic_similarity=None,  # Negative poles don't have HS
+                heuristic_similarity=None,  # Negative angles don't have HS
                 insight=tetrad.re_minus.insight,
                 proactiveness=tetrad.re_minus.proactiveness,
             ),
@@ -352,7 +352,7 @@ class ExploreTransformations(
             ac_minus_transition,
             relationship=AcMinusRelationship(
                 alias=POSITION_AC_MINUS,
-                heuristic_similarity=None,  # Negative poles don't have HS
+                heuristic_similarity=None,  # Negative angles don't have HS
                 insight=tetrad.ac_minus.insight,
                 proactiveness=tetrad.ac_minus.proactiveness,
             ),

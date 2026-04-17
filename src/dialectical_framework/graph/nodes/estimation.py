@@ -442,7 +442,7 @@ class DiagonalContradictionEstimation(Estimation, label="DiagonalContradiction")
     """
     Diagonal contradiction estimation for Perspective validation.
 
-    Tests the contradiction validity of diagonal pole pairs:
+    Tests the contradiction validity of diagonal angle pairs:
     - t_plus_vs_a_minus: Does T+ contradict A-? (They should be mutually exclusive)
     - a_plus_vs_t_minus: Does A+ contradict T-? (They should be mutually exclusive)
 
@@ -455,7 +455,7 @@ class DiagonalContradictionEstimation(Estimation, label="DiagonalContradiction")
     - T+ (positive thesis aspect) vs A- (negative antithesis aspect)
     - A+ (positive antithesis aspect) vs T- (negative thesis aspect)
 
-    Strong contradiction means the poles cannot both be true/good simultaneously.
+    Strong contradiction means the angles cannot both be true/good simultaneously.
     Weak contradiction suggests the tetrad structure may need refinement.
 
     Stored on Perspective as it validates the entire tetrad structure.

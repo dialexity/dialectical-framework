@@ -1,19 +1,19 @@
 """
-PoleGeneration: Capability for generating tetrad poles (T+, T-, A+, A-).
+AngleGeneration: Capability for generating tetrad angles (T+, T-, A+, A-).
 
-Generates poles with:
+Generates angles with:
 - Heuristic similarity (HS) to taxonomy apex
 - Complementarity values (K_T, K_A)
 
-Supports generating 1, 2, 3, or 4 poles. Contradiction pairs (T+/A-, A+/T-)
+Supports generating 1, 2, 3, or 4 angles. Contradiction pairs (T+/A-, A+/T-)
 should be generated together to ensure semantic coherence.
 
 Takes a Perspective (saved but not committed) with T and A already connected.
-User-provided poles should be connected to the PP before calling execute().
-Returns generated poles - caller is responsible for connecting them to PP.
+User-provided angles should be connected to the PP before calling execute().
+Returns generated angles - caller is responsible for connecting them to PP.
 
 Usage:
-    service = PoleGeneration()
+    service = AngleGeneration()
 
     # Create PP with T and A
     pp = Perspective()
@@ -90,13 +90,13 @@ POSITION_TO_PARENT = {
 
 # --- System Prompt ---
 
-SYSTEM_PROMPT = """You are a dialectical pole generator.
+SYSTEM_PROMPT = """You are a dialectical angle generator.
 
-Your task is to generate poles (T+, T-, A+, A-) for a thesis-antithesis pair.
+Your task is to generate angles (T+, T-, A+, A-) for a thesis-antithesis pair.
 
-## Pole Definitions
+## Angle Definitions
 
-| Pole | Description |
+| Angle | Description |
 |------|-------------|
 | T+ | Constructive/positive development of T - T developed well, balanced |
 | T- | Overdeveloped/exaggerated form of T - T taken too far, imbalanced |
@@ -124,16 +124,16 @@ T = Courage, A = Fear:
 - A+ = Prudence
 - A- = Paranoia
 
-Generate pole statements that fit the semantic structure."""
+Generate angle statements that fit the semantic structure."""
 
 
 # --- DTOs ---
 
 
-class PoleDto(BaseModel):
-    """Generated pole with scoring."""
+class AngleDto(BaseModel):
+    """Generated angle with scoring."""
 
-    statement: str = Field(description="Pole statement")
+    statement: str = Field(description="Angle statement")
     heuristic_similarity: float = Field(
         ge=0.0, le=1.0, description="Heuristic Similarity to taxonomy apex (0.0-1.0)"
     )
@@ -147,31 +147,31 @@ class PoleDto(BaseModel):
         le=1.0,
         description="K_A: How well this complements, balances, or contributes positively to the antithesis (0.0-1.0)",
     )
-    explanation: str = Field(description="Brief reasoning for the pole and scores")
+    explanation: str = Field(description="Brief reasoning for the angle and scores")
 
 
 class ContradictionPairDto(BaseModel):
-    """Two poles that form a contradiction pair."""
+    """Two angles that form a contradiction pair."""
 
-    positive_pole: PoleDto = Field(description="The positive pole (T+ or A+)")
-    negative_pole: PoleDto = Field(description="The negative pole (A- or T-)")
+    positive_angle: AngleDto = Field(description="The positive angle (T+ or A+)")
+    negative_angle: AngleDto = Field(description="The negative angle (A- or T-)")
 
 
 class TetradDto(BaseModel):
-    """Full tetrad of four poles."""
+    """Full tetrad of four angles."""
 
-    t_plus: PoleDto = Field(description="T+ - constructive thesis")
-    t_minus: PoleDto = Field(description="T- - exaggerated thesis")
-    a_plus: PoleDto = Field(description="A+ - constructive antithesis")
-    a_minus: PoleDto = Field(description="A- - exaggerated antithesis")
+    t_plus: AngleDto = Field(description="T+ - constructive thesis")
+    t_minus: AngleDto = Field(description="T- - exaggerated thesis")
+    a_plus: AngleDto = Field(description="A+ - constructive antithesis")
+    a_minus: AngleDto = Field(description="A- - exaggerated antithesis")
 
 
 # --- Result ---
 
 
 @dataclass
-class PoleResult:
-    """Result of pole generation."""
+class AngleResult:
+    """Result of angle generation."""
 
     component: DialecticalComponent
     position: str
@@ -184,11 +184,11 @@ class PoleResult:
 # --- Capability ---
 
 
-class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
+class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
     """
-    Capability for generating tetrad poles (T+, T-, A+, A-).
+    Capability for generating tetrad angles (T+, T-, A+, A-).
 
-    Generates poles with HS calculated against taxonomy apex and K values.
+    Generates angles with HS calculated against taxonomy apex and K values.
     Contradiction pairs are generated together to ensure coherence.
     """
 
@@ -201,22 +201,22 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         positions: Optional[list[str]] = None,
         text: str = "",
         not_like_these: Optional[list[Perspective]] = None,
-    ) -> list[PoleResult]:
+    ) -> list[AngleResult]:
         """
-        Generate poles for a Perspective.
+        Generate angles for a Perspective.
 
-        The Perspective must have T and A already connected. Any poles already
+        The Perspective must have T and A already connected. Any angles already
         connected to the PP (user-provided) will be used as context for generating
-        the remaining poles.
+        the remaining angles.
 
         Args:
             perspective: Perspective with T and A connected (saved but not committed)
-            positions: Which poles to generate (POSITION_T_PLUS, etc.). If None or empty, generates all 4.
+            positions: Which angles to generate (POSITION_T_PLUS, etc.). If None or empty, generates all 4.
             text: Optional source text for context
             not_like_these: Perspectives with tetrads to avoid (must share T or A with perspective)
 
         Returns:
-            List of PoleResult with components and scoring.
+            List of AngleResult with components and scoring.
             Caller is responsible for connecting these to the PP.
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
@@ -238,7 +238,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         # Filter and validate not_like_these Perspectives
         self._not_like_these = self._filter_relevant_pps(not_like_these or [])
 
-        # Default to all 4 poles if positions not specified
+        # Default to all 4 angles if positions not specified
         all_positions = [
             POSITION_T_PLUS,
             POSITION_T_MINUS,
@@ -248,7 +248,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         positions = positions if positions else all_positions
 
         # Check which positions already have components
-        self._existing_poles: dict[str, DialecticalComponent] = {}
+        self._existing_angles: dict[str, DialecticalComponent] = {}
         for pos in [
             POSITION_T_PLUS,
             POSITION_T_MINUS,
@@ -258,7 +258,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
             manager = perspective.get_relationship_manager_by_position(pos)
             result = manager.get()
             if result:
-                self._existing_poles[pos] = result[0]
+                self._existing_angles[pos] = result[0]
 
         # Determine which positions to generate
         # If PP is complete, it's a template - generate all requested positions
@@ -268,7 +268,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
             positions_to_generate = positions
         else:
             positions_to_generate = [
-                p for p in positions if p not in self._existing_poles
+                p for p in positions if p not in self._existing_angles
             ]
 
         # Validate positions
@@ -288,7 +288,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         # Determine generation strategy based on positions
-        results: list[PoleResult] = []
+        results: list[AngleResult] = []
 
         if len(positions_to_generate) == 4:
             # Full tetrad - generate all together
@@ -297,9 +297,9 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
             # Contradiction pair - generate together
             results = await self._generate_contradiction_pair(positions_to_generate)
         else:
-            # Individual poles or non-pair combination
+            # Individual angles or non-pair combination
             for pos in positions_to_generate:
-                result = await self._generate_single_pole(pos)
+                result = await self._generate_single_angle(pos)
                 results.append(result)
 
         # Build report
@@ -308,10 +308,10 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
             r.position: r.component.hash for r in results
         }
         self._report.summary = (
-            f"Generated {len(results)} pole(s): "
+            f"Generated {len(results)} angle(s): "
             + ", ".join(f"{r.position}={r.component.short_hash}" for r in results)
             if results
-            else "No poles generated"
+            else "No angles generated"
         )
 
         return results
@@ -326,9 +326,9 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
                 return True
         return False
 
-    async def _generate_tetrad(self, positions: list[str]) -> list[PoleResult]:
-        """Generate full tetrad (all 4 poles together)."""
-        existing_context = self._build_existing_poles_context(positions)
+    async def _generate_tetrad(self, positions: list[str]) -> list[AngleResult]:
+        """Generate full tetrad (all 4 angles together)."""
+        existing_context = self._build_existing_angles_context(positions)
 
         result = await self._conversation.submit(
             response_model=TetradDto,
@@ -345,14 +345,14 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
 
         for pos in positions:
             dto = position_to_dto[pos]
-            pole_result = self._create_pole_result(pos, dto.statement, dto)
-            results.append(pole_result)
+            angle_result = self._create_angle_result(pos, dto.statement, dto)
+            results.append(angle_result)
 
         return results
 
     async def _generate_contradiction_pair(
         self, positions: list[str]
-    ) -> list[PoleResult]:
+    ) -> list[AngleResult]:
         """Generate a contradiction pair (T+/A- or A+/T-)."""
         # Determine which pair
         pos_set = set(positions)
@@ -361,7 +361,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         else:
             positive_pos, negative_pos = POSITION_A_PLUS, POSITION_T_MINUS
 
-        existing_context = self._build_existing_poles_context(positions)
+        existing_context = self._build_existing_angles_context(positions)
 
         result = await self._conversation.submit(
             response_model=ContradictionPairDto,
@@ -372,36 +372,36 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
 
         results = []
         results.append(
-            self._create_pole_result(
-                positive_pos, result.positive_pole.statement, result.positive_pole
+            self._create_angle_result(
+                positive_pos, result.positive_angle.statement, result.positive_angle
             )
         )
         results.append(
-            self._create_pole_result(
-                negative_pos, result.negative_pole.statement, result.negative_pole
+            self._create_angle_result(
+                negative_pos, result.negative_angle.statement, result.negative_angle
             )
         )
 
         return results
 
-    async def _generate_single_pole(self, position: str) -> PoleResult:
-        """Generate a single pole."""
-        existing_context = self._build_existing_poles_context([position])
+    async def _generate_single_angle(self, position: str) -> AngleResult:
+        """Generate a single angle."""
+        existing_context = self._build_existing_angles_context([position])
 
         result = await self._conversation.submit(
-            response_model=PoleDto,
-            user_content=self._single_pole_prompt(position, existing_context),
+            response_model=AngleDto,
+            user_content=self._single_angle_prompt(position, existing_context),
         )
 
-        return self._create_pole_result(position, result.statement, result)
+        return self._create_angle_result(position, result.statement, result)
 
-    def _create_pole_result(
+    def _create_angle_result(
         self,
         position: str,
         statement: str,
-        dto: PoleDto,
-    ) -> PoleResult:
-        """Create PoleResult with DialecticalComponent."""
+        dto: AngleDto,
+    ) -> AngleResult:
+        """Create AngleResult with DialecticalComponent."""
         # Get parent for meaning lookup
         parent = (
             self._thesis
@@ -410,8 +410,8 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         )
 
         # Get meaning and apex from taxonomy
-        meaning = StatementClassification.lookup_pole_meaning(parent, position)
-        apex = StatementClassification.lookup_pole_apex(parent, position)
+        meaning = StatementClassification.lookup_angle_meaning(parent, position)
+        apex = StatementClassification.lookup_angle_apex(parent, position)
 
         # Create component
         component = DialecticalComponent(
@@ -421,7 +421,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         component.commit()
         self._report.node_created(component, meta={"position": position})
 
-        return PoleResult(
+        return AngleResult(
             component=component,
             position=position,
             apex_concept=apex,
@@ -447,29 +447,29 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
 
         return relevant
 
-    def _build_existing_poles_context(self, positions_to_generate: list[str]) -> str:
-        """Build context string for existing poles NOT being regenerated."""
-        # Only show poles that exist AND are not being regenerated
-        relevant_poles = {
+    def _build_existing_angles_context(self, positions_to_generate: list[str]) -> str:
+        """Build context string for existing angles NOT being regenerated."""
+        # Only show angles that exist AND are not being regenerated
+        relevant_angles = {
             pos: comp
-            for pos, comp in self._existing_poles.items()
+            for pos, comp in self._existing_angles.items()
             if pos not in positions_to_generate
         }
 
-        if not relevant_poles:
+        if not relevant_angles:
             return ""
 
-        lines = ["The following pole(s) are already defined:"]
-        for pos, component in relevant_poles.items():
+        lines = ["The following angle(s) are already defined:"]
+        for pos, component in relevant_angles.items():
             lines.append(f'- {pos} = "{component.statement}"')
-        lines.append("Generate the remaining poles to be coherent with these.")
+        lines.append("Generate the remaining angles to be coherent with these.")
         return "\n".join(lines)
 
     def _build_avoid_context(self) -> str:
         """Build context string for tetrads to avoid.
 
         Handles T-A symmetry: if an existing PP has T and A swapped relative to
-        the current PP, the pole positions are remapped when displaying.
+        the current PP, the angle positions are remapped when displaying.
         """
         if not self._not_like_these:
             return ""
@@ -501,7 +501,7 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
                     lines.append(f'  - {display_pos}: "{result[0].statement}"')
         lines.append("")
         lines.append(
-            "Generate semantically distinct poles while maintaining contradiction relationships."
+            "Generate semantically distinct angles while maintaining contradiction relationships."
         )
         return "\n".join(lines)
 
@@ -519,16 +519,16 @@ class PoleGeneration(ExecutableCapability[list[PoleResult]], SettingsAware):
         """Build prompt for full tetrad generation."""
         max_words = self.settings.component_length
 
-        t_plus_apex = StatementClassification.lookup_pole_apex(
+        t_plus_apex = StatementClassification.lookup_angle_apex(
             self._thesis, POSITION_T_PLUS
         )
-        t_minus_apex = StatementClassification.lookup_pole_apex(
+        t_minus_apex = StatementClassification.lookup_angle_apex(
             self._thesis, POSITION_T_MINUS
         )
-        a_plus_apex = StatementClassification.lookup_pole_apex(
+        a_plus_apex = StatementClassification.lookup_angle_apex(
             self._antithesis, POSITION_A_PLUS
         )
-        a_minus_apex = StatementClassification.lookup_pole_apex(
+        a_minus_apex = StatementClassification.lookup_angle_apex(
             self._antithesis, POSITION_A_MINUS
         )
 
@@ -548,10 +548,10 @@ Taxonomy apex concepts for reference:
 - A+ apex: {a_plus_apex}
 - A- apex: {a_minus_apex}
 {existing_section}{avoid_section}
-Generate each pole (1-{max_words} words) with:
+Generate each angle (1-{max_words} words) with:
 
 ## HS (Heuristic Similarity) Scale
-HS measures how well the pole captures the essence of its taxonomy apex concept:
+HS measures how well the angle captures the essence of its taxonomy apex concept:
 - 0.0-0.3: Unrelated or tangentially related to the apex
 - 0.3-0.5: Somewhat related but different focus or aspect
 - 0.5-0.7: Related, captures some key aspects of the apex
@@ -559,8 +559,8 @@ HS measures how well the pole captures the essence of its taxonomy apex concept:
 - 0.9-1.0: Equivalent or near-equivalent to the apex concept
 
 ## Complementarity (K) Scores
-- K_T: How well this pole complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this pole complements, balances, or contributes positively to the antithesis (0.0-1.0)
+- K_T: How well this angle complements, balances, or contributes positively to the thesis (0.0-1.0)
+- K_A: How well this angle complements, balances, or contributes positively to the antithesis (0.0-1.0)
 
 Ensure T+ contradicts A-, and A+ contradicts T-."""
 
@@ -585,8 +585,8 @@ Ensure T+ contradicts A-, and A+ contradicts T-."""
             else self._antithesis
         )
 
-        pos_apex = StatementClassification.lookup_pole_apex(pos_parent, positive_pos)
-        neg_apex = StatementClassification.lookup_pole_apex(neg_parent, negative_pos)
+        pos_apex = StatementClassification.lookup_angle_apex(pos_parent, positive_pos)
+        neg_apex = StatementClassification.lookup_angle_apex(neg_parent, negative_pos)
 
         text_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
         existing_section = f"\n{existing_context}\n" if existing_context else ""
@@ -604,10 +604,10 @@ Taxonomy apex concepts for reference:
 - {positive_pos} apex: {pos_apex}
 - {negative_pos} apex: {neg_apex}
 {existing_section}{avoid_section}
-Generate each pole (1-{max_words} words) with:
+Generate each angle (1-{max_words} words) with:
 
 ## HS (Heuristic Similarity) Scale
-HS measures how well the pole captures the essence of its taxonomy apex concept:
+HS measures how well the angle captures the essence of its taxonomy apex concept:
 - 0.0-0.3: Unrelated or tangentially related to the apex
 - 0.3-0.5: Somewhat related but different focus or aspect
 - 0.5-0.7: Related, captures some key aspects of the apex
@@ -615,14 +615,14 @@ HS measures how well the pole captures the essence of its taxonomy apex concept:
 - 0.9-1.0: Equivalent or near-equivalent to the apex concept
 
 ## Complementarity (K) Scores
-- K_T: How well this pole complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this pole complements, balances, or contributes positively to the antithesis (0.0-1.0)
+- K_T: How well this angle complements, balances, or contributes positively to the thesis (0.0-1.0)
+- K_A: How well this angle complements, balances, or contributes positively to the antithesis (0.0-1.0)
 
-The positive_pole is {positive_pos}, the negative_pole is {negative_pos}.
+The positive_angle is {positive_pos}, the negative_angle is {negative_pos}.
 They must contradict each other - they cannot both be true/good simultaneously."""
 
-    def _single_pole_prompt(self, position: str, existing_context: str) -> str:
-        """Build prompt for single pole generation."""
+    def _single_angle_prompt(self, position: str, existing_context: str) -> str:
+        """Build prompt for single angle generation."""
         max_words = self.settings.component_length
 
         parent = (
@@ -630,7 +630,7 @@ They must contradict each other - they cannot both be true/good simultaneously."
             if position in [POSITION_T_PLUS, POSITION_T_MINUS]
             else self._antithesis
         )
-        apex = StatementClassification.lookup_pole_apex(parent, position)
+        apex = StatementClassification.lookup_angle_apex(parent, position)
 
         # Get description based on position
         if position == POSITION_T_PLUS:
@@ -655,10 +655,10 @@ Antithesis (A): "{self._antithesis.statement}"
 {position} is the {desc}.
 Taxonomy apex concept: {apex}
 {existing_section}{avoid_section}
-Generate the pole (1-{max_words} words) with:
+Generate the angle (1-{max_words} words) with:
 
 ## HS (Heuristic Similarity) Scale
-HS measures how well the pole captures the essence of its taxonomy apex concept:
+HS measures how well the angle captures the essence of its taxonomy apex concept:
 - 0.0-0.3: Unrelated or tangentially related to the apex
 - 0.3-0.5: Somewhat related but different focus or aspect
 - 0.5-0.7: Related, captures some key aspects of the apex
@@ -666,5 +666,5 @@ HS measures how well the pole captures the essence of its taxonomy apex concept:
 - 0.9-1.0: Equivalent or near-equivalent to the apex concept
 
 ## Complementarity (K) Scores
-- K_T: How well this pole complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this pole complements, balances, or contributes positively to the antithesis (0.0-1.0)"""
+- K_T: How well this angle complements, balances, or contributes positively to the thesis (0.0-1.0)
+- K_A: How well this angle complements, balances, or contributes positively to the antithesis (0.0-1.0)"""

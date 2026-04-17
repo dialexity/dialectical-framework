@@ -1,9 +1,9 @@
 """
-EditTetrad: Skill for editing poles (T+, T-, A+, A-) of a Perspective.
+EditTetrad: Skill for editing angles (T+, T-, A+, A-) of a Perspective.
 
-Handles modifications to poles with proper validation:
-- Validates each pole against its position
-- Suggests correct position if pole doesn't fit
+Handles modifications to angles with proper validation:
+- Validates each angle against its position
+- Suggests correct position if angle doesn't fit
 
 Editing behavior based on PP state:
 - Uncommitted PP -> edit in place, commit it
@@ -24,7 +24,7 @@ Usage:
     result = await editor.execute()
 
     if result.is_valid:
-        pp = result.perspective  # Committed PP with all 6 poles
+        pp = result.perspective  # Committed PP with all 6 angles
 """
 
 from __future__ import annotations
@@ -38,8 +38,8 @@ from pydantic import Field, PrivateAttr
 from dialectical_framework.agents.executable_capability import \
     ExecutableCapability
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.pole_classification import \
-    PoleClassification
+from dialectical_framework.features.angle_classification import \
+    AngleClassification
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import POSITION_A, POSITION_T
@@ -54,8 +54,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 
-# Positions that are poles (not T or A)
-POLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
+# Positions that are angles (not T or A)
+ANGLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
 
 # Heuristic Similarity threshold for "wrong category"
 HS_WRONG_CATEGORY_THRESHOLD = 0.1
@@ -63,7 +63,7 @@ HS_WRONG_CATEGORY_THRESHOLD = 0.1
 
 @dataclass
 class EditTetradResult:
-    """Result of editing poles in a Perspective.
+    """Result of editing angles in a Perspective.
 
     Returns a Perspective:
     - If input PP was uncommitted -> edits in place, commits it
@@ -79,9 +79,9 @@ class EditTetradResult:
 
 class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
     """
-    Skill for editing poles (T+, T-, A+, A-) of a Perspective with validation.
+    Skill for editing angles (T+, T-, A+, A-) of a Perspective with validation.
 
-    Validates pole edits and returns PP with updated poles.
+    Validates angle edits and returns PP with updated angles.
     Does NOT mutate the original committed Perspective (clones it instead).
 
     For editing T or A, use EditPolarity instead.
@@ -93,7 +93,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
 
     perspective_hash: str = Field(description="Hash of the Perspective to edit")
     changes: dict[str, str] = Field(
-        description="Dict of {position: new_statement} for pole changes (T+, T-, A+, A-)"
+        description="Dict of {position: new_statement} for angle changes (T+, T-, A+, A-)"
     )
     text: str = Field(default="", description="Optional context for classification")
 
@@ -132,16 +132,16 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         self._text = self.text
         self._was_committed = pp.is_committed
 
-        # Clean up changes dict - only accept pole positions
+        # Clean up changes dict - only accept angle positions
         self._changes = {}
         for k, v in self.changes.items():
-            if v and v.strip() and k in POLE_POSITIONS:
+            if v and v.strip() and k in ANGLE_POSITIONS:
                 self._changes[k] = v.strip()
 
         if not self._changes:
             result = EditTetradResult(
                 is_valid=False,
-                error_message="Must provide at least one pole change (T+, T-, A+, A-). For T/A, use EditPolarity.",
+                error_message="Must provide at least one angle change (T+, T-, A+, A-). For T/A, use EditPolarity.",
             )
             self._build_report(result)
             return result
@@ -153,7 +153,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         if not current_t or not current_a:
             result = EditTetradResult(
                 is_valid=False,
-                error_message="Perspective must have T and A for pole editing",
+                error_message="Perspective must have T and A for angle editing",
             )
             self._build_report(result)
             return result
@@ -167,67 +167,67 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             if not self._working_pp._id:
                 self._working_pp.save()
 
-        # Handle pole changes
-        result = await self._handle_poles_changed(current_t, current_a)
+        # Handle angle changes
+        result = await self._handle_angles_changed(current_t, current_a)
 
         self._build_report(result)
         return result
 
-    async def _handle_poles_changed(
+    async def _handle_angles_changed(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
     ) -> EditTetradResult:
-        """Handle when poles are changed."""
-        # Validate all changed poles
-        pole_validations: dict[str, tuple[DialecticalComponent, object]] = {}
-        invalid_poles: list[str] = []
+        """Handle when angles are changed."""
+        # Validate all changed angles
+        angle_validations: dict[str, tuple[DialecticalComponent, object]] = {}
+        invalid_angles: list[str] = []
 
-        for pole_pos in self._changes:
-            pole_stmt = self._changes[pole_pos]
+        for angle_pos in self._changes:
+            angle_stmt = self._changes[angle_pos]
 
-            pole_classifier = PoleClassification()
-            pole_result = await pole_classifier.execute(
+            angle_classifier = AngleClassification()
+            angle_result = await angle_classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                pole_statement=pole_stmt,
-                position=pole_pos,
+                angle_statement=angle_stmt,
+                position=angle_pos,
                 text=self._text,
             )
-            self._report = self._report.merge(pole_classifier.report)
+            self._report = self._report.merge(angle_classifier.report)
 
-            if pole_result.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD:
-                new_pole = DialecticalComponent(
-                    statement=pole_stmt,
-                    meaning=pole_result.meaning,
+            if angle_result.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD:
+                new_angle = DialecticalComponent(
+                    statement=angle_stmt,
+                    meaning=angle_result.meaning,
                 )
-                new_pole.commit()
-                self._report.node_created(new_pole)
-                pole_validations[pole_pos] = (new_pole, pole_result)
+                new_angle.commit()
+                self._report.node_created(new_angle)
+                angle_validations[angle_pos] = (new_angle, angle_result)
             else:
                 # Check other positions
-                suggested = await self._find_better_pole_position(
-                    thesis, antithesis, pole_stmt, pole_pos
+                suggested = await self._find_better_angle_position(
+                    thesis, antithesis, angle_stmt, angle_pos
                 )
                 if suggested:
-                    invalid_poles.append(
-                        f"{pole_pos}: '{pole_stmt}' looks more like {suggested['position']} "
+                    invalid_angles.append(
+                        f"{angle_pos}: '{angle_stmt}' looks more like {suggested['position']} "
                         f"(HS={suggested['hs']:.2f})"
                     )
                 else:
-                    invalid_poles.append(
-                        f"{pole_pos}: '{pole_stmt}' doesn't fit any pole position "
-                        f"(HS={pole_result.heuristic_similarity:.2f})"
+                    invalid_angles.append(
+                        f"{angle_pos}: '{angle_stmt}' doesn't fit any angle position "
+                        f"(HS={angle_result.heuristic_similarity:.2f})"
                     )
 
-        if invalid_poles:
+        if invalid_angles:
             return EditTetradResult(
                 is_valid=False,
-                error_message="Invalid pole(s): " + "; ".join(invalid_poles),
+                error_message="Invalid angle(s): " + "; ".join(invalid_angles),
             )
 
-        # Fill working WU with validated poles
-        await self._fill_wu_with_poles(pole_validations)
+        # Fill working PP with validated angles
+        await self._fill_wu_with_angles(angle_validations)
 
         return EditTetradResult(
             perspective=self._working_pp,
@@ -235,11 +235,11 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             changed_positions=list(self._changes.keys()),
         )
 
-    async def _fill_wu_with_poles(
+    async def _fill_wu_with_angles(
         self,
-        pole_validations: dict[str, tuple[DialecticalComponent, object]],
+        angle_validations: dict[str, tuple[DialecticalComponent, object]],
     ) -> None:
-        """Fill working PP with changed poles, copying unchanged from original."""
+        """Fill working PP with changed angles, copying unchanged from original."""
         pp = self._working_pp
 
         # Copy Polarity (T-A pair) from original if not connected
@@ -251,7 +251,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
                     orig_polarity, relationship=HasPolarityRelationship()
                 )
 
-        # Handle poles
+        # Handle angles
         rel_classes = {
             POSITION_T_PLUS: TPlusRelationship,
             POSITION_T_MINUS: TMinusRelationship,
@@ -259,20 +259,20 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             POSITION_A_MINUS: AMinusRelationship,
         }
 
-        for pos in POLE_POSITIONS:
+        for pos in ANGLE_POSITIONS:
             manager = pp.get_relationship_manager_by_position(pos)
             rel_class = rel_classes[pos]
 
-            if pos in pole_validations:
-                # Use new pole
-                new_pole, pole_result = pole_validations[pos]
+            if pos in angle_validations:
+                # Use new angle
+                new_angle, angle_result = angle_validations[pos]
                 manager.connect(
-                    new_pole,
+                    new_angle,
                     relationship=rel_class(
                         alias=pos,
-                        heuristic_similarity=pole_result.heuristic_similarity,
-                        complementarity_t=pole_result.complementarity_t,
-                        complementarity_a=pole_result.complementarity_a,
+                        heuristic_similarity=angle_result.heuristic_similarity,
+                        complementarity_t=angle_result.complementarity_t,
+                        complementarity_a=angle_result.complementarity_a,
                     ),
                 )
             else:
@@ -304,26 +304,26 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         pp.commit()
         self._report.node_created(pp)
 
-    async def _find_better_pole_position(
+    async def _find_better_angle_position(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
-        pole_stmt: str,
+        angle_stmt: str,
         exclude_position: str,
     ) -> Optional[dict]:
-        """Check if pole fits better in a different position."""
-        other_positions = [p for p in POLE_POSITIONS if p != exclude_position]
+        """Check if angle fits better in a different position."""
+        other_positions = [p for p in ANGLE_POSITIONS if p != exclude_position]
 
         best_match = None
         best_hs = HS_WRONG_CATEGORY_THRESHOLD
 
         for pos in other_positions:
             try:
-                classifier = PoleClassification()
+                classifier = AngleClassification()
                 result = await classifier.execute(
                     thesis=thesis,
                     antithesis=antithesis,
-                    pole_statement=pole_stmt,
+                    angle_statement=angle_stmt,
                     position=pos,
                     text=self._text,
                 )
@@ -383,6 +383,6 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
                 if (hasattr(self, "_was_committed") and self._was_committed)
                 else "Edited"
             )
-            self._report.summary = f"{action} poles: {positions}"
+            self._report.summary = f"{action} angles: {positions}"
         else:
             self._report.summary = f"Edit failed: {result.error_message}"

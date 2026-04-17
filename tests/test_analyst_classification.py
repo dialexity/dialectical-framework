@@ -1,5 +1,5 @@
 """
-Tests for classification capabilities: PoleClassification and IdeaPlacement.
+Tests for classification capabilities: AngleClassification and IdeaPlacement.
 """
 
 from __future__ import annotations
@@ -9,21 +9,21 @@ from langfuse.decorators import observe
 
 from dialectical_framework.features.idea_placement import (IdeaPlacement,
                                                            TensionInfo)
-from dialectical_framework.features.pole_classification import \
-    PoleClassification
+from dialectical_framework.features.angle_classification import \
+    AngleClassification
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.scope_context import scope
 
 
-class TestPoleClassification:
-    """Tests for PoleClassification capability."""
+class TestAngleClassification:
+    """Tests for AngleClassification capability."""
 
     @pytest.mark.asyncio
     @observe()
-    async def test_pole_classification_valid_t_plus(self):
-        """PoleClassification validates a valid T+ pole."""
+    async def test_angle_classification_valid_t_plus(self):
+        """AngleClassification validates a valid T+ angle."""
         case_node = Case()
         case_node.commit()
 
@@ -40,11 +40,11 @@ class TestPoleClassification:
             )
             antithesis.commit()
 
-            classifier = PoleClassification()
+            classifier = AngleClassification()
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                pole_statement="Deep connection",
+                angle_statement="Deep connection",
                 position="T+",
             )
 
@@ -55,8 +55,8 @@ class TestPoleClassification:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_pole_classification_valid_a_minus(self):
-        """PoleClassification validates a valid A- pole."""
+    async def test_angle_classification_valid_a_minus(self):
+        """AngleClassification validates a valid A- angle."""
         case_node = Case()
         case_node.commit()
 
@@ -73,11 +73,11 @@ class TestPoleClassification:
             )
             antithesis.commit()
 
-            classifier = PoleClassification()
+            classifier = AngleClassification()
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                pole_statement="Paranoia",
+                angle_statement="Paranoia",
                 position="A-",
             )
 
@@ -88,8 +88,8 @@ class TestPoleClassification:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_pole_classification_wrong_position(self):
-        """PoleClassification detects pole in wrong position."""
+    async def test_angle_classification_wrong_position(self):
+        """AngleClassification detects angle in wrong position."""
         case_node = Case()
         case_node.commit()
 
@@ -106,12 +106,12 @@ class TestPoleClassification:
             )
             antithesis.commit()
 
-            classifier = PoleClassification()
+            classifier = AngleClassification()
             # "Freedom" is more A+ (positive of indifference) than T+
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                pole_statement="Personal freedom and autonomy",
+                angle_statement="Personal freedom and autonomy",
                 position="T+",
             )
 
@@ -123,8 +123,8 @@ class TestPoleClassification:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_pole_classification_with_context(self):
-        """PoleClassification uses context for evaluation."""
+    async def test_angle_classification_with_context(self):
+        """AngleClassification uses context for evaluation."""
         case_node = Case()
         case_node.commit()
 
@@ -147,11 +147,11 @@ class TestPoleClassification:
             availability during network partitions.
             """
 
-            classifier = PoleClassification()
+            classifier = AngleClassification()
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                pole_statement="Guaranteed correctness",
+                angle_statement="Guaranteed correctness",
                 position="T+",
                 text=context,
             )
@@ -160,8 +160,8 @@ class TestPoleClassification:
             assert result.heuristic_similarity >= 0.0
 
     @pytest.mark.asyncio
-    async def test_pole_classification_invalid_position(self):
-        """PoleClassification rejects invalid position."""
+    async def test_angle_classification_invalid_position(self):
+        """AngleClassification rejects invalid position."""
         case_node = Case()
         case_node.commit()
 
@@ -177,12 +177,12 @@ class TestPoleClassification:
             )
             antithesis.commit()
 
-            classifier = PoleClassification()
+            classifier = AngleClassification()
             with pytest.raises(ValueError, match="Invalid position"):
                 await classifier.execute(
                     thesis=thesis,
                     antithesis=antithesis,
-                    pole_statement="Something",
+                    angle_statement="Something",
                     position="X+",  # Invalid
                 )
 
@@ -261,15 +261,15 @@ class TestIdeaPlacement:
 
             assert placer.report.ok
             # Should detect as duplicate or at least related
-            # (LLM may classify as duplicate, thesis, antithesis, or pole depending on interpretation)
-            assert result.placement in ("duplicate", "thesis", "antithesis", "pole")
+            # (LLM may classify as duplicate, thesis, antithesis, or angle depending on interpretation)
+            assert result.placement in ("duplicate", "thesis", "antithesis", "angle")
             # Component should always be present
             assert result.component is not None
 
     @pytest.mark.asyncio
     @observe()
-    async def test_idea_placement_detects_pole(self):
-        """IdeaPlacement detects idea as pole of existing tension."""
+    async def test_idea_placement_detects_angle(self):
+        """IdeaPlacement detects idea as angle of existing tension."""
         case_node = Case()
         case_node.commit()
 
@@ -303,9 +303,9 @@ class TestIdeaPlacement:
             assert placer.report.ok
             # Should detect as A+ (positive aspect of indifference)
             # Or could be thesis if LLM interprets differently
-            if result.placement == "pole":
+            if result.placement == "angle":
                 assert result.position in ("A+", "T-", "T+", "A-")
-                assert result.pole_of is not None
+                assert result.angle_of is not None
 
     @pytest.mark.asyncio
     @observe()

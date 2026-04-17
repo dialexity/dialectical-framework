@@ -142,7 +142,7 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
         if not perspective.is_complete():
             raise ValueError("Perspective must be complete (have all 6 positions)")
 
-        # Get pole statements
+        # Get angle statements
         t_plus = perspective.get_component(POSITION_T_PLUS)
         t_minus = perspective.get_component(POSITION_T_MINUS)
         a_plus = perspective.get_component(POSITION_A_PLUS)
@@ -219,7 +219,7 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
 {statement}
 
 The pattern "[Positive] without [Balancing factor] yields [Negative]" tests whether
-the absence of a balancing positive pole naturally leads to the negative/shadow aspect.
+the absence of a balancing positive angle naturally leads to the negative/shadow aspect.
 
 Coherence scale:
 - 0.9-1.0: Highly coherent, clear logical/causal relationship

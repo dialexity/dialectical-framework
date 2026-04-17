@@ -1,22 +1,22 @@
 """
-PoleClassification: Capability for classifying a user-provided pole.
+AngleClassification: Capability for classifying a user-provided angle.
 
-Evaluates a given pole statement against a tension (T-A pair) to determine:
+Evaluates a given angle statement against a tension (T-A pair) to determine:
 - HS: Heuristic Similarity to the apex concept (0.0-1.0)
   - HS > 0.1: Valid for the specified position
   - HS <= 0.1: Wrong category, check suggested_position
 - Complementarity: How it relates to T and A (K_T, K_A)
 
-This is the pole counterpart to AntithesisClassification.
+This is the angle counterpart to AntithesisClassification.
 
 Does NOT create any database nodes - caller decides what to do with result.
 
 Usage:
-    classifier = PoleClassification()
+    classifier = AngleClassification()
     result = await classifier.execute(
         thesis=thesis_component,
         antithesis=antithesis_component,
-        pole_statement="Personal freedom",
+        angle_statement="Personal freedom",
         position="A+",
         text="context about relationships..."
     )
@@ -52,12 +52,12 @@ if TYPE_CHECKING:
 
 # --- System Prompt ---
 
-SYSTEM_PROMPT = """You are a dialectical pole evaluator.
+SYSTEM_PROMPT = """You are a dialectical angle evaluator.
 
-Your task is to evaluate whether a given statement is a valid pole (positive or negative aspect)
+Your task is to evaluate whether a given statement is a valid angle (positive or negative aspect)
 for a thesis-antithesis tension, and measure its quality.
 
-## Pole Positions
+## Angle Positions
 
 A complete dialectical tetrad has 6 positions:
 - T: Thesis (neutral statement)
@@ -69,7 +69,7 @@ A complete dialectical tetrad has 6 positions:
 
 ## Diagonal Contradiction (Structural Constraint)
 
-Poles form contradiction pairs across the diagonal:
+Angles form contradiction pairs across the diagonal:
 - **T+ contradicts A-**: They cannot both be true/good simultaneously
 - **A+ contradicts T-**: They cannot both be true/good simultaneously
 
@@ -77,12 +77,12 @@ Example (T=Love, A=Indifference):
 - T+ (Bonding) contradicts A- (Alienation)
 - A+ (Autonomy) contradicts T- (Enmeshment)
 
-When evaluating a pole, consider whether it would properly contradict its diagonal counterpart.
+When evaluating an angle, consider whether it would properly contradict its diagonal counterpart.
 If a proposed T+ doesn't oppose A-, or A+ doesn't oppose T-, it may be misclassified.
 
 ## HS (Heuristic Similarity) Scale
 
-HS measures how well the pole represents the apex concept for that position:
+HS measures how well the angle represents the apex concept for that position:
 - 0.9-1.0: Perfect or near-perfect match - exemplary representation of the apex
 - 0.7-0.9: Very similar - captures most aspects of the apex concept
 - 0.5-0.7: Related - captures some aspects, moderate fit for position
@@ -95,16 +95,16 @@ HS ≤ 0.1 means wrong category - suggest the correct position.
 
 ## Complementarity Scale
 
-Complementarity measures how well the pole complements, enhances, or supports T and A.
+Complementarity measures how well the angle complements, enhances, or supports T and A.
 
 **K_T (Complementarity to Thesis)**: 0.0 to 1.0
-How well does this pole complement, enhance, or support the Thesis?
+How well does this angle complement, enhance, or support the Thesis?
 - 0.0 = Actively undermines or contradicts T
 - 0.5 = Neutral, neither helps nor hurts T
 - 1.0 = Strongly supports and enhances T
 
 **K_A (Complementarity to Antithesis)**: 0.0 to 1.0
-How well does this pole complement, enhance, or support the Antithesis?
+How well does this angle complement, enhance, or support the Antithesis?
 - 0.0 = Actively undermines or contradicts A
 - 0.5 = Neutral, neither helps nor hurts A
 - 1.0 = Strongly supports and enhances A
@@ -117,8 +117,8 @@ Respond with structured output matching the requested format."""
 VALID_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
 
 
-class PoleEvaluationDto(BaseModel):
-    """Result of evaluating a pole against a tension."""
+class AngleEvaluationDto(BaseModel):
+    """Result of evaluating an angle against a tension."""
 
     heuristic_similarity: float = Field(
         ge=0.0,
@@ -146,8 +146,8 @@ class PoleEvaluationDto(BaseModel):
 
 
 @dataclass
-class PoleClassificationResult:
-    """Result of pole classification - no DB nodes created.
+class AngleClassificationResult:
+    """Result of angle classification - no DB nodes created.
 
     Validity is determined by heuristic_similarity:
     - HS > 0.1: Valid for this position
@@ -168,16 +168,16 @@ class PoleClassificationResult:
 # --- Capability ---
 
 
-class PoleClassification(ExecutableCapability[PoleClassificationResult]):
+class AngleClassification(ExecutableCapability[AngleClassificationResult]):
     """
-    Capability for classifying a user-provided pole against a tension.
+    Capability for classifying a user-provided angle against a tension.
 
-    Evaluates the pole to determine:
+    Evaluates the angle to determine:
     - Is it valid for the specified position?
     - HS: Heuristic Similarity to the apex concept
     - Complementarity: How it relates to T and A
 
-    This mirrors AntithesisClassification but for poles.
+    This mirrors AntithesisClassification but for angles.
     Does NOT create any database nodes - caller decides what to do with result.
     """
 
@@ -188,32 +188,32 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
-        pole_statement: str,
+        angle_statement: str,
         position: str,
         text: str = "",
-    ) -> PoleClassificationResult:
+    ) -> AngleClassificationResult:
         """
-        Classify a user-provided pole against a T-A tension.
+        Classify a user-provided angle against a T-A tension.
 
         Args:
             thesis: The thesis component (T)
             antithesis: The antithesis component (A)
-            pole_statement: The pole statement to classify
+            angle_statement: The angle statement to classify
             position: Target position ("T+", "T-", "A+", "A-")
             text: Optional source content context
 
         Returns:
-            PoleClassificationResult with validity, HS, complementarity (no DB nodes created)
+            AngleClassificationResult with validity, HS, complementarity (no DB nodes created)
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Validate inputs
         if not thesis or not thesis.statement:
-            raise ValueError("Cannot classify pole without a valid thesis")
+            raise ValueError("Cannot classify angle without a valid thesis")
         if not antithesis or not antithesis.statement:
-            raise ValueError("Cannot classify pole without a valid antithesis")
-        if not pole_statement or not pole_statement.strip():
-            raise ValueError("Cannot classify empty pole statement")
+            raise ValueError("Cannot classify angle without a valid antithesis")
+        if not angle_statement or not angle_statement.strip():
+            raise ValueError("Cannot classify empty angle statement")
         if position not in VALID_POSITIONS:
             raise ValueError(
                 f"Invalid position '{position}'. Must be one of: {VALID_POSITIONS}"
@@ -221,7 +221,7 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
 
         self._thesis = thesis
         self._antithesis = antithesis
-        self._pole_statement = pole_statement.strip()
+        self._angle_statement = angle_statement.strip()
         self._position = position
         self._text = text
 
@@ -232,15 +232,15 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
         parent = (
             thesis if position in [POSITION_T_PLUS, POSITION_T_MINUS] else antithesis
         )
-        meaning = StatementClassification.lookup_pole_meaning(parent, position)
-        apex_concept = StatementClassification.lookup_pole_apex(parent, position)
+        meaning = StatementClassification.lookup_angle_meaning(parent, position)
+        apex_concept = StatementClassification.lookup_angle_apex(parent, position)
 
-        # Evaluate pole
-        evaluation = await self._evaluate_pole(apex_concept)
+        # Evaluate angle
+        evaluation = await self._evaluate_angle(apex_concept)
 
         # Build result (validity determined by HS > 0.1)
-        result = PoleClassificationResult(
-            statement=self._pole_statement,
+        result = AngleClassificationResult(
+            statement=self._angle_statement,
             position=position,
             meaning=meaning,
             heuristic_similarity=evaluation.heuristic_similarity,
@@ -258,22 +258,22 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
         self._report.ok = True
 
         self._report.summary = (
-            f"Classified pole '{self._pole_statement}' for {position} "
+            f"Classified angle '{self._angle_statement}' for {position} "
             f"(HS={result.heuristic_similarity:.2f})"
         )
 
         return result
 
-    async def _evaluate_pole(self, apex_concept: str) -> PoleEvaluationDto:
-        """Evaluate pole against tension using LLM."""
+    async def _evaluate_angle(self, apex_concept: str) -> AngleEvaluationDto:
+        """Evaluate angle against tension using LLM."""
         prompt = self._build_evaluation_prompt(apex_concept)
         return await self._conversation.submit(
-            response_model=PoleEvaluationDto,
+            response_model=AngleEvaluationDto,
             user_content=prompt,
         )
 
     def _build_evaluation_prompt(self, apex_concept: str) -> str:
-        """Build prompt for pole evaluation."""
+        """Build prompt for angle evaluation."""
         context_section = (
             f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
         )
@@ -285,32 +285,32 @@ class PoleClassification(ExecutableCapability[PoleClassificationResult]):
             POSITION_A_MINUS: "negative aspect (risk/downside/shadow) of the ANTITHESIS",
         }
 
-        return f"""{context_section}Evaluate this pole statement for a dialectical tension.
+        return f"""{context_section}Evaluate this angle statement for a dialectical tension.
 
 **Tension:**
 - Thesis (T): "{self._thesis.statement}"
 - Antithesis (A): "{self._antithesis.statement}"
 
-**Pole to evaluate:**
-- Statement: "{self._pole_statement}"
+**Angle to evaluate:**
+- Statement: "{self._angle_statement}"
 - Target position: {self._position} ({position_description[self._position]})
 - Apex concept for this position: "{apex_concept}"
 
 **Determine:**
 
-1. **heuristic_similarity** (0.0-1.0): How well does this pole represent the apex concept "{apex_concept}"?
+1. **heuristic_similarity** (0.0-1.0): How well does this angle represent the apex concept "{apex_concept}"?
    Use the HS scale from the system guidelines. Remember: HS > 0.1 = valid, HS ≤ 0.1 = wrong category.
 
-2. **complementarity_t** (K_T, 0.0-1.0): How well does this pole complement, enhance, or support the thesis "{self._thesis.statement}"?
+2. **complementarity_t** (K_T, 0.0-1.0): How well does this angle complement, enhance, or support the thesis "{self._thesis.statement}"?
    Use the K_T scale from the system guidelines.
 
-3. **complementarity_a** (K_A, 0.0-1.0): How well does this pole complement, enhance, or support the antithesis "{self._antithesis.statement}"?
+3. **complementarity_a** (K_A, 0.0-1.0): How well does this angle complement, enhance, or support the antithesis "{self._antithesis.statement}"?
    Use the K_A scale from the system guidelines.
 
 4. **suggested_position**: If HS is very low (not a good fit for {self._position}), which position might fit better?
    - T: if this is actually a thesis-level concept (neutral statement of the T side)
    - A: if this is actually an antithesis-level concept (neutral statement of the A side)
-   - T+/T-/A+/A-: if it's a pole but for a different position
+   - T+/T-/A+/A-: if it's an angle but for a different position
    - null: if unrelated to this tension
 
 5. **reasoning**: Explain your evaluation."""

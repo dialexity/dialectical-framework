@@ -135,7 +135,7 @@ HS measures how well the antithesis represents the apex concept:
 - 0.5-0.7: Related - captures some aspects, moderate quality
 - 0.3-0.5: Somewhat related - weak but still a valid antithesis
 - 0.1-0.3: Weakly related - poor quality antithesis, but still in the right category
-- 0.0-0.1: Not related - wrong category entirely, not an antithesis (likely a pole or unrelated)
+- 0.0-0.1: Not related - wrong category entirely, not an antithesis (likely an angle or unrelated)
 
 **Critical threshold**: HS > 0.1 means valid antithesis (quality varies).
 HS ≤ 0.1 means wrong category - this is NOT an antithesis.

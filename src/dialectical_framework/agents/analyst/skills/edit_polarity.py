@@ -2,7 +2,7 @@
 EditPolarity: Skill for editing T or A components of a Perspective.
 
 Handles modifications to T or A with proper validation and regeneration:
-- Changing T -> validate A compatibility, regenerate A if needed, regenerate poles
+- Changing T -> validate A compatibility, regenerate A if needed, regenerate angles
 - Changing A -> validate T compatibility, handle misclassification
 - Changing both T and A together
 
@@ -10,9 +10,9 @@ Editing behavior based on PP state:
 - Uncommitted PP -> edit in place, commit it
 - Committed PP -> clone (fork with origin_hash), edit the copy, commit it
 
-In both cases, the returned PP is committed with all 6 poles set.
+In both cases, the returned PP is committed with all 6 positions set.
 
-Use EditTetrad for editing poles (T+, T-, A+, A-).
+Use EditTetrad for editing angles (T+, T-, A+, A-).
 Use PerspectiveValidation capability separately for full tetrad validation.
 
 Uses ForkableMixin: forked PP has origin_hash pointing to the original.
@@ -25,7 +25,7 @@ Usage:
     result = await editor.execute()
 
     if result.is_valid:
-        pp = result.perspective  # Committed PP with all 6 poles
+        pp = result.perspective  # Committed PP with all 6 positions
         if result.warnings:
             print("Edit-time warnings:", result.warnings)
 """
@@ -45,9 +45,9 @@ from dialectical_framework.features.antithesis_classification import \
     AntithesisClassification
 from dialectical_framework.features.antithesis_extraction import \
     AntithesisExtraction
-from dialectical_framework.features.pole_classification import \
-    PoleClassification
-from dialectical_framework.features.pole_generation import PoleGeneration
+from dialectical_framework.features.angle_classification import \
+    AngleClassification
+from dialectical_framework.features.angle_generation import AngleGeneration
 from dialectical_framework.features.statement_classification import \
     StatementClassification
 from dialectical_framework.graph.nodes.dialectical_component import \
@@ -66,8 +66,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 
-# Positions that are poles (not T or A)
-POLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
+# Positions that are angles (not T or A)
+ANGLE_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
 
 # Heuristic Similarity threshold for "wrong category"
 HS_WRONG_CATEGORY_THRESHOLD = 0.1
@@ -96,10 +96,10 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
     """
     Skill for editing T or A components of a Perspective with validation.
 
-    Validates edits, regenerates affected components (including poles), and returns PP.
+    Validates edits, regenerates affected components (including angles), and returns PP.
     Does NOT mutate the original committed Perspective (clones it instead).
 
-    For editing poles (T+, T-, A+, A-), use EditTetrad instead.
+    For editing angles (T+, T-, A+, A-), use EditTetrad instead.
 
     Dual interface:
     - execute() returns EditPolarityResult for programmatic use
@@ -158,7 +158,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         if not self._changes:
             result = EditPolarityResult(
                 is_valid=False,
-                error_message="Must provide T and/or A change. For poles, use EditTetrad.",
+                error_message="Must provide T and/or A change. For angles, use EditTetrad.",
             )
             self._build_report(result)
             return result
@@ -239,8 +239,8 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         new_a.commit()
         self._report.node_created(new_a)
 
-        # Fill working PP with new T/A and regenerate all poles
-        await self._fill_pp_and_regenerate_poles(
+        # Fill working PP with new T/A and regenerate all angles
+        await self._fill_pp_and_regenerate_angles(
             thesis=new_t,
             antithesis=new_a,
             a_hs=a_validation.heuristic_similarity,
@@ -257,7 +257,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
             is_valid=True,
             warnings=warnings,
             changed_positions=[POSITION_T, POSITION_A],
-            regenerated_positions=POLE_POSITIONS.copy(),
+            regenerated_positions=ANGLE_POSITIONS.copy(),
         )
 
     async def _handle_thesis_change(self) -> EditPolarityResult:
@@ -330,7 +330,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
             )
 
         # Fill working PP
-        await self._fill_pp_and_regenerate_poles(
+        await self._fill_pp_and_regenerate_angles(
             thesis=new_t,
             antithesis=antithesis_to_use,
             a_hs=a_hs,
@@ -340,7 +340,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
             new_t, f"Thesis changed to '{new_t_statement}' (HS={a_hs:.2f})"
         )
 
-        regenerated.extend(POLE_POSITIONS)
+        regenerated.extend(ANGLE_POSITIONS)
 
         return EditPolarityResult(
             perspective=self._working_pp,
@@ -373,29 +373,29 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         # Check if new A is valid
         if a_validation.heuristic_similarity <= HS_WRONG_CATEGORY_THRESHOLD:
-            # Check if it might be a pole
+            # Check if it might be an angle
             current_a = self._original_pp.get_component(POSITION_A)
             if current_a:
-                for pole_pos in POLE_POSITIONS:
-                    pole_classifier = PoleClassification()
+                for angle_pos in ANGLE_POSITIONS:
+                    angle_classifier = AngleClassification()
                     try:
-                        pole_result = await pole_classifier.execute(
+                        angle_result = await angle_classifier.execute(
                             thesis=current_t,
                             antithesis=current_a,
-                            pole_statement=new_a_statement,
-                            position=pole_pos,
+                            angle_statement=new_a_statement,
+                            position=angle_pos,
                             text=self._text,
                         )
                         if (
-                            pole_result.heuristic_similarity
+                            angle_result.heuristic_similarity
                             > HS_WRONG_CATEGORY_THRESHOLD
                         ):
                             return EditPolarityResult(
                                 is_valid=False,
                                 error_message=(
-                                    f"'{new_a_statement}' looks more like {pole_pos} "
-                                    f"(HS={pole_result.heuristic_similarity:.2f}) than an antithesis. "
-                                    f"Use EditTetrad for pole edits."
+                                    f"'{new_a_statement}' looks more like {angle_pos} "
+                                    f"(HS={angle_result.heuristic_similarity:.2f}) than an antithesis. "
+                                    f"Use EditTetrad for angle edits."
                                 ),
                             )
                     except Exception:
@@ -418,7 +418,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         self._report.node_created(new_a)
 
         # Fill working PP
-        await self._fill_pp_and_regenerate_poles(
+        await self._fill_pp_and_regenerate_angles(
             thesis=current_t,
             antithesis=new_a,
             a_hs=a_validation.heuristic_similarity,
@@ -433,16 +433,16 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
             perspective=self._working_pp,
             is_valid=True,
             changed_positions=[POSITION_A],
-            regenerated_positions=POLE_POSITIONS.copy(),
+            regenerated_positions=ANGLE_POSITIONS.copy(),
         )
 
-    async def _fill_pp_and_regenerate_poles(
+    async def _fill_pp_and_regenerate_angles(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
         a_hs: float,
     ) -> None:
-        """Fill working PP with T, A (via Polarity) and regenerate all poles."""
+        """Fill working PP with T, A (via Polarity) and regenerate all angles."""
         pp = self._working_pp
 
         # Create Polarity for T-A pair
@@ -455,16 +455,16 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         # Connect PP to Polarity
         pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-        # Generate all poles
-        generator = PoleGeneration()
-        generated_poles = await generator.execute(
+        # Generate all angles
+        generator = AngleGeneration()
+        generated_angles = await generator.execute(
             perspective=pp,
-            positions=POLE_POSITIONS,
+            positions=ANGLE_POSITIONS,
             text=self._text,
         )
         self._report = self._report.merge(generator.report)
 
-        # Connect generated poles
+        # Connect generated angles
         rel_classes = {
             POSITION_T_PLUS: TPlusRelationship,
             POSITION_T_MINUS: TMinusRelationship,
@@ -472,16 +472,16 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
             POSITION_A_MINUS: AMinusRelationship,
         }
 
-        for pole in generated_poles:
-            rel_class = rel_classes[pole.position]
-            manager = pp.get_relationship_manager_by_position(pole.position)
+        for angle in generated_angles:
+            rel_class = rel_classes[angle.position]
+            manager = pp.get_relationship_manager_by_position(angle.position)
             manager.connect(
-                pole.component,
+                angle.component,
                 relationship=rel_class(
-                    alias=pole.position,
-                    heuristic_similarity=pole.heuristic_similarity,
-                    complementarity_t=pole.complementarity_t,
-                    complementarity_a=pole.complementarity_a,
+                    alias=angle.position,
+                    heuristic_similarity=angle.heuristic_similarity,
+                    complementarity_t=angle.complementarity_t,
+                    complementarity_a=angle.complementarity_a,
                 ),
             )
 

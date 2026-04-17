@@ -4,7 +4,7 @@ IdeaPlacement: Capability for determining where an idea belongs in the dialectic
 Given an arbitrary idea and existing graph state, determines:
 - Is it a duplicate of an existing component?
 - Is it an antithesis of an existing thesis?
-- Is it a pole (T+/T-/A+/A-) of an existing tension?
+- Is it an angle (T+/T-/A+/A-) of an existing tension?
 - Or is it a new thesis?
 
 This is the routing capability for agentic apps where the user introduces
@@ -12,11 +12,11 @@ ideas without specifying the position.
 
 Flow:
 1. Check for semantic duplicate (LLM check, no component created yet)
-2. If not duplicate, determine placement type (thesis/antithesis/pole)
+2. If not duplicate, determine placement type (thesis/antithesis/angle)
 3. Run appropriate classification based on placement:
    - thesis → StatementClassification
    - antithesis → AntithesisClassification
-   - pole → PoleClassification
+   - angle → AngleClassification
 4. Create component with proper meaning from classification
 5. Attach Rationale with placement + classification reasoning
 
@@ -31,8 +31,8 @@ Usage:
 
     if result.placement == "antithesis":
         print(f"Hate is antithesis of {result.antithesis_of}")
-    elif result.placement == "pole":
-        print(f"Hate is {result.position} of {result.pole_of}")
+    elif result.placement == "angle":
+        print(f"Hate is {result.position} of {result.angle_of}")
 
     # The component is always available (with proper classification)
     component = result.component
@@ -52,8 +52,8 @@ from dialectical_framework.agents.executable_capability import \
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.features.antithesis_classification import \
     AntithesisClassification
-from dialectical_framework.features.pole_classification import \
-    PoleClassification
+from dialectical_framework.features.angle_classification import \
+    AngleClassification
 from dialectical_framework.features.statement_classification import \
     StatementClassification
 from dialectical_framework.features.statement_deduplication import \
@@ -78,7 +78,7 @@ Note: Duplicate detection has already been done - the idea is NOT a duplicate.
    - Represents opposition, negation, or absence
    - Only consider if the existing component is a thesis (not already an antithesis)
 
-2. **POLE**: The idea is a positive/negative aspect of an existing tension
+2. **ANGLE**: The idea is a positive/negative aspect of an existing tension
    - T+: Positive aspect of thesis (benefit, strength)
    - T-: Negative aspect of thesis (risk, shadow)
    - A+: Positive aspect of antithesis (benefit, strength)
@@ -93,7 +93,7 @@ Note: Duplicate detection has already been done - the idea is NOT a duplicate.
 
 When analyzing, consider in this order:
 1. First check if it's an ANTITHESIS of an existing thesis
-2. Then check if it's a POLE of an existing tension
+2. Then check if it's an ANGLE of an existing tension
 3. Finally, treat as new THESIS
 
 Respond with structured output matching the requested format."""
@@ -110,7 +110,7 @@ class PlacementAnalysisDto(BaseModel):
     """
 
     placement: str = Field(
-        description="Where the idea belongs: 'antithesis', 'pole', or 'thesis'"
+        description="Where the idea belongs: 'antithesis', 'angle', or 'thesis'"
     )
     confidence: float = Field(
         ge=0.0,
@@ -124,18 +124,18 @@ class PlacementAnalysisDto(BaseModel):
         description="If antithesis, hash of the thesis it opposes",
     )
 
-    # For pole - identify the tension and position
+    # For angle - identify the tension and position
     tension_thesis_hash: Optional[str] = Field(
         default=None,
-        description="If pole, hash of the thesis in the tension",
+        description="If angle, hash of the thesis in the tension",
     )
     tension_antithesis_hash: Optional[str] = Field(
         default=None,
-        description="If pole, hash of the antithesis in the tension",
+        description="If angle, hash of the antithesis in the tension",
     )
     position: Optional[str] = Field(
         default=None,
-        description="If pole, position: T+, T-, A+, A-",
+        description="If angle, position: T+, T-, A+, A-",
     )
 
     reasoning: str = Field(description="Explanation of the placement decision")
@@ -144,7 +144,7 @@ class PlacementAnalysisDto(BaseModel):
 # --- Result ---
 
 
-PlacementType = Literal["duplicate", "antithesis", "pole", "thesis"]
+PlacementType = Literal["duplicate", "antithesis", "angle", "thesis"]
 
 
 @dataclass
@@ -160,14 +160,14 @@ class IdeaPlacementResult:
     # For duplicate
     duplicate_of: Optional[str] = None  # Component hash of existing duplicate
 
-    # For antithesis or pole - HS from classification
+    # For antithesis or angle - HS from classification
     heuristic_similarity: Optional[float] = None
 
     # For antithesis
     antithesis_of: Optional[str] = None  # Thesis hash
 
-    # For pole
-    pole_of: Optional[tuple[str, str]] = None  # (thesis_hash, antithesis_hash)
+    # For angle
+    angle_of: Optional[tuple[str, str]] = None  # (thesis_hash, antithesis_hash)
     position: Optional[str] = None  # T+, T-, A+, A-
     complementarity_t: Optional[float] = None
     complementarity_a: Optional[float] = None
@@ -191,7 +191,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
     Capability for determining where an idea belongs in the dialectical graph.
 
     Creates a DialecticalComponent for the idea, uses StatementDeduplication
-    to check for duplicates, then determines placement (antithesis, pole, or thesis).
+    to check for duplicates, then determines placement (antithesis, angle, or thesis).
 
     The result always contains a component - either the newly created one or
     the existing duplicate found during deduplication.
@@ -212,7 +212,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
         Flow:
         1. Check for semantic duplicate (no component created yet)
-        2. Determine placement type (thesis/antithesis/pole)
+        2. Determine placement type (thesis/antithesis/angle)
         3. Run appropriate classification based on placement
         4. Create component with proper meaning from classification
         5. Attach Rationale with placement + classification reasoning
@@ -246,7 +246,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         if duplicate_result is not None:
             return duplicate_result
 
-        # Step 2: Analyze placement (antithesis, pole, or thesis)
+        # Step 2: Analyze placement (antithesis, angle, or thesis)
         analysis = await self._analyze_placement()
 
         # Step 3: Run appropriate classification and create component
@@ -339,8 +339,8 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
         if placement == "antithesis" and analysis.antithesis_of_hash:
             return await self._handle_antithesis(analysis)
-        elif placement == "pole" and analysis.tension_thesis_hash:
-            return await self._handle_pole(analysis)
+        elif placement == "angle" and analysis.tension_thesis_hash:
+            return await self._handle_angle(analysis)
         else:
             # Default to thesis
             return await self._handle_thesis(analysis)
@@ -429,8 +429,8 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
             heuristic_similarity=classification.heuristic_similarity,
         )
 
-    async def _handle_pole(self, analysis: PlacementAnalysisDto) -> IdeaPlacementResult:
-        """Handle idea as pole of existing tension."""
+    async def _handle_angle(self, analysis: PlacementAnalysisDto) -> IdeaPlacementResult:
+        """Handle idea as angle of existing tension."""
         # Find thesis and antithesis components
         repo = NodeRepository()
         thesis = repo.find_by_hash(analysis.tension_thesis_hash)
@@ -447,12 +447,12 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
         position = analysis.position or "T+"
 
-        # Run PoleClassification
-        classifier = PoleClassification()
+        # Run AngleClassification
+        classifier = AngleClassification()
         classification = await classifier.execute(
             thesis=thesis,
             antithesis=antithesis,
-            pole_statement=self._idea,
+            angle_statement=self._idea,
             position=position,
             text=self._text,
         )
@@ -470,7 +470,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
             "valid" if classification.heuristic_similarity > 0.1 else "wrong category"
         )
         rationale_text = (
-            f"Placement: {position} pole of tension '{thesis.statement}' ↔ '{antithesis.statement}'\n"
+            f"Placement: {position} angle of tension '{thesis.statement}' ↔ '{antithesis.statement}'\n"
             f"Reasoning: {analysis.reasoning}\n\n"
             f"Classification ({validity}):\n"
             f"- Heuristic Similarity: {classification.heuristic_similarity:.2f}\n"
@@ -483,12 +483,12 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
         return IdeaPlacementResult(
             idea=self._idea,
-            placement="pole",
+            placement="angle",
             confidence=analysis.confidence,
             reasoning=analysis.reasoning,
             component=component,
             heuristic_similarity=classification.heuristic_similarity,
-            pole_of=(thesis.hash, antithesis.hash),
+            angle_of=(thesis.hash, antithesis.hash),
             position=position,
             complementarity_t=classification.complementarity_t,
             complementarity_a=classification.complementarity_a,
@@ -554,12 +554,12 @@ Note: This idea has already been checked and is NOT a duplicate of existing voca
    - Consider: Does it create meaningful tension? Is it opposition/negation/absence?
    - If yes: set placement="antithesis", antithesis_of_hash=thesis hash
 
-2. **Check for POLE**: Is "{self._idea}" a positive/negative aspect of any existing tension?
+2. **Check for ANGLE**: Is "{self._idea}" a positive/negative aspect of any existing tension?
    - T+: benefit/strength of thesis
    - T-: risk/shadow of thesis
    - A+: benefit/strength of antithesis
    - A-: risk/shadow of antithesis
-   - If yes: set placement="pole", provide tension hashes (thesis and antithesis) and position
+   - If yes: set placement="angle", provide tension hashes (thesis and antithesis) and position
 
 3. **Otherwise THESIS**: Treat as a new thesis anchor
 
@@ -577,7 +577,7 @@ Note: Actual metrics (HS, complementarity) will be computed by specialized class
         placement = analysis.placement.lower()
 
         # Validate placement type (duplicate handled before this)
-        if placement not in ("antithesis", "pole", "thesis"):
+        if placement not in ("antithesis", "angle", "thesis"):
             placement = "thesis"
 
         result = IdeaPlacementResult(
@@ -592,9 +592,9 @@ Note: Actual metrics (HS, complementarity) will be computed by specialized class
             result.antithesis_of = analysis.antithesis_of_hash
             # heuristic_similarity comes from actual classification, not DTO
 
-        elif placement == "pole":
+        elif placement == "angle":
             if analysis.tension_thesis_hash and analysis.tension_antithesis_hash:
-                result.pole_of = (
+                result.angle_of = (
                     analysis.tension_thesis_hash,
                     analysis.tension_antithesis_hash,
                 )
@@ -613,8 +613,8 @@ Note: Actual metrics (HS, complementarity) will be computed by specialized class
         elif result.placement == "antithesis":
             self._report.artifacts["antithesis_of"] = result.antithesis_of
             self._report.artifacts["heuristic_similarity"] = result.heuristic_similarity
-        elif result.placement == "pole":
-            self._report.artifacts["pole_of"] = result.pole_of
+        elif result.placement == "angle":
+            self._report.artifacts["angle_of"] = result.angle_of
             self._report.artifacts["position"] = result.position
             self._report.artifacts["heuristic_similarity"] = result.heuristic_similarity
 

@@ -28,7 +28,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 1. **Add Input**: User provides source material (text, URLs) to analyze
 2. **Extract Theses**: Find key concepts and claims in the content
 3. **Generate Antitheses**: Create dialectical oppositions for each thesis
-4. **Complete Perspectives**: Add positive/negative poles (T+, T-, A+, A-)
+4. **Complete Perspectives**: Add positive/negative angles (T+, T-, A+, A-)
 5. **Create Cycles**: Arrange Perspectives into ordered causal sequences
 6. **Create Wheels**: Build concrete arrangements with flip configurations
 7. **Generate Transformations**: Create action-reflection navigation paths
@@ -43,9 +43,9 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 ### Building
 - **SurfaceTheses**: Extract theses from inputs or anchor direct concepts
 - **FindPolarities**: Generate antitheses and create Polarities (T-A pairs)
-- **ExpandPolarities**: Complete Perspectives with positive/negative poles (T+, T-, A+, A-)
-- **EditPolarity**: Modify T or A of existing Perspective (regenerates poles)
-- **EditTetrad**: Modify poles (T+, T-, A+, A-) of existing Perspective
+- **ExpandPolarities**: Complete Perspectives with positive/negative angles (T+, T-, A+, A-)
+- **EditPolarity**: Modify T or A of existing Perspective (regenerates angles)
+- **EditTetrad**: Modify angles (T+, T-, A+, A-) of existing Perspective
 - **BuildWheels**: Combine Perspectives into Cycles and Wheels within a Nexus, then estimate causality
 - **ExploreTransformations**: Generate action-reflection transformations
 

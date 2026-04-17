@@ -50,7 +50,7 @@ class DialecticalComponentRepository:
             return []
 
         query = """
-        // Pole positions (T+, T-, A+, A-) directly on Perspective
+        // Angle positions (T+, T-, A+, A-) directly on Perspective
         MATCH (c:DialecticalComponent)-[r]->(pp:Perspective)
         WHERE id(pp) = $perspective_id
         AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
