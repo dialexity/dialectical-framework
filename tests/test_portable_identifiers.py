@@ -16,7 +16,7 @@ from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.scope_context import scope, get_current_case_id
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository
@@ -230,7 +230,7 @@ class TestCloneOperation:
     Important: Clone behavior differs between node categories:
     - Atoms (DialecticalComponent, Input, etc.): Content-addressable, NO origin_hash.
       Same content = same hash regardless of cloning.
-    - Forking Points (WisdomUnit, Nexus): Have origin_hash for lineage tracking.
+    - Forking Points (Perspective, Nexus): Have origin_hash for lineage tracking.
       Clones get different hashes due to origin_hash in computation.
     """
 
@@ -287,8 +287,8 @@ class TestCloneOperation:
         assert cloned.case_id == case_node2.case_id
 
     def test_forking_point_clone_sets_origin_hash(self):
-        """Cloned forking point (WisdomUnit) should have origin_hash pointing to original."""
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+        """Cloned forking point (Perspective) should have origin_hash pointing to original."""
+        from dialectical_framework.graph.nodes.perspective import Perspective
 
         import random
         case_node1 = Case()
@@ -298,7 +298,7 @@ class TestCloneOperation:
         case_node2.commit()
 
         with scope(case_node1.case_id):
-            # Create a complete WisdomUnit (forking point)
+            # Create a complete Perspective (forking point)
             t = DialecticalComponent(statement=f"Thesis {random.random()}")
             t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}")
             t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}")
@@ -309,24 +309,24 @@ class TestCloneOperation:
             for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
                 comp.commit()
 
-            original_wu = WisdomUnit()
-            original_wu.save()
-            original_wu.t.connect(t, properties={'alias': 'T'})
-            original_wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-            original_wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
-            original_wu.a.connect(a, properties={'alias': 'A'})
-            original_wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
-            original_wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
-            original_wu.commit()
+            original_pp = Perspective()
+            original_pp.save()
+            original_pp.t.connect(t, properties={'alias': 'T'})
+            original_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
+            original_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
+            original_pp.a.connect(a, properties={'alias': 'A'})
+            original_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
+            original_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+            original_pp.commit()
 
-        cloned_wu = original_wu.clone(destination_case_id=case_node2.case_id)
+        cloned_pp = original_pp.clone(destination_case_id=case_node2.case_id)
 
         # Forking points have origin_hash pointing to source
-        assert cloned_wu.origin_hash == original_wu.hash
+        assert cloned_pp.origin_hash == original_pp.hash
 
     def test_forking_point_clone_has_different_hash(self):
         """Cloned forking point should have different hash due to origin_hash."""
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+        from dialectical_framework.graph.nodes.perspective import Perspective
 
         import random
         case_node1 = Case()
@@ -348,31 +348,31 @@ class TestCloneOperation:
             comp.commit()
 
         with scope(case_node1.case_id):
-            original_wu = WisdomUnit()
-            original_wu.save()
-            original_wu.t.connect(t, properties={'alias': 'T'})
-            original_wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-            original_wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
-            original_wu.a.connect(a, properties={'alias': 'A'})
-            original_wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
-            original_wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
-            original_wu.commit()
+            original_pp = Perspective()
+            original_pp.save()
+            original_pp.t.connect(t, properties={'alias': 'T'})
+            original_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
+            original_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
+            original_pp.a.connect(a, properties={'alias': 'A'})
+            original_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
+            original_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+            original_pp.commit()
 
         # Clone and reconnect components (clone doesn't copy relationships)
-        # Components are orphans, so they can be connected to WU in any scope
-        cloned_wu = original_wu.clone(destination_case_id=case_node2.case_id)
-        cloned_wu.save()
-        cloned_wu.t.connect(t, properties={'alias': 'T'})
-        cloned_wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-        cloned_wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
-        cloned_wu.a.connect(a, properties={'alias': 'A'})
-        cloned_wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
-        cloned_wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
-        cloned_wu.commit()
+        # Components are orphans, so they can be connected to PP in any scope
+        cloned_pp = original_pp.clone(destination_case_id=case_node2.case_id)
+        cloned_pp.save()
+        cloned_pp.t.connect(t, properties={'alias': 'T'})
+        cloned_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
+        cloned_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
+        cloned_pp.a.connect(a, properties={'alias': 'A'})
+        cloned_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
+        cloned_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+        cloned_pp.commit()
 
         # Forking points have different hashes due to origin_hash in computation
-        assert cloned_wu.hash != original_wu.hash
-        assert cloned_wu.origin_hash == original_wu.hash
+        assert cloned_pp.hash != original_pp.hash
+        assert cloned_pp.origin_hash == original_pp.hash
 
     def test_clone_returns_uncommitted_node(self):
         """Clone should return uncommitted (draft) node."""
@@ -508,14 +508,14 @@ class TestHashLookup:
 class TestLineageTracking:
     """Tests for origin_hash lineage tracking.
 
-    Note: origin_hash is only set on forking points (WisdomUnit, Nexus).
+    Note: origin_hash is only set on forking points (Perspective, Nexus).
     Atoms don't have lineage tracking - they're global facts.
     """
 
     def test_forking_point_has_origin_hash(self):
-        """Cloned forking points (WisdomUnit) should have origin_hash set."""
+        """Cloned forking points (Perspective) should have origin_hash set."""
         import random
-        from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+        from dialectical_framework.graph.nodes.perspective import Perspective
 
         case_node1 = Case()
         case_node1.commit()
@@ -532,25 +532,25 @@ class TestLineageTracking:
             comp.commit()
 
         with scope(case_node1.case_id):
-            original_wu = WisdomUnit(intent="original")
-            original_wu.save()
-            original_wu.t.connect(t, properties={'alias': 'T'})
-            original_wu.t_plus.connect(t_plus, properties={'alias': 'T+'})
-            original_wu.t_minus.connect(t_minus, properties={'alias': 'T-'})
-            original_wu.a.connect(a, properties={'alias': 'A'})
-            original_wu.a_plus.connect(a_plus, properties={'alias': 'A+'})
-            original_wu.a_minus.connect(a_minus, properties={'alias': 'A-'})
-            original_wu.commit()
+            original_pp = Perspective(intent="original")
+            original_pp.save()
+            original_pp.t.connect(t, properties={'alias': 'T'})
+            original_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
+            original_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
+            original_pp.a.connect(a, properties={'alias': 'A'})
+            original_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
+            original_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+            original_pp.commit()
 
         # Original should have no origin_hash
-        assert original_wu.origin_hash is None
+        assert original_pp.origin_hash is None
 
         # Create fork
-        clone = original_wu.clone(destination_case_id=case_node1.case_id)
+        clone = original_pp.clone(destination_case_id=case_node1.case_id)
         clone.intent = "fork"
 
         # Before commit, origin_hash should be set
-        assert clone.origin_hash == original_wu.hash
+        assert clone.origin_hash == original_pp.hash
 
         # After commit, origin_hash should still be set
         clone.save()
@@ -562,10 +562,10 @@ class TestLineageTracking:
         clone.a_minus.connect(a_minus, properties={'alias': 'A-'})
         clone.commit()
 
-        assert clone.origin_hash == original_wu.hash
+        assert clone.origin_hash == original_pp.hash
 
         # Verify different hashes due to origin_hash
-        assert clone.hash != original_wu.hash
+        assert clone.hash != original_pp.hash
 
     def test_atoms_have_no_lineage(self):
         """Atoms (DialecticalComponent) should NOT have origin_hash after clone."""

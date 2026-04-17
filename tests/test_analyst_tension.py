@@ -151,8 +151,8 @@ class TestTensionAgent:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_tension_creates_partial_wisdom_units(self):
-        """TensionAgent creates partial WisdomUnits (T + A only)."""
+    async def test_tension_creates_partial_perspectives(self):
+        """TensionAgent creates partial Perspectives (T + A only)."""
         case_node = Case()
         case_node.commit()
 
@@ -169,13 +169,13 @@ class TestTensionAgent:
             report = json.loads(result)
             assert report["ok"] is True
 
-            # Check that partial WUs were created
+            # Check that partial PPs were created
             antithesis_data = report["artifacts"].get("antithesis_data", [])
             assert len(antithesis_data) >= 1
 
-            # Each entry should have wisdom_unit_hash (partial WU)
+            # Each entry should have perspective_hash (partial PP)
             for data in antithesis_data:
-                assert "wisdom_unit_hash" in data
+                assert "perspective_hash" in data
                 assert "thesis_hash" in data
                 assert "antithesis_hash" in data
 

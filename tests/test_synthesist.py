@@ -6,7 +6,7 @@ from dialectical_framework.enums.causality_preset import CausalityPreset
 # Graph-native imports
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as GraphDialecticalComponent
 from dialectical_framework.graph.nodes.input import Input
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit as GraphWisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective as GraphPerspective
 
 user_message = "Putin started the war, Ukraine will not surrender and will finally win!"
 
@@ -72,10 +72,10 @@ async def test_bigger_wheel(number_of_thoughts):
 
 @pytest.mark.asyncio
 async def test_causality_sequencer(di_container):
-    """Test causality sequencer with graph-native WisdomUnits.
+    """Test causality sequencer with graph-native Perspectives.
 
     Workflow:
-    1. BuildWheels skill creates Cycles and Wheels from WisdomUnits in a Nexus
+    1. BuildWheels skill creates Cycles and Wheels from Perspectives in a Nexus
     2. Estimation attaches AI-generated Rationale and Estimation nodes
     """
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -91,8 +91,8 @@ async def test_causality_sequencer(di_container):
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.scope_context import scope
 
-    def create_wu(index: int) -> GraphWisdomUnit:
-        """Create a complete WisdomUnit with Polarity and poles."""
+    def create_pp(index: int) -> GraphPerspective:
+        """Create a complete Perspective with Polarity and poles."""
         # Create T and A
         t = GraphDialecticalComponent(
             statement=f"Thesis {index}", meaning=f"thesis:test:{index}"
@@ -109,10 +109,10 @@ async def test_causality_sequencer(di_container):
         polarity.set_a(a, heuristic_similarity=0.8)
         polarity.commit()
 
-        # Create WU
-        wu = GraphWisdomUnit(intent="test")
-        wu.save()
-        wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+        # Create PP
+        pp = GraphPerspective(intent="test")
+        pp.save()
+        pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
         # Create poles
         t_plus = GraphDialecticalComponent(
@@ -132,30 +132,30 @@ async def test_causality_sequencer(di_container):
         )
         a_minus.commit()
 
-        wu.t_plus.connect(
+        pp.t_plus.connect(
             t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9)
         )
-        wu.t_minus.connect(
+        pp.t_minus.connect(
             t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9)
         )
-        wu.a_plus.connect(
+        pp.a_plus.connect(
             a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9)
         )
-        wu.a_minus.connect(
+        pp.a_minus.connect(
             a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9)
         )
 
-        wu.commit()
-        return wu
+        pp.commit()
+        return pp
 
     # Create scope
     case_node = Case()
     case_node.commit()
 
     with scope(case_node.case_id):
-        # Create two WisdomUnits
-        wu1 = create_wu(1)
-        wu2 = create_wu(2)
+        # Create two Perspectives
+        pp1 = create_pp(1)
+        pp2 = create_pp(2)
 
         # Create Nexus and use BuildWheels to create and estimate cycles
         nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
@@ -163,7 +163,7 @@ async def test_causality_sequencer(di_container):
 
         skill = BuildWheels(
             nexus_hash=nexus.hash,
-            wisdom_unit_hashes=[wu1.hash, wu2.hash],
+            perspective_hashes=[pp1.hash, pp2.hash],
         )
         result = await skill.execute()
 
@@ -204,7 +204,7 @@ async def test_causality_sequencer(di_container):
                         print(f"  Probability: {est.value}")
                         break
 
-            print(f"  WisdomUnits: {cycle.wisdom_unit_count}")
+            print(f"  Perspectives: {cycle.perspective_count}")
 
 @pytest.mark.asyncio
 async def test_redefine_is_dirty_optimization():
@@ -213,7 +213,7 @@ async def test_redefine_is_dirty_optimization():
     wheels = await factory.build_wheel_permutations(theses=[None, None])
 
     original_wheel_uid = wheels[0].hash
-    original_wu_uids = [wu.hash for wu in wheels[0]._wisdom_units]  # wisdom_units is a list property
+    original_pp_uids = [pp.hash for pp in wheels[0]._perspectives]  # perspectives is a list property
 
     # Test 1: Empty dict - should preserve originals (first-level optimization)
     new_wheels = await factory.redefine(modified_statement_per_alias={})
@@ -228,30 +228,30 @@ async def test_redefine_is_dirty_optimization():
 
     # Test 2: Redefine with same statements - should preserve originals (second-level optimization)
     # Get original statements
-    wus = sorted(wheels[0]._wisdom_units, key=lambda wu: wu.get_human_friendly_index())
-    original_t1_statement = wus[0].get_component("T").statement if wus[0].get_component("T") else None
+    pps = sorted(wheels[0]._perspectives, key=lambda pp: pp.get_human_friendly_index())
+    original_t1_statement = pps[0].get_component("T").statement if pps[0].get_component("T") else None
 
     if original_t1_statement:
-        # Pass the same statement - should return original WU
+        # Pass the same statement - should return original PP
         new_wheels2 = await factory.redefine(modified_statement_per_alias={"T1": original_t1_statement})
 
         # Wheel should be preserved (second-level optimization)
         assert new_wheels2[0].hash == original_wheel_uid, "Redefine with same statement should preserve original wheel"
 
-        # WU should be the same (returned original)
-        new_wu_uids = [wu.hash for wu in new_wheels2[0]._wisdom_units]
-        assert new_wu_uids == original_wu_uids, "WUs should be unchanged when statement is identical"
+        # PP should be the same (returned original)
+        new_pp_uids = [pp.hash for pp in new_wheels2[0]._perspectives]
+        assert new_pp_uids == original_pp_uids, "PPs should be unchanged when statement is identical"
 
         print("\n=== Second-level is_dirty optimization test passed ===")
         print(f"Redefined with same statement: {original_t1_statement[:50]}...")
-        print(f"WU UIDs unchanged: {new_wu_uids[0] == original_wu_uids[0]}")
-        print("Wheel and WUs were preserved without recalculating cycles")
+        print(f"PP UIDs unchanged: {new_pp_uids[0] == original_pp_uids[0]}")
+        print("Wheel and PPs were preserved without recalculating cycles")
 
 @pytest.mark.asyncio
 async def test_selective_synthesis():
-    """Test synthesizing specific WUs only (Feature #3).
+    """Test synthesizing specific PPs only (Feature #3).
 
-    Note: Synthesis requires a Transformation target. WisdomUnits need to have
+    Note: Synthesis requires a Transformation target. Perspectives need to have
     their transformations calculated before synthesis can be created.
     This test creates proper Transformations with their own Transitions.
     """
@@ -262,20 +262,20 @@ async def test_selective_synthesis():
     wheels = await factory.build_wheel_permutations(theses=[None, None])
     wheel = wheels[0]
 
-    wus = wheel._wisdom_units  # wisdom_units is already a list property
-    assert len(wus) == 2, "Should have 2 WUs"
+    pps = wheel._perspectives  # perspectives is already a list property
+    assert len(pps) == 2, "Should have 2 PPs"
 
-    # Create a Transformation for the first WU so synthesis has a target
-    wu = wus[0]
+    # Create a Transformation for the first PP so synthesis has a target
+    pp = pps[0]
     transformation = Transformation()
-    transformation.set_wisdom_unit(wu)
+    transformation.set_perspective(pp)
     transformation.save()
 
     # Create dedicated transitions for the Transformation
-    # Transformation needs transitions through the WU's T-/A+ path (action-reflection)
+    # Transformation needs transitions through the PP's T-/A+ path (action-reflection)
     # Use position accessors instead of alias lookup (aliases may include index like "T1-")
-    t_minus_result = wu.t_minus.get()
-    a_plus_result = wu.a_plus.get()
+    t_minus_result = pp.t_minus.get()
+    a_plus_result = pp.a_plus.get()
     t_minus = t_minus_result[0] if t_minus_result else None
     a_plus = a_plus_result[0] if a_plus_result else None
 
@@ -296,10 +296,10 @@ async def test_selective_synthesis():
 
         transformation.commit()
 
-        # Synthesize only first WU (now has a transformation)
-        syntheses = await factory.calculate_syntheses(wheel=wheel, at=wu)
+        # Synthesize only first PP (now has a transformation)
+        syntheses = await factory.calculate_syntheses(wheel=wheel, at=pp)
 
-        assert len(syntheses) == 1, "Should create synthesis for 1 WU only"
+        assert len(syntheses) == 1, "Should create synthesis for 1 PP only"
 
         # Verify synthesis was created with S+/S- components
         synthesis = syntheses[0]
@@ -310,10 +310,10 @@ async def test_selective_synthesis():
         assert wheel.score is not None, "Wheel should be rescored after synthesis"
 
         print("\n=== Selective synthesis test passed ===")
-        print(f"Created {len(syntheses)} synthesis for 1 WU")
+        print(f"Created {len(syntheses)} synthesis for 1 PP")
         print(f"Synthesis S+: {synthesis.s_plus.get()[0].statement if synthesis.s_plus.get() else 'None'}")
         print(f"Synthesis S-: {synthesis.s_minus.get()[0].statement if synthesis.s_minus.get() else 'None'}")
         print(f"Wheel score after synthesis: {wheel.score}")
     else:
-        # WU doesn't have T-/A+ components (incomplete WU) - skip synthesis test
-        pytest.skip("WU missing T- or A+ components required for Transformation")
+        # PP doesn't have T-/A+ components (incomplete PP) - skip synthesis test
+        pytest.skip("PP missing T- or A+ components required for Transformation")

@@ -20,15 +20,15 @@ from dialectical_framework.features.transformation_generation import \
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, ARelationship, TMinusRelationship,
     TPlusRelationship, TRelationship)
 from dialectical_framework.graph.scope_context import scope
 
 
-def _create_complete_wu() -> WisdomUnit:
-    """Create a complete WisdomUnit for testing."""
+def _create_complete_pp() -> Perspective:
+    """Create a complete Perspective for testing."""
     # T-side: Love
     t = DialecticalComponent(
         statement="Love",
@@ -67,12 +67,12 @@ def _create_complete_wu() -> WisdomUnit:
     )
     a_minus.commit()
 
-    # Build WU
-    wu = WisdomUnit()
-    wu.save()
+    # Build PP
+    pp = Perspective()
+    pp.save()
 
-    wu.t.connect(t, relationship=TRelationship(alias="T", heuristic_similarity=1.0))
-    wu.t_plus.connect(
+    pp.t.connect(t, relationship=TRelationship(alias="T", heuristic_similarity=1.0))
+    pp.t_plus.connect(
         t_plus,
         relationship=TPlusRelationship(
             alias="T+",
@@ -81,7 +81,7 @@ def _create_complete_wu() -> WisdomUnit:
             complementarity_a=0.3,
         ),
     )
-    wu.t_minus.connect(
+    pp.t_minus.connect(
         t_minus,
         relationship=TMinusRelationship(
             alias="T-",
@@ -90,8 +90,8 @@ def _create_complete_wu() -> WisdomUnit:
             complementarity_a=0.2,
         ),
     )
-    wu.a.connect(a, relationship=ARelationship(alias="A", heuristic_similarity=1.0))
-    wu.a_plus.connect(
+    pp.a.connect(a, relationship=ARelationship(alias="A", heuristic_similarity=1.0))
+    pp.a_plus.connect(
         a_plus,
         relationship=APlusRelationship(
             alias="A+",
@@ -100,7 +100,7 @@ def _create_complete_wu() -> WisdomUnit:
             complementarity_a=0.8,
         ),
     )
-    wu.a_minus.connect(
+    pp.a_minus.connect(
         a_minus,
         relationship=AMinusRelationship(
             alias="A-",
@@ -110,8 +110,8 @@ def _create_complete_wu() -> WisdomUnit:
         ),
     )
 
-    wu.commit()
-    return wu
+    pp.commit()
+    return pp
 
 
 class TestAcReTaxonomy:
@@ -178,18 +178,18 @@ class TestApexDerivation:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_apex_derivation_requires_complete_wu(self):
-        """ApexDerivation raises error for incomplete WU."""
+    async def test_apex_derivation_requires_complete_pp(self):
+        """ApexDerivation raises error for incomplete PP."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = WisdomUnit()
-            wu.save()  # Incomplete - no components
+            pp = Perspective()
+            pp.save()  # Incomplete - no components
 
             service = ApexDerivation()
             with pytest.raises(ValueError, match="all 6 positions"):
-                await service.execute(wu)
+                await service.execute(pp)
 
     @pytest.mark.asyncio
     @observe()
@@ -199,10 +199,10 @@ class TestApexDerivation:
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_complete_wu()
+            pp = _create_complete_pp()
 
             service = ApexDerivation()
-            result = await service.execute(wu)
+            result = await service.execute(pp)
 
             # Check structure
             assert result.re_plus_apex is not None
@@ -223,7 +223,7 @@ class TestApexDerivation:
             assert 0.0 <= result.ac_plus_apex.insight <= 1.0
 
             # Check report
-            assert service.report.artifacts["wu_hash"] == wu.short_hash
+            assert service.report.artifacts["pp_hash"] == pp.short_hash
 
 
 class TestActionExtraction:
@@ -237,10 +237,10 @@ class TestActionExtraction:
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_complete_wu()
+            pp = _create_complete_pp()
 
             service = ActionExtraction()
-            candidates = await service.execute(wu)
+            candidates = await service.execute(pp)
 
             # Should generate multiple candidates
             assert len(candidates) >= 1, "Should generate at least one candidate"
@@ -261,18 +261,18 @@ class TestActionExtraction:
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_complete_wu()
+            pp = _create_complete_pp()
 
             # First extraction
             service1 = ActionExtraction()
-            candidates1 = await service1.execute(wu)
+            candidates1 = await service1.execute(pp)
             statements1 = {c.statement for c in candidates1}
 
             # Second extraction with first results as exclusions
             # (In real usage, we'd pass actual Transformation objects)
             # For now, we just verify the API works
             service2 = ActionExtraction()
-            candidates2 = await service2.execute(wu, not_like_these=[])
+            candidates2 = await service2.execute(pp, not_like_these=[])
 
             # Should still generate candidates
             assert len(candidates2) >= 1
@@ -289,20 +289,20 @@ class TestTransformationGeneration:
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_complete_wu()
+            pp = _create_complete_pp()
 
             # Get apex and Ac+ candidate
             apex_service = ApexDerivation()
-            apexes = await apex_service.execute(wu)
+            apexes = await apex_service.execute(pp)
 
             action_service = ActionExtraction()
-            candidates = await action_service.execute(wu)
+            candidates = await action_service.execute(pp)
             assert len(candidates) >= 1
             ac_plus = candidates[0]
 
             # Generate tetrad
             gen_service = TransformationGeneration()
-            tetrad = await gen_service.execute(wu, ac_plus, apexes)
+            tetrad = await gen_service.execute(pp, ac_plus, apexes)
 
             # Check all 4 positions present
             assert tetrad.ac_plus.statement, "Ac+ statement should not be empty"
@@ -320,47 +320,47 @@ class TestExploreTransformations:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_transformation_agent_requires_valid_wu(self):
-        """ExploreTransformations raises error for non-existent WU."""
+    async def test_transformation_agent_requires_valid_pp(self):
+        """ExploreTransformations raises error for non-existent PP."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            agent = ExploreTransformations(wisdom_unit_hash="nonexistent123")
+            agent = ExploreTransformations(perspective_hash="nonexistent123")
 
             with pytest.raises(ValueError, match="not found"):
                 await agent.execute()
 
     @pytest.mark.asyncio
     @observe()
-    async def test_transformation_agent_requires_complete_wu(self):
-        """ExploreTransformations raises error for incomplete WU.
+    async def test_transformation_agent_requires_complete_pp(self):
+        """ExploreTransformations raises error for incomplete PP.
 
-        Note: In practice, incomplete WUs can't be committed (cardinality validation),
+        Note: In practice, incomplete PPs can't be committed (cardinality validation),
         so they can't be found by hash. This test verifies the validation message
-        when passed a hash that resolves to None (uncommitted WU has no hash).
+        when passed a hash that resolves to None (uncommitted PP has no hash).
         """
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            # Create incomplete WU - note: it can't be committed so has no hash
-            wu = WisdomUnit()
+            # Create incomplete PP - note: it can't be committed so has no hash
+            pp = Perspective()
             t = DialecticalComponent(
                 statement="Test",
                 meaning="dx://taxonomy/System(General.v1)/Test",
             )
             t.commit()
-            wu.save()
-            wu.t.connect(
+            pp.save()
+            pp.t.connect(
                 t, relationship=TRelationship(alias="T", heuristic_similarity=1.0)
             )
-            # Don't add other components - WU is incomplete and can't be committed
+            # Don't add other components - PP is incomplete and can't be committed
 
-            # Since uncommitted WU has no hash, passing its short_hash (None) will fail
+            # Since uncommitted PP has no hash, passing its short_hash (None) will fail
             # with "not found" error, which is correct behavior
             agent = ExploreTransformations(
-                wisdom_unit_hash="uncommitted_wu_has_no_hash"
+                perspective_hash="uncommitted_pp_has_no_hash"
             )
 
             with pytest.raises(ValueError, match="not found"):
@@ -369,14 +369,14 @@ class TestExploreTransformations:
     @pytest.mark.asyncio
     @observe()
     async def test_transformation_agent_generates_transformations(self):
-        """ExploreTransformations generates new transformations for a complete WU."""
+        """ExploreTransformations generates new transformations for a complete PP."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_complete_wu()
+            pp = _create_complete_pp()
 
-            agent = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
+            agent = ExploreTransformations(perspective_hash=pp.short_hash)
             result = await agent.execute()
 
             # Should have generated at least one transformation
@@ -409,17 +409,17 @@ class TestExploreTransformations:
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_complete_wu()
+            pp = _create_complete_pp()
 
             # First run
-            agent1 = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
+            agent1 = ExploreTransformations(perspective_hash=pp.short_hash)
             result1 = await agent1.execute()
 
             first_new_count = len(result1.new)
             assert first_new_count >= 1
 
             # Second run
-            agent2 = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
+            agent2 = ExploreTransformations(perspective_hash=pp.short_hash)
             result2 = await agent2.execute()
 
             # Should include previously created transformations as existing
@@ -446,9 +446,9 @@ class TestExploreTransformations:
             input_node.commit()
             case_node.inputs.connect(input_node)
 
-            wu = _create_complete_wu()
+            pp = _create_complete_pp()
 
-            agent = ExploreTransformations(wisdom_unit_hash=wu.short_hash)
+            agent = ExploreTransformations(perspective_hash=pp.short_hash)
             result = await agent.execute()
 
             # Should still work with input in scope

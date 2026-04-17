@@ -52,7 +52,7 @@ services:
 ## Test Structure
 
 - `conftest.py` - Shared fixtures including Memgraph connection
-- `test_graph.py` - Graph structure tests (WisdomUnit, components, relationships)
+- `test_graph.py` - Graph structure tests (Perspective, components, relationships)
 
 ## Notes
 

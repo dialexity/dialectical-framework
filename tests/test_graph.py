@@ -1,7 +1,7 @@
 """
 Test graph structures with dependency injection.
 
-This test demonstrates creating WisdomUnits with dialectical components
+This test demonstrates creating Perspectives with dialectical components
 using the clean DI-based API (no db parameter needed!).
 
 The graph database (Memgraph or Neo4j) is injected via dependency injection,
@@ -19,7 +19,7 @@ import random
 
 import pytest
 
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.cycle import Cycle
@@ -38,7 +38,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 )
 
 
-def create_wisdom_unit_with_polarity(
+def create_perspective_with_polarity(
     t_statement: str = "Democracy empowers citizens",
     a_statement: str = "Authority provides order",
     t_plus_statement: str = "Democracy promotes equality",
@@ -47,12 +47,12 @@ def create_wisdom_unit_with_polarity(
     a_minus_statement: str = "Authority restricts freedom",
     intent: str = "test",
     heuristic_similarity: float = 0.8,
-) -> tuple[WisdomUnit, Polarity, dict]:
+) -> tuple[Perspective, Polarity, dict]:
     """
-    Helper to create a WisdomUnit with proper Polarity structure.
+    Helper to create a Perspective with proper Polarity structure.
 
     Returns:
-        Tuple of (wisdom_unit, polarity, components_dict)
+        Tuple of (perspective, polarity, components_dict)
         where components_dict has keys: t, a, t_plus, t_minus, a_plus, a_minus
     """
     # Create T and A components
@@ -67,10 +67,10 @@ def create_wisdom_unit_with_polarity(
     polarity.set_a(a, heuristic_similarity=heuristic_similarity)
     polarity.commit()
 
-    # Create WU and connect to Polarity
-    wu = WisdomUnit(intent=intent)
-    wu.save()
-    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+    # Create PP and connect to Polarity
+    pp = Perspective(intent=intent)
+    pp.save()
+    pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Create and connect poles
     t_plus = DialecticalComponent(statement=t_plus_statement, meaning="test")
@@ -82,10 +82,10 @@ def create_wisdom_unit_with_polarity(
     a_minus = DialecticalComponent(statement=a_minus_statement, meaning="test")
     a_minus.commit()
 
-    wu.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
-    wu.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
-    wu.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
-    wu.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
+    pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
+    pp.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
+    pp.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
+    pp.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
 
     components = {
         "t": t,
@@ -96,10 +96,10 @@ def create_wisdom_unit_with_polarity(
         "a_minus": a_minus,
     }
 
-    return wu, polarity, components
+    return pp, polarity, components
 
 
-def create_wu_from_components(
+def create_pp_from_components(
     t: DialecticalComponent,
     a: DialecticalComponent,
     t_plus: DialecticalComponent | None = None,
@@ -108,15 +108,15 @@ def create_wu_from_components(
     a_minus: DialecticalComponent | None = None,
     intent: str = "test",
     heuristic_similarity: float = 0.8,
-) -> tuple[WisdomUnit, Polarity]:
+) -> tuple[Perspective, Polarity]:
     """
-    Create a WisdomUnit with Polarity from pre-existing components.
+    Create a Perspective with Polarity from pre-existing components.
 
     T and A are required and must be committed.
     Poles (T+, T-, A+, A-) are optional.
 
     Returns:
-        Tuple of (wisdom_unit, polarity)
+        Tuple of (perspective, polarity)
     """
     # Create Polarity with T and A
     polarity = Polarity(intent=intent)
@@ -124,56 +124,56 @@ def create_wu_from_components(
     polarity.set_a(a, heuristic_similarity=heuristic_similarity)
     polarity.commit()
 
-    # Create WU and connect to Polarity
-    wu = WisdomUnit(intent=intent)
-    wu.save()
-    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+    # Create PP and connect to Polarity
+    pp = Perspective(intent=intent)
+    pp.save()
+    pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Connect poles if provided
     if t_plus:
-        wu.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
+        pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
     if t_minus:
-        wu.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
+        pp.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
     if a_plus:
-        wu.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
+        pp.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
     if a_minus:
-        wu.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
+        pp.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
 
-    return wu, polarity
+    return pp, polarity
 
 
 def create_cycle_wheel_setup(
-    wus: list[WisdomUnit],
+    pps: list[Perspective],
     components_for_transitions: list[DialecticalComponent],
     cycle_intent: str = "preset:balanced",
     wheel_intent: str = "test_wheel",
 ) -> tuple[Cycle, Wheel, list[Transition]]:
     """
-    Create a Cycle with ordered WUs and a Wheel with transitions.
+    Create a Cycle with ordered PPs and a Wheel with transitions.
 
     New model pattern (no Nexus):
-    1. Create Cycle with set_wisdom_units()
+    1. Create Cycle with set_perspectives()
     2. Create Wheel and add transitions
     3. Connect Wheel to Cycle
 
     Args:
-        wus: List of committed WisdomUnits (order matters for T-cycle)
+        pps: List of committed Perspectives (order matters for T-cycle)
         components_for_transitions: Components to use for wheel transitions
-            (must belong to WUs in the cycle)
+            (must belong to PPs in the cycle)
         cycle_intent: Intent for the cycle
         wheel_intent: Intent for the wheel
 
     Returns:
         Tuple of (cycle, wheel, transitions)
     """
-    # Ensure all WUs are committed
-    for wu in wus:
-        if not wu.is_committed:
-            wu.commit()
+    # Ensure all PPs are committed
+    for pp in pps:
+        if not pp.is_committed:
+            pp.commit()
 
-    # Create Cycle with ordered WUs
+    # Create Cycle with ordered PPs
     cycle = Cycle(intent=cycle_intent)
-    cycle.set_wisdom_units(wus)
+    cycle.set_perspectives(pps)
     cycle.commit()
 
     # Create Wheel
@@ -197,11 +197,11 @@ def create_cycle_wheel_setup(
     return cycle, wheel, transitions
 
 
-def test_create_simple_wisdom_unit():
-    """Test creating a WisdomUnit with basic components."""
+def test_create_simple_perspective():
+    """Test creating a Perspective with basic components."""
 
-    # Use helper to create WU with proper Polarity structure
-    wu, polarity, components = create_wisdom_unit_with_polarity(
+    # Use helper to create PP with proper Polarity structure
+    pp, polarity, components = create_perspective_with_polarity(
         t_statement="Democracy empowers citizens",
         a_statement="Authority provides order",
         t_plus_statement="Democracy promotes equality",
@@ -212,27 +212,27 @@ def test_create_simple_wisdom_unit():
     )
 
     # Verify connections through Polarity
-    t_component = wu.t.get()
+    t_component = pp.t.get()
     assert t_component is not None
     assert t_component[0].statement == "Democracy empowers citizens"
 
-    a_component = wu.a.get()
+    a_component = pp.a.get()
     assert a_component is not None
     assert a_component[0].statement == "Authority provides order"
 
     # Verify cardinality
-    assert wu.t.count() == 1
-    assert wu.t_plus.count() == 1
-    assert wu.t_minus.count() == 1
-    assert wu.a.count() == 1
-    assert wu.a_plus.count() == 1
-    assert wu.a_minus.count() == 1
+    assert pp.t.count() == 1
+    assert pp.t_plus.count() == 1
+    assert pp.t_minus.count() == 1
+    assert pp.a.count() == 1
+    assert pp.a_plus.count() == 1
+    assert pp.a_minus.count() == 1
 
-    print("✓ Successfully created WisdomUnit with all required components")
+    print("✓ Successfully created Perspective with all required components")
 
 
-def test_wisdom_unit_validation():
-    """Test WisdomUnit completeness validation."""
+def test_perspective_validation():
+    """Test Perspective completeness validation."""
 
     # Create T and A components first
     t = DialecticalComponent(statement="Test thesis", meaning="test")
@@ -246,35 +246,35 @@ def test_wisdom_unit_validation():
     polarity.set_a(a, heuristic_similarity=0.8)
     polarity.commit()
 
-    # Create WU and connect to Polarity
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+    # Create PP and connect to Polarity
+    pp = Perspective(intent=f"pp_{random.random()}")
+    pp.save()
+    pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Should not be complete (missing t_plus, t_minus, a_plus, a_minus)
-    assert not wu.is_complete()
+    assert not pp.is_complete()
 
     # Add remaining required pole components
     t_plus = DialecticalComponent(statement="T+", meaning="test")
     t_plus.commit()
-    wu.t_plus.connect(t_plus, relationship=TPlusRelationship(alias='T+', heuristic_similarity=0.9))
+    pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias='T+', heuristic_similarity=0.9))
 
     t_minus = DialecticalComponent(statement="T-", meaning="test")
     t_minus.commit()
-    wu.t_minus.connect(t_minus, relationship=TMinusRelationship(alias='T-', heuristic_similarity=0.9))
+    pp.t_minus.connect(t_minus, relationship=TMinusRelationship(alias='T-', heuristic_similarity=0.9))
 
     a_plus = DialecticalComponent(statement="A+", meaning="test")
     a_plus.commit()
-    wu.a_plus.connect(a_plus, relationship=APlusRelationship(alias='A+', heuristic_similarity=0.9))
+    pp.a_plus.connect(a_plus, relationship=APlusRelationship(alias='A+', heuristic_similarity=0.9))
 
     a_minus = DialecticalComponent(statement="A-", meaning="test")
     a_minus.commit()
-    wu.a_minus.connect(a_minus, relationship=AMinusRelationship(alias='A-', heuristic_similarity=0.9))
+    pp.a_minus.connect(a_minus, relationship=AMinusRelationship(alias='A-', heuristic_similarity=0.9))
 
     # Now should be complete (s_plus and s_minus are optional)
-    assert wu.is_complete()
+    assert pp.is_complete()
 
-    print("✓ WisdomUnit completeness validation works correctly")
+    print("✓ Perspective completeness validation works correctly")
 
 
 def test_component_aliases():
@@ -292,15 +292,15 @@ def test_component_aliases():
     polarity.set_a(a, heuristic_similarity=0.8)
     polarity.commit()
 
-    # Create WU and connect to Polarity
-    wu = WisdomUnit(intent=f"wu_{random.random()}")
-    wu.save()
-    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+    # Create PP and connect to Polarity
+    pp = Perspective(intent=f"pp_{random.random()}")
+    pp.save()
+    pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Get all components with their aliases using repository
     from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
     repo = DialecticalComponentRepository()
-    components_with_aliases = repo.find_by_wisdom_unit(wu)
+    components_with_aliases = repo.find_by_perspective(pp)
 
     # Should find T and A through Polarity
     assert len(components_with_aliases) == 2
@@ -309,133 +309,133 @@ def test_component_aliases():
     assert 'A' in aliases
 
     # Test component.get_alias() method
-    t_alias = t.get_alias(wu)
-    a_alias = a.get_alias(wu)
+    t_alias = t.get_alias(pp)
+    a_alias = a.get_alias(pp)
 
     assert t_alias == 'T'
     assert a_alias == 'A'
 
-    # Test with component not in this wisdom unit
+    # Test with component not in this perspective
     other_comp = DialecticalComponent(statement="Not connected", meaning="test")
     other_comp.commit()
 
-    # Should raise ValueError when component not connected to WU
+    # Should raise ValueError when component not connected to PP
     import pytest
-    with pytest.raises(ValueError, match="not connected to WisdomUnit"):
-        other_comp.get_alias(wu)
+    with pytest.raises(ValueError, match="not connected to Perspective"):
+        other_comp.get_alias(pp)
 
     print(f"✓ Component aliases retrieved from relationships: {aliases}")
     print(f"✓ component.get_alias() works correctly: T={t_alias}, A={a_alias}")
 
 
-def test_cycle_ordered_wisdom_units():
-    """Test that Cycle stores WisdomUnits in order (T-cycle)."""
+def test_cycle_ordered_perspectives():
+    """Test that Cycle stores Perspectives in order (T-cycle)."""
 
-    # Create 3 WisdomUnits with proper Polarity structure
-    wu1, _, _ = create_wisdom_unit_with_polarity(
+    # Create 3 Perspectives with proper Polarity structure
+    pp1, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 1", a_statement="Antithesis 1",
         t_plus_statement="T1+", t_minus_statement="T1-",
         a_plus_statement="A1+", a_minus_statement="A1-",
         intent=f"wu1_{random.random()}"
     )
-    wu1.commit()
+    pp1.commit()
 
-    wu2, _, _ = create_wisdom_unit_with_polarity(
+    pp2, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 2", a_statement="Antithesis 2",
         t_plus_statement="T2+", t_minus_statement="T2-",
         a_plus_statement="A2+", a_minus_statement="A2-",
         intent=f"wu2_{random.random()}"
     )
-    wu2.commit()
+    pp2.commit()
 
-    wu3, _, _ = create_wisdom_unit_with_polarity(
+    pp3, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 3", a_statement="Antithesis 3",
         t_plus_statement="T3+", t_minus_statement="T3-",
         a_plus_statement="A3+", a_minus_statement="A3-",
         intent=f"wu3_{random.random()}"
     )
-    wu3.commit()
+    pp3.commit()
 
-    # Create cycle with ordered WUs (order defines T-cycle: T1 → T2 → T3)
+    # Create cycle with ordered PPs (order defines T-cycle: T1 → T2 → T3)
     cycle = Cycle(intent="preset:balanced")
-    cycle.set_wisdom_units([wu1, wu2, wu3])
+    cycle.set_perspectives([pp1, pp2, pp3])
     cycle.commit()
 
     # Verify order is preserved
-    assert cycle.wisdom_unit_count == 3, f"Expected 3 WUs, got {cycle.wisdom_unit_count}"
-    assert cycle.wisdom_unit_hashes == [wu1.hash, wu2.hash, wu3.hash], "Order should be preserved"
+    assert cycle.perspective_count == 3, f"Expected 3 PPs, got {cycle.perspective_count}"
+    assert cycle.perspective_hashes == [pp1.hash, pp2.hash, pp3.hash], "Order should be preserved"
 
-    # Verify wisdom_units property returns WUs in order
-    wus = cycle.wisdom_units
-    assert len(wus) == 3, f"Expected 3 WUs, got {len(wus)}"
-    assert wus[0].hash == wu1.hash, "First WU should be wu1"
-    assert wus[1].hash == wu2.hash, "Second WU should be wu2"
-    assert wus[2].hash == wu3.hash, "Third WU should be wu3"
+    # Verify perspectives property returns PPs in order
+    pps = cycle.perspectives
+    assert len(pps) == 3, f"Expected 3 PPs, got {len(pps)}"
+    assert pps[0].hash == pp1.hash, "First PP should be pp1"
+    assert pps[1].hash == pp2.hash, "Second PP should be pp2"
+    assert pps[2].hash == pp3.hash, "Third PP should be pp3"
 
     print(f"✓ Cycle T-cycle order preserved: WU1 → WU2 → WU3")
 
 
-def test_cycle_requires_committed_wisdom_units():
-    """Test that Cycle requires committed WisdomUnits."""
+def test_cycle_requires_committed_perspectives():
+    """Test that Cycle requires committed Perspectives."""
 
-    # Create uncommitted WU
-    wu, _, _ = create_wisdom_unit_with_polarity(
+    # Create uncommitted PP
+    pp, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 1", a_statement="Antithesis 1",
         t_plus_statement="T1+", t_minus_statement="T1-",
         a_plus_statement="A1+", a_minus_statement="A1-",
-        intent=f"wu_{random.random()}"
+        intent=f"pp_{random.random()}"
     )
-    # wu is NOT committed
+    # pp is NOT committed
 
     # Create cycle
     cycle = Cycle(intent="preset:realistic")
 
-    # Should fail with uncommitted WU
-    with pytest.raises(ValueError, match="WisdomUnit must be committed"):
-        cycle.set_wisdom_units([wu])
+    # Should fail with uncommitted PP
+    with pytest.raises(ValueError, match="Perspective must be committed"):
+        cycle.set_perspectives([pp])
 
-    # Now commit WU and try again
-    wu.commit()
-    cycle.set_wisdom_units([wu])
+    # Now commit PP and try again
+    pp.commit()
+    cycle.set_perspectives([pp])
     cycle.commit()
 
-    assert cycle.wisdom_unit_count == 1
-    assert cycle.wisdom_unit_hashes == [wu.hash]
+    assert cycle.perspective_count == 1
+    assert cycle.perspective_hashes == [pp.hash]
 
-    print(f"✓ Cycle correctly validates WU commitment")
+    print(f"✓ Cycle correctly validates PP commitment")
 
 
 def test_cycle_str_formatting():
     """Test Cycle string formatting shows T-cycle."""
 
-    # Create 3 WisdomUnits
-    wu1, _, _ = create_wisdom_unit_with_polarity(
+    # Create 3 Perspectives
+    pp1, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 1", a_statement="Antithesis 1",
         t_plus_statement="T1+", t_minus_statement="T1-",
         a_plus_statement="A1+", a_minus_statement="A1-",
         intent=f"wu1_{random.random()}"
     )
-    wu1.commit()
+    pp1.commit()
 
-    wu2, _, _ = create_wisdom_unit_with_polarity(
+    pp2, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 2", a_statement="Antithesis 2",
         t_plus_statement="T2+", t_minus_statement="T2-",
         a_plus_statement="A2+", a_minus_statement="A2-",
         intent=f"wu2_{random.random()}"
     )
-    wu2.commit()
+    pp2.commit()
 
-    wu3, _, _ = create_wisdom_unit_with_polarity(
+    pp3, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 3", a_statement="Antithesis 3",
         t_plus_statement="T3+", t_minus_statement="T3-",
         a_plus_statement="A3+", a_minus_statement="A3-",
         intent=f"wu3_{random.random()}"
     )
-    wu3.commit()
+    pp3.commit()
 
-    # Create cycle with 3 WUs
+    # Create cycle with 3 PPs
     cycle = Cycle(intent="preset:desirable")
-    cycle.set_wisdom_units([wu1, wu2, wu3])
+    cycle.set_perspectives([pp1, pp2, pp3])
     cycle.commit()
 
     # Test default format shows T-cycle
@@ -458,7 +458,7 @@ def test_cycle_str_formatting():
     # Test repr
     cycle_repr = repr(cycle)
     assert "Cycle" in cycle_repr
-    assert "wu_count=3" in cycle_repr
+    assert "pp_count=3" in cycle_repr
     assert "preset:desirable" in cycle_repr
 
     print(f"✓ Cycle repr: {cycle_repr}")
@@ -485,21 +485,21 @@ def test_transition_str_formatting():
     a_minus_comp = DialecticalComponent(statement="Negative antithesis aspect", meaning="test")
     a_minus_comp.commit()
 
-    # Create WisdomUnit with Polarity and connect all components with aliases
-    wu, _ = create_wu_from_components(
+    # Create Perspective with Polarity and connect all components with aliases
+    pp, _ = create_pp_from_components(
         t=t_comp,
         a=a_comp,
         t_plus=t_plus_comp,
         t_minus=source_comp,
         a_plus=target_comp,
         a_minus=a_minus_comp,
-        intent=f"wu_{random.random()}",
+        intent=f"pp_{random.random()}",
     )
-    wu.commit()
+    pp.commit()
 
-    # Create Cycle with ordered WUs (new model: no Nexus)
+    # Create Cycle with ordered PPs (new model: no Nexus)
     cycle = Cycle(intent="preset:balanced")
-    cycle.set_wisdom_units([wu])
+    cycle.set_perspectives([pp])
     cycle.commit()
 
     # Create transition with source/target set before save
@@ -580,7 +580,7 @@ def test_transition_str_formatting():
 
 def test_transition_formatting_with_wheel():
     """Test Transition formatting shows segment aliases for Wheel."""
-    # Create components for a full wisdom unit
+    # Create components for a full perspective
     t = DialecticalComponent(statement="Main thesis", meaning="test")
     t_plus = DialecticalComponent(statement="Positive thesis", meaning="test")
     t_minus = DialecticalComponent(statement="Negative thesis", meaning="test")
@@ -591,21 +591,21 @@ def test_transition_formatting_with_wheel():
     for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
         comp.commit()
 
-    # Create WisdomUnit with Polarity
-    wu, _ = create_wu_from_components(
+    # Create Perspective with Polarity
+    pp, _ = create_pp_from_components(
         t=t,
         a=a,
         t_plus=t_plus,
         t_minus=t_minus,
         a_plus=a_plus,
         a_minus=a_minus,
-        intent=f"wu_{random.random()}",
+        intent=f"pp_{random.random()}",
     )
-    wu.commit()
+    pp.commit()
 
-    # Create Cycle with ordered WUs (new model: no Nexus)
+    # Create Cycle with ordered PPs (new model: no Nexus)
     cycle_base = Cycle(intent="preset:realistic")
-    cycle_base.set_wisdom_units([wu])
+    cycle_base.set_perspectives([pp])
     cycle_base.commit()
 
     # Create Wheel
@@ -634,59 +634,59 @@ def test_transition_formatting_with_wheel():
 
 
 def test_cycle_hash_identity():
-    """Test that Cycle hash depends on ordered WUs and intent."""
+    """Test that Cycle hash depends on ordered PPs and intent."""
 
-    # Create 3 WisdomUnits
-    wu1, _, _ = create_wisdom_unit_with_polarity(
+    # Create 3 Perspectives
+    pp1, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 1", a_statement="Antithesis 1",
         t_plus_statement="T1+", t_minus_statement="T1-",
         a_plus_statement="A1+", a_minus_statement="A1-",
         intent=f"wu1_{random.random()}"
     )
-    wu1.commit()
+    pp1.commit()
 
-    wu2, _, _ = create_wisdom_unit_with_polarity(
+    pp2, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 2", a_statement="Antithesis 2",
         t_plus_statement="T2+", t_minus_statement="T2-",
         a_plus_statement="A2+", a_minus_statement="A2-",
         intent=f"wu2_{random.random()}"
     )
-    wu2.commit()
+    pp2.commit()
 
-    wu3, _, _ = create_wisdom_unit_with_polarity(
+    pp3, _, _ = create_perspective_with_polarity(
         t_statement="Thesis 3", a_statement="Antithesis 3",
         t_plus_statement="T3+", t_minus_statement="T3-",
         a_plus_statement="A3+", a_minus_statement="A3-",
         intent=f"wu3_{random.random()}"
     )
-    wu3.commit()
+    pp3.commit()
 
-    # Create cycle with WUs in order [wu1, wu2, wu3]
+    # Create cycle with PPs in order [pp1, pp2, pp3]
     cycle1 = Cycle(intent="preset:balanced")
-    cycle1.set_wisdom_units([wu1, wu2, wu3])
+    cycle1.set_perspectives([pp1, pp2, pp3])
     cycle1.commit()
 
-    # Create another cycle with SAME WUs in SAME order and SAME intent
+    # Create another cycle with SAME PPs in SAME order and SAME intent
     # This should produce the same hash (content-addressed identity)
     cycle2 = Cycle(intent="preset:balanced")
-    cycle2.set_wisdom_units([wu1, wu2, wu3])
+    cycle2.set_perspectives([pp1, pp2, pp3])
     # Note: Don't commit cycle2 - we'll check the hash computation
 
-    # Create cycle with WUs in DIFFERENT order - should have different hash
+    # Create cycle with PPs in DIFFERENT order - should have different hash
     cycle3 = Cycle(intent="preset:balanced")
-    cycle3.set_wisdom_units([wu2, wu1, wu3])  # Different order!
+    cycle3.set_perspectives([pp2, pp1, pp3])  # Different order!
     cycle3.commit()
 
-    assert cycle1.hash != cycle3.hash, "Different WU order should produce different hash"
+    assert cycle1.hash != cycle3.hash, "Different PP order should produce different hash"
 
-    # Create cycle with SAME WUs but DIFFERENT intent - should have different hash
+    # Create cycle with SAME PPs but DIFFERENT intent - should have different hash
     cycle4 = Cycle(intent="preset:realistic")  # Different intent!
-    cycle4.set_wisdom_units([wu1, wu2, wu3])
+    cycle4.set_perspectives([pp1, pp2, pp3])
     cycle4.commit()
 
     assert cycle1.hash != cycle4.hash, "Different intent should produce different hash"
 
-    print(f"✓ Cycle hash correctly depends on WU order and intent")
+    print(f"✓ Cycle hash correctly depends on PP order and intent")
     print(f"  cycle1 (balanced, 1-2-3): {cycle1.short_hash}")
     print(f"  cycle3 (balanced, 2-1-3): {cycle3.short_hash}")
     print(f"  cycle4 (realistic, 1-2-3): {cycle4.short_hash}")
@@ -818,11 +818,11 @@ def test_best_rationale_property():
 def test_wheel_navigation_properties():
     """Test wheel navigation properties (order, degree)."""
 
-    # Create 4 wisdom units with full components using Polarity
-    wus = []
+    # Create 4 perspectives with full components using Polarity
+    pps = []
     a_components = []
     for i in range(4):
-        # Create all required components for a complete WU
+        # Create all required components for a complete PP
         t_comp = DialecticalComponent(statement=f"T Component {i}", meaning="test")
         t_comp.commit()
         t_plus = DialecticalComponent(statement=f"T+ Component {i}", meaning="test")
@@ -837,8 +837,8 @@ def test_wheel_navigation_properties():
         a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
         a_minus.commit()
 
-        # Create WU with Polarity and all poles
-        wu, _ = create_wu_from_components(
+        # Create PP with Polarity and all poles
+        pp, _ = create_pp_from_components(
             t=t_comp,
             a=a_comp,
             t_plus=t_plus,
@@ -848,12 +848,12 @@ def test_wheel_navigation_properties():
             intent=f"mode_{i}",
         )
 
-        wus.append(wu)
+        pps.append(pp)
         a_components.append(a_comp)
 
     # Use helper to create Cycle+Wheel setup (new model: no Nexus)
     cycle, wheel, _ = create_cycle_wheel_setup(
-        wus=wus,
+        pps=pps,
         components_for_transitions=a_components,  # Use A components for transitions
         cycle_intent="preset:balanced",
         wheel_intent=f"wheel_{random.random()}",
@@ -868,11 +868,11 @@ def test_wheel_navigation_properties():
     print(f"✓ polarity_count={wheel.polarity_count}, segment_count={wheel.segment_count}")
 
 
-def test_wheel_wisdom_unit_at():
+def test_wheel_perspective_at():
     """Test polar_segment_at() method (no integer indexing)."""
 
-    # Create wisdom units with full components using Polarity
-    wus = []
+    # Create perspectives with full components using Polarity
+    pps = []
     t_components = []
     a_components = []
     for i in range(3):
@@ -891,25 +891,25 @@ def test_wheel_wisdom_unit_at():
         a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
         a_minus.commit()
 
-        # Create WU with Polarity and all poles
-        wu, _ = create_wu_from_components(
+        # Create PP with Polarity and all poles
+        pp, _ = create_pp_from_components(
             t=t_comp,
             a=a_comp,
             t_plus=t_plus,
             t_minus=t_minus,
             a_plus=a_plus,
             a_minus=a_minus,
-            intent=f"wu_{random.random()}",
+            intent=f"pp_{random.random()}",
         )
 
-        wus.append((wu, t_comp))
+        pps.append((pp, t_comp))
         t_components.append(t_comp)
         a_components.append(a_comp)
 
     # Use helper to create Cycle+Wheel setup (new model: no Nexus)
-    wu_list = [w[0] for w in wus]
+    pp_list = [w[0] for w in pps]
     cycle, wheel, _ = create_cycle_wheel_setup(
-        wus=wu_list,
+        pps=pp_list,
         components_for_transitions=a_components,  # Use A components for transitions
         cycle_intent="preset:balanced",
         wheel_intent=f"wheel_{random.random()}",
@@ -917,24 +917,24 @@ def test_wheel_wisdom_unit_at():
 
     # Test 1: Get by component (T components) - returns polar pair
     pair = wheel.polar_segment_at(t_components[0])
-    assert pair.wisdom_unit.hash == wus[0][0].hash
+    assert pair.perspective.hash == pps[0][0].hash
 
     pair = wheel.polar_segment_at(t_components[1])
-    assert pair.wisdom_unit.hash == wus[1][0].hash
+    assert pair.perspective.hash == pps[1][0].hash
 
     pair = wheel.polar_segment_at(t_components[2])
-    assert pair.wisdom_unit.hash == wus[2][0].hash
+    assert pair.perspective.hash == pps[2][0].hash
 
-    # Test 2: Get by component (from wus tuple)
-    pair = wheel.polar_segment_at(wus[0][1])
-    assert pair.wisdom_unit.hash == wus[0][0].hash
+    # Test 2: Get by component (from pps tuple)
+    pair = wheel.polar_segment_at(pps[0][1])
+    assert pair.perspective.hash == pps[0][0].hash
 
-    pair = wheel.polar_segment_at(wus[2][1])  # Component from wu2
-    assert pair.wisdom_unit.hash == wus[2][0].hash
+    pair = wheel.polar_segment_at(pps[2][1])  # Component from pp2
+    assert pair.perspective.hash == pps[2][0].hash
 
-    # Test 3: Get by WisdomUnit
-    pair = wheel.polar_segment_at(wus[1][0])
-    assert pair.wisdom_unit.hash == wus[1][0].hash
+    # Test 3: Get by Perspective
+    pair = wheel.polar_segment_at(pps[1][0])
+    assert pair.perspective.hash == pps[1][0].hash
 
     # Test 4: Component not found
     orphan_comp = DialecticalComponent(statement="Orphan", meaning="test")
@@ -945,7 +945,7 @@ def test_wheel_wisdom_unit_at():
     except ValueError:
         pass
 
-    print("✓ polar_segment_at() works with alias, component, and WisdomUnit")
+    print("✓ polar_segment_at() works with alias, component, and Perspective")
 
 
 def test_wheel_is_same_structure():
@@ -956,8 +956,8 @@ def test_wheel_is_same_structure():
         """Create a wheel with n components connected in a cycle."""
         a_components = []
 
-        # Create WisdomUnits with all required components using Polarity
-        wus = []
+        # Create Perspectives with all required components using Polarity
+        pps = []
         for i in range(n_components):
             # Create all required components
             t_comp = DialecticalComponent(statement=f"{prefix} T Component {i}", meaning="test")
@@ -976,21 +976,21 @@ def test_wheel_is_same_structure():
 
             a_components.append(a_comp)
 
-            # Create WU with Polarity and all poles
-            wu, _ = create_wu_from_components(
+            # Create PP with Polarity and all poles
+            pp, _ = create_pp_from_components(
                 t=t_comp,
                 a=a_comp,
                 t_plus=t_plus,
                 t_minus=t_minus,
                 a_plus=a_plus,
                 a_minus=a_minus,
-                intent=f"wu_{random.random()}",
+                intent=f"pp_{random.random()}",
             )
-            wus.append(wu)
+            pps.append(pp)
 
         # Use helper to create Cycle+Wheel setup
         cycle, wheel, _ = create_cycle_wheel_setup(
-            wus=wus,
+            pps=pps,
             components_for_transitions=a_components,
             cycle_intent="preset:balanced",
             wheel_intent=f"wheel_{random.random()}",
@@ -1018,8 +1018,8 @@ def test_wheel_is_same_structure():
     print("✓ is_same_structure() correctly compares wheels")
 
 
-def test_wheel_segment_from_wisdom_unit():
-    """Test creating WheelSegment from WisdomUnit using segment_t() and segment_a()."""
+def test_wheel_segment_from_perspective():
+    """Test creating WheelSegment from Perspective using segment_t() and segment_a()."""
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
     # Create all components
@@ -1036,8 +1036,8 @@ def test_wheel_segment_from_wisdom_unit():
     a_minus_comp = DialecticalComponent(statement="Antithesis negative", meaning="test")
     a_minus_comp.commit()
 
-    # Create WisdomUnit with Polarity
-    wu, _ = create_wu_from_components(
+    # Create Perspective with Polarity
+    pp, _ = create_pp_from_components(
         t=t_comp,
         a=a_comp,
         t_plus=t_plus_comp,
@@ -1048,10 +1048,10 @@ def test_wheel_segment_from_wisdom_unit():
     )
 
     # Get T-side segment
-    t_seg = wu.segment_t
+    t_seg = pp.segment_t
     assert isinstance(t_seg, WheelSegment)
     assert t_seg.side == 'T'
-    assert t_seg.wisdom_unit.hash == wu.hash
+    assert t_seg.perspective.hash == pp.hash
 
     # Test window into T-side relationships
     assert t_seg.t.get()[0].hash == t_comp.hash
@@ -1064,10 +1064,10 @@ def test_wheel_segment_from_wisdom_unit():
     assert t_seg.is_complete()
 
     # Get A-side segment
-    a_seg = wu.segment_a
+    a_seg = pp.segment_a
     assert isinstance(a_seg, WheelSegment)
     assert a_seg.side == 'A'
-    assert a_seg.wisdom_unit.hash == wu.hash
+    assert a_seg.perspective.hash == pp.hash
 
     # Test window into A-side relationships (using t/t_plus/t_minus properties)
     assert a_seg.t.get()[0].hash == a_comp.hash
@@ -1092,8 +1092,8 @@ def test_wheel_segment_get_component_by_alias():
     a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
     a_comp.commit()
 
-    # Create WisdomUnit with Polarity
-    wu, _ = create_wu_from_components(
+    # Create Perspective with Polarity
+    pp, _ = create_pp_from_components(
         t=t_comp,
         a=a_comp,
         t_plus=t_plus_comp,
@@ -1101,9 +1101,9 @@ def test_wheel_segment_get_component_by_alias():
     )
 
     # Get T-side segment
-    t_seg = wu.segment_t
+    t_seg = pp.segment_t
 
-    # Find T-side components by alias (default aliases from create_wu_from_components)
+    # Find T-side components by alias (default aliases from create_pp_from_components)
     found_t = t_seg.get_component('T')
     assert found_t is not None
     assert found_t.hash == t_comp.hash
@@ -1117,7 +1117,7 @@ def test_wheel_segment_get_component_by_alias():
     assert found_a is None
 
     # Get A-side segment
-    a_seg = wu.segment_a
+    a_seg = pp.segment_a
 
     # Find A-side component by alias
     found_a = a_seg.get_component('A')
@@ -1135,8 +1135,8 @@ def test_wheel_segment_at():
     """Test Wheel.segment_at() lookup by alias or component."""
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
-    # Create 2 wisdom units with full components using Polarity
-    wus = []
+    # Create 2 perspectives with full components using Polarity
+    pps = []
     t_comps = []
     a_comps = []
     for i in range(2):
@@ -1159,8 +1159,8 @@ def test_wheel_segment_at():
         a_minus = DialecticalComponent(statement=f"A- {i}", meaning="test")
         a_minus.commit()
 
-        # Create WU with Polarity
-        wu, _ = create_wu_from_components(
+        # Create PP with Polarity
+        pp, _ = create_pp_from_components(
             t=t_comp,
             a=a_comp,
             t_plus=t_plus,
@@ -1170,12 +1170,12 @@ def test_wheel_segment_at():
             intent=f"mode_{i}",
         )
 
-        wus.append((wu, t_comp, a_comp))
+        pps.append((pp, t_comp, a_comp))
 
     # Use helper to create Cycle+Wheel setup (new model: no Nexus)
-    wu_list = [w[0] for w in wus]
+    pp_list = [w[0] for w in pps]
     cycle, wheel, _ = create_cycle_wheel_setup(
-        wus=wu_list,
+        pps=pp_list,
         components_for_transitions=a_comps,  # Use A components for transitions
         cycle_intent="preset:balanced",
         wheel_intent=f"wheel_{random.random()}",
@@ -1185,52 +1185,52 @@ def test_wheel_segment_at():
     seg_t0 = wheel.segment_at(t_comps[0])
     assert isinstance(seg_t0, WheelSegment)
     assert seg_t0.side == 'T'
-    assert seg_t0.wisdom_unit.hash == wus[0][0].hash
+    assert seg_t0.perspective.hash == pps[0][0].hash
 
-    seg_a1 = wheel.segment_at(wus[1][2])  # A component of second WU
+    seg_a1 = wheel.segment_at(pps[1][2])  # A component of second PP
     assert seg_a1.side == 'A'
-    assert seg_a1.wisdom_unit.hash == wus[1][0].hash
+    assert seg_a1.perspective.hash == pps[1][0].hash
 
-    # Test 2: By component (from wus tuple)
-    seg_by_comp = wheel.segment_at(wus[0][1])  # T component of first WU
+    # Test 2: By component (from pps tuple)
+    seg_by_comp = wheel.segment_at(pps[0][1])  # T component of first PP
     assert seg_by_comp.side == 'T'
-    assert seg_by_comp.wisdom_unit.hash == wus[0][0].hash
+    assert seg_by_comp.perspective.hash == pps[0][0].hash
 
-    seg_by_a_comp = wheel.segment_at(wus[1][2])  # A component of second WU
+    seg_by_a_comp = wheel.segment_at(pps[1][2])  # A component of second PP
     assert seg_by_a_comp.side == 'A'
-    assert seg_by_a_comp.wisdom_unit.hash == wus[1][0].hash
+    assert seg_by_a_comp.perspective.hash == pps[1][0].hash
 
     print("✓ Wheel.segment_at() supports component lookup")
 
 
 def test_wheel_segment_is_same():
     """Test WheelSegment.is_same() comparison."""
-    # Create WUs using helper
-    wus = []
+    # Create PPs using helper
+    pps = []
     for idx in range(2):
-        t_comp = DialecticalComponent(statement=f"Thesis WU{idx}", meaning="test")
+        t_comp = DialecticalComponent(statement=f"Thesis PP{idx}", meaning="test")
         t_comp.commit()
-        t_plus = DialecticalComponent(statement=f"T+ WU{idx}", meaning="test")
+        t_plus = DialecticalComponent(statement=f"T+ PP{idx}", meaning="test")
         t_plus.commit()
-        t_minus = DialecticalComponent(statement=f"T- WU{idx}", meaning="test")
+        t_minus = DialecticalComponent(statement=f"T- PP{idx}", meaning="test")
         t_minus.commit()
-        a_comp = DialecticalComponent(statement=f"Antithesis WU{idx}", meaning="test")
+        a_comp = DialecticalComponent(statement=f"Antithesis PP{idx}", meaning="test")
         a_comp.commit()
 
-        wu, _ = create_wu_from_components(
+        pp, _ = create_pp_from_components(
             t=t_comp,
             a=a_comp,
             t_plus=t_plus,
             t_minus=t_minus,
             intent=f"test{idx+1}",
         )
-        wus.append(wu)
+        pps.append(pp)
 
-    wu1, wu2 = wus
+    pp1, pp2 = pps
 
     # Extract segments
-    seg1 = wu1.segment_t
-    seg2 = wu2.segment_t
+    seg1 = pp1.segment_t
+    seg2 = pp2.segment_t
 
     # Should be considered the same (same component UIDs)
     # Actually they won't be same since components have different UIDs
@@ -1251,8 +1251,8 @@ def test_wheel_segment_is_set():
     a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
     a_comp.commit()
 
-    # Create WU with Polarity
-    wu, _ = create_wu_from_components(
+    # Create PP with Polarity
+    pp, _ = create_pp_from_components(
         t=t_comp,
         a=a_comp,
         t_plus=t_plus,
@@ -1260,8 +1260,8 @@ def test_wheel_segment_is_set():
     )
 
     # Get segments
-    t_seg = wu.segment_t
-    a_seg = wu.segment_a
+    t_seg = pp.segment_t
+    a_seg = pp.segment_a
 
     # Test is_set by alias (default aliases from helper)
     assert t_seg.is_set("T")
@@ -1282,10 +1282,10 @@ def test_wheel_segment_is_set():
     print("✓ WheelSegment.is_set() works correctly")
 
 
-def test_wheel_wisdom_unit_at_segment():
+def test_wheel_perspective_at_segment():
     """Test Wheel.polar_segment_at() with WheelSegment."""
-    # Create 2 wisdom units with components using Polarity
-    wus = []
+    # Create 2 perspectives with components using Polarity
+    pps = []
     a_comps = []
     for i in range(2):
         # Create components
@@ -1306,8 +1306,8 @@ def test_wheel_wisdom_unit_at_segment():
         a_minus = DialecticalComponent(statement=f"A{i}-", meaning="test")
         a_minus.commit()
 
-        # Create WU with Polarity
-        wu, _ = create_wu_from_components(
+        # Create PP with Polarity
+        pp, _ = create_pp_from_components(
             t=t,
             a=a,
             t_plus=t_plus,
@@ -1316,26 +1316,26 @@ def test_wheel_wisdom_unit_at_segment():
             a_minus=a_minus,
             intent=f"mode_{i}",
         )
-        wus.append(wu)
+        pps.append(pp)
 
     # Use helper to create Cycle+Wheel setup (new model: no Nexus)
     cycle, wheel, _ = create_cycle_wheel_setup(
-        wus=wus,
+        pps=pps,
         components_for_transitions=a_comps,  # Use A components for transitions
         cycle_intent="preset:balanced",
         wheel_intent=f"wheel_{random.random()}",
     )
 
     # Get segments
-    t_seg_1 = wus[1].segment_t
-    a_seg_0 = wus[0].segment_a
+    t_seg_1 = pps[1].segment_t
+    a_seg_0 = pps[0].segment_a
 
     # Test polar_segment_at with WheelSegment - returns polar pair
     found_pair = wheel.polar_segment_at(t_seg_1)
-    assert found_pair.wisdom_unit.hash == wus[1].hash
+    assert found_pair.perspective.hash == pps[1].hash
 
     found_pair = wheel.polar_segment_at(a_seg_0)
-    assert found_pair.wisdom_unit.hash == wus[0].hash
+    assert found_pair.perspective.hash == pps[0].hash
 
     print("✓ Wheel.polar_segment_at() works with WheelSegment")
 
@@ -1356,8 +1356,8 @@ def test_wheel_is_set():
     a_minus = DialecticalComponent(statement="A-", meaning="test")
     a_minus.commit()
 
-    # Create WU with Polarity and all poles
-    wu, _ = create_wu_from_components(
+    # Create PP with Polarity and all poles
+    pp, _ = create_pp_from_components(
         t=t,
         a=a,
         t_plus=t_plus,
@@ -1366,12 +1366,12 @@ def test_wheel_is_set():
         a_minus=a_minus,
         intent="test",
     )
-    wu.commit()
+    pp.commit()
 
     # Use helper to create Cycle+Wheel setup (new model: no Nexus)
-    # Use t_wheel and a_wheel for transitions since they're connected to WU as T- and A+
+    # Use t_wheel and a_wheel for transitions since they're connected to PP as T- and A+
     cycle, wheel, _ = create_cycle_wheel_setup(
-        wus=[wu],
+        pps=[pp],
         components_for_transitions=[t_wheel, a_wheel],  # T- → A+ → T-
         cycle_intent="preset:balanced",
         wheel_intent=f"wheel_{random.random()}",
@@ -1387,16 +1387,16 @@ def test_wheel_is_set():
     assert wheel.is_set(a_wheel) is True
 
     # Test with segment
-    t_seg = wu.segment_t
-    a_seg = wu.segment_a
+    t_seg = pp.segment_t
+    a_seg = pp.segment_a
     assert wheel.is_set(t_seg) is True
     assert wheel.is_set(a_seg) is True
 
     print("✓ Wheel.is_set() works correctly")
 
 
-def test_dialectical_component_repository_find_by_wisdom_unit():
-    """Test DialecticalComponentRepository.find_by_wisdom_unit()."""
+def test_dialectical_component_repository_find_by_perspective():
+    """Test DialecticalComponentRepository.find_by_perspective()."""
     from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
 
     # Create components
@@ -1407,8 +1407,8 @@ def test_dialectical_component_repository_find_by_wisdom_unit():
     a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
     a_comp.commit()
 
-    # Create WU with Polarity
-    wu, _ = create_wu_from_components(
+    # Create PP with Polarity
+    pp, _ = create_pp_from_components(
         t=t_comp,
         a=a_comp,
         t_plus=t_plus_comp,
@@ -1417,9 +1417,9 @@ def test_dialectical_component_repository_find_by_wisdom_unit():
 
     # Use repository to find components
     repo = DialecticalComponentRepository()
-    results = repo.find_by_wisdom_unit(wu)
+    results = repo.find_by_perspective(pp)
 
-    # Verify results (T, A through Polarity + T+ connected to WU)
+    # Verify results (T, A through Polarity + T+ connected to PP)
     assert len(results) == 3
 
     # Check that all expected aliases are present (default aliases from helper)
@@ -1434,17 +1434,17 @@ def test_dialectical_component_repository_find_by_wisdom_unit():
     assert t_plus_comp.hash in component_uids
     assert a_comp.hash in component_uids
 
-    print("✓ DialecticalComponentRepository.find_by_wisdom_unit() works correctly")
+    print("✓ DialecticalComponentRepository.find_by_perspective() works correctly")
 
 
-def test_wisdom_unit_repository_safe_delete(di_container):
-    """Test WisdomUnitRepository.safe_delete() with isolation checks."""
-    from dialectical_framework.graph.repositories.wisdom_unit_repository import WisdomUnitRepository
+def test_perspective_repository_safe_delete(di_container):
+    """Test PerspectiveRepository.safe_delete() with isolation checks."""
+    from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
 
-    repo = WisdomUnitRepository()
+    repo = PerspectiveRepository()
     db = di_container.graph_db()
 
-    # ========== Test 1: Isolated WU deletion (should delete) ==========
+    # ========== Test 1: Isolated PP deletion (should delete) ==========
     # Create components
     t = DialecticalComponent(statement="Isolated thesis", meaning="meaning:T")
     t.commit()
@@ -1459,8 +1459,8 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     a_minus = DialecticalComponent(statement="Isolated A-", meaning="meaning:A-")
     a_minus.commit()
 
-    # Create WU with Polarity
-    wu_isolated, _ = create_wu_from_components(
+    # Create PP with Polarity
+    pp_isolated, _ = create_pp_from_components(
         t=t,
         a=a,
         t_plus=t_plus,
@@ -1470,28 +1470,28 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         intent="test_isolated",
     )
 
-    # Commit WU (computes hash) so we can add rationales
-    wu_isolated.commit()
+    # Commit PP (computes hash) so we can add rationales
+    pp_isolated.commit()
 
-    # Add rationale (attribute of WU)
+    # Add rationale (attribute of PP)
     rat = Rationale(text="Test rationale")
-    rat.set_explanation_target(wu_isolated)  # Set target before save
+    rat.set_explanation_target(pp_isolated)  # Set target before save
     rat.commit()
 
     # Check isolation
-    assert repo.is_isolated(wu_isolated), "WU should be isolated"
+    assert repo.is_isolated(pp_isolated), "PP should be isolated"
 
     # Safe delete should succeed
-    deleted = repo.safe_delete(wu_isolated)
-    assert deleted, "Isolated WU should be deleted"
+    deleted = repo.safe_delete(pp_isolated)
+    assert deleted, "Isolated PP should be deleted"
 
     # Verify all nodes were deleted
 
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_isolated._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_isolated._id}
     ))
-    assert len(result) == 0, "WU should be deleted"
+    assert len(result) == 0, "PP should be deleted"
 
     result = list(db.execute_and_fetch(
         f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
@@ -1505,52 +1505,52 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     ))
     assert len(result) == 0, "Rationale should be deleted"
 
-    print("✓ Test 1: Isolated WU deleted successfully")
+    print("✓ Test 1: Isolated PP deleted successfully")
 
     # ========== Test 2: Shared component (should NOT delete) ==========
-    # Create shared component (used by both WUs)
+    # Create shared component (used by both PPs)
     shared_comp = DialecticalComponent(statement="Shared thesis", meaning="meaning:T")
     shared_comp.commit()
 
-    # Create unique A components for each WU
+    # Create unique A components for each PP
     a1 = DialecticalComponent(statement="A1", meaning="meaning:A1")
     a1.commit()
     a2 = DialecticalComponent(statement="A2", meaning="meaning:A2")
     a2.commit()
 
     # Create WU1 with shared T component
-    wu_shared_1, _ = create_wu_from_components(
+    pp_shared_1, _ = create_pp_from_components(
         t=shared_comp,
         a=a1,
         intent="shared_1",
     )
 
     # Create WU2 with same shared T component
-    wu_shared_2, _ = create_wu_from_components(
+    pp_shared_2, _ = create_pp_from_components(
         t=shared_comp,
         a=a2,
         intent="shared_2",
     )
 
     # Check isolation (should be False - shared component)
-    assert not repo.is_isolated(wu_shared_1), "WU with shared component should not be isolated"
+    assert not repo.is_isolated(pp_shared_1), "PP with shared component should not be isolated"
 
     # Check is_shared
-    assert repo.is_shared(wu_shared_1), "WU should have shared components"
+    assert repo.is_shared(pp_shared_1), "PP should have shared components"
 
     # Check not in_use (not in wheel)
-    assert not repo.in_use(wu_shared_1), "WU should not be in use (not in wheel)"
+    assert not repo.in_use(pp_shared_1), "PP should not be in use (not in wheel)"
 
     # Safe delete with force_gc=True (default) SHOULD delete (ignores component sharing)
-    deleted = repo.safe_delete(wu_shared_1, force_gc=True)
-    assert deleted, "WU with shared components SHOULD be deleted in GC mode (default)"
+    deleted = repo.safe_delete(pp_shared_1, force_gc=True)
+    assert deleted, "PP with shared components SHOULD be deleted in GC mode (default)"
 
-    # Verify WU deleted but shared component preserved
+    # Verify PP deleted but shared component preserved
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_shared_1._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_shared_1._id}
     ))
-    assert len(result) == 0, "WU should be deleted in GC mode"
+    assert len(result) == 0, "PP should be deleted in GC mode"
 
     # Verify shared component still exists (preserved)
     result = list(db.execute_and_fetch(
@@ -1559,42 +1559,42 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     ))
     assert len(result) == 1, "Shared component should still exist (preserved)"
 
-    # Verify wu_shared_2 still has connection to shared component
+    # Verify pp_shared_2 still has connection to shared component
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit)<-[:T]-(c:DialecticalComponent) WHERE id(wu) = $wu_id AND id(c) = $c_id RETURN wu",
-        {"wu_id": wu_shared_2._id, "c_id": shared_comp._id}
+        f"MATCH (pp:Perspective)<-[:T]-(c:DialecticalComponent) WHERE id(pp) = $pp_id AND id(c) = $c_id RETURN pp",
+        {"pp_id": pp_shared_2._id, "c_id": shared_comp._id}
     ))
-    assert len(result) == 1, "wu_shared_2 should still have shared component connected"
+    assert len(result) == 1, "pp_shared_2 should still have shared component connected"
 
-    print("✓ Test 2: GC mode deleted WU but preserved shared component")
+    print("✓ Test 2: GC mode deleted PP but preserved shared component")
 
     # ========== Test 2b: Conservative mode with shared component (should NOT delete) ==========
-    # Create unique A component for wu_shared_3
+    # Create unique A component for pp_shared_3
     a3 = DialecticalComponent(statement="A3", meaning="meaning:A3")
     a3.commit()
 
     # Create WU3 with shared T component
-    wu_shared_3, _ = create_wu_from_components(
+    pp_shared_3, _ = create_pp_from_components(
         t=shared_comp,
         a=a3,
         intent="shared_3",
     )
 
     # Check is_shared
-    assert repo.is_shared(wu_shared_3), "WU should have shared components"
+    assert repo.is_shared(pp_shared_3), "PP should have shared components"
 
     # Safe delete with force_gc=False (conservative) should NOT delete
-    deleted = repo.safe_delete(wu_shared_3, force_gc=False)
-    assert not deleted, "WU with shared components should NOT be deleted in conservative mode"
+    deleted = repo.safe_delete(pp_shared_3, force_gc=False)
+    assert not deleted, "PP with shared components should NOT be deleted in conservative mode"
 
-    # Verify WU still exists
+    # Verify PP still exists
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_shared_3._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_shared_3._id}
     ))
-    assert len(result) == 1, "WU should still exist (conservative mode preserved it)"
+    assert len(result) == 1, "PP should still exist (conservative mode preserved it)"
 
-    print("✓ Test 2b: Conservative mode preserved WU with shared component")
+    print("✓ Test 2b: Conservative mode preserved PP with shared component")
 
     # ========== Test 3: HAS_STATEMENT boundary (should disconnect, conditionally delete) ==========
     # Create components for boundary test
@@ -1611,8 +1611,8 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     a_minus_boundary = DialecticalComponent(statement="A-", meaning="meaning:A-")
     a_minus_boundary.commit()
 
-    # Create WU with Polarity
-    wu_boundary, _ = create_wu_from_components(
+    # Create PP with Polarity
+    pp_boundary, _ = create_pp_from_components(
         t=t_boundary,
         a=a_boundary,
         t_plus=t_plus_boundary,
@@ -1622,8 +1622,8 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         intent="boundary_test",
     )
 
-    # Commit WU so we can add rationales
-    wu_boundary.commit()
+    # Commit PP so we can add rationales
+    pp_boundary.commit()
 
     # Create Input with HAS_STATEMENT (orphaned component)
     # In the new model, derived statements come through Input nodes
@@ -1637,20 +1637,20 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     input_boundary.statements.connect(stmt_comp_orphan)
 
     # Check isolation (HAS_STATEMENT doesn't prevent deletion)
-    assert repo.is_isolated(wu_boundary), "WU with HAS_STATEMENT should still be isolated"
+    assert repo.is_isolated(pp_boundary), "PP with HAS_STATEMENT should still be isolated"
 
     # Safe delete should succeed
-    deleted = repo.safe_delete(wu_boundary)
-    assert deleted, "WU with HAS_STATEMENT boundary should be deleted"
+    deleted = repo.safe_delete(pp_boundary)
+    assert deleted, "PP with HAS_STATEMENT boundary should be deleted"
 
-    # Verify WU deleted
+    # Verify PP deleted
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_boundary._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_boundary._id}
     ))
-    assert len(result) == 0, "WU should be deleted"
+    assert len(result) == 0, "PP should be deleted"
 
-    # Verify orphaned stmt_component also deleted (not in any WU)
+    # Verify orphaned stmt_component also deleted (not in any PP)
     result = list(db.execute_and_fetch(
         f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
         {"c_id": stmt_comp_orphan._id}
@@ -1659,27 +1659,27 @@ def test_wisdom_unit_repository_safe_delete(di_container):
 
     print("✓ Test 3: HAS_STATEMENT boundary handled correctly")
 
-    # ========== Test 4: HAS_STATEMENT with component in another WU (should keep component) ==========
-    wu_boundary_2 = WisdomUnit(intent="boundary_test_2")
-    wu_boundary_2.save()
+    # ========== Test 4: HAS_STATEMENT with component in another PP (should keep component) ==========
+    pp_boundary_2 = Perspective(intent="boundary_test_2")
+    pp_boundary_2.save()
 
-    wu_other = WisdomUnit(intent="other_wu")
-    wu_other.save()
+    pp_other = Perspective(intent="other_pp")
+    pp_other.save()
 
-    # Create WU components for wu_boundary_2
+    # Create PP components for pp_boundary_2
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
         comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(wu_boundary_2, pos).connect(comp, properties={'alias': stmt})
+        getattr(pp_boundary_2, pos).connect(comp, properties={'alias': stmt})
 
-    # Create shared stmt_component used in another WU
-    stmt_comp_shared = DialecticalComponent(statement="Statement component (in another WU)", meaning="meaning:shared")
+    # Create shared stmt_component used in another PP
+    stmt_comp_shared = DialecticalComponent(statement="Statement component (in another PP)", meaning="meaning:shared")
     stmt_comp_shared.commit()
-    wu_other.t.connect(stmt_comp_shared, properties={'alias': 'T_other'})
+    pp_other.t.connect(stmt_comp_shared, properties={'alias': 'T_other'})
 
-    # Commit wu_boundary_2 so we can add rationales
-    wu_boundary_2.commit()
+    # Commit pp_boundary_2 so we can add rationales
+    pp_boundary_2.commit()
 
     # Create Input with HAS_STATEMENT to shared component
     # In the new model, derived statements come through Input nodes
@@ -1688,17 +1688,17 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     input_boundary_2.statements.connect(stmt_comp_shared)
 
     # Safe delete should succeed
-    deleted = repo.safe_delete(wu_boundary_2)
-    assert deleted, "WU should be deleted"
+    deleted = repo.safe_delete(pp_boundary_2)
+    assert deleted, "PP should be deleted"
 
-    # Verify WU deleted
+    # Verify PP deleted
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_boundary_2._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_boundary_2._id}
     ))
-    assert len(result) == 0, "WU should be deleted"
+    assert len(result) == 0, "PP should be deleted"
 
-    # Verify shared stmt_component still exists (used in wu_other)
+    # Verify shared stmt_component still exists (used in pp_other)
     result = list(db.execute_and_fetch(
         f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
         {"c_id": stmt_comp_shared._id}
@@ -1707,25 +1707,25 @@ def test_wisdom_unit_repository_safe_delete(di_container):
 
     print("✓ Test 4: HAS_STATEMENT with shared component kept component alive")
 
-    # ========== Test 5: Rationales as attributes (should delete with WU) ==========
-    wu_rationale = WisdomUnit(intent="rationale_test")
-    wu_rationale.save()
+    # ========== Test 5: Rationales as attributes (should delete with PP) ==========
+    pp_rationale = Perspective(intent="rationale_test")
+    pp_rationale.save()
 
     # Create components
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
         comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(wu_rationale, pos).connect(comp, properties={'alias': stmt})
+        getattr(pp_rationale, pos).connect(comp, properties={'alias': stmt})
 
-    # Commit WU so we can add rationales
-    wu_rationale.commit()
+    # Commit PP so we can add rationales
+    pp_rationale.commit()
 
     # Create rationale chain (critique relationships)
-    # rat1 explains wu_rationale directly
+    # rat1 explains pp_rationale directly
     # rat2 critiques rat1, rat3 critiques rat2 (transitive chain)
     rat1 = Rationale(text="Base rationale")
-    rat1.set_explanation_target(wu_rationale)
+    rat1.set_explanation_target(pp_rationale)
     rat1.commit()
 
     rat2 = Rationale(text="Critique of rat1")
@@ -1736,12 +1736,12 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     rat3.set_critiques_target(rat2)  # rat3's target is rat2
     rat3.commit()
 
-    # Check isolation (CRITIQUES within WU doesn't prevent deletion)
-    assert repo.is_isolated(wu_rationale), "WU with internal critique chain should be isolated"
+    # Check isolation (CRITIQUES within PP doesn't prevent deletion)
+    assert repo.is_isolated(pp_rationale), "PP with internal critique chain should be isolated"
 
     # Safe delete should succeed
-    deleted = repo.safe_delete(wu_rationale)
-    assert deleted, "WU with internal critique chain should be deleted"
+    deleted = repo.safe_delete(pp_rationale)
+    assert deleted, "PP with internal critique chain should be deleted"
 
     # ALL rationales should be deleted (including critique chain)
     # The safe_delete cascades through critique chains to avoid orphans
@@ -1754,7 +1754,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
 
     print("✓ Test 5: All rationales deleted (including critique chain cascade)")
 
-    # ========== Test 6: WU with Transformation (should delete Transformation and its components) ==========
+    # ========== Test 6: PP with Transformation (should delete Transformation and its components) ==========
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.relationships.polarity_relationship import (
         AcRelationship, ReRelationship,
@@ -1762,22 +1762,22 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         RePlusRelationship, ReMinusRelationship,
     )
 
-    wu_with_trans = WisdomUnit(intent="with_transformation")
-    wu_with_trans.save()
+    pp_with_trans = Perspective(intent="with_transformation")
+    pp_with_trans.save()
 
-    # Create components for the WU
+    # Create components for the PP
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"WU Trans {stmt}", meaning=f"meaning:{stmt}")
+        comp = DialecticalComponent(statement=f"PP Trans {stmt}", meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(wu_with_trans, pos).connect(comp, properties={'alias': stmt})
+        getattr(pp_with_trans, pos).connect(comp, properties={'alias': stmt})
 
-    # Commit WU before creating Transformation
-    wu_with_trans.commit()
+    # Commit PP before creating Transformation
+    pp_with_trans.commit()
 
     # Create Transformation with 6 Ac/Re positions
     transformation = Transformation(intent="test_trans")
-    transformation.set_wisdom_unit(wu_with_trans)
+    transformation.set_perspective(pp_with_trans)
     transformation.save()
 
     # Add Ac/Re components
@@ -1802,18 +1802,18 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     trans_id = transformation._id
 
     # Check isolation (should be isolated - Transformation is part of subgraph)
-    assert repo.is_isolated(wu_with_trans), "WU with Transformation should be isolated"
+    assert repo.is_isolated(pp_with_trans), "PP with Transformation should be isolated"
 
     # Safe delete should succeed
-    deleted = repo.safe_delete(wu_with_trans)
-    assert deleted, "WU with Transformation should be deleted"
+    deleted = repo.safe_delete(pp_with_trans)
+    assert deleted, "PP with Transformation should be deleted"
 
-    # Verify WU deleted
+    # Verify PP deleted
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_with_trans._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_with_trans._id}
     ))
-    assert len(result) == 0, "WU should be deleted"
+    assert len(result) == 0, "PP should be deleted"
 
     # Verify Transformation deleted
     result = list(db.execute_and_fetch(
@@ -1822,34 +1822,34 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     ))
     assert len(result) == 0, "Transformation should be deleted"
 
-    print("✓ Test 6: WU with Transformation deleted correctly")
+    print("✓ Test 6: PP with Transformation deleted correctly")
 
     # Note: Tests 7 and 8 for ac_re behavior have been removed.
     # Transformation no longer has ac_re - it has its own 6 positions (Ac, Re, Ac+, Ac-, Re+, Re-).
 
-    # ========== Test 7: WU with Synthesis (should delete Synthesis and orphaned S+/S- components) ==========
+    # ========== Test 7: PP with Synthesis (should delete Synthesis and orphaned S+/S- components) ==========
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.relationships.polarity_relationship import SPlusRelationship, SMinusRelationship
 
-    wu_with_synth = WisdomUnit(intent="with_synthesis")
-    wu_with_synth.save()
+    pp_with_synth = Perspective(intent="with_synthesis")
+    pp_with_synth.save()
 
     # Create core components
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
         comp = DialecticalComponent(statement=f"Synth test {stmt}", meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(wu_with_synth, pos).connect(comp, properties={'alias': stmt})
+        getattr(pp_with_synth, pos).connect(comp, properties={'alias': stmt})
 
-    # Commit WU before creating Transformation
-    wu_with_synth.commit()
+    # Commit PP before creating Transformation
+    pp_with_synth.commit()
 
-    # Create Transformation for the WU
+    # Create Transformation for the PP
     trans = Transformation(intent="test_transformation")
-    trans.set_wisdom_unit(wu_with_synth)
+    trans.set_perspective(pp_with_synth)
     trans.commit()
 
-    # Create Synthesis with S+ and S- components connected to WU
+    # Create Synthesis with S+ and S- components connected to PP
     # Synthesis uses IncrementalBuildMixin: save() first (HEAD), connect, then commit()
     synth = Synthesis()
     synth.save()  # HEAD state (hash=None)
@@ -1862,7 +1862,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     s_minus_comp.commit()
     synth.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias="S-"))
 
-    synth.target.connect(wu_with_synth)
+    synth.target.connect(pp_with_synth)
     synth.commit()  # Now compute hash
 
     synth_id = synth._id
@@ -1871,19 +1871,19 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     trans_id = trans._id
 
     # Check isolation (should be isolated - no sharing)
-    assert repo.is_isolated(wu_with_synth), "WU with isolated Synthesis should be isolated"
-    assert not repo.is_shared(wu_with_synth), "WU with isolated Synthesis should not be shared"
+    assert repo.is_isolated(pp_with_synth), "PP with isolated Synthesis should be isolated"
+    assert not repo.is_shared(pp_with_synth), "PP with isolated Synthesis should not be shared"
 
     # Safe delete should succeed
-    deleted = repo.safe_delete(wu_with_synth)
-    assert deleted, "WU with Synthesis should be deleted"
+    deleted = repo.safe_delete(pp_with_synth)
+    assert deleted, "PP with Synthesis should be deleted"
 
-    # Verify WU deleted
+    # Verify PP deleted
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_with_synth._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_with_synth._id}
     ))
-    assert len(result) == 0, "WU should be deleted"
+    assert len(result) == 0, "PP should be deleted"
 
     # Verify Transformation deleted
     result = list(db.execute_and_fetch(
@@ -1912,58 +1912,58 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     ))
     assert len(result) == 0, "Orphaned S- component should be deleted"
 
-    print("✓ Test 9: WU with Synthesis deleted Synthesis and orphaned S+/S- components")
+    print("✓ Test 9: PP with Synthesis deleted Synthesis and orphaned S+/S- components")
 
     # ========== Test 10: Shared Synthesis component (should preserve shared S+ component) ==========
-    wu_synth_1 = WisdomUnit(intent="synth_shared_1")
-    wu_synth_1.save()
+    pp_synth_1 = Perspective(intent="synth_shared_1")
+    pp_synth_1.save()
 
-    wu_synth_2 = WisdomUnit(intent="synth_shared_2")
-    wu_synth_2.save()
+    pp_synth_2 = Perspective(intent="synth_shared_2")
+    pp_synth_2.save()
 
-    # Create core components for both WUs
-    for wu in [wu_synth_1, wu_synth_2]:
+    # Create core components for both PPs
+    for pp in [pp_synth_1, pp_synth_2]:
         for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                            ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-            comp = DialecticalComponent(statement=f"{wu.intent} {stmt}", meaning=f"meaning:{stmt}")
+            comp = DialecticalComponent(statement=f"{pp.intent} {stmt}", meaning=f"meaning:{stmt}")
             comp.commit()
-            getattr(wu, pos).connect(comp, properties={'alias': stmt})
+            getattr(pp, pos).connect(comp, properties={'alias': stmt})
 
-    # Commit WUs before creating Transformations
-    wu_synth_1.commit()
-    wu_synth_2.commit()
+    # Commit PPs before creating Transformations
+    pp_synth_1.commit()
+    pp_synth_2.commit()
 
     # Create shared S+ component
     shared_s_plus = DialecticalComponent(statement=f"Shared positive synthesis {random.random()}", meaning="meaning:S+")
     shared_s_plus.commit()
 
-    # Create Transformation for wu_synth_1
+    # Create Transformation for pp_synth_1
     trans_1 = Transformation(intent="trans_synth_1")
-    trans_1.set_wisdom_unit(wu_synth_1)
+    trans_1.set_perspective(pp_synth_1)
     trans_1.commit()
 
-    # Create Synthesis for wu_synth_1 using shared S+ connected to WU
+    # Create Synthesis for pp_synth_1 using shared S+ connected to PP
     synth_1 = Synthesis(intent="synth_1")
     synth_1.save()
-    synth_1.target.connect(wu_synth_1)
+    synth_1.target.connect(pp_synth_1)
     synth_1.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_1 = DialecticalComponent(statement=f"S- for wu_synth_1 {random.random()}", meaning="meaning:S-")
+    s_minus_1 = DialecticalComponent(statement=f"S- for pp_synth_1 {random.random()}", meaning="meaning:S-")
     s_minus_1.commit()
     synth_1.s_minus.connect(s_minus_1, relationship=SMinusRelationship(alias="S-"))
 
-    # Create Transformation for wu_synth_2
+    # Create Transformation for pp_synth_2
     trans_2 = Transformation(intent="trans_synth_2")
-    trans_2.set_wisdom_unit(wu_synth_2)
+    trans_2.set_perspective(pp_synth_2)
     trans_2.commit()
 
-    # Create Synthesis for wu_synth_2 using same shared S+ connected to WU
+    # Create Synthesis for pp_synth_2 using same shared S+ connected to PP
     synth_2 = Synthesis(intent="synth_2")
     synth_2.save()
-    synth_2.target.connect(wu_synth_2)
+    synth_2.target.connect(pp_synth_2)
     synth_2.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_2 = DialecticalComponent(statement=f"S- for wu_synth_2 {random.random()}", meaning="meaning:S-")
+    s_minus_2 = DialecticalComponent(statement=f"S- for pp_synth_2 {random.random()}", meaning="meaning:S-")
     s_minus_2.commit()
     synth_2.s_minus.connect(s_minus_2, relationship=SMinusRelationship(alias="S-"))
 
@@ -1971,20 +1971,20 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     s_minus_1_id = s_minus_1._id
     synth_1_id = synth_1._id
 
-    # Check sharing - wu_synth_1 should have shared components (S+ is shared)
-    assert repo.is_shared(wu_synth_1), "WU with shared S+ component should be shared"
-    assert not repo.is_isolated(wu_synth_1), "WU with shared S+ component should NOT be isolated"
+    # Check sharing - pp_synth_1 should have shared components (S+ is shared)
+    assert repo.is_shared(pp_synth_1), "PP with shared S+ component should be shared"
+    assert not repo.is_isolated(pp_synth_1), "PP with shared S+ component should NOT be isolated"
 
-    # GC mode delete should delete WU but preserve shared S+ component
-    deleted = repo.safe_delete(wu_synth_1, force_gc=True)
-    assert deleted, "WU should be deleted in GC mode"
+    # GC mode delete should delete PP but preserve shared S+ component
+    deleted = repo.safe_delete(pp_synth_1, force_gc=True)
+    assert deleted, "PP should be deleted in GC mode"
 
-    # Verify WU deleted
+    # Verify PP deleted
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_synth_1._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_synth_1._id}
     ))
-    assert len(result) == 0, "wu_synth_1 should be deleted"
+    assert len(result) == 0, "pp_synth_1 should be deleted"
 
     # Verify Synthesis deleted
     result = list(db.execute_and_fetch(
@@ -1993,7 +1993,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     ))
     assert len(result) == 0, "synth_1 should be deleted"
 
-    # Verify shared S+ component preserved (still used by wu_synth_2's Synthesis)
+    # Verify shared S+ component preserved (still used by pp_synth_2's Synthesis)
     result = list(db.execute_and_fetch(
         f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
         {"c_id": shared_s_plus_id}
@@ -2007,7 +2007,7 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     ))
     assert len(result) == 0, "Orphaned S- component should be deleted"
 
-    # Verify wu_synth_2's Synthesis still has connection to shared S+
+    # Verify pp_synth_2's Synthesis still has connection to shared S+
     result = list(db.execute_and_fetch(
         """
         MATCH (synth:Synthesis)<-[:S_PLUS]-(c:DialecticalComponent)
@@ -2016,33 +2016,33 @@ def test_wisdom_unit_repository_safe_delete(di_container):
         """,
         {"synth_id": synth_2._id, "c_id": shared_s_plus_id}
     ))
-    assert len(result) == 1, "wu_synth_2's Synthesis should still have shared S+ connected"
+    assert len(result) == 1, "pp_synth_2's Synthesis should still have shared S+ connected"
 
     print("✓ Test 10: Shared Synthesis component preserved, orphaned component deleted")
 
     # ========== Test 11: Conservative mode with shared Synthesis (should NOT delete) ==========
-    wu_synth_conservative = WisdomUnit(intent="synth_conservative")
-    wu_synth_conservative.save()
+    pp_synth_conservative = Perspective(intent="synth_conservative")
+    pp_synth_conservative.save()
 
     # Create core components
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
         comp = DialecticalComponent(statement=f"Conservative {stmt}", meaning=f"meaning:{stmt}")
         comp.commit()
-        getattr(wu_synth_conservative, pos).connect(comp, properties={'alias': stmt})
+        getattr(pp_synth_conservative, pos).connect(comp, properties={'alias': stmt})
 
-    # Commit WU before creating Transformation
-    wu_synth_conservative.commit()
+    # Commit PP before creating Transformation
+    pp_synth_conservative.commit()
 
-    # Create Transformation for wu_synth_conservative
+    # Create Transformation for pp_synth_conservative
     trans_conservative = Transformation(intent="trans_conservative")
-    trans_conservative.set_wisdom_unit(wu_synth_conservative)
+    trans_conservative.set_perspective(pp_synth_conservative)
     trans_conservative.commit()
 
-    # Create Synthesis using the shared S+ from wu_synth_2 connected to WU
+    # Create Synthesis using the shared S+ from pp_synth_2 connected to PP
     synth_conservative = Synthesis()
     synth_conservative.save()
-    synth_conservative.target.connect(wu_synth_conservative)
+    synth_conservative.target.connect(pp_synth_conservative)
     synth_conservative.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
     s_minus_cons = DialecticalComponent(statement="S- for conservative", meaning="meaning:S-")
@@ -2050,22 +2050,22 @@ def test_wisdom_unit_repository_safe_delete(di_container):
     synth_conservative.s_minus.connect(s_minus_cons, relationship=SMinusRelationship(alias="S-"))
 
     # Check sharing
-    assert repo.is_shared(wu_synth_conservative), "WU with shared S+ should be shared"
+    assert repo.is_shared(pp_synth_conservative), "PP with shared S+ should be shared"
 
     # Conservative mode should NOT delete (shared component)
-    deleted = repo.safe_delete(wu_synth_conservative, force_gc=False)
-    assert not deleted, "WU with shared S+ should NOT be deleted in conservative mode"
+    deleted = repo.safe_delete(pp_synth_conservative, force_gc=False)
+    assert not deleted, "PP with shared S+ should NOT be deleted in conservative mode"
 
-    # Verify WU still exists
+    # Verify PP still exists
     result = list(db.execute_and_fetch(
-        f"MATCH (wu:WisdomUnit) WHERE id(wu) = $wu_id RETURN wu",
-        {"wu_id": wu_synth_conservative._id}
+        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
+        {"pp_id": pp_synth_conservative._id}
     ))
-    assert len(result) == 1, "WU should still exist in conservative mode"
+    assert len(result) == 1, "PP should still exist in conservative mode"
 
-    print("✓ Test 11: Conservative mode preserved WU with shared Synthesis component")
+    print("✓ Test 11: Conservative mode preserved PP with shared Synthesis component")
 
-    print("\n✅ All WisdomUnitRepository.safe_delete() tests passed!")
+    print("\n✅ All PerspectiveRepository.safe_delete() tests passed!")
 
 
 def test_feasibility_estimation_fallback(di_container):
@@ -2195,7 +2195,7 @@ def test_wheel_multiple_transformations():
     case_node.commit()
 
     with scope(case_node.case_id):
-        # Create components for WisdomUnit
+        # Create components for Perspective
         uid = random.random()
         components = []
         for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
@@ -2203,21 +2203,21 @@ def test_wheel_multiple_transformations():
             c.commit()
             components.append(c)
 
-        # Create WU with Polarity using helper
-        wu, _ = create_wu_from_components(
+        # Create PP with Polarity using helper
+        pp, _ = create_pp_from_components(
             t=components[0],
             a=components[3],
             t_plus=components[1],
             t_minus=components[2],
             a_plus=components[4],
             a_minus=components[5],
-            intent=f"wu_{random.random()}",
+            intent=f"pp_{random.random()}",
         )
-        wu.commit()
+        pp.commit()
 
         # Create Cycle
         cycle = Cycle(intent="preset:balanced")
-        cycle.set_wisdom_units([wu])
+        cycle.set_perspectives([pp])
         cycle.commit()
 
         # Create Wheel
@@ -2293,34 +2293,34 @@ def test_wheel_multiple_transformations():
 # Cardinality Validation Tests
 # =============================================================================
 
-def test_cycle_requires_wisdom_units():
-    """Test that Cycle requires at least one WisdomUnit to commit."""
+def test_cycle_requires_perspectives():
+    """Test that Cycle requires at least one Perspective to commit."""
     from dialectical_framework.graph.nodes.cycle import Cycle
 
-    # Create cycle without WUs
+    # Create cycle without PPs
     cycle = Cycle(intent="preset:balanced")
 
-    # Should fail to commit without WUs
-    with pytest.raises(ValueError, match="Cycle must have WisdomUnits"):
+    # Should fail to commit without PPs
+    with pytest.raises(ValueError, match="Cycle must have Perspectives"):
         cycle.commit()
 
-    # Create and commit a WU
-    wu, _, _ = create_wisdom_unit_with_polarity(
+    # Create and commit a PP
+    pp, _, _ = create_perspective_with_polarity(
         t_statement="Thesis", a_statement="Antithesis",
         t_plus_statement="T+", t_minus_statement="T-",
         a_plus_statement="A+", a_minus_statement="A-",
-        intent=f"wu_{random.random()}"
+        intent=f"pp_{random.random()}"
     )
-    wu.commit()
+    pp.commit()
 
-    # Now set WUs and commit should work
-    cycle.set_wisdom_units([wu])
+    # Now set PPs and commit should work
+    cycle.set_perspectives([pp])
     cycle.commit()
 
-    assert cycle.wisdom_unit_count == 1
+    assert cycle.perspective_count == 1
     assert cycle.is_committed
 
-    print("✓ Cycle requires at least one WisdomUnit to commit")
+    print("✓ Cycle requires at least one Perspective to commit")
 
 
 def test_transformation_six_positions():
@@ -2340,29 +2340,29 @@ def test_transformation_six_positions():
 
     uid = random.random()
 
-    # Create components for WisdomUnit
-    wu_comps = {}
+    # Create components for Perspective
+    pp_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Trans six WU {stmt} {uid}", meaning=f"meaning:{stmt}")
+        comp = DialecticalComponent(statement=f"Trans six PP {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
-        wu_comps[pos] = comp
+        pp_comps[pos] = comp
 
-    # Create WU with Polarity
-    wu, _ = create_wu_from_components(
-        t=wu_comps['t'],
-        a=wu_comps['a'],
-        t_plus=wu_comps['t_plus'],
-        t_minus=wu_comps['t_minus'],
-        a_plus=wu_comps['a_plus'],
-        a_minus=wu_comps['a_minus'],
+    # Create PP with Polarity
+    pp, _ = create_pp_from_components(
+        t=pp_comps['t'],
+        a=pp_comps['a'],
+        t_plus=pp_comps['t_plus'],
+        t_minus=pp_comps['t_minus'],
+        a_plus=pp_comps['a_plus'],
+        a_minus=pp_comps['a_minus'],
         intent=f"trans_six_{uid}",
     )
-    wu.commit()
+    pp.commit()
 
     # Create Cycle
     cycle = Cycle(intent="preset:balanced")
-    cycle.set_wisdom_units([wu])
+    cycle.set_perspectives([pp])
     cycle.commit()
 
     # Create Wheel
@@ -2371,12 +2371,12 @@ def test_transformation_six_positions():
 
     # Add wheel-level transitions (required before connecting to cycle)
     wheel_trans1 = Transition()
-    wheel_trans1.set_source(wu_comps['t']).set_target(wu_comps['a'])
+    wheel_trans1.set_source(pp_comps['t']).set_target(pp_comps['a'])
     wheel_trans1.commit()
     wheel_trans1.cycle.connect(wheel)
 
     wheel_trans2 = Transition()
-    wheel_trans2.set_source(wu_comps['a']).set_target(wu_comps['t'])
+    wheel_trans2.set_source(pp_comps['a']).set_target(pp_comps['t'])
     wheel_trans2.commit()
     wheel_trans2.cycle.connect(wheel)
 
@@ -2404,8 +2404,8 @@ def test_transformation_six_positions():
 
     for pos_name, source_pos, target_pos, manager, rel_class in transition_specs:
         trans = Transition()
-        trans.set_source(wu_comps[source_pos])
-        trans.set_target(wu_comps[target_pos])
+        trans.set_source(pp_comps[source_pos])
+        trans.set_target(pp_comps[target_pos])
         trans.commit()
         manager.connect(trans, relationship=rel_class(alias=pos_name))
 
@@ -2436,29 +2436,29 @@ def test_transformation_incomplete():
 
     uid = random.random()
 
-    # Create components for WisdomUnit
-    wu_comps = {}
+    # Create components for Perspective
+    pp_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Trans incomplete WU {stmt} {uid}", meaning=f"meaning:{stmt}")
+        comp = DialecticalComponent(statement=f"Trans incomplete PP {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
-        wu_comps[pos] = comp
+        pp_comps[pos] = comp
 
-    # Create WU with Polarity
-    wu, _ = create_wu_from_components(
-        t=wu_comps['t'],
-        a=wu_comps['a'],
-        t_plus=wu_comps['t_plus'],
-        t_minus=wu_comps['t_minus'],
-        a_plus=wu_comps['a_plus'],
-        a_minus=wu_comps['a_minus'],
+    # Create PP with Polarity
+    pp, _ = create_pp_from_components(
+        t=pp_comps['t'],
+        a=pp_comps['a'],
+        t_plus=pp_comps['t_plus'],
+        t_minus=pp_comps['t_minus'],
+        a_plus=pp_comps['a_plus'],
+        a_minus=pp_comps['a_minus'],
         intent=f"trans_incomplete_{uid}",
     )
-    wu.commit()
+    pp.commit()
 
     # Create Cycle
     cycle = Cycle(intent="preset:balanced")
-    cycle.set_wisdom_units([wu])
+    cycle.set_perspectives([pp])
     cycle.commit()
 
     # Create Wheel
@@ -2468,12 +2468,12 @@ def test_transformation_incomplete():
     # Add wheel-level transitions (required before connecting to cycle)
     from dialectical_framework.graph.nodes.transition import Transition as Trans
     wheel_trans1 = Trans()
-    wheel_trans1.set_source(wu_comps['t']).set_target(wu_comps['a'])
+    wheel_trans1.set_source(pp_comps['t']).set_target(pp_comps['a'])
     wheel_trans1.commit()
     wheel_trans1.cycle.connect(wheel)
 
     wheel_trans2 = Trans()
-    wheel_trans2.set_source(wu_comps['a']).set_target(wu_comps['t'])
+    wheel_trans2.set_source(pp_comps['a']).set_target(pp_comps['t'])
     wheel_trans2.commit()
     wheel_trans2.cycle.connect(wheel)
 
@@ -2488,8 +2488,8 @@ def test_transformation_incomplete():
 
     # Add only one transition (Ac: T → A) - optional position
     trans = Transition()
-    trans.set_source(wu_comps['t'])
-    trans.set_target(wu_comps['a'])
+    trans.set_source(pp_comps['t'])
+    trans.set_target(pp_comps['a'])
     trans.commit()
     transformation.ac.connect(trans, relationship=AcRelationship(alias="Ac"))
 

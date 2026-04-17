@@ -1,5 +1,5 @@
 """
-Tests for WisdomUnit validation capabilities.
+Tests for Perspective validation capabilities.
 """
 
 from __future__ import annotations
@@ -9,19 +9,19 @@ from langfuse.decorators import observe
 
 from dialectical_framework.features.control_statements_check import \
     ControlStatementsCheck
-from dialectical_framework.features.wisdom_unit_validation import \
-    WisdomUnitValidation
+from dialectical_framework.features.perspective_validation import \
+    PerspectiveValidation
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, TMinusRelationship,
     TPlusRelationship)
 from dialectical_framework.graph.scope_context import scope
 
 
-def _create_test_wisdom_unit(
+def _create_test_perspective(
     t_statement: str = "Trust",
     a_statement: str = "Distrust",
     t_plus_statement: str = "Confidence",
@@ -32,25 +32,25 @@ def _create_test_wisdom_unit(
     ks_t_minus: float = 0.3,
     ks_a_plus: float = 0.6,
     ks_a_minus: float = 0.3,
-) -> WisdomUnit:
-    """Helper to create a fully populated WisdomUnit for testing."""
-    wu = WisdomUnit()
-    wu.save()
+) -> Perspective:
+    """Helper to create a fully populated Perspective for testing."""
+    pp = Perspective()
+    pp.save()
 
     # Create and connect T
     t = DialecticalComponent(statement=t_statement)
     t.commit()
-    wu.t.connect(t)
+    pp.t.connect(t)
 
     # Create and connect A
     a = DialecticalComponent(statement=a_statement)
     a.commit()
-    wu.a.connect(a)
+    pp.a.connect(a)
 
     # Create and connect T+ with complementarity
     t_plus = DialecticalComponent(statement=t_plus_statement)
     t_plus.commit()
-    wu.t_plus.connect(
+    pp.t_plus.connect(
         t_plus,
         TPlusRelationship(
             heuristic_similarity=0.8,
@@ -62,7 +62,7 @@ def _create_test_wisdom_unit(
     # Create and connect T-
     t_minus = DialecticalComponent(statement=t_minus_statement)
     t_minus.commit()
-    wu.t_minus.connect(
+    pp.t_minus.connect(
         t_minus,
         TMinusRelationship(
             heuristic_similarity=0.8,
@@ -74,7 +74,7 @@ def _create_test_wisdom_unit(
     # Create and connect A+
     a_plus = DialecticalComponent(statement=a_plus_statement)
     a_plus.commit()
-    wu.a_plus.connect(
+    pp.a_plus.connect(
         a_plus,
         APlusRelationship(
             heuristic_similarity=0.8,
@@ -86,7 +86,7 @@ def _create_test_wisdom_unit(
     # Create and connect A-
     a_minus = DialecticalComponent(statement=a_minus_statement)
     a_minus.commit()
-    wu.a_minus.connect(
+    pp.a_minus.connect(
         a_minus,
         AMinusRelationship(
             heuristic_similarity=0.8,
@@ -95,8 +95,8 @@ def _create_test_wisdom_unit(
         ),
     )
 
-    wu.commit()
-    return wu
+    pp.commit()
+    return pp
 
 
 class TestControlStatementsCheck:
@@ -110,7 +110,7 @@ class TestControlStatementsCheck:
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_test_wisdom_unit(
+            pp = _create_test_perspective(
                 t_plus_statement="Confidence",
                 t_minus_statement="Naivety",
                 a_plus_statement="Prudence",
@@ -118,7 +118,7 @@ class TestControlStatementsCheck:
             )
 
             capability = ControlStatementsCheck()
-            result = await capability.execute(wisdom_unit=wu)
+            result = await capability.execute(perspective=pp)
 
             # Check control statements were evaluated
             assert "Confidence" in result.t_plus_without_a_plus_yields_t_minus_statement
@@ -142,10 +142,10 @@ class TestControlStatementsCheck:
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_test_wisdom_unit()
+            pp = _create_test_perspective()
 
             capability = ControlStatementsCheck()
-            result = await capability.execute(wisdom_unit=wu)
+            result = await capability.execute(perspective=pp)
 
             # Check both nodes are committed
             assert result.estimation.is_committed
@@ -165,39 +165,39 @@ class TestControlStatementsCheck:
             )
 
 
-class TestWisdomUnitValidation:
-    """Tests for WisdomUnitValidation orchestrator."""
+class TestPerspectiveValidation:
+    """Tests for PerspectiveValidation orchestrator."""
 
     @pytest.mark.asyncio
     @observe()
     async def test_runs_both_validations(self):
-        """WisdomUnitValidation runs both control statements and empirical checks."""
+        """PerspectiveValidation runs both control statements and empirical checks."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = _create_test_wisdom_unit()
+            pp = _create_test_perspective()
 
-            validator = WisdomUnitValidation()
-            result = await validator.execute(wisdom_unit=wu)
+            validator = PerspectiveValidation()
+            result = await validator.execute(perspective=pp)
 
             # Check control statements result is present
             assert result.control_statements is not None
             assert result.control_statements.estimation.is_committed
 
-            # Check empirical result is present (from WU property)
+            # Check empirical result is present (from PP property)
             assert result.is_empirically_valid is not None
 
     @pytest.mark.asyncio
     @observe()
-    async def test_valid_wisdom_unit(self):
-        """WisdomUnitValidation passes for valid tetrad."""
+    async def test_valid_perspective(self):
+        """PerspectiveValidation passes for valid tetrad."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            # Create WU with valid empirical conditions
-            wu = _create_test_wisdom_unit(
+            # Create PP with valid empirical conditions
+            pp = _create_test_perspective(
                 t_plus_statement="Confidence",
                 t_minus_statement="Naivety",
                 a_plus_statement="Prudence",
@@ -208,8 +208,8 @@ class TestWisdomUnitValidation:
                 ks_a_minus=0.3,
             )
 
-            validator = WisdomUnitValidation()
-            result = await validator.execute(wisdom_unit=wu)
+            validator = PerspectiveValidation()
+            result = await validator.execute(perspective=pp)
 
             # Empirical should definitely pass with these values
             assert result.is_empirically_valid is True
@@ -224,21 +224,21 @@ class TestWisdomUnitValidation:
     @pytest.mark.asyncio
     @observe()
     async def test_fails_empirical_conditions(self):
-        """WisdomUnitValidation fails when empirical conditions not met."""
+        """PerspectiveValidation fails when empirical conditions not met."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            # Create WU that fails empirical conditions (KS(T+) <= 0.4)
-            wu = _create_test_wisdom_unit(
+            # Create PP that fails empirical conditions (KS(T+) <= 0.4)
+            pp = _create_test_perspective(
                 ks_t_plus=0.35,
                 ks_t_minus=0.3,
                 ks_a_plus=0.6,
                 ks_a_minus=0.3,
             )
 
-            validator = WisdomUnitValidation()
-            result = await validator.execute(wisdom_unit=wu)
+            validator = PerspectiveValidation()
+            result = await validator.execute(perspective=pp)
 
             assert result.is_empirically_valid is False
             assert not result.is_valid
@@ -246,36 +246,36 @@ class TestWisdomUnitValidation:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_requires_committed_wisdom_unit(self):
-        """WisdomUnitValidation requires committed WisdomUnit."""
+    async def test_requires_committed_perspective(self):
+        """PerspectiveValidation requires committed Perspective."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = WisdomUnit()
-            wu.save()  # Not committed
+            pp = Perspective()
+            pp.save()  # Not committed
 
-            validator = WisdomUnitValidation()
+            validator = PerspectiveValidation()
             with pytest.raises(ValueError, match="must be committed"):
-                await validator.execute(wisdom_unit=wu)
+                await validator.execute(perspective=pp)
 
     @pytest.mark.asyncio
     @observe()
-    async def test_requires_complete_wisdom_unit(self):
-        """WisdomUnitValidation requires complete WisdomUnit."""
+    async def test_requires_complete_perspective(self):
+        """PerspectiveValidation requires complete Perspective."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.case_id):
-            wu = WisdomUnit()
-            wu.save()
+            pp = Perspective()
+            pp.save()
 
             # Only add T - incomplete
             t = DialecticalComponent(statement="Trust")
             t.commit()
-            wu.t.connect(t)
-            wu.commit()
+            pp.t.connect(t)
+            pp.commit()
 
-            validator = WisdomUnitValidation()
+            validator = PerspectiveValidation()
             with pytest.raises(ValueError, match="must be complete"):
-                await validator.execute(wisdom_unit=wu)
+                await validator.execute(perspective=pp)

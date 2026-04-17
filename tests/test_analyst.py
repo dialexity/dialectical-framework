@@ -29,7 +29,7 @@ async def test_full_blown_wheel(number_of_thoughts):
     wheel = wheels[0]
 
     # Verify structure
-    assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {wheel.polarity_count}"
+    assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} perspectives, got {wheel.polarity_count}"
 
     # Verify cycle exists (new architecture: Wheel belongs to Cycle)
     cycle_result = wheel.cycle.get()
@@ -65,13 +65,13 @@ async def test_full_blown_wheel(number_of_thoughts):
         source_comp, _ = source_result
 
         # Check that source component is from T position (not A position)
-        wu_list_pre = wheel._wisdom_units
-        for wu in wu_list_pre:
-            t_result = wu.t.get()
+        pp_list_pre = wheel._perspectives
+        for pp in pp_list_pre:
+            t_result = pp.t.get()
             if t_result and t_result[0].hash == source_comp.hash:
                 # Source is a T component - good
                 break
-            a_result = wu.a.get()
+            a_result = pp.a.get()
             if a_result and a_result[0].hash == source_comp.hash:
                 raise AssertionError(
                     f"t_cycle contains antithesis component! "
@@ -82,7 +82,7 @@ async def test_full_blown_wheel(number_of_thoughts):
     # Verify Wheel has MORE transitions than t_cycle (detailed arrangement)
     wheel_transitions = wheel.edges
     wheel_transition_count = len(wheel_transitions)
-    expected_wheel_transitions = number_of_thoughts * 2  # T1, T2, A1, A2 for 2 WUs
+    expected_wheel_transitions = number_of_thoughts * 2  # T1, T2, A1, A2 for 2 PPs
     assert wheel_transition_count == expected_wheel_transitions, (
         f"Wheel should have {expected_wheel_transitions} transitions (all T and A positions), "
         f"got {wheel_transition_count}"
@@ -138,19 +138,19 @@ async def test_full_blown_wheel(number_of_thoughts):
     spiral_result = wheel.spiral.get()
     assert spiral_result is not None, "Spiral MUST be created by DecoratorDiscreteSpiral"
 
-    # Get wisdom units
-    wu_list = wheel._wisdom_units
-    assert len(wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {len(wu_list)}"
+    # Get perspectives
+    pp_list = wheel._perspectives
+    assert len(pp_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} perspectives, got {len(pp_list)}"
 
-    # Calculate syntheses for all wisdom units
+    # Calculate syntheses for all perspectives
     print("\n=== Calculating Syntheses ===")
-    for i, wu in enumerate(wu_list):
-        print(f"Calculating synthesis for WisdomUnit {i+1}/{len(wu_list)}")
-        await factory1.calculate_syntheses(wheel=wheel, at=wu)
+    for i, pp in enumerate(pp_list):
+        print(f"Calculating synthesis for Perspective {i+1}/{len(pp_list)}")
+        await factory1.calculate_syntheses(wheel=wheel, at=pp)
 
-        # Verify synthesis was created (connected to WU directly)
-        synthesis_list = [s for s, _ in wu.synthesis.all()]
-        assert len(synthesis_list) >= 1, f"WisdomUnit {i+1} should have at least one synthesis"
+        # Verify synthesis was created (connected to PP directly)
+        synthesis_list = [s for s, _ in pp.synthesis.all()]
+        assert len(synthesis_list) >= 1, f"Perspective {i+1} should have at least one synthesis"
 
         # Verify S+ and S- exist
         for synthesis in synthesis_list:
@@ -168,11 +168,11 @@ async def test_full_blown_wheel(number_of_thoughts):
     print("="*80)
     print(f"{wheel:scores}")
 
-    # Print each wisdom unit with full details (including synthesis and rationales)
-    # Use polar_segments to get wisdom units in ta_cycle order with correct polarity
+    # Print each perspective with full details (including synthesis and rationales)
+    # Use polar_segments to get perspectives in ta_cycle order with correct polarity
     for i, pair in enumerate(wheel.polar_segments):
         print(f"\n{'='*80}")
-        print(f"WisdomUnit {i+1} - Full Details (Polarity: {pair.polarity})")
+        print(f"Perspective {i+1} - Full Details (Polarity: {pair.polarity})")
         print(f"{'='*80}")
         print(f"{pair:full:compact}")
 
@@ -195,7 +195,7 @@ async def test_wheel_spiral(number_of_thoughts):
     wheel = wheels[0]
 
     # Verify structure
-    assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {wheel.polarity_count}"
+    assert wheel.polarity_count == number_of_thoughts, f"Should have exactly {number_of_thoughts} perspectives, got {wheel.polarity_count}"
 
     # Verify cycle exists (new architecture: Wheel belongs to Cycle)
     cycle_result = wheel.cycle.get()
@@ -209,9 +209,9 @@ async def test_wheel_spiral(number_of_thoughts):
     # Calculate transitions (spiral will be created during this step)
     await factory1.calculate_transitions(wheel=wheel)
 
-    # Get wisdom units
-    wu_list = wheel._wisdom_units
-    assert len(wu_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} wisdom units, got {len(wu_list)}"
+    # Get perspectives
+    pp_list = wheel._perspectives
+    assert len(pp_list) == number_of_thoughts, f"Should have exactly {number_of_thoughts} perspectives, got {len(pp_list)}"
 
     # Verify spiral was created (MUST exist after calculate_transitions)
     spiral_result = wheel.spiral.get()
@@ -219,7 +219,7 @@ async def test_wheel_spiral(number_of_thoughts):
 
     spiral_obj, _ = spiral_result
     spiral_transitions = spiral_obj.transitions
-    expected_transitions = number_of_thoughts * 2  # 2 segments per wisdom unit
+    expected_transitions = number_of_thoughts * 2  # 2 segments per perspective
     assert len(spiral_transitions) == expected_transitions, f"Spiral should have exactly {expected_transitions} transitions, got {len(spiral_transitions)}"
     print(f"\n✓ Spiral created with {len(spiral_transitions)} transitions")
 

@@ -144,7 +144,7 @@ class TestQueryTools:
         orchestrator = Orchestrator()
 
         with scope(orchestrator.case_id):
-            tool = QueryGraph(cypher="MATCH (wu:WisdomUnit) RETURN wu")
+            tool = QueryGraph(cypher="MATCH (pp:Perspective) RETURN pp")
             result = await tool.call()
 
             assert "No results found" in result

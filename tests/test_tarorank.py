@@ -13,7 +13,7 @@ implemented in graph/scoring/, mirroring test_scoring.py for comparison.
 **Test Coverage:**
 - DialecticalComponent scoring (leaf nodes)
 - Transition scoring with estimations
-- WisdomUnit hierarchical R/P with power mean
+- Perspective hierarchical R/P with power mean
 - Cycle probability products
 - Wheel complete scoring
 - Alpha parameter effects
@@ -33,7 +33,7 @@ from datetime import datetime, timedelta
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.wheel import Wheel
@@ -297,8 +297,8 @@ class TestInvalidationTracking:
         # Component should be invalidated
         assert not component.is_score_valid(), "Component should be invalidated when its estimation changes"
 
-    def test_invalidation_propagates_component_to_wisdom_unit(self, graph_db_available, di_container):
-        """When a Component's estimation changes, the WisdomUnit containing it should be invalidated."""
+    def test_invalidation_propagates_component_to_perspective(self, graph_db_available, di_container):
+        """When a Component's estimation changes, the Perspective containing it should be invalidated."""
         from dialectical_framework.graph.estimation_manager import EstimationManager
         from dialectical_framework.graph.nodes.input import Input
 
@@ -327,20 +327,20 @@ class TestInvalidationTracking:
         a_rel.set_target(a_component)
         a_rel.commit()
 
-        # Create WisdomUnit, connect components, and commit
-        wu = WisdomUnit()
-        wu.save()
-        wu.t.connect(t_component, properties={'alias': 'T'})
-        wu.a.connect(a_component, properties={'alias': 'A'})
-        wu.commit()
+        # Create Perspective, connect components, and commit
+        pp = Perspective()
+        pp.save()
+        pp.t.connect(t_component, properties={'alias': 'T'})
+        pp.a.connect(a_component, properties={'alias': 'A'})
+        pp.commit()
 
         # Score the hierarchy
         scorer = TaroRank(alpha=1.0)
-        scorer.calculate_score(wu)
+        scorer.calculate_score(pp)
 
         # Verify both have valid scores
         assert t_component.is_score_valid(), "Component should have valid score"
-        assert wu.is_score_valid(), "WisdomUnit should have valid score"
+        assert pp.is_score_valid(), "Perspective should have valid score"
 
         # Modify component's estimation
         manager = EstimationManager()
@@ -349,17 +349,17 @@ class TestInvalidationTracking:
         # Component should be invalidated
         assert not t_component.is_score_valid(), "Component should be invalidated"
 
-        # WisdomUnit (parent) should also be invalidated due to propagation
-        assert not wu.is_score_valid(), "WisdomUnit should be invalidated when child Component changes"
+        # Perspective (parent) should also be invalidated due to propagation
+        assert not pp.is_score_valid(), "Perspective should be invalidated when child Component changes"
 
     # Note: The test_invalidation_propagates_wu_to_nexus was removed as Nexus no longer exists.
-    # Score invalidation propagation is tested via test_invalidation_propagates_component_to_wu.
-    # Cycle scoring propagation would require a more complex test setup with full WU hierarchy.
+    # Score invalidation propagation is tested via test_invalidation_propagates_component_to_pp.
+    # Cycle scoring propagation would require a more complex test setup with full PP hierarchy.
 
     # Note: Transition → Transformation/Cycle/Wheel invalidation uses the same
     # invalidate_node_and_parents mechanism tested above. The graph traversal logic
     # is identical - only the edge types differ. Additional tests for these hierarchies
-    # would require complex setup (WisdomUnit for Transformation, Cycle for Wheel, etc.)
+    # would require complex setup (Perspective for Transformation, Cycle for Wheel, etc.)
     # without testing new code paths.
 
     def test_score_invalidated_when_estimation_changes(self, graph_db_available):
@@ -1122,7 +1122,7 @@ class TestProbabilityNoneBehavior:
         assert abs(score - 0.7) < 0.01
 
 
-# Note: WisdomUnit, Cycle, Wheel, and comprehensive example tests require more complex setup
+# Note: Perspective, Cycle, Wheel, and comprehensive example tests require more complex setup
 # These should be added after the graph node relationships are fully understood
 
 
@@ -1448,6 +1448,6 @@ class TestManualVsCalculatedSeparation:
 
 
 # Additional integration tests could be added here for:
-# - WisdomUnit, Cycle, Wheel hierarchies
+# - Perspective, Cycle, Wheel hierarchies
 # - Complex rationale audit-wins scenarios
 # - Estimation clearing and score invalidation workflows

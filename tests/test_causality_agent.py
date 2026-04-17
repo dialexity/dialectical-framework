@@ -2,7 +2,7 @@
 Tests for BuildWheels skill and sequencer resolver.
 
 Tests cover:
-- BuildWheels: Creating Cycles + Wheels from WisdomUnits within a Nexus
+- BuildWheels: Creating Cycles + Wheels from Perspectives within a Nexus
 - resolve_sequencer: Mapping preset strings to CausalitySequencer instances
 """
 
@@ -31,7 +31,7 @@ from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.polarity import Polarity
-from dialectical_framework.graph.nodes.wisdom_unit import WisdomUnit
+from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, HasPolarityRelationship,
     TMinusRelationship, TPlusRelationship)
@@ -46,11 +46,11 @@ def case_node():
     return bs
 
 
-def create_complete_wisdom_unit(index: int = 0) -> WisdomUnit:
+def create_complete_perspective(index: int = 0) -> Perspective:
     """
-    Create a complete WisdomUnit with Polarity and all 6 positions filled.
+    Create a complete Perspective with Polarity and all 6 positions filled.
 
-    The modern WisdomUnit structure requires a Polarity to hold T and A.
+    The modern Perspective structure requires a Polarity to hold T and A.
     """
     # Create T and A components
     t = DialecticalComponent(
@@ -68,10 +68,10 @@ def create_complete_wisdom_unit(index: int = 0) -> WisdomUnit:
     polarity.set_a(a, heuristic_similarity=0.8)
     polarity.commit()
 
-    # Create WU and connect to Polarity
-    wu = WisdomUnit(intent="test")
-    wu.save()
-    wu.polarity.connect(polarity, relationship=HasPolarityRelationship())
+    # Create PP and connect to Polarity
+    pp = Perspective(intent="test")
+    pp.save()
+    pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Create and connect poles
     t_plus = DialecticalComponent(
@@ -91,21 +91,21 @@ def create_complete_wisdom_unit(index: int = 0) -> WisdomUnit:
     )
     a_minus.commit()
 
-    wu.t_plus.connect(
+    pp.t_plus.connect(
         t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9)
     )
-    wu.t_minus.connect(
+    pp.t_minus.connect(
         t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9)
     )
-    wu.a_plus.connect(
+    pp.a_plus.connect(
         a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9)
     )
-    wu.a_minus.connect(
+    pp.a_minus.connect(
         a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9)
     )
 
-    wu.commit()
-    return wu
+    pp.commit()
+    return pp
 
 
 class TestResolveSequencer:
@@ -203,7 +203,7 @@ class TestNexusPresetIntentSeparation:
 class TestBuildWheels:
     """Tests for BuildWheels.
 
-    BuildWheels takes a Nexus and WisdomUnit hashes, creates all
+    BuildWheels takes a Nexus and Perspective hashes, creates all
     Cycle/Wheel combinations, and optionally estimates them.
     """
 
@@ -211,17 +211,17 @@ class TestBuildWheels:
         """Test BuildWheels has expected fields."""
         agent = BuildWheels(
             nexus_hash="test-hash",
-            wisdom_unit_hashes=["wu1", "wu2"],
+            perspective_hashes=["pp1", "pp2"],
         )
 
         assert agent.nexus_hash == "test-hash"
-        assert agent.wisdom_unit_hashes == ["wu1", "wu2"]
+        assert agent.perspective_hashes == ["pp1", "pp2"]
 
     def test_build_wheels_default_values(self):
         """Test BuildWheels default field values."""
         agent = BuildWheels(nexus_hash="test-hash")
 
-        assert agent.wisdom_unit_hashes == []
+        assert agent.perspective_hashes == []
 
     @pytest.mark.asyncio
     async def test_build_wheels_invalid_nexus(self, case_node):
@@ -239,8 +239,8 @@ class TestBuildWheels:
             assert "Nexus not found" in agent.report.summary
 
     @pytest.mark.asyncio
-    async def test_build_wheels_empty_nexus_no_wus(self, case_node):
-        """Test BuildWheels with an empty Nexus and no WU hashes."""
+    async def test_build_wheels_empty_nexus_no_pps(self, case_node):
+        """Test BuildWheels with an empty Nexus and no PP hashes."""
         with scope(case_node.case_id):
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
@@ -253,19 +253,19 @@ class TestBuildWheels:
             result = await agent.execute()
             assert result.new_cycles == []
             assert result.new_wheels == []
-            assert "No WisdomUnits" in agent.report.summary
+            assert "No Perspectives" in agent.report.summary
 
     @pytest.mark.asyncio
-    async def test_build_wheels_single_wu(self, case_node):
-        """Test BuildWheels with a single WisdomUnit."""
+    async def test_build_wheels_single_pp(self, case_node):
+        """Test BuildWheels with a single Perspective."""
         with scope(case_node.case_id):
-            wu = create_complete_wisdom_unit(0)
+            pp = create_complete_perspective(0)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu.hash],
+                perspective_hashes=[pp.hash],
 
             )
 
@@ -275,23 +275,23 @@ class TestBuildWheels:
             assert len(result.new_cycles) >= 1
             assert len(result.new_wheels) >= 1
 
-            # Layer-1 Cycle (single WU) should have no intent — causality requires 2+ WUs
+            # Layer-1 Cycle (single PP) should have no intent — causality requires 2+ PPs
             cycle = result.new_cycles[0]
-            assert cycle.wisdom_unit_hashes == [wu.hash]
+            assert cycle.perspective_hashes == [pp.hash]
             assert cycle.intent is None
 
     @pytest.mark.asyncio
-    async def test_build_wheels_multiple_wus(self, case_node):
-        """Test BuildWheels with multiple WisdomUnits creates layers."""
+    async def test_build_wheels_multiple_pps(self, case_node):
+        """Test BuildWheels with multiple Perspectives creates layers."""
         with scope(case_node.case_id):
-            wu1 = create_complete_wisdom_unit(1)
-            wu2 = create_complete_wisdom_unit(2)
+            pp1 = create_complete_perspective(1)
+            pp2 = create_complete_perspective(2)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.REALISTIC)
             nexus.commit()
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu1.hash, wu2.hash],
+                perspective_hashes=[pp1.hash, pp2.hash],
 
             )
 
@@ -301,27 +301,27 @@ class TestBuildWheels:
             assert len(result.new_cycles) >= 1
             assert len(result.new_wheels) >= 1
 
-            # Layer-1 cycles (single WU) have no intent, layer 2+ have the preset
+            # Layer-1 cycles (single PP) have no intent, layer 2+ have the preset
             for cycle in result.new_cycles:
-                if cycle.wisdom_unit_count >= 2:
+                if cycle.perspective_count >= 2:
                     assert cycle.intent == CausalityPreset.REALISTIC
                 else:
                     assert cycle.intent is None
 
     @pytest.mark.asyncio
     async def test_build_wheels_empty_hashes_does_nothing(self, case_node):
-        """Test BuildWheels with empty WU hashes does nothing."""
+        """Test BuildWheels with empty PP hashes does nothing."""
         with scope(case_node.case_id):
-            wu = create_complete_wisdom_unit(0)
+            pp = create_complete_perspective(0)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
-            # Add WU to Nexus manually
-            wu.nexus.connect(nexus)
+            # Add PP to Nexus manually
+            pp.nexus.connect(nexus)
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[],  # Empty — does nothing
+                perspective_hashes=[],  # Empty — does nothing
 
             )
 
@@ -329,20 +329,20 @@ class TestBuildWheels:
 
             assert result.new_cycles == []
             assert result.new_wheels == []
-            assert "No WisdomUnits" in agent.report.summary
+            assert "No Perspectives" in agent.report.summary
 
     @pytest.mark.asyncio
     async def test_build_wheels_idempotent(self, case_node):
         """Test that BuildWheels is idempotent — no duplicates on re-run."""
         with scope(case_node.case_id):
-            wu = create_complete_wisdom_unit(0)
+            pp = create_complete_perspective(0)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # First call
             agent1 = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu.hash],
+                perspective_hashes=[pp.hash],
 
             )
             result1 = await agent1.execute()
@@ -352,7 +352,7 @@ class TestBuildWheels:
             # Second call with same inputs
             agent2 = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu.hash],
+                perspective_hashes=[pp.hash],
 
             )
             result2 = await agent2.execute()
@@ -365,7 +365,7 @@ class TestBuildWheels:
     async def test_build_wheels_resolves_nexus_by_prefix(self, case_node):
         """Test that BuildWheels resolves Nexus by hash prefix."""
         with scope(case_node.case_id):
-            wu = create_complete_wisdom_unit(0)
+            pp = create_complete_perspective(0)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
@@ -373,7 +373,7 @@ class TestBuildWheels:
 
             agent = BuildWheels(
                 nexus_hash=prefix,
-                wisdom_unit_hashes=[wu.hash],
+                perspective_hashes=[pp.hash],
 
             )
 
@@ -383,25 +383,25 @@ class TestBuildWheels:
             assert len(result.new_cycles) >= 1
 
     @pytest.mark.asyncio
-    async def test_build_wheels_three_wu_layers(self, case_node):
-        """Test BuildWheels with three WUs creates all layers."""
+    async def test_build_wheels_three_pp_layers(self, case_node):
+        """Test BuildWheels with three PPs creates all layers."""
         with scope(case_node.case_id):
-            wu1 = create_complete_wisdom_unit(1)
-            wu2 = create_complete_wisdom_unit(2)
-            wu3 = create_complete_wisdom_unit(3)
+            pp1 = create_complete_perspective(1)
+            pp2 = create_complete_perspective(2)
+            pp3 = create_complete_perspective(3)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu1.hash, wu2.hash, wu3.hash],
+                perspective_hashes=[pp1.hash, pp2.hash, pp3.hash],
 
             )
 
             result = await agent.execute()
 
-            # 3 WUs should produce:
-            # Layer 1: 3 cycles (one per WU), each with 1 wheel = 3 wheels
+            # 3 PPs should produce:
+            # Layer 1: 3 cycles (one per PP), each with 1 wheel = 3 wheels
             # Layer 2: 3 cycles (C(3,2) pairs, (2-1)!=1 perm each), each with 2 wheels = 6 wheels
             # Layer 3: 2 cycles ((3-1)!=2 perms, no reversal skip), each with 4 wheels = 8 wheels
             assert len(result.new_cycles) == 8  # 3 + 3 + 2
@@ -411,22 +411,22 @@ class TestBuildWheels:
     async def test_build_wheels_graceful_when_all_combined(self, case_node):
         """Test BuildWheels is graceful when all structures already exist."""
         with scope(case_node.case_id):
-            wu = create_complete_wisdom_unit(0)
+            pp = create_complete_perspective(0)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # First call creates structures
             agent1 = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu.hash],
+                perspective_hashes=[pp.hash],
 
             )
             await agent1.execute()
 
-            # Second call with same WUs — everything exists
+            # Second call with same PPs — everything exists
             agent2 = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu.hash],
+                perspective_hashes=[pp.hash],
 
             )
             result2 = await agent2.execute()
@@ -437,25 +437,25 @@ class TestBuildWheels:
             assert "already exist" in agent2.report.summary
 
     @pytest.mark.asyncio
-    async def test_opposite_direction_cycles_three_wus(self, case_node):
-        """Test that layer-3 cycles (3 WUs) are connected via OPPOSITE_DIRECTION."""
+    async def test_opposite_direction_cycles_three_pps(self, case_node):
+        """Test that layer-3 cycles (3 PPs) are connected via OPPOSITE_DIRECTION."""
         with scope(case_node.case_id):
-            wu1 = create_complete_wisdom_unit(1)
-            wu2 = create_complete_wisdom_unit(2)
-            wu3 = create_complete_wisdom_unit(3)
+            pp1 = create_complete_perspective(1)
+            pp2 = create_complete_perspective(2)
+            pp3 = create_complete_perspective(3)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu1.hash, wu2.hash, wu3.hash],
+                perspective_hashes=[pp1.hash, pp2.hash, pp3.hash],
             )
 
             result = await agent.execute()
 
-            # Find layer-3 cycles (3 WUs)
+            # Find layer-3 cycles (3 PPs)
             layer3_cycles = [
-                c for c in result.new_cycles if c.wisdom_unit_count == 3
+                c for c in result.new_cycles if c.perspective_count == 3
             ]
             assert len(layer3_cycles) == 2
 
@@ -466,16 +466,16 @@ class TestBuildWheels:
             assert opposites[0].hash == cycle_b.hash
 
     @pytest.mark.asyncio
-    async def test_no_opposite_direction_for_single_wu(self, case_node):
-        """Test that single-WU cycles have no OPPOSITE_DIRECTION."""
+    async def test_no_opposite_direction_for_single_pp(self, case_node):
+        """Test that single-PP cycles have no OPPOSITE_DIRECTION."""
         with scope(case_node.case_id):
-            wu = create_complete_wisdom_unit(0)
+            pp = create_complete_perspective(0)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu.hash],
+                perspective_hashes=[pp.hash],
             )
 
             result = await agent.execute()
@@ -486,23 +486,23 @@ class TestBuildWheels:
 
     @pytest.mark.asyncio
     async def test_no_opposite_direction_for_pair_cycles(self, case_node):
-        """Test that pair cycles (2 WUs) have no OPPOSITE_DIRECTION (no distinct reversal)."""
+        """Test that pair cycles (2 PPs) have no OPPOSITE_DIRECTION (no distinct reversal)."""
         with scope(case_node.case_id):
-            wu1 = create_complete_wisdom_unit(1)
-            wu2 = create_complete_wisdom_unit(2)
+            pp1 = create_complete_perspective(1)
+            pp2 = create_complete_perspective(2)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu1.hash, wu2.hash],
+                perspective_hashes=[pp1.hash, pp2.hash],
             )
 
             result = await agent.execute()
 
-            # Layer-2 cycles (2 WUs) — only 1 permutation, no reversal
+            # Layer-2 cycles (2 PPs) — only 1 permutation, no reversal
             layer2_cycles = [
-                c for c in result.new_cycles if c.wisdom_unit_count == 2
+                c for c in result.new_cycles if c.perspective_count == 2
             ]
             for cycle in layer2_cycles:
                 opposites = list(cycle.opposite_direction.all())
@@ -512,19 +512,19 @@ class TestBuildWheels:
     async def test_opposite_direction_wheels(self, case_node):
         """Test that opposite-direction wheels are detected and connected."""
         with scope(case_node.case_id):
-            wu1 = create_complete_wisdom_unit(1)
-            wu2 = create_complete_wisdom_unit(2)
+            pp1 = create_complete_perspective(1)
+            pp2 = create_complete_perspective(2)
             nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                wisdom_unit_hashes=[wu1.hash, wu2.hash],
+                perspective_hashes=[pp1.hash, pp2.hash],
             )
 
             result = await agent.execute()
 
-            # Layer-2 wheels for 2 WUs: generate_compatible_sequences
+            # Layer-2 wheels for 2 PPs: generate_compatible_sequences
             # produces 2 arrangements that are reverses of each other
             layer2_wheels = [
                 w for w in result.new_wheels
