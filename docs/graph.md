@@ -187,8 +187,8 @@ from dialectical_framework.graph.scope_context import scope
 case = Case()
 case.commit()
 
-with scope(case.case_id):
-    # Create inputs (inherit case_id from scope)
+with scope(case.sid):
+    # Create inputs (inherit sid from scope)
     input_a = Input(content="https://article.com/pro")
     input_b = Input(content="https://article.com/con")
     input_a.commit()
@@ -414,7 +414,7 @@ class Cycle:
 
 ## Vocabulary
 
-**Vocabulary** is simply all DialecticalComponents within a scope (by `case_id`). Components can be combined freely within the same scope.
+**Vocabulary** is simply all DialecticalComponents within a scope (by `sid`). Components can be combined freely within the same scope.
 
 ### Querying Vocabulary
 
@@ -427,7 +427,7 @@ from dialectical_framework.graph.scope_context import scope
 repo = DialecticalComponentRepository()
 
 # Get vocabulary (always uses current DI scope)
-with scope(case.case_id):
+with scope(case.sid):
     vocab = repo.get_vocabulary()
 ```
 
@@ -660,5 +660,5 @@ node.is_score_valid()  # True if score hasn't been invalidated
 ## Further Reading
 
 - **Scoring specification:** `docs/scoring.md`
-- **Portability & identifiers:** `docs/graph-portability.md` (uid, case_id, nid, scopes, cloning, realms)
+- **Portability & identifiers:** `docs/graph-portability.md` (uid, sid, nid, scopes, cloning, realms)
 - **Project conventions:** `CLAUDE.md`

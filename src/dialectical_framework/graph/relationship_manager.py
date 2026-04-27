@@ -330,26 +330,26 @@ class BoundRelationshipManager(Generic[T]):
         """
         Validate that connected nodes belong to the same scope (Case).
 
-        When connecting two nodes, validates that their case_id values are compatible:
-        - If either case_id is None, allow (orphan/unsaved node can join any scope)
-        - If both have case_id and they match, allow
-        - If both have case_id and they differ, raise ValueError
+        When connecting two nodes, validates that their sid values are compatible:
+        - If either sid is None, allow (orphan/unsaved node can join any scope)
+        - If both have sid and they match, allow
+        - If both have sid and they differ, raise ValueError
 
         This prevents accidentally mixing nodes from different Case scopes
         into the same graph structure.
 
         Raises:
-            ValueError: If nodes have different non-None case_ids
+            ValueError: If nodes have different non-None sids
         """
-        source_case_id = self.source_node.case_id
-        target_case_id = target_node.case_id
+        source_sid = self.source_node.sid
+        target_sid = target_node.sid
 
         # Allow if either is None (orphan/unsaved node)
-        if source_case_id is None or target_case_id is None:
+        if source_sid is None or target_sid is None:
             return
 
         # Allow if same scope
-        if source_case_id == target_case_id:
+        if source_sid == target_sid:
             return
 
         # Different scopes - not allowed
@@ -357,8 +357,8 @@ class BoundRelationshipManager(Generic[T]):
         target_id = target_node.hash or target_node._id or '?'
         raise ValueError(
             f"Cannot connect nodes from different scopes. "
-            f"Source node (id={source_id}) has case_id={source_case_id}, "
-            f"target node (id={target_id}) has case_id={target_case_id}. "
+            f"Source node (id={source_id}) has sid={source_sid}, "
+            f"target node (id={target_id}) has sid={target_sid}. "
             f"Nodes in the same graph must belong to the same scope (Case)."
         )
 

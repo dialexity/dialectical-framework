@@ -1,7 +1,7 @@
 """
 Repository for Wheel node queries.
 
-All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ class WheelRepository:
     """
     Repository for Wheel node queries.
 
-    All queries are automatically scoped by case_id (injected from DI context).
+    All queries are automatically scoped by sid (injected from DI context).
     """
 
     @staticmethod
@@ -54,14 +54,14 @@ class WheelRepository:
         self,
         components: list[DialecticalComponent],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
     ) -> Optional[Wheel]:
         """
         Find a Wheel with exactly the given component sequence (rotation-invariant).
 
         Args:
             components: List of DialecticalComponents in order
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
         Returns:
@@ -79,13 +79,13 @@ class WheelRepository:
         # A wheel with N components has N transitions (circular)
         query = """
             MATCH (w:Wheel)<-[:BELONGS_TO_CYCLE]-(t:Transition)
-            WHERE w.case_id = $case_id
+            WHERE w.sid = $sid
             WITH w, count(t) as trans_count
             WHERE trans_count = $expected_count
             RETURN w
         """
         results = list(graph_db.execute_and_fetch(query, {
-            "case_id": case_id,
+            "sid": sid,
             "expected_count": len(comp_hashes),
         }))
 
@@ -106,18 +106,18 @@ class WheelRepository:
         self,
         wheel: Wheel,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
     ) -> list[Transformation]:
         """
         Get all Transformations belonging to a wheel's edges.
 
         Queries transformations that point to any of the wheel's edges
-        via ACTION_REFLECTION relationship, scoped by case_id.
+        via ACTION_REFLECTION relationship, scoped by sid.
 
         Args:
             wheel: The Wheel to get transformations for
             graph_db: Graph database (injected)
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             List of Transformation nodes from all edges
@@ -129,16 +129,16 @@ class WheelRepository:
         if not edge_ids:
             return []
 
-        # Query transformations pointing to these edges, scoped by case_id
+        # Query transformations pointing to these edges, scoped by sid
         query = """
         MATCH (tr:Transformation)-[:ACTION_REFLECTION]->(t:Transition)
-        WHERE id(t) IN $edge_ids AND tr.case_id = $case_id
+        WHERE id(t) IN $edge_ids AND tr.sid = $sid
         RETURN tr
         ORDER BY id(tr)
         """
         results = list(graph_db.execute_and_fetch(query, {
             "edge_ids": edge_ids,
-            "case_id": case_id,
+            "sid": sid,
         }))
 
         all_transformations: list[TransformationNode] = []
@@ -154,7 +154,7 @@ class WheelRepository:
         perspectives: list[Perspective],
         nexus: Optional[Nexus] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
     ) -> list[Wheel]:
         """
         Find all Wheels in the same layer (same Perspective set, any arrangement).
@@ -170,7 +170,7 @@ class WheelRepository:
         Args:
             perspectives: List of Perspectives defining the layer
             nexus: Optional Nexus to scope results to
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
         Returns:
@@ -184,12 +184,12 @@ class WheelRepository:
         # Find all Wheels belonging to Cycles with exactly these Perspective hashes
         query = """
             MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
-            WHERE w.case_id = $case_id
+            WHERE w.sid = $sid
             AND size(c.perspective_hashes) = $hash_count
             AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
         """
         params: dict = {
-            "case_id": case_id,
+            "sid": sid,
             "pp_hashes": pp_hashes,
             "hash_count": len(pp_hashes),
         }
@@ -210,7 +210,7 @@ class WheelRepository:
         self,
         wheel: Wheel,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         settings: Settings = Provide[DI.settings],
     ) -> list[Wheel]:
         """
@@ -224,7 +224,7 @@ class WheelRepository:
         Args:
             wheel: The Wheel to find parents for
             graph_db: Graph database (injected)
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             List of parent Wheel nodes
@@ -248,12 +248,12 @@ class WheelRepository:
         # Query all wheels belonging to this Cycle, filter in Python
         query = """
         MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
-        WHERE id(c) = $cycle_id AND w.case_id = $case_id
+        WHERE id(c) = $cycle_id AND w.sid = $sid
         RETURN w
         """
         results = list(graph_db.execute_and_fetch(query, {
             "cycle_id": cycle_obj._id,
-            "case_id": case_id,
+            "sid": sid,
         }))
 
         parents: list[WheelNode] = []

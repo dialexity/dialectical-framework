@@ -28,17 +28,17 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.graph.scope_context import scope
 
 
-def create_test_pp(case_id: str, commit: bool = False) -> Perspective:
+def create_test_pp(sid: str, commit: bool = False) -> Perspective:
     """Create a test Perspective with T, A and all angles via Polarity.
 
     Args:
-        case_id: Case ID
+        sid: Scope ID
         commit: If True, commits the PP (default: False, returns uncommitted)
 
     Returns:
         Perspective with Polarity (T+A) and all 4 angles connected
     """
-    with scope(case_id):
+    with scope(sid):
         t = DialecticalComponent(
             statement="Love",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -133,8 +133,8 @@ class TestEditPolarityThesis:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditPolarity(
                 perspective_hash=pp.hash,
@@ -162,8 +162,8 @@ class TestEditPolarityThesis:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditPolarity(
                 perspective_hash=pp.hash,
@@ -189,8 +189,8 @@ class TestEditPolarityAntithesis:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditPolarity(
                 perspective_hash=pp.hash,
@@ -215,8 +215,8 @@ class TestEditPolarityAntithesis:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditPolarity(
                 perspective_hash=pp.hash,
@@ -240,8 +240,8 @@ class TestEditTetradAngle:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditTetrad(
                 perspective_hash=pp.hash,
@@ -264,8 +264,8 @@ class TestEditTetradAngle:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditTetrad(
                 perspective_hash=pp.hash,
@@ -289,8 +289,8 @@ class TestEditPolarityForking:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid)
             # Don't commit - leave uncommitted
             pp.save()  # But save so it has _id
 
@@ -305,8 +305,8 @@ class TestEditPolarityForking:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
             original_hash = pp.hash
 
             editor = EditPolarity(
@@ -331,8 +331,8 @@ class TestEditPolarityValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditPolarity(
                 perspective_hash=pp.hash,
@@ -349,8 +349,8 @@ class TestEditPolarityValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            pp = create_test_pp(case_node.case_id, commit=True)
+        with scope(case_node.sid):
+            pp = create_test_pp(case_node.sid, commit=True)
 
             editor = EditPolarity(
                 perspective_hash=pp.hash,
@@ -371,7 +371,7 @@ class TestEditPolarityValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             editor = EditPolarity(
                 perspective_hash="nonexistent123",
                 changes={POSITION_T: "Something"},

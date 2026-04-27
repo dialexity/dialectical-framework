@@ -1,10 +1,10 @@
 """
-Tests for the Merkle identity system: hash, origin_hash, case_id.
+Tests for the Merkle identity system: hash, origin_hash, sid.
 
 These tests verify the identifier model:
 - hash (primary identity): sha256 of node's structure + origin_hash
 - origin_hash (lineage ID): Parent's hash, preserved across clones
-- case_id (scope ID): Case's hash propagates to all descendants
+- sid (scope ID): Case's hash propagates to all descendants
 """
 
 from __future__ import annotations
@@ -16,11 +16,35 @@ from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
+from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.perspective import Perspective
-from dialectical_framework.graph.scope_context import scope, get_current_case_id
+from dialectical_framework.graph.relationships.polarity_relationship import (
+    HasPolarityRelationship, TPlusRelationship, TMinusRelationship,
+    APlusRelationship, AMinusRelationship,
+)
+from dialectical_framework.graph.scope_context import scope, get_current_sid
 from dialectical_framework.graph.repositories.dialectical_component_repository import (
     DialecticalComponentRepository
 )
+
+
+def _create_complete_pp(
+    t, a, t_plus, t_minus, a_plus, a_minus, intent=None
+) -> Perspective:
+    """Helper: create a complete Perspective with Polarity and all angles."""
+    polarity = Polarity(intent=intent)
+    polarity.set_t(t, heuristic_similarity=1.0)
+    polarity.set_a(a, heuristic_similarity=0.8)
+    polarity.commit()
+
+    pp = Perspective(intent=intent)
+    pp.save()
+    pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
+    pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
+    pp.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
+    pp.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
+    pp.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
+    return pp
 
 
 class TestScopeContext:
@@ -28,31 +52,31 @@ class TestScopeContext:
 
     def test_default_scope_is_none(self):
         """Default scope should be None."""
-        assert get_current_case_id() is None
+        assert get_current_sid() is None
 
     def test_context_manager_sets_scope(self):
         """Context manager should set scope within the block."""
-        test_case_id = "test-scope-123"
+        test_sid = "test-scope-123"
 
-        with scope(test_case_id):
-            assert get_current_case_id() == test_case_id
+        with scope(test_sid):
+            assert get_current_sid() == test_sid
 
         # After exiting, scope should be restored to None
-        assert get_current_case_id() is None
+        assert get_current_sid() is None
 
     def test_nested_scopes(self):
         """Nested context managers should work correctly."""
         with scope("outer"):
-            assert get_current_case_id() == "outer"
+            assert get_current_sid() == "outer"
 
             with scope("inner"):
-                assert get_current_case_id() == "inner"
+                assert get_current_sid() == "inner"
 
             # After exiting inner, should be back to outer
-            assert get_current_case_id() == "outer"
+            assert get_current_sid() == "outer"
 
         # After exiting outer, should be None
-        assert get_current_case_id() is None
+        assert get_current_sid() is None
 
 
 class TestCommitWorkflow:
@@ -60,7 +84,7 @@ class TestCommitWorkflow:
 
     def test_node_starts_in_draft_state(self):
         """New node should start uncommitted (draft state)."""
-        comp = DialecticalComponent(statement="Test statement for draft")
+        comp = DialecticalComponent(statement="Test statement for draft", meaning="test")
 
         assert not comp.is_committed
         assert comp.hash is None
@@ -68,7 +92,7 @@ class TestCommitWorkflow:
     def test_save_computes_hash(self):
         """save() should compute hash."""
         import random
-        comp = DialecticalComponent(statement=f"Test statement {random.random()}")
+        comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
         comp.commit()
 
         assert comp.is_committed
@@ -79,7 +103,7 @@ class TestCommitWorkflow:
         """Calling save() on saved node should raise ImmutableNodeError."""
         import random
         from dialectical_framework.graph.nodes.base_node import ImmutableNodeError
-        comp = DialecticalComponent(statement=f"Test statement {random.random()}")
+        comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
         comp.commit()
         first_hash = comp.hash
 
@@ -92,7 +116,7 @@ class TestCommitWorkflow:
 
     def test_hash_before_save(self):
         """hash should be None before save."""
-        comp = DialecticalComponent(statement="Test")
+        comp = DialecticalComponent(statement="Test", meaning="test")
 
         # Before save: hash is None
         assert comp.hash is None
@@ -100,7 +124,7 @@ class TestCommitWorkflow:
 
     def test_hash_after_save(self):
         """hash should be set after save."""
-        comp = DialecticalComponent(statement="Test")
+        comp = DialecticalComponent(statement="Test", meaning="test")
         comp.commit()
 
         # After save: hash is set
@@ -110,7 +134,7 @@ class TestCommitWorkflow:
 
     def test_save_workflow(self):
         """Standard workflow: create -> save (computes hash and persists)."""
-        comp = DialecticalComponent(statement="Test")
+        comp = DialecticalComponent(statement="Test", meaning="test")
         comp.commit()
 
         assert comp._id is not None
@@ -120,8 +144,8 @@ class TestCommitWorkflow:
         """Same content should produce same hash (without saving both - would violate unique constraint)."""
         import random
         unique_content = f"Same content {random.random()}"
-        comp1 = DialecticalComponent(statement=unique_content)
-        comp2 = DialecticalComponent(statement=unique_content)
+        comp1 = DialecticalComponent(statement=unique_content, meaning="test")
+        comp2 = DialecticalComponent(statement=unique_content, meaning="test")
 
         # Compute hashes without saving (to test determinism without unique constraint issue)
         hash1 = comp1.compute_hash()
@@ -137,66 +161,66 @@ class TestCommitWorkflow:
 class TestCaseIdentifiers:
     """Tests for Case as scope root."""
 
-    def test_case_has_uuid_case_id_on_creation(self):
-        """Case generates UUID for case_id on creation."""
+    def test_case_has_uuid_sid_on_creation(self):
+        """Case generates UUID for sid on creation."""
         case_node = Case()
 
-        # case_id is set immediately (UUID)
-        assert case_node.case_id is not None
-        assert len(case_node.case_id) == 36  # UUID format
+        # sid is set immediately (UUID)
+        assert case_node.sid is not None
+        assert len(case_node.sid) == 36  # UUID format
 
     def test_case_workflow(self):
-        """Full Case workflow: create -> commit (case_id already set)."""
+        """Full Case workflow: create -> commit (sid already set)."""
         case_node = Case()
         case_node.commit()
 
-        # case_id is UUID, hash is None (Case never commits)
-        assert case_node.case_id is not None
+        # sid is UUID, hash is None (Case never commits)
+        assert case_node.sid is not None
         assert case_node.hash is None
 
 
 class TestNodeIdentifierInheritance:
-    """Tests for case_id inheritance via scope context."""
+    """Tests for sid inheritance via scope context."""
 
-    def test_input_inherits_case_id_from_context(self):
-        """Input created within scope context should inherit case_id."""
+    def test_input_inherits_sid_from_context(self):
+        """Input created within scope context should inherit sid."""
         import random
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
-        assert input_node.case_id == case_node.case_id
+        assert input_node.sid == case_node.sid
 
-    def test_component_inherits_case_id_from_context(self):
-        """Component created within scope context should inherit case_id."""
+    def test_component_inherits_sid_from_context(self):
+        """Component created within scope context should inherit sid."""
         case_node = Case()
         case_node.commit()
 
         import random
-        with scope(case_node.case_id):
-            comp = DialecticalComponent(statement=f"Test statement {random.random()}")
+        with scope(case_node.sid):
+            comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
             comp.commit()
 
-        assert comp.case_id == case_node.case_id
+        assert comp.sid == case_node.sid
 
-    def test_ideas_inherits_case_id_from_context(self):
-        """Ideas created within scope context should inherit case_id."""
+    def test_ideas_inherits_sid_from_context(self):
+        """Ideas created within scope context should inherit sid."""
         import random
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             ideas = Ideas(intent=f"Test extraction {random.random()}")
             ideas.save()
             ideas.commit()
 
-        assert ideas.case_id == case_node.case_id
+        assert ideas.sid == case_node.sid
 
-    def test_explicit_case_id_overrides_context(self):
-        """Explicit case_id parameter should override context."""
+    def test_explicit_sid_overrides_context(self):
+        """Explicit sid parameter should override context."""
         import random
         case_node1 = Case()
         case_node1.commit()
@@ -204,24 +228,24 @@ class TestNodeIdentifierInheritance:
         case_node2 = Case()
         case_node2.commit()
 
-        with scope(case_node1.case_id):
-            # Explicit case_id takes precedence
-            comp = DialecticalComponent(statement=f"Test {random.random()}", case_id=case_node2.case_id)
+        with scope(case_node1.sid):
+            # Explicit sid takes precedence
+            comp = DialecticalComponent(statement=f"Test {random.random()}", sid=case_node2.sid, meaning="test")
             comp.commit()
 
-        assert comp.case_id == case_node2.case_id
+        assert comp.sid == case_node2.sid
 
 
 class TestOrphanNodes:
     """Tests for nodes created without scope context."""
 
-    def test_node_without_context_has_no_case_id(self):
-        """Node created without scope context should have case_id=None."""
+    def test_node_without_context_has_no_sid(self):
+        """Node created without scope context should have sid=None."""
         import random
-        comp = DialecticalComponent(statement=f"Orphan {random.random()}")
+        comp = DialecticalComponent(statement=f"Orphan {random.random()}", meaning="test")
         comp.commit()
 
-        assert comp.case_id is None
+        assert comp.sid is None
 
 
 class TestCloneOperation:
@@ -243,11 +267,11 @@ class TestCloneOperation:
         case_node2 = Case()
         case_node2.commit()
 
-        with scope(case_node1.case_id):
-            original = DialecticalComponent(statement=f"Original statement {random.random()}")
+        with scope(case_node1.sid):
+            original = DialecticalComponent(statement=f"Original statement {random.random()}", meaning="test")
             original.commit()
 
-        cloned = original.clone(destination_case_id=case_node2.case_id)
+        cloned = original.clone(destination_sid=case_node2.sid)
         cloned.commit()
 
         # Atoms are content-addressable: same content = same hash
@@ -259,17 +283,17 @@ class TestCloneOperation:
         case_node1 = Case()
         case_node1.commit()
 
-        with scope(case_node1.case_id):
-            original = DialecticalComponent(statement=f"Original {random.random()}")
+        with scope(case_node1.sid):
+            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
             original.commit()
 
-        cloned = original.clone(destination_case_id=case_node1.case_id)
+        cloned = original.clone(destination_sid=case_node1.sid)
 
         # Atoms don't have origin_hash attribute (not ForkableMixin)
         assert not hasattr(cloned, 'origin_hash') or cloned.origin_hash is None
 
-    def test_clone_sets_new_case_id(self):
-        """Cloned node should have the destination case_id."""
+    def test_clone_sets_new_sid(self):
+        """Cloned node should have the destination sid."""
         import random
         case_node1 = Case()
         case_node1.commit()
@@ -277,19 +301,17 @@ class TestCloneOperation:
         case_node2 = Case()
         case_node2.commit()
 
-        with scope(case_node1.case_id):
-            original = DialecticalComponent(statement=f"Original {random.random()}")
+        with scope(case_node1.sid):
+            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
             original.commit()
 
-        cloned = original.clone(destination_case_id=case_node2.case_id)
+        cloned = original.clone(destination_sid=case_node2.sid)
         cloned.commit()
 
-        assert cloned.case_id == case_node2.case_id
+        assert cloned.sid == case_node2.sid
 
     def test_forking_point_clone_sets_origin_hash(self):
         """Cloned forking point (Perspective) should have origin_hash pointing to original."""
-        from dialectical_framework.graph.nodes.perspective import Perspective
-
         import random
         case_node1 = Case()
         case_node1.commit()
@@ -297,37 +319,26 @@ class TestCloneOperation:
         case_node2 = Case()
         case_node2.commit()
 
-        with scope(case_node1.case_id):
-            # Create a complete Perspective (forking point)
-            t = DialecticalComponent(statement=f"Thesis {random.random()}")
-            t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}")
-            t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}")
-            a = DialecticalComponent(statement=f"Antithesis {random.random()}")
-            a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}")
-            a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}")
-
+        with scope(case_node1.sid):
+            t = DialecticalComponent(statement=f"Thesis {random.random()}", meaning="test")
+            t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}", meaning="test")
+            t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}", meaning="test")
+            a = DialecticalComponent(statement=f"Antithesis {random.random()}", meaning="test")
+            a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}", meaning="test")
+            a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}", meaning="test")
             for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
                 comp.commit()
 
-            original_pp = Perspective()
-            original_pp.save()
-            original_pp.t.connect(t, properties={'alias': 'T'})
-            original_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
-            original_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
-            original_pp.a.connect(a, properties={'alias': 'A'})
-            original_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
-            original_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+            original_pp = _create_complete_pp(t, a, t_plus, t_minus, a_plus, a_minus)
             original_pp.commit()
 
-        cloned_pp = original_pp.clone(destination_case_id=case_node2.case_id)
+        cloned_pp = original_pp.clone(destination_sid=case_node2.sid)
 
         # Forking points have origin_hash pointing to source
         assert cloned_pp.origin_hash == original_pp.hash
 
     def test_forking_point_clone_has_different_hash(self):
         """Cloned forking point should have different hash due to origin_hash."""
-        from dialectical_framework.graph.nodes.perspective import Perspective
-
         import random
         case_node1 = Case()
         case_node1.commit()
@@ -335,39 +346,33 @@ class TestCloneOperation:
         case_node2 = Case()
         case_node2.commit()
 
-        # Create orphan components (case_id=None) so they can be shared across scopes
-        # This matches real usage: atoms are global facts, shared across scopes
-        t = DialecticalComponent(statement=f"Thesis {random.random()}")
-        t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}")
-        t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}")
-        a = DialecticalComponent(statement=f"Antithesis {random.random()}")
-        a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}")
-        a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}")
-
+        # Create orphan components (sid=None) so they can be shared across scopes
+        t = DialecticalComponent(statement=f"Thesis {random.random()}", meaning="test")
+        t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}", meaning="test")
+        t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}", meaning="test")
+        a = DialecticalComponent(statement=f"Antithesis {random.random()}", meaning="test")
+        a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}", meaning="test")
+        a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}", meaning="test")
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
 
-        with scope(case_node1.case_id):
-            original_pp = Perspective()
-            original_pp.save()
-            original_pp.t.connect(t, properties={'alias': 'T'})
-            original_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
-            original_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
-            original_pp.a.connect(a, properties={'alias': 'A'})
-            original_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
-            original_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+        with scope(case_node1.sid):
+            original_pp = _create_complete_pp(t, a, t_plus, t_minus, a_plus, a_minus)
             original_pp.commit()
 
         # Clone and reconnect components (clone doesn't copy relationships)
-        # Components are orphans, so they can be connected to PP in any scope
-        cloned_pp = original_pp.clone(destination_case_id=case_node2.case_id)
+        cloned_pp = original_pp.clone(destination_sid=case_node2.sid)
+        # Reconnect Polarity and angles for the clone
+        polarity = Polarity()
+        polarity.set_t(t, heuristic_similarity=1.0)
+        polarity.set_a(a, heuristic_similarity=0.8)
+        polarity.commit()
         cloned_pp.save()
-        cloned_pp.t.connect(t, properties={'alias': 'T'})
-        cloned_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
-        cloned_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
-        cloned_pp.a.connect(a, properties={'alias': 'A'})
-        cloned_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
-        cloned_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+        cloned_pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
+        cloned_pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
+        cloned_pp.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
+        cloned_pp.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
+        cloned_pp.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
         cloned_pp.commit()
 
         # Forking points have different hashes due to origin_hash in computation
@@ -380,11 +385,11 @@ class TestCloneOperation:
         case_node1 = Case()
         case_node1.commit()
 
-        with scope(case_node1.case_id):
-            original = DialecticalComponent(statement=f"Original {random.random()}")
+        with scope(case_node1.sid):
+            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
             original.commit()
 
-        cloned = original.clone(destination_case_id=case_node1.case_id)
+        cloned = original.clone(destination_sid=case_node1.sid)
 
         # Cloned node should be uncommitted
         assert not cloned.is_committed
@@ -399,11 +404,11 @@ class TestCloneOperation:
         case_node2 = Case()
         case_node2.commit()
 
-        with scope(case_node1.case_id):
-            original = DialecticalComponent(statement=f"Test statement {random.random()}")
+        with scope(case_node1.sid):
+            original = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
             original.commit()
 
-        cloned = original.clone(destination_case_id=case_node2.case_id)
+        cloned = original.clone(destination_sid=case_node2.sid)
 
         assert cloned.statement == original.statement
 
@@ -417,7 +422,7 @@ class TestScopeValidationOnConnect:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
@@ -435,7 +440,7 @@ class TestScopeValidationOnConnect:
         case_node2 = Case()
         case_node2.commit()
 
-        with scope(case_node2.case_id):
+        with scope(case_node2.sid):
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
@@ -446,7 +451,7 @@ class TestScopeValidationOnConnect:
         assert "different scopes" in str(exc_info.value).lower()
 
     def test_orphan_node_connection_allowed(self):
-        """Orphan nodes (case_id=None) should be connectable to any scope."""
+        """Orphan nodes (sid=None) should be connectable to any scope."""
         import random
         case_node = Case()
         case_node.commit()
@@ -455,7 +460,7 @@ class TestScopeValidationOnConnect:
         input_node = Input(content=f"https://example.com/{random.random()}")
         input_node.commit()
 
-        assert input_node.case_id is None
+        assert input_node.sid is None
 
         # Should be able to connect to case
         case_node.inputs.connect(input_node)
@@ -470,7 +475,7 @@ class TestHashLookup:
         import random
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
-        comp = DialecticalComponent(statement=f"Test for prefix lookup {random.random()}")
+        comp = DialecticalComponent(statement=f"Test for prefix lookup {random.random()}", meaning="test")
         comp.commit()
 
         repo = NodeRepository()
@@ -479,23 +484,21 @@ class TestHashLookup:
         assert found is not None
         assert found.hash == comp.hash
 
-    def test_prefix_too_short_raises(self):
-        """Prefix shorter than 7 chars should raise ValueError."""
+    def test_prefix_too_short_returns_none(self):
+        """Prefix shorter than 7 chars should return None (no match)."""
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
         repo = NodeRepository()
+        result = repo.find_by_hash("abc")
 
-        with pytest.raises(ValueError) as exc_info:
-            repo.find_by_hash("abc")
-
-        assert "at least" in str(exc_info.value).lower()
+        assert result is None
 
     def test_find_by_full_hash(self):
         """Should find node by full hash."""
         import random
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
-        comp = DialecticalComponent(statement=f"Test for full hash lookup {random.random()}")
+        comp = DialecticalComponent(statement=f"Test for full hash lookup {random.random()}", meaning="test")
         comp.commit()
 
         repo = NodeRepository()
@@ -521,45 +524,41 @@ class TestLineageTracking:
         case_node1.commit()
 
         # Create orphan components (shared globally)
-        t = DialecticalComponent(statement=f"Thesis {random.random()}")
-        t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}")
-        t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}")
-        a = DialecticalComponent(statement=f"Antithesis {random.random()}")
-        a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}")
-        a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}")
+        t = DialecticalComponent(statement=f"Thesis {random.random()}", meaning="test")
+        t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}", meaning="test")
+        t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}", meaning="test")
+        a = DialecticalComponent(statement=f"Antithesis {random.random()}", meaning="test")
+        a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}", meaning="test")
+        a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}", meaning="test")
 
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
 
-        with scope(case_node1.case_id):
-            original_pp = Perspective(intent="original")
-            original_pp.save()
-            original_pp.t.connect(t, properties={'alias': 'T'})
-            original_pp.t_plus.connect(t_plus, properties={'alias': 'T+'})
-            original_pp.t_minus.connect(t_minus, properties={'alias': 'T-'})
-            original_pp.a.connect(a, properties={'alias': 'A'})
-            original_pp.a_plus.connect(a_plus, properties={'alias': 'A+'})
-            original_pp.a_minus.connect(a_minus, properties={'alias': 'A-'})
+        with scope(case_node1.sid):
+            original_pp = _create_complete_pp(t, a, t_plus, t_minus, a_plus, a_minus, intent="original")
             original_pp.commit()
 
         # Original should have no origin_hash
         assert original_pp.origin_hash is None
 
         # Create fork
-        clone = original_pp.clone(destination_case_id=case_node1.case_id)
+        clone = original_pp.clone(destination_sid=case_node1.sid)
         clone.intent = "fork"
 
         # Before commit, origin_hash should be set
         assert clone.origin_hash == original_pp.hash
 
-        # After commit, origin_hash should still be set
+        # After commit, origin_hash should still be set - reconnect Polarity and angles
+        polarity = Polarity(intent="fork")
+        polarity.set_t(t, heuristic_similarity=1.0)
+        polarity.set_a(a, heuristic_similarity=0.8)
+        polarity.commit()
         clone.save()
-        clone.t.connect(t, properties={'alias': 'T'})
-        clone.t_plus.connect(t_plus, properties={'alias': 'T+'})
-        clone.t_minus.connect(t_minus, properties={'alias': 'T-'})
-        clone.a.connect(a, properties={'alias': 'A'})
-        clone.a_plus.connect(a_plus, properties={'alias': 'A+'})
-        clone.a_minus.connect(a_minus, properties={'alias': 'A-'})
+        clone.polarity.connect(polarity, relationship=HasPolarityRelationship())
+        clone.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
+        clone.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
+        clone.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
+        clone.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
         clone.commit()
 
         assert clone.origin_hash == original_pp.hash
@@ -574,11 +573,11 @@ class TestLineageTracking:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
-            original = DialecticalComponent(statement=f"Original {random.random()}")
+        with scope(case_node.sid):
+            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
             original.commit()
 
-        clone = original.clone(destination_case_id=case_node.case_id)
+        clone = original.clone(destination_sid=case_node.sid)
         clone.commit()
 
         # Atoms don't have origin_hash (ForkableMixin is not in inheritance)
@@ -598,23 +597,23 @@ class TestIntegration:
         case_node = Case()
         case_node.commit()
 
-        assert case_node.case_id is not None
-        assert len(case_node.case_id) == 36  # UUID format
+        assert case_node.sid is not None
+        assert len(case_node.sid) == 36  # UUID format
         assert case_node.hash is None  # Case never commits
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             # Create Input
             input_node = Input(content=f"https://example.com/{random.random()}")
             input_node.commit()
 
-            assert input_node.case_id == case_node.case_id
+            assert input_node.sid == case_node.sid
 
             # Create Ideas (container - save first, commit after statements)
             ideas = Ideas(intent=f"Extract claims {random.random()}")
             ideas.save()
 
             # Create Component
-            comp = DialecticalComponent(statement=f"Test statement {random.random()}")
+            comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
             comp.commit()
 
             # Connect statements before commit
@@ -626,13 +625,13 @@ class TestIntegration:
         input_node.ideas.connect(ideas)
 
         # Verify all have same scope
-        assert input_node.case_id == case_node.case_id
-        assert ideas.case_id == case_node.case_id
-        assert comp.case_id == case_node.case_id
+        assert input_node.sid == case_node.sid
+        assert ideas.sid == case_node.sid
+        assert comp.sid == case_node.sid
 
         # Verify vocabulary
         repo = DialecticalComponentRepository()
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             vocab = repo.get_vocabulary()
         assert comp in vocab
 
@@ -643,7 +642,7 @@ class TestHashIntegrityOnSave:
     def test_save_blocks_structural_modification_after_commit(self):
         """Verify save() raises ImmutableNodeError if structural fields modified after commit."""
         import random
-        comp = DialecticalComponent(statement=f"Original statement {random.random()}")
+        comp = DialecticalComponent(statement=f"Original statement {random.random()}", meaning="test")
         comp.commit()
 
         # Modify structural field
@@ -657,12 +656,12 @@ class TestHashIntegrityOnSave:
     def test_save_allows_metadata_modification_after_commit(self):
         """Verify save() allows metadata changes after commit."""
         import random
-        comp = DialecticalComponent(statement=f"Test statement {random.random()}")
+        comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
         comp.commit()
         original_hash = comp.hash
 
         # Modify metadata field
-        comp.case_id = "new-scope-id"
+        comp.sid = "new-scope-id"
 
         # save() should succeed
         comp.save()
@@ -702,7 +701,7 @@ class TestHashIntegrityOnSave:
     def test_uncommitted_node_save_succeeds(self):
         """Verify save() on uncommitted node allows any modification."""
         import random
-        comp = DialecticalComponent(statement=f"Original {random.random()}")
+        comp = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
         comp.save()  # HEAD state, no hash
 
         # Modify structural field

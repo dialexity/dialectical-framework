@@ -43,18 +43,18 @@ class AddInput(BaseTool):
     async def call(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
     ) -> str:
         """Add input content to the current case."""
         # Find the case
         query = """
-        MATCH (c:Case {case_id: $case_id})
+        MATCH (c:Case {sid: $sid})
         RETURN c
         """
-        results = list(graph_db.execute_and_fetch(query, {"case_id": case_id}))
+        results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
 
         if not results:
-            return f"Case not found: {case_id}"
+            return f"Case not found: {sid}"
 
         case = results[0]["c"]
 

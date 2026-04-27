@@ -236,30 +236,30 @@ class TestDialexityInputResolverParsing:
         return DialexityInputResolver()
 
     def test_parse_two_segments(self, resolver):
-        """Parses dx://case_id/hash correctly."""
-        case_id, branch, hash_part = resolver.parse_uri("dx://scope-123/abc1234def")
-        assert case_id == "scope-123"
+        """Parses dx://sid/hash correctly."""
+        sid, branch, hash_part = resolver.parse_uri("dx://scope-123/abc1234def")
+        assert sid == "scope-123"
         assert branch is None
         assert hash_part == "abc1234def"
 
     def test_parse_three_segments(self, resolver):
-        """Parses dx://case_id/branch/hash correctly."""
-        case_id, branch, hash_part = resolver.parse_uri("dx://scope-123/main/abc1234def")
-        assert case_id == "scope-123"
+        """Parses dx://sid/branch/hash correctly."""
+        sid, branch, hash_part = resolver.parse_uri("dx://scope-123/main/abc1234def")
+        assert sid == "scope-123"
         assert branch == "main"
         assert hash_part == "abc1234def"
 
-    def test_parse_uuid_case_id(self, resolver):
-        """Parses UUID-style case_id."""
-        case_id, branch, hash_part = resolver.parse_uri("dx://a1b2c3d4-e5f6-7890-abcd-ef1234567890/abc1234def")
-        assert case_id == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    def test_parse_uuid_sid(self, resolver):
+        """Parses UUID-style sid."""
+        sid, branch, hash_part = resolver.parse_uri("dx://a1b2c3d4-e5f6-7890-abcd-ef1234567890/abc1234def")
+        assert sid == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         assert branch is None
         assert hash_part == "abc1234def"
 
     def test_parse_full_hash(self, resolver):
         """Parses full 64-char hash."""
         full_hash = "abc1234def567890" * 4  # 64 chars
-        case_id, branch, hash_part = resolver.parse_uri(f"dx://scope/{full_hash}")
+        sid, branch, hash_part = resolver.parse_uri(f"dx://scope/{full_hash}")
         assert hash_part == full_hash
 
     def test_parse_rejects_missing_scheme(self, resolver):
@@ -275,9 +275,9 @@ class TestDialexityInputResolverParsing:
             resolver.parse_uri("dx://")
 
     def test_parse_rejects_hash_only(self, resolver):
-        """Rejects hash-only URI (no case_id)."""
+        """Rejects hash-only URI (no sid)."""
         from dialectical_framework.exceptions.resolver_errors import MalformedDxUriError
-        with pytest.raises(MalformedDxUriError, match="requires at least case_id and hash"):
+        with pytest.raises(MalformedDxUriError, match="requires at least sid and hash"):
             resolver.parse_uri("dx://abc1234def")
 
     def test_parse_rejects_short_hash(self, resolver):
@@ -294,8 +294,8 @@ class TestDialexityInputResolverParsing:
 
     def test_parse_handles_trailing_slash(self, resolver):
         """Handles trailing slash correctly."""
-        case_id, branch, hash_part = resolver.parse_uri("dx://scope-123/abc1234def/")
-        assert case_id == "scope-123"
+        sid, branch, hash_part = resolver.parse_uri("dx://scope-123/abc1234def/")
+        assert sid == "scope-123"
         assert branch is None
         assert hash_part == "abc1234def"
 
@@ -314,12 +314,12 @@ class TestDialexityInputResolverLookup:
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Target", case_id="test-scope-123")
+        comp = DialecticalComponent(statement="Target", sid="test-scope-123", meaning="test")
         comp.commit()
 
         rationale = Rationale(
             text="Test rationale for dx://",
-            case_id="test-scope-123"
+            sid="test-scope-123"
         )
         rationale.set_explanation_target(comp)
         rationale.commit()
@@ -334,12 +334,12 @@ class TestDialexityInputResolverLookup:
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Target", case_id="test-scope-456")
+        comp = DialecticalComponent(statement="Target", sid="test-scope-456", meaning="test")
         comp.commit()
 
         rationale = Rationale(
             text="Test rationale for prefix lookup",
-            case_id="test-scope-456"
+            sid="test-scope-456"
         )
         rationale.set_explanation_target(comp)
         rationale.commit()
@@ -351,21 +351,21 @@ class TestDialexityInputResolverLookup:
         assert result == "Test rationale for prefix lookup"
 
     @pytest.mark.asyncio
-    async def test_resolve_rejects_wrong_case_id(self, resolver):
-        """Rejects URI with mismatched case_id."""
+    async def test_resolve_rejects_wrong_sid(self, resolver):
+        """Rejects URI with mismatched sid."""
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
         from dialectical_framework.graph.nodes.rationale import Rationale
         from dialectical_framework.exceptions.resolver_errors import ScopeMismatchError
 
-        comp = DialecticalComponent(statement="Target", case_id="correct-scope")
+        comp = DialecticalComponent(statement="Target", sid="correct-scope", meaning="test")
         comp.commit()
 
-        rationale = Rationale(text="Test rationale", case_id="correct-scope")
+        rationale = Rationale(text="Test rationale", sid="correct-scope")
         rationale.set_explanation_target(comp)
         rationale.commit()
 
         uri = f"dx://wrong-scope/{rationale.hash}"
-        with pytest.raises(ScopeMismatchError, match="case_id mismatch"):
+        with pytest.raises(ScopeMismatchError, match="sid mismatch"):
             await resolver.resolve(uri)
 
     @pytest.mark.asyncio
@@ -392,12 +392,12 @@ class TestDialexityInputResolverContentExtraction:
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Test", case_id="rationale-test")
+        comp = DialecticalComponent(statement="Test", sid="rationale-test", meaning="test")
         comp.commit()
 
         rationale = Rationale(
             text="This is the detailed explanation",
-            case_id="rationale-test"
+            sid="rationale-test"
         )
         rationale.set_explanation_target(comp)
         rationale.commit()
@@ -411,13 +411,13 @@ class TestDialexityInputResolverContentExtraction:
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Test", case_id="rationale-headline-test")
+        comp = DialecticalComponent(statement="Test", sid="rationale-headline-test", meaning="test")
         comp.commit()
 
         rationale = Rationale(
             text="Detailed explanation here",
             headline="Key Point",
-            case_id="rationale-headline-test"
+            sid="rationale-headline-test"
         )
         rationale.set_explanation_target(comp)
         rationale.commit()
@@ -433,7 +433,8 @@ class TestDialexityInputResolverContentExtraction:
 
         comp = DialecticalComponent(
             statement="Democracy enables participation",
-            case_id="comp-extract-test"
+            sid="comp-extract-test",
+            meaning="test",
         )
         comp.commit()
 
@@ -449,7 +450,7 @@ class TestDialexityInputResolverContentExtraction:
         # Input is not a supported target for dx://
         input_node = Input(
             content="Some content",
-            case_id="unsupported-test"
+            sid="unsupported-test"
         )
         input_node.commit()
 
@@ -463,10 +464,10 @@ class TestDialexityInputResolverContentExtraction:
         from dialectical_framework.graph.nodes.input import Input
         from dialectical_framework.exceptions.resolver_errors import UnsupportedNodeTypeError
 
-        input_node = Input(content="Test", case_id="ideas-unsupported-test")
+        input_node = Input(content="Test", sid="ideas-unsupported-test")
         input_node.commit()
 
-        ideas = Ideas(intent="Extract", case_id="ideas-unsupported-test")
+        ideas = Ideas(intent="Extract", sid="ideas-unsupported-test")
         ideas.save()
         input_node.ideas.connect(ideas)
         ideas.commit()
@@ -508,7 +509,8 @@ class TestCompositeInputResolver:
         # Create a component to reference
         comp = DialecticalComponent(
             statement="Referenced component content",
-            case_id="composite-test"
+            sid="composite-test",
+            meaning="test",
         )
         comp.commit()
 
@@ -533,7 +535,7 @@ class TestCompositeInputResolver:
         input2.commit()
 
         # dx:// URI input - use DialecticalComponent
-        comp = DialecticalComponent(statement="Graph content from component", case_id="mixed-test")
+        comp = DialecticalComponent(statement="Graph content from component", sid="mixed-test", meaning="test")
         comp.commit()
         input3 = Input(content=f"dx://mixed-test/{comp.hash}")
         input3.commit()

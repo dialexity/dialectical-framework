@@ -76,7 +76,8 @@ def component_from_dto(
         return existing
 
     # Create new component
-    component = DialecticalComponent(statement=dto.statement)
+    # Use alias as meaning fallback when no taxonomy pointer is available
+    component = DialecticalComponent(statement=dto.statement, meaning=f"verbatim:{dto.alias}")
     component.commit()
 
     # Add rationale if explanation provided (context-specific, always new)

@@ -525,62 +525,62 @@ origin = getattr(node, 'origin_hash', None)  # No IDE support, harder to refacto
 
 ### Vocabulary and Scope
 
-**Vocabulary** is all DialecticalComponents within a scope (by `case_id`).
+**Vocabulary** is all DialecticalComponents within a scope (by `sid`).
 
-**Scope (case_id)** is the primary boundary. All nodes within the same analytical context share a `case_id` inherited from their Case. This is enforced at connect time - nodes with different `case_id` values cannot be connected.
+**Scope (sid)** is the primary boundary. All nodes within the same analytical context share a `sid` inherited from their Case. This is enforced at connect time - nodes with different `sid` values cannot be connected.
 
 ```python
 from dialectical_framework.graph.scope_context import scope
 
 # Case is the scope root
-case = Case()  # Generates UUID for case_id
+case = Case()  # Generates UUID for sid
 case.commit()
 
 # App layer sets scope (after authorization)
-with scope(case.case_id):
-    # All nodes inherit case_id automatically
+with scope(case.sid):
+    # All nodes inherit sid automatically
     input_node = Input(content="https://article.com")
     input_node.commit()
     case.inputs.connect(input_node)
 
     comp = DialecticalComponent(statement="Main idea")
-    comp.commit()  # case_id inherited from scope context
+    comp.commit()  # sid inherited from scope context
 
-    # Query vocabulary (framework reads case_id from DI)
+    # Query vocabulary (framework reads sid from DI)
     repo = DialecticalComponentRepository()
     vocab = repo.get_vocabulary()
 ```
 
-### Query Safety: All Queries Must Be Scoped by case_id
+### Query Safety: All Queries Must Be Scoped by sid
 
-**CRITICAL: All database queries must be scoped by `case_id` to prevent cross-user data leaks.**
+**CRITICAL: All database queries must be scoped by `sid` to prevent cross-user data leaks.**
 
-Since different users/sessions have different `case_id` values, unscoped queries could return data belonging to other users. Always use repository helper methods which automatically inject `case_id` from DI:
+Since different users/sessions have different `sid` values, unscoped queries could return data belonging to other users. Always use repository helper methods which automatically inject `sid` from DI:
 
 ```python
-# GOOD - Use repository methods (case_id auto-injected)
+# GOOD - Use repository methods (sid auto-injected)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
 from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
 
 repo = NodeRepository()
-node = repo.find_by_hash("abc123...")       # Scoped by case_id
-node = repo.find_by_prefix("abc123")        # Scoped by case_id
-nodes = repo.find_by_origin("origin_hash")  # Scoped by case_id
+node = repo.find_by_hash("abc123...")       # Scoped by sid
+node = repo.find_by_prefix("abc123")        # Scoped by sid
+nodes = repo.find_by_origin("origin_hash")  # Scoped by sid
 
 comp_repo = DialecticalComponentRepository()
-vocab = comp_repo.get_vocabulary()                    # Scoped by case_id
+vocab = comp_repo.get_vocabulary()                    # Scoped by sid
 comps = comp_repo.find_by_perspective(pp)             # Validates PP belongs to scope
 
 pp_repo = PerspectiveRepository()
 pps = pp_repo.find_by_dialectical_component(comp)    # Validates component belongs to scope
 pp_repo.safe_delete(pp)                               # Validates PP belongs to scope
 
-# BAD - Raw queries without case_id scoping (DATA LEAK RISK!)
+# BAD - Raw queries without sid scoping (DATA LEAK RISK!)
 graph_db.execute_and_fetch("MATCH (n:Node {hash: $hash}) RETURN n", {"hash": hash})
 ```
 
-**Repository method pattern:** All repository methods use `@inject` with `case_id: Optional[str] = Provide[DI.case_id]` to automatically scope queries. The `case_id` is read from the DI context set by `with scope(case.case_id):`.
+**Repository method pattern:** All repository methods use `@inject` with `sid: Optional[str] = Provide[DI.sid]` to automatically scope queries. The `sid` is read from the DI context set by `with scope(case.sid):`.
 
 **Key repositories:**
 - `NodeRepository` - Hash lookups, lineage queries

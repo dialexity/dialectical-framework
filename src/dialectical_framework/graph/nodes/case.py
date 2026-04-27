@@ -52,7 +52,7 @@ class Case(BaseNode, label="Case"):
     - Each Input can have Ideas extracted from it
     - Vocabulary includes all components reachable via HAS_STATEMENT
 
-    Nexuses (explorations) reference this Case via case_id field.
+    Nexuses (explorations) reference this Case via sid field.
 
     Example:
         from dialectical_framework.graph.repositories.dialectical_component_repository import (
@@ -77,7 +77,7 @@ class Case(BaseNode, label="Case"):
         # Vocabulary includes all components in scope
         from dialectical_framework.graph.scope_context import scope
         repo = DialecticalComponentRepository()
-        with scope(case.case_id):
+        with scope(case.sid):
             vocab = repo.get_vocabulary()
         assert comp in vocab
     """
@@ -93,15 +93,15 @@ class Case(BaseNode, label="Case"):
         """
         Initialize a Case.
 
-        Case is a scope root. It generates a UUID for case_id on creation,
-        which serves as the case identifier for all children.
+        Case is a scope root. It generates a UUID for sid on creation,
+        which serves as the scope identifier for all children.
 
         Args:
             **data: Field values for the case
         """
-        # Generate UUID for case_id if not provided - this IS the scope identity
-        if "case_id" not in data or data["case_id"] is None:
-            data["case_id"] = str(uuid.uuid4())
+        # Generate UUID for sid if not provided - this IS the scope identity
+        if "sid" not in data or data["sid"] is None:
+            data["sid"] = str(uuid.uuid4())
         super().__init__(**data)
 
     @property
@@ -117,7 +117,7 @@ class Case(BaseNode, label="Case"):
         """
         Commit this Case to the database.
 
-        Case is a scope root with UUID-based identity (case_id).
+        Case is a scope root with UUID-based identity (sid).
         It never computes a hash - hash remains None.
 
         Returns:
@@ -131,8 +131,8 @@ class Case(BaseNode, label="Case"):
     def __repr__(self) -> str:
         """String representation of the case."""
         input_count = self.inputs.count()
-        case_id_str = self.case_id[:8] if self.case_id else "no-case-id"
-        return f"Case({case_id_str}, inputs={input_count})"
+        sid_str = self.sid[:8] if self.sid else "no-sid"
+        return f"Case({sid_str}, inputs={input_count})"
 
     def __str__(self) -> str:
         """Human-readable string representation."""
@@ -149,7 +149,7 @@ class Case(BaseNode, label="Case"):
     def __enter__(self) -> Self:
         """Enter scope context for this case."""
         from dialectical_framework.graph.scope_context import scope
-        self._scope_cm = scope(self.case_id)
+        self._scope_cm = scope(self.sid)
         self._scope_cm.__enter__()
         return self
 

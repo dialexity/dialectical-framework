@@ -13,5 +13,5 @@ class DI(str, Enum):
     # Content resolution (app provides implementation)
     input_resolver = "input_resolver"
 
-    # Case ID (case_id) - reads from contextvar, set by app layer
-    case_id = "case_id"
+    # Scope ID (sid) - reads from contextvar, set by app layer
+    sid = "sid"

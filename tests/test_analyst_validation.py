@@ -109,7 +109,7 @@ class TestControlStatementsCheck:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = _create_test_perspective(
                 t_plus_statement="Confidence",
                 t_minus_statement="Naivety",
@@ -141,7 +141,7 @@ class TestControlStatementsCheck:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = _create_test_perspective()
 
             capability = ControlStatementsCheck()
@@ -175,7 +175,7 @@ class TestPerspectiveValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = _create_test_perspective()
 
             validator = PerspectiveValidation()
@@ -195,7 +195,7 @@ class TestPerspectiveValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             # Create PP with valid empirical conditions
             pp = _create_test_perspective(
                 t_plus_statement="Confidence",
@@ -228,7 +228,7 @@ class TestPerspectiveValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             # Create PP that fails empirical conditions (KS(T+) <= 0.4)
             pp = _create_test_perspective(
                 ks_t_plus=0.35,
@@ -251,7 +251,7 @@ class TestPerspectiveValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = Perspective()
             pp.save()  # Not committed
 
@@ -266,7 +266,7 @@ class TestPerspectiveValidation:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = Perspective()
             pp.save()
 

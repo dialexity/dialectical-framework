@@ -1,7 +1,7 @@
 """
 Repository for Cycle node queries.
 
-All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ class CycleRepository:
     """
     Repository for Cycle node queries.
 
-    All queries are automatically scoped by case_id (injected from DI context).
+    All queries are automatically scoped by sid (injected from DI context).
     """
 
     @staticmethod
@@ -51,7 +51,7 @@ class CycleRepository:
         perspectives: list[Perspective],
         exact_order: bool = True,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
     ) -> list[Cycle]:
         """
         Find Cycles containing the given Perspectives.
@@ -61,7 +61,7 @@ class CycleRepository:
             exact_order: If True, only return cycles with exactly these Perspectives
                         in the same order (rotation-invariant).
                         If False, return cycles containing any of these Perspectives.
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
         Returns:
@@ -79,13 +79,13 @@ class CycleRepository:
             # Then filter by signature match in Python
             query = """
                 MATCH (c:Cycle)
-                WHERE c.case_id = $case_id
+                WHERE c.sid = $sid
                 AND size(c.perspective_hashes) = $hash_count
                 AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
                 RETURN c
             """
             results = list(graph_db.execute_and_fetch(query, {
-                "case_id": case_id,
+                "sid": sid,
                 "pp_hashes": pp_hashes,
                 "hash_count": len(pp_hashes),
             }))
@@ -104,12 +104,12 @@ class CycleRepository:
             # Return cycles containing ANY of these Perspectives
             query = """
                 MATCH (c:Cycle)
-                WHERE c.case_id = $case_id
+                WHERE c.sid = $sid
                 AND ANY(h IN $pp_hashes WHERE h IN c.perspective_hashes)
                 RETURN c
             """
             results = list(graph_db.execute_and_fetch(query, {
-                "case_id": case_id,
+                "sid": sid,
                 "pp_hashes": pp_hashes,
             }))
 
@@ -121,7 +121,7 @@ class CycleRepository:
         perspectives: list[Perspective],
         nexus: Optional[Nexus] = None,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
     ) -> list[Cycle]:
         """
         Find all Cycles in the same layer (same Perspective set, any ordering).
@@ -136,7 +136,7 @@ class CycleRepository:
         Args:
             perspectives: List of Perspectives defining the layer
             nexus: Optional Nexus to scope results to
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
         Returns:
@@ -151,12 +151,12 @@ class CycleRepository:
 
         query = """
             MATCH (c:Cycle)
-            WHERE c.case_id = $case_id
+            WHERE c.sid = $sid
             AND size(c.perspective_hashes) = $hash_count
             AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
         """
         params: dict = {
-            "case_id": case_id,
+            "sid": sid,
             "pp_hashes": pp_hashes,
             "hash_count": len(pp_hashes),
         }

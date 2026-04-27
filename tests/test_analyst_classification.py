@@ -27,7 +27,7 @@ class TestAngleClassification:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             thesis = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -60,7 +60,7 @@ class TestAngleClassification:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             thesis = DialecticalComponent(
                 statement="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -93,7 +93,7 @@ class TestAngleClassification:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             thesis = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -128,7 +128,7 @@ class TestAngleClassification:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             thesis = DialecticalComponent(
                 statement="Data Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Cohesion",
@@ -165,7 +165,7 @@ class TestAngleClassification:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             thesis = DialecticalComponent(
                 statement="Test",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -197,7 +197,7 @@ class TestIdeaPlacement:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             placer = IdeaPlacement()
             result = await placer.execute(
                 idea="Trust",
@@ -218,7 +218,7 @@ class TestIdeaPlacement:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             love = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -245,7 +245,7 @@ class TestIdeaPlacement:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             trust = DialecticalComponent(
                 statement="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -273,7 +273,7 @@ class TestIdeaPlacement:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             love = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -314,7 +314,7 @@ class TestIdeaPlacement:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             love = DialecticalComponent(
                 statement="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
@@ -339,7 +339,7 @@ class TestIdeaPlacement:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             consistency = DialecticalComponent(
                 statement="Strong Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Cohesion",

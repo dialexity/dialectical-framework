@@ -13,6 +13,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
 from dialectical_framework.brain import Brain
+from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.utils.use_brain import use_brain
 
 
@@ -93,9 +94,13 @@ async def test_retry_logic():
     # Create brain with OpenAI provider (so we can use custom client)
     brain = Brain(ai_model="gpt-4", ai_provider="openai")
 
-    class Consumer:
-        def __init__(self, brain: Brain):
-            self.brain = brain
+    class Consumer(HasBrain):
+        def __init__(self, brain_instance: Brain):
+            self._brain = brain_instance
+
+        @property
+        def brain(self) -> Brain:
+            return self._brain
 
         @use_brain(client=mock_client)
         async def call(self) -> str:

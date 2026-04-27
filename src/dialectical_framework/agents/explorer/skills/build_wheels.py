@@ -287,18 +287,18 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
     @inject
     def _resolve_nexus(
         self,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> Optional[Nexus]:
-        """Resolve Nexus by hash prefix, scoped by case_id."""
+        """Resolve Nexus by hash prefix, scoped by sid."""
         query = """
             MATCH (n:Nexus)
-            WHERE n.hash STARTS WITH $nexus_hash AND n.case_id = $case_id
+            WHERE n.hash STARTS WITH $nexus_hash AND n.sid = $sid
             RETURN n
         """
         results = list(
             graph_db.execute_and_fetch(
-                query, {"nexus_hash": self.nexus_hash, "case_id": case_id}
+                query, {"nexus_hash": self.nexus_hash, "sid": sid}
             )
         )
         if not results:

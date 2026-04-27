@@ -81,7 +81,7 @@ GRAPH_SCHEMA = """
 
 All nodes have:
 - `hash`: Content-addressable identifier (Merkle hash)
-- `case_id`: Case identifier (for multi-tenant isolation)
+- `sid`: Session identifier (for multi-tenant isolation)
 - `committed_at`: Timestamp when committed
 
 DialecticalComponent:
@@ -128,7 +128,7 @@ class Orchestrator:
     """
     Main LLM orchestrator for dialectical framework exploration.
 
-    One orchestrator instance = one session = one case_id.
+    One orchestrator instance = one session = one sid.
     Either creates a new case or loads an existing one.
 
     Usage:
@@ -136,26 +136,26 @@ class Orchestrator:
         Orchestrator().run()
 
         # Or with existing session
-        Orchestrator(case_id="existing-case-id").run()
+        Orchestrator(sid="existing-sid").run()
 
         # Programmatic
         orchestrator = Orchestrator()
         response = await orchestrator.chat("Extract theses about remote work")
     """
 
-    def __init__(self, case_id: Optional[str] = None) -> None:
+    def __init__(self, sid: Optional[str] = None) -> None:
         """
         Initialize the orchestrator.
 
         Args:
-            case_id: Optional existing case ID to load. If None, creates new session.
+            sid: Optional existing session ID to load. If None, creates new session.
         """
-        if case_id:
-            self._case_id = case_id
+        if sid:
+            self._sid = sid
         else:
             case = Case()
             case.commit()
-            self._case_id = case.case_id
+            self._sid = case.sid
 
         self._tools = self._build_tool_list()
         self._conversation = ConversationFacilitator(tools=self._tools)
@@ -248,14 +248,14 @@ class Orchestrator:
         Returns:
             The assistant's response text
         """
-        with scope(self._case_id):
+        with scope(self._sid):
             result = await self._conversation.submit(ChatResponse, user_message)
         return result.message
 
     @property
-    def case_id(self) -> str:
-        """Get the case ID."""
-        return self._case_id
+    def sid(self) -> str:
+        """Get the session ID."""
+        return self._sid
 
     def run(self) -> None:
         """
@@ -268,7 +268,7 @@ class Orchestrator:
     async def _run_loop(self) -> None:
         """Internal async REPL loop."""
         print(f"Dialectical Orchestrator")
-        print(f"Session: {self._case_id}")
+        print(f"Session: {self._sid}")
         print("Type 'exit' to quit.\n")
 
         while True:

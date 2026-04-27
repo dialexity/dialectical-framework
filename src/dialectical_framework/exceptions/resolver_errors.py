@@ -13,13 +13,13 @@ class MalformedDxUriError(ValueError):
     Raised when a dx:// URI has an invalid format.
 
     Valid formats:
-    - dx://<case_id>/<hash>           (case_id + hash)
-    - dx://<case_id>/<branch>/<hash>  (case_id + branch + hash)
+    - dx://<sid>/<hash>           (sid + hash)
+    - dx://<sid>/<branch>/<hash>  (sid + branch + hash)
 
     Examples of invalid URIs:
-    - dx://abc123      (hash only - case_id required)
+    - dx://abc123      (hash only - sid required)
     - dx://            (empty)
-    - dx:///hash       (empty case_id)
+    - dx:///hash       (empty sid)
     """
 
     pass
@@ -40,9 +40,9 @@ class NodeNotFoundError(LookupError):
 
 class ScopeMismatchError(ValueError):
     """
-    Raised when the case_id in a dx:// URI doesn't match the found node's case_id.
+    Raised when the sid in a dx:// URI doesn't match the found node's sid.
 
-    The case_id in the URI acts as a security check to ensure the resolver
+    The sid in the URI acts as a security check to ensure the resolver
     only accesses nodes from the expected scope/realm.
     """
 

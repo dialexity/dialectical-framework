@@ -180,7 +180,7 @@ class TestNexusPresetIntentSeparation:
     def test_nexus_explicit_preset_and_intent(self):
         """Nexus with both preset and intent keeps them separate."""
         nexus = Nexus(
-            case_id="test-case-id",
+            sid="test-case-id",
             preset=CausalityPreset.REALISTIC,
             intent="deep meaning of love",
         )
@@ -189,13 +189,13 @@ class TestNexusPresetIntentSeparation:
 
     def test_nexus_default_preset(self):
         """Nexus defaults to balanced preset."""
-        nexus = Nexus(case_id="test-case-id")
+        nexus = Nexus(sid="test-case-id")
         assert nexus.preset == CausalityPreset.BALANCED
         assert nexus.intent is None
 
     def test_nexus_intent_is_freeform(self):
         """Intent is always free-form text, never migrated."""
-        nexus = Nexus(case_id="test-case-id", intent="deep meaning of love")
+        nexus = Nexus(sid="test-case-id", intent="deep meaning of love")
         assert nexus.preset == CausalityPreset.BALANCED
         assert nexus.intent == "deep meaning of love"
 
@@ -226,7 +226,7 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_invalid_nexus(self, case_node):
         """Test that invalid nexus hash returns error."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             agent = BuildWheels(
                 nexus_hash="invalid-hash-that-does-not-exist",
 
@@ -241,8 +241,8 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_empty_nexus_no_pps(self, case_node):
         """Test BuildWheels with an empty Nexus and no PP hashes."""
-        with scope(case_node.case_id):
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+        with scope(case_node.sid):
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -258,9 +258,9 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_single_pp(self, case_node):
         """Test BuildWheels with a single Perspective."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = create_complete_perspective(0)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -283,10 +283,10 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_multiple_pps(self, case_node):
         """Test BuildWheels with multiple Perspectives creates layers."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp1 = create_complete_perspective(1)
             pp2 = create_complete_perspective(2)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.REALISTIC)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.REALISTIC)
             nexus.commit()
 
             agent = BuildWheels(
@@ -311,9 +311,9 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_empty_hashes_does_nothing(self, case_node):
         """Test BuildWheels with empty PP hashes does nothing."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = create_complete_perspective(0)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # Add PP to Nexus manually
@@ -334,9 +334,9 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_idempotent(self, case_node):
         """Test that BuildWheels is idempotent — no duplicates on re-run."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = create_complete_perspective(0)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # First call
@@ -364,9 +364,9 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_resolves_nexus_by_prefix(self, case_node):
         """Test that BuildWheels resolves Nexus by hash prefix."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = create_complete_perspective(0)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             prefix = nexus.hash[:8]
@@ -385,11 +385,11 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_three_pp_layers(self, case_node):
         """Test BuildWheels with three PPs creates all layers."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp1 = create_complete_perspective(1)
             pp2 = create_complete_perspective(2)
             pp3 = create_complete_perspective(3)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -410,9 +410,9 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_build_wheels_graceful_when_all_combined(self, case_node):
         """Test BuildWheels is graceful when all structures already exist."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = create_complete_perspective(0)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             # First call creates structures
@@ -439,11 +439,11 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_opposite_direction_cycles_three_pps(self, case_node):
         """Test that layer-3 cycles (3 PPs) are connected via OPPOSITE_DIRECTION."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp1 = create_complete_perspective(1)
             pp2 = create_complete_perspective(2)
             pp3 = create_complete_perspective(3)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -468,9 +468,9 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_no_opposite_direction_for_single_pp(self, case_node):
         """Test that single-PP cycles have no OPPOSITE_DIRECTION."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp = create_complete_perspective(0)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -487,10 +487,10 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_no_opposite_direction_for_pair_cycles(self, case_node):
         """Test that pair cycles (2 PPs) have no OPPOSITE_DIRECTION (no distinct reversal)."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp1 = create_complete_perspective(1)
             pp2 = create_complete_perspective(2)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(
@@ -511,10 +511,10 @@ class TestBuildWheels:
     @pytest.mark.asyncio
     async def test_opposite_direction_wheels(self, case_node):
         """Test that opposite-direction wheels are detected and connected."""
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             pp1 = create_complete_perspective(1)
             pp2 = create_complete_perspective(2)
-            nexus = Nexus(case_id=case_node.case_id, preset=CausalityPreset.BALANCED)
+            nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
             nexus.commit()
 
             agent = BuildWheels(

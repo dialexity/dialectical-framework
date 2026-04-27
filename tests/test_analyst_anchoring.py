@@ -60,7 +60,7 @@ class TestSurfaceTheses:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             agent = SurfaceTheses(intent="extract 3 theses")
             result = await agent.call()
             assert "No inputs" in result
@@ -72,7 +72,7 @@ class TestSurfaceTheses:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             input_node = Input(content=SAMPLE_INPUT_TEXT)
             input_node.commit()
             case_node.inputs.connect(input_node)
@@ -92,7 +92,7 @@ class TestSurfaceTheses:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             input_node = Input(content=SAMPLE_INPUT_TEXT)
             input_node.commit()
             case_node.inputs.connect(input_node)
@@ -110,7 +110,7 @@ class TestSurfaceTheses:
         case_node = Case()
         case_node.commit()
 
-        with scope(case_node.case_id):
+        with scope(case_node.sid):
             agent = SurfaceTheses(
                 intent="anchor direct thesis 'Trust' - create component for concept of Trust"
             )

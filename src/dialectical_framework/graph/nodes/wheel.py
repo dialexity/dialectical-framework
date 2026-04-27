@@ -141,7 +141,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Get all Transformations belonging to this wheel's edges.
 
         Queries transformations that point to any of this wheel's edges
-        via ACTION_REFLECTION relationship, scoped by case_id.
+        via ACTION_REFLECTION relationship, scoped by sid.
 
         Returns:
             List of Transformation nodes from all edges

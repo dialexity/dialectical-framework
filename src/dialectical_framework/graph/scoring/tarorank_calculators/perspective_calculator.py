@@ -28,14 +28,13 @@ class PerspectiveCalculator(BaseCalculator):
       * T ↔ A (neutral pair)
       * T+ ↔ A- (positive thesis ↔ negative antithesis)
       * T- ↔ A+ (negative thesis ↔ positive antithesis)
-    - Includes transformations Rs (aggregated if multiple)
     - Includes synthesis Rs (PP-level, aggregated if multiple)
     - Includes unit-level rationale Rs (with rating)
     - Aggregates all via GM
 
     P calculation:
-    - P comes from Transformations (aggregated via product if multiple)
-    - If no transformations: P = 1.0 (no structural constraint)
+    - P = 1.0 (no structural constraint at Perspective level)
+    - Transformations belong to Wheel edges, not to Perspectives directly
     """
 
     def score_children(self, pp: Perspective, force: bool = False) -> None:
@@ -51,10 +50,6 @@ class PerspectiveCalculator(BaseCalculator):
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
                 self.scorer.calculate_score(comp, force=force)
-
-        # Score all transformations
-        for transformation, _ in pp.transformations.all():
-            self.scorer.calculate_score(transformation, force=force)
 
         # Score all synthesis alternatives (PP-level)
         for synthesis, _ in pp.synthesis.all():
@@ -123,20 +118,6 @@ class PerspectiveCalculator(BaseCalculator):
             if pair_r is not None:
                 values.append(pair_r)
 
-        # Transformations Rs (aggregate if multiple)
-        trans_rs = []
-        for transformation, _ in pp.transformations.all():
-            trans_r = transformation.relevance
-            if trans_r is not None:
-                trans_rs.append(trans_r)
-        if trans_rs:
-            if len(trans_rs) == 1:
-                values.append(trans_rs[0])
-            else:
-                aggregated_trans_r = gm_with_zeros_and_nones_handled(trans_rs)
-                if aggregated_trans_r is not None:
-                    values.append(aggregated_trans_r)
-
         # Synthesis Rs (PP-level, aggregate if multiple)
         synth_rs = []
         for synthesis, _ in pp.synthesis.all():
@@ -181,17 +162,9 @@ class PerspectiveCalculator(BaseCalculator):
         Returns:
             P value (0.0-1.0) or 1.0 if no transformations (no structural constraint)
         """
-        # Aggregate P from all transformations via product
-        prob = None
-        for transformation, _ in pp.transformations.all():
-            trans_p = transformation.probability
-            if trans_p is not None and trans_p > 0:
-                if prob is None:
-                    prob = 1.0
-                prob *= trans_p
-
-        # No transformations: no structural constraint
-        return prob if prob is not None else 1.0
+        # No structural constraint at Perspective level
+        # (Transformations belong to Wheel edges, not to Perspectives directly)
+        return 1.0
 
     def clear_children(self, pp: Perspective) -> None:
         """
@@ -205,10 +178,6 @@ class PerspectiveCalculator(BaseCalculator):
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
                 self.scorer.clear_scores(comp)
-
-        # Clear all transformations
-        for transformation, _ in pp.transformations.all():
-            self.scorer.clear_scores(transformation)
 
         # Clear all synthesis alternatives (PP-level)
         for synthesis, _ in pp.synthesis.all():

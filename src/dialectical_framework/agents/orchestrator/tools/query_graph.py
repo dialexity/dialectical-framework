@@ -21,7 +21,7 @@ from dialectical_framework.enums.di import DI
 
 
 def _is_schema_query(query: str) -> bool:
-    """Check if query is a schema introspection query (safe without case_id scoping)."""
+    """Check if query is a schema introspection query (safe without sid scoping)."""
     query_upper = query.strip().upper()
     # Memgraph/Neo4j schema commands
     if query_upper.startswith("SHOW "):
@@ -43,18 +43,18 @@ def _is_schema_query(query: str) -> bool:
     return False
 
 
-def _inject_case_id_scoping(query: str) -> str:
+def _inject_sid_scoping(query: str) -> str:
     """
-    Inject case_id: $case_id into all node patterns in the query.
+    Inject sid: $sid into all node patterns in the query.
 
     This ensures all data queries are automatically scoped to the current session,
-    regardless of what the LLM generates. The LLM doesn't need to worry about case_id.
+    regardless of what the LLM generates. The LLM doesn't need to worry about sid.
 
     Transforms:
-    - (n) -> (n {case_id: $case_id})
-    - (n:Label) -> (n:Label {case_id: $case_id})
-    - (n:Label {prop: val}) -> (n:Label {case_id: $case_id, prop: val})
-    - (n:Label {case_id: $case_id}) -> (n:Label {case_id: $case_id})  # Already has it, don't duplicate
+    - (n) -> (n {sid: $sid})
+    - (n:Label) -> (n:Label {sid: $sid})
+    - (n:Label {prop: val}) -> (n:Label {sid: $sid, prop: val})
+    - (n:Label {sid: $sid}) -> (n:Label {sid: $sid})  # Already has it, don't duplicate
     """
 
     def transform_node_pattern(match: re.Match) -> str:
@@ -64,16 +64,16 @@ def _inject_case_id_scoping(query: str) -> str:
 
         if props:
             props_content = props.strip()[1:-1]  # Remove { }
-            # Check if case_id: $case_id is already present - don't duplicate
-            if re.search(r"\bcase_id\s*:\s*\$case_id\b", props_content):
+            # Check if sid: $sid is already present - don't duplicate
+            if re.search(r"\bsid\s*:\s*\$sid\b", props_content):
                 return match.group(0)  # Return unchanged
-            # Has existing properties - prepend case_id
-            # {foo: bar} -> {case_id: $case_id, foo: bar}
-            new_props = f"{{case_id: $case_id, {props_content}}}"
+            # Has existing properties - prepend sid
+            # {foo: bar} -> {sid: $sid, foo: bar}
+            new_props = f"{{sid: $sid, {props_content}}}"
             return f"({var_name}{labels} {new_props})"
         else:
-            # No properties - add case_id
-            return f"({var_name}{labels} {{case_id: $case_id}})"
+            # No properties - add sid
+            return f"({var_name}{labels} {{sid: $sid}})"
 
     # Regex to match node patterns:
     # ( optional_var optional_labels optional_props )
@@ -87,18 +87,18 @@ def _inject_case_id_scoping(query: str) -> str:
     return re.sub(node_pattern, transform_node_pattern, query)
 
 
-def _has_hardcoded_case_id(query: str) -> bool:
+def _has_hardcoded_sid(query: str) -> bool:
     """
-    Check if query contains a hardcoded case_id value (security risk).
+    Check if query contains a hardcoded sid value (security risk).
 
-    Rejects patterns like {case_id: "literal"} or {case_id: 'literal'} or case_id: $other_param
-    but allows {case_id: $case_id} which we inject.
+    Rejects patterns like {sid: "literal"} or {sid: 'literal'} or sid: $other_param
+    but allows {sid: $sid} which we inject.
     """
-    # Look for case_id with a literal string value
-    if re.search(r'\bcase_id\s*:\s*["\'][^"\']+["\']', query, re.IGNORECASE):
+    # Look for sid with a literal string value
+    if re.search(r'\bsid\s*:\s*["\'][^"\']+["\']', query, re.IGNORECASE):
         return True
-    # Look for case_id with a different parameter (not $case_id)
-    if re.search(r"\bcase_id\s*:\s*\$(?!case_id\b)\w+", query, re.IGNORECASE):
+    # Look for sid with a different parameter (not $sid)
+    if re.search(r"\bsid\s*:\s*\$(?!sid\b)\w+", query, re.IGNORECASE):
         return True
     return False
 
@@ -108,14 +108,14 @@ class QueryGraph(BaseTool):
     Execute a Cypher query on the graph database.
 
     Use this for flexible exploration of the dialectical knowledge graph.
-    Session scoping (case_id) is AUTOMATICALLY INJECTED - you don't need to add it.
+    Session scoping (sid) is AUTOMATICALLY INJECTED - you don't need to add it.
 
     SCHEMA QUERIES (to understand the graph structure):
     - "SHOW SCHEMA INFO" - show all node labels and relationship types
     - "CALL db.labels() YIELD label RETURN label" - list all node labels
     - "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
 
-    DATA QUERIES (case_id is auto-injected, don't include it):
+    DATA QUERIES (sid is auto-injected, don't include it):
     - "MATCH (c:Case) RETURN c" - get session case
     - "MATCH (c:DialecticalComponent) RETURN c.statement LIMIT 10" - list components
     - "MATCH (c:Case)-[:HAS_INPUT]->(i:Input) RETURN i.content" - list inputs
@@ -132,7 +132,7 @@ class QueryGraph(BaseTool):
     """
 
     cypher: str = Field(
-        description="Cypher query. Don't include case_id - it's automatically injected for security."
+        description="Cypher query. Don't include sid - it's automatically injected for security."
     )
     limit: int = Field(
         default=50,
@@ -143,9 +143,9 @@ class QueryGraph(BaseTool):
     async def call(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
     ) -> str:
-        """Execute the Cypher query with automatic case_id scoping."""
+        """Execute the Cypher query with automatic sid scoping."""
         query_upper = self.cypher.upper()
 
         # Security: Block write operations
@@ -164,29 +164,29 @@ class QueryGraph(BaseTool):
                     f"Error: Write operations not allowed. Found '{keyword}' in query."
                 )
 
-        # Security: Block hardcoded case_id values (injection attempt)
-        if _has_hardcoded_case_id(self.cypher):
+        # Security: Block hardcoded sid values (injection attempt)
+        if _has_hardcoded_sid(self.cypher):
             return (
-                "Error: Hardcoded case_id values are not allowed for security reasons.\n"
-                "Don't include case_id in your query - it's automatically injected."
+                "Error: Hardcoded sid values are not allowed for security reasons.\n"
+                "Don't include sid in your query - it's automatically injected."
             )
 
-        # Check if this is a schema query (doesn't need case_id scoping)
+        # Check if this is a schema query (doesn't need sid scoping)
         is_schema = _is_schema_query(self.cypher)
 
         # Prepare query
         if is_schema:
             query = self.cypher.strip()
         else:
-            # Auto-inject case_id scoping into all node patterns
-            query = _inject_case_id_scoping(self.cypher.strip())
+            # Auto-inject sid scoping into all node patterns
+            query = _inject_sid_scoping(self.cypher.strip())
 
             # Add LIMIT if not present
             if "LIMIT" not in query_upper:
                 query = f"{query} LIMIT {self.limit}"
 
         try:
-            results = list(graph_db.execute_and_fetch(query, {"case_id": case_id}))
+            results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
         except Exception as e:
             return f"Query error: {e}"
 

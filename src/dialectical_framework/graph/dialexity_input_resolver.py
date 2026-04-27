@@ -28,14 +28,14 @@ class DialexityInputResolver:
     Resolves dx:// URIs to node content.
 
     dx:// URI Format:
-        dx://<case_id>/<hash>           (case_id + hash)
-        dx://<case_id>/<branch>/<hash>  (case_id + branch + hash)
+        dx://<sid>/<hash>           (sid + hash)
+        dx://<sid>/<branch>/<hash>  (sid + branch + hash)
 
     Examples:
         dx://a1b2c3d4-e5f6-7890/abc123def456...
         dx://a1b2c3d4-e5f6-7890/main/abc123def456...
 
-    The case_id is always required for security - it prevents accessing nodes
+    The sid is always required for security - it prevents accessing nodes
     from disallowed scopes/realms. Hash can be a full hash or a 7+ char prefix.
 
     Supported node types:
@@ -59,8 +59,8 @@ class DialexityInputResolver:
             uri: The dx:// URI to parse
 
         Returns:
-            Tuple of (case_id, branch, hash_or_prefix)
-            - case_id: Required scope identifier
+            Tuple of (sid, branch, hash_or_prefix)
+            - sid: Required scope identifier
             - branch: Optional branch name (None if not specified)
             - hash_or_prefix: The hash or hash prefix (7+ chars)
 
@@ -86,29 +86,29 @@ class DialexityInputResolver:
 
         if len(segments) < 2:
             raise MalformedDxUriError(
-                f"dx:// URI requires at least case_id and hash. "
-                f"Format: dx://<case_id>/<hash> or dx://<case_id>/<branch>/<hash>. "
+                f"dx:// URI requires at least sid and hash. "
+                f"Format: dx://<sid>/<hash> or dx://<sid>/<branch>/<hash>. "
                 f"Got: {uri}"
             )
 
         if len(segments) == 2:
-            # dx://case_id/hash
-            case_id, hash_or_prefix = segments
+            # dx://sid/hash
+            sid, hash_or_prefix = segments
             branch = None
         elif len(segments) == 3:
-            # dx://case_id/branch/hash
-            case_id, branch, hash_or_prefix = segments
+            # dx://sid/branch/hash
+            sid, branch, hash_or_prefix = segments
         else:
             raise MalformedDxUriError(
                 f"dx:// URI has too many segments. "
-                f"Format: dx://<case_id>/<hash> or dx://<case_id>/<branch>/<hash>. "
+                f"Format: dx://<sid>/<hash> or dx://<sid>/<branch>/<hash>. "
                 f"Got: {uri}"
             )
 
-        # Validate case_id is not empty
-        if not case_id:
+        # Validate sid is not empty
+        if not sid:
             raise MalformedDxUriError(
-                f"dx:// URI requires a non-empty case_id. Got: {uri}"
+                f"dx:// URI requires a non-empty sid. Got: {uri}"
             )
 
         # Validate hash length
@@ -118,7 +118,7 @@ class DialexityInputResolver:
                 f"Got {len(hash_or_prefix)} characters in: {uri}"
             )
 
-        return case_id, branch, hash_or_prefix
+        return sid, branch, hash_or_prefix
 
     async def resolve(self, uri: str) -> str:
         """
@@ -133,24 +133,24 @@ class DialexityInputResolver:
         Raises:
             MalformedDxUriError: If URI format is invalid
             NodeNotFoundError: If node cannot be found
-            ScopeMismatchError: If case_id doesn't match the node
+            ScopeMismatchError: If sid doesn't match the node
             UnsupportedNodeTypeError: If node type has no content extractor
         """
-        case_id, branch, hash_or_prefix = self.parse_uri(uri)
-        node = self._lookup_node(case_id, branch, hash_or_prefix)
+        sid, branch, hash_or_prefix = self.parse_uri(uri)
+        node = self._lookup_node(sid, branch, hash_or_prefix)
         return self._extract_content(node)
 
     def _lookup_node(
         self,
-        case_id: str,
+        sid: str,
         branch: Optional[str],
         hash_or_prefix: str,
     ) -> BaseNode:
         """
-        Find a node by hash/prefix and validate case_id/branch.
+        Find a node by hash/prefix and validate sid/branch.
 
         Args:
-            case_id: Required scope identifier
+            sid: Required scope identifier
             branch: Optional branch name for additional validation
             hash_or_prefix: Full hash or prefix (7+ chars)
 
@@ -160,32 +160,25 @@ class DialexityInputResolver:
         Raises:
             NodeNotFoundError: If node cannot be found
             AmbiguousHashPrefixError: If prefix matches multiple nodes
-            ScopeMismatchError: If case_id doesn't match the node
+            ScopeMismatchError: If sid doesn't match the node
         """
-        # Try exact match first
-        node = self._hash_repo.find_by_hash(hash_or_prefix)
-
-        if node is None:
-            # Try prefix lookup
-            try:
-                node = self._hash_repo.find_by_hash(
-                    hash_or_prefix,
-                    min_length=self.MIN_HASH_PREFIX_LENGTH,
-                )
-            except ValueError as e:
-                if "Ambiguous prefix" in str(e):
-                    raise AmbiguousHashPrefixError(str(e)) from e
-                raise NodeNotFoundError(str(e)) from e
+        # Try hash lookup (supports both full hash and prefix)
+        try:
+            node = self._hash_repo.find_by_hash(hash_or_prefix)
+        except ValueError as e:
+            if "Ambiguous" in str(e):
+                raise AmbiguousHashPrefixError(str(e)) from e
+            raise NodeNotFoundError(str(e)) from e
 
         if node is None:
             raise NodeNotFoundError(
                 f"No node found with hash or prefix: {hash_or_prefix}"
             )
 
-        # Validate case_id matches
-        if node.case_id != case_id:
+        # Validate sid matches
+        if node.sid != sid:
             raise ScopeMismatchError(
-                f"case_id mismatch: URI specifies '{case_id}' but node has '{node.case_id}'"
+                f"sid mismatch: URI specifies '{sid}' but node has '{node.sid}'"
             )
 
         # Validate branch if specified

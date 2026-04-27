@@ -1,7 +1,7 @@
 """
 PerspectiveRepository for complex query operations and lifecycle management.
 
-All queries are scoped by case_id (injected from DI context) to prevent cross-user data leaks.
+All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
 """
 
 from __future__ import annotations
@@ -23,14 +23,14 @@ class PerspectiveRepository:
     """
     Repository for Perspective query operations and lifecycle management.
 
-    All queries are automatically scoped by case_id (injected from DI context).
+    All queries are automatically scoped by sid (injected from DI context).
     """
 
     @inject
     def find_by_polarity(
         self,
         polarity: Polarity,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Perspective]:
         """
@@ -38,7 +38,7 @@ class PerspectiveRepository:
 
         Args:
             polarity: The Polarity (T-A pair) to query for
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             List of Perspectives connected to this Polarity
@@ -47,7 +47,7 @@ class PerspectiveRepository:
             return []
 
         # Validate polarity belongs to current scope
-        if case_id and polarity.case_id != case_id:
+        if sid and polarity.sid != sid:
             return []
 
         query = """
@@ -63,7 +63,7 @@ class PerspectiveRepository:
     def find_by_dialectical_component(
         self,
         component: DialecticalComponent,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[tuple[Perspective, str]]:
         """
@@ -71,7 +71,7 @@ class PerspectiveRepository:
 
         Args:
             component: The DialecticalComponent to query for
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             List of tuples: (Perspective, relationship_type)
@@ -80,7 +80,7 @@ class PerspectiveRepository:
             return []
 
         # Validate component belongs to current scope
-        if case_id and component.case_id != case_id:
+        if sid and component.sid != sid:
             return []
 
         query = """
@@ -115,7 +115,7 @@ class PerspectiveRepository:
         self,
         perspective: Perspective,
         force_gc: bool = True,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -124,7 +124,7 @@ class PerspectiveRepository:
         Args:
             perspective: The Perspective to delete
             force_gc: If True (default), aggressive GC mode. If False, conservative mode.
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             True if deleted, False if kept or not in scope
@@ -133,14 +133,14 @@ class PerspectiveRepository:
             return False
 
         # Validate Perspective belongs to current scope
-        if case_id and perspective.case_id != case_id:
+        if sid and perspective.sid != sid:
             return False
 
         if force_gc:
-            if self.in_use(perspective, case_id=case_id, graph_db=graph_db):
+            if self.in_use(perspective, sid=sid, graph_db=graph_db):
                 return False
         else:
-            if not self.is_isolated(perspective, case_id=case_id, graph_db=graph_db):
+            if not self.is_isolated(perspective, sid=sid, graph_db=graph_db):
                 return False
 
         # Delete orphaned HAS_STATEMENT components
@@ -273,7 +273,7 @@ class PerspectiveRepository:
     def is_isolated(
         self,
         perspective: Perspective,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -281,7 +281,7 @@ class PerspectiveRepository:
 
         Args:
             perspective: The Perspective to check
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             True if isolated, False if in vocabulary or not in scope
@@ -290,7 +290,7 @@ class PerspectiveRepository:
             return True
 
         # Validate Perspective belongs to current scope
-        if case_id and perspective.case_id != case_id:
+        if sid and perspective.sid != sid:
             return False  # Not in scope = treat as not isolated (don't allow operations)
 
         query = """
@@ -348,7 +348,7 @@ class PerspectiveRepository:
     def count_usage(
         self,
         perspective: Perspective,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> int:
         """
@@ -356,7 +356,7 @@ class PerspectiveRepository:
 
         Args:
             perspective: The Perspective to count usage for
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             Count of distinct containers (0 if not in scope)
@@ -365,7 +365,7 @@ class PerspectiveRepository:
             return 0
 
         # Validate Perspective belongs to current scope
-        if case_id and perspective.case_id != case_id:
+        if sid and perspective.sid != sid:
             return 0
 
         query = """
@@ -391,7 +391,7 @@ class PerspectiveRepository:
     def in_use(
         self,
         perspective: Perspective,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -399,18 +399,18 @@ class PerspectiveRepository:
 
         Args:
             perspective: The Perspective to check
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             True if in use, False if orphaned or not in scope
         """
-        return self.count_usage(perspective, case_id=case_id, graph_db=graph_db) > 0
+        return self.count_usage(perspective, sid=sid, graph_db=graph_db) > 0
 
     @inject
     def is_shared(
         self,
         perspective: Perspective,
-        case_id: Optional[str] = Provide[DI.case_id],
+        sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> bool:
         """
@@ -418,7 +418,7 @@ class PerspectiveRepository:
 
         Args:
             perspective: The Perspective to check
-            case_id: Case ID (injected from DI context)
+            sid: Case ID (injected from DI context)
 
         Returns:
             True if any component is shared, False otherwise or not in scope
@@ -427,7 +427,7 @@ class PerspectiveRepository:
             return False
 
         # Validate Perspective belongs to current scope
-        if case_id and perspective.case_id != case_id:
+        if sid and perspective.sid != sid:
             return False
 
         query = """

@@ -189,16 +189,16 @@ class Input(BaseNode, label="Input"):
             return False
 
         # Transform content to dx:// reference
-        # Use the existing node's case_id for the reference
-        node_case_id = existing.case_id or self.case_id
-        if not node_case_id:
+        # Use the existing node's sid for the reference
+        node_sid = existing.sid or self.sid
+        if not node_sid:
             raise ValueError(
-                f"Cannot transform Input to dx:// reference: no case_id available. "
-                f"Both Input and matching node have case_id=None. "
+                f"Cannot transform Input to dx:// reference: no sid available. "
+                f"Both Input and matching node have sid=None. "
                 f"Node hash: {existing.hash[:8]}..."
             )
 
-        self.content = f"dx://{node_case_id}/{existing.hash}"
+        self.content = f"dx://{node_sid}/{existing.hash}"
         return True
 
     @inject

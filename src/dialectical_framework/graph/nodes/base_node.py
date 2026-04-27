@@ -77,7 +77,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
 
     Attributes:
         hash: Primary identity - sha256 of structure + intent + committed_at
-        case_id: Case identifier - the UUID of the root Case.
+        sid: Scope ID - the UUID of the root Case.
         committed_at: Unix timestamp (seconds since epoch) when node was committed.
                       Part of hash for structural nodes to ensure temporal ordering.
 
@@ -90,24 +90,24 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
     committed_at: Optional[float] = None  # Set at commit time, included in hash for structural nodes
 
     # metadata
-    case_id: Optional[str] = None
+    sid: Optional[str] = None
 
     def __init__(self, **data: Any) -> None:
         """
         Initialize a node.
 
         Auto-population:
-        - case_id: If not provided, reads from scope contextvar (set by app layer).
-                   If no scope set, remains None.
+        - sid: If not provided, reads from scope contextvar (set by app layer).
+               If no scope set, remains None.
 
         Args:
             **data: Field values for the node
         """
-        # Auto-populate case_id from context if not provided
+        # Auto-populate sid from context if not provided
         # Reads directly from contextvar (set by app layer)
-        if "case_id" not in data or data["case_id"] is None:
-            from dialectical_framework.graph.scope_context import get_current_case_id
-            data["case_id"] = get_current_case_id()
+        if "sid" not in data or data["sid"] is None:
+            from dialectical_framework.graph.scope_context import get_current_sid
+            data["sid"] = get_current_sid()
 
         super().__init__(**data)
 
@@ -277,7 +277,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
 
     def clone(
         self,
-        destination_case_id: Optional[str] = None,
+        destination_sid: Optional[str] = None,
         branch: Optional[str] = None
     ) -> Self:
         """
@@ -290,10 +290,10 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
         - For other nodes:
           - No origin_hash (atoms don't track lineage)
         - hash = None (uncommitted, must call commit())
-        - case_id = destination_case_id if provided
+        - sid = destination_sid if provided
 
         Args:
-            destination_case_id: Optional case ID for the clone
+            destination_sid: Optional scope ID for the clone
             branch: Optional branch name (only for ForkableMixin nodes)
 
         Returns:
@@ -317,7 +317,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
         # Collect field values, excluding identity and timestamp fields
         data: dict[str, Any] = {}
         excluded_fields = {
-            'hash', 'origin_hash', 'case_id',
+            'hash', 'origin_hash', 'sid',
             '_id', 'committed_at', 'branch'
         }
 
@@ -326,8 +326,8 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
                 data[field_name] = getattr(self, field_name)
 
         # Set new scope if provided
-        if destination_case_id is not None:
-            data['case_id'] = destination_case_id
+        if destination_sid is not None:
+            data['sid'] = destination_sid
 
         # Handle forking points (Perspective) - only ForkableMixin nodes get lineage
         from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin

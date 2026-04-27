@@ -49,7 +49,7 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
     Identity is hash-based (Merkle): hash = sha256(preset + intent + committed_at).
 
     Other key properties:
-    - case_id: Inherited from BaseNode - the Case's case_id (required, links to parent)
+    - sid: Inherited from BaseNode - the Case's sid (required, links to parent)
 
     Relationships:
     - perspectives: Perspectives in this exploration (RelationshipFrom)
@@ -61,7 +61,7 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
         case.commit()
 
         nexus = Nexus(
-            case_id=case.case_id,
+            sid=case.sid,
             intent="I want to understand the deep meaning of love",
             preset=CausalityPreset.BALANCED,
         )
@@ -107,10 +107,10 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
             Self for chaining
 
         Raises:
-            ValueError: If case_id is not set
+            ValueError: If sid is not set
         """
-        if not self.case_id:
-            raise ValueError("Nexus must have case_id set before commit (use Case's case_id)")
+        if not self.sid:
+            raise ValueError("Nexus must have sid set before commit (use Case's sid)")
 
         return super().commit(graph_db=graph_db)
 
