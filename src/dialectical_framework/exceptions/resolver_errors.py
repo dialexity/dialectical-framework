@@ -56,7 +56,7 @@ class UnsupportedNodeTypeError(TypeError):
 
     Supported node types:
     - Rationale: text field
-    - Transition: source -> target statement
+    - Transition: source -> target instruction
     - Synthesis: S+ and S- statements
     - DialecticalComponent: statement field
     - Input: content field (recursive)

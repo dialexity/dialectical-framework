@@ -379,7 +379,7 @@ class ExploreTransformations(
         Create a Transition node between PP aspects.
 
         Args:
-            headline: Short headline (~7 words) - stored on Transition.statement and Rationale.headline
+            headline: Short headline (~7 words) - stored on Transition.instruction and Rationale.headline
             statement: Fuller statement (1-15 words) - stored on Rationale.summary
             source: The source component from the Perspective (e.g., T-)
             target: The target component from the Perspective (e.g., A+)
@@ -388,8 +388,7 @@ class ExploreTransformations(
         Returns:
             The committed Transition node
         """
-        # Create transition with headline as its statement
-        transition = Transition(statement=headline)
+        transition = Transition(instruction=headline)
         transition.set_source(source)
         transition.set_target(target)
         transition.commit()
