@@ -241,6 +241,14 @@ def di_container():
 
 
 @pytest.fixture(autouse=True)
+def mock_llm(request, monkeypatch):
+    """Auto-mock LLM calls for all tests except those marked with @pytest.mark.llm."""
+    if "llm" not in [mark.name for mark in request.node.iter_markers()]:
+        from mock_brain import install_mock_brain
+        install_mock_brain(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
 async def cleanup_async_resources():
     """Cleanup async resources after each test"""
     yield
