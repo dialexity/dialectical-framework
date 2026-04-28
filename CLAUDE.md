@@ -219,7 +219,8 @@ When connecting components to Perspective positions, semantic relationships are 
 This is a Python project using Poetry for dependency management:
 
 - **Install dependencies**: `poetry install`
-- **Run tests**: `poetry run pytest` or `pytest` if in activated environment
+- **Run tests**: `poetry run pytest` (skips LLM tests by default)
+- **Run all tests (incl. LLM)**: `poetry run pytest -m ''`
 - **Format code**: `poetry run black src/ tests/`
 - **Sort imports**: `poetry run isort src/ tests/`
 - **Remove unused imports**: `poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tests/`

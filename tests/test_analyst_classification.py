@@ -1,10 +1,12 @@
 """
-Tests for classification capabilities: AspectClassification and IdeaPlacement.
+Tests for classification concerns: AspectClassification and IdeaPlacement.
 """
 
 from __future__ import annotations
 
 import pytest
+
+pytestmark = pytest.mark.llm
 from langfuse.decorators import observe
 
 from dialectical_framework.concerns.idea_placement import (IdeaPlacement,

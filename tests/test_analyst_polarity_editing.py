@@ -123,6 +123,7 @@ def create_test_pp(sid: str, commit: bool = False) -> Perspective:
         return pp
 
 
+@pytest.mark.llm
 class TestEditPolarityThesis:
     """Tests for editing thesis (T)."""
 
@@ -179,6 +180,7 @@ class TestEditPolarityThesis:
                 assert result.perspective is not None
 
 
+@pytest.mark.llm
 class TestEditPolarityAntithesis:
     """Tests for editing antithesis (A)."""
 
@@ -230,6 +232,7 @@ class TestEditPolarityAntithesis:
                 assert "aspect" in result.error_message.lower() or result.error_message
 
 
+@pytest.mark.llm
 class TestEditTetradAspect:
     """Tests for editing aspects (T+, T-, A+, A-)."""
 
@@ -279,6 +282,7 @@ class TestEditTetradAspect:
                 pass
 
 
+@pytest.mark.llm
 class TestEditPolarityForking:
     """Tests for forking behavior (committed vs uncommitted PP)."""
 
@@ -341,7 +345,7 @@ class TestEditPolarityValidation:
             result = await editor.resolve()
 
             assert not result.is_valid
-            assert "non-empty" in result.error_message.lower()
+            assert "must provide" in result.error_message.lower()
 
     @pytest.mark.asyncio
     async def test_edit_invalid_position_fails(self):

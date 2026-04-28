@@ -1,6 +1,9 @@
+import pytest
 from dotenv import load_dotenv
 from mirascope import llm
 from pydantic import BaseModel
+
+pytestmark = pytest.mark.llm
 
 # Load environment variables
 load_dotenv()

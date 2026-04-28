@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 
 import pytest
+
+pytestmark = pytest.mark.llm
 from langfuse.decorators import observe
 
 from dialectical_framework.agents.analyst.skills.surface_theses import \

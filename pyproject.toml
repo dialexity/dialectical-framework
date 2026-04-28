@@ -72,6 +72,10 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "llm: tests that hit a real LLM endpoint (deselect with '-m not llm')",
+]
+addopts = "-m 'not llm'"
 filterwarnings = [
     "ignore::DeprecationWarning:mirascope.*",
     "ignore::UserWarning:mirascope.*",

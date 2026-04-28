@@ -1,10 +1,12 @@
 """
-Tests for Perspective validation capabilities.
+Tests for Perspective validation concerns.
 """
 
 from __future__ import annotations
 
 import pytest
+
+pytestmark = pytest.mark.llm
 from langfuse.decorators import observe
 
 from dialectical_framework.concerns.control_statements_check import \
