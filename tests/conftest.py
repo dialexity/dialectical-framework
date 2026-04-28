@@ -240,12 +240,31 @@ def di_container():
     container.unwire()
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--real-llm",
+        action="store_true",
+        default=False,
+        help="Use real LLM endpoints instead of mock brain",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--real-llm"):
+        return
+    skip_real = pytest.mark.skip(reason="needs --real-llm to run")
+    for item in items:
+        if "real_llm" in [mark.name for mark in item.iter_markers()]:
+            item.add_marker(skip_real)
+
+
 @pytest.fixture(autouse=True)
 def mock_llm(request, monkeypatch):
-    """Auto-mock LLM calls for all tests except those marked with @pytest.mark.llm."""
-    if "llm" not in [mark.name for mark in request.node.iter_markers()]:
-        from mock_brain import install_mock_brain
-        install_mock_brain(monkeypatch)
+    """Auto-mock LLM calls unless --real-llm is passed."""
+    if request.config.getoption("--real-llm"):
+        return
+    from mock_brain import install_mock_brain
+    install_mock_brain(monkeypatch)
 
 
 @pytest.fixture(autouse=True)

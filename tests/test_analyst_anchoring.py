@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-pytestmark = pytest.mark.llm
+pytestmark = pytest.mark.real_llm
 from langfuse.decorators import observe
 
 from dialectical_framework.agents.analyst.skills.surface_theses import \

@@ -73,9 +73,9 @@ build-backend = "poetry.core.masonry.api"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
-    "llm: tests that hit a real LLM endpoint (deselect with '-m not llm')",
+    "llm: tests that exercise LLM code paths (mocked by default, real with --real-llm)",
+    "real_llm: tests that require a real LLM endpoint (skipped unless --real-llm)",
 ]
-addopts = "-m 'not llm'"
 filterwarnings = [
     "ignore::DeprecationWarning:mirascope.*",
     "ignore::UserWarning:mirascope.*",

@@ -219,8 +219,10 @@ When connecting components to Perspective positions, semantic relationships are 
 This is a Python project using Poetry for dependency management:
 
 - **Install dependencies**: `poetry install`
-- **Run tests**: `poetry run pytest` (skips LLM tests by default)
-- **Run all tests (incl. LLM)**: `poetry run pytest -m ''`
+- **Run tests**: `poetry run pytest` (all tests, LLM mocked)
+- **Run tests with real LLM**: `poetry run pytest --real-llm`
+- **Run only LLM tests (mocked)**: `poetry run pytest -m llm`
+- **Run only LLM tests (real)**: `poetry run pytest -m llm --real-llm`
 - **Format code**: `poetry run black src/ tests/`
 - **Sort imports**: `poetry run isort src/ tests/`
 - **Remove unused imports**: `poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tests/`
@@ -718,12 +720,31 @@ def get_items() -> List[str]:  # Don't use List
 
 ## Testing
 
+### Test Markers and Mock Brain
+
+Tests are split into three groups:
+
+| Marker | What it tests | Default (`pytest`) | With `--real-llm` |
+|--------|--------------|--------------------|--------------------|
+| *(none)* | Pure logic, no LLM code paths | Runs (mock installed, harmless) | Runs (real LLM) |
+| `@pytest.mark.llm` | Exercises LLM code paths | Runs with **mock brain** | Runs with **real LLM** |
+| `@pytest.mark.real_llm` | Must have real LLM (e.g. provider connectivity) | **Skipped** | Runs with **real LLM** |
+
+**Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic response models without hitting inference endpoints. It patches `ConversationFacilitator._call_with_response_model` and the `use_brain` decorator. The `mock_llm` autouse fixture in `conftest.py` installs it for all tests unless `--real-llm` is passed.
+
+**When to use which marker:**
+- No marker: test doesn't touch LLM code at all (graph ops, scoring, validation)
+- `@pytest.mark.llm`: test calls concerns/skills that use LLM internally — works with mock, but can also verify with real LLM
+- `@pytest.mark.real_llm`: test *only* makes sense with a real endpoint (provider connectivity checks)
+
+Apply markers at module level (`pytestmark = pytest.mark.llm`) or per class/function.
+
 ### Key Test Files
 
-- `test_graph.py` (64KB): Core graph operations, Perspectives, components
-- `test_tarorank.py` (48KB): Comprehensive scoring tests
-- `test_synthesist.py`: Reasoning engines
-- `conftest.py`: DI setup and fixtures
+- `test_graph.py`: Core graph operations, Perspectives, components
+- `test_tarorank.py`: Comprehensive scoring tests
+- `test_analyst_*.py`: Analyst agent concerns (LLM-marked)
+- `conftest.py`: DI setup, mock brain fixture, graph DB cleanup
 
 ### DI in Tests
 
