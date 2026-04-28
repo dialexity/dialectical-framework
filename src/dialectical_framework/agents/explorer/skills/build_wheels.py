@@ -112,7 +112,7 @@ def _auto_preset_prompt(*, exploration_intent: str) -> Messages.Type: ...
 class BuildWheelsResult:
     """Result from BuildWheels."""
 
-    nexus: Nexus
+    nexus: Optional[Nexus]
     new_cycles: list[Cycle]
     new_wheels: list[Wheel]
 
