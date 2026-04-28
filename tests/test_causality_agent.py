@@ -1,9 +1,9 @@
 """
-Tests for BuildWheels skill and sequencer resolver.
+Tests for BuildWheels skill and estimator resolver.
 
 Tests cover:
 - BuildWheels: Creating Cycles + Wheels from Perspectives within a Nexus
-- resolve_sequencer: Mapping preset strings to CausalitySequencer instances
+- resolve_estimator: Mapping preset strings to CausalityEstimator instances
 """
 
 from __future__ import annotations
@@ -13,18 +13,18 @@ import pytest
 from dialectical_framework.agents.explorer.skills.build_wheels import (
     BuildWheels, BuildWheelsResult)
 from dialectical_framework.enums.causality_preset import CausalityPreset
-from dialectical_framework.features.causality.sequencer_resolver import (
-    resolve_sequencer)
-from dialectical_framework.features.causality.causality_sequencer_balanced import (
-    CausalitySequencerBalanced)
-from dialectical_framework.features.causality.causality_sequencer_criteria import (
-    CausalitySequencerCriteria)
-from dialectical_framework.features.causality.causality_sequencer_desirable import (
-    CausalitySequencerDesirable)
-from dialectical_framework.features.causality.causality_sequencer_feasible import (
-    CausalitySequencerFeasible)
-from dialectical_framework.features.causality.causality_sequencer_realistic import (
-    CausalitySequencerRealistic)
+from dialectical_framework.features.causality.estimator_resolver import (
+    resolve_estimator)
+from dialectical_framework.features.causality.causality_estimator_balanced import (
+    CausalityEstimatorBalanced)
+from dialectical_framework.features.causality.causality_estimator_criteria import (
+    CausalityEstimatorCriteria)
+from dialectical_framework.features.causality.causality_estimator_desirable import (
+    CausalityEstimatorDesirable)
+from dialectical_framework.features.causality.causality_estimator_feasible import (
+    CausalityEstimatorFeasible)
+from dialectical_framework.features.causality.causality_estimator_realistic import (
+    CausalityEstimatorRealistic)
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import \
@@ -108,70 +108,70 @@ def create_complete_perspective(index: int = 0) -> Perspective:
     return pp
 
 
-class TestResolveSequencer:
-    """Tests for resolve_sequencer — intent-to-sequencer mapping."""
+class TestResolveEstimator:
+    """Tests for resolve_estimator — intent-to-estimator mapping."""
 
     def test_none_defaults_to_balanced(self):
-        """None intent returns balanced sequencer."""
-        seq = resolve_sequencer(None)
-        assert isinstance(seq, CausalitySequencerBalanced)
+        """None intent returns balanced estimator."""
+        est = resolve_estimator(None)
+        assert isinstance(est, CausalityEstimatorBalanced)
 
     def test_empty_string_defaults_to_balanced(self):
-        """Empty string returns balanced sequencer."""
-        seq = resolve_sequencer("")
-        assert isinstance(seq, CausalitySequencerBalanced)
+        """Empty string returns balanced estimator."""
+        est = resolve_estimator("")
+        assert isinstance(est, CausalityEstimatorBalanced)
 
     def test_preset_balanced(self):
-        """preset:balanced returns balanced sequencer."""
-        seq = resolve_sequencer(CausalityPreset.BALANCED)
-        assert isinstance(seq, CausalitySequencerBalanced)
+        """preset:balanced returns balanced estimator."""
+        est = resolve_estimator(CausalityPreset.BALANCED)
+        assert isinstance(est, CausalityEstimatorBalanced)
 
     def test_preset_desirable(self):
-        """preset:desirable returns desirable sequencer."""
-        seq = resolve_sequencer(CausalityPreset.DESIRABLE)
-        assert isinstance(seq, CausalitySequencerDesirable)
+        """preset:desirable returns desirable estimator."""
+        est = resolve_estimator(CausalityPreset.DESIRABLE)
+        assert isinstance(est, CausalityEstimatorDesirable)
 
     def test_preset_feasible(self):
-        """preset:feasible returns feasible sequencer."""
-        seq = resolve_sequencer(CausalityPreset.FEASIBLE)
-        assert isinstance(seq, CausalitySequencerFeasible)
+        """preset:feasible returns feasible estimator."""
+        est = resolve_estimator(CausalityPreset.FEASIBLE)
+        assert isinstance(est, CausalityEstimatorFeasible)
 
     def test_preset_realistic(self):
-        """preset:realistic returns realistic sequencer."""
-        seq = resolve_sequencer(CausalityPreset.REALISTIC)
-        assert isinstance(seq, CausalitySequencerRealistic)
+        """preset:realistic returns realistic estimator."""
+        est = resolve_estimator(CausalityPreset.REALISTIC)
+        assert isinstance(est, CausalityEstimatorRealistic)
 
     def test_short_name_balanced(self):
         """Short name 'balanced' also works."""
-        seq = resolve_sequencer("balanced")
-        assert isinstance(seq, CausalitySequencerBalanced)
+        est = resolve_estimator("balanced")
+        assert isinstance(est, CausalityEstimatorBalanced)
 
     def test_short_name_desirable(self):
         """Short name 'desirable' also works."""
-        seq = resolve_sequencer("desirable")
-        assert isinstance(seq, CausalitySequencerDesirable)
+        est = resolve_estimator("desirable")
+        assert isinstance(est, CausalityEstimatorDesirable)
 
     def test_case_insensitive(self):
         """Preset matching is case-insensitive."""
-        seq = resolve_sequencer("PRESET:REALISTIC")
-        assert isinstance(seq, CausalitySequencerRealistic)
+        est = resolve_estimator("PRESET:REALISTIC")
+        assert isinstance(est, CausalityEstimatorRealistic)
 
     def test_auto_preset_rejected(self):
-        """preset:auto cannot be passed to resolve_sequencer — caller must handle it."""
+        """preset:auto cannot be passed to resolve_estimator — caller must handle it."""
         with pytest.raises(ValueError, match="preset:auto must be resolved"):
-            resolve_sequencer(CausalityPreset.AUTO)
+            resolve_estimator(CausalityPreset.AUTO)
 
-    def test_freeform_text_returns_criteria_sequencer(self):
-        """Non-preset text is treated as criteria — returns CausalitySequencerCriteria."""
-        seq = resolve_sequencer("depth and philosophical coherence")
-        assert isinstance(seq, CausalitySequencerCriteria)
-        assert seq._criteria == "depth and philosophical coherence"
+    def test_freeform_text_returns_criteria_estimator(self):
+        """Non-preset text is treated as criteria — returns CausalityEstimatorCriteria."""
+        est = resolve_estimator("depth and philosophical coherence")
+        assert isinstance(est, CausalityEstimatorCriteria)
+        assert est._criteria == "depth and philosophical coherence"
 
-    def test_criteria_sequencer_is_balanced_subclass(self):
-        """CausalitySequencerCriteria inherits from balanced sequencer."""
-        seq = resolve_sequencer("some custom criteria text")
-        assert isinstance(seq, CausalitySequencerBalanced)
-        assert isinstance(seq, CausalitySequencerCriteria)
+    def test_criteria_estimator_is_balanced_subclass(self):
+        """CausalityEstimatorCriteria inherits from balanced estimator."""
+        est = resolve_estimator("some custom criteria text")
+        assert isinstance(est, CausalityEstimatorBalanced)
+        assert isinstance(est, CausalityEstimatorCriteria)
 
 
 class TestNexusPresetIntentSeparation:

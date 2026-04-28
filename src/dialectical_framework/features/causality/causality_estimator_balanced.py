@@ -21,8 +21,8 @@ from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.wheel import Wheel
-from dialectical_framework.features.causality.causality_sequencer import (
-    CausalitySequencer,
+from dialectical_framework.features.causality.causality_estimator import (
+    CausalityEstimator,
     EstimationStructured,
 )
 from dialectical_framework.protocols.has_brain import HasBrain
@@ -34,9 +34,9 @@ from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
 
 
-class CausalitySequencerBalanced(CausalitySequencer, HasBrain, SettingsAware):
+class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
     """
-    Causality sequencer that estimates probabilities for Cycles and Wheels.
+    Causality estimator that estimates probabilities for Cycles and Wheels.
 
     This is a "dumb" AI estimator - it runs estimation on whatever it receives
     and returns raw results. It does NOT:

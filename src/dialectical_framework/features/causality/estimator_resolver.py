@@ -1,10 +1,10 @@
 """
-Resolve the appropriate CausalitySequencer from a Cycle/Wheel intent string.
+Resolve the appropriate CausalityEstimator from a Cycle/Wheel intent string.
 
 The intent stored on a Cycle is the assessment strategy:
-- Known preset (e.g. "preset:balanced") -> specific sequencer subclass
-- Free-form criteria text -> CausalitySequencerCriteria
-- None/empty -> CausalitySequencerBalanced (default)
+- Known preset (e.g. "preset:balanced") -> specific estimator subclass
+- Free-form criteria text -> CausalityEstimatorCriteria
+- None/empty -> CausalityEstimatorBalanced (default)
 - "preset:auto" -> error (must be resolved upstream before storing on Cycle)
 """
 
@@ -13,8 +13,8 @@ from __future__ import annotations
 from typing import Optional
 
 from dialectical_framework.enums.causality_preset import CausalityPreset
-from dialectical_framework.features.causality.causality_sequencer import (
-    CausalitySequencer,
+from dialectical_framework.features.causality.causality_estimator import (
+    CausalityEstimator,
 )
 
 # Build lookup: maps lowercase preset values and short names to preset enum members
@@ -26,46 +26,46 @@ for _preset in CausalityPreset:
     _short = _preset.value.split(":", 1)[-1].lower()
     _PRESET_LOOKUP[_short] = _preset
 
-# Maps preset enum members to their sequencer factory functions
-_SEQUENCER_FACTORIES: dict[CausalityPreset, type] = {}
+# Maps preset enum members to their estimator factory functions
+_ESTIMATOR_FACTORIES: dict[CausalityPreset, type] = {}
 
 
 def _get_factories() -> dict[CausalityPreset, type]:
-    """Lazy-load sequencer classes to avoid circular imports."""
-    if not _SEQUENCER_FACTORIES:
-        from dialectical_framework.features.causality.causality_sequencer_balanced import (
-            CausalitySequencerBalanced,
+    """Lazy-load estimator classes to avoid circular imports."""
+    if not _ESTIMATOR_FACTORIES:
+        from dialectical_framework.features.causality.causality_estimator_balanced import (
+            CausalityEstimatorBalanced,
         )
-        from dialectical_framework.features.causality.causality_sequencer_desirable import (
-            CausalitySequencerDesirable,
+        from dialectical_framework.features.causality.causality_estimator_desirable import (
+            CausalityEstimatorDesirable,
         )
-        from dialectical_framework.features.causality.causality_sequencer_feasible import (
-            CausalitySequencerFeasible,
+        from dialectical_framework.features.causality.causality_estimator_feasible import (
+            CausalityEstimatorFeasible,
         )
-        from dialectical_framework.features.causality.causality_sequencer_realistic import (
-            CausalitySequencerRealistic,
+        from dialectical_framework.features.causality.causality_estimator_realistic import (
+            CausalityEstimatorRealistic,
         )
 
-        _SEQUENCER_FACTORIES[CausalityPreset.BALANCED] = CausalitySequencerBalanced
-        _SEQUENCER_FACTORIES[CausalityPreset.DESIRABLE] = CausalitySequencerDesirable
-        _SEQUENCER_FACTORIES[CausalityPreset.FEASIBLE] = CausalitySequencerFeasible
-        _SEQUENCER_FACTORIES[CausalityPreset.REALISTIC] = CausalitySequencerRealistic
-    return _SEQUENCER_FACTORIES
+        _ESTIMATOR_FACTORIES[CausalityPreset.BALANCED] = CausalityEstimatorBalanced
+        _ESTIMATOR_FACTORIES[CausalityPreset.DESIRABLE] = CausalityEstimatorDesirable
+        _ESTIMATOR_FACTORIES[CausalityPreset.FEASIBLE] = CausalityEstimatorFeasible
+        _ESTIMATOR_FACTORIES[CausalityPreset.REALISTIC] = CausalityEstimatorRealistic
+    return _ESTIMATOR_FACTORIES
 
 
-def resolve_sequencer(intent: Optional[str] = None) -> CausalitySequencer:
+def resolve_estimator(intent: Optional[str] = None) -> CausalityEstimator:
     """
-    Resolve the appropriate CausalitySequencer from a Cycle/Wheel intent.
+    Resolve the appropriate CausalityEstimator from a Cycle/Wheel intent.
 
     Args:
         intent: The intent string stored on the Cycle/Wheel.
-            - None/empty -> default balanced sequencer
+            - None/empty -> default balanced estimator
             - Known preset value (e.g. "preset:balanced") or short name ("balanced")
             - "preset:auto" -> raises (must be resolved before storing on Cycle)
-            - Any other string -> CausalitySequencerCriteria (free-form criteria)
+            - Any other string -> CausalityEstimatorCriteria (free-form criteria)
 
     Returns:
-        Configured CausalitySequencer instance
+        Configured CausalityEstimator instance
 
     Raises:
         ValueError: If intent is "preset:auto" (unresolved)
@@ -80,7 +80,7 @@ def resolve_sequencer(intent: Optional[str] = None) -> CausalitySequencer:
     if preset_enum == CausalityPreset.AUTO:
         raise ValueError(
             "preset:auto must be resolved by the caller (e.g. BuildWheels) "
-            "before storing on Cycle — it should never reach resolve_sequencer"
+            "before storing on Cycle — it should never reach resolve_estimator"
         )
 
     if preset_enum is not None:
@@ -88,8 +88,8 @@ def resolve_sequencer(intent: Optional[str] = None) -> CausalitySequencer:
         return factories[preset_enum]()
 
     # Not a known preset — treat as free-form criteria text
-    from dialectical_framework.features.causality.causality_sequencer_criteria import (
-        CausalitySequencerCriteria,
+    from dialectical_framework.features.causality.causality_estimator_criteria import (
+        CausalityEstimatorCriteria,
     )
 
-    return CausalitySequencerCriteria(criteria=intent)
+    return CausalityEstimatorCriteria(criteria=intent)

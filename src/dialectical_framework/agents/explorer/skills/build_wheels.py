@@ -6,7 +6,7 @@ Perspective hashes, then creates all structural combinations (Cycles + Wheels)
 and estimates them.
 
 The Nexus has two separate concerns:
-- preset: Selects the sequencer class for estimation
+- preset: Selects the estimator class for estimation
   (e.g. "preset:balanced", "preset:realistic", "preset:auto")
 - intent: Free-form exploration purpose.
 
@@ -122,7 +122,7 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
     Main LLM-facing entry point for dialectical exploration.
 
     Creates structural combinations (Cycles + Wheels) from Perspectives
-    within a Nexus, then estimates them using the appropriate sequencer
+    within a Nexus, then estimates them using the appropriate estimator
     based on the Nexus intent.
 
     Flow:
@@ -235,7 +235,7 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
         self._report.artifacts["new_wheels"] = len(new_wheels)
 
         # 5. Estimate new structures (layer 2+ only — single-PP cycles are tautological)
-        #    CausalityEstimation resolves the sequencer from Cycle.intent
+        #    CausalityEstimation resolves the estimator from Cycle.intent
         causal_cycles = [c for c in new_cycles if c.perspective_count >= 2]
         causal_wheels = [w for w in new_wheels if w.polarity_count >= 2]
         if causal_cycles or causal_wheels:
@@ -268,7 +268,7 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
         """
         Estimate newly created Cycles and Wheels.
 
-        The sequencer is resolved from each structure's intent by CausalityEstimation.
+        The estimator is resolved from each structure's intent by CausalityEstimation.
         """
         from dialectical_framework.features.causality_estimation import (
             CausalityEstimation,

@@ -1,7 +1,7 @@
 """
-Abstract base class for causality sequencing.
+Abstract base class for causality estimation.
 
-Causality sequencers estimate transition probabilities for Cycles and Wheels
+Causality estimators estimate transition probabilities for Cycles and Wheels
 by analyzing causal relationships between dialectical components.
 
 The estimate() method runs AI estimation and returns raw results.
@@ -28,7 +28,7 @@ class EstimationStructured:
     argumentation: str  # Circumstances where applicable
 
 
-class CausalitySequencer(ABC):
+class CausalityEstimator(ABC):
     """
     Abstract base class for estimating causality in circular topologies.
 

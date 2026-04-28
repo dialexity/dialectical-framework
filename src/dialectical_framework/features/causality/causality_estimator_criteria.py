@@ -4,17 +4,17 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import Messages, prompt_template
 
 from dialectical_framework.enums.di import DI
-from dialectical_framework.features.causality.causality_sequencer_balanced import \
-    CausalitySequencerBalanced
+from dialectical_framework.features.causality.causality_estimator_balanced import \
+    CausalityEstimatorBalanced
 from dialectical_framework.protocols.input_resolver import InputResolver
 
 
-class CausalitySequencerCriteria(CausalitySequencerBalanced):
+class CausalityEstimatorCriteria(CausalityEstimatorBalanced):
     """
-    Causality sequencer that uses custom assessment criteria.
+    Causality estimator that uses custom assessment criteria.
 
     Instead of the balanced/realistic/desirable/feasible perspective,
-    this sequencer evaluates sequences against pre-formulated criteria
+    this estimator evaluates sequences against pre-formulated criteria
     derived from a free-form exploration intent.
 
     Criteria formulation happens upstream (in BuildWheels).

@@ -154,7 +154,7 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         Get the dialectical components (T components) for this cycle.
 
         Returns the thesis components from each Perspective in cycle order.
-        Used by CausalitySequencer.estimate() for building estimation prompts.
+        Used by CausalityEstimator.estimate() for building estimation prompts.
 
         Returns:
             List of DialecticalComponent instances (T components in order)

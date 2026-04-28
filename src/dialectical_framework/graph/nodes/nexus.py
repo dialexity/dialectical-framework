@@ -44,7 +44,7 @@ class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
     - intent: Free-form exploration purpose (e.g., "deep meaning of love").
       From IntentMixin. Describes what the user wants to understand.
     - preset: Prompt strategy for causality estimation (e.g., "preset:balanced").
-      Selects which sequencer class estimates Cycles/Wheels.
+      Selects which estimator class estimates Cycles/Wheels.
 
     Identity is hash-based (Merkle): hash = sha256(preset + intent + committed_at).
 

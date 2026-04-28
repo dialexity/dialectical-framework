@@ -36,8 +36,8 @@ from dialectical_framework.graph.repositories.cycle_repository import CycleRepos
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
-    from dialectical_framework.features.causality.causality_sequencer import (
-        CausalitySequencer,
+    from dialectical_framework.features.causality.causality_estimator import (
+        CausalityEstimator,
         EstimationStructured,
     )
 
@@ -81,7 +81,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         """
         Estimate causality for Cycles and/or Wheels.
 
-        Resolves the sequencer from the structures' intent (all structures
+        Resolves the estimator from the structures' intent (all structures
         in one call share the same intent from their Nexus origin).
         Groups by type and size, then estimates in parallel.
 
@@ -91,8 +91,8 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         Returns:
             EstimationResult with list of estimated structures
         """
-        from dialectical_framework.features.causality.sequencer_resolver import (
-            resolve_sequencer,
+        from dialectical_framework.features.causality.estimator_resolver import (
+            resolve_estimator,
         )
 
         self._report = ExecutionReport(tool=self.__class__.__name__)
@@ -101,10 +101,10 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
             self._report.summary = "No structures provided"
             return EstimationResult()
 
-        # Resolve sequencer from intent (shared across all structures)
+        # Resolve estimator from intent (shared across all structures)
         ref = structures[0]
         intent = ref.get_effective_intent() if isinstance(ref, Wheel) else ref.intent
-        sequencer = resolve_sequencer(intent)
+        estimator = resolve_estimator(intent)
 
         result = EstimationResult()
 
@@ -117,7 +117,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         # Run estimation in parallel for each group
         tasks = []
         for key, group in groups.items():
-            tasks.append(self._estimate_group(key, group, sequencer))
+            tasks.append(self._estimate_group(key, group, estimator))
 
         group_results = await asyncio.gather(*tasks)
 
@@ -159,7 +159,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         self,
         key: tuple[str, int],
         requested: list[Union[Cycle, Wheel]],
-        sequencer: CausalitySequencer,
+        estimator: CausalityEstimator,
     ) -> list[Union[Cycle, Wheel]]:
         """
         Estimate a group of same-type, same-size structures.
@@ -186,7 +186,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
             to_estimate = requested
 
         # Run AI estimation (returns raw, non-normalized results)
-        raw_estimations = await sequencer.estimate(to_estimate)
+        raw_estimations = await estimator.estimate(to_estimate)
 
         if not raw_estimations:
             return []
