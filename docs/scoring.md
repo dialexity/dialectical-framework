@@ -106,7 +106,7 @@ Level 3: Nexus (pool of Perspectives)
 Level 2: Perspective
          ├─ Aggregates both WheelSegment Rs (T-side + A-side)
          ├─ Includes Transformation R (internal spiral, includes ac_re R and Synthesis R)
-         └─ Includes unit-level Rationale Rs
+         └─ Includes Perspective-level Rationale Rs
 
 Level 1: WheelSegment
          ├─ Aggregates DialecticalComponent Rs (T, T+, T-)
@@ -554,7 +554,7 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
     * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis Rs
     * **T- ↔ A+**: Power mean of negative thesis and positive antithesis Rs
   * **Transformation R** (internal spiral transitions, ac_re Perspective R, and Synthesis S+ ↔ S-),
-  * **rated unit-level rationales**,
+  * **rated Perspective-level rationales**,
 
 *Note: Perspective R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing aspects while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on an aspect collapses that axis R to 0.0.*
 

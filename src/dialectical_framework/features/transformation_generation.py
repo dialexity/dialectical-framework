@@ -146,7 +146,7 @@ APEX
 
 ## Example (T = Love, A = Indifference)
 
-**Dialectical polarity:**
+**Perspective aspects:**
 - T+ = Bonding (healthy connection)
 - T- = Enmeshment (loss of identity)
 - A+ = Autonomy (healthy independence)
@@ -464,7 +464,7 @@ class TransformationGeneration(
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
 
-        prompt = f"""{context_section}Given this dialectical polarity:
+        prompt = f"""{context_section}Given this Perspective:
 
 <perspective>
 {pp_context}

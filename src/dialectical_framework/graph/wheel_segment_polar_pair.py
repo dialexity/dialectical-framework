@@ -233,7 +233,7 @@ class WheelSegmentPolarPair:
         from tabulate import tabulate
         sections = []
 
-        # Section 1: Synthesis (now on WU, not transformation)
+        # Section 1: Synthesis (now on Perspective, not transformation)
         synthesis_list = list(self._perspective.synthesis.all())
 
         if synthesis_list:

@@ -216,7 +216,7 @@ when you want to explore alternative framings or collections.
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
 | **Perspective** | t.hash, t+.hash, t-.hash, a.hash, a+.hash, a-.hash, [origin_hash], [intent], committed_at | Tension framing |
-| **Nexus** | sorted(wu_hashes), [origin_hash], [intent], committed_at | Tension collection |
+| **Nexus** | sorted(perspective_hashes), [origin_hash], [intent], committed_at | Tension collection |
 
 ### Derived Structures
 
@@ -256,15 +256,15 @@ Atoms don't fork (same content = same node globally). Derived structures don't f
 
 ```python
 # Fork a Perspective to try different polarity framing
-forked_wu = original_wu.clone(destination_sid=new_scope_sid)
-forked_wu.t_plus.disconnect(old_component)
-forked_wu.t_plus.connect(new_component)
-forked_wu.commit()
+forked_pp = original_pp.clone(destination_sid=new_scope_sid)
+forked_pp.t_plus.disconnect(old_component)
+forked_pp.t_plus.connect(new_component)
+forked_pp.commit()
 
 # Result:
-# - forked_wu.origin_hash = original_wu.hash
-# - forked_wu.sid = new_scope_sid
-# - forked_wu.hash is different (new framing + origin_hash in computation)
+# - forked_pp.origin_hash = original_pp.hash
+# - forked_pp.sid = new_scope_sid
+# - forked_pp.hash is different (new framing + origin_hash in computation)
 ```
 
 ### Lineage Tracking
@@ -286,7 +286,7 @@ from dialectical_framework.graph.repositories.node_repository import NodeReposit
 repo = NodeRepository()
 
 # Find all Perspectives forked from an original
-forks = repo.find_by_origin(original_wu.hash)
+forks = repo.find_by_origin(original_pp.hash)
 
 # Trace full ancestry chain
 lineage = repo.find_lineage(pp.hash)

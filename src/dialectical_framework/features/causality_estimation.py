@@ -54,7 +54,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
     Feature for estimating causality on Cycles and Wheels.
 
     This is the "smart" orchestrator that:
-    - Groups structures by type (Cycle/Wheel) and size (WU count)
+    - Groups structures by type (Cycle/Wheel) and size (Perspective count)
     - Runs estimation in parallel for each group
     - Persists Rationale + RelevanceEstimation nodes
     - Normalizes probabilities (ProbabilityEstimation) across ALL structures

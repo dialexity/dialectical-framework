@@ -269,7 +269,7 @@ Generate something DIFFERENT from the statements above.
 """
 
         levels_str = ", ".join(category_info["levels"])
-        prompt = f"""{context_section}Given this dialectical polarity:
+        prompt = f"""{context_section}Given this Perspective:
 
 <perspective>
 {pp_context}

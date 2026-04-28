@@ -8,7 +8,7 @@ The Dialectical Framework has two main relationship layers:
 
    a) **IdentityRelationship** - Defines what a node IS:
       - IS_SOURCE_OF, IS_TARGET_OF: Define Transition's identity
-      - Polarity (T, A, T+, T-, A+, A-): Define Perspective's identity
+      - Polarity (T, A) and Aspects (T+, T-, A+, A-): Define Perspective's identity
       Blocked if SOURCE node is committed.
 
    b) **ContainerMembership** - Defines container composition:
@@ -55,7 +55,7 @@ class IdentityRelationship(ImmutableStructure):
 
     Examples:
     - IS_SOURCE_OF, IS_TARGET_OF: Define what a Transition represents
-    - Polarity (T, A, etc.): Define what a Perspective contains
+    - Polarity (T, A) and Aspects (T+, T-, A+, A-): Define what a Perspective contains
 
     Validation: Blocked if the SOURCE node is committed, because
     changing identity relationships would change the node's hash.

@@ -896,7 +896,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Modifiers can be combined with `:` separator.
 
         Modes:
-        - (empty) - Default format showing cycles, wisdom units, and transformations
+        - (empty) - Default format showing cycles, Perspectives, and transformations
         - "compact" - Compact format with abbreviated components
 
         Modifiers:

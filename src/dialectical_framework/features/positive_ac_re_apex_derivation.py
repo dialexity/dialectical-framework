@@ -56,11 +56,11 @@ AC_PLUS_SWEET_SPOT = _make_sweet_spot(AC_PLUS_APEX_TARGET)
 
 SYSTEM_PROMPT = f"""You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
 
-Your task is to derive apex statements that represent reference transformation paths for a given dialectical polarity.
+Your task is to derive apex statements that represent reference transformation paths for a given Perspective.
 
 ## Transformation Structure
 
-A Perspective has 6 positions forming a dialectical polarity:
+A Perspective is built around a Polarity (T, A) and adds four Aspects (T+, T-, A+, A-):
 - T (Thesis): A neutral statement of one side
 - T+: The healthy/productive form of T
 - T-: The problematic/excessive form of T
@@ -309,7 +309,7 @@ class AcReApexDerivation(
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
 
-        prompt = f"""{context_section}Given this dialectical polarity:
+        prompt = f"""{context_section}Given this Perspective:
 
 <perspective>
 {pp_context}

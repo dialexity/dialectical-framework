@@ -12,7 +12,7 @@ keywords = [
     "ai", "artificial-intelligence", "llm", "reasoning-framework",
     "philosophy", "logic", "argumentation", "conflict-resolution",
     "decision-making", "critical-thinking", "semantic-graph",
-    "mirascope", "pydantic", "wisdom-units", "polarity-reasoning"
+    "mirascope", "pydantic", "perspectives", "polarity-reasoning"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

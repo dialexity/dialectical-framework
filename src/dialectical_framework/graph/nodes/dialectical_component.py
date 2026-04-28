@@ -167,7 +167,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         cardinality=(0, None),  # Zero or more source Ideas
     )
 
-    # Note: Inverse relationships for polarity positions (T, T+, T-, A, A+, A-)
+    # Note: Inverse relationships for polarity positions (T, A) and aspect positions (T+, T-, A+, A-)
     # are NOT defined here because DialecticalComponents have no cardinality
     # constraints - the same component can be used in unlimited Perspectives.
     # No inverse = implicit (0, None) cardinality.

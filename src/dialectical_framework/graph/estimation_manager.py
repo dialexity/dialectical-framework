@@ -80,7 +80,7 @@ def invalidate_node_and_parents(
     # Scoring parents are nodes whose score DEPENDS ON this node's score.
     #
     # SCORING DEPENDENCIES (edges that should propagate invalidation):
-    # - Polarity (T/A/T+/T-/A+/A-): Component→WU (WU score depends on Component)
+    # - Polarity (T, A) and Aspects (T+, T-, A+, A-): Component→Perspective (Perspective score depends on Component)
     # - Polarity (S+/S-): Component→Synthesis (Synthesis score depends on Component)
     # - HAS_WHEEL: Cycle→Wheel (Wheel depends on Cycle)
     # - TRANSITION_OF: Transition→Cycle/Wheel (Cycle/Wheel depends on Transition)

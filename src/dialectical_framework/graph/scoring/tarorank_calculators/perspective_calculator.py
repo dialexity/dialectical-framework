@@ -29,7 +29,7 @@ class PerspectiveCalculator(BaseCalculator):
       * T+ ↔ A- (positive thesis aspect ↔ negative antithesis aspect)
       * T- ↔ A+ (negative thesis aspect ↔ positive antithesis aspect)
     - Includes synthesis Rs (PP-level, aggregated if multiple)
-    - Includes unit-level rationale Rs (with rating)
+    - Includes Perspective-level rationale Rs (with rating)
     - Aggregates all via GM
 
     P calculation:
@@ -132,7 +132,7 @@ class PerspectiveCalculator(BaseCalculator):
                 if aggregated_synth_r is not None:
                     values.append(aggregated_synth_r)
 
-        # Unit-level rationales
+        # Perspective-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
         rationales = [rat for rat, _ in pp.rationales.all()]

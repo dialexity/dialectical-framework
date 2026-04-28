@@ -350,7 +350,7 @@ class AnalyticalStructure(Relationship):
 
 | Relationship | Layer | Base Class |
 |--------------|-------|------------|
-| Polarity (T, A, T+, etc.) | Structural | IdentityRelationship |
+| Polarity (T, A) and Aspects (T+, T-, A+, A-) | Structural | IdentityRelationship |
 | `IS_SOURCE_OF`, `IS_TARGET_OF` | Structural | IdentityRelationship |
 | `BELONGS_TO_CYCLE` | Structural | ContainerMembership |
 | `HAS_WHEEL`, `EVOLVED_TO` | Structural | IdentityRelationship |

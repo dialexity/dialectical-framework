@@ -227,7 +227,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             )
 
         # Fill working PP with validated aspects
-        await self._fill_wu_with_aspects(aspect_validations)
+        await self._fill_pp_with_aspects(aspect_validations)
 
         return EditTetradResult(
             perspective=self._working_pp,
@@ -235,7 +235,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             changed_positions=list(self._changes.keys()),
         )
 
-    async def _fill_wu_with_aspects(
+    async def _fill_pp_with_aspects(
         self,
         aspect_validations: dict[str, tuple[DialecticalComponent, object]],
     ) -> None:

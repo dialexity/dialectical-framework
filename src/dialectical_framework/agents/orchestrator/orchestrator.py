@@ -33,7 +33,7 @@ GRAPH_SCHEMA = """
 
 ### Dialectical Structure
 - **DialecticalComponent**: A statement/thesis/position. Has `statement` (text) and optional `meaning` (semantic URI).
-- **Perspective**: A dialectical tension pairing thesis (T) with antithesis (A), plus their aspects (T+, T-, A+, A-).
+- **Perspective**: A structured interpretation built around a Polarity (T-A pair), adding evaluative aspects (T+, T-, A+, A-).
 - **Cycle**: T-cycle - an ordered sequence of Perspectives defining abstract thesis causality.
 - **Wheel**: Concrete T-A arrangement implementing a Cycle with flip configurations and transitions.
 

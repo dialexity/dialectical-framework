@@ -844,7 +844,7 @@ class BoundRelationshipManager(Generic[T]):
         self._validate_structural_immutability(target_node, "connect")
         # 1. Scope compatibility (nodes must belong to same scope/Case)
         self._validate_scope_compatibility(target_node)
-        # 2. Cycle <-> Wheel connections require WU validation
+        # 2. Cycle <-> Wheel connections require Perspective validation
         self._validate_cycle_wheel_connection(target_node)
         # 3. Semantic relationship consistency (component-to-component)
         self._validate_semantic_relationship_consistency(target_node)

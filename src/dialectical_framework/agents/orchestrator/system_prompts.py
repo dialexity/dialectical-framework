@@ -16,7 +16,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **Antithesis (A)**: The dialectical opposite of T
 - **T+/T-**: Positive and negative aspects of the thesis
 - **A+/A-**: Positive and negative aspects of the antithesis
-- **Perspective**: Contains all 6 positions (T, T+, T-, A, A+, A-). T+/T-/A+/A- are called aspects.
+- **Perspective**: Built around a Polarity (T, A), adding four Aspects (T+, T-, A+, A-).
 
 **Higher Structures**:
 - **Transformation**: How to navigate between positions (action-reflection pairs), belongs to Wheel
