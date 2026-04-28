@@ -27,6 +27,9 @@ from dialectical_framework.graph.relationships.is_target_of_relationship import 
 from dialectical_framework.graph.relationships.belongs_to_cycle_relationship import (
     BelongsToCycleRelationship,
 )
+from dialectical_framework.graph.relationships.has_statement_relationship import (
+    HasStatementRelationship,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -108,6 +111,13 @@ class Transition(AssessableEntity, label="Transition"):
         ("Cycle", "Wheel"),
         model=BelongsToCycleRelationship,
         cardinality=(0, 1)  # Optional - Transformation transitions use typed relationships
+    )
+
+    # Vocabulary-grade DCs derived from the instructive statement (lazy, added by concerns)
+    statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
+        "DialecticalComponent",
+        model=HasStatementRelationship,
+        cardinality=(0, None),
     )
 
 
