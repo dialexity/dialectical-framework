@@ -5,7 +5,7 @@ Causality estimators estimate transition probabilities for Cycles and Wheels
 by analyzing causal relationships between dialectical components.
 
 The estimate() method runs AI estimation and returns raw results.
-The CausalityEstimation feature handles normalization and database persistence.
+The CausalityEstimation concern handles normalization and database persistence.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class CausalityEstimator(ABC):
     generate probability estimates for Cycles and Wheels.
 
     This is a "dumb" estimator - it runs AI on whatever it gets and returns
-    raw results. The CausalityEstimation feature handles orchestration.
+    raw results. The CausalityEstimation concern handles orchestration.
     """
 
     @abstractmethod

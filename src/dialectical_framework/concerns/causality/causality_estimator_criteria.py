@@ -4,7 +4,7 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import Messages, prompt_template
 
 from dialectical_framework.enums.di import DI
-from dialectical_framework.features.causality.causality_estimator_balanced import \
+from dialectical_framework.concerns.causality.causality_estimator_balanced import \
     CausalityEstimatorBalanced
 from dialectical_framework.protocols.input_resolver import InputResolver
 

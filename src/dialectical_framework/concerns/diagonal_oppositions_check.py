@@ -1,5 +1,5 @@
 """
-DiagonalOppositionsCheck: Capability for validating diagonal opposition pairs.
+DiagonalOppositionsCheck: Concern for validating diagonal opposition pairs.
 
 Tests the opposition validity of diagonal aspect pairs in a Perspective:
 - T+ vs A-: Does T+ oppose A-?
@@ -13,7 +13,7 @@ with Rationale explaining the evaluation.
 
 Usage:
     checker = DiagonalOppositionsCheck()
-    result = await checker.execute(perspective=pp)
+    result = await checker.resolve(perspective=pp)
 
     if result.is_valid:
         print("Diagonal oppositions are valid")
@@ -32,8 +32,8 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.estimation import (
     ORTHOGONALITY_THRESHOLD, DiagonalContradictionEstimation)
@@ -91,12 +91,12 @@ class DiagonalOppositionsCheckResult:
         return self.estimation.is_valid
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResult]):
+class DiagonalOppositionsCheck(ReasonableConcern[DiagonalOppositionsCheckResult]):
     """
-    Capability for validating diagonal opposition pairs.
+    Concern for validating diagonal opposition pairs.
 
     Tests two opposition pairs:
     1. T+ vs A-: Does T+ oppose A-?
@@ -112,7 +112,7 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
     def __init__(self) -> None:
         pass
 
-    async def execute(
+    async def resolve(
         self,
         perspective: Perspective,
         text: str = "",

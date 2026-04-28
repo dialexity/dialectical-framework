@@ -12,7 +12,7 @@ Editing behavior based on PP state:
 In both cases, the returned PP is committed with all 6 positions filled.
 
 Use EditPolarity for editing T or A.
-Use PerspectiveValidation capability separately for full tetrad validation.
+Use PerspectiveValidation concern separately for full tetrad validation.
 
 Uses ForkableMixin: forked PP has origin_hash pointing to the original.
 
@@ -21,7 +21,7 @@ Usage:
         perspective_hash="abc123...",
         changes={"T+": "New positive thesis aspect"},
     )
-    result = await editor.execute()
+    result = await editor.resolve()
 
     if result.is_valid:
         pp = result.perspective  # Committed PP with all 6 aspects
@@ -35,10 +35,10 @@ from typing import TYPE_CHECKING, Optional
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.aspect_classification import \
+from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -77,7 +77,7 @@ class EditTetradResult:
     error_message: str = ""
 
 
-class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
+class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
     """
     Skill for editing aspects (T+, T-, A+, A-) of a Perspective with validation.
 
@@ -87,7 +87,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
     For editing T or A, use EditPolarity instead.
 
     Dual interface:
-    - execute() returns EditTetradResult for programmatic use
+    - resolve() returns EditTetradResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -110,12 +110,12 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         return self._report
 
     async def call(self) -> str:
-        """Execute editing and return ExecutionReport as JSON."""
-        await self.execute()
+        """Resolve editing and return ExecutionReport as JSON."""
+        await self.resolve()
         return str(self._report)
 
-    async def execute(self) -> EditTetradResult:
-        """Execute the editing operation."""
+    async def resolve(self) -> EditTetradResult:
+        """Resolve the editing operation."""
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Resolve Perspective
@@ -187,7 +187,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
             aspect_stmt = self._changes[aspect_pos]
 
             aspect_classifier = AspectClassification()
-            aspect_result = await aspect_classifier.execute(
+            aspect_result = await aspect_classifier.resolve(
                 thesis=thesis,
                 antithesis=antithesis,
                 aspect_statement=aspect_stmt,
@@ -320,7 +320,7 @@ class EditTetrad(BaseTool, ExecutableCapability[EditTetradResult]):
         for pos in other_positions:
             try:
                 classifier = AspectClassification()
-                result = await classifier.execute(
+                result = await classifier.resolve(
                     thesis=thesis,
                     antithesis=antithesis,
                     aspect_statement=aspect_stmt,

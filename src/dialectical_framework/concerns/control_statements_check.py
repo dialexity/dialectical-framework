@@ -1,5 +1,5 @@
 """
-ControlStatementsCheck: Capability for validating tetrad logical coherence.
+ControlStatementsCheck: Concern for validating tetrad logical coherence.
 
 Tests the logical coherence of a Perspective's tetrad structure using control statements.
 
@@ -19,7 +19,7 @@ with optional Rationale explaining the evaluation.
 
 Usage:
     checker = ControlStatementsCheck()
-    result = await checker.execute(perspective=pp)
+    result = await checker.resolve(perspective=pp)
 
     if result.estimation.is_coherent:
         print("Tetrad is logically coherent")
@@ -38,8 +38,8 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.estimation import (
     CONCEPTUAL_COHERENCE_THRESHOLD, ConceptualCoherenceEstimation)
@@ -95,12 +95,12 @@ class ControlStatementsCheckResult:
         return self.estimation.is_coherent
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult]):
+class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
     """
-    Capability for validating tetrad logical coherence using control statements.
+    Concern for validating tetrad logical coherence using control statements.
 
     Tests two control statements:
     1. "{T+} without {A+} yields {T-}" - Does lacking A+ cause T to become T-?
@@ -116,7 +116,7 @@ class ControlStatementsCheck(ExecutableCapability[ControlStatementsCheckResult])
     def __init__(self) -> None:
         pass
 
-    async def execute(
+    async def resolve(
         self,
         perspective: Perspective,
         text: str = "",

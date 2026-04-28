@@ -1,5 +1,5 @@
 """
-ThesisExtraction: Capability for extracting theses from content.
+ThesisExtraction: Concern for extracting theses from content.
 
 Extracts thesis candidates from source content (Step 1-2), then uses
 StatementClassification to classify and anchor each candidate (Step 3-4).
@@ -8,7 +8,7 @@ For direct theses (not extracted from content), use StatementClassification dire
 
 Usage:
     service = ThesisExtraction()
-    theses = await service.execute(text=article_text, count=4)
+    theses = await service.resolve(text=article_text, count=4)
     for t in theses:
         print(t.statement)
 """
@@ -22,10 +22,10 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.statement_classification import (
+from dialectical_framework.concerns.statement_classification import (
     ClassificationResult, StatementClassification)
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -91,12 +91,12 @@ class CandidateCheckDto(BaseModel):
     )
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class ThesisExtraction(ExecutableCapability[list[DialecticalComponent]], SettingsAware):
+class ThesisExtraction(ReasonableConcern[list[DialecticalComponent]], SettingsAware):
     """
-    Capability for extracting theses from content.
+    Concern for extracting theses from content.
 
     Steps:
     1. Extract assertable content from source text
@@ -111,7 +111,7 @@ class ThesisExtraction(ExecutableCapability[list[DialecticalComponent]], Setting
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         text: str,
         count: int = 4,
@@ -266,7 +266,7 @@ Return:
         # Create classifiers and run in parallel
         classifiers = [StatementClassification() for _ in candidates]
         tasks = [
-            classifier.execute(
+            classifier.resolve(
                 statement=statement,
                 text=self._text,
                 domain_hint=self._domain_hint,

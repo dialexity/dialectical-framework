@@ -1,5 +1,5 @@
 """
-AntithesisClassification: Capability for classifying a user-provided antithesis.
+AntithesisClassification: Concern for classifying a user-provided antithesis.
 
 Evaluates a given antithesis statement against a thesis to determine:
 - Mode: Where on the negation→privation scale (0.0-1.0)
@@ -18,7 +18,7 @@ This module is the authority for antithesis taxonomy constants:
 
 Usage:
     classifier = AntithesisClassification()
-    result = await classifier.execute(
+    result = await classifier.resolve(
         thesis=thesis_component,
         antithesis_statement="Distrust",
         text="context about software systems..."
@@ -39,10 +39,10 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.statement_classification import \
+from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 
 if TYPE_CHECKING:
@@ -334,12 +334,12 @@ class AntithesisClassificationResult:
     apex: Optional[str] = None  # The apex concept (for complex theses)
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class AntithesisClassification(ExecutableCapability[AntithesisClassificationResult]):
+class AntithesisClassification(ReasonableConcern[AntithesisClassificationResult]):
     """
-    Capability for classifying a user-provided antithesis against a thesis.
+    Concern for classifying a user-provided antithesis against a thesis.
 
     Evaluates the antithesis to determine:
     - Mode: Where on the negation→privation scale
@@ -353,7 +353,7 @@ class AntithesisClassification(ExecutableCapability[AntithesisClassificationResu
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         thesis: DialecticalComponent,
         antithesis_statement: str,

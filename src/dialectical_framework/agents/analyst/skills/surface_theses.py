@@ -14,7 +14,7 @@ Extraction-centric approach:
 Usage:
     # Programmatic (web app)
     agent = SurfaceTheses(intent="extract theses about trust")
-    theses = await agent.execute()
+    theses = await agent.resolve()
     for t in theses:
         print(t.statement)
 
@@ -34,15 +34,15 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.features.statement_classification import (
+from dialectical_framework.concerns.statement_classification import (
     ClassificationResult, StatementClassification)
-from dialectical_framework.features.statement_deduplication import \
+from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
-from dialectical_framework.features.thesis_extraction import ThesisExtraction
+from dialectical_framework.concerns.thesis_extraction import ThesisExtraction
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -114,7 +114,7 @@ class ParsedIntentDto(BaseModel):
 # --- Main Agent ---
 
 
-class SurfaceTheses(BaseTool, ExecutableCapability[Optional[Ideas]]):
+class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
     """
     Surfaces theses for AnalystAgent by fulfilling anchoring intent.
 
@@ -131,7 +131,7 @@ class SurfaceTheses(BaseTool, ExecutableCapability[Optional[Ideas]]):
     This is Phase 1 of the polarity-finder algorithm (Steps 1-4).
 
     Dual interface:
-    - execute() returns list[DialecticalComponent] for programmatic use
+    - resolve() returns list[DialecticalComponent] for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -148,12 +148,12 @@ class SurfaceTheses(BaseTool, ExecutableCapability[Optional[Ideas]]):
     _report: Optional[ExecutionReport] = PrivateAttr(default=None)
 
     async def call(self) -> str:
-        """Execute anchoring and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.execute()
+        """Resolve anchoring and return ExecutionReport as JSON (for LLM tool use)."""
+        await self.resolve()
         return str(self._report)
 
-    async def execute(self) -> Optional[Ideas]:
-        """Execute anchoring: extract, dedup, cleanup, create Ideas. Returns Ideas container."""
+    async def resolve(self) -> Optional[Ideas]:
+        """Resolve anchoring: extract, dedup, cleanup, create Ideas. Returns Ideas container."""
         # Reset report on each execution (allows instance reuse)
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
@@ -220,7 +220,7 @@ class SurfaceTheses(BaseTool, ExecutableCapability[Optional[Ideas]]):
         if vocab and extracted_components:
             extracted_hashes = [c.hash for c in extracted_components]
             deduplicator = StatementDeduplication()
-            dedup_result = await deduplicator.execute(
+            dedup_result = await deduplicator.resolve(
                 extracted_hashes=extracted_hashes,
                 vocabulary=vocab,
                 text=input_text,
@@ -326,7 +326,7 @@ Determine:
         # Create classifiers and run in parallel
         classifiers = [StatementClassification() for _ in theses]
         tasks = [
-            classifier.execute(
+            classifier.resolve(
                 statement=thesis,
                 text=text,
                 domain_hint=parsed.domain_hint,
@@ -411,7 +411,7 @@ Determine:
             remaining = target_count - len(extracted_components)
 
             service = ThesisExtraction()
-            new_components = await service.execute(
+            new_components = await service.resolve(
                 text=input_text,
                 count=remaining,
                 focus=params.get("focus", ""),

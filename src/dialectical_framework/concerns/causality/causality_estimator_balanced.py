@@ -21,7 +21,7 @@ from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.nodes.wheel import Wheel
-from dialectical_framework.features.causality.causality_estimator import (
+from dialectical_framework.concerns.causality.causality_estimator import (
     CausalityEstimator,
     EstimationStructured,
 )
@@ -44,7 +44,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
     - Normalize probabilities
     - Save to database
 
-    The CausalityEstimation feature handles all the smart orchestration.
+    The CausalityEstimation concern handles all the smart orchestration.
 
     Subclasses (Desirable, Feasible, Realistic, Criteria) override prompt
     templates to change the assessment perspective.

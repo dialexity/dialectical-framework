@@ -1,12 +1,12 @@
 """
-AntithesisExtraction: Capability for generating antitheses for a thesis.
+AntithesisExtraction: Concern for generating antitheses for a thesis.
 
 Generates "ideal" antitheses at mode=1.0, HS=1.0.
 For classifying arbitrary user-provided antitheses, use AntithesisClassification.
 
 Usage:
     service = AntithesisExtraction()
-    antitheses = await service.execute(thesis=thesis, text=text)
+    antitheses = await service.resolve(thesis=thesis, text=text)
     for a in antitheses:
         print(a.statement)
     # Access report if needed:
@@ -23,13 +23,13 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.antithesis_classification import (
+from dialectical_framework.concerns.antithesis_classification import (
     SYSTEM_PROMPT, ContextualizedTaxonomyDto, arousal_label_to_value,
     contextualize_taxonomy)
-from dialectical_framework.features.statement_classification import \
+from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.dialectical_component import \
@@ -97,10 +97,10 @@ class AntithesisProcessed:
 
 
 class AntithesisExtraction(
-    ExecutableCapability[list[AntithesisProcessed]], SettingsAware
+    ReasonableConcern[list[AntithesisProcessed]], SettingsAware
 ):
     """
-    Capability for extracting antitheses for a thesis.
+    Concern for extracting antitheses for a thesis.
 
     Handles both simple and complex theses:
     - Simple: Direct negation with HS=1.0, Mode=1.0
@@ -112,7 +112,7 @@ class AntithesisExtraction(
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         thesis: DialecticalComponent,
         text: str = "",

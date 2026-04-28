@@ -1,5 +1,5 @@
 """
-IdeaPlacement: Capability for determining where an idea belongs in the dialectical graph.
+IdeaPlacement: Concern for determining where an idea belongs in the dialectical graph.
 
 Given an arbitrary idea and existing graph state, determines:
 - Is it a duplicate of an existing component?
@@ -7,7 +7,7 @@ Given an arbitrary idea and existing graph state, determines:
 - Is it an aspect (T+/T-/A+/A-) of an existing tension?
 - Or is it a new thesis?
 
-This is the routing capability for agentic apps where the user introduces
+This is the routing concern for agentic apps where the user introduces
 ideas without specifying the position.
 
 Flow:
@@ -22,7 +22,7 @@ Flow:
 
 Usage:
     placer = IdeaPlacement()
-    result = await placer.execute(
+    result = await placer.resolve(
         idea="Hate",
         vocabulary=[love_component, trust_component, ...],
         tensions=[(love, indifference), ...],
@@ -47,16 +47,16 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.antithesis_classification import \
+from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
-from dialectical_framework.features.aspect_classification import \
+from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
-from dialectical_framework.features.statement_classification import \
+from dialectical_framework.concerns.statement_classification import \
     StatementClassification
-from dialectical_framework.features.statement_deduplication import \
+from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -183,12 +183,12 @@ class TensionInfo:
     antithesis_statement: str
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
+class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
     """
-    Capability for determining where an idea belongs in the dialectical graph.
+    Concern for determining where an idea belongs in the dialectical graph.
 
     Creates a DialecticalComponent for the idea, uses StatementDeduplication
     to check for duplicates, then determines placement (antithesis, aspect, or thesis).
@@ -200,7 +200,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         idea: str,
         vocabulary: list[DialecticalComponent],
@@ -259,7 +259,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         """Handle idea as new thesis when no vocabulary exists."""
         # Run StatementClassification for proper meaning
         classifier = StatementClassification()
-        classification = await classifier.execute(
+        classification = await classifier.resolve(
             statement=self._idea,
             text=self._text,
         )
@@ -351,7 +351,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
         """Handle idea as new thesis."""
         # Run StatementClassification
         classifier = StatementClassification()
-        classification = await classifier.execute(
+        classification = await classifier.resolve(
             statement=self._idea,
             text=self._text,
         )
@@ -393,7 +393,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
         # Run AntithesisClassification
         classifier = AntithesisClassification()
-        classification = await classifier.execute(
+        classification = await classifier.resolve(
             thesis=thesis,
             antithesis_statement=self._idea,
             text=self._text,
@@ -449,7 +449,7 @@ class IdeaPlacement(ExecutableCapability[IdeaPlacementResult]):
 
         # Run AspectClassification
         classifier = AspectClassification()
-        classification = await classifier.execute(
+        classification = await classifier.resolve(
             thesis=thesis,
             antithesis=antithesis,
             aspect_statement=self._idea,

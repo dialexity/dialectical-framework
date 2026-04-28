@@ -1,12 +1,12 @@
 """
-TransformationGeneration: Capability for generating a full transformation tetrad from an Ac+ candidate.
+TransformationGeneration: Concern for generating a full transformation tetrad from an Ac+ candidate.
 
 Given an Ac+ candidate, generates the complementary Re+, and the negative aspects Re- and Ac-
 following the Coherence Constraint (CC).
 
 Usage:
     service = TransformationGeneration()
-    tetrad = await service.execute(pp, ac_plus, apexes, input_text)
+    tetrad = await service.resolve(pp, ac_plus, apexes, input_text)
     print(f"Ac+: {tetrad.ac_plus.statement}")
     print(f"Re+: {tetrad.re_plus.statement}")
 """
@@ -19,15 +19,15 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.ac_re_taxonomy import (
+from dialectical_framework.concerns.ac_re_taxonomy import (
     INSIGHT_SCALE, PROACTIVENESS_SCALE, get_polar_pair, insight_label_to_value,
     proactiveness_label_to_value)
-from dialectical_framework.features.action_extraction import \
+from dialectical_framework.concerns.action_extraction import \
     ActionCandidateResultDto
-from dialectical_framework.features.positive_ac_re_apex_derivation import \
+from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
     ApexDerivationResultDto
 from dialectical_framework.protocols.has_config import SettingsAware
 
@@ -279,10 +279,10 @@ class TransformationTetradDto(BaseModel):
 
 
 class TransformationGeneration(
-    ExecutableCapability[TransformationTetradDto], SettingsAware
+    ReasonableConcern[TransformationTetradDto], SettingsAware
 ):
     """
-    Capability for generating a complete transformation tetrad from an Ac+ candidate.
+    Concern for generating a complete transformation tetrad from an Ac+ candidate.
 
     Given an Ac+ (T- → A+ action), generates:
     - Re+ (A- → T+ reflection) using polar pairs
@@ -293,7 +293,7 @@ class TransformationGeneration(
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         pp: Perspective,
         ac_plus: ActionCandidateResultDto,

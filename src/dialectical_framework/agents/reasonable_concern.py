@@ -1,8 +1,8 @@
 """
-ExecutableCapability: Abstract base for capabilities with report tracking.
+ReasonableConcern: Abstract base for concerns with report tracking.
 
-All capabilities inherit from this and implement execute().
-The report is reset on each execution, allowing instance reuse.
+All concerns inherit from this and implement resolve().
+The report is reset on each resolution, allowing instance reuse.
 """
 
 from __future__ import annotations
@@ -16,45 +16,45 @@ if TYPE_CHECKING:
 R_co = TypeVar("R_co", covariant=True)
 
 
-class ExecutableCapability(ABC, Generic[R_co]):
+class ReasonableConcern(ABC, Generic[R_co]):
     """
-    Base class for capabilities.
+    Base class for concerns.
 
-    Subclasses implement execute() with specific parameters and return type.
-    Report is available via .report property after execution.
+    Subclasses implement resolve() with specific parameters and return type.
+    Report is available via .report property after resolution.
 
     Usage:
         # Programmatic (web app)
-        service = ThesisExtraction()
-        theses = await service.execute(text=text, count=4)
+        concern = ThesisExtraction()
+        theses = await concern.resolve(text=text, count=4)
         for t in theses:
             print(t.statement)
 
         # With report access
-        service = AntithesisExtraction()
-        antitheses = await service.execute(thesis=t, text=text)
-        print(service.report.heuristic_similarity_by_hash)
+        concern = AntithesisExtraction()
+        antitheses = await concern.resolve(thesis=t, text=text)
+        print(concern.report.heuristic_similarity_by_hash)
 
         # LLM orchestrator
-        service = ThesisExtraction()
-        await service.execute(text=text, count=4)
-        return service.report.model_dump_json()
+        concern = ThesisExtraction()
+        await concern.resolve(text=text, count=4)
+        return concern.report.model_dump_json()
     """
 
     _report: ExecutionReport
 
     @property
     def report(self) -> ExecutionReport:
-        """Access the report from the last execution."""
+        """Access the report from the last resolution."""
         return self._report
 
     @abstractmethod
-    async def execute(self, *args: Any, **kwargs: Any) -> R_co:
+    async def resolve(self, *args: Any, **kwargs: Any) -> R_co:
         """
-        Run the capability.
+        Resolve the concern.
 
         Subclasses define specific parameters via overloaded signatures.
-        Must reset self._report at the start of execution.
+        Must reset self._report at the start of resolution.
 
         Returns:
             Domain objects (type specified by generic parameter)

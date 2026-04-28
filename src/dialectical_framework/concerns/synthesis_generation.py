@@ -1,7 +1,7 @@
 """
-SynthesisGeneration: Feature for generating S+/S- synthesis pairs from Perspectives.
+SynthesisGeneration: Concern for generating S+/S- synthesis pairs from Perspectives.
 
-TODO: This feature needs revision. Synthesis calculation is more complex than
+TODO: This concern needs revision. Synthesis calculation is more complex than
 the current simple LLM prompt approach. The actual synthesis should consider:
 - Transformation paths (Ac-Re sequences)
 - Multiple synthesis interpretations per PP
@@ -19,7 +19,7 @@ Usage:
     service = SynthesisGeneration()
 
     # Generate synthesis for a complete Perspective
-    result = await service.execute(
+    result = await service.resolve(
         perspective=pp,
         text=source_text,
     )
@@ -50,7 +50,7 @@ from pydantic import BaseModel, Field
 from dialectical_framework.agents.conversation_facilitator import (
     ConversationFacilitator,
 )
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.dialectical_component import (
     DialecticalComponent,
@@ -120,12 +120,12 @@ class SynthesisResult:
     s_minus_explanation: str
 
 
-# --- Feature ---
+# --- Concern ---
 
 
-class SynthesisGeneration(ExecutableCapability[Optional[SynthesisResult]], SettingsAware):
+class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], SettingsAware):
     """
-    Feature for generating S+/S- synthesis pairs from Perspectives.
+    Concern for generating S+/S- synthesis pairs from Perspectives.
 
     Generates synthesis components with explanations. Returns uncommitted
     DialecticalComponents that the caller connects to a Synthesis node.
@@ -135,7 +135,7 @@ class SynthesisGeneration(ExecutableCapability[Optional[SynthesisResult]], Setti
         self._conversation = ConversationFacilitator()
         self._report: ExecutionReport
 
-    async def execute(
+    async def resolve(
         self,
         perspective: Perspective,
         text: str = "",

@@ -1,14 +1,14 @@
 """
-StatementClassification: Capability for classifying dialectical statements.
+StatementClassification: Concern for classifying dialectical statements.
 
 Provides:
-1. LLM-based classification (execute) - for new statements needing full classification
+1. LLM-based classification (resolve) - for new statements needing full classification
 2. Static lookup methods - for deriving meaning from parent (no LLM needed)
 
 Usage:
     # Full classification (LLM)
     classifier = StatementClassification()
-    result = await classifier.execute(statement="Trust", text="software architecture...")
+    result = await classifier.resolve(statement="Trust", text="software architecture...")
 
     # Lookup antithesis meaning (deterministic, no LLM)
     meaning = StatementClassification.lookup_antithesis_meaning(thesis)
@@ -23,8 +23,8 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.perspective import (POSITION_A,
                                                           POSITION_A_MINUS,
@@ -260,15 +260,15 @@ class ClassificationResult:
     taxonomy_reasoning: Optional[str] = None
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class StatementClassification(ExecutableCapability[ClassificationResult]):
+class StatementClassification(ReasonableConcern[ClassificationResult]):
     """
-    Capability for classifying dialectical statements (thesis or antithesis).
+    Concern for classifying dialectical statements (thesis or antithesis).
 
     Provides:
-    1. execute() - LLM-based classification for new statements
+    1. resolve() - LLM-based classification for new statements
     2. Static lookup methods - deterministic meaning derivation from parent
 
     Does NOT create any database nodes - caller decides what to do with result.
@@ -454,7 +454,7 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
 
     # --- LLM-based Classification ---
 
-    async def execute(
+    async def resolve(
         self,
         statement: str,
         text: str = "",

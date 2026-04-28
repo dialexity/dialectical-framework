@@ -1,5 +1,5 @@
 """
-PerspectiveCombination: Feature for combining Perspectives into Cycles and Wheels.
+PerspectiveCombination: Concern for combining Perspectives into Cycles and Wheels.
 
 Purely structural — creates the graph topology, no estimation.
 
@@ -13,10 +13,10 @@ then creates all layer-by-layer combinations:
 Existing Cycles and Wheels are reused (no duplicates).
 
 Usage:
-    from dialectical_framework.features.perspective_combination import PerspectiveCombination
+    from dialectical_framework.concerns.perspective_combination import PerspectiveCombination
 
-    feature = PerspectiveCombination()
-    result = feature.execute(
+    concern = PerspectiveCombination()
+    result = concern.resolve(
         nexus=nexus,
         perspectives=[pp1, pp2, pp3],
     )
@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import Optional, TYPE_CHECKING
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.nexus import Nexus
@@ -72,9 +72,9 @@ class CombinationResult:
     wheels_by_layer: dict[int, list[Wheel]]
 
 
-class PerspectiveCombination(ExecutableCapability[CombinationResult]):
+class PerspectiveCombination(ReasonableConcern[CombinationResult]):
     """
-    Feature for combining Perspectives into Cycles and Wheels.
+    Concern for combining Perspectives into Cycles and Wheels.
 
     Purely structural — creates graph topology, no estimation.
 
@@ -95,7 +95,7 @@ class PerspectiveCombination(ExecutableCapability[CombinationResult]):
         """Access the execution report."""
         return self._report
 
-    def execute(
+    def resolve(
         self,
         nexus: Nexus,
         perspectives: list[Perspective],

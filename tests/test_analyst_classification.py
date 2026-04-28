@@ -7,9 +7,9 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.features.idea_placement import (IdeaPlacement,
+from dialectical_framework.concerns.idea_placement import (IdeaPlacement,
                                                            TensionInfo)
-from dialectical_framework.features.aspect_classification import \
+from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
@@ -41,7 +41,7 @@ class TestAspectClassification:
             antithesis.commit()
 
             classifier = AspectClassification()
-            result = await classifier.execute(
+            result = await classifier.resolve(
                 thesis=thesis,
                 antithesis=antithesis,
                 aspect_statement="Deep connection",
@@ -74,7 +74,7 @@ class TestAspectClassification:
             antithesis.commit()
 
             classifier = AspectClassification()
-            result = await classifier.execute(
+            result = await classifier.resolve(
                 thesis=thesis,
                 antithesis=antithesis,
                 aspect_statement="Paranoia",
@@ -108,7 +108,7 @@ class TestAspectClassification:
 
             classifier = AspectClassification()
             # "Freedom" is more A+ (positive of indifference) than T+
-            result = await classifier.execute(
+            result = await classifier.resolve(
                 thesis=thesis,
                 antithesis=antithesis,
                 aspect_statement="Personal freedom and autonomy",
@@ -148,7 +148,7 @@ class TestAspectClassification:
             """
 
             classifier = AspectClassification()
-            result = await classifier.execute(
+            result = await classifier.resolve(
                 thesis=thesis,
                 antithesis=antithesis,
                 aspect_statement="Guaranteed correctness",
@@ -179,7 +179,7 @@ class TestAspectClassification:
 
             classifier = AspectClassification()
             with pytest.raises(ValueError, match="Invalid position"):
-                await classifier.execute(
+                await classifier.resolve(
                     thesis=thesis,
                     antithesis=antithesis,
                     aspect_statement="Something",
@@ -199,7 +199,7 @@ class TestIdeaPlacement:
 
         with scope(case_node.sid):
             placer = IdeaPlacement()
-            result = await placer.execute(
+            result = await placer.resolve(
                 idea="Trust",
                 vocabulary=[],
                 tensions=[],
@@ -226,7 +226,7 @@ class TestIdeaPlacement:
             love.commit()
 
             placer = IdeaPlacement()
-            result = await placer.execute(
+            result = await placer.resolve(
                 idea="Hate",
                 vocabulary=[love],
                 tensions=[],
@@ -253,7 +253,7 @@ class TestIdeaPlacement:
             trust.commit()
 
             placer = IdeaPlacement()
-            result = await placer.execute(
+            result = await placer.resolve(
                 idea="Faith and trust",  # Semantically similar
                 vocabulary=[trust],
                 tensions=[],
@@ -294,7 +294,7 @@ class TestIdeaPlacement:
             )
 
             placer = IdeaPlacement()
-            result = await placer.execute(
+            result = await placer.resolve(
                 idea="Personal autonomy and freedom",
                 vocabulary=[love, indifference],
                 tensions=[tension],
@@ -322,7 +322,7 @@ class TestIdeaPlacement:
             love.commit()
 
             placer = IdeaPlacement()
-            result = await placer.execute(
+            result = await placer.resolve(
                 idea="Database indexing strategies",  # Unrelated to Love
                 vocabulary=[love],
                 tensions=[],
@@ -353,7 +353,7 @@ class TestIdeaPlacement:
             """
 
             placer = IdeaPlacement()
-            result = await placer.execute(
+            result = await placer.resolve(
                 idea="Eventual consistency",
                 vocabulary=[consistency],
                 tensions=[],

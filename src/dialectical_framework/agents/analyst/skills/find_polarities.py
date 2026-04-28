@@ -14,7 +14,7 @@ Flow:
 Usage:
     # Programmatic (web app)
     agent = FindPolarities(thesis_hashes=["abc123", "def456"])
-    ideas = await agent.execute()
+    ideas = await agent.resolve()
 
     # Access T-A pairs from Ideas
     for comp, _ in ideas.statements.all():
@@ -34,13 +34,13 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.features.antithesis_extraction import \
+from dialectical_framework.concerns.antithesis_extraction import \
     AntithesisExtraction
-from dialectical_framework.features.statement_deduplication import (
+from dialectical_framework.concerns.statement_deduplication import (
     DedupResult, StatementDeduplication)
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -80,7 +80,7 @@ class ThesisResult:
 # --- Main Orchestrator ---
 
 
-class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
+class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
     """
     Orchestrate Polarity creation (T-A pairs).
 
@@ -94,7 +94,7 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
     - Polarity nodes: ARelationship.heuristic_similarity
 
     Dual interface:
-    - execute() returns Ideas for programmatic use
+    - resolve() returns Ideas for programmatic use
     - call() returns JSON string for LLM tool use (includes HS data)
     """
 
@@ -105,13 +105,13 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
     _report: ExecutionReport = PrivateAttr()
 
     async def call(self) -> str:
-        """Execute polarity creation and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.execute()
+        """Resolve polarity creation and return ExecutionReport as JSON (for LLM tool use)."""
+        await self.resolve()
         return str(self._report)
 
-    async def execute(self) -> Optional[Ideas]:
+    async def resolve(self) -> Optional[Ideas]:
         """
-        Execute polarity creation: extract antitheses and create Polarities + Ideas.
+        Resolve polarity creation: extract antitheses and create Polarities + Ideas.
 
         Returns:
             Ideas containing all T and A components (with OPPOSITE_OF relationships)
@@ -184,7 +184,7 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
         newly_extracted_hashes = [c.hash for c in newly_extracted]
         if newly_extracted_hashes and vocab:
             deduplicator = StatementDeduplication()
-            dedup_result = await deduplicator.execute(
+            dedup_result = await deduplicator.resolve(
                 extracted_hashes=newly_extracted_hashes,
                 vocabulary=vocab,
                 text=input_text,
@@ -269,7 +269,7 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
         # First attempt: with not_like_these constraints
         service = AntithesisExtraction()
-        results = await service.execute(
+        results = await service.resolve(
             thesis=thesis,
             text=text,
             not_like_these=not_like_these,
@@ -283,7 +283,7 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
 
         # Retry with empty not_like_these (relax constraints)
         service_retry = AntithesisExtraction()
-        results_retry = await service_retry.execute(
+        results_retry = await service_retry.resolve(
             thesis=thesis,
             text=text,
             not_like_these=[],
@@ -307,7 +307,7 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
         self, thesis: DialecticalComponent, text: str = ""
     ) -> tuple[list[DialecticalComponent], list[dict]]:
         """Get existing oppositions for a thesis from the database."""
-        from dialectical_framework.features.antithesis_classification import \
+        from dialectical_framework.concerns.antithesis_classification import \
             AntithesisClassification
 
         existing_components: list[DialecticalComponent] = []
@@ -322,7 +322,7 @@ class FindPolarities(BaseTool, ExecutableCapability[Optional[Ideas]]):
             if hs is None:
                 # No Perspective found - estimate HS
                 classifier = AntithesisClassification()
-                result = await classifier.execute(
+                result = await classifier.resolve(
                     thesis=thesis,
                     antithesis_statement=antithesis.statement,
                     text=text,

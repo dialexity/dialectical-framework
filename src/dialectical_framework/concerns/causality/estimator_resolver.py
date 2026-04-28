@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Optional
 
 from dialectical_framework.enums.causality_preset import CausalityPreset
-from dialectical_framework.features.causality.causality_estimator import (
+from dialectical_framework.concerns.causality.causality_estimator import (
     CausalityEstimator,
 )
 
@@ -33,16 +33,16 @@ _ESTIMATOR_FACTORIES: dict[CausalityPreset, type] = {}
 def _get_factories() -> dict[CausalityPreset, type]:
     """Lazy-load estimator classes to avoid circular imports."""
     if not _ESTIMATOR_FACTORIES:
-        from dialectical_framework.features.causality.causality_estimator_balanced import (
+        from dialectical_framework.concerns.causality.causality_estimator_balanced import (
             CausalityEstimatorBalanced,
         )
-        from dialectical_framework.features.causality.causality_estimator_desirable import (
+        from dialectical_framework.concerns.causality.causality_estimator_desirable import (
             CausalityEstimatorDesirable,
         )
-        from dialectical_framework.features.causality.causality_estimator_feasible import (
+        from dialectical_framework.concerns.causality.causality_estimator_feasible import (
             CausalityEstimatorFeasible,
         )
-        from dialectical_framework.features.causality.causality_estimator_realistic import (
+        from dialectical_framework.concerns.causality.causality_estimator_realistic import (
             CausalityEstimatorRealistic,
         )
 
@@ -88,7 +88,7 @@ def resolve_estimator(intent: Optional[str] = None) -> CausalityEstimator:
         return factories[preset_enum]()
 
     # Not a known preset — treat as free-form criteria text
-    from dialectical_framework.features.causality.causality_estimator_criteria import (
+    from dialectical_framework.concerns.causality.causality_estimator_criteria import (
         CausalityEstimatorCriteria,
     )
 

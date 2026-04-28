@@ -1,12 +1,12 @@
 """
-ActionExtraction: Capability for generating Ac+ candidates along the Insight axis.
+ActionExtraction: Concern for generating Ac+ candidates along the Insight axis.
 
 Generates Ac+ candidates (T- → A+ transitions) at different Insight levels,
 allowing exploration of various transformation depths.
 
 Usage:
     service = ActionExtraction()
-    candidates = await service.execute(pp, input_text, not_like_these=existing)
+    candidates = await service.resolve(pp, input_text, not_like_these=existing)
     for c in candidates:
         print(f"{c.insight_label}: {c.statement}")
 """
@@ -20,10 +20,10 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.ac_re_taxonomy import (
+from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, insight_label_to_value, proactiveness_label_to_value)
 from dialectical_framework.protocols.has_config import SettingsAware
 
@@ -142,10 +142,10 @@ class ActionCandidateResultDto(BaseModel):
 
 
 class ActionExtraction(
-    ExecutableCapability[list[ActionCandidateResultDto]], SettingsAware
+    ReasonableConcern[list[ActionCandidateResultDto]], SettingsAware
 ):
     """
-    Capability for extracting Ac+ candidates at various Insight levels.
+    Concern for extracting Ac+ candidates at various Insight levels.
 
     Generates multiple Ac+ candidates along the Y-axis (Insight), with the LLM
     determining the appropriate X-axis position (Proactiveness) for each.
@@ -154,7 +154,7 @@ class ActionExtraction(
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         pp: Perspective,
         input_text: str = "",

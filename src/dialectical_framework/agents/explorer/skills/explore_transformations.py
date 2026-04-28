@@ -10,7 +10,7 @@ Orchestrates the transformation generation pipeline:
 Usage:
     # Programmatic use
     agent = ExploreTransformations(perspective_hash="abc123...")
-    result = await agent.execute()
+    result = await agent.resolve()
     for t in result.all:
         print(f"{t}")
 
@@ -28,14 +28,14 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.features.action_extraction import ActionExtraction
-from dialectical_framework.features.positive_ac_re_apex_derivation import (
+from dialectical_framework.concerns.action_extraction import ActionExtraction
+from dialectical_framework.concerns.positive_ac_re_apex_derivation import (
     ApexDerivation, ApexDerivationResultDto)
-from dialectical_framework.features.transformation_generation import (
+from dialectical_framework.concerns.transformation_generation import (
     TransformationGeneration, TransformationTetradDto)
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -68,7 +68,7 @@ class ExploreTransformationsResult:
 
 
 class ExploreTransformations(
-    BaseTool, ExecutableCapability[ExploreTransformationsResult]
+    BaseTool, ReasonableConcern[ExploreTransformationsResult]
 ):
     """
     Subagent for generating Action-Reflection transformations for Perspectives.
@@ -77,7 +77,7 @@ class ExploreTransformations(
     producing multiple transformation alternatives for a single Perspective.
 
     Dual interface:
-    - execute() returns ExploreTransformationsResult for programmatic use
+    - resolve() returns ExploreTransformationsResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -88,13 +88,13 @@ class ExploreTransformations(
     _report: ExecutionReport = PrivateAttr()
 
     async def call(self) -> str:
-        """Execute transformation generation and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.execute()
+        """Resolve transformation generation and return ExecutionReport as JSON (for LLM tool use)."""
+        await self.resolve()
         return str(self._report)
 
-    async def execute(self) -> ExploreTransformationsResult:
+    async def resolve(self) -> ExploreTransformationsResult:
         """
-        Execute the transformation generation pipeline.
+        Resolve the transformation generation pipeline.
 
         Returns:
             ExploreTransformationsResult with existing and new transformations
@@ -116,12 +116,12 @@ class ExploreTransformations(
 
         # 4. Derive apexes for this PP context
         apex_service = ApexDerivation()
-        apexes = await apex_service.execute(pp, input_text)
+        apexes = await apex_service.resolve(pp, input_text)
         self._report.merge(apex_service.report)
 
         # 5. Extract Ac+ candidates (avoiding existing)
         extractor = ActionExtraction()
-        ac_candidates = await extractor.execute(pp, input_text, not_like_these=existing)
+        ac_candidates = await extractor.resolve(pp, input_text, not_like_these=existing)
         self._report.merge(extractor.report)
 
         if not ac_candidates:
@@ -136,7 +136,7 @@ class ExploreTransformations(
         new_transformations = []
         for ac_plus in ac_candidates:
             generator = TransformationGeneration()
-            tetrad = await generator.execute(pp, ac_plus, apexes, input_text)
+            tetrad = await generator.resolve(pp, ac_plus, apexes, input_text)
             self._report.merge(generator.report)
 
             # 6. Create graph nodes

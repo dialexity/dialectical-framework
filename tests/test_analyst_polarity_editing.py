@@ -140,7 +140,7 @@ class TestEditPolarityThesis:
                 perspective_hash=pp.hash,
                 changes={POSITION_T: "Trust"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             assert editor.report.ok
             if result.is_valid:
@@ -169,7 +169,7 @@ class TestEditPolarityThesis:
                 perspective_hash=pp.hash,
                 changes={POSITION_T: "Database Indexing"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             # Should either:
             # 1. Generate new antithesis if original A has HS <= 0.1
@@ -196,7 +196,7 @@ class TestEditPolarityAntithesis:
                 perspective_hash=pp.hash,
                 changes={POSITION_A: "Hate"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             assert editor.report.ok
             assert result.is_valid
@@ -222,7 +222,7 @@ class TestEditPolarityAntithesis:
                 perspective_hash=pp.hash,
                 changes={POSITION_A: "Obsession"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             # May be invalid with error message, or valid with low HS
             if not result.is_valid:
@@ -247,7 +247,7 @@ class TestEditTetradAspect:
                 perspective_hash=pp.hash,
                 changes={POSITION_T_PLUS: "Deep bond"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             if result.is_valid:
                 assert result.perspective is not None
@@ -271,7 +271,7 @@ class TestEditTetradAspect:
                 perspective_hash=pp.hash,
                 changes={POSITION_T_PLUS: "Complete isolation"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             # Should be invalid or have suggestion in error
             if not result.is_valid:
@@ -313,7 +313,7 @@ class TestEditPolarityForking:
                 perspective_hash=pp.hash,
                 changes={POSITION_A: "Hatred"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             if result.is_valid:
                 # Should be a different PP
@@ -338,7 +338,7 @@ class TestEditPolarityValidation:
                 perspective_hash=pp.hash,
                 changes={POSITION_T: ""},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             assert not result.is_valid
             assert "non-empty" in result.error_message.lower()
@@ -356,7 +356,7 @@ class TestEditPolarityValidation:
                 perspective_hash=pp.hash,
                 changes={"X+": "Something"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             assert not result.is_valid
             # EditPolarity only accepts T/A, so invalid positions are filtered out
@@ -376,7 +376,7 @@ class TestEditPolarityValidation:
                 perspective_hash="nonexistent123",
                 changes={POSITION_T: "Something"},
             )
-            result = await editor.execute()
+            result = await editor.resolve()
 
             assert not result.is_valid
             assert "not found" in result.error_message.lower()

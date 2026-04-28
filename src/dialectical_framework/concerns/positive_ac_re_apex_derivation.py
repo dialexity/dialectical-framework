@@ -1,5 +1,5 @@
 """
-AcReApexDerivation: Capability for deriving Re+ and Ac+ apex statements for a Perspective.
+AcReApexDerivation: Concern for deriving Re+ and Ac+ apex statements for a Perspective.
 
 The apex statements represent the reference transformation paths for this specific
 Perspective context, against which other transformations are measured (via HS).
@@ -10,7 +10,7 @@ Apexes are generated within fixed coordinate ranges (sweet spots):
 
 Usage:
     service = AcReApexDerivation()
-    apexes = await service.execute(pp, input_text)
+    apexes = await service.resolve(pp, input_text)
     print(f"Re+ apex: {apexes.re_plus_apex.statement}")
     print(f"Ac+ apex: {apexes.ac_plus_apex.statement}")
 """
@@ -23,10 +23,10 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.ac_re_taxonomy import (
+from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, RE_PLUS_APEX_TARGET, insight_label_to_value,
     proactiveness_label_to_value)
 from dialectical_framework.protocols.has_config import SettingsAware
@@ -216,10 +216,10 @@ class AcReApexDerivationResultDto(BaseModel):
 
 
 class AcReApexDerivation(
-    ExecutableCapability[AcReApexDerivationResultDto], SettingsAware
+    ReasonableConcern[AcReApexDerivationResultDto], SettingsAware
 ):
     """
-    Capability for deriving Re+ and Ac+ apex statements for a Perspective context.
+    Concern for deriving Re+ and Ac+ apex statements for a Perspective context.
 
     The derived apexes serve as reference points for calculating Heuristic Similarity (HS)
     of other transformation candidates. Apexes are constrained to sweet spot ranges.
@@ -228,7 +228,7 @@ class AcReApexDerivation(
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         pp: Perspective,
         input_text: str = "",

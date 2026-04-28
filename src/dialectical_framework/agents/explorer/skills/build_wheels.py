@@ -18,7 +18,7 @@ Usage:
         nexus_hash="abc123...",
         perspective_hashes=["def456...", "ghi789..."],
     )
-    result = await agent.execute()
+    result = await agent.resolve()
     for cycle in result.new_cycles:
         print(f"Cycle: {cycle.short_hash}")
     for wheel in result.new_wheels:
@@ -36,7 +36,7 @@ from mirascope import BaseTool, Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 from pydantic import BaseModel, Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.causality_preset import CausalityPreset
 from dialectical_framework.enums.di import DI
@@ -117,7 +117,7 @@ class BuildWheelsResult:
     new_wheels: list[Wheel]
 
 
-class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
+class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
     """
     Main LLM-facing entry point for dialectical exploration.
 
@@ -134,7 +134,7 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
     Idempotent: re-running with same inputs creates no duplicates.
 
     Dual interface:
-    - execute() returns BuildWheelsResult for programmatic use
+    - resolve() returns BuildWheelsResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -154,11 +154,11 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
         return self._report
 
     async def call(self) -> str:
-        """Execute and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.execute()
+        """Resolve and return ExecutionReport as JSON (for LLM tool use)."""
+        await self.resolve()
         return str(self._report)
 
-    async def execute(self) -> BuildWheelsResult:
+    async def resolve(self) -> BuildWheelsResult:
         """
         Create structural combinations and estimate them.
 
@@ -218,12 +218,12 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
 
         # 4. Create structural combinations (Cycles + Wheels)
         #    cycle_intent flows onto Cycle.intent — never "preset:auto"
-        from dialectical_framework.features.perspective_combination import (
+        from dialectical_framework.concerns.perspective_combination import (
             PerspectiveCombination,
         )
 
         combination = PerspectiveCombination()
-        combination_result = combination.execute(
+        combination_result = combination.resolve(
             nexus=nexus, perspectives=perspectives, preset=cycle_intent
         )
         self._report.merge(combination.report)
@@ -270,18 +270,18 @@ class BuildWheels(BaseTool, ExecutableCapability[BuildWheelsResult]):
 
         The estimator is resolved from each structure's intent by CausalityEstimation.
         """
-        from dialectical_framework.features.causality_estimation import (
+        from dialectical_framework.concerns.causality_estimation import (
             CausalityEstimation,
         )
 
         if cycles:
             estimation = CausalityEstimation()
-            await estimation.execute(cycles)
+            await estimation.resolve(cycles)
             self._report.merge(estimation.report)
 
         if wheels:
             estimation = CausalityEstimation()
-            await estimation.execute(wheels)
+            await estimation.resolve(wheels)
             self._report.merge(estimation.report)
 
     @inject

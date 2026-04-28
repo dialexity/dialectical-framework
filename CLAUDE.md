@@ -196,7 +196,7 @@ When connecting components to Perspective positions, semantic relationships are 
 | Relationships | `src/dialectical_framework/graph/relationships/*.py` |
 | Relationship API | `src/dialectical_framework/graph/relationship_manager.py` |
 | Scoring (TaroRank) | `src/dialectical_framework/graph/scoring/tarorank.py` |
-| Framework features (API) | `src/dialectical_framework/features/` |
+| Concerns (API) | `src/dialectical_framework/concerns/` |
 | Agentic orchestration | `src/dialectical_framework/agents/` |
 | AI/LLM reasoning | `src/dialectical_framework/synthesist/` |
 | Wisdom reasoning | `src/dialectical_framework/synthesist/wisdom/` |
@@ -255,14 +255,14 @@ src/dialectical_framework/
 │   ├── repositories/        # Data access layer
 │   └── relationship_manager.py    # RelationshipTo/From declarative API
 │
-├── features/                # Framework services (API-callable, standalone)
+├── concerns/                # Concerns to resolve (API-callable, standalone)
 │   ├── thesis_extraction.py    # Extract theses from text
 │   ├── aspect_generation.py      # Generate T+, T-, A+, A- aspects
 │   ├── transformation_generation.py
-│   └── ...                     # 15 feature modules total
+│   └── ...                     # 15 concern modules total
 │
 ├── agents/                  # LLM-driven agentic orchestrators
-│   ├── executable_capability.py  # Adapter: makes features agent-usable
+│   ├── reasonable_concern.py    # Base class: makes concerns agent-usable
 │   ├── analyst/            # Analysis mode: Input → Ideas → Perspectives
 │   │   ├── skills/         # Reasoning brain centers
 │   │   │   ├── anchoring.py        # Thesis surfacing & anchoring

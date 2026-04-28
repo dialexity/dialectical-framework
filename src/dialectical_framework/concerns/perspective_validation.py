@@ -21,7 +21,7 @@ Empirical Inequalities:
 
 Usage:
     validator = PerspectiveValidation()
-    result = await validator.execute(perspective=pp, text="optional context")
+    result = await validator.resolve(perspective=pp, text="optional context")
 
     if result.is_valid:
         print("Perspective is valid")
@@ -34,10 +34,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.control_statements_check import (
+from dialectical_framework.concerns.control_statements_check import (
     ControlStatementsCheck, ControlStatementsCheckResult)
 from dialectical_framework.graph.relationships.polarity_relationship import \
     AspectRelationship
@@ -104,10 +104,10 @@ class PerspectiveValidationResult:
         return self.empirical_inequalities.is_valid
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
+class PerspectiveValidation(ReasonableConcern[PerspectiveValidationResult]):
     """
     Validates a Perspective's tetrad structure.
 
@@ -123,7 +123,7 @@ class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
     def __init__(self) -> None:
         self._cs_capability = ControlStatementsCheck()
 
-    async def execute(
+    async def resolve(
         self,
         perspective: Perspective,
         text: str = "",
@@ -152,7 +152,7 @@ class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
         failure_reasons: list[str] = []
 
         # Run control statements check (LLM-based)
-        cs_result = await self._cs_capability.execute(
+        cs_result = await self._cs_capability.resolve(
             perspective=perspective,
             text=text,
         )

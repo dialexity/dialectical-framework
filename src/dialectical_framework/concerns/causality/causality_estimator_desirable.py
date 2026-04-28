@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mirascope import Messages, prompt_template
 
-from dialectical_framework.features.causality.causality_estimator_balanced import \
+from dialectical_framework.concerns.causality.causality_estimator_balanced import \
     CausalityEstimatorBalanced
 
 

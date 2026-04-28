@@ -1,5 +1,5 @@
 """
-AspectGeneration: Capability for generating tetrad aspects (T+, T-, A+, A-).
+AspectGeneration: Concern for generating tetrad aspects (T+, T-, A+, A-).
 
 Generates aspects with:
 - Heuristic similarity (HS) to taxonomy apex
@@ -22,7 +22,7 @@ Usage:
     pp.a.connect(antithesis_component, relationship=ARelationship(alias=POSITION_A))
 
     # Generate a contradiction pair
-    results = await service.execute(
+    results = await service.resolve(
         perspective=pp,
         positions=[POSITION_T_PLUS, POSITION_A_MINUS],
         text=source_text,
@@ -51,10 +51,10 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.statement_classification import \
+from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -181,12 +181,12 @@ class AspectResult:
     complementarity_a: float
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class AspectGeneration(ExecutableCapability[list[AspectResult]], SettingsAware):
+class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
     """
-    Capability for generating tetrad aspects (T+, T-, A+, A-).
+    Concern for generating tetrad aspects (T+, T-, A+, A-).
 
     Generates aspects with HS calculated against taxonomy apex and K values.
     Contradiction pairs are generated together to ensure coherence.
@@ -195,7 +195,7 @@ class AspectGeneration(ExecutableCapability[list[AspectResult]], SettingsAware):
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         perspective: Perspective,
         positions: Optional[list[str]] = None,

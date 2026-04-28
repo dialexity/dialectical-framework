@@ -14,8 +14,8 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     pass
 
 
-from dialectical_framework.features.statement_classification import (
+from dialectical_framework.concerns.statement_classification import (
     VIABILITY_CATEGORY, parse_meaning_uri)
 
 SIMPLE_MEANING = "dx://taxonomy/Simple"
@@ -159,13 +159,13 @@ class DedupResult:
 # --- Service ---
 
 
-class StatementDeduplication(ExecutableCapability[DedupResult]):
+class StatementDeduplication(ReasonableConcern[DedupResult]):
     """
-    Capability for semantic deduplication of components against vocabulary.
+    Concern for semantic deduplication of components against vocabulary.
 
     Usage:
         deduplicator = StatementDeduplication()
-        result = await deduplicator.execute(
+        result = await deduplicator.resolve(
             extracted_hashes=["abc123", "def456"],
             vocabulary=vocab_list,
             text="source context for deduplication",
@@ -179,7 +179,7 @@ class StatementDeduplication(ExecutableCapability[DedupResult]):
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         extracted_hashes: list[str],
         vocabulary: list[dict],

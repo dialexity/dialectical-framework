@@ -1,5 +1,5 @@
 """
-CausalityEstimation: Feature for estimating causality on Cycles and Wheels.
+CausalityEstimation: Concern for estimating causality on Cycles and Wheels.
 
 This is the "smart" orchestrator that:
 - Groups structures by type and size for parallel estimation
@@ -8,12 +8,12 @@ This is the "smart" orchestrator that:
 - Normalizes probabilities across ALL structures of same type+size in the DB
 
 Usage:
-    from dialectical_framework.features.causality_estimation import CausalityEstimation
+    from dialectical_framework.concerns.causality_estimation import CausalityEstimation
 
-    feature = CausalityEstimation()
+    concern = CausalityEstimation()
 
     # Estimate structures (automatically grouped by type and size)
-    result = await feature.execute([cycle1, cycle2, cycle3])
+    result = await concern.resolve([cycle1, cycle2, cycle3])
 """
 
 from __future__ import annotations
@@ -22,9 +22,9 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Union
 
-from dialectical_framework.agents.executable_capability import ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.causality.causality_normalizer import (
+from dialectical_framework.concerns.causality.causality_normalizer import (
     CausalityNormalizer,
 )
 from dialectical_framework.graph.estimation_manager import EstimationManager
@@ -36,7 +36,7 @@ from dialectical_framework.graph.repositories.cycle_repository import CycleRepos
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
-    from dialectical_framework.features.causality.causality_estimator import (
+    from dialectical_framework.concerns.causality.causality_estimator import (
         CausalityEstimator,
         EstimationStructured,
     )
@@ -49,9 +49,9 @@ class EstimationResult:
     estimated: list[Union[Cycle, Wheel]] = field(default_factory=list)
 
 
-class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware):
+class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
     """
-    Feature for estimating causality on Cycles and Wheels.
+    Concern for estimating causality on Cycles and Wheels.
 
     This is the "smart" orchestrator that:
     - Groups structures by type (Cycle/Wheel) and size (Perspective count)
@@ -74,7 +74,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         """Access the execution report."""
         return self._report
 
-    async def execute(
+    async def resolve(
         self,
         structures: list[Union[Cycle, Wheel]],
     ) -> EstimationResult:
@@ -91,7 +91,7 @@ class CausalityEstimation(ExecutableCapability[EstimationResult], SettingsAware)
         Returns:
             EstimationResult with list of estimated structures
         """
-        from dialectical_framework.features.causality.estimator_resolver import (
+        from dialectical_framework.concerns.causality.estimator_resolver import (
             resolve_estimator,
         )
 

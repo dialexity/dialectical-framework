@@ -1,5 +1,5 @@
 """
-AspectClassification: Capability for classifying a user-provided aspect.
+AspectClassification: Concern for classifying a user-provided aspect.
 
 Evaluates a given aspect statement against a tension (T-A pair) to determine:
 - HS: Heuristic Similarity to the apex concept (0.0-1.0)
@@ -13,7 +13,7 @@ Does NOT create any database nodes - caller decides what to do with result.
 
 Usage:
     classifier = AspectClassification()
-    result = await classifier.execute(
+    result = await classifier.resolve(
         thesis=thesis_component,
         antithesis=antithesis_component,
         aspect_statement="Personal freedom",
@@ -35,10 +35,10 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.statement_classification import \
+from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                           POSITION_A_PLUS,
@@ -165,12 +165,12 @@ class AspectClassificationResult:
     suggested_position: Optional[str] = None
 
 
-# --- Capability ---
+# --- Concern ---
 
 
-class AspectClassification(ExecutableCapability[AspectClassificationResult]):
+class AspectClassification(ReasonableConcern[AspectClassificationResult]):
     """
-    Capability for classifying a user-provided aspect against a tension.
+    Concern for classifying a user-provided aspect against a tension.
 
     Evaluates the aspect to determine:
     - Is it valid for the specified position?
@@ -184,7 +184,7 @@ class AspectClassification(ExecutableCapability[AspectClassificationResult]):
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def execute(
+    async def resolve(
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,

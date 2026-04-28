@@ -7,9 +7,9 @@ from __future__ import annotations
 import pytest
 from langfuse.decorators import observe
 
-from dialectical_framework.features.control_statements_check import \
+from dialectical_framework.concerns.control_statements_check import \
     ControlStatementsCheck
-from dialectical_framework.features.perspective_validation import \
+from dialectical_framework.concerns.perspective_validation import \
     PerspectiveValidation
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
@@ -118,7 +118,7 @@ class TestControlStatementsCheck:
             )
 
             capability = ControlStatementsCheck()
-            result = await capability.execute(perspective=pp)
+            result = await capability.resolve(perspective=pp)
 
             # Check control statements were evaluated
             assert "Confidence" in result.t_plus_without_a_plus_yields_t_minus_statement
@@ -145,7 +145,7 @@ class TestControlStatementsCheck:
             pp = _create_test_perspective()
 
             capability = ControlStatementsCheck()
-            result = await capability.execute(perspective=pp)
+            result = await capability.resolve(perspective=pp)
 
             # Check both nodes are committed
             assert result.estimation.is_committed
@@ -179,7 +179,7 @@ class TestPerspectiveValidation:
             pp = _create_test_perspective()
 
             validator = PerspectiveValidation()
-            result = await validator.execute(perspective=pp)
+            result = await validator.resolve(perspective=pp)
 
             # Check control statements result is present
             assert result.control_statements is not None
@@ -209,7 +209,7 @@ class TestPerspectiveValidation:
             )
 
             validator = PerspectiveValidation()
-            result = await validator.execute(perspective=pp)
+            result = await validator.resolve(perspective=pp)
 
             # Empirical should definitely pass with these values
             assert result.is_empirically_valid is True
@@ -238,7 +238,7 @@ class TestPerspectiveValidation:
             )
 
             validator = PerspectiveValidation()
-            result = await validator.execute(perspective=pp)
+            result = await validator.resolve(perspective=pp)
 
             assert result.is_empirically_valid is False
             assert not result.is_valid
@@ -257,7 +257,7 @@ class TestPerspectiveValidation:
 
             validator = PerspectiveValidation()
             with pytest.raises(ValueError, match="must be committed"):
-                await validator.execute(perspective=pp)
+                await validator.resolve(perspective=pp)
 
     @pytest.mark.asyncio
     @observe()
@@ -278,4 +278,4 @@ class TestPerspectiveValidation:
 
             validator = PerspectiveValidation()
             with pytest.raises(ValueError, match="must be complete"):
-                await validator.execute(perspective=pp)
+                await validator.resolve(perspective=pp)

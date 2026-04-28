@@ -5,7 +5,7 @@ Takes structures that already have estimations and renormalizes their probabilit
 so they sum to 1.0. This is useful after adding new structures to an existing layer.
 
 Usage:
-    from dialectical_framework.features.causality.causality_normalizer import CausalityNormalizer
+    from dialectical_framework.concerns.causality.causality_normalizer import CausalityNormalizer
 
     normalizer = CausalityNormalizer()
 

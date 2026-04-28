@@ -13,7 +13,7 @@ Editing behavior based on PP state:
 In both cases, the returned PP is committed with all 6 positions set.
 
 Use EditTetrad for editing aspects (T+, T-, A+, A-).
-Use PerspectiveValidation capability separately for full tetrad validation.
+Use PerspectiveValidation concern separately for full tetrad validation.
 
 Uses ForkableMixin: forked PP has origin_hash pointing to the original.
 
@@ -22,7 +22,7 @@ Usage:
         perspective_hash="abc123...",
         changes={"T": "New thesis statement"},
     )
-    result = await editor.execute()
+    result = await editor.resolve()
 
     if result.is_valid:
         pp = result.perspective  # Committed PP with all 6 positions
@@ -38,17 +38,17 @@ from typing import TYPE_CHECKING, Optional
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.features.antithesis_classification import \
+from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
-from dialectical_framework.features.antithesis_extraction import \
+from dialectical_framework.concerns.antithesis_extraction import \
     AntithesisExtraction
-from dialectical_framework.features.aspect_classification import \
+from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
-from dialectical_framework.features.aspect_generation import AspectGeneration
-from dialectical_framework.features.statement_classification import \
+from dialectical_framework.concerns.aspect_generation import AspectGeneration
+from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -81,7 +81,7 @@ class EditPolarityResult:
     - If input PP was uncommitted -> edits in place, commits it
     - If input PP was committed -> clones (forks with origin_hash), edits the copy, commits it
 
-    Use PerspectiveValidation capability separately if full validation is needed.
+    Use PerspectiveValidation concern separately if full validation is needed.
     """
 
     perspective: Optional[Perspective] = None
@@ -92,7 +92,7 @@ class EditPolarityResult:
     error_message: str = ""
 
 
-class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
+class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
     """
     Skill for editing T or A components of a Perspective with validation.
 
@@ -102,7 +102,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
     For editing aspects (T+, T-, A+, A-), use EditTetrad instead.
 
     Dual interface:
-    - execute() returns EditPolarityResult for programmatic use
+    - resolve() returns EditPolarityResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -127,12 +127,12 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         return self._report
 
     async def call(self) -> str:
-        """Execute editing and return ExecutionReport as JSON."""
-        await self.execute()
+        """Resolve editing and return ExecutionReport as JSON."""
+        await self.resolve()
         return str(self._report)
 
-    async def execute(self) -> EditPolarityResult:
-        """Execute the editing operation."""
+    async def resolve(self) -> EditPolarityResult:
+        """Resolve the editing operation."""
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Resolve Perspective
@@ -202,7 +202,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         # Classify the new thesis
         t_classifier = StatementClassification()
-        t_classification = await t_classifier.execute(
+        t_classification = await t_classifier.resolve(
             statement=new_t_statement,
             text=self._text,
         )
@@ -218,7 +218,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         # Validate new A against new T
         a_classifier = AntithesisClassification()
-        a_validation = await a_classifier.execute(
+        a_validation = await a_classifier.resolve(
             thesis=new_t,
             antithesis_statement=new_a_statement,
             text=self._text,
@@ -274,7 +274,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         # Classify the new thesis
         t_classifier = StatementClassification()
-        t_classification = await t_classifier.execute(
+        t_classification = await t_classifier.resolve(
             statement=new_t_statement,
             text=self._text,
         )
@@ -290,7 +290,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         # Validate current A against new T
         a_classifier = AntithesisClassification()
-        a_validation = await a_classifier.execute(
+        a_validation = await a_classifier.resolve(
             thesis=new_t,
             antithesis_statement=current_a.statement,
             text=self._text,
@@ -306,7 +306,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
         if a_validation.heuristic_similarity <= HS_WRONG_CATEGORY_THRESHOLD:
             # A is no longer valid - regenerate
             extractor = AntithesisExtraction()
-            antitheses = await extractor.execute(
+            antitheses = await extractor.resolve(
                 thesis=new_t,
                 text=self._text,
             )
@@ -364,7 +364,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         # Validate new A against current T
         a_classifier = AntithesisClassification()
-        a_validation = await a_classifier.execute(
+        a_validation = await a_classifier.resolve(
             thesis=current_t,
             antithesis_statement=new_a_statement,
             text=self._text,
@@ -379,7 +379,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
                 for aspect_pos in ASPECT_POSITIONS:
                     aspect_classifier = AspectClassification()
                     try:
-                        aspect_result = await aspect_classifier.execute(
+                        aspect_result = await aspect_classifier.resolve(
                             thesis=current_t,
                             antithesis=current_a,
                             aspect_statement=new_a_statement,
@@ -457,7 +457,7 @@ class EditPolarity(BaseTool, ExecutableCapability[EditPolarityResult]):
 
         # Generate all aspects
         generator = AspectGeneration()
-        generated_aspects = await generator.execute(
+        generated_aspects = await generator.resolve(
             perspective=pp,
             positions=ASPECT_POSITIONS,
             text=self._text,

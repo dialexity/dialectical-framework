@@ -13,17 +13,17 @@ import pytest
 from dialectical_framework.agents.explorer.skills.build_wheels import (
     BuildWheels, BuildWheelsResult)
 from dialectical_framework.enums.causality_preset import CausalityPreset
-from dialectical_framework.features.causality.estimator_resolver import (
+from dialectical_framework.concerns.causality.estimator_resolver import (
     resolve_estimator)
-from dialectical_framework.features.causality.causality_estimator_balanced import (
+from dialectical_framework.concerns.causality.causality_estimator_balanced import (
     CausalityEstimatorBalanced)
-from dialectical_framework.features.causality.causality_estimator_criteria import (
+from dialectical_framework.concerns.causality.causality_estimator_criteria import (
     CausalityEstimatorCriteria)
-from dialectical_framework.features.causality.causality_estimator_desirable import (
+from dialectical_framework.concerns.causality.causality_estimator_desirable import (
     CausalityEstimatorDesirable)
-from dialectical_framework.features.causality.causality_estimator_feasible import (
+from dialectical_framework.concerns.causality.causality_estimator_feasible import (
     CausalityEstimatorFeasible)
-from dialectical_framework.features.causality.causality_estimator_realistic import (
+from dialectical_framework.concerns.causality.causality_estimator_realistic import (
     CausalityEstimatorRealistic)
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.cycle import Cycle
@@ -232,7 +232,7 @@ class TestBuildWheels:
 
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
             assert result.new_cycles == []
             assert result.new_wheels == []
             assert agent.report.ok is False
@@ -250,7 +250,7 @@ class TestBuildWheels:
 
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
             assert result.new_cycles == []
             assert result.new_wheels == []
             assert "No Perspectives" in agent.report.summary
@@ -269,7 +269,7 @@ class TestBuildWheels:
 
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             # Should create 1 cycle and 1 wheel
             assert len(result.new_cycles) >= 1
@@ -295,7 +295,7 @@ class TestBuildWheels:
 
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             # Should create cycles and wheels across layers
             assert len(result.new_cycles) >= 1
@@ -325,7 +325,7 @@ class TestBuildWheels:
 
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             assert result.new_cycles == []
             assert result.new_wheels == []
@@ -345,7 +345,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp.hash],
 
             )
-            result1 = await agent1.execute()
+            result1 = await agent1.resolve()
             assert len(result1.new_cycles) >= 1
             assert len(result1.new_wheels) >= 1
 
@@ -355,7 +355,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp.hash],
 
             )
-            result2 = await agent2.execute()
+            result2 = await agent2.resolve()
 
             # Nothing new created
             assert len(result2.new_cycles) == 0
@@ -377,7 +377,7 @@ class TestBuildWheels:
 
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
             assert result.nexus is not None
             assert result.nexus.hash == nexus.hash
             assert len(result.new_cycles) >= 1
@@ -398,7 +398,7 @@ class TestBuildWheels:
 
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             # 3 PPs should produce:
             # Layer 1: 3 cycles (one per PP), each with 1 wheel = 3 wheels
@@ -421,7 +421,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp.hash],
 
             )
-            await agent1.execute()
+            await agent1.resolve()
 
             # Second call with same PPs — everything exists
             agent2 = BuildWheels(
@@ -429,7 +429,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp.hash],
 
             )
-            result2 = await agent2.execute()
+            result2 = await agent2.resolve()
 
             assert result2.new_cycles == []
             assert result2.new_wheels == []
@@ -451,7 +451,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp1.hash, pp2.hash, pp3.hash],
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             # Find layer-3 cycles (3 PPs)
             layer3_cycles = [
@@ -478,7 +478,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp.hash],
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             cycle = result.new_cycles[0]
             opposites = list(cycle.opposite_direction.all())
@@ -498,7 +498,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp1.hash, pp2.hash],
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             # Layer-2 cycles (2 PPs) — only 1 permutation, no reversal
             layer2_cycles = [
@@ -522,7 +522,7 @@ class TestBuildWheels:
                 perspective_hashes=[pp1.hash, pp2.hash],
             )
 
-            result = await agent.execute()
+            result = await agent.resolve()
 
             # Layer-2 wheels for 2 PPs: generate_compatible_sequences
             # produces 2 arrangements that are reverses of each other

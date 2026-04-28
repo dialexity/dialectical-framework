@@ -12,7 +12,7 @@ Flow:
 Usage:
     # From FindPolarities output
     polarity_agent = FindPolarities(thesis_hashes=[...])
-    ideas = await polarity_agent.execute()
+    ideas = await polarity_agent.resolve()
 
     # Get polarity data from artifacts
     for polarity_data in polarity_agent.report.artifacts["polarity_data"]:
@@ -20,7 +20,7 @@ Usage:
             thesis_hash=tension["thesis_hash"],
             antithesis_hash=tension["antithesis_hash"],
         )
-        pps = await perspective_agent.execute()
+        pps = await perspective_agent.resolve()
 """
 
 from __future__ import annotations
@@ -31,15 +31,15 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
 from pydantic import Field, PrivateAttr
 
-from dialectical_framework.agents.executable_capability import \
-    ExecutableCapability
+from dialectical_framework.agents.reasonable_concern import \
+    ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
-from dialectical_framework.features.antithesis_classification import \
+from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
-from dialectical_framework.features.aspect_generation import (AspectGeneration,
+from dialectical_framework.concerns.aspect_generation import (AspectGeneration,
                                                               AspectResult)
-from dialectical_framework.features.statement_deduplication import \
+from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
 
 
-class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
+class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
     """
     Orchestrate Perspective creation for a single T-A tension.
 
@@ -84,7 +84,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
     5. Return list of completed Perspectives
 
     Dual interface:
-    - execute() returns list[Perspective] for programmatic use
+    - resolve() returns list[Perspective] for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -103,13 +103,13 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
         return self._report
 
     async def call(self) -> str:
-        """Execute Perspective creation and return ExecutionReport as JSON."""
-        await self.execute()
+        """Resolve Perspective creation and return ExecutionReport as JSON."""
+        await self.resolve()
         return str(self._report)
 
-    async def execute(self) -> list[Perspective]:
+    async def resolve(self) -> list[Perspective]:
         """
-        Execute Perspective creation for a single T-A tension.
+        Resolve Perspective creation for a single T-A tension.
 
         If no Polarity exists for the T-A pair, creates one using AntithesisClassification.
         Then creates/completes Perspectives for that Polarity.
@@ -172,7 +172,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
             not_like_these = complete_pps + completed_pps
 
             generator = AspectGeneration()
-            aspects = await generator.execute(
+            aspects = await generator.resolve(
                 perspective=pp,
                 positions=self.positions,
                 text=input_text,
@@ -253,7 +253,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
 
         # No Polarity exists - classify the antithesis and create one
         classifier = AntithesisClassification()
-        classification = await classifier.execute(
+        classification = await classifier.resolve(
             thesis=thesis,
             antithesis_statement=antithesis.statement,
             text=text,
@@ -352,7 +352,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
 
         # Run deduplication (branch filtering happens inside StatementDeduplication)
         deduplicator = StatementDeduplication()
-        dedup_result = await deduplicator.execute(
+        dedup_result = await deduplicator.resolve(
             extracted_hashes=generated_hashes,
             vocabulary=vocab,
             text=text,
