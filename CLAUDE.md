@@ -257,7 +257,7 @@ src/dialectical_framework/
 │
 ├── features/                # Framework services (API-callable, standalone)
 │   ├── thesis_extraction.py    # Extract theses from text
-│   ├── angle_generation.py      # Generate T+, T-, A+, A- angles
+│   ├── aspect_generation.py      # Generate T+, T-, A+, A- aspects
 │   ├── transformation_generation.py
 │   └── ...                     # 15 feature modules total
 │

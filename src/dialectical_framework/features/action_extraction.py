@@ -62,8 +62,8 @@ Your task is to generate Ac+ candidates that represent T- → A+ transition path
 ## What is Ac+?
 
 The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
-- "+" angles target beneficial states (T+ or A+)
-- "-" angles target problematic states (T- or A-)
+- "+" aspects target beneficial states (T+ or A+)
+- "-" aspects target problematic states (T- or A-)
 
 Ac+ is an "action targeting A+" - a way of acting/behaving that helps someone escape the problematic aspects of the thesis (T-) and move toward the healthy aspects of the antithesis (A+).
 

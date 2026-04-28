@@ -26,8 +26,8 @@ class PerspectiveCalculator(BaseCalculator):
     - For each polarity position, gets the single component's R
     - Uses power mean (p=4) for symmetric thesis-antithesis pairs:
       * T ↔ A (neutral pair)
-      * T+ ↔ A- (positive thesis ↔ negative antithesis)
-      * T- ↔ A+ (negative thesis ↔ positive antithesis)
+      * T+ ↔ A- (positive thesis aspect ↔ negative antithesis aspect)
+      * T- ↔ A+ (negative thesis aspect ↔ positive antithesis aspect)
     - Includes synthesis Rs (PP-level, aggregated if multiple)
     - Includes unit-level rationale Rs (with rating)
     - Aggregates all via GM
@@ -60,7 +60,7 @@ class PerspectiveCalculator(BaseCalculator):
         Calculate R for Perspective using power mean for pairs.
 
         Uses power mean (p=4) for dialectically symmetric pairs,
-        which allows dominance of the stronger angle while balancing opposites.
+        which allows dominance of the stronger aspect while balancing opposites.
 
         Args:
             pp: Perspective to calculate R for

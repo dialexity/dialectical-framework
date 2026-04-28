@@ -3,7 +3,7 @@ PerspectiveValidation: Validates a Perspective's tetrad structure.
 
 Runs two validation checks:
 1. Control Statements Check - Tests logical coherence via control statements (LLM)
-2. Empirical Inequalities - Checks angle complementarities for synthesis viability
+2. Empirical Inequalities - Checks aspect complementarities for synthesis viability
 
 A Perspective passes validation if:
 - Both control statement scores >= 0.7 (conceptually coherent)
@@ -11,8 +11,8 @@ A Perspective passes validation if:
 
 Empirical Inequalities:
     1. diff_t ≈ diff_a ≥ 0.1 (balanced differentials, tolerance=0.15)
-    2. KS(T+) > 0.4 and KS(A+) > 0.4 (positive angles above threshold)
-    3. KS(T-) < 0.6 and KS(A-) < 0.6 (negative angles below threshold)
+    2. KS(T+) > 0.4 and KS(A+) > 0.4 (positive aspects above threshold)
+    3. KS(T-) < 0.6 and KS(A-) < 0.6 (negative aspects below threshold)
 
     Where:
     - diff_t = KS(T+) - KS(T-) — quality gap on T-side
@@ -40,7 +40,7 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.features.control_statements_check import (
     ControlStatementsCheck, ControlStatementsCheckResult)
 from dialectical_framework.graph.relationships.polarity_relationship import \
-    AngleRelationship
+    AspectRelationship
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
@@ -54,11 +54,11 @@ DIFFERENTIAL_MINIMUM = 0.1
 # Maximum difference between diff_t and diff_a for balanced tetrad
 DIFFERENTIAL_BALANCE_TOLERANCE = 0.15
 
-# Positive angles (T+, A+) must have KS above this threshold
-POSITIVE_ANGLE_KS_MINIMUM = 0.4
+# Positive aspects (T+, A+) must have KS above this threshold
+POSITIVE_ASPECT_KS_MINIMUM = 0.4
 
-# Negative angles (T-, A-) must have KS below this threshold
-NEGATIVE_ANGLE_KS_MAXIMUM = 0.6
+# Negative aspects (T-, A-) must have KS below this threshold
+NEGATIVE_ASPECT_KS_MAXIMUM = 0.6
 
 
 # --- Result ---
@@ -113,11 +113,11 @@ class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
 
     Runs two validation checks:
     1. Control Statements Check - Uses LLM to evaluate control statements
-    2. Empirical Inequalities - Checks angle complementarities for synthesis viability
+    2. Empirical Inequalities - Checks aspect complementarities for synthesis viability
 
     Validation passes if:
     - Both control statement scores >= 0.7 (logically coherent)
-    - Empirical inequalities are satisfied (balanced differentials, angle thresholds)
+    - Empirical inequalities are satisfied (balanced differentials, aspect thresholds)
     """
 
     def __init__(self) -> None:
@@ -178,14 +178,14 @@ class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
         self._build_report(result)
         return result
 
-    def _get_angle_ks(self, perspective: Perspective, position: str) -> Optional[float]:
-        """Get complementarity_s (KS) for an angle position."""
+    def _get_aspect_ks(self, perspective: Perspective, position: str) -> Optional[float]:
+        """Get complementarity_s (KS) for an aspect position."""
         manager = perspective.get_relationship_manager_by_position(position)
         result = manager.get()
         if not result:
             return None
         _, rel = result
-        if isinstance(rel, AngleRelationship):
+        if isinstance(rel, AspectRelationship):
             return rel.complementarity_s
         return None
 
@@ -198,8 +198,8 @@ class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
 
         Conditions:
         1. diff_t ≈ diff_a ≥ 0.1 (balanced differentials)
-        2. KS(T+) > 0.4 and KS(A+) > 0.4 (positive angles threshold)
-        3. KS(T-) < 0.6 and KS(A-) < 0.6 (negative angles threshold)
+        2. KS(T+) > 0.4 and KS(A+) > 0.4 (positive aspects threshold)
+        3. KS(T-) < 0.6 and KS(A-) < 0.6 (negative aspects threshold)
         """
         from dialectical_framework.graph.nodes.perspective import (
             POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS,
@@ -207,11 +207,11 @@ class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
 
         failure_reasons: list[str] = []
 
-        # Get KS values for all angles
-        ks_t_plus = self._get_angle_ks(perspective, POSITION_T_PLUS)
-        ks_t_minus = self._get_angle_ks(perspective, POSITION_T_MINUS)
-        ks_a_plus = self._get_angle_ks(perspective, POSITION_A_PLUS)
-        ks_a_minus = self._get_angle_ks(perspective, POSITION_A_MINUS)
+        # Get KS values for all aspects
+        ks_t_plus = self._get_aspect_ks(perspective, POSITION_T_PLUS)
+        ks_t_minus = self._get_aspect_ks(perspective, POSITION_T_MINUS)
+        ks_a_plus = self._get_aspect_ks(perspective, POSITION_A_PLUS)
+        ks_a_minus = self._get_aspect_ks(perspective, POSITION_A_MINUS)
 
         # Calculate differentials (use Perspective properties)
         diff_t = perspective.diff_t
@@ -229,27 +229,27 @@ class PerspectiveValidation(ExecutableCapability[PerspectiveValidationResult]):
 
         is_valid = True
 
-        # Condition 2: Positive angles KS > 0.4
-        if ks_t_plus <= POSITIVE_ANGLE_KS_MINIMUM:
+        # Condition 2: Positive aspects KS > 0.4
+        if ks_t_plus <= POSITIVE_ASPECT_KS_MINIMUM:
             failure_reasons.append(
-                f"Positive angle threshold: KS(T+)={ks_t_plus:.2f} must be > {POSITIVE_ANGLE_KS_MINIMUM}"
+                f"Positive aspect threshold: KS(T+)={ks_t_plus:.2f} must be > {POSITIVE_ASPECT_KS_MINIMUM}"
             )
             is_valid = False
-        if ks_a_plus <= POSITIVE_ANGLE_KS_MINIMUM:
+        if ks_a_plus <= POSITIVE_ASPECT_KS_MINIMUM:
             failure_reasons.append(
-                f"Positive angle threshold: KS(A+)={ks_a_plus:.2f} must be > {POSITIVE_ANGLE_KS_MINIMUM}"
+                f"Positive aspect threshold: KS(A+)={ks_a_plus:.2f} must be > {POSITIVE_ASPECT_KS_MINIMUM}"
             )
             is_valid = False
 
-        # Condition 3: Negative angles KS < 0.6
-        if ks_t_minus >= NEGATIVE_ANGLE_KS_MAXIMUM:
+        # Condition 3: Negative aspects KS < 0.6
+        if ks_t_minus >= NEGATIVE_ASPECT_KS_MAXIMUM:
             failure_reasons.append(
-                f"Negative angle threshold: KS(T-)={ks_t_minus:.2f} must be < {NEGATIVE_ANGLE_KS_MAXIMUM}"
+                f"Negative aspect threshold: KS(T-)={ks_t_minus:.2f} must be < {NEGATIVE_ASPECT_KS_MAXIMUM}"
             )
             is_valid = False
-        if ks_a_minus >= NEGATIVE_ANGLE_KS_MAXIMUM:
+        if ks_a_minus >= NEGATIVE_ASPECT_KS_MAXIMUM:
             failure_reasons.append(
-                f"Negative angle threshold: KS(A-)={ks_a_minus:.2f} must be < {NEGATIVE_ANGLE_KS_MAXIMUM}"
+                f"Negative aspect threshold: KS(A-)={ks_a_minus:.2f} must be < {NEGATIVE_ASPECT_KS_MAXIMUM}"
             )
             is_valid = False
 

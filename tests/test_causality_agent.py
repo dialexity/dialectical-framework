@@ -73,7 +73,7 @@ def create_complete_perspective(index: int = 0) -> Perspective:
     pp.save()
     pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-    # Create and connect angles
+    # Create and connect aspects
     t_plus = DialecticalComponent(
         statement=f"T+ benefit {index}", meaning=f"thesis:positive:{index}"
     )

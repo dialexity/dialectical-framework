@@ -1,7 +1,7 @@
 """
 DiagonalOppositionsCheck: Capability for validating diagonal opposition pairs.
 
-Tests the opposition validity of diagonal angle pairs in a Perspective:
+Tests the opposition validity of diagonal aspect pairs in a Perspective:
 - T+ vs A-: Does T+ oppose A-?
 - A+ vs T-: Does A+ oppose T-?
 
@@ -138,7 +138,7 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
         if not perspective.is_complete():
             raise ValueError("Perspective must be complete (have all 6 positions)")
 
-        # Get statements for context and angles
+        # Get statements for context and aspects
         t_stmt = perspective.get_component(POSITION_T)
         a_stmt = perspective.get_component(POSITION_A)
         t_plus = perspective.get_component(POSITION_T_PLUS)
@@ -149,17 +149,17 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
         # Evaluate both diagonal pairs in parallel
         result_t_plus_a_minus, result_a_plus_t_minus = await asyncio.gather(
             self._evaluate_contradiction(
-                angle_a_statement=t_plus.statement,
-                angle_a_role=f"positive aspect of '{t_stmt.statement}'",
-                angle_b_statement=a_minus.statement,
-                angle_b_role=f"negative aspect of '{a_stmt.statement}'",
+                aspect_a_statement=t_plus.statement,
+                aspect_a_role=f"positive aspect of '{t_stmt.statement}'",
+                aspect_b_statement=a_minus.statement,
+                aspect_b_role=f"negative aspect of '{a_stmt.statement}'",
                 text=text,
             ),
             self._evaluate_contradiction(
-                angle_a_statement=a_plus.statement,
-                angle_a_role=f"positive aspect of '{a_stmt.statement}'",
-                angle_b_statement=t_minus.statement,
-                angle_b_role=f"negative aspect of '{t_stmt.statement}'",
+                aspect_a_statement=a_plus.statement,
+                aspect_a_role=f"positive aspect of '{a_stmt.statement}'",
+                aspect_b_statement=t_minus.statement,
+                aspect_b_role=f"negative aspect of '{t_stmt.statement}'",
                 text=text,
             ),
         )
@@ -218,19 +218,19 @@ class DiagonalOppositionsCheck(ExecutableCapability[DiagonalOppositionsCheckResu
 
     async def _evaluate_contradiction(
         self,
-        angle_a_statement: str,
-        angle_a_role: str,
-        angle_b_statement: str,
-        angle_b_role: str,
+        aspect_a_statement: str,
+        aspect_a_role: str,
+        aspect_b_statement: str,
+        aspect_b_role: str,
         text: str,
     ) -> ContradictionEvaluationDto:
-        """Evaluate if two diagonal angles are mutually exclusive."""
+        """Evaluate if two diagonal aspects are mutually exclusive."""
         context_section = f"<context>\n{text}\n</context>\n\n" if text else ""
 
         prompt = f"""{context_section}Are these two concepts mutually exclusive?
 
-Concept A: "{angle_a_statement}" ({angle_a_role})
-Concept B: "{angle_b_statement}" ({angle_b_role})
+Concept A: "{aspect_a_statement}" ({aspect_a_role})
+Concept B: "{aspect_b_statement}" ({aspect_b_role})
 
 In a well-formed dialectical structure, the positive aspect of one side should
 contradict the negative aspect of the opposite side - they cannot both be

@@ -50,14 +50,14 @@ class ARelationship(PolarityRelationship, type="A"):
     pass
 
 
-# Angle relationships (have complementarity to T and A)
-class AngleRelationship(PolarityRelationship):
+# Aspect relationships (have complementarity to T and A)
+class AspectRelationship(PolarityRelationship):
     """
-    Base for angle relationships with complementarity scores.
+    Base for aspect relationships with complementarity scores.
 
-    Angles (T+, T-, A+, A-) complement the thesis and antithesis:
-    - complementarity_t: K_T - how well this angle complements/supports the thesis (0.0-1.0)
-    - complementarity_a: K_A - how well this angle complements/supports the antithesis (0.0-1.0)
+    Aspects (T+, T-, A+, A-) complement the thesis and antithesis:
+    - complementarity_t: K_T - how well this aspect complements/supports the thesis (0.0-1.0)
+    - complementarity_a: K_A - how well this aspect complements/supports the antithesis (0.0-1.0)
     - complementarity: Average of K_T and K_A (calculated property)
 
     Scale:
@@ -77,23 +77,23 @@ class AngleRelationship(PolarityRelationship):
         return (self.complementarity_t + self.complementarity_a) / 2
 
 
-class TPlusRelationship(AngleRelationship, type="T_PLUS"):
-    """Positive thesis angle relationship."""
+class TPlusRelationship(AspectRelationship, type="T_PLUS"):
+    """Positive thesis aspect relationship."""
     pass
 
 
-class TMinusRelationship(AngleRelationship, type="T_MINUS"):
-    """Negative thesis angle relationship."""
+class TMinusRelationship(AspectRelationship, type="T_MINUS"):
+    """Negative thesis aspect relationship."""
     pass
 
 
-class APlusRelationship(AngleRelationship, type="A_PLUS"):
-    """Positive antithesis angle relationship."""
+class APlusRelationship(AspectRelationship, type="A_PLUS"):
+    """Positive antithesis aspect relationship."""
     pass
 
 
-class AMinusRelationship(AngleRelationship, type="A_MINUS"):
-    """Negative antithesis angle relationship."""
+class AMinusRelationship(AspectRelationship, type="A_MINUS"):
+    """Negative antithesis aspect relationship."""
     pass
 
 
@@ -108,13 +108,13 @@ class SMinusRelationship(PolarityRelationship, type="S_MINUS"):
     pass
 
 
-# Transition angle relationships for Transformation (Action-Reflection structure)
+# Transition aspect relationships for Transformation (Action-Reflection structure)
 # These are about insight and proactiveness, not complementarity
-class TransitionAngleRelationship(PolarityRelationship):
+class TransitionAspectRelationship(PolarityRelationship):
     """
     Base for Ac/Re transition relationships with insight and proactiveness scores.
 
-    Transition angles represent navigation paths through the dialectical tension:
+    Transition aspects represent navigation paths through the dialectical tension:
     - insight: How much understanding/clarity the transition provides (0.0-1.0)
     - proactiveness: How actionable/practical the transition is (0.0-1.0)
 
@@ -139,23 +139,23 @@ class ReRelationship(PolarityRelationship, type="RE"):
     pass
 
 
-# Ac/Re angle positions (have insight/proactiveness)
-class AcPlusRelationship(TransitionAngleRelationship, type="AC_PLUS"):
+# Ac/Re aspect positions (have insight/proactiveness)
+class AcPlusRelationship(TransitionAspectRelationship, type="AC_PLUS"):
     """Positive action relationship: T- → A+ transition."""
     pass
 
 
-class AcMinusRelationship(TransitionAngleRelationship, type="AC_MINUS"):
+class AcMinusRelationship(TransitionAspectRelationship, type="AC_MINUS"):
     """Negative action relationship: T+ → A- transition."""
     pass
 
 
-class RePlusRelationship(TransitionAngleRelationship, type="RE_PLUS"):
+class RePlusRelationship(TransitionAspectRelationship, type="RE_PLUS"):
     """Positive reflection relationship: A- → T+ transition."""
     pass
 
 
-class ReMinusRelationship(TransitionAngleRelationship, type="RE_MINUS"):
+class ReMinusRelationship(TransitionAspectRelationship, type="RE_MINUS"):
     """Negative reflection relationship: A+ → T- transition."""
     pass
 
@@ -166,6 +166,6 @@ class HasPolarityRelationship(IdentityRelationship, type="HAS_POLARITY"):
     Links Perspective to its Polarity (T-A pair).
 
     The Polarity contains the thesis (T) and antithesis (A) reference points.
-    Perspective references Polarity and adds the 4 angles (T+, T-, A+, A-).
+    Perspective references Polarity and adds the 4 aspects (T+, T-, A+, A-).
     """
     pass

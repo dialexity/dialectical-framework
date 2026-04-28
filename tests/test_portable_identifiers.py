@@ -31,7 +31,7 @@ from dialectical_framework.graph.repositories.dialectical_component_repository i
 def _create_complete_pp(
     t, a, t_plus, t_minus, a_plus, a_minus, intent=None
 ) -> Perspective:
-    """Helper: create a complete Perspective with Polarity and all angles."""
+    """Helper: create a complete Perspective with Polarity and all aspects."""
     polarity = Polarity(intent=intent)
     polarity.set_t(t, heuristic_similarity=1.0)
     polarity.set_a(a, heuristic_similarity=0.8)
@@ -362,7 +362,7 @@ class TestCloneOperation:
 
         # Clone and reconnect components (clone doesn't copy relationships)
         cloned_pp = original_pp.clone(destination_sid=case_node2.sid)
-        # Reconnect Polarity and angles for the clone
+        # Reconnect Polarity and aspects for the clone
         polarity = Polarity()
         polarity.set_t(t, heuristic_similarity=1.0)
         polarity.set_a(a, heuristic_similarity=0.8)
@@ -548,7 +548,7 @@ class TestLineageTracking:
         # Before commit, origin_hash should be set
         assert clone.origin_hash == original_pp.hash
 
-        # After commit, origin_hash should still be set - reconnect Polarity and angles
+        # After commit, origin_hash should still be set - reconnect Polarity and aspects
         polarity = Polarity(intent="fork")
         polarity.set_t(t, heuristic_similarity=1.0)
         polarity.set_a(a, heuristic_similarity=0.8)

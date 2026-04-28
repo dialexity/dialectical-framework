@@ -556,7 +556,7 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
   * **Transformation R** (internal spiral transitions, ac_re Perspective R, and Synthesis S+ ↔ S-),
   * **rated unit-level rationales**,
 
-*Note: Perspective R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing angles while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on an angle collapses that axis R to 0.0.*
+*Note: Perspective R calculation treats thesis-antithesis pairs as dialectical axes, using symmetrized aggregation with power mean (p≈4). Power mean balances opposing aspects while allowing dominance of stronger arguments. Any explicit hard veto (zero values) on an aspect collapses that axis R to 0.0.*
 
 **Nexus** *(pool of Perspectives)*
 

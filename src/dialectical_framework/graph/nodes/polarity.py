@@ -55,7 +55,7 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
         3. polarity.set_a(antithesis, heuristic_similarity=0.75)
         4. polarity.commit()  # Saves, connects, computes hash atomically
 
-    After commit(), the Polarity can be used to create Perspectives by adding angles.
+    After commit(), the Polarity can be used to create Perspectives by adding aspects.
 
     Hierarchy:
         DialecticalComponent(T) + DialecticalComponent(A) → Polarity → Perspective

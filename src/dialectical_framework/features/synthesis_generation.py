@@ -67,7 +67,7 @@ if TYPE_CHECKING:
 
 SYSTEM_PROMPT = """You are a dialectical synthesis expert.
 
-Given a complete Perspective with thesis (T), antithesis (A), and their angles (T+, T-, A+, A-),
+Given a complete Perspective with thesis (T), antithesis (A), and their aspects (T+, T-, A+, A-),
 generate the synthesis pair:
 
 ## S+ (Positive Synthesis)

@@ -1,13 +1,13 @@
 """
 ExpandPolarities: Orchestrator for creating Perspectives from Polarities.
 
-Takes a T-A Polarity and creates Perspectives by adding angles (T+, T-, A+, A-).
+Takes a T-A Polarity and creates Perspectives by adding aspects (T+, T-, A+, A-).
 If no Polarity exists for the T-A pair, creates one using AntithesisClassification.
 
 Flow:
     FindPolarities → Polarity nodes (T-A pairs with HS)
            ↓
-    ExpandPolarities → Perspectives (Polarity + angles T+, T-, A+, A-)
+    ExpandPolarities → Perspectives (Polarity + aspects T+, T-, A+, A-)
 
 Usage:
     # From FindPolarities output
@@ -37,8 +37,8 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.features.antithesis_classification import \
     AntithesisClassification
-from dialectical_framework.features.angle_generation import (AngleGeneration,
-                                                             AngleResult)
+from dialectical_framework.features.aspect_generation import (AspectGeneration,
+                                                              AspectResult)
 from dialectical_framework.features.statement_deduplication import \
     StatementDeduplication
 from dialectical_framework.graph.nodes.dialectical_component import \
@@ -73,14 +73,14 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
     """
     Orchestrate Perspective creation for a single T-A tension.
 
-    Creates Perspectives from a Polarity by generating and connecting angles
+    Creates Perspectives from a Polarity by generating and connecting aspects
     (T+, T-, A+, A-). If no Polarity exists for the T-A pair, creates one first.
 
     Flow:
     1. Look up or create Polarity for this T-A pair
     2. Look up existing Perspectives for this Polarity
     3. If none exist, create a new Perspective
-    4. Complete all partial PPs by generating angles
+    4. Complete all partial PPs by generating aspects
     5. Return list of completed Perspectives
 
     Dual interface:
@@ -92,7 +92,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
     antithesis_hash: str = Field(description="Hash of the antithesis component")
     positions: Optional[list[str]] = Field(
         default=None,
-        description="Which angles to generate (T+, T-, A+, A-). If None, generates all 4.",
+        description="Which aspects to generate (T+, T-, A+, A-). If None, generates all 4.",
     )
 
     _report: ExecutionReport = PrivateAttr()
@@ -132,7 +132,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
             self._report.summary = f"Antithesis '{self.antithesis_hash}' not found"
             return []
 
-        # Get input text for context (needed for classification and angle generation)
+        # Get input text for context (needed for classification and aspect generation)
         input_text = await self._get_input_text()
 
         # Step 1: Look up or create Polarity for this T-A pair
@@ -171,8 +171,8 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
             # Use complete PPs + already completed in this run as not_like_these
             not_like_these = complete_pps + completed_pps
 
-            generator = AngleGeneration()
-            angles = await generator.execute(
+            generator = AspectGeneration()
+            aspects = await generator.execute(
                 perspective=pp,
                 positions=self.positions,
                 text=input_text,
@@ -180,12 +180,12 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
             )
             self._report = self._report.merge(generator.report)
 
-            # Deduplicate angles against vocabulary (within same branch)
-            angles = await self._deduplicate_angles(angles, input_text)
+            # Deduplicate aspects against vocabulary (within same branch)
+            aspects = await self._deduplicate_aspects(aspects, input_text)
 
-            # Connect angles to Perspective
-            for angle in angles:
-                self._connect_angle(pp, angle)
+            # Connect aspects to Perspective
+            for aspect in aspects:
+                self._connect_aspect(pp, aspect)
 
             # Check if PP (after deduplication) is identical to an existing complete PP
             duplicate_of = self._find_duplicate(pp, complete_pps + completed_pps)
@@ -200,7 +200,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
                 )
                 continue
 
-            # Only commit complete PPs (Polarity + 4 angles)
+            # Only commit complete PPs (Polarity + 4 aspects)
             # If specific positions were requested, PP may remain incomplete
             if not pp.is_complete():
                 self._report.artifacts.setdefault("incomplete_pps", []).append(
@@ -282,7 +282,7 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
             polarity: The Polarity (T-A pair) for this Perspective
 
         Returns:
-            A partial Perspective (Polarity connected, no angles yet)
+            A partial Perspective (Polarity connected, no aspects yet)
         """
         pp = Perspective()
         pp.save()
@@ -293,8 +293,8 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
         self._report.node_created(pp)
         return pp
 
-    def _connect_angle(self, pp: Perspective, angle: AngleResult) -> None:
-        """Connect a generated angle to the Perspective."""
+    def _connect_aspect(self, pp: Perspective, aspect: AspectResult) -> None:
+        """Connect a generated aspect to the Perspective."""
         relationship_classes = {
             POSITION_T_PLUS: TPlusRelationship,
             POSITION_T_MINUS: TMinusRelationship,
@@ -302,53 +302,53 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
             POSITION_A_MINUS: AMinusRelationship,
         }
 
-        rel_class = relationship_classes[angle.position]
-        manager = pp.get_relationship_manager_by_position(angle.position)
+        rel_class = relationship_classes[aspect.position]
+        manager = pp.get_relationship_manager_by_position(aspect.position)
 
         manager.connect(
-            angle.component,
+            aspect.component,
             relationship=rel_class(
-                alias=angle.position,
-                heuristic_similarity=angle.heuristic_similarity,
-                complementarity_t=angle.complementarity_t,
-                complementarity_a=angle.complementarity_a,
+                alias=aspect.position,
+                heuristic_similarity=aspect.heuristic_similarity,
+                complementarity_t=aspect.complementarity_t,
+                complementarity_a=aspect.complementarity_a,
             ),
         )
 
         self._report.relationship_created(
             manager,
             pp,
-            angle.component,
+            aspect.component,
             meta={
-                "position": angle.position,
-                "hs": angle.heuristic_similarity,
-                "k_t": angle.complementarity_t,
-                "k_a": angle.complementarity_a,
+                "position": aspect.position,
+                "hs": aspect.heuristic_similarity,
+                "k_t": aspect.complementarity_t,
+                "k_a": aspect.complementarity_a,
             },
         )
 
-    async def _deduplicate_angles(
-        self, angles: list[AngleResult], text: str
-    ) -> list[AngleResult]:
+    async def _deduplicate_aspects(
+        self, aspects: list[AspectResult], text: str
+    ) -> list[AspectResult]:
         """
-        Deduplicate generated angles against vocabulary (within same branch).
+        Deduplicate generated aspects against vocabulary (within same branch).
 
-        If a generated angle matches an existing component in the same taxonomy branch,
+        If a generated aspect matches an existing component in the same taxonomy branch,
         replace the generated component with the existing one.
         """
-        if not angles:
-            return angles
+        if not aspects:
+            return aspects
 
         # Get vocabulary
         repo = DialecticalComponentRepository()
         vocab = repo.get_vocabulary_with_rationales()
         if not vocab:
-            return angles
+            return aspects
 
         # Collect generated hashes
-        generated_hashes = [a.component.hash for a in angles if a.component.hash]
+        generated_hashes = [a.component.hash for a in aspects if a.component.hash]
         if not generated_hashes:
-            return angles
+            return aspects
 
         # Run deduplication (branch filtering happens inside StatementDeduplication)
         deduplicator = StatementDeduplication()
@@ -359,37 +359,37 @@ class ExpandPolarities(BaseTool, ExecutableCapability[list[Perspective]]):
         )
         self._report = self._report.merge(deduplicator.report)
 
-        # If no replacements, return original angles
+        # If no replacements, return original aspects
         if not dedup_result.replacements:
-            return angles
+            return aspects
 
-        # Update angles with replaced components
-        updated_angles: list[AngleResult] = []
-        for angle in angles:
-            if angle.component.hash in dedup_result.replacements:
+        # Update aspects with replaced components
+        updated_aspects: list[AspectResult] = []
+        for aspect in aspects:
+            if aspect.component.hash in dedup_result.replacements:
                 # Replace with existing component (keeps original meaning)
-                replacement = dedup_result.replacements[angle.component.hash]
-                updated_angles.append(
-                    AngleResult(
+                replacement = dedup_result.replacements[aspect.component.hash]
+                updated_aspects.append(
+                    AspectResult(
                         component=replacement,
-                        position=angle.position,
-                        apex_concept=angle.apex_concept,
-                        heuristic_similarity=angle.heuristic_similarity,
-                        complementarity_t=angle.complementarity_t,
-                        complementarity_a=angle.complementarity_a,
+                        position=aspect.position,
+                        apex_concept=aspect.apex_concept,
+                        heuristic_similarity=aspect.heuristic_similarity,
+                        complementarity_t=aspect.complementarity_t,
+                        complementarity_a=aspect.complementarity_a,
                     )
                 )
-                self._report.artifacts.setdefault("deduped_angles", []).append(
+                self._report.artifacts.setdefault("deduped_aspects", []).append(
                     {
-                        "position": angle.position,
-                        "original": angle.component.short_hash,
+                        "position": aspect.position,
+                        "original": aspect.component.short_hash,
                         "replaced_with": replacement.short_hash,
                     }
                 )
             else:
-                updated_angles.append(angle)
+                updated_aspects.append(aspect)
 
-        return updated_angles
+        return updated_aspects
 
     def _find_duplicate(
         self, pp: Perspective, existing_pps: list[Perspective]

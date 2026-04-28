@@ -1,19 +1,19 @@
 """
-AngleGeneration: Capability for generating tetrad angles (T+, T-, A+, A-).
+AspectGeneration: Capability for generating tetrad aspects (T+, T-, A+, A-).
 
-Generates angles with:
+Generates aspects with:
 - Heuristic similarity (HS) to taxonomy apex
 - Complementarity values (K_T, K_A)
 
-Supports generating 1, 2, 3, or 4 angles. Contradiction pairs (T+/A-, A+/T-)
+Supports generating 1, 2, 3, or 4 aspects. Contradiction pairs (T+/A-, A+/T-)
 should be generated together to ensure semantic coherence.
 
 Takes a Perspective (saved but not committed) with T and A already connected.
-User-provided angles should be connected to the PP before calling execute().
-Returns generated angles - caller is responsible for connecting them to PP.
+User-provided aspects should be connected to the PP before calling execute().
+Returns generated aspects - caller is responsible for connecting them to PP.
 
 Usage:
-    service = AngleGeneration()
+    service = AspectGeneration()
 
     # Create PP with T and A
     pp = Perspective()
@@ -90,13 +90,13 @@ POSITION_TO_PARENT = {
 
 # --- System Prompt ---
 
-SYSTEM_PROMPT = """You are a dialectical angle generator.
+SYSTEM_PROMPT = """You are a dialectical aspect generator.
 
-Your task is to generate angles (T+, T-, A+, A-) for a thesis-antithesis pair.
+Your task is to generate aspects (T+, T-, A+, A-) for a thesis-antithesis pair.
 
-## Angle Definitions
+## Aspect Definitions
 
-| Angle | Description |
+| Aspect | Description |
 |------|-------------|
 | T+ | Constructive/positive development of T - T developed well, balanced |
 | T- | Overdeveloped/exaggerated form of T - T taken too far, imbalanced |
@@ -124,16 +124,16 @@ T = Courage, A = Fear:
 - A+ = Prudence
 - A- = Paranoia
 
-Generate angle statements that fit the semantic structure."""
+Generate aspect statements that fit the semantic structure."""
 
 
 # --- DTOs ---
 
 
-class AngleDto(BaseModel):
-    """Generated angle with scoring."""
+class AspectDto(BaseModel):
+    """Generated aspect with scoring."""
 
-    statement: str = Field(description="Angle statement")
+    statement: str = Field(description="Aspect statement")
     heuristic_similarity: float = Field(
         ge=0.0, le=1.0, description="Heuristic Similarity to taxonomy apex (0.0-1.0)"
     )
@@ -147,31 +147,31 @@ class AngleDto(BaseModel):
         le=1.0,
         description="K_A: How well this complements, balances, or contributes positively to the antithesis (0.0-1.0)",
     )
-    explanation: str = Field(description="Brief reasoning for the angle and scores")
+    explanation: str = Field(description="Brief reasoning for the aspect and scores")
 
 
 class ContradictionPairDto(BaseModel):
-    """Two angles that form a contradiction pair."""
+    """Two aspects that form a contradiction pair."""
 
-    positive_angle: AngleDto = Field(description="The positive angle (T+ or A+)")
-    negative_angle: AngleDto = Field(description="The negative angle (A- or T-)")
+    positive_aspect: AspectDto = Field(description="The positive aspect (T+ or A+)")
+    negative_aspect: AspectDto = Field(description="The negative aspect (A- or T-)")
 
 
 class TetradDto(BaseModel):
-    """Full tetrad of four angles."""
+    """Full tetrad of four aspects."""
 
-    t_plus: AngleDto = Field(description="T+ - constructive thesis")
-    t_minus: AngleDto = Field(description="T- - exaggerated thesis")
-    a_plus: AngleDto = Field(description="A+ - constructive antithesis")
-    a_minus: AngleDto = Field(description="A- - exaggerated antithesis")
+    t_plus: AspectDto = Field(description="T+ - constructive thesis")
+    t_minus: AspectDto = Field(description="T- - exaggerated thesis")
+    a_plus: AspectDto = Field(description="A+ - constructive antithesis")
+    a_minus: AspectDto = Field(description="A- - exaggerated antithesis")
 
 
 # --- Result ---
 
 
 @dataclass
-class AngleResult:
-    """Result of angle generation."""
+class AspectResult:
+    """Result of aspect generation."""
 
     component: DialecticalComponent
     position: str
@@ -184,11 +184,11 @@ class AngleResult:
 # --- Capability ---
 
 
-class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
+class AspectGeneration(ExecutableCapability[list[AspectResult]], SettingsAware):
     """
-    Capability for generating tetrad angles (T+, T-, A+, A-).
+    Capability for generating tetrad aspects (T+, T-, A+, A-).
 
-    Generates angles with HS calculated against taxonomy apex and K values.
+    Generates aspects with HS calculated against taxonomy apex and K values.
     Contradiction pairs are generated together to ensure coherence.
     """
 
@@ -201,22 +201,22 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         positions: Optional[list[str]] = None,
         text: str = "",
         not_like_these: Optional[list[Perspective]] = None,
-    ) -> list[AngleResult]:
+    ) -> list[AspectResult]:
         """
-        Generate angles for a Perspective.
+        Generate aspects for a Perspective.
 
-        The Perspective must have T and A already connected. Any angles already
+        The Perspective must have T and A already connected. Any aspects already
         connected to the PP (user-provided) will be used as context for generating
-        the remaining angles.
+        the remaining aspects.
 
         Args:
             perspective: Perspective with T and A connected (saved but not committed)
-            positions: Which angles to generate (POSITION_T_PLUS, etc.). If None or empty, generates all 4.
+            positions: Which aspects to generate (POSITION_T_PLUS, etc.). If None or empty, generates all 4.
             text: Optional source text for context
             not_like_these: Perspectives with tetrads to avoid (must share T or A with perspective)
 
         Returns:
-            List of AngleResult with components and scoring.
+            List of AspectResult with components and scoring.
             Caller is responsible for connecting these to the PP.
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
@@ -238,7 +238,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         # Filter and validate not_like_these Perspectives
         self._not_like_these = self._filter_relevant_pps(not_like_these or [])
 
-        # Default to all 4 angles if positions not specified
+        # Default to all 4 aspects if positions not specified
         all_positions = [
             POSITION_T_PLUS,
             POSITION_T_MINUS,
@@ -248,7 +248,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         positions = positions if positions else all_positions
 
         # Check which positions already have components
-        self._existing_angles: dict[str, DialecticalComponent] = {}
+        self._existing_aspects: dict[str, DialecticalComponent] = {}
         for pos in [
             POSITION_T_PLUS,
             POSITION_T_MINUS,
@@ -258,7 +258,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
             manager = perspective.get_relationship_manager_by_position(pos)
             result = manager.get()
             if result:
-                self._existing_angles[pos] = result[0]
+                self._existing_aspects[pos] = result[0]
 
         # Determine which positions to generate
         # If PP is complete, it's a template - generate all requested positions
@@ -268,7 +268,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
             positions_to_generate = positions
         else:
             positions_to_generate = [
-                p for p in positions if p not in self._existing_angles
+                p for p in positions if p not in self._existing_aspects
             ]
 
         # Validate positions
@@ -288,7 +288,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         # Determine generation strategy based on positions
-        results: list[AngleResult] = []
+        results: list[AspectResult] = []
 
         if len(positions_to_generate) == 4:
             # Full tetrad - generate all together
@@ -297,9 +297,9 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
             # Contradiction pair - generate together
             results = await self._generate_contradiction_pair(positions_to_generate)
         else:
-            # Individual angles or non-pair combination
+            # Individual aspects or non-pair combination
             for pos in positions_to_generate:
-                result = await self._generate_single_angle(pos)
+                result = await self._generate_single_aspect(pos)
                 results.append(result)
 
         # Build report
@@ -308,10 +308,10 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
             r.position: r.component.hash for r in results
         }
         self._report.summary = (
-            f"Generated {len(results)} angle(s): "
+            f"Generated {len(results)} aspect(s): "
             + ", ".join(f"{r.position}={r.component.short_hash}" for r in results)
             if results
-            else "No angles generated"
+            else "No aspects generated"
         )
 
         return results
@@ -326,9 +326,9 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
                 return True
         return False
 
-    async def _generate_tetrad(self, positions: list[str]) -> list[AngleResult]:
-        """Generate full tetrad (all 4 angles together)."""
-        existing_context = self._build_existing_angles_context(positions)
+    async def _generate_tetrad(self, positions: list[str]) -> list[AspectResult]:
+        """Generate full tetrad (all 4 aspects together)."""
+        existing_context = self._build_existing_aspects_context(positions)
 
         result = await self._conversation.submit(
             response_model=TetradDto,
@@ -345,14 +345,14 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
 
         for pos in positions:
             dto = position_to_dto[pos]
-            angle_result = self._create_angle_result(pos, dto.statement, dto)
-            results.append(angle_result)
+            aspect_result = self._create_aspect_result(pos, dto.statement, dto)
+            results.append(aspect_result)
 
         return results
 
     async def _generate_contradiction_pair(
         self, positions: list[str]
-    ) -> list[AngleResult]:
+    ) -> list[AspectResult]:
         """Generate a contradiction pair (T+/A- or A+/T-)."""
         # Determine which pair
         pos_set = set(positions)
@@ -361,7 +361,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         else:
             positive_pos, negative_pos = POSITION_A_PLUS, POSITION_T_MINUS
 
-        existing_context = self._build_existing_angles_context(positions)
+        existing_context = self._build_existing_aspects_context(positions)
 
         result = await self._conversation.submit(
             response_model=ContradictionPairDto,
@@ -372,36 +372,36 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
 
         results = []
         results.append(
-            self._create_angle_result(
-                positive_pos, result.positive_angle.statement, result.positive_angle
+            self._create_aspect_result(
+                positive_pos, result.positive_aspect.statement, result.positive_aspect
             )
         )
         results.append(
-            self._create_angle_result(
-                negative_pos, result.negative_angle.statement, result.negative_angle
+            self._create_aspect_result(
+                negative_pos, result.negative_aspect.statement, result.negative_aspect
             )
         )
 
         return results
 
-    async def _generate_single_angle(self, position: str) -> AngleResult:
-        """Generate a single angle."""
-        existing_context = self._build_existing_angles_context([position])
+    async def _generate_single_aspect(self, position: str) -> AspectResult:
+        """Generate a single aspect."""
+        existing_context = self._build_existing_aspects_context([position])
 
         result = await self._conversation.submit(
-            response_model=AngleDto,
-            user_content=self._single_angle_prompt(position, existing_context),
+            response_model=AspectDto,
+            user_content=self._single_aspect_prompt(position, existing_context),
         )
 
-        return self._create_angle_result(position, result.statement, result)
+        return self._create_aspect_result(position, result.statement, result)
 
-    def _create_angle_result(
+    def _create_aspect_result(
         self,
         position: str,
         statement: str,
-        dto: AngleDto,
-    ) -> AngleResult:
-        """Create AngleResult with DialecticalComponent."""
+        dto: AspectDto,
+    ) -> AspectResult:
+        """Create AspectResult from position, statement and DTO."""
         # Get parent for meaning lookup
         parent = (
             self._thesis
@@ -410,8 +410,8 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         )
 
         # Get meaning and apex from taxonomy
-        meaning = StatementClassification.lookup_angle_meaning(parent, position)
-        apex = StatementClassification.lookup_angle_apex(parent, position)
+        meaning = StatementClassification.lookup_aspect_meaning(parent, position)
+        apex = StatementClassification.lookup_aspect_apex(parent, position)
 
         # Create component
         component = DialecticalComponent(
@@ -421,7 +421,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         component.commit()
         self._report.node_created(component, meta={"position": position})
 
-        return AngleResult(
+        return AspectResult(
             component=component,
             position=position,
             apex_concept=apex,
@@ -447,29 +447,29 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
 
         return relevant
 
-    def _build_existing_angles_context(self, positions_to_generate: list[str]) -> str:
-        """Build context string for existing angles NOT being regenerated."""
-        # Only show angles that exist AND are not being regenerated
-        relevant_angles = {
+    def _build_existing_aspects_context(self, positions_to_generate: list[str]) -> str:
+        """Build context string for existing aspects NOT being regenerated."""
+        # Only show aspects that exist AND are not being regenerated
+        relevant_aspects = {
             pos: comp
-            for pos, comp in self._existing_angles.items()
+            for pos, comp in self._existing_aspects.items()
             if pos not in positions_to_generate
         }
 
-        if not relevant_angles:
+        if not relevant_aspects:
             return ""
 
-        lines = ["The following angle(s) are already defined:"]
-        for pos, component in relevant_angles.items():
+        lines = ["The following aspect(s) are already defined:"]
+        for pos, component in relevant_aspects.items():
             lines.append(f'- {pos} = "{component.statement}"')
-        lines.append("Generate the remaining angles to be coherent with these.")
+        lines.append("Generate the remaining aspects to be coherent with these.")
         return "\n".join(lines)
 
     def _build_avoid_context(self) -> str:
         """Build context string for tetrads to avoid.
 
         Handles T-A symmetry: if an existing PP has T and A swapped relative to
-        the current PP, the angle positions are remapped when displaying.
+        the current PP, the aspect positions are remapped when displaying.
         """
         if not self._not_like_these:
             return ""
@@ -501,7 +501,7 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
                     lines.append(f'  - {display_pos}: "{result[0].statement}"')
         lines.append("")
         lines.append(
-            "Generate semantically distinct angles while maintaining contradiction relationships."
+            "Generate semantically distinct aspects while maintaining contradiction relationships."
         )
         return "\n".join(lines)
 
@@ -519,16 +519,16 @@ class AngleGeneration(ExecutableCapability[list[AngleResult]], SettingsAware):
         """Build prompt for full tetrad generation."""
         max_words = self.settings.component_length
 
-        t_plus_apex = StatementClassification.lookup_angle_apex(
+        t_plus_apex = StatementClassification.lookup_aspect_apex(
             self._thesis, POSITION_T_PLUS
         )
-        t_minus_apex = StatementClassification.lookup_angle_apex(
+        t_minus_apex = StatementClassification.lookup_aspect_apex(
             self._thesis, POSITION_T_MINUS
         )
-        a_plus_apex = StatementClassification.lookup_angle_apex(
+        a_plus_apex = StatementClassification.lookup_aspect_apex(
             self._antithesis, POSITION_A_PLUS
         )
-        a_minus_apex = StatementClassification.lookup_angle_apex(
+        a_minus_apex = StatementClassification.lookup_aspect_apex(
             self._antithesis, POSITION_A_MINUS
         )
 
@@ -548,10 +548,10 @@ Taxonomy apex concepts for reference:
 - A+ apex: {a_plus_apex}
 - A- apex: {a_minus_apex}
 {existing_section}{avoid_section}
-Generate each angle (1-{max_words} words) with:
+Generate each aspect (1-{max_words} words) with:
 
 ## HS (Heuristic Similarity) Scale
-HS measures how well the angle captures the essence of its taxonomy apex concept:
+HS measures how well the aspect captures the essence of its taxonomy apex concept:
 - 0.0-0.3: Unrelated or tangentially related to the apex
 - 0.3-0.5: Somewhat related but different focus or aspect
 - 0.5-0.7: Related, captures some key aspects of the apex
@@ -559,8 +559,8 @@ HS measures how well the angle captures the essence of its taxonomy apex concept
 - 0.9-1.0: Equivalent or near-equivalent to the apex concept
 
 ## Complementarity (K) Scores
-- K_T: How well this angle complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this angle complements, balances, or contributes positively to the antithesis (0.0-1.0)
+- K_T: How well this aspect complements, balances, or contributes positively to the thesis (0.0-1.0)
+- K_A: How well this aspect complements, balances, or contributes positively to the antithesis (0.0-1.0)
 
 Ensure T+ contradicts A-, and A+ contradicts T-."""
 
@@ -585,8 +585,8 @@ Ensure T+ contradicts A-, and A+ contradicts T-."""
             else self._antithesis
         )
 
-        pos_apex = StatementClassification.lookup_angle_apex(pos_parent, positive_pos)
-        neg_apex = StatementClassification.lookup_angle_apex(neg_parent, negative_pos)
+        pos_apex = StatementClassification.lookup_aspect_apex(pos_parent, positive_pos)
+        neg_apex = StatementClassification.lookup_aspect_apex(neg_parent, negative_pos)
 
         text_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
         existing_section = f"\n{existing_context}\n" if existing_context else ""
@@ -604,10 +604,10 @@ Taxonomy apex concepts for reference:
 - {positive_pos} apex: {pos_apex}
 - {negative_pos} apex: {neg_apex}
 {existing_section}{avoid_section}
-Generate each angle (1-{max_words} words) with:
+Generate each aspect (1-{max_words} words) with:
 
 ## HS (Heuristic Similarity) Scale
-HS measures how well the angle captures the essence of its taxonomy apex concept:
+HS measures how well the aspect captures the essence of its taxonomy apex concept:
 - 0.0-0.3: Unrelated or tangentially related to the apex
 - 0.3-0.5: Somewhat related but different focus or aspect
 - 0.5-0.7: Related, captures some key aspects of the apex
@@ -615,14 +615,14 @@ HS measures how well the angle captures the essence of its taxonomy apex concept
 - 0.9-1.0: Equivalent or near-equivalent to the apex concept
 
 ## Complementarity (K) Scores
-- K_T: How well this angle complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this angle complements, balances, or contributes positively to the antithesis (0.0-1.0)
+- K_T: How well this aspect complements, balances, or contributes positively to the thesis (0.0-1.0)
+- K_A: How well this aspect complements, balances, or contributes positively to the antithesis (0.0-1.0)
 
-The positive_angle is {positive_pos}, the negative_angle is {negative_pos}.
+The positive_aspect is {positive_pos}, the negative_aspect is {negative_pos}.
 They must contradict each other - they cannot both be true/good simultaneously."""
 
-    def _single_angle_prompt(self, position: str, existing_context: str) -> str:
-        """Build prompt for single angle generation."""
+    def _single_aspect_prompt(self, position: str, existing_context: str) -> str:
+        """Build prompt for single aspect generation."""
         max_words = self.settings.component_length
 
         parent = (
@@ -630,7 +630,7 @@ They must contradict each other - they cannot both be true/good simultaneously."
             if position in [POSITION_T_PLUS, POSITION_T_MINUS]
             else self._antithesis
         )
-        apex = StatementClassification.lookup_angle_apex(parent, position)
+        apex = StatementClassification.lookup_aspect_apex(parent, position)
 
         # Get description based on position
         if position == POSITION_T_PLUS:
@@ -655,10 +655,10 @@ Antithesis (A): "{self._antithesis.statement}"
 {position} is the {desc}.
 Taxonomy apex concept: {apex}
 {existing_section}{avoid_section}
-Generate the angle (1-{max_words} words) with:
+Generate the aspect (1-{max_words} words) with:
 
 ## HS (Heuristic Similarity) Scale
-HS measures how well the angle captures the essence of its taxonomy apex concept:
+HS measures how well the aspect captures the essence of its taxonomy apex concept:
 - 0.0-0.3: Unrelated or tangentially related to the apex
 - 0.3-0.5: Somewhat related but different focus or aspect
 - 0.5-0.7: Related, captures some key aspects of the apex
@@ -666,5 +666,5 @@ HS measures how well the angle captures the essence of its taxonomy apex concept
 - 0.9-1.0: Equivalent or near-equivalent to the apex concept
 
 ## Complementarity (K) Scores
-- K_T: How well this angle complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this angle complements, balances, or contributes positively to the antithesis (0.0-1.0)"""
+- K_T: How well this aspect complements, balances, or contributes positively to the thesis (0.0-1.0)
+- K_A: How well this aspect complements, balances, or contributes positively to the antithesis (0.0-1.0)"""

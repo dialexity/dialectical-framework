@@ -1,5 +1,5 @@
 """
-Tests for classification capabilities: AngleClassification and IdeaPlacement.
+Tests for classification capabilities: AspectClassification and IdeaPlacement.
 """
 
 from __future__ import annotations
@@ -9,21 +9,21 @@ from langfuse.decorators import observe
 
 from dialectical_framework.features.idea_placement import (IdeaPlacement,
                                                            TensionInfo)
-from dialectical_framework.features.angle_classification import \
-    AngleClassification
+from dialectical_framework.features.aspect_classification import \
+    AspectClassification
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.dialectical_component import \
     DialecticalComponent
 from dialectical_framework.graph.scope_context import scope
 
 
-class TestAngleClassification:
-    """Tests for AngleClassification capability."""
+class TestAspectClassification:
+    """Tests for AspectClassification capability."""
 
     @pytest.mark.asyncio
     @observe()
-    async def test_angle_classification_valid_t_plus(self):
-        """AngleClassification validates a valid T+ angle."""
+    async def test_aspect_classification_valid_t_plus(self):
+        """AspectClassification validates a valid T+ aspect."""
         case_node = Case()
         case_node.commit()
 
@@ -40,11 +40,11 @@ class TestAngleClassification:
             )
             antithesis.commit()
 
-            classifier = AngleClassification()
+            classifier = AspectClassification()
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                angle_statement="Deep connection",
+                aspect_statement="Deep connection",
                 position="T+",
             )
 
@@ -55,8 +55,8 @@ class TestAngleClassification:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_angle_classification_valid_a_minus(self):
-        """AngleClassification validates a valid A- angle."""
+    async def test_aspect_classification_valid_a_minus(self):
+        """AspectClassification validates a valid A- aspect."""
         case_node = Case()
         case_node.commit()
 
@@ -73,11 +73,11 @@ class TestAngleClassification:
             )
             antithesis.commit()
 
-            classifier = AngleClassification()
+            classifier = AspectClassification()
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                angle_statement="Paranoia",
+                aspect_statement="Paranoia",
                 position="A-",
             )
 
@@ -88,8 +88,8 @@ class TestAngleClassification:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_angle_classification_wrong_position(self):
-        """AngleClassification detects angle in wrong position."""
+    async def test_aspect_classification_wrong_position(self):
+        """AspectClassification detects aspect in wrong position."""
         case_node = Case()
         case_node.commit()
 
@@ -106,12 +106,12 @@ class TestAngleClassification:
             )
             antithesis.commit()
 
-            classifier = AngleClassification()
+            classifier = AspectClassification()
             # "Freedom" is more A+ (positive of indifference) than T+
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                angle_statement="Personal freedom and autonomy",
+                aspect_statement="Personal freedom and autonomy",
                 position="T+",
             )
 
@@ -123,8 +123,8 @@ class TestAngleClassification:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_angle_classification_with_context(self):
-        """AngleClassification uses context for evaluation."""
+    async def test_aspect_classification_with_context(self):
+        """AspectClassification uses context for evaluation."""
         case_node = Case()
         case_node.commit()
 
@@ -147,11 +147,11 @@ class TestAngleClassification:
             availability during network partitions.
             """
 
-            classifier = AngleClassification()
+            classifier = AspectClassification()
             result = await classifier.execute(
                 thesis=thesis,
                 antithesis=antithesis,
-                angle_statement="Guaranteed correctness",
+                aspect_statement="Guaranteed correctness",
                 position="T+",
                 text=context,
             )
@@ -160,8 +160,8 @@ class TestAngleClassification:
             assert result.heuristic_similarity >= 0.0
 
     @pytest.mark.asyncio
-    async def test_angle_classification_invalid_position(self):
-        """AngleClassification rejects invalid position."""
+    async def test_aspect_classification_invalid_position(self):
+        """AspectClassification rejects invalid position."""
         case_node = Case()
         case_node.commit()
 
@@ -177,12 +177,12 @@ class TestAngleClassification:
             )
             antithesis.commit()
 
-            classifier = AngleClassification()
+            classifier = AspectClassification()
             with pytest.raises(ValueError, match="Invalid position"):
                 await classifier.execute(
                     thesis=thesis,
                     antithesis=antithesis,
-                    angle_statement="Something",
+                    aspect_statement="Something",
                     position="X+",  # Invalid
                 )
 
@@ -261,15 +261,15 @@ class TestIdeaPlacement:
 
             assert placer.report.ok
             # Should detect as duplicate or at least related
-            # (LLM may classify as duplicate, thesis, antithesis, or angle depending on interpretation)
-            assert result.placement in ("duplicate", "thesis", "antithesis", "angle")
+            # (LLM may classify as duplicate, thesis, antithesis, or aspect depending on interpretation)
+            assert result.placement in ("duplicate", "thesis", "antithesis", "aspect")
             # Component should always be present
             assert result.component is not None
 
     @pytest.mark.asyncio
     @observe()
-    async def test_idea_placement_detects_angle(self):
-        """IdeaPlacement detects idea as angle of existing tension."""
+    async def test_idea_placement_detects_aspect(self):
+        """IdeaPlacement detects idea as aspect of existing tension."""
         case_node = Case()
         case_node.commit()
 
@@ -303,9 +303,9 @@ class TestIdeaPlacement:
             assert placer.report.ok
             # Should detect as A+ (positive aspect of indifference)
             # Or could be thesis if LLM interprets differently
-            if result.placement == "angle":
+            if result.placement == "aspect":
                 assert result.position in ("A+", "T-", "T+", "A-")
-                assert result.angle_of is not None
+                assert result.aspect_of is not None
 
     @pytest.mark.asyncio
     @observe()

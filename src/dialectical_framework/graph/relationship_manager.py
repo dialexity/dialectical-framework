@@ -490,7 +490,7 @@ class BoundRelationshipManager(Generic[T]):
 
     def _create_perspective_semantic_relationships(self, target_node: BaseNode) -> None:
         """
-        Auto-create semantic relationships when connecting angles to Perspective.
+        Auto-create semantic relationships when connecting aspects to Perspective.
 
         Creates:
         - CONTRADICTION_OF: T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity pairs)
@@ -498,20 +498,20 @@ class BoundRelationshipManager(Generic[T]):
         - NEGATIVE_SIDE_OF: T- → T, A- → A (via Polarity)
 
         This is called automatically by connect() after successfully connecting
-        a DialecticalComponent to a Perspective angle position (T+, T-, A+, A-).
+        a DialecticalComponent to a Perspective aspect position (T+, T-, A+, A-).
 
         Note: OPPOSITE_OF (T ↔ A) is created when connecting to Polarity, not Perspective.
         """
         from dialectical_framework.graph.nodes.perspective import Perspective
         from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
 
-        # Only for PP -> Component angle connections (not T or A - those are on Polarity)
-        angle_types = {'T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS'}
+        # Only for PP -> Component aspect connections (not T or A - those are on Polarity)
+        aspect_types = {'T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS'}
 
         if not (isinstance(self.source_node, Perspective) and
                 isinstance(target_node, DialecticalComponent) and
-                self.relationship_type in angle_types):
-            return  # Not a PP-angle connection
+                self.relationship_type in aspect_types):
+            return  # Not a PP-aspect connection
 
         pp = self.source_node
         new_comp = target_node

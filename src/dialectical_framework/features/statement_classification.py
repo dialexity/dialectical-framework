@@ -103,7 +103,7 @@ VALID_BRANCHES = [
     "Resilience",
 ]
 VALID_ELEMENTS = ["Fire", "Earth", "Air", "Water"]
-VALID_ANGLE_POSITIONS = [
+VALID_ASPECT_POSITIONS = [
     POSITION_T_PLUS,
     POSITION_T_MINUS,
     POSITION_A_PLUS,
@@ -344,26 +344,26 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
         return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{leaf}"
 
     @staticmethod
-    def lookup_angle_meaning(
+    def lookup_aspect_meaning(
         parent: DialecticalComponent,
         position: str,
     ) -> str:
         """
-        Derive angle meaning from parent component - deterministic, no LLM needed.
+        Derive aspect meaning from parent component - deterministic, no LLM needed.
 
         For T+/T-: parent should be the thesis (T)
         For A+/A-: parent should be the antithesis (A)
 
         Args:
             parent: The parent component (T for T+/T-, A for A+/A-)
-            position: Angle position ("T+", "T-", "A+", "A-")
+            position: Aspect position ("T+", "T-", "A+", "A-")
 
         Returns:
-            Meaning URI for the angle
+            Meaning URI for the aspect
         """
-        if position not in VALID_ANGLE_POSITIONS:
+        if position not in VALID_ASPECT_POSITIONS:
             raise ValueError(
-                f"Invalid position '{position}'. Must be one of: {VALID_ANGLE_POSITIONS}"
+                f"Invalid position '{position}'. Must be one of: {VALID_ASPECT_POSITIONS}"
             )
 
         if parent.is_simple:
@@ -371,7 +371,7 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
 
         parent_meaning = parent.meaning
         if not parent_meaning:
-            # Fallback to apex-level angles
+            # Fallback to apex-level aspects
             leaf = SYSTEMIC_TAXONOMY["Apex"][position]
             return f"dx://taxonomy/System(General.v1)/Viability/Apex/{leaf}"
 
@@ -380,37 +380,37 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
         domain = domain or "General"
         category = category or VIABILITY_CATEGORY
 
-        # Get angle leaf from taxonomy using position directly as key
+        # Get aspect leaf from taxonomy using position directly as key
         if branch and branch in SYSTEMIC_TAXONOMY:
             leaf = SYSTEMIC_TAXONOMY[branch][position]
         else:
-            # Use apex-level angles
+            # Use apex-level aspects
             leaf = SYSTEMIC_TAXONOMY["Apex"][position]
             branch = "Apex"
 
         return f"dx://taxonomy/System({domain}.v1)/{category}/{branch}/{leaf}"
 
     @staticmethod
-    def lookup_angle_apex(
+    def lookup_aspect_apex(
         parent: DialecticalComponent,
         position: str,
     ) -> str:
         """
-        Get the apex concept name for an angle position - for HS calculation.
+        Get the apex concept name for an aspect position - for HS calculation.
 
         This returns the generic apex concept (e.g., "Coherence" for T+ in Integrity branch)
         that serves as the reference for heuristic similarity scoring.
 
         Args:
             parent: The parent component (T for T+/T-, A for A+/A-)
-            position: Angle position (POSITION_T_PLUS, POSITION_T_MINUS, etc.)
+            position: Aspect position (POSITION_T_PLUS, POSITION_T_MINUS, etc.)
 
         Returns:
             Apex concept name (e.g., "Coherence", "Differentiation")
         """
-        if position not in VALID_ANGLE_POSITIONS:
+        if position not in VALID_ASPECT_POSITIONS:
             raise ValueError(
-                f"Invalid position '{position}'. Must be one of: {VALID_ANGLE_POSITIONS}"
+                f"Invalid position '{position}'. Must be one of: {VALID_ASPECT_POSITIONS}"
             )
 
         if parent.is_simple:
@@ -421,7 +421,7 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
         # Parse parent meaning URI properly
         _, _, branch, _ = parse_meaning_uri(parent_meaning)
 
-        # Get angle apex from taxonomy using position directly as key
+        # Get aspect apex from taxonomy using position directly as key
         if branch and branch in SYSTEMIC_TAXONOMY:
             return SYSTEMIC_TAXONOMY[branch][position]
         else:
@@ -430,15 +430,15 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
     @staticmethod
     def get_contradiction_pair(position: str) -> str:
         """
-        Get the contradiction counterpart for an angle position.
+        Get the contradiction counterpart for an aspect position.
 
         T+ contradicts A-, A+ contradicts T-.
 
         Args:
-            position: Angle position ("T+", "T-", "A+", "A-")
+            position: Aspect position ("T+", "T-", "A+", "A-")
 
         Returns:
-            The contradicting angle position
+            The contradicting aspect position
         """
         contradiction_map = {
             POSITION_T_PLUS: POSITION_A_MINUS,
@@ -448,7 +448,7 @@ class StatementClassification(ExecutableCapability[ClassificationResult]):
         }
         if position not in contradiction_map:
             raise ValueError(
-                f"Invalid position '{position}'. Must be one of: {VALID_ANGLE_POSITIONS}"
+                f"Invalid position '{position}'. Must be one of: {VALID_ASPECT_POSITIONS}"
             )
         return contradiction_map[position]
 

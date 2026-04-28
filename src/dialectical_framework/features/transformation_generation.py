@@ -1,7 +1,7 @@
 """
 TransformationGeneration: Capability for generating a full transformation tetrad from an Ac+ candidate.
 
-Given an Ac+ candidate, generates the complementary Re+, and the negative angles Re- and Ac-
+Given an Ac+ candidate, generates the complementary Re+, and the negative aspects Re- and Ac-
 following the Coherence Constraint (CC).
 
 Usage:
@@ -42,10 +42,10 @@ Your task is to complete a transformation tetrad given an Ac+ statement.
 ## Transformation Structure
 
 The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
-- "+" angles target beneficial states (T+ or A+)
-- "-" angles target problematic states (T- or A-)
+- "+" aspects target beneficial states (T+ or A+)
+- "-" aspects target problematic states (T- or A-)
 
-A transformation has 4 transition angles:
+A transformation has 4 transition aspects:
 - **Ac+**: T- → A+ (action targeting A+: escaping T's problems toward A's benefits)
 - **Re+**: A- → T+ (reflection targeting T+: escaping A's problems toward T's benefits)
 - **Re-**: A+ → T- (reflection targeting T-: what happens when action lacks reflection)
@@ -72,7 +72,7 @@ The tetrad has diagonal contradictions that must be preserved:
 
 ## Coherence Constraint (CC)
 
-The "-" angles describe failure modes when transitions are unbalanced:
+The "-" aspects describe failure modes when transitions are unbalanced:
 - Re-: "Ac+ without Re+ yields Re-" — unguided action regresses toward T-
 - Ac-: "Re+ without Ac+ yields Ac-" — ungrounded reflection drifts toward A-
 
@@ -141,7 +141,7 @@ APEX
 3. Ac+ and Re+ should have similar insight levels (within 0.1-0.2)
 4. **Re+ must contradict Ac-** (positive reflection opposes drift toward A-)
 5. **Ac+ must contradict Re-** (positive action opposes regression toward T-)
-6. Re- and Ac- typically have lower insight than the "+" angles
+6. Re- and Ac- typically have lower insight than the "+" aspects
 7. All statements should be 1-15 words, actionable and memorable
 
 ## Example (T = Love, A = Indifference)
@@ -261,7 +261,7 @@ class CategoryReframingDto(BaseModel):
 
 
 class TransformationTetradDto(BaseModel):
-    """Complete transformation with 6 positions: 2 neutral categories + 4 angles."""
+    """Complete transformation with 6 positions: 2 neutral categories + 4 aspects."""
 
     # Neutral category transitions (T → A and A → T)
     ac: TransitionDto = Field(description="Neutral action category transition (T → A)")
@@ -269,7 +269,7 @@ class TransformationTetradDto(BaseModel):
         description="Neutral reflection category transition (A → T)"
     )
 
-    # Angle transitions
+    # Aspect transitions
     ac_plus: TransitionDto
     re_plus: TransitionDto
     re_minus: TransitionDto

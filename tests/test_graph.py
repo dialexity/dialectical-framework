@@ -72,7 +72,7 @@ def create_perspective_with_polarity(
     pp.save()
     pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-    # Create and connect angles
+    # Create and connect aspects
     t_plus = DialecticalComponent(statement=t_plus_statement, meaning="test")
     t_plus.commit()
     t_minus = DialecticalComponent(statement=t_minus_statement, meaning="test")
@@ -113,7 +113,7 @@ def create_pp_from_components(
     Create a Perspective with Polarity from pre-existing components.
 
     T and A are required and must be committed.
-    Angles (T+, T-, A+, A-) are optional.
+    Aspects (T+, T-, A+, A-) are optional.
 
     Returns:
         Tuple of (perspective, polarity)
@@ -129,7 +129,7 @@ def create_pp_from_components(
     pp.save()
     pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-    # Connect angles if provided
+    # Connect aspects if provided
     if t_plus:
         pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
     if t_minus:
@@ -254,7 +254,7 @@ def test_perspective_validation():
     # Should not be complete (missing t_plus, t_minus, a_plus, a_minus)
     assert not pp.is_complete()
 
-    # Add remaining required angle components
+    # Add remaining required aspect components
     t_plus = DialecticalComponent(statement="T+", meaning="test")
     t_plus.commit()
     pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias='T+', heuristic_similarity=0.9))
@@ -837,7 +837,7 @@ def test_wheel_navigation_properties():
         a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
         a_minus.commit()
 
-        # Create PP with Polarity and all angles
+        # Create PP with Polarity and all aspects
         pp, _ = create_pp_from_components(
             t=t_comp,
             a=a_comp,
@@ -891,7 +891,7 @@ def test_wheel_perspective_at():
         a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
         a_minus.commit()
 
-        # Create PP with Polarity and all angles
+        # Create PP with Polarity and all aspects
         pp, _ = create_pp_from_components(
             t=t_comp,
             a=a_comp,
@@ -976,7 +976,7 @@ def test_wheel_is_same_structure():
 
             a_components.append(a_comp)
 
-            # Create PP with Polarity and all angles
+            # Create PP with Polarity and all aspects
             pp, _ = create_pp_from_components(
                 t=t_comp,
                 a=a_comp,
@@ -1356,7 +1356,7 @@ def test_wheel_is_set():
     a_minus = DialecticalComponent(statement="A-", meaning="test")
     a_minus.commit()
 
-    # Create PP with Polarity and all angles
+    # Create PP with Polarity and all aspects
     pp, _ = create_pp_from_components(
         t=t,
         a=a,

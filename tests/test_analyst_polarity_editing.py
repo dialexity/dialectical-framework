@@ -29,14 +29,14 @@ from dialectical_framework.graph.scope_context import scope
 
 
 def create_test_pp(sid: str, commit: bool = False) -> Perspective:
-    """Create a test Perspective with T, A and all angles via Polarity.
+    """Create a test Perspective with T, A and all aspects via Polarity.
 
     Args:
         sid: Scope ID
         commit: If True, commits the PP (default: False, returns uncommitted)
 
     Returns:
-        Perspective with Polarity (T+A) and all 4 angles connected
+        Perspective with Polarity (T+A) and all 4 aspects connected
     """
     with scope(sid):
         t = DialecticalComponent(
@@ -51,7 +51,7 @@ def create_test_pp(sid: str, commit: bool = False) -> Perspective:
         )
         a.commit()
 
-        # Create angles
+        # Create aspects
         t_plus = DialecticalComponent(
             statement="Deep connection",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Coherence",
@@ -87,7 +87,7 @@ def create_test_pp(sid: str, commit: bool = False) -> Perspective:
         pp.save()
         pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-        # Connect angles
+        # Connect aspects
         pp.t_plus.connect(
             t_plus,
             relationship=TPlusRelationship(
@@ -210,8 +210,8 @@ class TestEditPolarityAntithesis:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_change_antithesis_to_angle_suggests_correction(self):
-        """Changing A to something that's actually an angle."""
+    async def test_change_antithesis_to_aspect_suggests_correction(self):
+        """Changing A to something that's actually an aspect."""
         case_node = Case()
         case_node.commit()
 
@@ -226,17 +226,17 @@ class TestEditPolarityAntithesis:
 
             # May be invalid with error message, or valid with low HS
             if not result.is_valid:
-                # Error should mention angle position
-                assert "angle" in result.error_message.lower() or result.error_message
+                # Error should mention aspect position
+                assert "aspect" in result.error_message.lower() or result.error_message
 
 
-class TestEditTetradAngle:
-    """Tests for editing angles (T+, T-, A+, A-)."""
+class TestEditTetradAspect:
+    """Tests for editing aspects (T+, T-, A+, A-)."""
 
     @pytest.mark.asyncio
     @observe()
-    async def test_change_angle_valid(self):
-        """Changing an angle to a valid value."""
+    async def test_change_aspect_valid(self):
+        """Changing an aspect to a valid value."""
         case_node = Case()
         case_node.commit()
 
@@ -259,8 +259,8 @@ class TestEditTetradAngle:
 
     @pytest.mark.asyncio
     @observe()
-    async def test_change_angle_wrong_position_suggests_correct(self):
-        """Changing an angle to something that belongs elsewhere."""
+    async def test_change_aspect_wrong_position_suggests_correct(self):
+        """Changing an aspect to something that belongs elsewhere."""
         case_node = Case()
         case_node.commit()
 

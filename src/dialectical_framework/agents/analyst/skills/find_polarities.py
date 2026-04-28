@@ -9,7 +9,7 @@ Flow:
            ↓
     FindPolarities → Polarity nodes (T-A pairs with HS) + Ideas with all T and A
            ↓
-    ExpandPolarities → Creates Perspectives from Polarities by adding angles (T+, T-, A+, A-)
+    ExpandPolarities → Creates Perspectives from Polarities by adding aspects (T+, T-, A+, A-)
 
 Usage:
     # Programmatic (web app)

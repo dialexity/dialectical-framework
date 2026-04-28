@@ -1,22 +1,22 @@
 """
-AngleClassification: Capability for classifying a user-provided angle.
+AspectClassification: Capability for classifying a user-provided aspect.
 
-Evaluates a given angle statement against a tension (T-A pair) to determine:
+Evaluates a given aspect statement against a tension (T-A pair) to determine:
 - HS: Heuristic Similarity to the apex concept (0.0-1.0)
   - HS > 0.1: Valid for the specified position
   - HS <= 0.1: Wrong category, check suggested_position
 - Complementarity: How it relates to T and A (K_T, K_A)
 
-This is the angle counterpart to AntithesisClassification.
+This is the aspect counterpart to AntithesisClassification.
 
 Does NOT create any database nodes - caller decides what to do with result.
 
 Usage:
-    classifier = AngleClassification()
+    classifier = AspectClassification()
     result = await classifier.execute(
         thesis=thesis_component,
         antithesis=antithesis_component,
-        angle_statement="Personal freedom",
+        aspect_statement="Personal freedom",
         position="A+",
         text="context about relationships..."
     )
@@ -52,12 +52,12 @@ if TYPE_CHECKING:
 
 # --- System Prompt ---
 
-SYSTEM_PROMPT = """You are a dialectical angle evaluator.
+SYSTEM_PROMPT = """You are a dialectical aspect evaluator.
 
-Your task is to evaluate whether a given statement is a valid angle (positive or negative aspect)
+Your task is to evaluate whether a given statement is a valid aspect (positive or negative elaboration)
 for a thesis-antithesis tension, and measure its quality.
 
-## Angle Positions
+## Aspect Positions
 
 A complete dialectical tetrad has 6 positions:
 - T: Thesis (neutral statement)
@@ -69,7 +69,7 @@ A complete dialectical tetrad has 6 positions:
 
 ## Diagonal Contradiction (Structural Constraint)
 
-Angles form contradiction pairs across the diagonal:
+Aspects form contradiction pairs across the diagonal:
 - **T+ contradicts A-**: They cannot both be true/good simultaneously
 - **A+ contradicts T-**: They cannot both be true/good simultaneously
 
@@ -77,12 +77,12 @@ Example (T=Love, A=Indifference):
 - T+ (Bonding) contradicts A- (Alienation)
 - A+ (Autonomy) contradicts T- (Enmeshment)
 
-When evaluating an angle, consider whether it would properly contradict its diagonal counterpart.
+When evaluating an aspect, consider whether it would properly contradict its diagonal counterpart.
 If a proposed T+ doesn't oppose A-, or A+ doesn't oppose T-, it may be misclassified.
 
 ## HS (Heuristic Similarity) Scale
 
-HS measures how well the angle represents the apex concept for that position:
+HS measures how well the aspect represents the apex concept for that position:
 - 0.9-1.0: Perfect or near-perfect match - exemplary representation of the apex
 - 0.7-0.9: Very similar - captures most aspects of the apex concept
 - 0.5-0.7: Related - captures some aspects, moderate fit for position
@@ -95,16 +95,16 @@ HS ≤ 0.1 means wrong category - suggest the correct position.
 
 ## Complementarity Scale
 
-Complementarity measures how well the angle complements, enhances, or supports T and A.
+Complementarity measures how well the aspect complements, enhances, or supports T and A.
 
 **K_T (Complementarity to Thesis)**: 0.0 to 1.0
-How well does this angle complement, enhance, or support the Thesis?
+How well does this aspect complement, enhance, or support the Thesis?
 - 0.0 = Actively undermines or contradicts T
 - 0.5 = Neutral, neither helps nor hurts T
 - 1.0 = Strongly supports and enhances T
 
 **K_A (Complementarity to Antithesis)**: 0.0 to 1.0
-How well does this angle complement, enhance, or support the Antithesis?
+How well does this aspect complement, enhance, or support the Antithesis?
 - 0.0 = Actively undermines or contradicts A
 - 0.5 = Neutral, neither helps nor hurts A
 - 1.0 = Strongly supports and enhances A
@@ -117,8 +117,8 @@ Respond with structured output matching the requested format."""
 VALID_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
 
 
-class AngleEvaluationDto(BaseModel):
-    """Result of evaluating an angle against a tension."""
+class AspectEvaluationDto(BaseModel):
+    """Result of evaluating an aspect against a tension."""
 
     heuristic_similarity: float = Field(
         ge=0.0,
@@ -146,8 +146,8 @@ class AngleEvaluationDto(BaseModel):
 
 
 @dataclass
-class AngleClassificationResult:
-    """Result of angle classification - no DB nodes created.
+class AspectClassificationResult:
+    """Result of aspect classification - no DB nodes created.
 
     Validity is determined by heuristic_similarity:
     - HS > 0.1: Valid for this position
@@ -168,16 +168,16 @@ class AngleClassificationResult:
 # --- Capability ---
 
 
-class AngleClassification(ExecutableCapability[AngleClassificationResult]):
+class AspectClassification(ExecutableCapability[AspectClassificationResult]):
     """
-    Capability for classifying a user-provided angle against a tension.
+    Capability for classifying a user-provided aspect against a tension.
 
-    Evaluates the angle to determine:
+    Evaluates the aspect to determine:
     - Is it valid for the specified position?
     - HS: Heuristic Similarity to the apex concept
     - Complementarity: How it relates to T and A
 
-    This mirrors AntithesisClassification but for angles.
+    This mirrors AntithesisClassification but for aspects.
     Does NOT create any database nodes - caller decides what to do with result.
     """
 
@@ -188,32 +188,32 @@ class AngleClassification(ExecutableCapability[AngleClassificationResult]):
         self,
         thesis: DialecticalComponent,
         antithesis: DialecticalComponent,
-        angle_statement: str,
+        aspect_statement: str,
         position: str,
         text: str = "",
-    ) -> AngleClassificationResult:
+    ) -> AspectClassificationResult:
         """
-        Classify a user-provided angle against a T-A tension.
+        Classify a user-provided aspect against a T-A tension.
 
         Args:
             thesis: The thesis component (T)
             antithesis: The antithesis component (A)
-            angle_statement: The angle statement to classify
+            aspect_statement: The aspect statement to classify
             position: Target position ("T+", "T-", "A+", "A-")
             text: Optional source content context
 
         Returns:
-            AngleClassificationResult with validity, HS, complementarity (no DB nodes created)
+            AspectClassificationResult with validity, HS, complementarity (no DB nodes created)
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Validate inputs
         if not thesis or not thesis.statement:
-            raise ValueError("Cannot classify angle without a valid thesis")
+            raise ValueError("Cannot classify aspect without a valid thesis")
         if not antithesis or not antithesis.statement:
-            raise ValueError("Cannot classify angle without a valid antithesis")
-        if not angle_statement or not angle_statement.strip():
-            raise ValueError("Cannot classify empty angle statement")
+            raise ValueError("Cannot classify aspect without a valid antithesis")
+        if not aspect_statement or not aspect_statement.strip():
+            raise ValueError("Cannot classify empty aspect statement")
         if position not in VALID_POSITIONS:
             raise ValueError(
                 f"Invalid position '{position}'. Must be one of: {VALID_POSITIONS}"
@@ -221,7 +221,7 @@ class AngleClassification(ExecutableCapability[AngleClassificationResult]):
 
         self._thesis = thesis
         self._antithesis = antithesis
-        self._angle_statement = angle_statement.strip()
+        self._aspect_statement = aspect_statement.strip()
         self._position = position
         self._text = text
 
@@ -232,15 +232,15 @@ class AngleClassification(ExecutableCapability[AngleClassificationResult]):
         parent = (
             thesis if position in [POSITION_T_PLUS, POSITION_T_MINUS] else antithesis
         )
-        meaning = StatementClassification.lookup_angle_meaning(parent, position)
-        apex_concept = StatementClassification.lookup_angle_apex(parent, position)
+        meaning = StatementClassification.lookup_aspect_meaning(parent, position)
+        apex_concept = StatementClassification.lookup_aspect_apex(parent, position)
 
-        # Evaluate angle
-        evaluation = await self._evaluate_angle(apex_concept)
+        # Evaluate aspect
+        evaluation = await self._evaluate_aspect(apex_concept)
 
         # Build result (validity determined by HS > 0.1)
-        result = AngleClassificationResult(
-            statement=self._angle_statement,
+        result = AspectClassificationResult(
+            statement=self._aspect_statement,
             position=position,
             meaning=meaning,
             heuristic_similarity=evaluation.heuristic_similarity,
@@ -258,22 +258,22 @@ class AngleClassification(ExecutableCapability[AngleClassificationResult]):
         self._report.ok = True
 
         self._report.summary = (
-            f"Classified angle '{self._angle_statement}' for {position} "
+            f"Classified aspect '{self._aspect_statement}' for {position} "
             f"(HS={result.heuristic_similarity:.2f})"
         )
 
         return result
 
-    async def _evaluate_angle(self, apex_concept: str) -> AngleEvaluationDto:
-        """Evaluate angle against tension using LLM."""
+    async def _evaluate_aspect(self, apex_concept: str) -> AspectEvaluationDto:
+        """Evaluate aspect against tension using LLM."""
         prompt = self._build_evaluation_prompt(apex_concept)
         return await self._conversation.submit(
-            response_model=AngleEvaluationDto,
+            response_model=AspectEvaluationDto,
             user_content=prompt,
         )
 
     def _build_evaluation_prompt(self, apex_concept: str) -> str:
-        """Build prompt for angle evaluation."""
+        """Build prompt for aspect evaluation."""
         context_section = (
             f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
         )
@@ -285,32 +285,32 @@ class AngleClassification(ExecutableCapability[AngleClassificationResult]):
             POSITION_A_MINUS: "negative aspect (risk/downside/shadow) of the ANTITHESIS",
         }
 
-        return f"""{context_section}Evaluate this angle statement for a dialectical tension.
+        return f"""{context_section}Evaluate this aspect statement for a dialectical tension.
 
 **Tension:**
 - Thesis (T): "{self._thesis.statement}"
 - Antithesis (A): "{self._antithesis.statement}"
 
-**Angle to evaluate:**
-- Statement: "{self._angle_statement}"
+**Aspect to evaluate:**
+- Statement: "{self._aspect_statement}"
 - Target position: {self._position} ({position_description[self._position]})
 - Apex concept for this position: "{apex_concept}"
 
 **Determine:**
 
-1. **heuristic_similarity** (0.0-1.0): How well does this angle represent the apex concept "{apex_concept}"?
+1. **heuristic_similarity** (0.0-1.0): How well does this aspect represent the apex concept "{apex_concept}"?
    Use the HS scale from the system guidelines. Remember: HS > 0.1 = valid, HS ≤ 0.1 = wrong category.
 
-2. **complementarity_t** (K_T, 0.0-1.0): How well does this angle complement, enhance, or support the thesis "{self._thesis.statement}"?
+2. **complementarity_t** (K_T, 0.0-1.0): How well does this aspect complement, enhance, or support the thesis "{self._thesis.statement}"?
    Use the K_T scale from the system guidelines.
 
-3. **complementarity_a** (K_A, 0.0-1.0): How well does this angle complement, enhance, or support the antithesis "{self._antithesis.statement}"?
+3. **complementarity_a** (K_A, 0.0-1.0): How well does this aspect complement, enhance, or support the antithesis "{self._antithesis.statement}"?
    Use the K_A scale from the system guidelines.
 
 4. **suggested_position**: If HS is very low (not a good fit for {self._position}), which position might fit better?
    - T: if this is actually a thesis-level concept (neutral statement of the T side)
    - A: if this is actually an antithesis-level concept (neutral statement of the A side)
-   - T+/T-/A+/A-: if it's an angle but for a different position
+   - T+/T-/A+/A-: if it's an aspect but for a different position
    - null: if unrelated to this tension
 
 5. **reasoning**: Explain your evaluation."""
