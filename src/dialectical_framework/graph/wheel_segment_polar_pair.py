@@ -329,7 +329,7 @@ class WheelSegmentPolarPair:
             if result:
                 component, rel = result
                 assert isinstance(rel, PolarityRelationship)
-                return rel.alias, component.text
+                return rel.alias, component.display_text or component.text
             return "", ""
 
         # Get Transformation (if exists) - transformation has its own 6 positions now

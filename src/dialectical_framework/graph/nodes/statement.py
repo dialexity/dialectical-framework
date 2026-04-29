@@ -81,6 +81,11 @@ class Statement(AssessableEntity, label="Statement"):
 
     text: str
 
+    # User-facing cosmetic override for text.
+    # Does NOT affect hash computation — mutable post-commit.
+    # When set, UI/reports/prompts render this instead of `text`.
+    display_text: Optional[str] = None
+
     # Optional rejection marker for analyst suggestions
     # When set, this component is excluded from future suggestions
     # The value can be a reason string or just "rejected" to indicate rejection
@@ -91,6 +96,13 @@ class Statement(AssessableEntity, label="Statement"):
     # Can also be a verbatim meaning, but usually points to an agreed taxonomy.
     # REQUIRED for commit - participates in hash computation.
     meaning: Optional[str] = None
+
+    @property
+    def prompt_text(self) -> str:
+        """Text for LLM prompts: includes both display_text and canonical text when they differ."""
+        if self.display_text and self.display_text != self.text:
+            return f"{self.display_text} (derived from: {self.text})"
+        return self.text
 
     # Symmetric relationship: if A opposes B, then B opposes A
     # Used for T vs A (thesis vs antithesis) dialectical opposition
@@ -283,8 +295,9 @@ class Statement(AssessableEntity, label="Statement"):
 
     def __repr__(self) -> str:
         """String representation of the component."""
+        display = self.display_text or self.text
         statement_preview = (
-            self.text[:47] + "..." if len(self.text) > 50 else self.text
+            display[:47] + "..." if len(display) > 50 else display
         )
         hash_str = self.hash[:7] if self.is_committed else "uncommitted"
         return f"Statement({hash_str}, text='{statement_preview}')"
@@ -337,8 +350,8 @@ class Statement(AssessableEntity, label="Statement"):
         if not mode:
             mode = "long"
 
-        # Start with statement
-        result = self.text
+        # Start with user-facing text (display_text if set, else text)
+        result = self.display_text or self.text
 
         # Apply width truncation for short mode
         if mode == "short" and width is not None:

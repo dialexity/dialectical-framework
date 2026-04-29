@@ -79,6 +79,18 @@ class Transition(AssessableEntity, label="Transition"):
     # e.g. "Establish boundaries to enable autonomy"
     instruction: Optional[str] = None
 
+    # User-facing cosmetic override for instruction.
+    # Does NOT affect hash computation — mutable post-commit.
+    # When set, UI/reports/prompts render this instead of `instruction`.
+    display_instruction: Optional[str] = None
+
+    @property
+    def prompt_instruction(self) -> str | None:
+        """Instruction for LLM prompts: includes both display and canonical text when they differ."""
+        if self.display_instruction and self.instruction and self.display_instruction != self.instruction:
+            return f"{self.display_instruction} (derived from: {self.instruction})"
+        return self.instruction
+
     def __init__(self, **data: Any) -> None:
         # Auto-generate nonce if not provided
         if "nonce" not in data:
@@ -403,13 +415,14 @@ class Transition(AssessableEntity, label="Transition"):
                     continue
 
         # Build label based on mode
+        display = comp.display_text or comp.text
         if mode == "statements":
-            return comp.text
+            return display
         elif mode == "explicit":
             if alias:
-                return f"{alias} ({comp.text})"
+                return f"{alias} ({display})"
             else:
-                return comp.text
+                return display
         else:  # "" or "aliases"
             if alias:
                 return alias

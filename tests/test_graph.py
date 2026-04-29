@@ -2555,6 +2555,172 @@ def test_cannot_critique_uncommitted_rationale():
     print("✓ Cannot critique uncommitted rationale")
 
 
+class TestDisplayText:
+    """Tests for Statement.display_text and Transition.display_instruction."""
+
+    def test_statement_display_text_defaults_to_none(self):
+        stmt = Statement(text="Original text", meaning="test")
+        stmt.commit()
+        assert stmt.display_text is None
+        assert stmt.prompt_text == "Original text"
+
+    def test_statement_display_text_overrides(self):
+        stmt = Statement(text="Excessive bureaucratic oversight stifles innovation", meaning="test")
+        stmt.commit()
+        stmt.display_text = "Red tape kills ideas"
+        assert stmt.display_text == "Red tape kills ideas"
+        assert stmt.text == "Excessive bureaucratic oversight stifles innovation"
+
+    def test_statement_prompt_text_includes_both(self):
+        stmt = Statement(text="Excessive bureaucratic oversight stifles innovation", meaning="test")
+        stmt.commit()
+        stmt.display_text = "Red tape kills ideas"
+        assert stmt.prompt_text == "Red tape kills ideas (derived from: Excessive bureaucratic oversight stifles innovation)"
+
+    def test_statement_display_text_excluded_from_hash(self):
+        stmt1 = Statement(text="Same text", meaning="test")
+        stmt2 = Statement(text="Same text", meaning="test")
+        assert stmt1.compute_hash() == stmt2.compute_hash()
+
+        stmt2.display_text = "Different display"
+        assert stmt1.compute_hash() == stmt2.compute_hash()
+
+    def test_statement_display_text_mutable_post_commit(self):
+        stmt = Statement(text="Original", meaning="test")
+        stmt.commit()
+        original_hash = stmt.hash
+
+        stmt.display_text = "Edited display"
+        stmt.save()
+        assert stmt.hash == original_hash
+        assert stmt.display_text == "Edited display"
+
+    def test_statement_repr_uses_display_text(self):
+        stmt = Statement(text="Original long statement here", meaning="test")
+        stmt.commit()
+        assert "Original long statement here" in repr(stmt)
+
+        stmt.display_text = "Short display"
+        assert "Short display" in repr(stmt)
+
+    def test_statement_format_uses_display_text(self):
+        stmt = Statement(text="Original text", meaning="test")
+        stmt.commit()
+        stmt.display_text = "Display text"
+        assert f"{stmt:short}" == "Display text"
+
+    def test_transition_display_instruction_defaults_to_none(self):
+        t = Statement(text="Source", meaning="test")
+        t.commit()
+        a = Statement(text="Target", meaning="test")
+        a.commit()
+
+        tr = Transition(instruction="Navigate carefully")
+        tr.set_source(t).set_target(a)
+        tr.commit()
+        assert tr.display_instruction is None
+        assert tr.prompt_instruction == "Navigate carefully"
+
+    def test_transition_display_instruction_overrides(self):
+        t = Statement(text="Source2", meaning="test")
+        t.commit()
+        a = Statement(text="Target2", meaning="test")
+        a.commit()
+
+        tr = Transition(instruction="Navigate from source to target with care")
+        tr.set_source(t).set_target(a)
+        tr.commit()
+        tr.display_instruction = "Go carefully"
+        assert tr.display_instruction == "Go carefully"
+        assert tr.instruction == "Navigate from source to target with care"
+
+    def test_transition_prompt_instruction_includes_both(self):
+        t = Statement(text="Source3", meaning="test")
+        t.commit()
+        a = Statement(text="Target3", meaning="test")
+        a.commit()
+
+        tr = Transition(instruction="Navigate from source to target with care")
+        tr.set_source(t).set_target(a)
+        tr.commit()
+        tr.display_instruction = "Go carefully"
+        assert tr.prompt_instruction == "Go carefully (derived from: Navigate from source to target with care)"
+
+    def test_transition_no_instruction_no_display(self):
+        t = Statement(text="Source4", meaning="test")
+        t.commit()
+        a = Statement(text="Target4", meaning="test")
+        a.commit()
+
+        tr = Transition()
+        tr.set_source(t).set_target(a)
+        tr.commit()
+        assert tr.instruction is None
+        assert tr.display_instruction is None
+        assert tr.prompt_instruction is None
+
+
+class TestDisplayTextPureLogic:
+    """Pure logic tests for display_text — no DB required."""
+
+    def test_statement_display_text_field(self):
+        stmt = Statement(text="Canonical text", meaning="test")
+        assert stmt.display_text is None
+
+        stmt.display_text = "User edit"
+        assert stmt.display_text == "User edit"
+
+    def test_statement_prompt_text_no_display(self):
+        stmt = Statement(text="Some text", meaning="test")
+        assert stmt.prompt_text == "Some text"
+
+    def test_statement_prompt_text_with_display(self):
+        stmt = Statement(text="Long formal statement", meaning="test")
+        stmt.display_text = "Short version"
+        assert stmt.prompt_text == "Short version (derived from: Long formal statement)"
+
+    def test_statement_prompt_text_same_as_text(self):
+        stmt = Statement(text="Same text", meaning="test")
+        stmt.display_text = "Same text"
+        assert stmt.prompt_text == "Same text"
+
+    def test_statement_hash_ignores_display_text(self):
+        stmt1 = Statement(text="Hash test", meaning="test")
+        stmt2 = Statement(text="Hash test", meaning="test")
+        stmt2.display_text = "Something else entirely"
+        assert stmt1.compute_hash() == stmt2.compute_hash()
+
+    def test_transition_display_instruction_field(self):
+        tr = Transition(instruction="Do the thing")
+        assert tr.display_instruction is None
+
+        tr.display_instruction = "Do it"
+        assert tr.display_instruction == "Do it"
+
+    def test_transition_display_instruction_none(self):
+        tr = Transition()
+        assert tr.display_instruction is None
+
+    def test_transition_prompt_instruction_no_display(self):
+        tr = Transition(instruction="Full instruction")
+        assert tr.prompt_instruction == "Full instruction"
+
+    def test_transition_prompt_instruction_with_display(self):
+        tr = Transition(instruction="Full verbose instruction text")
+        tr.display_instruction = "Short"
+        assert tr.prompt_instruction == "Short (derived from: Full verbose instruction text)"
+
+    def test_transition_prompt_instruction_none(self):
+        tr = Transition()
+        assert tr.prompt_instruction is None
+
+    def test_transition_prompt_instruction_display_only(self):
+        tr = Transition()
+        tr.display_instruction = "User set this"
+        assert tr.display_instruction == "User set this"
+        assert tr.prompt_instruction is None
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])
