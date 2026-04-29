@@ -117,13 +117,13 @@ class QueryGraph(BaseTool):
 
     DATA QUERIES (sid is auto-injected, don't include it):
     - "MATCH (c:Case) RETURN c" - get session case
-    - "MATCH (c:DialecticalComponent) RETURN c.statement LIMIT 10" - list components
+    - "MATCH (c:Statement) RETURN c.text LIMIT 10" - list components
     - "MATCH (c:Case)-[:HAS_INPUT]->(i:Input) RETURN i.content" - list inputs
-    - "MATCH (pp:Perspective)<-[:T]-(t) RETURN pp, t.statement" - Perspectives with thesis
-    - "MATCH (a)-[:OPPOSITE_OF]->(b) RETURN a.statement, b.statement" - oppositions
+    - "MATCH (pp:Perspective)<-[:T]-(t) RETURN pp, t.text" - Perspectives with thesis
+    - "MATCH (a)-[:OPPOSITE_OF]->(b) RETURN a.text, b.text" - oppositions
     - "MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel) RETURN c, w" - cycle and wheels
 
-    KEY NODE TYPES: Case, Input, DialecticalComponent, Perspective,
+    KEY NODE TYPES: Case, Input, Statement, Perspective,
                     Cycle, Wheel, Transformation, Transition, Synthesis, Rationale
 
     KEY RELATIONSHIPS: T, A, T_PLUS, T_MINUS, A_PLUS, A_MINUS (positions),
@@ -204,11 +204,11 @@ class QueryGraph(BaseTool):
                     row_parts.append(
                         f"{key}: [{value.__class__.__name__} {value.short_hash}]"
                     )
-                elif hasattr(value, "statement"):
+                elif hasattr(value, "text"):
                     stmt = (
-                        value.statement[:50] + "..."
-                        if len(str(value.statement)) > 50
-                        else value.statement
+                        value.text[:50] + "..."
+                        if len(str(value.text)) > 50
+                        else value.text
                     )
                     row_parts.append(f"{key}: {stmt}")
                 else:

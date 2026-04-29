@@ -16,7 +16,7 @@ from dialectical_framework.enums.di import DI
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.settings import Settings
@@ -52,7 +52,7 @@ class WheelRepository:
     @inject
     def find_by_component_sequence(
         self,
-        components: list[DialecticalComponent],
+        components: list[Statement],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         sid: Optional[str] = Provide[DI.sid],
     ) -> Optional[Wheel]:
@@ -60,7 +60,7 @@ class WheelRepository:
         Find a Wheel with exactly the given component sequence (rotation-invariant).
 
         Args:
-            components: List of DialecticalComponents in order
+            components: List of Statements in order
             sid: Case ID (injected from DI context)
             graph_db: Graph database (injected)
 
@@ -92,7 +92,7 @@ class WheelRepository:
         # Filter by canonical signature match
         for row in results:
             wheel: Wheel = row["w"]
-            wheel_components = wheel.dialectical_components
+            wheel_components = wheel.statements
             if wheel_components:
                 wheel_hashes = [c.hash for c in wheel_components]
                 wheel_signature = self._get_canonical_signature(wheel_hashes)

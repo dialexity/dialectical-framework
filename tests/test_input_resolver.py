@@ -311,10 +311,10 @@ class TestDialexityInputResolverLookup:
     @pytest.mark.asyncio
     async def test_resolve_rationale_by_full_hash(self, resolver):
         """Resolves rationale by full hash."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Target", sid="test-scope-123", meaning="test")
+        comp = Statement(text="Target", sid="test-scope-123", meaning="test")
         comp.commit()
 
         rationale = Rationale(
@@ -331,10 +331,10 @@ class TestDialexityInputResolverLookup:
     @pytest.mark.asyncio
     async def test_resolve_rationale_by_prefix(self, resolver):
         """Resolves rationale by hash prefix."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Target", sid="test-scope-456", meaning="test")
+        comp = Statement(text="Target", sid="test-scope-456", meaning="test")
         comp.commit()
 
         rationale = Rationale(
@@ -353,11 +353,11 @@ class TestDialexityInputResolverLookup:
     @pytest.mark.asyncio
     async def test_resolve_rejects_wrong_sid(self, resolver):
         """Rejects URI with mismatched sid."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.nodes.rationale import Rationale
         from dialectical_framework.exceptions.resolver_errors import ScopeMismatchError
 
-        comp = DialecticalComponent(statement="Target", sid="correct-scope", meaning="test")
+        comp = Statement(text="Target", sid="correct-scope", meaning="test")
         comp.commit()
 
         rationale = Rationale(text="Test rationale", sid="correct-scope")
@@ -389,10 +389,10 @@ class TestDialexityInputResolverContentExtraction:
     @pytest.mark.asyncio
     async def test_extract_from_rationale(self, resolver):
         """Extracts text from Rationale."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Test", sid="rationale-test", meaning="test")
+        comp = Statement(text="Test", sid="rationale-test", meaning="test")
         comp.commit()
 
         rationale = Rationale(
@@ -408,10 +408,10 @@ class TestDialexityInputResolverContentExtraction:
     @pytest.mark.asyncio
     async def test_extract_from_rationale_ignores_headline(self, resolver):
         """Extracts only text from Rationale, ignoring headline."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.nodes.rationale import Rationale
 
-        comp = DialecticalComponent(statement="Test", sid="rationale-headline-test", meaning="test")
+        comp = Statement(text="Test", sid="rationale-headline-test", meaning="test")
         comp.commit()
 
         rationale = Rationale(
@@ -428,11 +428,11 @@ class TestDialexityInputResolverContentExtraction:
 
     @pytest.mark.asyncio
     async def test_extract_from_component(self, resolver):
-        """Extracts statement from DialecticalComponent."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        """Extracts statement from Statement."""
+        from dialectical_framework.graph.nodes.statement import Statement
 
-        comp = DialecticalComponent(
-            statement="Democracy enables participation",
+        comp = Statement(
+            text="Democracy enables participation",
             sid="comp-extract-test",
             meaning="test",
         )
@@ -504,11 +504,11 @@ class TestCompositeInputResolver:
     @pytest.mark.asyncio
     async def test_delegates_dx_uri_to_dialexity(self, resolver):
         """Delegates dx:// URI to DialexityInputResolver."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
 
         # Create a component to reference
-        comp = DialecticalComponent(
-            statement="Referenced component content",
+        comp = Statement(
+            text="Referenced component content",
             sid="composite-test",
             meaning="test",
         )
@@ -524,7 +524,7 @@ class TestCompositeInputResolver:
     @pytest.mark.asyncio
     async def test_resolve_all_with_mixed_schemes(self, resolver):
         """Resolves multiple inputs with different schemes."""
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
 
         # Plain text input
         input1 = Input(content="Plain text")
@@ -534,8 +534,8 @@ class TestCompositeInputResolver:
         input2 = Input(content="data:,Data%20URI%20content")
         input2.commit()
 
-        # dx:// URI input - use DialecticalComponent
-        comp = DialecticalComponent(statement="Graph content from component", sid="mixed-test", meaning="test")
+        # dx:// URI input - use Statement
+        comp = Statement(text="Graph content from component", sid="mixed-test", meaning="test")
         comp.commit()
         input3 = Input(content=f"dx://mixed-test/{comp.hash}")
         input3.commit()

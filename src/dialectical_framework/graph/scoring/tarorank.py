@@ -88,7 +88,7 @@ class TaroRank:
         Get calculator for a node type (lazy loading).
 
         Args:
-            node_type: Node class name (e.g., 'DialecticalComponent')
+            node_type: Node class name (e.g., 'Statement')
 
         Returns:
             Calculator instance for this node type
@@ -98,7 +98,7 @@ class TaroRank:
         """
         if node_type not in self._calculators:
             # Import calculators lazily to avoid circular imports
-            from dialectical_framework.graph.scoring.tarorank_calculators.dialectical_component_calculator import ComponentCalculator
+            from dialectical_framework.graph.scoring.tarorank_calculators.statement_calculator import StatementCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.transition_calculator import TransitionCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.perspective_calculator import PerspectiveCalculator
             from dialectical_framework.graph.scoring.tarorank_calculators.synthesis_calculator import SynthesisCalculator
@@ -110,7 +110,7 @@ class TaroRank:
             # Rationales are sources of evidence (they PROVIDE estimations), not targets of scoring.
             # The RationaleAuditor reads estimations from rationales but doesn't score them.
             calculator_map = {
-                'DialecticalComponent': ComponentCalculator,
+                'Statement': StatementCalculator,
                 'Transition': TransitionCalculator,
                 'Perspective': PerspectiveCalculator,
                 'Synthesis': SynthesisCalculator,

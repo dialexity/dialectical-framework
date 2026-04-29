@@ -125,7 +125,7 @@ class ExecutionReport(BaseModel):
     ) -> None:
         """Record a node creation."""
         # Default patch includes statement if present
-        default_patch = {"statement": getattr(node, "statement", None)}
+        default_patch = {"text": getattr(node, "text", None)}
         if patch:
             default_patch.update(patch)
         self.effects.append(

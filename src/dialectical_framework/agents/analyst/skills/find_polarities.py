@@ -19,7 +19,7 @@ Usage:
     # Access T-A pairs from Ideas
     for comp, _ in ideas.statements.all():
         for antithesis, _ in comp.oppositions.all():
-            print(f"{comp.statement} vs {antithesis.statement}")
+            print(f"{comp.text} vs {antithesis.text}")
 
     # LLM tool use (returns JSON with HS data)
     agent = FindPolarities(thesis_hashes=[...])
@@ -42,16 +42,16 @@ from dialectical_framework.concerns.antithesis_extraction import \
     AntithesisExtraction
 from dialectical_framework.concerns.statement_deduplication import (
     DedupResult, StatementDeduplication)
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
                                                         Polarity)
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.relationships.polarity_relationship import (
     ARelationship, TRelationship)
-from dialectical_framework.graph.repositories.dialectical_component_repository import \
-    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import \
+    StatementRepository
 from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.node_repository import \
@@ -71,7 +71,7 @@ if TYPE_CHECKING:
 class ThesisResult:
     """Container for tracking results per thesis."""
 
-    def __init__(self, thesis: DialecticalComponent):
+    def __init__(self, thesis: Statement):
         self.thesis = thesis
         self.antithesis_data: list[dict] = []  # [{hash, heuristic_similarity}, ...]
         self.error: Optional[str] = None
@@ -128,19 +128,19 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
         input_text = await self._get_input_text()
 
         # Get existing vocabulary to avoid and for dedup comparison
-        comp_repo = DialecticalComponentRepository()
+        comp_repo = StatementRepository()
         vocab = comp_repo.get_vocabulary_with_rationales()
         not_like_these = [c["statement"] for c in vocab]
 
         results: list[ThesisResult] = []
-        all_existing: list[DialecticalComponent] = []
-        newly_extracted: list[DialecticalComponent] = []
+        all_existing: list[Statement] = []
+        newly_extracted: list[Statement] = []
 
         # Phase 1: For each thesis, collect existing oppositions + extract new ones
         for thesis_hash in self.thesis_hashes:
             thesis = self._resolve_component(thesis_hash)
             if thesis is None:
-                result = ThesisResult(thesis=DialecticalComponent(statement=""))
+                result = ThesisResult(thesis=Statement(text=""))
                 result.error = f"Thesis with hash '{thesis_hash}' not found"
                 results.append(result)
                 continue
@@ -156,8 +156,8 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
             # Add existing to not_like_these to avoid re-extraction
             for comp in existing_antitheses:
-                if comp.statement not in not_like_these:
-                    not_like_these.append(comp.statement)
+                if comp.text not in not_like_these:
+                    not_like_these.append(comp.text)
 
             # 1b. Extract new antitheses (with retry if none found)
             antitheses, antithesis_data, extraction_reports = (
@@ -175,8 +175,8 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
             # Track extracted for not_like_these
             for comp in antitheses:
-                if comp.statement not in not_like_these:
-                    not_like_these.append(comp.statement)
+                if comp.text not in not_like_these:
+                    not_like_these.append(comp.text)
 
             results.append(result)
 
@@ -255,10 +255,10 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
     async def _extract_with_retry(
         self,
-        thesis: DialecticalComponent,
+        thesis: Statement,
         text: str,
         not_like_these: list[str],
-    ) -> tuple[list[DialecticalComponent], list[dict], list[ExecutionReport]]:
+    ) -> tuple[list[Statement], list[dict], list[ExecutionReport]]:
         """
         Extract antitheses with retry logic.
 
@@ -304,13 +304,13 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
     # --- Helpers ---
 
     async def _get_existing_oppositions(
-        self, thesis: DialecticalComponent, text: str = ""
-    ) -> tuple[list[DialecticalComponent], list[dict]]:
+        self, thesis: Statement, text: str = ""
+    ) -> tuple[list[Statement], list[dict]]:
         """Get existing oppositions for a thesis from the database."""
         from dialectical_framework.concerns.antithesis_classification import \
             AntithesisClassification
 
-        existing_components: list[DialecticalComponent] = []
+        existing_components: list[Statement] = []
         existing_data: list[dict] = []
 
         for antithesis, _ in thesis.oppositions.all():
@@ -324,7 +324,7 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
                 classifier = AntithesisClassification()
                 result = await classifier.resolve(
                     thesis=thesis,
-                    antithesis_statement=antithesis.statement,
+                    antithesis_statement=antithesis.text,
                     text=text,
                 )
                 hs = result.heuristic_similarity
@@ -343,8 +343,8 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
     def _lookup_hs_from_polarity(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        thesis: Statement,
+        antithesis: Statement,
     ) -> Optional[float]:
         """Look up HS from existing Polarity."""
         pol_repo = PolarityRepository()
@@ -387,7 +387,7 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
         dedup_result: DedupResult,
     ) -> None:
         """Reconnect OPPOSITE_OF for deduped antitheses."""
-        hash_to_thesis: dict[str, DialecticalComponent] = {}
+        hash_to_thesis: dict[str, Statement] = {}
         for result in results:
             if result.error:
                 continue
@@ -399,12 +399,12 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
             if thesis and db_comp:
                 thesis.oppositions.connect(db_comp)
 
-    def _resolve_component(self, hash: str) -> Optional[DialecticalComponent]:
+    def _resolve_component(self, hash: str) -> Optional[Statement]:
         """Resolve hash to component."""
         repo = NodeRepository()
         try:
             comp = repo.find_by_hash(hash)
-            if isinstance(comp, DialecticalComponent):
+            if isinstance(comp, Statement):
                 return comp
         except ValueError:
             pass
@@ -454,7 +454,7 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
         if not valid_results:
             return None
 
-        thesis_statements = [r.thesis.statement for r in valid_results]
+        thesis_statements = [r.thesis.text for r in valid_results]
         intent = f"Tensions for: {', '.join(thesis_statements[:3])}"
         if len(thesis_statements) > 3:
             intent += f" (+{len(thesis_statements) - 3} more)"

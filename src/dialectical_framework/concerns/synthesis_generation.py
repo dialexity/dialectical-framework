@@ -52,8 +52,8 @@ from dialectical_framework.agents.conversation_facilitator import (
 )
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.dialectical_component import (
-    DialecticalComponent,
+from dialectical_framework.graph.nodes.statement import (
+    Statement,
 )
 from dialectical_framework.graph.nodes.synthesis import POSITION_S_MINUS, POSITION_S_PLUS
 from dialectical_framework.graph.nodes.perspective import Perspective
@@ -112,10 +112,10 @@ class SynthesisPairDto(BaseModel):
 class SynthesisResult:
     """Result of synthesis generation."""
 
-    s_plus_component: DialecticalComponent
+    s_plus_component: Statement
     s_plus_alias: str
     s_plus_explanation: str
-    s_minus_component: DialecticalComponent
+    s_minus_component: Statement
     s_minus_alias: str
     s_minus_explanation: str
 
@@ -128,7 +128,7 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
     Concern for generating S+/S- synthesis pairs from Perspectives.
 
     Generates synthesis components with explanations. Returns uncommitted
-    DialecticalComponents that the caller connects to a Synthesis node.
+    Statements that the caller connects to a Synthesis node.
     """
 
     def __init__(self) -> None:
@@ -163,7 +163,7 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
             if result:
                 dc, rel = result
                 alias = rel.alias if hasattr(rel, "alias") else position
-                pp_components.append(f"{alias} = {dc.statement}")
+                pp_components.append(f"{alias} = {dc.text}")
 
         if len(pp_components) < 6:
             self._report.ok = False
@@ -203,11 +203,11 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         s_minus_alias = POSITION_S_MINUS if pp_index <= 0 else f"S{pp_index}-"
 
         # Create S+ component
-        s_plus_comp = DialecticalComponent(statement=synthesis_pair.s_plus.statement)
+        s_plus_comp = Statement(text=synthesis_pair.s_plus.statement)
         s_plus_comp.commit()
 
         # Create S- component
-        s_minus_comp = DialecticalComponent(statement=synthesis_pair.s_minus.statement)
+        s_minus_comp = Statement(text=synthesis_pair.s_minus.statement)
         s_minus_comp.commit()
 
         self._report.node_created(s_plus_comp, meta={"position": s_plus_alias})

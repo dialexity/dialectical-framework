@@ -76,7 +76,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
   - For a node created "from scratch": `origin_hash = None`.
   - For a forked node: `origin_hash = source.hash`.
 - **Note**: origin_hash affects the computed hash, so forks have different identities than originals.
-- **Not used by**: Atoms (DialecticalComponent, Input, Transition, Rationale, Estimation, Synthesis) and derived structures (Ideas, Cycle, Wheel, Transformation, Spiral).
+- **Not used by**: Atoms (Statement, Input, Transition, Rationale, Estimation, Synthesis) and derived structures (Ideas, Cycle, Wheel, Transformation, Spiral).
 
 ### 4) `branch` — Alternative Interpretation (Optional)
 - **Type**: String or None
@@ -120,19 +120,19 @@ This pattern ensures:
 
 ### Workflow
 
-**Standard nodes** (DialecticalComponent, Rationale, etc.):
+**Standard nodes** (Statement, Rationale, etc.):
 
 ```python
 # 1. Create node (draft state)
-comp = DialecticalComponent(statement="Example")
-assert not comp.is_committed
-assert comp.hash is None
+stmt = Statement(text="Example")
+assert not stmt.is_committed
+assert stmt.hash is None
 
 # 2. Commit (computes hash AND persists to database)
-comp.commit()
-assert comp.is_committed
-assert len(comp.hash) == 64
-assert comp._id is not None  # Already in database
+stmt.commit()
+assert stmt.is_committed
+assert len(stmt.hash) == 64
+assert stmt._id is not None  # Already in database
 ```
 
 **Container nodes** (Nexus, Cycle, Wheel, Spiral - via IncrementalBuildMixin):
@@ -186,7 +186,7 @@ Global facts. Same content = same identity everywhere. No lineage tracking.
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
-| **DialecticalComponent** | statement | Content |
+| **Statement** | text | Content |
 | **Input** | content | Content |
 
 ### Atoms — Effect (Content-Addressable)
@@ -257,8 +257,8 @@ Atoms don't fork (same content = same node globally). Derived structures don't f
 ```python
 # Fork a Perspective to try different polarity framing
 forked_pp = original_pp.clone(destination_sid=new_scope_sid)
-forked_pp.t_plus.disconnect(old_component)
-forked_pp.t_plus.connect(new_component)
+forked_pp.t_plus.disconnect(old_stmt)
+forked_pp.t_plus.connect(new_stmt)
 forked_pp.commit()
 
 # Result:
@@ -294,8 +294,8 @@ lineage = repo.find_lineage(pp.hash)
 
 ### Cross-scope references
 
-Atoms (DialecticalComponent, Input, etc.) are globally addressable by hash.
-A Perspective in scope B can reference the same DialecticalComponent as one in scope A — they share the atom.
+Atoms (Statement, Input, etc.) are globally addressable by hash.
+A Perspective in scope B can reference the same Statement as one in scope A — they share the atom.
 
 ## Short Hash Lookup
 
@@ -351,7 +351,7 @@ The following indexes support efficient lookups:
 | Category | Nodes | origin_hash | Role |
 |----------|-------|-------------|------|
 | Container | Case | No | Scope root |
-| Atoms (Content) | DialecticalComponent, Input | No | Global facts |
+| Atoms (Content) | Statement, Input | No | Global facts |
 | Atoms (Effect) | Transition, Rationale, Estimation, Synthesis | No | Computed outcomes |
 | Forking Points | Perspective, Nexus | **Yes** | Reasoning foundations |
 | Derived | Ideas, Cycle, Wheel, Transformation, Spiral | No | Computed from inputs/forking points |

@@ -14,8 +14,8 @@ from dialectical_framework.concerns.idea_placement import (IdeaPlacement,
 from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
 from dialectical_framework.graph.nodes.case import Case
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.scope_context import scope
 
 
@@ -30,14 +30,14 @@ class TestAspectClassification:
         case_node.commit()
 
         with scope(case_node.sid):
-            thesis = DialecticalComponent(
-                statement="Love",
+            thesis = Statement(
+                text="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             thesis.commit()
 
-            antithesis = DialecticalComponent(
-                statement="Indifference",
+            antithesis = Statement(
+                text="Indifference",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
             )
             antithesis.commit()
@@ -63,14 +63,14 @@ class TestAspectClassification:
         case_node.commit()
 
         with scope(case_node.sid):
-            thesis = DialecticalComponent(
-                statement="Trust",
+            thesis = Statement(
+                text="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             thesis.commit()
 
-            antithesis = DialecticalComponent(
-                statement="Distrust",
+            antithesis = Statement(
+                text="Distrust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
             )
             antithesis.commit()
@@ -96,14 +96,14 @@ class TestAspectClassification:
         case_node.commit()
 
         with scope(case_node.sid):
-            thesis = DialecticalComponent(
-                statement="Love",
+            thesis = Statement(
+                text="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             thesis.commit()
 
-            antithesis = DialecticalComponent(
-                statement="Indifference",
+            antithesis = Statement(
+                text="Indifference",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
             )
             antithesis.commit()
@@ -131,14 +131,14 @@ class TestAspectClassification:
         case_node.commit()
 
         with scope(case_node.sid):
-            thesis = DialecticalComponent(
-                statement="Data Consistency",
+            thesis = Statement(
+                text="Data Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Cohesion",
             )
             thesis.commit()
 
-            antithesis = DialecticalComponent(
-                statement="Eventual Consistency",
+            antithesis = Statement(
+                text="Eventual Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/ErrorCorrection",
             )
             antithesis.commit()
@@ -168,13 +168,13 @@ class TestAspectClassification:
         case_node.commit()
 
         with scope(case_node.sid):
-            thesis = DialecticalComponent(
-                statement="Test",
+            thesis = Statement(
+                text="Test",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             thesis.commit()
-            antithesis = DialecticalComponent(
-                statement="Anti-test",
+            antithesis = Statement(
+                text="Anti-test",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
             )
             antithesis.commit()
@@ -211,7 +211,7 @@ class TestIdeaPlacement:
             assert result.placement == "thesis"
             assert result.confidence == 1.0
             assert result.component is not None
-            assert result.component.statement == "Trust"
+            assert result.component.text == "Trust"
 
     @pytest.mark.asyncio
     @observe()
@@ -221,8 +221,8 @@ class TestIdeaPlacement:
         case_node.commit()
 
         with scope(case_node.sid):
-            love = DialecticalComponent(
-                statement="Love",
+            love = Statement(
+                text="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             love.commit()
@@ -238,7 +238,7 @@ class TestIdeaPlacement:
             assert result.placement == "antithesis"
             assert result.antithesis_of == love.hash
             assert result.component is not None
-            assert result.component.statement == "Hate"
+            assert result.component.text == "Hate"
 
     @pytest.mark.asyncio
     @observe()
@@ -248,8 +248,8 @@ class TestIdeaPlacement:
         case_node.commit()
 
         with scope(case_node.sid):
-            trust = DialecticalComponent(
-                statement="Trust",
+            trust = Statement(
+                text="Trust",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             trust.commit()
@@ -276,23 +276,23 @@ class TestIdeaPlacement:
         case_node.commit()
 
         with scope(case_node.sid):
-            love = DialecticalComponent(
-                statement="Love",
+            love = Statement(
+                text="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             love.commit()
 
-            indifference = DialecticalComponent(
-                statement="Indifference",
+            indifference = Statement(
+                text="Indifference",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
             )
             indifference.commit()
 
             tension = TensionInfo(
                 thesis_hash=love.hash,
-                thesis_statement=love.statement,
+                thesis_statement=love.text,
                 antithesis_hash=indifference.hash,
-                antithesis_statement=indifference.statement,
+                antithesis_statement=indifference.text,
             )
 
             placer = IdeaPlacement()
@@ -317,8 +317,8 @@ class TestIdeaPlacement:
         case_node.commit()
 
         with scope(case_node.sid):
-            love = DialecticalComponent(
-                statement="Love",
+            love = Statement(
+                text="Love",
                 meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
             )
             love.commit()
@@ -342,8 +342,8 @@ class TestIdeaPlacement:
         case_node.commit()
 
         with scope(case_node.sid):
-            consistency = DialecticalComponent(
-                statement="Strong Consistency",
+            consistency = Statement(
+                text="Strong Consistency",
                 meaning="dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Cohesion",
             )
             consistency.commit()

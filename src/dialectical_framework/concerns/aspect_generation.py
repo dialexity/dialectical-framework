@@ -56,8 +56,8 @@ from dialectical_framework.agents.reasonable_concern import \
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.statement_classification import \
     StatementClassification
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.perspective import (POSITION_A,
                                                           POSITION_A_MINUS,
                                                           POSITION_A_PLUS,
@@ -173,7 +173,7 @@ class TetradDto(BaseModel):
 class AspectResult:
     """Result of aspect generation."""
 
-    component: DialecticalComponent
+    component: Statement
     position: str
     apex_concept: str
     heuristic_similarity: float
@@ -248,7 +248,7 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         positions = positions if positions else all_positions
 
         # Check which positions already have components
-        self._existing_aspects: dict[str, DialecticalComponent] = {}
+        self._existing_aspects: dict[str, Statement] = {}
         for pos in [
             POSITION_T_PLUS,
             POSITION_T_MINUS,
@@ -414,8 +414,8 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         apex = StatementClassification.lookup_aspect_apex(parent, position)
 
         # Create component
-        component = DialecticalComponent(
-            statement=statement,
+        component = Statement(
+            text=statement,
             meaning=meaning,
         )
         component.commit()
@@ -461,7 +461,7 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
         lines = ["The following aspect(s) are already defined:"]
         for pos, component in relevant_aspects.items():
-            lines.append(f'- {pos} = "{component.statement}"')
+            lines.append(f'- {pos} = "{component.text}"')
         lines.append("Generate the remaining aspects to be coherent with these.")
         return "\n".join(lines)
 
@@ -498,7 +498,7 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
                 if result:
                     # Remap position if T-A are swapped
                     display_pos = self._swap_position(pos) if is_swapped else pos
-                    lines.append(f'  - {display_pos}: "{result[0].statement}"')
+                    lines.append(f'  - {display_pos}: "{result[0].text}"')
         lines.append("")
         lines.append(
             "Generate semantically distinct aspects while maintaining contradiction relationships."
@@ -539,8 +539,8 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
         return f"""{text_section}Generate a complete tetrad for this thesis-antithesis pair.
 
-Thesis (T): "{self._thesis.statement}"
-Antithesis (A): "{self._antithesis.statement}"
+Thesis (T): "{self._thesis.text}"
+Antithesis (A): "{self._antithesis.text}"
 
 Taxonomy apex concepts for reference:
 - T+ apex: {t_plus_apex}
@@ -595,8 +595,8 @@ Ensure T+ contradicts A-, and A+ contradicts T-."""
 
         return f"""{text_section}Generate a contradiction pair for this thesis-antithesis pair.
 
-Thesis (T): "{self._thesis.statement}"
-Antithesis (A): "{self._antithesis.statement}"
+Thesis (T): "{self._thesis.text}"
+Antithesis (A): "{self._antithesis.text}"
 
 Generate {positive_pos} and {negative_pos} that contradict each other.
 
@@ -649,8 +649,8 @@ They must contradict each other - they cannot both be true/good simultaneously."
 
         return f"""{text_section}Generate {position} for this thesis-antithesis pair.
 
-Thesis (T): "{self._thesis.statement}"
-Antithesis (A): "{self._antithesis.statement}"
+Thesis (T): "{self._thesis.text}"
+Antithesis (A): "{self._antithesis.text}"
 
 {position} is the {desc}.
 Taxonomy apex concept: {apex}

@@ -11,8 +11,8 @@ from dialectical_framework.agents.analyst.skills.edit_polarity import (
     HS_WRONG_CATEGORY_THRESHOLD, EditPolarity)
 from dialectical_framework.agents.analyst.skills.edit_tetrad import EditTetrad
 from dialectical_framework.graph.nodes.case import Case
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.perspective import (POSITION_A,
                                                            POSITION_A_MINUS,
@@ -39,39 +39,39 @@ def create_test_pp(sid: str, commit: bool = False) -> Perspective:
         Perspective with Polarity (T+A) and all 4 aspects connected
     """
     with scope(sid):
-        t = DialecticalComponent(
-            statement="Love",
+        t = Statement(
+            text="Love",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
         )
         t.commit()
 
-        a = DialecticalComponent(
-            statement="Indifference",
+        a = Statement(
+            text="Indifference",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
         )
         a.commit()
 
         # Create aspects
-        t_plus = DialecticalComponent(
-            statement="Deep connection",
+        t_plus = Statement(
+            text="Deep connection",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Coherence",
         )
         t_plus.commit()
 
-        t_minus = DialecticalComponent(
-            statement="Obsessive attachment",
+        t_minus = Statement(
+            text="Obsessive attachment",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Enmeshment",
         )
         t_minus.commit()
 
-        a_plus = DialecticalComponent(
-            statement="Healthy detachment",
+        a_plus = Statement(
+            text="Healthy detachment",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Autonomy",
         )
         a_plus.commit()
 
-        a_minus = DialecticalComponent(
-            statement="Cold isolation",
+        a_minus = Statement(
+            text="Cold isolation",
             meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Disconnection",
         )
         a_minus.commit()

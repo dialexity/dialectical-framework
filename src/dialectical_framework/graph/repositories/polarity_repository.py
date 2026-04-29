@@ -15,7 +15,7 @@ from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.polarity import Polarity
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
 
 
 class PolarityRepository:
@@ -28,8 +28,8 @@ class PolarityRepository:
     @inject
     def find_by_tension(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        thesis: Statement,
+        antithesis: Statement,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Polarity]:
@@ -37,8 +37,8 @@ class PolarityRepository:
         Find Polarities that have the given thesis at T and antithesis at A.
 
         Args:
-            thesis: The DialecticalComponent at position T
-            antithesis: The DialecticalComponent at position A
+            thesis: The Statement at position T
+            antithesis: The Statement at position A
             sid: Case ID (injected from DI context)
 
         Returns:
@@ -53,7 +53,7 @@ class PolarityRepository:
                 return []
 
         query = """
-        MATCH (t:DialecticalComponent)-[:T]->(p:Polarity)<-[:A]-(a:DialecticalComponent)
+        MATCH (t:Statement)-[:T]->(p:Polarity)<-[:A]-(a:Statement)
         WHERE id(t) = $thesis_id AND id(a) = $antithesis_id
         RETURN p
         """
@@ -67,7 +67,7 @@ class PolarityRepository:
     @inject
     def find_by_component(
         self,
-        component: DialecticalComponent,
+        component: Statement,
         position: Optional[str] = None,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
@@ -76,7 +76,7 @@ class PolarityRepository:
         Find all Polarities that contain this component.
 
         Args:
-            component: The DialecticalComponent to query for
+            component: The Statement to query for
             position: Optional position filter ('T' or 'A')
             sid: Case ID (injected from DI context)
 
@@ -93,14 +93,14 @@ class PolarityRepository:
         if position:
             # Filter by specific position
             query = f"""
-            MATCH (c:DialecticalComponent)-[:{position}]->(p:Polarity)
+            MATCH (c:Statement)-[:{position}]->(p:Polarity)
             WHERE id(c) = $component_id
             RETURN p, '{position}' AS rel_type
             """
         else:
             # All positions
             query = """
-            MATCH (c:DialecticalComponent)-[r]->(p:Polarity)
+            MATCH (c:Statement)-[r]->(p:Polarity)
             WHERE id(c) = $component_id
             AND type(r) IN ['T', 'A']
             RETURN p, type(r) AS rel_type
@@ -114,7 +114,7 @@ class PolarityRepository:
     @inject
     def find_by_thesis(
         self,
-        thesis: DialecticalComponent,
+        thesis: Statement,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Polarity]:
@@ -122,7 +122,7 @@ class PolarityRepository:
         Find all Polarities where the given component is the thesis (T).
 
         Args:
-            thesis: The DialecticalComponent at position T
+            thesis: The Statement at position T
             sid: Case ID (injected from DI context)
 
         Returns:
@@ -134,7 +134,7 @@ class PolarityRepository:
     @inject
     def find_by_antithesis(
         self,
-        antithesis: DialecticalComponent,
+        antithesis: Statement,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[Polarity]:
@@ -142,7 +142,7 @@ class PolarityRepository:
         Find all Polarities where the given component is the antithesis (A).
 
         Args:
-            antithesis: The DialecticalComponent at position A
+            antithesis: The Statement at position A
             sid: Case ID (injected from DI context)
 
         Returns:

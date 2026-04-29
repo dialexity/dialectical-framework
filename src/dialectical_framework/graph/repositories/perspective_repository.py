@@ -15,7 +15,7 @@ from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.polarity import Polarity
 
 
@@ -60,9 +60,9 @@ class PerspectiveRepository:
         return [result["pp"] for result in results]
 
     @inject
-    def find_by_dialectical_component(
+    def find_by_statement(
         self,
-        component: DialecticalComponent,
+        component: Statement,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> list[tuple[Perspective, str]]:
@@ -70,7 +70,7 @@ class PerspectiveRepository:
         Find all Perspectives that contain this component.
 
         Args:
-            component: The DialecticalComponent to query for
+            component: The Statement to query for
             sid: Case ID (injected from DI context)
 
         Returns:
@@ -85,7 +85,7 @@ class PerspectiveRepository:
 
         query = """
         // Aspect positions (T+, T-, A+, A-) directly on Perspective
-        MATCH (c:DialecticalComponent)-[r]->(pp:Perspective)
+        MATCH (c:Statement)-[r]->(pp:Perspective)
         WHERE id(c) = $component_id
         AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
         RETURN pp, type(r) AS rel_type
@@ -93,7 +93,7 @@ class PerspectiveRepository:
         UNION
 
         // T and A positions via Polarity
-        MATCH (c:DialecticalComponent)-[r]->(p:Polarity)<-[:HAS_POLARITY]-(pp:Perspective)
+        MATCH (c:Statement)-[r]->(p:Polarity)<-[:HAS_POLARITY]-(pp:Perspective)
         WHERE id(c) = $component_id
         AND type(r) IN ['T', 'A']
         RETURN pp, type(r) AS rel_type
@@ -101,7 +101,7 @@ class PerspectiveRepository:
         UNION
 
         // Synthesis positions (S+, S-) via Synthesis node
-        MATCH (c:DialecticalComponent)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)
+        MATCH (c:Statement)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)
         WHERE id(c) = $component_id
         AND type(r) IN ['S_PLUS', 'S_MINUS']
         RETURN pp, type(r) AS rel_type
@@ -145,7 +145,7 @@ class PerspectiveRepository:
 
         # Delete orphaned HAS_STATEMENT components
         delete_orphaned_stmt_query = """
-        MATCH (stmt_comp:DialecticalComponent)
+        MATCH (stmt_comp:Statement)
         WHERE NOT exists((stmt_comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]->())
         AND NOT exists((stmt_comp)<-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS|S_PLUS|S_MINUS]-())
         AND NOT exists((stmt_comp)-[:T|A]->(:Polarity))
@@ -219,8 +219,13 @@ class PerspectiveRepository:
         WITH pp, components
         UNWIND CASE WHEN size(components) > 0 THEN components ELSE [null] END AS comp
 
-        OPTIONAL MATCH (comp)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(other_pp:Perspective)
+        // Check if component is used in other Perspectives via aspect positions
+        OPTIONAL MATCH (comp)-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]->(other_pp:Perspective)
         WHERE comp IS NOT NULL AND other_pp <> pp
+
+        // Check if component is used in other Perspectives via Polarity
+        OPTIONAL MATCH (comp)-[:T|A]->(other_pol:Polarity)<-[:HAS_POLARITY]-(other_pp_pol:Perspective)
+        WHERE comp IS NOT NULL AND other_pp_pol <> pp
 
         OPTIONAL MATCH (comp)-[:S_PLUS|S_MINUS]->(any_synth:Synthesis)
         WHERE comp IS NOT NULL
@@ -231,7 +236,7 @@ class PerspectiveRepository:
           AND NOT (transition_ref)-[:BELONGS_TO_CYCLE]->(:Transformation)-[:IS_SPIRAL_OF]->(pp)
 
         WITH pp, comp,
-             count(DISTINCT other_pp) + count(DISTINCT any_synth) + count(DISTINCT cycle_or_spiral) AS vocab_count
+             count(DISTINCT other_pp) + count(DISTINCT other_pp_pol) + count(DISTINCT any_synth) + count(DISTINCT cycle_or_spiral) AS vocab_count
 
         FOREACH (_ IN CASE WHEN comp IS NOT NULL AND vocab_count = 0 THEN [1] ELSE [] END |
             DETACH DELETE comp
@@ -249,7 +254,7 @@ class PerspectiveRepository:
         delete_orphaned_polarity_comps_query = """
         MATCH (pol:Polarity)
         WHERE NOT exists((pol)<-[:HAS_POLARITY]-(:Perspective))
-        MATCH (pol)<-[:T|A]-(comp:DialecticalComponent)
+        MATCH (pol)<-[:T|A]-(comp:Statement)
         // Only delete components if they're not used elsewhere
         WHERE NOT exists((comp)-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]->(:Perspective))
         AND NOT exists((comp)-[:T|A]->(:Polarity)<-[:HAS_POLARITY]-(:Perspective))
@@ -301,15 +306,15 @@ class PerspectiveRepository:
         WHERE pp.hash IN cycle.perspective_hashes
 
         // Check if Perspective is referenced by any Transformation via Wheel
-        OPTIONAL MATCH (wheel2:Wheel)-[:HAS_TRANSFORMATION]->(external_trans:Transformation)
-        WHERE pp.hash IN (()-[:HAS_WHEEL]->(wheel2)<-[:HAS_WHEEL]-(cycle2:Cycle)).perspective_hashes
+        OPTIONAL MATCH (cycle2:Cycle)-[:HAS_WHEEL]->(wheel2:Wheel)-[:HAS_TRANSFORMATION]->(external_trans:Transformation)
+        WHERE pp.hash IN cycle2.perspective_hashes
 
         // Get aspect components directly on Perspective (T+, T-, A+, A-)
-        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(aspect_component:DialecticalComponent)
+        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(aspect_component:Statement)
         // Get T/A components through Polarity
-        OPTIONAL MATCH (pp)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:DialecticalComponent)
+        OPTIONAL MATCH (pp)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:Statement)
 
-        OPTIONAL MATCH (pp)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+        OPTIONAL MATCH (pp)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:Statement)
 
         WITH pp,
              count(DISTINCT wheel) AS wheel_count,
@@ -375,9 +380,9 @@ class PerspectiveRepository:
         OPTIONAL MATCH (cycle:Cycle)-[:HAS_WHEEL]->(wheel:Wheel)
         WHERE pp.hash IN cycle.perspective_hashes
 
-        // Check if Perspective is referenced by any Transformation
-        OPTIONAL MATCH (wheel2:Wheel)-[:HAS_TRANSFORMATION]->(trans:Transformation)
-        WHERE pp.hash IN (()-[:HAS_WHEEL]->(wheel2)<-[:HAS_WHEEL]-(cycle2:Cycle)).perspective_hashes
+        // Check if Perspective is referenced by any Transformation via Wheel
+        OPTIONAL MATCH (cycle2:Cycle)-[:HAS_WHEEL]->(wheel2:Wheel)-[:HAS_TRANSFORMATION]->(trans:Transformation)
+        WHERE pp.hash IN cycle2.perspective_hashes
 
         RETURN count(DISTINCT wheel) + count(DISTINCT trans) AS usage_count
         """
@@ -434,11 +439,11 @@ class PerspectiveRepository:
         MATCH (pp:Perspective) WHERE id(pp) = $pp_id
 
         // Get aspect components directly on Perspective (T+, T-, A+, A-)
-        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(aspect_component:DialecticalComponent)
+        OPTIONAL MATCH (pp)<-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]-(aspect_component:Statement)
         // Get T/A components through Polarity
-        OPTIONAL MATCH (pp)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:DialecticalComponent)
+        OPTIONAL MATCH (pp)-[:HAS_POLARITY]->(polarity:Polarity)<-[:T|A]-(polarity_comp:Statement)
 
-        OPTIONAL MATCH (pp)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:DialecticalComponent)
+        OPTIONAL MATCH (pp)<-[:SYNTHESIS_OF]-(synth:Synthesis)<-[:S_PLUS|S_MINUS]-(synth_comp:Statement)
 
         WITH pp, collect(DISTINCT aspect_component) + collect(DISTINCT polarity_comp) + collect(DISTINCT synth_comp) AS all_components
 

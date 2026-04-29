@@ -3,7 +3,7 @@ Mixin for nodes that can be built incrementally before committing.
 
 This mixin is for container nodes that need children added incrementally
 before being finalized:
-- Ideas: add DialecticalComponents (statements)
+- Ideas: add Statements
 - Cycle, Wheel: add Transitions
 - Transformation: add Transitions for each position
 

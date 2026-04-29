@@ -24,7 +24,7 @@ from dialectical_framework.graph.relationships.synthesis_of_relationship import 
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 # Position constants for S+/S- (canonical names)
@@ -48,15 +48,15 @@ class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Syn
     """
 
     # S+ side (exactly one positive synthesis component)
-    s_plus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    s_plus: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=SPlusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
     # S- side (exactly one negative synthesis component)
-    s_minus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    s_minus: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=SMinusRelationship,
         cardinality=(1, 1)  # Exactly one
     )

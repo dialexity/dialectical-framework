@@ -26,7 +26,7 @@ Usage:
     print(f"Mode: {result.mode_value}, HS: {result.heuristic_similarity}")
 
     # Caller creates component if needed:
-    antithesis = DialecticalComponent(statement=result.statement, meaning=result.meaning)
+    antithesis = Statement(text=result.statement, meaning=result.meaning)
     antithesis.commit()
 """
 
@@ -46,8 +46,8 @@ from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import \
-        DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import \
+        Statement
 
 
 # --- System Prompt (canonical for antithesis taxonomy) ---
@@ -355,7 +355,7 @@ class AntithesisClassification(ReasonableConcern[AntithesisClassificationResult]
 
     async def resolve(
         self,
-        thesis: DialecticalComponent,
+        thesis: Statement,
         antithesis_statement: str,
         text: str = "",
     ) -> AntithesisClassificationResult:
@@ -373,7 +373,7 @@ class AntithesisClassification(ReasonableConcern[AntithesisClassificationResult]
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Early validation
-        if not thesis or not thesis.statement:
+        if not thesis or not thesis.text:
             raise ValueError("Cannot classify antithesis without a valid thesis")
         if not antithesis_statement or not antithesis_statement.strip():
             raise ValueError("Cannot classify empty antithesis statement")
@@ -449,7 +449,7 @@ class AntithesisClassification(ReasonableConcern[AntithesisClassificationResult]
         )
         return f"""{context_section}Evaluate this antithesis for a simple (binary/literal) thesis.
 
-Thesis: "{self._thesis.statement}"
+Thesis: "{self._thesis.text}"
 Antithesis to evaluate: "{self._antithesis_statement}"
 
 For simple theses, the "apex" is the direct logical negation of the thesis.
@@ -505,7 +505,7 @@ Determine:
     async def _contextualize_taxonomy(self) -> ContextualizedTaxonomyDto:
         """Contextualize universal taxonomy for a complex thesis."""
         return await contextualize_taxonomy(
-            thesis_statement=self._thesis.statement,
+            thesis_statement=self._thesis.text,
             thesis_meaning=self._thesis.meaning or "",
             text=self._text,
             conversation=self._conversation,
@@ -514,7 +514,7 @@ Determine:
     def _complex_evaluation_prompt(self, taxonomy: ContextualizedTaxonomyDto) -> str:
         """Build prompt for complex thesis evaluation."""
         # Build taxonomy reference
-        taxonomy_ref = f"""Contextualized taxonomy for thesis "{self._thesis.statement}":
+        taxonomy_ref = f"""Contextualized taxonomy for thesis "{self._thesis.text}":
 - Apex: {taxonomy.apex}
 - Negation (1.0): {taxonomy.negation}
 - Inversion (0.9): {taxonomy.inversion}
@@ -530,7 +530,7 @@ Determine:
 
         return f"""Evaluate this antithesis against the contextualized taxonomy.
 
-Thesis: "{self._thesis.statement}"
+Thesis: "{self._thesis.text}"
 Antithesis to evaluate: "{self._antithesis_statement}"
 
 {taxonomy_ref}

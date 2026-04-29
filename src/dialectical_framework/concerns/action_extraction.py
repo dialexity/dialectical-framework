@@ -227,7 +227,7 @@ class ActionExtraction(
             result = manager.get()
             if result:
                 comp, _ = result
-                parts.append(f"{name}: {comp.statement}")
+                parts.append(f"{name}: {comp.text}")
 
         return "\n".join(parts)
 
@@ -241,7 +241,7 @@ class ActionExtraction(
                 target_result = transition.target.get()
                 if target_result:
                     comp, _ = target_result
-                    exclusions.append(comp.statement)
+                    exclusions.append(comp.text)
         return exclusions
 
     async def _generate_candidate_for_category(

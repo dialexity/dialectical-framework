@@ -1,7 +1,7 @@
 """
-Utility functions for generating dialectical component sequences.
+Utility functions for generating statement sequences.
 
-These functions produce ordered arrangements of DialecticalComponents for
+These functions produce ordered arrangements of Statements for
 cycle generation in the causality sequencing pipeline.
 """
 
@@ -11,13 +11,13 @@ from itertools import permutations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 
 def generate_permutation_sequences(
-    dialectical_components: list[DialecticalComponent],
-) -> list[list[DialecticalComponent]]:
+    statements: list[Statement],
+) -> list[list[Statement]]:
     """
     Generate all permutations of components with a fixed first element.
 
@@ -26,33 +26,33 @@ def generate_permutation_sequences(
     circular sequences starting at different points are equivalent.
 
     Args:
-        dialectical_components: Components to arrange into sequences.
+        statements: Statements to arrange into sequences.
 
     Returns:
-        List of component sequences. For a single component, returns [[component]].
-        For multiple components, each sequence starts with the first input
-        component followed by a unique permutation of remaining components.
-        Returns empty list if no components provided.
+        List of statement sequences. For a single statement, returns [[statement]].
+        For multiple statements, each sequence starts with the first input
+        statement followed by a unique permutation of remaining statements.
+        Returns empty list if no statements provided.
 
     Example:
-        Given components [A, B, C]:
+        Given statements [A, B, C]:
         - Returns [[A, B, C], [A, C, B]]
         - First element A is fixed, B and C are permuted
     """
-    if len(dialectical_components) == 0:
+    if len(statements) == 0:
         return []
 
-    if len(dialectical_components) == 1:
-        return [dialectical_components]
+    if len(statements) == 1:
+        return [statements]
 
-    first, rest = dialectical_components[0], dialectical_components[1:]
+    first, rest = statements[0], statements[1:]
     sequences = list([first, *p] for p in permutations(rest))
     return sequences
 
 
 def generate_compatible_sequences(
     ordered_perspectives: list[Perspective],
-) -> list[list[DialecticalComponent]]:
+) -> list[list[Statement]]:
     """
     Generate circular arrangements with diagonal symmetry for thesis/antithesis pairs.
 
@@ -98,8 +98,8 @@ def generate_compatible_sequences(
     n = len(ordered_perspectives)
 
     # Extract T and A components from graph-native Perspectives
-    ts: list[DialecticalComponent] = []
-    as_: list[DialecticalComponent] = []
+    ts: list[Statement] = []
+    as_: list[Statement] = []
     for u in ordered_perspectives:
         # Get T component (returns tuple of (component, relationship) or None)
         t_result = u.t.get()
@@ -117,13 +117,13 @@ def generate_compatible_sequences(
 
     size = 2 * n
 
-    results: list[list[DialecticalComponent]] = []
+    results: list[list[Statement]] = []
 
     def backtrack(t_positions: list[int], next_t_idx: int) -> None:
         """Recursively place theses while respecting constraints."""
         if next_t_idx == n:
             # All theses placed - build the complete arrangement
-            arrangement: list[DialecticalComponent | None] = [None] * size
+            arrangement: list[Statement | None] = [None] * size
             for t_idx, pos in enumerate(t_positions):
                 arrangement[pos] = ts[t_idx]
                 diag = (pos + n) % size

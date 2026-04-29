@@ -395,7 +395,7 @@ class ModeEstimation(Estimation, label="Mode"):
     """
     Mode estimation for T-A opposition.
 
-    Stored on the antithesis DialecticalComponent since it
+    Stored on the antithesis Statement since it
     characterizes the opposition direction (how A opposes T).
     """
 
@@ -406,7 +406,7 @@ class ArousalEstimation(Estimation, label="Arousal"):
     """
     Arousal estimation for T-A opposition.
 
-    Stored on the antithesis DialecticalComponent since it
+    Stored on the antithesis Statement since it
     characterizes the opposition intensity.
     """
 

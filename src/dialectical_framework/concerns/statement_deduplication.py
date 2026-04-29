@@ -17,10 +17,10 @@ from dialectical_framework.agents.conversation_facilitator import \
 from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
-from dialectical_framework.graph.repositories.dialectical_component_repository import \
-    DialecticalComponentRepository
+from dialectical_framework.graph.nodes.statement import \
+    Statement
+from dialectical_framework.graph.repositories.statement_repository import \
+    StatementRepository
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 
@@ -131,17 +131,17 @@ class DedupResult:
     """Result of applying deduplication."""
 
     # Maps extracted hash -> DB component that replaces it
-    replacements: dict[str, DialecticalComponent]
+    replacements: dict[str, Statement]
     # Components that were deleted (had DB equivalent)
     deleted_count: int
     # Original extracted components that were kept (no DB equivalent)
-    originals: list[DialecticalComponent]
+    originals: list[Statement]
 
     @property
-    def components(self) -> list[DialecticalComponent]:
+    def components(self) -> list[Statement]:
         """All unique components: originals + unique replacements."""
         seen: set[str] = set()
-        result: list[DialecticalComponent] = []
+        result: list[Statement] = []
 
         for comp in self.originals:
             if comp.hash not in seen:
@@ -170,9 +170,9 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
             vocabulary=vocab_list,
             text="source context for deduplication",
         )
-        # result.replacements: {"abc123": <DialecticalComponent>}  # DB equivalent
+        # result.replacements: {"abc123": <Statement>}  # DB equivalent
         # result.deleted_count: 1
-        # result.originals: [<DialecticalComponent>]  # kept extractions
+        # result.originals: [<Statement>]  # kept extractions
         # deduplicator.report contains effects
     """
 
@@ -269,7 +269,7 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
             comp = self._resolve_component(h)
             if comp and comp.is_committed:
                 extraction_lines.append(
-                    f"[{comp.short_hash}] {comp.statement} (meaning: {comp.meaning or 'none'})"
+                    f"[{comp.short_hash}] {comp.text} (meaning: {comp.meaning or 'none'})"
                 )
                 extracted_prefixes.add(_extract_meaning_prefix(comp.meaning))
 
@@ -335,10 +335,10 @@ If no match, set db_hash to null."""
         dedup_dto: SemanticDedupDto,
     ) -> DedupResult:
         """Apply dedup matches: delete duplicates, return result."""
-        replacements: dict[str, DialecticalComponent] = {}
-        originals: list[DialecticalComponent] = []
+        replacements: dict[str, Statement] = {}
+        originals: list[Statement] = []
         deleted_count = 0
-        repo = DialecticalComponentRepository()
+        repo = StatementRepository()
 
         for ext_hash in extracted_hashes:
             # Find match for this extraction
@@ -384,12 +384,12 @@ If no match, set db_hash to null."""
                 return m
         return None
 
-    def _resolve_component(self, hash: str) -> Optional[DialecticalComponent]:
+    def _resolve_component(self, hash: str) -> Optional[Statement]:
         """Resolve hash to component."""
         repo = NodeRepository()
         try:
             comp = repo.find_by_hash(hash)
-            if isinstance(comp, DialecticalComponent):
+            if isinstance(comp, Statement):
                 return comp
         except ValueError:
             pass
@@ -400,7 +400,7 @@ If no match, set db_hash to null."""
         idea: str,
         vocabulary: list[dict],
         text: str = "",
-    ) -> Optional[DialecticalComponent]:
+    ) -> Optional[Statement]:
         """
         Check if a raw idea string is a semantic duplicate of existing vocabulary.
 
@@ -414,7 +414,7 @@ If no match, set db_hash to null."""
             text: Source context for contextualized matching
 
         Returns:
-            The matching DialecticalComponent if duplicate found, None otherwise
+            The matching Statement if duplicate found, None otherwise
         """
         if not idea or not idea.strip() or not vocabulary:
             return None

@@ -34,7 +34,7 @@ The simplest way to use the framework is **feasibility-only mode**:
 
 ### What to assess as "Relevance" (Feasibility):
 
-- **DialecticalComponent.relevance** = *"How feasible/valid is this statement in context?"*
+- **Statement.relevance** = *"How feasible/valid is this statement in context?"*
 - **Transition.relevance** = *"How feasible is this relationship/step?"*
 - **Rationale.relevance** = *"How feasible is the parent element? Here's why..."*
 
@@ -66,20 +66,20 @@ The scoring system is built on the `Assessable` protocol with the following inhe
 
 **Concrete Implementations:**
 - **Leaf Assessables (Ratable):**
-  - `DialecticalComponent` - Basic statements/concepts (T, A, T+, T-, A+, A-, S+, S-)
-  - `Transition` - Relationships between components with predicates
+  - `Statement` - Basic statements/concepts (T, A, T+, T-, A+, A-, S+, S-)
+  - `Transition` - Relationships between statements with predicates
   - `Rationale` - Evidence/commentary (special: soft exclusion instead of hard veto, evidence vs self-scoring views)
 
 - **Composite Assessables:**
   - `AssessableCycle` - Abstract base for cycles (inherits from Assessable)
-    - `Cycle` - Sequences of transitions between components
+    - `Cycle` - Sequences of transitions between statements
     - `Spiral` - Transformational cycles between segments
   - `Perspective` - Thesis-antithesis pairs with synthesis and transformation
   - `Nexus` - Pool of Perspectives where collective insights emerge (staging area before cycle arrangement)
   - `Wheel` - Complete dialectical systems (detailed implementation of a cycle arrangement)
 
 **Key Behavioral Differences:**
-- **Hard Veto Policy**: Components and transitions with zero values (R=0 or P=0) indicate structural impossibility and return 0
+- **Hard Veto Policy**: Statements and transitions with zero values (R=0 or P=0) indicate structural impossibility and return 0
 - **Soft Exclusion Policy**: Rationales with zero values are excluded from aggregation without vetoing parent elements
 - **Single Rating Application**: Each element's rating is applied exactly once to prevent double-counting
 
@@ -109,12 +109,12 @@ Level 2: Perspective
          └─ Includes Perspective-level Rationale Rs
 
 Level 1: WheelSegment
-         ├─ Aggregates DialecticalComponent Rs (T, T+, T-)
+         ├─ Aggregates Statement Rs (T, T+, T-)
          └─ Includes segment-level Rationale Rs
 
-Level 0: DialecticalComponent (leaf)
+Level 0: Statement (leaf)
          ├─ Own R × own rating
-         └─ Includes component-level Rationale Rs
+         └─ Includes statement-level Rationale Rs
 
          Transition (leaf)
          ├─ Own R × own rating
@@ -175,12 +175,12 @@ Level 1: Transition (leaf for probability)
 
 ```python
 # Correct usage
-component = DialecticalComponent(statement="Example")
-component.commit()  # Required before scoring
-scorer.calculate_score(component)
+stmt = Statement(text="Example")
+stmt.commit()  # Required before scoring
+scorer.calculate_score(stmt)
 
 # This raises ValueError
-uncommitted = DialecticalComponent(statement="Not committed")
+uncommitted = Statement(text="Not committed")
 scorer.calculate_score(uncommitted)  # ValueError: Cannot score uncommitted node
 ```
 
@@ -213,7 +213,7 @@ SCORING FLOW (scores aggregate upward):
 
                                     ┌─────────────────────────────────────────────┐
                                     ▼                                             │
-DialecticalComponent ──► Perspective ──► Nexus ──► Cycle ──► Wheel                 │
+Statement ──► Perspective ──► Nexus ──► Cycle ──► Wheel                            │
        │                     ▲                               ▲                    │
        │                     │                               │                    │
        │              Transformation ◄── Synthesis           │                    │
@@ -229,8 +229,8 @@ Rationale ──► (any AssessableEntity)
 
 | From (Child) | To (Parent) | Edge Type | Meaning |
 |--------------|-------------|-----------|---------|
-| DialecticalComponent | Perspective | T/A/T+/T-/A+/A- (polarity) | Component score contributes to PP |
-| DialecticalComponent | Synthesis | S+/S- (polarity) | Component score contributes to Synthesis |
+| Statement | Perspective | T/A/T+/T-/A+/A- (polarity) | Statement score contributes to PP |
+| Statement | Synthesis | S+/S- (polarity) | Statement score contributes to Synthesis |
 | Synthesis | Transformation | SYNTHESIS_OF | Synthesis score contributes to Transformation |
 | Synthesis | Spiral | SYNTHESIS_OF | Synthesis score contributes to Spiral (meta-synthesis) |
 | Transformation | Perspective | IS_SPIRAL_OF | Transformation score contributes to PP |
@@ -249,7 +249,7 @@ When Perspective changes:
 2. Query finds outgoing edge: `(Nexus)-[HAS_CYCLE]->(Cycle)` → Cycle invalidated
 3. Query finds outgoing edge: `(Cycle)-[HAS_WHEEL]->(Wheel)` → Wheel invalidated
 
-When Synthesis changes (e.g., S+ component updated):
+When Synthesis changes (e.g., S+ statement updated):
 1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Transformation)` → Transformation invalidated
 2. Query finds outgoing edge: `(Transformation)-[IS_SPIRAL_OF]->(PP)` → PP invalidated
 3. Continues: PP → Nexus → Cycle → Wheel (as above)
@@ -313,19 +313,19 @@ External Transitions (wheel-level cycles):
 
 **Complete Scoring Calculation:**
 
-**Step 1: Calculate Component Rs (including rationales)**
+**Step 1: Calculate Statement Rs (including rationales)**
 
-**Components with rationales:**
+**Statements with rationales:**
 - **T**: 0.8 × 0.9 = 0.72
 - **T+**: GM(0.9×0.7, 0.9×0.8) = GM(0.63, 0.72) = 0.67
-- **T-**: Component has rationale with critique (auditor-wins):
+- **T-**: Statement has rationale with critique (auditor-wins):
   - Critique overrides rationale R → rationale returns R=0.5
   - Element applies rationale.rating → 0.5 × 0.7 = 0.35
   - Element aggregates: GM(0.6×0.5, 0.35) = GM(0.30, 0.35) = 0.32
 - **A**: 0.7 × 0.8 = 0.56
 - **A+**: 0.8 × 0.6 = 0.48
 - **A-**: 0.5 × 0.4 = 0.20
-- **S+**: Component has 2 rationales, one with critique (auditor-wins):
+- **S+**: Statement has 2 rationales, one with critique (auditor-wins):
   - Rationale 1: R=0.9, rating=0.9 → contributes 0.9×0.9 = 0.81
   - Rationale 2: Has critique R=0.6 (overrides R=0.8), rating=0.7 → contributes 0.6×0.7 = 0.42
   - Element: GM(0.85×0.8, 0.81, 0.42) = GM(0.68, 0.81, 0.42) = 0.61
@@ -365,7 +365,7 @@ External Transitions (wheel-level cycles):
 
 **Note on Implementation Reality**: The actual implementation may produce values that vary from this worked example due to several factors:
 
-1. Leaves (DialecticalComponent, Transition, Rationale) never invent neutral values - they return None when there's no evidence.
+1. Leaves (Statement, Transition, Rationale) never invent neutral values - they return None when there's no evidence.
 2. Empty rationales return None for both R and P calculations.
 3. **Auditor-wins semantics**: When rationales have child rationales (critiques), the critiques override the parent rationale's values at the deepest level. Multiple critiques aggregate via weighted average (if rated) or GM (if unrated).
 4. Perspective axis R aggregation using power mean (p≈4) may produce slightly different values based on specific implementation details.
@@ -396,9 +396,9 @@ Estimation nodes are **content-addressed** by `(type, value, target)`:
 
 ```python
 # Setting estimation (via EstimationManager)
-manager.upsert_estimation(component, RelevanceEstimation, 0.8)  # Creates new
-manager.upsert_estimation(component, RelevanceEstimation, 0.8)  # Reuses existing
-manager.upsert_estimation(component, RelevanceEstimation, 0.7)  # Deletes old, creates new
+manager.upsert_estimation(stmt, RelevanceEstimation, 0.8)  # Creates new
+manager.upsert_estimation(stmt, RelevanceEstimation, 0.8)  # Reuses existing
+manager.upsert_estimation(stmt, RelevanceEstimation, 0.7)  # Deletes old, creates new
 ```
 
 ### Rationale Semantics: Evidence vs Audits
@@ -406,7 +406,7 @@ manager.upsert_estimation(component, RelevanceEstimation, 0.7)  # Deletes old, c
 **Core Principle: Rationale P/R values assess the parent element, not the rationale itself.**
 
 A `Rationale` object has three key fields: `relevance`, `probability`, and `rating`. Critically:
-- **Rationale.relevance** = *"How relevant is THE PARENT ELEMENT (Component/Transition) to context?"*
+- **Rationale.relevance** = *"How relevant is THE PARENT ELEMENT (Statement/Transition) to context?"*
 - **Rationale.probability** = *"How feasible is THE PARENT ELEMENT's structural arrangement?"*
 - **Rationale.rating** = *"How much weight/authority does this assessment carry?"*
 
@@ -416,7 +416,7 @@ The framework uses rationales (the `rationales[]` array) with different semantic
 
 **Element → rationales[] (Evidence Aggregation)**
 
-When an element (Component, Transition, etc.) has rationales, they are **independent evidence sources** that aggregate:
+When an element (Statement, Transition, etc.) has rationales, they are **independent evidence sources** that aggregate:
 
 - **Element's own R/P**: Direct assessment of itself without explanation
 - **Rationale R/P**: Assessment of the parent element with explanation text
@@ -424,17 +424,17 @@ When an element (Component, Transition, etc.) has rationales, they are **indepen
 - All evidence aggregates via **Geometric Mean**: `GM(element_own × element_rating, rationale1 × rating1, rationale2 × rating2, ...)`
 - Example:
   ```
-  Component(R=0.8, rating=0.9)
-  ├─ Rationale1(R=0.7, rating=0.8, text="Expert A: this component is 70% relevant because...")
-  └─ Rationale2(R=0.6, rating=0.7, text="Expert B: this component is 60% relevant because...")
+  Statement(R=0.8, rating=0.9)
+  ├─ Rationale1(R=0.7, rating=0.8, text="Expert A: this statement is 70% relevant because...")
+  └─ Rationale2(R=0.6, rating=0.7, text="Expert B: this statement is 60% relevant because...")
 
-  All three assess THE COMPONENT's relevance:
-  - Direct: Component says "I'm 80% relevant" (no justification)
-  - Expert A: "Component is 70% relevant because..." (with justification)
-  - Expert B: "Component is 60% relevant because..." (with justification)
+  All three assess THE STATEMENT's relevance:
+  - Direct: Statement says "I'm 80% relevant" (no justification)
+  - Expert A: "Statement is 70% relevant because..." (with justification)
+  - Expert B: "Statement is 60% relevant because..." (with justification)
 
   Final R = GM(0.8×0.9, 0.7×0.8, 0.6×0.7) ≈ 0.52
-  # Geometric mean of all independent assessments OF THE COMPONENT
+  # Geometric mean of all independent assessments OF THE STATEMENT
   ```
 
 **Rationale → rationales[] (Audit Override)**
@@ -449,13 +449,13 @@ When a rationale has child rationales, they are **critiques/audits** with more c
 - rating=0 means "ignore this critique"
 - Example:
   ```
-  Component(R=?, P=?) ← "What are this component's R and P?"
+  Statement(R=?, P=?) ← "What are this statement's R and P?"
   └─ Rationale(R=0.9, P=0.8, text="Initial assessment: R=0.9, P=0.8 because...")
       └─ Critique(R=0.5, P=0.6, rating=0.9, text="Auditor: Actually R=0.5, P=0.6 because...")
 
-  Both Rationale and Critique assess THE COMPONENT's R and P:
-  - Rationale: "Component has R=0.9, P=0.8"
-  - Critique: "No, component has R=0.5, P=0.6" (auditor correction)
+  Both Rationale and Critique assess THE STATEMENT's R and P:
+  - Rationale: "Statement has R=0.9, P=0.8"
+  - Critique: "No, statement has R=0.5, P=0.6" (auditor correction)
 
   Final R = 0.5, P = 0.6
   # Auditor's assessment wins (more context/authority)
@@ -470,16 +470,16 @@ When a rationale has child rationales, they are **critiques/audits** with more c
 
 **Why This Makes Sense:**
 
-When assessing a DialecticalComponent or Transition, you have multiple ways to provide evidence:
+When assessing a Statement or Transition, you have multiple ways to provide evidence:
 
 1. **Direct assessment** (Element's own R/P):
-   - `Component(relevance=0.8, probability=0.9)`
-   - Meaning: *"I assess this component's relevance as 0.8 and probability as 0.9"*
+   - `Statement(relevance=0.8, probability=0.9)`
+   - Meaning: *"I assess this statement's relevance as 0.8 and probability as 0.9"*
    - No explanation provided - just the numbers
 
 2. **Rationalized assessment** (Element's rationales):
    - `Rationale(relevance=0.7, probability=0.85, text="Because of X, Y, Z...")`
-   - Meaning: *"I assess THE COMPONENT's relevance as 0.7 and probability as 0.85, here's why..."*
+   - Meaning: *"I assess THE STATEMENT's relevance as 0.7 and probability as 0.85, here's why..."*
    - Explanation provided - justified assessment
 
 Both assess **the same target** (the parent element), so they aggregate as **independent evidence sources** via GM.
@@ -498,29 +498,29 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 * **Hierarchical aggregation:** Non-leaves take the **geometric mean** of their immediate children
 * **No free lunch:** Both leaf and non-leaf nodes return `None` when no evidence exists; `None` values are excluded from parent GM aggregation
 * **Single rating application:** Ratings are applied exactly once at the source:
-  * A leaf's **own R** is multiplied by its **own rating** (only applies to DialecticalComponent and Transition)
+  * A leaf's **own R** is multiplied by its **own rating** (only applies to Statement and Transition)
   * A **rationale's R** is multiplied by **rationale.rating** by the consuming parent
   * Parents never multiply their own rating onto children
 * **Selective veto policy:**
-  * **DialecticalComponent/Transition**: Zero values (R=0 or P=0) trigger **hard veto** (return 0)
+  * **Statement/Transition**: Zero values (R=0 or P=0) trigger **hard veto** (return 0)
   * **Rationale**: Zero values (R=0 or P=0) are treated as "no contribution" (excluded, not veto)
 * **Zero handling:** Zeros from weighting (rating = 0) and `None` values are **ignored** in aggregation
 
 #### R Calculation by Element Type
 
-**DialecticalComponent** *(leaf, `Ratable`)*
+**Statement** *(leaf, `Ratable`)*
 
 * Combine multiple **independent evidence sources** via Geometric Mean:
-  * Component's **own R × its rating** (direct evidence without explanation)
+  * Statement's **own R × its rating** (direct evidence without explanation)
   * Each **rationale R × rationale.rating** (evidence with explanation/reasoning)
 * All evidence sources have **equal semantic role** - just with/without justification text
 * If own R = 0 → hard veto (zero values ⇒ structural impossibility)
-* If nothing contributes → returns None (default policy: DC.P defaults to 1.0 unless manually set)
-* Example: `GM(component_R × component_rating, rationale1_R × rationale1_rating, ...)`
+* If nothing contributes → returns None (default policy: Statement.P defaults to 1.0 unless manually set)
+* Example: `GM(statement_R × statement_rating, rationale1_R × rationale1_rating, ...)`
 
 **Transition** *(leaf, `Ratable`)*
 
-* Same rule as components: combine multiple **independent evidence sources** via Geometric Mean
+* Same rule as statements: combine multiple **independent evidence sources** via Geometric Mean
   * Transition's **own R × its rating** (direct evidence)
   * Each **rationale R × rationale.rating** (evidence with explanation)
 * Do **not** inherit R from source/target; R(Transition) answers "is this step grounded here?"
@@ -539,17 +539,17 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 * **No free lunch**: Returns nothing if no real evidence exists (prevents "empty rationale" inflation)
 * **Rating application**: Parent applies the rationale's rating when consuming its evidence
 * **Self-scoring**: When calculating its own score for ranking, uses same evidence without external rating
-* **Soft exclusion**: Zero-value rationales (R=0 or P=0) are excluded from aggregation (no hard veto like components/transitions)
+* **Soft exclusion**: Zero-value rationales (R=0 or P=0) are excluded from aggregation (no hard veto like statements/transitions)
 
 **WheelSegment** *(non-leaf)*
 
-* R = GM of its three DialecticalComponents (+ rated segment-level rationales).
+* R = GM of its three Statements (+ rated segment-level rationales).
 
 **Perspective** *(non-leaf)*
 
 * R = GM of:
 
-  * **Dialectically symmetric component pairs** using power mean (p=4, soft max):
+  * **Dialectically symmetric statement pairs** using power mean (p=4, soft max):
     * **T ↔ A**: Power mean of thesis and antithesis Rs
     * **T+ ↔ A-**: Power mean of positive thesis and negative antithesis Rs
     * **T- ↔ A+**: Power mean of negative thesis and positive antithesis Rs
@@ -591,12 +591,12 @@ Both assess **the same target** (the parent element), so they aggregate as **ind
 
 ### Probability (P) Implementation
 
-**What P measures**: Structural feasibility of **relations and arrangements**. P flows along the **structure hierarchy**: transitions → cycles → wheel. Content nodes (components, segments) don't directly affect P.
+**What P measures**: Structural feasibility of **relations and arrangements**. P flows along the **structure hierarchy**: transitions → cycles → wheel. Content nodes (statements, segments) don't directly affect P.
 
 #### Global P Policies
 
 * **Structure-only flow:** P aggregates only along transitions and cycles, not content elements
-* **Component default:** DialecticalComponent.P defaults to 1.0 (fact) unless manually set
+* **Statement default:** Statement.P defaults to 1.0 (fact) unless manually set
 * **Transition default (configurable):**
   - Controls fallback behavior for transitions without explicit P
   - **None** (default): Transitions without explicit P return None, requiring explicit probability assessments ("no free lunch")
@@ -688,7 +688,7 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 4. **Local score computation**: Each element computes its own score using its aggregated P and R with the global α parameter
 
 **Key Implementation Principle**:
-* **R** flows up the **content hierarchy** (components → segments → units → wheel)
+* **R** flows up the **content hierarchy** (statements → segments → units → wheel)
 * **P** flows up the **structure hierarchy** (transitions → cycles → wheel)
 * **Score** is computed **locally** at each element using Score = P × R^α
 
@@ -699,7 +699,7 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 **In Feasibility-Only Mode (P=1.0 default)**, R represents overall feasibility/goodness.
 **In Advanced Mode (explicit P required)**, R represents contextual fit while P represents structural soundness.
 
-**DialecticalComponent**:
+**Statement**:
 - *Feasibility-Only*: "How feasible/valid is this statement?"
 - *Advanced*: "How well does this statement fit the specific situation or reality?"
 - Factors: Domain expertise, situational relevance, stakeholder alignment, factual accuracy
@@ -727,13 +727,13 @@ The dialectical scoring system provides a robust, hierarchical approach to ranki
 ## Probability (P) by Assessable Type
 
 **Note**: In Feasibility-Only Mode (P=1.0 default), P is mostly hidden from users:
-- DialecticalComponent: P defaults to 1.0 (facts exist)
+- Statement: P defaults to 1.0 (facts exist)
 - Transition: P defaults to 1.0 (relationships are certain)
 - You only focus on R for scoring
 
 **In Advanced Mode only**, P represents structural feasibility:
 
-**DialecticalComponent**: *"How likely is this statement to be valid/true?"*
+**Statement**: *"How likely is this statement to be valid/true?"*
 - Empirical support, logical consistency, expert consensus
 
 **Transition**: *"How likely is this relationship/change to actually occur?"*
@@ -758,7 +758,7 @@ Transition Score: 0.75 | R=0.75 | P=1.0
 ↓
 "This transition is 75% feasible overall"
 
-Component Score: 0.90 | R=0.90 | P=1.0
+Statement Score: 0.90 | R=0.90 | P=1.0
 ↓
 "This concept is 90% feasible overall"
 ```
@@ -770,7 +770,7 @@ Transition Score: 0.75 | R=0.90 | P=0.83
 "This change step is highly appropriate for your context (R=0.90)
 and very likely to succeed structurally (P=0.83)"
 
-Component Score: 0.75 | R=0.90 | P=0.83
+Statement Score: 0.75 | R=0.90 | P=0.83
 ↓
 "This concept fits your situation perfectly (R=0.90)
 and has strong empirical support (P=0.83)"

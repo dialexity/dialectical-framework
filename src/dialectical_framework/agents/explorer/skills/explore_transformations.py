@@ -37,8 +37,8 @@ from dialectical_framework.concerns.positive_ac_re_apex_derivation import (
     ApexDerivation, ApexDerivationResultDto)
 from dialectical_framework.concerns.transformation_generation import (
     TransformationGeneration, TransformationTetradDto)
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.transformation import (
     POSITION_AC, POSITION_AC_MINUS, POSITION_AC_PLUS, POSITION_RE,
@@ -371,8 +371,8 @@ class ExploreTransformations(
         self,
         headline: str,
         statement: str,
-        source: DialecticalComponent,
-        target: DialecticalComponent,
+        source: Statement,
+        target: Statement,
         explanation: str,
     ) -> Transition:
         """

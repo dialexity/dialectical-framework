@@ -40,8 +40,8 @@ from dialectical_framework.agents.reasonable_concern import \
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.polarity import POSITION_A, POSITION_T
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_A_PLUS,
@@ -175,12 +175,12 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
 
     async def _handle_aspects_changed(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        thesis: Statement,
+        antithesis: Statement,
     ) -> EditTetradResult:
         """Handle when aspects are changed."""
         # Validate all changed aspects
-        aspect_validations: dict[str, tuple[DialecticalComponent, object]] = {}
+        aspect_validations: dict[str, tuple[Statement, object]] = {}
         invalid_aspects: list[str] = []
 
         for aspect_pos in self._changes:
@@ -197,8 +197,8 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
             self._report = self._report.merge(aspect_classifier.report)
 
             if aspect_result.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD:
-                new_aspect = DialecticalComponent(
-                    statement=aspect_stmt,
+                new_aspect = Statement(
+                    text=aspect_stmt,
                     meaning=aspect_result.meaning,
                 )
                 new_aspect.commit()
@@ -237,7 +237,7 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
 
     async def _fill_pp_with_aspects(
         self,
-        aspect_validations: dict[str, tuple[DialecticalComponent, object]],
+        aspect_validations: dict[str, tuple[Statement, object]],
     ) -> None:
         """Fill working PP with changed aspects, copying unchanged from original."""
         pp = self._working_pp
@@ -306,8 +306,8 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
 
     async def _find_better_aspect_position(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        thesis: Statement,
+        antithesis: Statement,
         aspect_stmt: str,
         exclude_position: str,
     ) -> Optional[dict]:

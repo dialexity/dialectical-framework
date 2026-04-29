@@ -6,7 +6,7 @@ from dialectical_framework.graph.relationships.immutable_structure import Identi
 
 class IsSourceOfRelationship(IdentityRelationship, type="IS_SOURCE_OF"):
     """
-    Links a DialecticalComponent as the source of a Transition.
+    Links a Statement as the source of a Transition.
 
     Part of the structural layer - defines what the Transition represents.
     """

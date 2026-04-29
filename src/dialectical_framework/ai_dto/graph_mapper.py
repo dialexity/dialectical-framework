@@ -15,58 +15,58 @@ from typing import Union, TYPE_CHECKING
 from dependency_injector.wiring import inject, Provide
 from gqlalchemy import Memgraph, Neo4j
 
-from dialectical_framework.ai_dto.dialectical_component_dto import DialecticalComponentDto
+from dialectical_framework.ai_dto.statement_dto import StatementDto
 from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.rationale import Rationale
 
 
 @inject
-def component_from_dto(
-    dto: DialecticalComponentDto,
+def statement_from_dto(
+    dto: StatementDto,
     graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-) -> DialecticalComponent:
+) -> Statement:
     """
-    Convert DialecticalComponentDto to graph-native DialecticalComponent.
+    Convert StatementDto to graph-native Statement.
 
     This function handles the conversion from AI-returned DTOs to persisted graph nodes.
     If the DTO includes an explanation, a Rationale node is created and linked.
 
-    DialecticalComponents are content-addressable - same statement = same hash.
-    This function looks up by hash first to reuse existing components.
+    Statements are content-addressable - same text = same hash.
+    This function looks up by text first to reuse existing statements.
 
     Args:
-        dto: DialecticalComponentDto from AI call
+        dto: StatementDto from AI call
         graph_db: Injected graph database connection
 
     Returns:
-        DialecticalComponent graph node (existing or newly created)
+        Statement graph node (existing or newly created)
 
     Example:
         # After AI call returns DTO
-        component_dto = await extract_thesis()  # Returns DialecticalComponentDto
-        component = component_from_dto(component_dto)  # Convert to graph model
+        statement_dto = await extract_thesis()  # Returns StatementDto
+        statement = statement_from_dto(statement_dto)  # Convert to graph model
         # Now work with graph model
         from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
-        pp.t.connect(component, relationship=TRelationship(alias='T'))
+        pp.t.connect(statement, relationship=TRelationship(alias='T'))
     """
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.rationale import Rationale
 
-    # Look up by statement - DialecticalComponents are content-addressable
-    # We query by statement directly rather than hash because hash includes
+    # Look up by text - Statements are content-addressable
+    # We query by text directly rather than hash because hash includes
     # committed_at (for temporal ordering), making pre-save hash computation impossible
     query = """
-        MATCH (c:DialecticalComponent {statement: $statement})
+        MATCH (c:Statement {text: $text})
         RETURN c
         LIMIT 1
     """
-    result = list(graph_db.execute_and_fetch(query, {"statement": dto.statement}))
+    result = list(graph_db.execute_and_fetch(query, {"text": dto.text}))
 
     if result:
-        # Return existing component
+        # Return existing statement
         existing = result[0]["c"]
         # Still add rationale if explanation provided (context-specific, always new)
         if dto.explanation:
@@ -75,9 +75,9 @@ def component_from_dto(
             rationale.commit()
         return existing
 
-    # Create new component
+    # Create new statement
     # Use alias as meaning fallback when no taxonomy pointer is available
-    component = DialecticalComponent(statement=dto.statement, meaning=f"verbatim:{dto.alias}")
+    component = Statement(text=dto.text, meaning=f"verbatim:{dto.alias}")
     component.commit()
 
     # Add rationale if explanation provided (context-specific, always new)
@@ -89,23 +89,23 @@ def component_from_dto(
     return component
 
 
-def components_from_dtos(
-    dtos: list[DialecticalComponentDto]
-) -> list[DialecticalComponent]:
+def statements_from_dtos(
+    dtos: list[StatementDto]
+) -> list[Statement]:
     """
-    Convert list of DialecticalComponentDtos to graph-native components.
+    Convert list of StatementDtos to graph-native statements.
 
-    Batch conversion helper for multiple components.
+    Batch conversion helper for multiple statements.
 
     Args:
-        dtos: List of DialecticalComponentDto from AI call
+        dtos: List of StatementDto from AI call
 
     Returns:
-        List of saved DialecticalComponent graph nodes
+        List of saved Statement graph nodes
 
     Example:
         # After AI call returns multiple DTOs
-        component_dtos = await extract_components()  # Returns list[DialecticalComponentDto]
-        components = components_from_dtos(component_dtos)  # Convert to graph models
+        statement_dtos = await extract_statements()  # Returns list[StatementDto]
+        statements = statements_from_dtos(statement_dtos)  # Convert to graph models
     """
-    return [component_from_dto(dto) for dto in dtos]
+    return [statement_from_dto(dto) for dto in dtos]

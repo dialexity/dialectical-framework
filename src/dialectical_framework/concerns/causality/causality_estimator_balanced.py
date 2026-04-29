@@ -12,14 +12,14 @@ from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
 from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
 from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
     CausalCyclesDeckDto
-from dialectical_framework.ai_dto.dialectical_component_dto import \
-    DialecticalComponentDto
-from dialectical_framework.ai_dto.dialectical_components_deck_dto import \
-    DialecticalComponentsDeckDto
+from dialectical_framework.ai_dto.statement_dto import \
+    StatementDto
+from dialectical_framework.ai_dto.statements_deck_dto import \
+    StatementsDeckDto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.cycle import Cycle
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.concerns.causality.causality_estimator import (
     CausalityEstimator,
@@ -145,9 +145,9 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
             )
 
         # Get component sequences from each structure
-        sequences: list[list[DialecticalComponent]] = []
+        sequences: list[list[Statement]] = []
         for structure in structure_list:
-            components = structure.dialectical_components
+            components = structure.statements
             sequences.append(components)
 
         if not sequences or not sequences[0]:
@@ -165,7 +165,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         )
 
     async def _estimate_cycles(
-        self, *, sequences: list[list[DialecticalComponent]], text: str
+        self, *, sequences: list[list[Statement]], text: str
     ) -> CausalCyclesDeckDto:
         """
         Estimate cycles from graph-native component sequences.
@@ -179,12 +179,12 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         sequences_str: dict[str, list[str]] = {}
 
         # Track graph-native components for later mapping back
-        component_map: dict[str, DialecticalComponent] = (
+        component_map: dict[str, Statement] = (
             {}
         )  # uid -> graph-native component
 
         # Build DTOs for AI boundary
-        component_dtos: dict[str, DialecticalComponentDto] = {}  # identity -> DTO
+        component_dtos: dict[str, StatementDto] = {}  # identity -> DTO
 
         for seq_idx, sequence in enumerate(sequences, 1):
             sequence_aliases: list[str] = []
@@ -205,9 +205,9 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
                         rationale, _ = rationales[0]
                         explanation = rationale.text if rationale.text else ""
 
-                    component_dtos[component.hash] = DialecticalComponentDto(
+                    component_dtos[component.hash] = StatementDto(
                         alias=technical_alias,
-                        statement=component.statement,
+                        text=component.text,
                         explanation=explanation,
                     )
 
@@ -217,15 +217,15 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
             cycle_str = " → ".join(sequence_aliases + [sequence_aliases[0]]) + "..."
 
             # Add human-readable statements for clarity
-            readable_parts = [comp.statement for comp in sequence]
+            readable_parts = [comp.text for comp in sequence]
             readable_cycle = " → ".join(readable_parts + [readable_parts[0]]) + "..."
 
             full_cycle_str = f"{cycle_str} ({readable_cycle})"
             sequences_str[full_cycle_str] = sequence_aliases
 
         # Create DTO deck for AI boundary
-        dialectical_components_deck_dto = DialecticalComponentsDeckDto(
-            dialectical_components=list(component_dtos.values())
+        statements_deck_dto = StatementsDeckDto(
+            statements=list(component_dtos.values())
         )
 
         async def _estimate_single(
@@ -236,7 +236,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
             async def _estimate_single_call() -> CausalCycleAssessmentDto:
                 prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
                 tpl = ReverseEngineer.till_theses(
-                    theses=dialectical_components_deck_dto.dialectical_components,
+                    theses=statements_deck_dto.statements,
                     text=text,
                 )
                 return extend_tpl(tpl, prompt)
@@ -260,7 +260,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         return CausalCyclesDeckDto(causal_cycles=causal_cycles)
 
     async def _get_source_text(
-        self, sequences: list[list[DialecticalComponent]]
+        self, sequences: list[list[Statement]]
     ) -> str:
         """
         Get source text from Input nodes linked to the components.
@@ -298,7 +298,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         self,
         structures: list[Union[Cycle, Wheel]],
         causal_cycles_deck: CausalCyclesDeckDto,
-        sequences: list[list[DialecticalComponent]],
+        sequences: list[list[Statement]],
     ) -> dict[str, EstimationStructured]:
         """
         Map AI results back to structures by hash.
@@ -320,7 +320,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         }
 
         # Build component-alias translations for text replacement
-        components_with_aliases: list[tuple[DialecticalComponent, str]] = []
+        components_with_aliases: list[tuple[Statement, str]] = []
         for seq_idx, sequence in enumerate(sequences):
             for comp in sequence:
                 alias = None

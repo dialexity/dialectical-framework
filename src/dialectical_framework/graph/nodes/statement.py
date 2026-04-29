@@ -1,5 +1,5 @@
 """
-DialecticalComponent node with declarative relationships.
+Statement node with declarative relationships.
 
 This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 """
@@ -55,11 +55,11 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.ideas import Ideas
 
 
-class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
+class Statement(AssessableEntity, label="Statement"):
     """
     Represents an atomic dialectical statement or concept.
 
-    Components are the building blocks of the dialectical framework.
+    Statements are the building blocks of the dialectical framework.
     They can play different roles in different contexts:
 
     Core Perspective positions (6):
@@ -69,17 +69,17 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     Synthesis positions (on separate Synthesis node):
     - S+ (positive synthesis), S- (negative synthesis)
 
-    Components are connected via PolarityRelationship, which stores
+    Statements are connected via PolarityRelationship, which stores
     the contextual alias (e.g., "T1+", "A2-") on the relationship edge.
-    This allows the same component to have different positions in different contexts.
+    This allows the same statement to have different positions in different contexts.
 
     Analysis:
-    - Components can be marked as rejected during analysis via the `rejected` field
-    - Rejected components are excluded from suggestions but remain in vocabulary
+    - Statements can be marked as rejected during analysis via the `rejected` field
+    - Rejected statements are excluded from suggestions but remain in vocabulary
     - The rejection reason (if provided) can be used for UX feedback
     """
 
-    statement: str
+    text: str
 
     # Optional rejection marker for analyst suggestions
     # When set, this component is excluded from future suggestions
@@ -94,51 +94,51 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
 
     # Symmetric relationship: if A opposes B, then B opposes A
     # Used for T vs A (thesis vs antithesis) dialectical opposition
-    oppositions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipBoth(
-        "DialecticalComponent",
+    oppositions: ClassVar[RelationshipManager[Statement]] = RelationshipBoth(
+        "Statement",
         model=OppositeOfRelationship,
     )
 
     # Symmetric relationship for mutually exclusive/contradicting statements
     # Used for T+ vs A- and A+ vs T- (positive vs negative cross-polarity)
-    contradictions: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipBoth(
-        "DialecticalComponent",
+    contradictions: ClassVar[RelationshipManager[Statement]] = RelationshipBoth(
+        "Statement",
         model=ContradictionOfRelationship,
     )
 
     # Semantic relationship: T+ → T, A+ → A (positive aspect of neutral)
     # A component can be the positive side of many components
-    positive_side_of: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
+    positive_side_of: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
+        "Statement",
         model=PositiveSideOfRelationship,
         cardinality=(0, None)
     )
 
     # Reverse: A component can have many positive sides
-    positive_sides: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    positive_sides: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=PositiveSideOfRelationship,
         cardinality=(0, None)
     )
 
     # Semantic relationship: T- → T, A- → A (negative aspect of neutral)
     # A component can be the negative side of many components
-    negative_side_of: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
+    negative_side_of: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
+        "Statement",
         model=NegativeSideOfRelationship,
         cardinality=(0, None)
     )
 
     # Reverse: A component can have many negative sides
-    negative_sides: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    negative_sides: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=NegativeSideOfRelationship,
         cardinality=(0, None)
     )
 
     # Semantic relationship: similarity between components
-    similar_to: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
+    similar_to: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
+        "Statement",
         model=SimilarToRelationship,
         cardinality=(0, None)
     )
@@ -174,8 +174,8 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     )
 
     # Note: Inverse relationships for polarity positions (T, A) and aspect positions (T+, T-, A+, A-)
-    # are NOT defined here because DialecticalComponents have no cardinality
-    # constraints - the same component can be used in unlimited Perspectives.
+    # are NOT defined here because Statements have no cardinality
+    # constraints - the same statement can be used in unlimited Perspectives.
     # No inverse = implicit (0, None) cardinality.
 
     def _collect_structure_hash_parts(self) -> list[str]:
@@ -190,22 +190,22 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
             List with normalized statement and meaning
         """
         # Normalize for hash: same concept = same hash regardless of casing
-        normalized_statement = self.statement.strip().lower()
+        normalized_statement = self.text.strip().lower()
         normalized_meaning = (self.meaning or "").strip().lower()
         return [normalized_statement, normalized_meaning]
 
     def compute_hash(self) -> str:
         """
-        Compute content hash for this DialecticalComponent.
+        Compute content hash for this Statement.
 
-        DialecticalComponent is content-addressable: same statement + meaning = same hash.
+        Statement is content-addressable: same text + meaning = same hash.
         Unlike structural nodes, committed_at is NOT included because:
         - Deduplication is desirable (same concept should have same identity)
-        - No temporal ordering needed (components don't critique each other)
-        - Multiple users creating the same statement should get the same component
+        - No temporal ordering needed (statements don't critique each other)
+        - Multiple users creating the same statement should get the same node
 
         Returns:
-            sha256 hex string of statement + meaning
+            sha256 hex string of text + meaning
         """
         parts = self._collect_structure_hash_parts()
         combined = "\n".join(parts)
@@ -217,10 +217,10 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
     ) -> Self:
         """
-        Commit this DialecticalComponent: compute hash and persist.
+        Commit this Statement: compute hash and persist.
 
         Requires `meaning` to be set before committing - this field participates
-        in the hash and provides semantic categorization for the component.
+        in the hash and provides semantic categorization for the statement.
 
         Before committing, checks for hash collision with Input nodes.
         If an Input exists with the same hash (same content as this statement),
@@ -233,14 +233,14 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
             ImmutableNodeError: If already committed
             ValueError: If meaning is not set, or hash collision with existing Input node
         """
-        # Require both statement and meaning before commit
-        if not self.statement:
+        # Require both text and meaning before commit
+        if not self.text:
             raise ValueError(
-                "Cannot commit DialecticalComponent without 'statement'."
+                "Cannot commit Statement without 'text'."
             )
         if not self.meaning:
             raise ValueError(
-                f"Cannot commit DialecticalComponent without 'meaning'. "
+                f"Cannot commit Statement without 'meaning'. "
                 f"Set meaning to a taxonomy pointer (e.g., 'systemic:engineering:integrity') "
                 f"or a verbatim meaning before committing."
             )
@@ -248,7 +248,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         # Compute what hash will be
         potential_hash = self.compute_hash()
 
-        # Check for Input collision (not DialecticalComponent - dedup is OK)
+        # Check for Input collision (not Statement - dedup is OK)
         from dialectical_framework.graph.nodes.input import Input
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
         repo = NodeRepository()
@@ -284,10 +284,10 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
     def __repr__(self) -> str:
         """String representation of the component."""
         statement_preview = (
-            self.statement[:47] + "..." if len(self.statement) > 50 else self.statement
+            self.text[:47] + "..." if len(self.text) > 50 else self.text
         )
         hash_str = self.hash[:7] if self.is_committed else "uncommitted"
-        return f"DialecticalComponent({hash_str}, statement='{statement_preview}')"
+        return f"Statement({hash_str}, text='{statement_preview}')"
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -338,7 +338,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
             mode = "long"
 
         # Start with statement
-        result = self.statement
+        result = self.text
 
         # Apply width truncation for short mode
         if mode == "short" and width is not None:
@@ -392,7 +392,7 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
 
         Example:
             from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
-            comp = DialecticalComponent(statement="Democracy")
+            comp = Statement(text="Democracy")
             pp = Perspective(...)
             pp.t.connect(comp, relationship=TRelationship(alias='T1'))
 
@@ -462,13 +462,13 @@ class DialecticalComponent(AssessableEntity, label="DialecticalComponent"):
         Example:
             from dialectical_framework.graph.nodes.polarity import POSITION_T
             from dialectical_framework.graph.nodes.perspective import POSITION_T_PLUS
-            comp = DialecticalComponent(statement="Democracy")
+            comp = Statement(text="Democracy")
             pp = Perspective(...)
             pp.t.connect(comp, relationship=TRelationship(alias='T1'))
 
             position = comp.get_position(pp)  # Returns "T" (POSITION_T)
 
-            comp2 = DialecticalComponent(statement="Trust")
+            comp2 = Statement(text="Trust")
             pp.t_plus.connect(comp2, relationship=TPlusRelationship(alias='T1+'))
             position2 = comp2.get_position(pp)  # Returns "T+" (POSITION_T_PLUS)
         """

@@ -14,10 +14,10 @@ from dialectical_framework.agents.execution_report import (
 class MockNode:
     """Minimal mock for testing."""
 
-    def __init__(self, label: str, hash: str, statement: str = ""):
+    def __init__(self, label: str, hash: str, text: str = ""):
         self._label = label
         self.hash = hash
-        self.statement = statement
+        self.text = text
 
     @property
     def short_hash(self) -> str:
@@ -35,8 +35,8 @@ def test_run_report_node_created():
     report = ExecutionReport(tool="test_tool")
 
     # Create a mock node
-    node = MockNode("DialecticalComponent", "abc123", "Test statement")
-    node.__class__ = type("DialecticalComponent", (), {})
+    node = MockNode("Statement", "abc123", "Test statement")
+    node.__class__ = type("Statement", (), {})
 
     report.node_created(node)
 
@@ -45,7 +45,7 @@ def test_run_report_node_created():
     assert effect.seq == 0
     assert effect.effect_type == "node_created"
     assert effect.node.hash == "abc123"
-    assert effect.patch["statement"] == "Test statement"
+    assert effect.patch["text"] == "Test statement"
 
 
 def test_run_report_sequencing():

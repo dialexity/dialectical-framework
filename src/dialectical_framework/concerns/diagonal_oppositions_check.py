@@ -149,17 +149,17 @@ class DiagonalOppositionsCheck(ReasonableConcern[DiagonalOppositionsCheckResult]
         # Evaluate both diagonal pairs in parallel
         result_t_plus_a_minus, result_a_plus_t_minus = await asyncio.gather(
             self._evaluate_contradiction(
-                aspect_a_statement=t_plus.statement,
-                aspect_a_role=f"positive aspect of '{t_stmt.statement}'",
-                aspect_b_statement=a_minus.statement,
-                aspect_b_role=f"negative aspect of '{a_stmt.statement}'",
+                aspect_a_statement=t_plus.text,
+                aspect_a_role=f"positive aspect of '{t_stmt.text}'",
+                aspect_b_statement=a_minus.text,
+                aspect_b_role=f"negative aspect of '{a_stmt.text}'",
                 text=text,
             ),
             self._evaluate_contradiction(
-                aspect_a_statement=a_plus.statement,
-                aspect_a_role=f"positive aspect of '{a_stmt.statement}'",
-                aspect_b_statement=t_minus.statement,
-                aspect_b_role=f"negative aspect of '{t_stmt.statement}'",
+                aspect_a_statement=a_plus.text,
+                aspect_a_role=f"positive aspect of '{a_stmt.text}'",
+                aspect_b_statement=t_minus.text,
+                aspect_b_role=f"negative aspect of '{t_stmt.text}'",
                 text=text,
             ),
         )
@@ -184,10 +184,10 @@ class DiagonalOppositionsCheck(ReasonableConcern[DiagonalOppositionsCheckResult]
         rationale_text = (
             f"Diagonal Contradiction Evaluation: {status}\n\n"
             f"T+ vs A- (score={result_t_plus_a_minus.contradiction_score:.2f}):\n"
-            f'  "{t_plus.statement}" contradicts "{a_minus.statement}"?\n'
+            f'  "{t_plus.text}" contradicts "{a_minus.text}"?\n'
             f"  Reasoning: {result_t_plus_a_minus.reasoning}\n\n"
             f"A+ vs T- (score={result_a_plus_t_minus.contradiction_score:.2f}):\n"
-            f'  "{a_plus.statement}" contradicts "{t_minus.statement}"?\n'
+            f'  "{a_plus.text}" contradicts "{t_minus.text}"?\n'
             f"  Reasoning: {result_a_plus_t_minus.reasoning}\n\n"
             f"Average: {avg_score:.2f} (threshold: {ORTHOGONALITY_THRESHOLD})"
         )

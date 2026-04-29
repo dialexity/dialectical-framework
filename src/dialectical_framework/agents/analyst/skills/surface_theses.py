@@ -16,7 +16,7 @@ Usage:
     agent = SurfaceTheses(intent="extract theses about trust")
     theses = await agent.resolve()
     for t in theses:
-        print(t.statement)
+        print(t.text)
 
     # LLM tool use (returns JSON)
     agent = SurfaceTheses(intent="...")
@@ -43,12 +43,12 @@ from dialectical_framework.concerns.statement_classification import (
 from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
 from dialectical_framework.concerns.thesis_extraction import ThesisExtraction
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.repositories.dialectical_component_repository import \
-    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import \
+    StatementRepository
 from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.node_repository import \
@@ -131,7 +131,7 @@ class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
     This is Phase 1 of the polarity-finder algorithm (Steps 1-4).
 
     Dual interface:
-    - resolve() returns list[DialecticalComponent] for programmatic use
+    - resolve() returns list[Statement] for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
@@ -166,14 +166,14 @@ class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
         # 2. Get context
         input_text = await self._get_input_text()
-        comp_repo = DialecticalComponentRepository()
+        comp_repo = StatementRepository()
         vocab = comp_repo.get_vocabulary_with_rationales()
         not_like_these = [
             c["statement"] for c in vocab
         ]  # Avoid all existing, including rejected
 
         # 3. Handle direct theses if specified in intent
-        direct_components: list[DialecticalComponent] = []
+        direct_components: list[Statement] = []
         if parsed.direct_theses:
             direct_components, direct_reports = await self._anchor_direct_theses(
                 parsed.direct_theses, parsed, text=input_text
@@ -182,14 +182,14 @@ class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
                 self._report = self._report.merge(r)
 
         # 4. Extraction loop (if we have inputs and need more theses)
-        extracted_components: list[DialecticalComponent] = []
+        extracted_components: list[Statement] = []
         remaining_count = parsed.count - len(direct_components)
 
         if remaining_count > 0 and input_text:
             # Add direct thesis statements to not_like_these to avoid duplicates
             for comp in direct_components:
-                if comp.statement not in not_like_these:
-                    not_like_these.append(comp.statement)
+                if comp.text not in not_like_these:
+                    not_like_these.append(comp.text)
 
             extracted_components, extraction_reports = await self._extraction_loop(
                 input_text=input_text,
@@ -214,7 +214,7 @@ class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
         # 5. Semantic dedup ONLY for extracted components (not direct theses)
         # Direct theses represent explicit user intent and should be preserved as-is.
         # They already get hash-based dedup via commit (upsert behavior).
-        deduped_extracted: list[DialecticalComponent] = []
+        deduped_extracted: list[Statement] = []
         deleted_count = 0
 
         if vocab and extracted_components:
@@ -316,7 +316,7 @@ Determine:
         theses: list[str],
         parsed: ParsedIntentDto,
         text: str = "",
-    ) -> tuple[list[DialecticalComponent], list[ExecutionReport]]:
+    ) -> tuple[list[Statement], list[ExecutionReport]]:
         """
         Anchor direct theses specified in intent.
 
@@ -338,7 +338,7 @@ Determine:
         reports = [classifier.report for classifier in classifiers]
 
         # Create components from classification results
-        components: list[DialecticalComponent] = []
+        components: list[Statement] = []
         for result in results:
             component = self._create_component_from_classification(result)
             components.append(component)
@@ -347,17 +347,17 @@ Determine:
 
     def _create_component_from_classification(
         self, result: ClassificationResult
-    ) -> DialecticalComponent:
+    ) -> Statement:
         """Create component and rationale from classification result."""
-        component = DialecticalComponent(
-            statement=result.statement, meaning=result.meaning
+        component = Statement(
+            text=result.statement, meaning=result.meaning
         )
         component.commit()
 
         classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
         self._report.node_created(
             component,
-            patch={"meaning": result.meaning, "statement": result.statement},
+            patch={"meaning": result.meaning, "text": result.statement},
             meta={"classification": classification_label},
         )
 
@@ -384,7 +384,7 @@ Determine:
         parsed: ParsedIntentDto,
         target_count: int,
         not_like_these: list[str],
-    ) -> tuple[list[DialecticalComponent], list[ExecutionReport]]:
+    ) -> tuple[list[Statement], list[ExecutionReport]]:
         """
         Extract theses with retries on different parameters.
 
@@ -396,7 +396,7 @@ Determine:
 
         Returns tuple of (extracted components, reports).
         """
-        extracted_components: list[DialecticalComponent] = []
+        extracted_components: list[Statement] = []
         reports: list[ExecutionReport] = []
         max_attempts = 4
 
@@ -417,7 +417,7 @@ Determine:
                 focus=params.get("focus", ""),
                 domain_hint=params.get("domain_hint", ""),
                 not_like_these=not_like_these
-                + [c.statement for c in extracted_components],
+                + [c.text for c in extracted_components],
             )
             reports.append(service.report)
 
@@ -425,8 +425,8 @@ Determine:
 
             # Update not_like_these for next iteration
             for comp in new_components:
-                if comp.statement not in not_like_these:
-                    not_like_these.append(comp.statement)
+                if comp.text not in not_like_these:
+                    not_like_these.append(comp.text)
 
         return extracted_components[:target_count], reports
 
@@ -475,8 +475,8 @@ Determine:
         repo = NodeRepository()
         try:
             comp = repo.find_by_hash(hash)
-            if comp and isinstance(comp, DialecticalComponent):
-                return comp.statement
+            if comp and isinstance(comp, Statement):
+                return comp.text
         except ValueError:
             pass
         return ""
@@ -522,24 +522,24 @@ Determine:
 
         return "\n\n".join(previews)
 
-    def _resolve_component(self, hash: str) -> Optional[DialecticalComponent]:
+    def _resolve_component(self, hash: str) -> Optional[Statement]:
         """Resolve hash to component."""
         repo = NodeRepository()
         try:
             comp = repo.find_by_hash(hash)
-            if isinstance(comp, DialecticalComponent):
+            if isinstance(comp, Statement):
                 return comp
         except ValueError:
             pass
         return None
 
-    def _resolve_components(self, hashes: list[str]) -> list[DialecticalComponent]:
+    def _resolve_components(self, hashes: list[str]) -> list[Statement]:
         """Resolve list of hashes to components."""
         return [c for h in hashes if (c := self._resolve_component(h))]
 
     def _create_ideas(
         self,
-        components: list[DialecticalComponent],
+        components: list[Statement],
         parsed: ParsedIntentDto,
     ) -> Optional[Ideas]:
         """Create Ideas node and wire to components and inputs. Records effects in self._report."""

@@ -11,7 +11,7 @@ implemented in graph/scoring/, mirroring test_scoring.py for comparison.
 - Graph database persistence (nodes saved to Memgraph/Neo4j)
 
 **Test Coverage:**
-- DialecticalComponent scoring (leaf nodes)
+- Statement scoring (leaf nodes)
 - Transition scoring with estimations
 - Perspective hierarchical R/P with power mean
 - Cycle probability products
@@ -30,7 +30,7 @@ import pytest
 import random
 from datetime import datetime, timedelta
 
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.perspective import Perspective
@@ -44,7 +44,7 @@ from dialectical_framework.graph.nodes.estimation import (
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
 
-class TestDialecticalComponentScoring:
+class TestStatementScoring:
     """Test scoring for basic dialectical components (leaves in the hierarchy)."""
 
     def test_uncommitted_node_raises_error(self, graph_db_available):
@@ -53,7 +53,7 @@ class TestDialecticalComponentScoring:
             pytest.skip("Graph database not available")
 
         # Create component but don't commit
-        component = DialecticalComponent(statement=f"Uncommitted test {random.random()}", meaning="test")
+        component = Statement(text=f"Uncommitted test {random.random()}", meaning="test")
         # Note: not calling component.commit()
 
         scorer = TaroRank(alpha=1.0)
@@ -69,7 +69,7 @@ class TestDialecticalComponentScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test thesis {random.random()}", meaning="test")
+        component = Statement(text=f"Test thesis {random.random()}", meaning="test")
         component.commit()
 
         # No estimations connected
@@ -86,7 +86,7 @@ class TestDialecticalComponentScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test thesis {random.random()}", meaning="test")
+        component = Statement(text=f"Test thesis {random.random()}", meaning="test")
         component.commit()
 
         # Add manual estimations (set_target before save - hash includes target)
@@ -114,7 +114,7 @@ class TestDialecticalComponentScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test thesis {random.random()}", meaning="test")
+        component = Statement(text=f"Test thesis {random.random()}", meaning="test")
         component.commit()
 
         # R=0 (hard veto) - set_target before save (hash includes target)
@@ -140,7 +140,7 @@ class TestDialecticalComponentScoring:
             pytest.skip("Graph database not available")
 
         # Create component with own R
-        component = DialecticalComponent(statement=f"Test thesis {random.random()}", meaning="test")
+        component = Statement(text=f"Test thesis {random.random()}", meaning="test")
         component.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
@@ -185,9 +185,9 @@ class TestTransitionScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"Source {random.random()}", meaning="test")
+        source = Statement(text=f"Source {random.random()}", meaning="test")
         source.commit()
-        target = DialecticalComponent(statement=f"Target {random.random()}", meaning="test")
+        target = Statement(text=f"Target {random.random()}", meaning="test")
         target.commit()
 
         transition = Transition()
@@ -207,9 +207,9 @@ class TestTransitionScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"Source {random.random()}", meaning="test")
+        source = Statement(text=f"Source {random.random()}", meaning="test")
         source.commit()
-        target = DialecticalComponent(statement=f"Target {random.random()}", meaning="test")
+        target = Statement(text=f"Target {random.random()}", meaning="test")
         target.commit()
 
         transition = Transition()
@@ -244,9 +244,9 @@ class TestTransitionScoring:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"Source {random.random()}", meaning="test")
+        source = Statement(text=f"Source {random.random()}", meaning="test")
         source.commit()
-        target = DialecticalComponent(statement=f"Target {random.random()}", meaning="test")
+        target = Statement(text=f"Target {random.random()}", meaning="test")
         target.commit()
 
         transition = Transition()
@@ -276,7 +276,7 @@ class TestInvalidationTracking:
             pytest.skip("Graph database not available")
 
         # Create component with estimation
-        component = DialecticalComponent(statement=f"Component {random.random()}", meaning="test")
+        component = Statement(text=f"Component {random.random()}", meaning="test")
         component.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
@@ -320,7 +320,7 @@ class TestInvalidationTracking:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         # Add estimation and score
@@ -353,7 +353,7 @@ class TestInvalidationTracking:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
@@ -392,7 +392,7 @@ class TestScoringAlphaParameter:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         prob_est = ProbabilityEstimation(value=0.6)
@@ -414,7 +414,7 @@ class TestScoringAlphaParameter:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         prob_est = ProbabilityEstimation(value=0.6)
@@ -436,7 +436,7 @@ class TestScoringAlphaParameter:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         prob_est = ProbabilityEstimation(value=0.6)
@@ -463,7 +463,7 @@ class TestRationaleAuditWins:
             pytest.skip("Graph database not available")
 
         # Create a dummy component as explanation target
-        dummy_component = DialecticalComponent(statement=f"dummy {random.random()}", meaning="test")
+        dummy_component = Statement(text=f"dummy {random.random()}", meaning="test")
         dummy_component.commit()
 
         # Original rationale with R estimation it provides
@@ -503,7 +503,7 @@ class TestRationaleAuditWins:
             pytest.skip("Graph database not available")
 
         # Create a dummy component as explanation target
-        dummy_component = DialecticalComponent(statement=f"dummy {random.random()}", meaning="test")
+        dummy_component = Statement(text=f"dummy {random.random()}", meaning="test")
         dummy_component.commit()
 
         # Original rationale provides R estimation
@@ -554,7 +554,7 @@ class TestFallbackBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         # No estimations
@@ -566,11 +566,11 @@ class TestFallbackBehavior:
         assert score is None
 
     def test_component_probability_defaults_to_one(self, graph_db_available):
-        """If no P is set, DialecticalComponent defaults to 1.0."""
+        """If no P is set, Statement defaults to 1.0."""
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         # Only R, no P
@@ -585,7 +585,7 @@ class TestFallbackBehavior:
         assert abs(score - 0.8) < 0.01
 
 
-class TestDialecticalComponentScoringAdditional:
+class TestStatementScoringAdditional:
     """Additional component scoring tests from test_scoring.py."""
 
     def test_component_rationale_zero_rating_excluded(self, graph_db_available):
@@ -594,7 +594,7 @@ class TestDialecticalComponentScoringAdditional:
             pytest.skip("Graph database not available")
 
         # Create component
-        component = DialecticalComponent(statement=f"Test thesis {random.random()}", meaning="test")
+        component = Statement(text=f"Test thesis {random.random()}", meaning="test")
         component.commit()
         rel_est = RelevanceEstimation(value=0.8)
         rel_est.set_target(component)
@@ -633,7 +633,7 @@ class TestDialecticalComponentScoringAdditional:
             pytest.skip("Graph database not available")
 
         # Component without rationale
-        component_alone = DialecticalComponent(statement=f"Test component {random.random()}", meaning="test")
+        component_alone = Statement(text=f"Test component {random.random()}", meaning="test")
         component_alone.commit()
         rel1 = RelevanceEstimation(value=0.8)
         rel1.set_target(component_alone)
@@ -644,7 +644,7 @@ class TestDialecticalComponentScoringAdditional:
         cf_alone = component_alone.relevance
 
         # Component with empty rationale (text only)
-        component_with_empty = DialecticalComponent(statement=f"Test component 2 {random.random()}", meaning="test")
+        component_with_empty = Statement(text=f"Test component 2 {random.random()}", meaning="test")
         component_with_empty.commit()
         rel2 = RelevanceEstimation(value=0.8)
         rel2.set_target(component_with_empty)
@@ -666,7 +666,7 @@ class TestDialecticalComponentScoringAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test component {random.random()}", meaning="test")
+        component = Statement(text=f"Test component {random.random()}", meaning="test")
         component.commit()
         rel_est = RelevanceEstimation(value=0.8)
         rel_est.set_target(component)
@@ -697,13 +697,13 @@ class TestTransitionScoringAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"Source {random.random()}", meaning="test")
+        source = Statement(text=f"Source {random.random()}", meaning="test")
         source.commit()
         src_rel = RelevanceEstimation(value=0.9)
         src_rel.set_target(source)
         src_rel.commit()
 
-        target = DialecticalComponent(statement=f"Target {random.random()}", meaning="test")
+        target = Statement(text=f"Target {random.random()}", meaning="test")
         target.commit()
         tgt_rel = RelevanceEstimation(value=0.8)
         tgt_rel.set_target(target)
@@ -733,7 +733,7 @@ class TestScoringFallbackBehaviorAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         rel_est = RelevanceEstimation(value=0.8)
@@ -754,7 +754,7 @@ class TestScoringFallbackBehaviorAdditional:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
 
         # Only P, no R
@@ -778,7 +778,7 @@ class TestRationaleFallbacks:
             pytest.skip("Graph database not available")
 
         # Create a component
-        component = DialecticalComponent(statement=f"Test component {random.random()}", meaning="test")
+        component = Statement(text=f"Test component {random.random()}", meaning="test")
         component.commit()
 
         # Component has its own R
@@ -804,7 +804,7 @@ class TestRationaleFallbacks:
             pytest.skip("Graph database not available")
 
         # Create a component
-        component = DialecticalComponent(statement=f"Test component {random.random()}", meaning="test")
+        component = Statement(text=f"Test component {random.random()}", meaning="test")
         component.commit()
 
         # Component has its own R
@@ -835,7 +835,7 @@ class TestRationaleFallbacks:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        component = DialecticalComponent(statement=f"Test {random.random()}", meaning="test")
+        component = Statement(text=f"Test {random.random()}", meaning="test")
         component.commit()
         comp_rel = RelevanceEstimation(value=0.8)
         comp_rel.set_target(component)
@@ -879,7 +879,7 @@ class TestComplexScoringScenarios:
             pytest.skip("Graph database not available")
 
         # Component with rationale that provides estimation
-        comp_with_rationale = DialecticalComponent(statement="Has rationale", meaning="test")
+        comp_with_rationale = Statement(text="Has rationale", meaning="test")
         comp_with_rationale.commit()
         comp1_rel = RelevanceEstimation(value=0.7)
         comp1_rel.set_target(comp_with_rationale)
@@ -894,7 +894,7 @@ class TestComplexScoringScenarios:
         rat_rel.commit()
 
         # Component without rationale
-        comp_without_rationale = DialecticalComponent(statement="No rationale", meaning="test")
+        comp_without_rationale = Statement(text="No rationale", meaning="test")
         comp_without_rationale.commit()
         comp2_rel = RelevanceEstimation(value=0.8)
         comp2_rel.set_target(comp_without_rationale)
@@ -916,7 +916,7 @@ class TestComplexScoringScenarios:
             pytest.skip("Graph database not available")
 
         # Create a dummy component as explanation target
-        dummy_component = DialecticalComponent(statement=f"dummy {random.random()}", meaning="test")
+        dummy_component = Statement(text=f"dummy {random.random()}", meaning="test")
         dummy_component.commit()
 
         # Original rationale provides estimations
@@ -965,9 +965,9 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"A {random.random()}", meaning="test")
+        source = Statement(text=f"A {random.random()}", meaning="test")
         source.commit()
-        target = DialecticalComponent(statement=f"B {random.random()}", meaning="test")
+        target = Statement(text=f"B {random.random()}", meaning="test")
         target.commit()
 
         trans = Transition()
@@ -992,9 +992,9 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"A {random.random()}", meaning="test")
+        source = Statement(text=f"A {random.random()}", meaning="test")
         source.commit()
-        target = DialecticalComponent(statement=f"B {random.random()}", meaning="test")
+        target = Statement(text=f"B {random.random()}", meaning="test")
         target.commit()
 
         trans = Transition()
@@ -1018,9 +1018,9 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"A {random.random()}", meaning="test")
+        source = Statement(text=f"A {random.random()}", meaning="test")
         source.commit()
-        target = DialecticalComponent(statement=f"B {random.random()}", meaning="test")
+        target = Statement(text=f"B {random.random()}", meaning="test")
         target.commit()
 
         trans = Transition()
@@ -1047,9 +1047,9 @@ class TestProbabilityNoneBehavior:
         if not graph_db_available:
             pytest.skip("Graph database not available")
 
-        source = DialecticalComponent(statement=f"A {random.random()}", meaning="test")
+        source = Statement(text=f"A {random.random()}", meaning="test")
         source.commit()
-        target = DialecticalComponent(statement=f"B {random.random()}", meaning="test")
+        target = Statement(text=f"B {random.random()}", meaning="test")
         target.commit()
 
         trans = Transition()
@@ -1092,7 +1092,7 @@ class TestManualVsCalculatedSeparation:
         )
         from dialectical_framework.graph.estimation_manager import EstimationManager
 
-        comp = DialecticalComponent(statement=f"test {random.random()}", meaning="test")
+        comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()
 
         manager = EstimationManager()
@@ -1137,7 +1137,7 @@ class TestManualVsCalculatedSeparation:
         )
         from dialectical_framework.graph.estimation_manager import EstimationManager
 
-        comp = DialecticalComponent(statement=f"test {random.random()}", meaning="test")
+        comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()
 
         # Agent 1 creates first estimation node
@@ -1186,7 +1186,7 @@ class TestManualVsCalculatedSeparation:
             CalculatedProbabilityEstimation
         )
 
-        comp = DialecticalComponent(statement=f"test {random.random()}", meaning="test")
+        comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()
 
         # No estimations: property returns None
@@ -1213,7 +1213,7 @@ class TestManualVsCalculatedSeparation:
             CalculatedRelevanceEstimation
         )
 
-        comp = DialecticalComponent(statement=f"test {random.random()}", meaning="test")
+        comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()
 
         # Set manual estimations
@@ -1259,7 +1259,7 @@ class TestManualVsCalculatedSeparation:
         )
         from dialectical_framework.graph.estimation_manager import EstimationManager
 
-        comp = DialecticalComponent(statement=f"test {random.random()}", meaning="test")
+        comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()
 
         manager = EstimationManager()
@@ -1297,7 +1297,7 @@ class TestManualVsCalculatedSeparation:
             CalculatedProbabilityEstimation
         )
 
-        comp = DialecticalComponent(statement=f"test {random.random()}", meaning="test")
+        comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()
 
         # Manual estimation
@@ -1335,7 +1335,7 @@ class TestManualVsCalculatedSeparation:
             CalculatedRelevanceEstimation
         )
 
-        comp = DialecticalComponent(statement=f"test {random.random()}", meaning="test")
+        comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()
 
         # Add manual estimations

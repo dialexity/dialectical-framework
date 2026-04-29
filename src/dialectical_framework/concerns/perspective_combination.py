@@ -46,7 +46,7 @@ from dialectical_framework.utils.sequence_generation import (
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 
@@ -281,7 +281,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
             return all_cycles, new_cycles
 
         # Extract T components and build component→PP lookup
-        t_components: list[DialecticalComponent] = []
+        t_components: list[Statement] = []
         comp_hash_to_pp: dict[str, Perspective] = {}
         for pp in perspectives:
             t_result = pp.t.get()
@@ -461,7 +461,7 @@ def _connect_opposite_direction_wheels(wheels: list[Wheel]) -> None:
     # Pre-compute component hash sequences
     wheel_sequences: list[tuple[Wheel, list[str]]] = []
     for wheel in wheels:
-        comp_hashes = [c.hash for c in wheel.dialectical_components]
+        comp_hashes = [c.hash for c in wheel.statements]
         wheel_sequences.append((wheel, comp_hashes))
 
     for i, (wheel_a, seq_a) in enumerate(wheel_sequences):

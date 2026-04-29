@@ -35,7 +35,7 @@ from dialectical_framework.utils.order_transitions import order_transitions
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.wheel_segment import WheelSegment
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transformation import Transformation
 
     # Type alias for flexible wheel segment references (no integer indexing in graph-native)
-    WheelSegmentReference = Union[str, WheelSegment, DialecticalComponent]
+    WheelSegmentReference = Union[str, WheelSegment, Statement]
 
 
 class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel"):
@@ -178,7 +178,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
             for component in components:
                 # Find the PP this component belongs to
-                pp_tuples = pp_repo.find_by_dialectical_component(component)
+                pp_tuples = pp_repo.find_by_statement(component)
                 for pp, _ in pp_tuples:
                     if pp.hash not in seen_hashes:
                         seen_hashes.add(pp.hash)
@@ -276,7 +276,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
     def polar_segment_at(
         self,
-        key: Union[str, Perspective, DialecticalComponent, WheelSegment]
+        key: Union[str, Perspective, Statement, WheelSegment]
     ) -> WheelSegmentPolarPair:
         """
         Get polar pair (PP with orientation) by various identifiers.
@@ -290,7 +290,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                  2. Component UID (e.g., "comp_67890")
                  3. Component alias (e.g., "T1", "A2+")
                - Perspective: match by uid
-               - DialecticalComponent: find polar pair containing this component
+               - Statement: find polar pair containing this component
                - WheelSegment: find polar pair containing this segment
 
         Returns:
@@ -308,7 +308,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             pair = wheel.polar_segment_at(perspective)  # By PP instance
         """
         from dialectical_framework.graph.nodes.perspective import Perspective as PPClass
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as DCClass
+        from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.wheel_segment import WheelSegment
 
         # Get polar pairs (PPs with orientation)
@@ -345,8 +345,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
         elif isinstance(key, str):
             # Try string as three possibilities: PP identity, component identity, or component alias
-            from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
-            repo = DialecticalComponentRepository()
+            from dialectical_framework.graph.repositories.statement_repository import StatementRepository
+            repo = StatementRepository()
 
             # 1. Try as Perspective identity (fast, direct lookup by hash or _id)
             for pair in pairs:
@@ -372,7 +372,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
             raise ValueError(f"Cannot find polar pair with key: {key} (tried as PP identity, component identity, and component alias)")
 
-        elif isinstance(key, DCClass):
+        elif isinstance(key, Statement):
             # Search by component
             for pair in pairs:
                 pp = pair.perspective
@@ -399,7 +399,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                - str: Tries in order:
                  1. Component UID (e.g., "comp_12345")
                  2. Component alias (e.g., "T", "T+", "A1", "A2-")
-               - DialecticalComponent: find segment containing this component
+               - Statement: find segment containing this component
                - WheelSegment: validates it exists in wheel and returns it
 
         Returns:
@@ -414,7 +414,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             seg = wheel.segment_at(component)  # By component instance
             seg = wheel.segment_at(existing_seg)  # Validates and returns
         """
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent as DCClass
+        from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.wheel_segment import WheelSegment as WSClass
 
         # If key is a WheelSegment, validate it exists in this wheel and return it
@@ -425,8 +425,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                     return key
             raise ValueError(f"WheelSegment not found in this wheel")
 
-        # If key is a DialecticalComponent instance, use it directly
-        elif isinstance(key, DCClass):
+        # If key is a Statement instance, use it directly
+        elif isinstance(key, Statement):
             pps = self._perspectives
             for pp in pps:
                 # Check T-side segment
@@ -443,8 +443,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
         # If key is a string, try as component identity first, then alias
         elif isinstance(key, str):
-            from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
-            repo = DialecticalComponentRepository()
+            from dialectical_framework.graph.repositories.statement_repository import StatementRepository
+            repo = StatementRepository()
 
             pps = self._perspectives
 
@@ -477,14 +477,14 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
 
         raise ValueError(f"Cannot find wheel segment with key: {key}")
 
-    def is_set(self, key: Union[str, DialecticalComponent, WheelSegment]) -> bool:
+    def is_set(self, key: Union[str, Statement, WheelSegment]) -> bool:
         """
         Check if a component, alias, or segment exists in the wheel.
 
         Args:
             key: Can be:
                - str: component alias (e.g., "T", "T+", "A1")
-               - DialecticalComponent: check if component exists in any PP
+               - Statement: check if component exists in any PP
                - WheelSegment: check if segment exists in the wheel
 
         Returns:
@@ -524,8 +524,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Example:
             pairs = wheel.polar_segments
             for pair in pairs:
-                print(f"Left: {pair.segment_left.t.get()[0].statement}")
-                print(f"Right: {pair.segment_right.t.get()[0].statement}")
+                print(f"Left: {pair.segment_left.t.get()[0].text}")
+                print(f"Right: {pair.segment_right.t.get()[0].text}")
         """
         pps = self._perspectives
         if not pps:
@@ -627,7 +627,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             for seg in wheel.segments:
                 comp = seg.t.get()
                 if comp:
-                    print(f"{seg.side}: {comp[0].statement}")
+                    print(f"{seg.side}: {comp[0].text}")
         """
         ordered_edges = self.edges
 
@@ -713,8 +713,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         if not isinstance(other, Wheel):
             return False
 
-        self_components = self.dialectical_components
-        other_components = other.dialectical_components
+        self_components = self.statements
+        other_components = other.statements
 
         if len(self_components) != len(other_components):
             return False
@@ -767,8 +767,8 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             )
 
         elif compare == 'statement':
-            self_statements = [comp.statement for comp in self_components]
-            other_statements = [comp.statement for comp in other_components]
+            self_statements = [comp.text for comp in self_components]
+            other_statements = [comp.text for comp in other_components]
 
             if set(self_statements) != set(other_statements):
                 return False
@@ -794,7 +794,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Returns:
             Formatted string like "T1- → A2+ → A1- → T2+ → T1-..."
         """
-        components = self.dialectical_components
+        components = self.statements
         if not components:
             return ""
 
@@ -813,16 +813,16 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                         continue
                 aliases.append(alias if alias else f"C{i+1}")
         else:
-            aliases = [comp.statement for comp in components]
+            aliases = [comp.text for comp in components]
 
         # Build labels based on mode
         if mode in ("", "aliases"):
             labels = aliases
         elif mode == "statements":
-            labels = [comp.statement for comp in components]
+            labels = [comp.text for comp in components]
         elif mode == "explicit":
             labels = [
-                f"{alias} ({comp.statement})"
+                f"{alias} ({comp.text})"
                 for alias, comp in zip(aliases, components)
             ]
         else:
@@ -834,12 +834,12 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         return " → ".join(labels) + f" → {labels[0]}..."
 
     @property
-    def dialectical_components(self) -> list[DialecticalComponent]:
+    def statements(self) -> list[Statement]:
         """
-        Get dialectical components from transitions in order.
+        Get statements from transitions in order.
 
         Returns:
-            List of DialecticalComponent nodes from transitions
+            List of Statement nodes from transitions
         """
         components = []
         transitions = self.edges
@@ -1019,7 +1019,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                         component, rel = result
                         assert isinstance(rel, PolarityRelationship)
                         row.append(rel.alias)
-                        row.append(component.statement)
+                        row.append(component.text)
                     else:
                         row.append("")
                         row.append("")

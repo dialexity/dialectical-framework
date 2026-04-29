@@ -8,7 +8,7 @@ Usage:
     service = AntithesisExtraction()
     antitheses = await service.resolve(thesis=thesis, text=text)
     for a in antitheses:
-        print(a.statement)
+        print(a.text)
     # Access report if needed:
     print(service.report.heuristic_similarity_by_hash)
 """
@@ -32,8 +32,8 @@ from dialectical_framework.concerns.antithesis_classification import (
 from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 from dialectical_framework.graph.estimation_manager import EstimationManager
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.estimation import (ArousalEstimation,
                                                           ModeEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
@@ -87,7 +87,7 @@ class SimpleNegationDto(BaseModel):
 class AntithesisProcessed:
     """Container for an antithesis with its metadata."""
 
-    component: DialecticalComponent
+    component: Statement
     mode_value: float
     arousal_value: float
     heuristic_similarity: float
@@ -106,7 +106,7 @@ class AntithesisExtraction(
     - Simple: Direct negation with HS=1.0, Mode=1.0
     - Complex: Contextualized taxonomy with candidates at key Mode points
 
-    Returns list of DialecticalComponent. Access .report for effects.
+    Returns list of Statement. Access .report for effects.
     """
 
     def __init__(self) -> None:
@@ -114,7 +114,7 @@ class AntithesisExtraction(
 
     async def resolve(
         self,
-        thesis: DialecticalComponent,
+        thesis: Statement,
         text: str = "",
         not_like_these: Optional[list[str]] = None,
     ) -> list[AntithesisProcessed]:
@@ -133,7 +133,7 @@ class AntithesisExtraction(
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Early validation
-        if not thesis or not thesis.statement:
+        if not thesis or not thesis.text:
             raise ValueError("Cannot extract antitheses for a missing thesis")
 
         self._text = text
@@ -168,9 +168,9 @@ class AntithesisExtraction(
         thesis_type = "simple" if thesis.is_simple else "complex"
         self._report.summary = (
             f"Extracted {len(results)} antithesis(es) for {thesis_type} thesis "
-            f"'{thesis.statement[:50]}...'"
-            if len(thesis.statement) > 50
-            else f"Extracted {len(results)} antithesis(es) for {thesis_type} thesis '{thesis.statement}'"
+            f"'{thesis.text[:50]}...'"
+            if len(thesis.text) > 50
+            else f"Extracted {len(results)} antithesis(es) for {thesis_type} thesis '{thesis.text}'"
         )
 
         return results
@@ -178,12 +178,12 @@ class AntithesisExtraction(
     # --- Simple Thesis Processing ---
 
     async def _process_simple_thesis(
-        self, thesis: DialecticalComponent
+        self, thesis: Statement
     ) -> list[AntithesisProcessed]:
         """Process a simple thesis: generate direct negation."""
         result = await self._conversation.submit(
             response_model=SimpleNegationDto,
-            user_content=self._simple_negation_prompt(thesis.statement),
+            user_content=self._simple_negation_prompt(thesis.text),
         )
 
         # Skip if matches not_like_these
@@ -191,8 +191,8 @@ class AntithesisExtraction(
             return []
 
         # Create antithesis component
-        antithesis = DialecticalComponent(
-            statement=result.negation,
+        antithesis = Statement(
+            text=result.negation,
             meaning="dx://taxonomy/Simple",
         )
         antithesis.commit()
@@ -256,11 +256,11 @@ Generate:
     # --- Complex Thesis Processing ---
 
     async def _contextualize_taxonomy(
-        self, thesis: DialecticalComponent
+        self, thesis: Statement
     ) -> ContextualizedTaxonomyDto:
         """Contextualize universal taxonomy for a complex thesis."""
         return await contextualize_taxonomy(
-            thesis_statement=thesis.statement,
+            thesis_statement=thesis.text,
             thesis_meaning=thesis.meaning or "",
             text=self._text,
             conversation=self._conversation,
@@ -268,7 +268,7 @@ Generate:
 
     async def _process_complex_thesis(
         self,
-        thesis: DialecticalComponent,
+        thesis: Statement,
         taxonomy: ContextualizedTaxonomyDto,
     ) -> list[AntithesisProcessed]:
         """Generate antithesis candidates using contextualized taxonomy (parallel)."""
@@ -287,7 +287,7 @@ Generate:
             self._conversation.isolate().submit(
                 response_model=ModePointResultDto,
                 user_content=self._mode_point_prompt(
-                    thesis.statement,
+                    thesis.text,
                     taxonomy.apex,
                     field_name.capitalize(),
                     branch_context,
@@ -311,8 +311,8 @@ Generate:
             arousal_value = arousal_label_to_value(mode_result.arousal_label)
 
             # Create antithesis component
-            antithesis = DialecticalComponent(
-                statement=mode_result.statement,
+            antithesis = Statement(
+                text=mode_result.statement,
                 meaning=antithesis_meaning,
             )
             antithesis.commit()

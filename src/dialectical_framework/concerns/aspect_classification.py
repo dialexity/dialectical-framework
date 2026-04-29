@@ -46,8 +46,8 @@ from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                           POSITION_T_PLUS)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import \
-        DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import \
+        Statement
 
 
 # --- System Prompt ---
@@ -186,8 +186,8 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
 
     async def resolve(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        thesis: Statement,
+        antithesis: Statement,
         aspect_statement: str,
         position: str,
         text: str = "",
@@ -208,9 +208,9 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Validate inputs
-        if not thesis or not thesis.statement:
+        if not thesis or not thesis.text:
             raise ValueError("Cannot classify aspect without a valid thesis")
-        if not antithesis or not antithesis.statement:
+        if not antithesis or not antithesis.text:
             raise ValueError("Cannot classify aspect without a valid antithesis")
         if not aspect_statement or not aspect_statement.strip():
             raise ValueError("Cannot classify empty aspect statement")
@@ -288,8 +288,8 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
         return f"""{context_section}Evaluate this aspect statement for a dialectical tension.
 
 **Tension:**
-- Thesis (T): "{self._thesis.statement}"
-- Antithesis (A): "{self._antithesis.statement}"
+- Thesis (T): "{self._thesis.text}"
+- Antithesis (A): "{self._antithesis.text}"
 
 **Aspect to evaluate:**
 - Statement: "{self._aspect_statement}"
@@ -301,10 +301,10 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
 1. **heuristic_similarity** (0.0-1.0): How well does this aspect represent the apex concept "{apex_concept}"?
    Use the HS scale from the system guidelines. Remember: HS > 0.1 = valid, HS ≤ 0.1 = wrong category.
 
-2. **complementarity_t** (K_T, 0.0-1.0): How well does this aspect complement, enhance, or support the thesis "{self._thesis.statement}"?
+2. **complementarity_t** (K_T, 0.0-1.0): How well does this aspect complement, enhance, or support the thesis "{self._thesis.text}"?
    Use the K_T scale from the system guidelines.
 
-3. **complementarity_a** (K_A, 0.0-1.0): How well does this aspect complement, enhance, or support the antithesis "{self._antithesis.statement}"?
+3. **complementarity_a** (K_A, 0.0-1.0): How well does this aspect complement, enhance, or support the antithesis "{self._antithesis.text}"?
    Use the K_A scale from the system guidelines.
 
 4. **suggested_position**: If HS is very low (not a good fit for {self._position}), which position might fit better?

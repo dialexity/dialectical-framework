@@ -13,7 +13,7 @@ import pytest
 
 from dialectical_framework.graph.nodes.base_node import ImmutableNodeError
 from dialectical_framework.graph.nodes.case import Case
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.polarity import Polarity
@@ -23,8 +23,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     APlusRelationship, AMinusRelationship,
 )
 from dialectical_framework.graph.scope_context import scope, get_current_sid
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import (
+    StatementRepository
 )
 
 
@@ -84,7 +84,7 @@ class TestCommitWorkflow:
 
     def test_node_starts_in_draft_state(self):
         """New node should start uncommitted (draft state)."""
-        comp = DialecticalComponent(statement="Test statement for draft", meaning="test")
+        comp = Statement(text="Test statement for draft", meaning="test")
 
         assert not comp.is_committed
         assert comp.hash is None
@@ -92,7 +92,7 @@ class TestCommitWorkflow:
     def test_save_computes_hash(self):
         """save() should compute hash."""
         import random
-        comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
+        comp = Statement(text=f"Test statement {random.random()}", meaning="test")
         comp.commit()
 
         assert comp.is_committed
@@ -103,7 +103,7 @@ class TestCommitWorkflow:
         """Calling save() on saved node should raise ImmutableNodeError."""
         import random
         from dialectical_framework.graph.nodes.base_node import ImmutableNodeError
-        comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
+        comp = Statement(text=f"Test statement {random.random()}", meaning="test")
         comp.commit()
         first_hash = comp.hash
 
@@ -116,7 +116,7 @@ class TestCommitWorkflow:
 
     def test_hash_before_save(self):
         """hash should be None before save."""
-        comp = DialecticalComponent(statement="Test", meaning="test")
+        comp = Statement(text="Test", meaning="test")
 
         # Before save: hash is None
         assert comp.hash is None
@@ -124,7 +124,7 @@ class TestCommitWorkflow:
 
     def test_hash_after_save(self):
         """hash should be set after save."""
-        comp = DialecticalComponent(statement="Test", meaning="test")
+        comp = Statement(text="Test", meaning="test")
         comp.commit()
 
         # After save: hash is set
@@ -134,7 +134,7 @@ class TestCommitWorkflow:
 
     def test_save_workflow(self):
         """Standard workflow: create -> save (computes hash and persists)."""
-        comp = DialecticalComponent(statement="Test", meaning="test")
+        comp = Statement(text="Test", meaning="test")
         comp.commit()
 
         assert comp._id is not None
@@ -144,8 +144,8 @@ class TestCommitWorkflow:
         """Same content should produce same hash (without saving both - would violate unique constraint)."""
         import random
         unique_content = f"Same content {random.random()}"
-        comp1 = DialecticalComponent(statement=unique_content, meaning="test")
-        comp2 = DialecticalComponent(statement=unique_content, meaning="test")
+        comp1 = Statement(text=unique_content, meaning="test")
+        comp2 = Statement(text=unique_content, meaning="test")
 
         # Compute hashes without saving (to test determinism without unique constraint issue)
         hash1 = comp1.compute_hash()
@@ -201,7 +201,7 @@ class TestNodeIdentifierInheritance:
 
         import random
         with scope(case_node.sid):
-            comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
+            comp = Statement(text=f"Test statement {random.random()}", meaning="test")
             comp.commit()
 
         assert comp.sid == case_node.sid
@@ -230,7 +230,7 @@ class TestNodeIdentifierInheritance:
 
         with scope(case_node1.sid):
             # Explicit sid takes precedence
-            comp = DialecticalComponent(statement=f"Test {random.random()}", sid=case_node2.sid, meaning="test")
+            comp = Statement(text=f"Test {random.random()}", sid=case_node2.sid, meaning="test")
             comp.commit()
 
         assert comp.sid == case_node2.sid
@@ -242,7 +242,7 @@ class TestOrphanNodes:
     def test_node_without_context_has_no_sid(self):
         """Node created without scope context should have sid=None."""
         import random
-        comp = DialecticalComponent(statement=f"Orphan {random.random()}", meaning="test")
+        comp = Statement(text=f"Orphan {random.random()}", meaning="test")
         comp.commit()
 
         assert comp.sid is None
@@ -252,14 +252,14 @@ class TestCloneOperation:
     """Tests for the clone operation.
 
     Important: Clone behavior differs between node categories:
-    - Atoms (DialecticalComponent, Input, etc.): Content-addressable, NO origin_hash.
+    - Atoms (Statement, Input, etc.): Content-addressable, NO origin_hash.
       Same content = same hash regardless of cloning.
     - Forking Points (Perspective, Nexus): Have origin_hash for lineage tracking.
       Clones get different hashes due to origin_hash in computation.
     """
 
     def test_atom_clone_has_same_hash(self):
-        """Cloned atom (DialecticalComponent) should have same hash - content-addressable."""
+        """Cloned atom (Statement) should have same hash - content-addressable."""
         import random
         case_node1 = Case()
         case_node1.commit()
@@ -268,7 +268,7 @@ class TestCloneOperation:
         case_node2.commit()
 
         with scope(case_node1.sid):
-            original = DialecticalComponent(statement=f"Original statement {random.random()}", meaning="test")
+            original = Statement(text=f"Original statement {random.random()}", meaning="test")
             original.commit()
 
         cloned = original.clone(destination_sid=case_node2.sid)
@@ -284,7 +284,7 @@ class TestCloneOperation:
         case_node1.commit()
 
         with scope(case_node1.sid):
-            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
+            original = Statement(text=f"Original {random.random()}", meaning="test")
             original.commit()
 
         cloned = original.clone(destination_sid=case_node1.sid)
@@ -302,7 +302,7 @@ class TestCloneOperation:
         case_node2.commit()
 
         with scope(case_node1.sid):
-            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
+            original = Statement(text=f"Original {random.random()}", meaning="test")
             original.commit()
 
         cloned = original.clone(destination_sid=case_node2.sid)
@@ -320,12 +320,12 @@ class TestCloneOperation:
         case_node2.commit()
 
         with scope(case_node1.sid):
-            t = DialecticalComponent(statement=f"Thesis {random.random()}", meaning="test")
-            t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}", meaning="test")
-            t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}", meaning="test")
-            a = DialecticalComponent(statement=f"Antithesis {random.random()}", meaning="test")
-            a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}", meaning="test")
-            a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}", meaning="test")
+            t = Statement(text=f"Thesis {random.random()}", meaning="test")
+            t_plus = Statement(text=f"Thesis plus {random.random()}", meaning="test")
+            t_minus = Statement(text=f"Thesis minus {random.random()}", meaning="test")
+            a = Statement(text=f"Antithesis {random.random()}", meaning="test")
+            a_plus = Statement(text=f"Antithesis plus {random.random()}", meaning="test")
+            a_minus = Statement(text=f"Antithesis minus {random.random()}", meaning="test")
             for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
                 comp.commit()
 
@@ -347,12 +347,12 @@ class TestCloneOperation:
         case_node2.commit()
 
         # Create orphan components (sid=None) so they can be shared across scopes
-        t = DialecticalComponent(statement=f"Thesis {random.random()}", meaning="test")
-        t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}", meaning="test")
-        t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}", meaning="test")
-        a = DialecticalComponent(statement=f"Antithesis {random.random()}", meaning="test")
-        a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}", meaning="test")
-        a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}", meaning="test")
+        t = Statement(text=f"Thesis {random.random()}", meaning="test")
+        t_plus = Statement(text=f"Thesis plus {random.random()}", meaning="test")
+        t_minus = Statement(text=f"Thesis minus {random.random()}", meaning="test")
+        a = Statement(text=f"Antithesis {random.random()}", meaning="test")
+        a_plus = Statement(text=f"Antithesis plus {random.random()}", meaning="test")
+        a_minus = Statement(text=f"Antithesis minus {random.random()}", meaning="test")
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
 
@@ -386,7 +386,7 @@ class TestCloneOperation:
         case_node1.commit()
 
         with scope(case_node1.sid):
-            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
+            original = Statement(text=f"Original {random.random()}", meaning="test")
             original.commit()
 
         cloned = original.clone(destination_sid=case_node1.sid)
@@ -405,12 +405,12 @@ class TestCloneOperation:
         case_node2.commit()
 
         with scope(case_node1.sid):
-            original = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
+            original = Statement(text=f"Test statement {random.random()}", meaning="test")
             original.commit()
 
         cloned = original.clone(destination_sid=case_node2.sid)
 
-        assert cloned.statement == original.statement
+        assert cloned.text == original.text
 
 
 class TestScopeValidationOnConnect:
@@ -475,7 +475,7 @@ class TestHashLookup:
         import random
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
-        comp = DialecticalComponent(statement=f"Test for prefix lookup {random.random()}", meaning="test")
+        comp = Statement(text=f"Test for prefix lookup {random.random()}", meaning="test")
         comp.commit()
 
         repo = NodeRepository()
@@ -498,7 +498,7 @@ class TestHashLookup:
         import random
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
-        comp = DialecticalComponent(statement=f"Test for full hash lookup {random.random()}", meaning="test")
+        comp = Statement(text=f"Test for full hash lookup {random.random()}", meaning="test")
         comp.commit()
 
         repo = NodeRepository()
@@ -524,12 +524,12 @@ class TestLineageTracking:
         case_node1.commit()
 
         # Create orphan components (shared globally)
-        t = DialecticalComponent(statement=f"Thesis {random.random()}", meaning="test")
-        t_plus = DialecticalComponent(statement=f"Thesis plus {random.random()}", meaning="test")
-        t_minus = DialecticalComponent(statement=f"Thesis minus {random.random()}", meaning="test")
-        a = DialecticalComponent(statement=f"Antithesis {random.random()}", meaning="test")
-        a_plus = DialecticalComponent(statement=f"Antithesis plus {random.random()}", meaning="test")
-        a_minus = DialecticalComponent(statement=f"Antithesis minus {random.random()}", meaning="test")
+        t = Statement(text=f"Thesis {random.random()}", meaning="test")
+        t_plus = Statement(text=f"Thesis plus {random.random()}", meaning="test")
+        t_minus = Statement(text=f"Thesis minus {random.random()}", meaning="test")
+        a = Statement(text=f"Antithesis {random.random()}", meaning="test")
+        a_plus = Statement(text=f"Antithesis plus {random.random()}", meaning="test")
+        a_minus = Statement(text=f"Antithesis minus {random.random()}", meaning="test")
 
         for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
             comp.commit()
@@ -567,14 +567,14 @@ class TestLineageTracking:
         assert clone.hash != original_pp.hash
 
     def test_atoms_have_no_lineage(self):
-        """Atoms (DialecticalComponent) should NOT have origin_hash after clone."""
+        """Atoms (Statement) should NOT have origin_hash after clone."""
         import random
 
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.sid):
-            original = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
+            original = Statement(text=f"Original {random.random()}", meaning="test")
             original.commit()
 
         clone = original.clone(destination_sid=case_node.sid)
@@ -613,7 +613,7 @@ class TestIntegration:
             ideas.save()
 
             # Create Component
-            comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
+            comp = Statement(text=f"Test statement {random.random()}", meaning="test")
             comp.commit()
 
             # Connect statements before commit
@@ -630,7 +630,7 @@ class TestIntegration:
         assert comp.sid == case_node.sid
 
         # Verify vocabulary
-        repo = DialecticalComponentRepository()
+        repo = StatementRepository()
         with scope(case_node.sid):
             vocab = repo.get_vocabulary()
         assert comp in vocab
@@ -642,11 +642,11 @@ class TestHashIntegrityOnSave:
     def test_save_blocks_structural_modification_after_commit(self):
         """Verify save() raises ImmutableNodeError if structural fields modified after commit."""
         import random
-        comp = DialecticalComponent(statement=f"Original statement {random.random()}", meaning="test")
+        comp = Statement(text=f"Original statement {random.random()}", meaning="test")
         comp.commit()
 
         # Modify structural field
-        comp.statement = "Modified statement"
+        comp.text = "Modified statement"
 
         # save() should raise ImmutableNodeError
         with pytest.raises(ImmutableNodeError) as exc_info:
@@ -656,7 +656,7 @@ class TestHashIntegrityOnSave:
     def test_save_allows_metadata_modification_after_commit(self):
         """Verify save() allows metadata changes after commit."""
         import random
-        comp = DialecticalComponent(statement=f"Test statement {random.random()}", meaning="test")
+        comp = Statement(text=f"Test statement {random.random()}", meaning="test")
         comp.commit()
         original_hash = comp.hash
 
@@ -701,11 +701,11 @@ class TestHashIntegrityOnSave:
     def test_uncommitted_node_save_succeeds(self):
         """Verify save() on uncommitted node allows any modification."""
         import random
-        comp = DialecticalComponent(statement=f"Original {random.random()}", meaning="test")
+        comp = Statement(text=f"Original {random.random()}", meaning="test")
         comp.save()  # HEAD state, no hash
 
         # Modify structural field
-        comp.statement = "Modified"
+        comp.text = "Modified"
 
         # save() should succeed (uncommitted nodes are mutable)
         comp.save()

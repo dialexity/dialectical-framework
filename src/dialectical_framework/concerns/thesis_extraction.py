@@ -10,7 +10,7 @@ Usage:
     service = ThesisExtraction()
     theses = await service.resolve(text=article_text, count=4)
     for t in theses:
-        print(t.statement)
+        print(t.text)
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ from dialectical_framework.agents.reasonable_concern import \
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.statement_classification import (
     ClassificationResult, StatementClassification)
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.protocols.has_config import SettingsAware
 
@@ -94,7 +94,7 @@ class CandidateCheckDto(BaseModel):
 # --- Concern ---
 
 
-class ThesisExtraction(ReasonableConcern[list[DialecticalComponent]], SettingsAware):
+class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
     """
     Concern for extracting theses from content.
 
@@ -105,7 +105,7 @@ class ThesisExtraction(ReasonableConcern[list[DialecticalComponent]], SettingsAw
 
     For direct theses (not from content), use StatementClassification directly.
 
-    Returns list of DialecticalComponent. Access .report for effects.
+    Returns list of Statement. Access .report for effects.
     """
 
     def __init__(self) -> None:
@@ -118,7 +118,7 @@ class ThesisExtraction(ReasonableConcern[list[DialecticalComponent]], SettingsAw
         focus: str = "",
         domain_hint: str = "",
         not_like_these: Optional[list[str]] = None,
-    ) -> list[DialecticalComponent]:
+    ) -> list[Statement]:
         """
         Extract theses from content text.
 
@@ -130,7 +130,7 @@ class ThesisExtraction(ReasonableConcern[list[DialecticalComponent]], SettingsAw
             not_like_these: Existing statements to avoid
 
         Returns:
-            List of extracted DialecticalComponent theses
+            List of extracted Statement theses
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
@@ -261,7 +261,7 @@ Return:
 
     async def _classify_candidates(
         self, candidates: list[str]
-    ) -> list[DialecticalComponent]:
+    ) -> list[Statement]:
         """Classify each candidate and create components."""
         # Create classifiers and run in parallel
         classifiers = [StatementClassification() for _ in candidates]
@@ -281,24 +281,24 @@ Return:
             self._report = self._report.merge(classifier.report)
 
         # Create components from classification results
-        components: list[DialecticalComponent] = []
+        components: list[Statement] = []
         for result in results:
             component = self._create_component(result)
             components.append(component)
 
         return components
 
-    def _create_component(self, result: ClassificationResult) -> DialecticalComponent:
+    def _create_component(self, result: ClassificationResult) -> Statement:
         """Create component and rationale from classification result."""
-        component = DialecticalComponent(
-            statement=result.statement, meaning=result.meaning
+        component = Statement(
+            text=result.statement, meaning=result.meaning
         )
         component.commit()
 
         classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
         self._report.node_created(
             component,
-            patch={"meaning": result.meaning, "statement": result.statement},
+            patch={"meaning": result.meaning, "text": result.statement},
             meta={"classification": classification_label},
         )
 

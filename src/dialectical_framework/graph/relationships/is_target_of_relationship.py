@@ -6,7 +6,7 @@ from dialectical_framework.graph.relationships.immutable_structure import Identi
 
 class IsTargetOfRelationship(IdentityRelationship, type="IS_TARGET_OF"):
     """
-    Links a Transition to its target DialecticalComponent.
+    Links a Transition to its target Statement.
 
     Part of the structural layer - defines what the Transition represents.
     """

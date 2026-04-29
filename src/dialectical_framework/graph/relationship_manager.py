@@ -64,8 +64,8 @@ def _get_label_for_class_name(class_name: str) -> str:
     """
     Get the database label for a class name (resolves class and gets its label).
 
-    Used to convert class names like 'DialecticalComponent' to their
-    database labels like 'Component'.
+    Used to convert class names like 'Statement' to their
+    database labels like 'Statement'.
     """
     node_class = _get_node_class_by_name(class_name)
     if node_class is not None:
@@ -110,7 +110,7 @@ def _is_class_compatible(source_class_name: str, target_class_names: list[str]) 
     """
     Check if source_class_name is compatible with any of the target_class_names.
 
-    This handles inheritance - e.g., DialecticalComponent is compatible with
+    This handles inheritance - e.g., Statement is compatible with
     AssessableEntity because it's a subclass.
 
     Args:
@@ -417,12 +417,12 @@ class BoundRelationshipManager(Generic[T]):
         # For each component, verify it belongs to a PP that's in the cycle
         repo = PerspectiveRepository()
         for component in components_by_id.values():
-            from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
-            assert isinstance(component, DialecticalComponent)
-            component_pps = repo.find_by_dialectical_component(component)
+            from dialectical_framework.graph.nodes.statement import Statement
+            assert isinstance(component, Statement)
+            component_pps = repo.find_by_statement(component)
 
             if not component_pps:
-                stmt = getattr(component, 'statement', str(component.hash))[:50]
+                stmt = getattr(component, 'text', str(component.hash))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
                     f"(id={component.hash}) does not belong to any Perspective."
@@ -431,7 +431,7 @@ class BoundRelationshipManager(Generic[T]):
             # Check if at least one of the component's PPs is in the cycle
             component_pp_ids = {pp.hash for pp, _ in component_pps}
             if not component_pp_ids.intersection(cycle_pp_ids):
-                stmt = getattr(component, 'statement', str(component.hash))[:50]
+                stmt = getattr(component, 'text', str(component.hash))[:50]
                 raise ValueError(
                     f"Cannot connect cycle: component '{stmt}...' "
                     f"(id={component.hash}) belongs to Perspective(s) not in the cycle. "
@@ -446,14 +446,14 @@ class BoundRelationshipManager(Generic[T]):
         - OPPOSITE_OF: T ↔ A (dialectical opposition between thesis and antithesis)
 
         This is called automatically by connect() after successfully connecting
-        a DialecticalComponent to a Polarity position (T or A).
+        a Statement to a Polarity position (T or A).
         """
         from dialectical_framework.graph.nodes.polarity import Polarity
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
 
         # Only for Polarity -> Component connections (T or A positions)
         if not (isinstance(self.source_node, Polarity) and
-                isinstance(target_node, DialecticalComponent) and
+                isinstance(target_node, Statement) and
                 self.relationship_type in {'T', 'A'}):
             return  # Not a Polarity-component connection
 
@@ -462,9 +462,9 @@ class BoundRelationshipManager(Generic[T]):
         position = self.relationship_type
 
         # Helper to safely connect without duplicate edges
-        def safe_connect_semantic(source_comp: DialecticalComponent,
+        def safe_connect_semantic(source_comp: Statement,
                                    rel_manager_name: str,
-                                   target_comp: DialecticalComponent) -> None:
+                                   target_comp: Statement) -> None:
             """Connect if not already connected. Uses internal connect for auto-created relationships."""
             manager = getattr(source_comp, rel_manager_name)
             existing = manager.get(target_comp)
@@ -498,18 +498,18 @@ class BoundRelationshipManager(Generic[T]):
         - NEGATIVE_SIDE_OF: T- → T, A- → A (via Polarity)
 
         This is called automatically by connect() after successfully connecting
-        a DialecticalComponent to a Perspective aspect position (T+, T-, A+, A-).
+        a Statement to a Perspective aspect position (T+, T-, A+, A-).
 
         Note: OPPOSITE_OF (T ↔ A) is created when connecting to Polarity, not Perspective.
         """
         from dialectical_framework.graph.nodes.perspective import Perspective
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
 
         # Only for PP -> Component aspect connections (not T or A - those are on Polarity)
         aspect_types = {'T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS'}
 
         if not (isinstance(self.source_node, Perspective) and
-                isinstance(target_node, DialecticalComponent) and
+                isinstance(target_node, Statement) and
                 self.relationship_type in aspect_types):
             return  # Not a PP-aspect connection
 
@@ -518,9 +518,9 @@ class BoundRelationshipManager(Generic[T]):
         position = self.relationship_type
 
         # Helper to safely connect without duplicate edges
-        def safe_connect_semantic(source_comp: DialecticalComponent,
+        def safe_connect_semantic(source_comp: Statement,
                                    rel_manager_name: str,
-                                   target_comp: DialecticalComponent) -> None:
+                                   target_comp: Statement) -> None:
             """Connect if not already connected. Uses internal connect for auto-created relationships."""
             manager = getattr(source_comp, rel_manager_name)
             existing = manager.get(target_comp)
@@ -590,13 +590,13 @@ class BoundRelationshipManager(Generic[T]):
         Raises:
             ValueError: If the relationship contradicts Perspective structure
         """
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
 
         # Only validate Component-to-Component semantic relationships
         semantic_types = {'OPPOSITE_OF', 'CONTRADICTION_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO'}
 
-        if not (isinstance(self.source_node, DialecticalComponent) and
-                isinstance(target_node, DialecticalComponent) and
+        if not (isinstance(self.source_node, Statement) and
+                isinstance(target_node, Statement) and
                 self.relationship_type in semantic_types):
             return  # Not a semantic relationship between components
 
@@ -608,8 +608,8 @@ class BoundRelationshipManager(Generic[T]):
         from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
         repo = PerspectiveRepository()
 
-        source_pps = {pp.hash: (pp, pos) for pp, pos in repo.find_by_dialectical_component(source_comp)}
-        target_pps = {pp.hash: (pp, pos) for pp, pos in repo.find_by_dialectical_component(target_comp)}
+        source_pps = {pp.hash: (pp, pos) for pp, pos in repo.find_by_statement(source_comp)}
+        target_pps = {pp.hash: (pp, pos) for pp, pos in repo.find_by_statement(target_comp)}
 
         # Find common Perspectives
         common_pp_uids = set(source_pps.keys()) & set(target_pps.keys())

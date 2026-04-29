@@ -14,8 +14,8 @@ from dialectical_framework.concerns.control_statements_check import \
 from dialectical_framework.concerns.perspective_validation import \
     PerspectiveValidation
 from dialectical_framework.graph.nodes.case import Case
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, TMinusRelationship,
@@ -40,17 +40,17 @@ def _create_test_perspective(
     pp.save()
 
     # Create and connect T
-    t = DialecticalComponent(statement=t_statement)
+    t = Statement(text=t_statement)
     t.commit()
     pp.t.connect(t)
 
     # Create and connect A
-    a = DialecticalComponent(statement=a_statement)
+    a = Statement(text=a_statement)
     a.commit()
     pp.a.connect(a)
 
     # Create and connect T+ with complementarity
-    t_plus = DialecticalComponent(statement=t_plus_statement)
+    t_plus = Statement(text=t_plus_statement)
     t_plus.commit()
     pp.t_plus.connect(
         t_plus,
@@ -62,7 +62,7 @@ def _create_test_perspective(
     )
 
     # Create and connect T-
-    t_minus = DialecticalComponent(statement=t_minus_statement)
+    t_minus = Statement(text=t_minus_statement)
     t_minus.commit()
     pp.t_minus.connect(
         t_minus,
@@ -74,7 +74,7 @@ def _create_test_perspective(
     )
 
     # Create and connect A+
-    a_plus = DialecticalComponent(statement=a_plus_statement)
+    a_plus = Statement(text=a_plus_statement)
     a_plus.commit()
     pp.a_plus.connect(
         a_plus,
@@ -86,7 +86,7 @@ def _create_test_perspective(
     )
 
     # Create and connect A-
-    a_minus = DialecticalComponent(statement=a_minus_statement)
+    a_minus = Statement(text=a_minus_statement)
     a_minus.commit()
     pp.a_minus.connect(
         a_minus,
@@ -273,7 +273,7 @@ class TestPerspectiveValidation:
             pp.save()
 
             # Only add T - incomplete
-            t = DialecticalComponent(statement="Trust")
+            t = Statement(text="Trust")
             t.commit()
             pp.t.connect(t)
             pp.commit()

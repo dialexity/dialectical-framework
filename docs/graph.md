@@ -15,7 +15,7 @@ Perspective → Cycle → Wheel (edges) → Transformation
 **Simplified model:**
 - **Perspective**: Tetrad (T, A, T+, T-, A+, A-) — atomic polar structure
 - **Cycle**: T-cycle — ordered sequence of PPs defining abstract thesis causality
-- **Wheel**: TA-cycle — concrete arrangement with edges between components
+- **Wheel**: TA-cycle — concrete arrangement with edges between statements
 - **Transformation**: Action-Reflection structure per edge (Ac, Re, Ac+, Ac-, Re+, Re-)
 
 **Evolution model:**
@@ -27,17 +27,17 @@ Perspective → Cycle → Wheel (edges) → Transformation
 
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
-| **DialecticalComponent** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
+| **Statement** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
 | **Perspective** | Thesis-antithesis tetrad | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus` |
 | **Cycle** | T-cycle (ordered PP pool) | `perspective_hashes`, `wheels`, `evolutions`, `evolved_from` |
 | **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `evolutions`, `evolved_from` |
-| **Transition** | Edge between components | `source`, `target`, `cycle` (→Wheel) |
+| **Transition** | Edge between statements | `source`, `target`, `cycle` (→Wheel) |
 | **Transformation** | Action-Reflection per edge | `edge` (→Transition), `ac_re`, `synthesis` (0-N) |
 | **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Transformation) |
 | **Rationale** | Evidence/explanation | `explanation`, `critiques`, `provided_estimations` |
 | **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `_provider` (←Rationale via PROVIDES) |
-| **Input** | Content source | `statements`, `ideas` |
-| **Ideas** | Distilled concepts from Input | `input` (→Input), `statements` |
+| **Input** | Content source | `has_statements`, `ideas` |
+| **Ideas** | Distilled concepts from Input | `input` (→Input), `has_statements` |
 | **Case** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
 
 **DEPRECATED** (kept for backwards compatibility):
@@ -155,10 +155,10 @@ The Case layer provides multi-input exploration before Perspective construction:
 Case (multi-input exploration)
 ├── HAS_INPUT → Input₁
 │              └── DISTILLED_TO → Ideas₁ (intent: "thesis_extraction")
-│                                └── HAS_STATEMENT → Components...
+│                                └── HAS_STATEMENT → Statements...
 ├── HAS_INPUT → Input₂
 │              └── DISTILLED_TO → Ideas₂ (intent: "antithesis_extraction")
-└── get_vocabulary() → All components in scope (uses DI scope)
+└── get_vocabulary() → All statements in scope (uses DI scope)
 ```
 
 ### Key Concepts
@@ -170,7 +170,7 @@ Case (multi-input exploration)
 
 **Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
 
-**Vocabulary:** `repo.get_vocabulary()` returns all DialecticalComponents in the current scope. This enables cross-input Perspective construction.
+**Vocabulary:** `repo.get_vocabulary()` returns all Statements in the current scope. This enables cross-input Perspective construction.
 
 ### Usage
 
@@ -178,8 +178,8 @@ Case (multi-input exploration)
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.input import Input
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import (
+    StatementRepository
 )
 from dialectical_framework.graph.scope_context import scope
 
@@ -202,7 +202,7 @@ with scope(case.sid):
     input_a.ideas.connect(ideas_thesis)
 
     # Get vocabulary (inside scope context)
-    repo = DialecticalComponentRepository()
+    repo = StatementRepository()
     vocab = repo.get_vocabulary()
 ```
 
@@ -268,7 +268,7 @@ The graph architecture separates into two distinct layers.
 
 Think of the structural layer as a **3D tree growing downward**:
 
-- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → PP → Components)
+- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → PP → Statements)
 - **Horizontal dimension**: Sibling relationships (multiple PPs in a Cycle, multiple Wheels per Cycle)
 - **Depth dimension**: Branching via evolution (Cycle₁ → Cycle₂ with added PP)
 
@@ -279,9 +279,9 @@ Think of the structural layer as a **3D tree growing downward**:
 
 | Node | Role in Structure |
 |------|-------------------|
-| DialecticalComponent | Atomic leaves (statements) |
+| Statement | Atomic leaves (statements) |
 | Perspective | Polar tetrads (T/A with +/-) |
-| Transition | Edges between components |
+| Transition | Edges between statements |
 | Cycle | T-cycle (ordered PP pool + intent) |
 | Wheel | TA-cycle (edges implementing Cycle's pool) |
 | Transformation | Action-Reflection per edge |
@@ -390,7 +390,7 @@ Wheel ──evolutions──► Wheel' (layer added)
 
 **Complete scoring hierarchy (child → parent edges):**
 ```
-DialecticalComponent ──► Perspective
+Statement ──► Perspective
                               │
 Transition ──► Wheel ◄────────┘ (via edges)
                 │
@@ -414,17 +414,17 @@ class Cycle:
 
 ## Vocabulary
 
-**Vocabulary** is simply all DialecticalComponents within a scope (by `sid`). Components can be combined freely within the same scope.
+**Vocabulary** is simply all Statements within a scope (by `sid`). Statements can be combined freely within the same scope.
 
 ### Querying Vocabulary
 
 ```python
-from dialectical_framework.graph.repositories.dialectical_component_repository import (
-    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import (
+    StatementRepository
 )
 from dialectical_framework.graph.scope_context import scope
 
-repo = DialecticalComponentRepository()
+repo = StatementRepository()
 
 # Get vocabulary (always uses current DI scope)
 with scope(case.sid):
@@ -448,7 +448,7 @@ The `alias` property on relationships stores contextual names (e.g., "T1", "A2+"
 
 ## Semantic Relationships
 
-Components have semantic relationships that capture dialectical structure:
+Statements have semantic relationships that capture dialectical structure:
 
 | Relationship | Direction | Purpose |
 |--------------|-----------|---------|
@@ -456,23 +456,23 @@ Components have semantic relationships that capture dialectical structure:
 | `CONTRADICTION_OF` | Symmetric | T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity) |
 | `POSITIVE_SIDE_OF` | T+ → T, A+ → A | Positive aspect of neutral |
 | `NEGATIVE_SIDE_OF` | T- → T, A- → A | Negative aspect of neutral |
-| `SIMILAR_TO` | Directed | Semantic similarity between components |
+| `SIMILAR_TO` | Directed | Semantic similarity between statements |
 
-**Auto-creation:** When connecting components to Perspective positions, semantic relationships are automatically created:
+**Auto-creation:** When connecting statements to Perspective positions, semantic relationships are automatically created:
 
 ```python
 pp = Perspective()
 pp.save()
 
-t = DialecticalComponent(statement="Democracy")
+t = Statement(text="Democracy")
 t.save()
 pp.t.connect(t)
 
-a = DialecticalComponent(statement="Autocracy")
+a = Statement(text="Autocracy")
 a.save()
 pp.a.connect(a)  # Auto-creates: t.oppositions ↔ a
 
-t_plus = DialecticalComponent(statement="Citizen empowerment")
+t_plus = Statement(text="Citizen empowerment")
 t_plus.save()
 pp.t_plus.connect(t_plus)  # Auto-creates: t_plus.positive_side_of → t
                            # Auto-creates: t_plus.oppositions ↔ a_minus (if exists)
@@ -481,16 +481,16 @@ pp.t_plus.connect(t_plus)  # Auto-creates: t_plus.positive_side_of → t
 **Access patterns:**
 ```python
 # Get all opposites
-for opp, _ in component.oppositions.all():
-    print(f"Opposite: {opp.statement}")
+for opp, _ in stmt.oppositions.all():
+    print(f"Opposite: {opp.text}")
 
-# Get what this component is a positive side of
-for neutral, _ in component.positive_side_of.all():
-    print(f"Positive side of: {neutral.statement}")
+# Get what this statement is a positive side of
+for neutral, _ in stmt.positive_side_of.all():
+    print(f"Positive side of: {neutral.text}")
 
-# Get all positive sides of this component
-for pos, _ in component.positive_sides.all():
-    print(f"Has positive side: {pos.statement}")
+# Get all positive sides of this statement
+for pos, _ in stmt.positive_sides.all():
+    print(f"Has positive side: {pos.text}")
 ```
 
 ## Scoring (TaroRank)
@@ -503,11 +503,11 @@ for pos, _ in component.positive_sides.all():
 
 | Method | Use Case |
 |--------|----------|
-| **GM** | Independent evidence (component + rationales) |
+| **GM** | Independent evidence (statement + rationales) |
 | **PM (p=4)** | Symmetric pairs (T↔A) |
 | **Product** | Sequential probability (cycle transitions) |
 
-**Score flow:** Component → PP → Cycle → Wheel (child to parent)
+**Score flow:** Statement → PP → Cycle → Wheel (child to parent)
 
 **Wheel aggregation:** Wheel scores derive from edges and their Transformations.
 
@@ -516,7 +516,7 @@ for pos, _ in component.positive_sides.all():
 
 ## Key Conventions
 
-- **Cardinality (1,1):** Exactly one component per polarity position
+- **Cardinality (1,1):** Exactly one statement per polarity position
 - **TYPE_CHECKING:** Always use `from __future__ import annotations` + TYPE_CHECKING guard
 - **ClassVar:** Required for RelationshipManager descriptors on GQLAlchemy nodes
 - **Manual vs Calculated:** Separate estimation types prevent circular dependencies
@@ -525,11 +525,11 @@ for pos, _ in component.positive_sides.all():
 
 ### Simple Nodes
 
-Nodes without children (DialecticalComponent, Rationale) can use `commit()` directly:
+Nodes without children (Statement, Rationale) can use `commit()` directly:
 
 ```python
-component = DialecticalComponent(statement="Remote work improves focus")
-component.commit()  # save + compute hash in one step
+stmt = Statement(text="Remote work improves focus")
+stmt.commit()  # save + compute hash in one step
 ```
 
 ### Container Nodes (IncrementalBuildMixin)
@@ -565,17 +565,17 @@ from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.transformation import Transformation
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 
-# Create Perspectives with components
+# Create Perspectives with statements
 pp1 = Perspective()
 pp1.save()
-t1 = DialecticalComponent(statement="Remote work improves focus")
+t1 = Statement(text="Remote work improves focus")
 t1.commit()
 pp1.t.connect(t1, relationship=TRelationship(alias='T1'))
-# ... add other components (t_plus, t_minus, a, a_plus, a_minus)
+# ... add other statements (t_plus, t_minus, a, a_plus, a_minus)
 pp1.commit()
 
 pp2 = Perspective()

@@ -24,7 +24,7 @@ class InputRepository:
     All queries are automatically scoped by sid (injected from DI context).
     """
 
-    # TODO: Inputs that are referencing DialecticalComponent nodes via dx:// should be excluded I guess, Rationales are ok?
+    # TODO: Inputs that are referencing Statement nodes via dx:// should be excluded I guess, Rationales are ok?
     @inject
     def get_all(
         self,

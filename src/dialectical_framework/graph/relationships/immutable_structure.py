@@ -4,7 +4,7 @@ Base classes for relationship layer classification.
 The Dialectical Framework has two main relationship layers:
 
 1. **ImmutableStructure** - The structural layer that forms the immutable
-   reasoning framework from DialecticalComponents to Wheels. Has two sub-types:
+   reasoning framework from Statements to Wheels. Has two sub-types:
 
    a) **IdentityRelationship** - Defines what a node IS:
       - IS_SOURCE_OF, IS_TARGET_OF: Define Transition's identity
@@ -84,7 +84,7 @@ class OutgoingContainerMembership(ImmutableStructure):
     Structural relationship for container composition (outgoing edges).
 
     Use for HAS_* relationships where containers point TO children:
-    - HAS_STATEMENT: Ideas → DialecticalComponent
+    - HAS_STATEMENT: Ideas → Statement
 
     Validation: Blocked if the SOURCE (container) is committed.
     This is the inverse of ContainerMembership - used when the container

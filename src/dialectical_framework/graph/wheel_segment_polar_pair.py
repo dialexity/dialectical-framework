@@ -13,7 +13,7 @@ from typing import Literal, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
 
 from dialectical_framework.graph.wheel_segment import WheelSegment
 
@@ -135,7 +135,7 @@ class WheelSegmentPolarPair:
         # Update polarity
         self._polarity = "swapped" if self._polarity == "normal" else "normal"
 
-    def get_component(self, alias: str) -> Optional[DialecticalComponent]:
+    def get_component(self, alias: str) -> Optional[Statement]:
         """
         Find a component by its alias, searching both sides.
 
@@ -329,7 +329,7 @@ class WheelSegmentPolarPair:
             if result:
                 component, rel = result
                 assert isinstance(rel, PolarityRelationship)
-                return rel.alias, component.statement
+                return rel.alias, component.text
             return "", ""
 
         # Get Transformation (if exists) - transformation has its own 6 positions now

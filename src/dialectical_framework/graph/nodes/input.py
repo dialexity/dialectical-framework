@@ -32,7 +32,7 @@ from dialectical_framework.graph.relationships.has_input_relationship import (
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.ideas import Ideas
     from dialectical_framework.graph.nodes.case import Case
 
@@ -82,8 +82,8 @@ class Input(BaseNode, label="Input"):
     content: Optional[str] = None
 
     # Statements extracted from this input
-    statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
+    statements: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
+        "Statement",
         model=HasStatementRelationship,
         cardinality=(0, None),  # Zero or more statements
     )
@@ -209,7 +209,7 @@ class Input(BaseNode, label="Input"):
         """
         Commit this Input: check for component collision, compute hash, and persist.
 
-        If content is plain text that matches an existing DialecticalComponent's
+        If content is plain text that matches an existing Statement's
         statement, the content is transformed to a dx:// reference to avoid
         hash collision. This makes Input a pointer to the canonical component.
 

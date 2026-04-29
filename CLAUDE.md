@@ -43,12 +43,12 @@ Think of a Dialectical Wheel as a pizza:
   - Contains `edges` (causality sequence / ta_cycle level)
   - Transformations belong to individual edges (access via `wheel.transformations`)
   - Wheels are reused across Cycles if same PP set (rotation-invariant hash)
-- **Input**: External content source (URL/IPFS) linked to extracted components
+- **Input**: External content source (URL/IPFS) linked to extracted statements
 - **Ideas**: Container of distilled concepts from an Input (uses IncrementalBuildMixin: save → add statements → commit)
 - **Case**: Multi-input exploration container with unified vocabulary
 
 **Hierarchy:** Perspective → Cycle → Wheel (edges) → Transformation
-**Case flow:** Case → Input → Ideas → Components
+**Case flow:** Case → Input → Ideas → Statements
 
 **Exploration flow:** Perspectives → Nexus (exploration context) → Cycles (T-cycle orderings) → Wheels (TA arrangements)
 
@@ -148,7 +148,7 @@ The graph separates relationships into two layers:
 
 **Structural Layer** (immutable after commit):
 - Forms the Merkle-tree backbone (hash-linked)
-- Components, Perspectives, Ideas, Cycle, Wheel, Transitions
+- Statements, Perspectives, Ideas, Cycle, Wheel, Transitions
 - Base classes: `IdentityRelationship`, `ContainerMembership`, `OutgoingContainerMembership`
 
 **Analytical Layer** (can evolve anytime):
@@ -173,7 +173,7 @@ See `docs/graph.md` → "Structural vs Analytical Layers" for full details.
 
 ### Semantic Relationships (auto-created)
 
-When connecting components to Perspective positions, semantic relationships are automatically created:
+When connecting statements to Perspective positions, semantic relationships are automatically created:
 
 | Relationship | Direction | When Created |
 |--------------|-----------|--------------|
@@ -250,7 +250,7 @@ src/dialectical_framework/
 ├── dialectical_reasoning.py  # DI container (START HERE)
 │
 ├── graph/                    # Core graph-native data model
-│   ├── nodes/               # BaseNode → AssessableEntity → {Component, PP, Wheel, ...}
+│   ├── nodes/               # BaseNode → AssessableEntity → {Statement, PP, Wheel, ...}
 │   ├── mixins/              # Shared node behaviors (IntentMixin)
 │   ├── relationships/       # Polarity, opposition relationship models
 │   ├── scoring/             # TaroRank: Score = P × R^α
@@ -365,10 +365,10 @@ class MyClass:
 
 ### Graph Node Lifecycle
 
-**Simple nodes** (DialecticalComponent, Rationale):
+**Simple nodes** (Statement, Rationale):
 ```python
-component = DialecticalComponent(statement="Remote work increases productivity")
-component.commit()  # save + compute hash in one step
+stmt = Statement(text="Remote work increases productivity")
+stmt.commit()  # save + compute hash in one step
 ```
 
 **Container nodes** (Ideas, Transformation, Spiral, Nexus, Cycle, Wheel) use `IncrementalBuildMixin`:
@@ -391,7 +391,7 @@ pp = Perspective()
 pp.save()
 
 # Connect (child→parent direction)
-pp.t.connect(component)
+pp.t.connect(stmt)
 
 # Access
 result = pp.t.get()  # Returns (node, relationship) or None
@@ -399,7 +399,7 @@ all_items = pp.t.all()  # Returns [(node, rel), ...]
 count = pp.t.count()
 
 # Disconnect
-pp.t.disconnect(component)
+pp.t.disconnect(stmt)
 ```
 
 ### Relationship Pattern (CRITICAL)
@@ -427,7 +427,7 @@ Cycle.perspective_hashes → [PP hashes] (field, not relationship)
 
 **Complete scoring hierarchy:**
 ```
-Component → PP → Cycle → Wheel
+Statement → PP → Cycle → Wheel
     │        ▲            ▲
     │        │            │
     │   Transformation ← Synthesis
@@ -499,7 +499,7 @@ TODOs often represent important reminders about incomplete work, edge cases, or 
 
 ```python
 # Exactly one
-t: ClassVar[RelationshipManager[Component]] = RelationshipFrom(..., cardinality=(1, 1))
+t: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(..., cardinality=(1, 1))
 
 # Zero or one
 transformation: ClassVar[...] = RelationshipFrom(..., cardinality=(0, 1))
@@ -528,7 +528,7 @@ origin = getattr(node, 'origin_hash', None)  # No IDE support, harder to refacto
 
 ### Vocabulary and Scope
 
-**Vocabulary** is all DialecticalComponents within a scope (by `sid`).
+**Vocabulary** is all Statements within a scope (by `sid`).
 
 **Scope (sid)** is the primary boundary. All nodes within the same analytical context share a `sid` inherited from their Case. This is enforced at connect time - nodes with different `sid` values cannot be connected.
 
@@ -546,11 +546,11 @@ with scope(case.sid):
     input_node.commit()
     case.inputs.connect(input_node)
 
-    comp = DialecticalComponent(statement="Main idea")
-    comp.commit()  # sid inherited from scope context
+    stmt = Statement(text="Main idea")
+    stmt.commit()  # sid inherited from scope context
 
     # Query vocabulary (framework reads sid from DI)
-    repo = DialecticalComponentRepository()
+    repo = StatementRepository()
     vocab = repo.get_vocabulary()
 ```
 
@@ -563,7 +563,7 @@ Since different users/sessions have different `sid` values, unscoped queries cou
 ```python
 # GOOD - Use repository methods (sid auto-injected)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
-from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import StatementRepository
 from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
 
 repo = NodeRepository()
@@ -571,12 +571,12 @@ node = repo.find_by_hash("abc123...")       # Scoped by sid
 node = repo.find_by_prefix("abc123")        # Scoped by sid
 nodes = repo.find_by_origin("origin_hash")  # Scoped by sid
 
-comp_repo = DialecticalComponentRepository()
-vocab = comp_repo.get_vocabulary()                    # Scoped by sid
-comps = comp_repo.find_by_perspective(pp)             # Validates PP belongs to scope
+stmt_repo = StatementRepository()
+vocab = stmt_repo.get_vocabulary()                    # Scoped by sid
+stmts = stmt_repo.find_by_perspective(pp)             # Validates PP belongs to scope
 
 pp_repo = PerspectiveRepository()
-pps = pp_repo.find_by_dialectical_component(comp)    # Validates component belongs to scope
+pps = pp_repo.find_by_statement(stmt)                 # Validates statement belongs to scope
 pp_repo.safe_delete(pp)                               # Validates PP belongs to scope
 
 # BAD - Raw queries without sid scoping (DATA LEAK RISK!)
@@ -587,7 +587,7 @@ graph_db.execute_and_fetch("MATCH (n:Node {hash: $hash}) RETURN n", {"hash": has
 
 **Key repositories:**
 - `NodeRepository` - Hash lookups, lineage queries
-- `DialecticalComponentRepository` - Vocabulary queries
+- `StatementRepository` - Vocabulary queries
 - `PerspectiveRepository` - PP lifecycle and usage queries
 
 ---
@@ -631,19 +631,19 @@ def my_function(arg: "SomeType") -> "list[SomeType]":  # WRONG - Don't use quote
 
 ```python
 # GOOD - Fully typed
-def process_components(
-    components: list[DialecticalComponent],
-    filter_fn: Optional[Callable[[DialecticalComponent], bool]] = None
-) -> list[DialecticalComponent]:
+def process_statements(
+    statements: list[Statement],
+    filter_fn: Optional[Callable[[Statement], bool]] = None
+) -> list[Statement]:
     if filter_fn:
-        return [c for c in components if filter_fn(c)]
-    return components
+        return [s for s in statements if filter_fn(s)]
+    return statements
 
 # BAD - Missing types
-def process_components(components, filter_fn=None):
+def process_statements(statements, filter_fn=None):
     if filter_fn:
-        return [c for c in components if filter_fn(c)]
-    return components
+        return [s for s in statements if filter_fn(s)]
+    return statements
 ```
 
 ### Required Pattern for All Modules
@@ -741,7 +741,7 @@ Apply markers at module level (`pytestmark = pytest.mark.llm`) or per class/func
 
 ### Key Test Files
 
-- `test_graph.py`: Core graph operations, Perspectives, components
+- `test_graph.py`: Core graph operations, Perspectives, statements
 - `test_tarorank.py`: Comprehensive scoring tests
 - `test_analyst_*.py`: Analyst agent concerns (LLM-marked)
 - `conftest.py`: DI setup, mock brain fixture, graph DB cleanup
@@ -767,15 +767,15 @@ def test_create_perspective():
     pp = Perspective()
     pp.save()
 
-    t = DialecticalComponent(statement="Democracy empowers citizens")
+    t = Statement(text="Democracy empowers citizens")
     t.save()
     pp.t.connect(t)
 
     assert pp.t.count() == 1
     result = pp.t.get()
     assert result is not None
-    component, rel = result
-    assert component.statement == "Democracy empowers citizens"
+    stmt, rel = result
+    assert stmt.text == "Democracy empowers citizens"
 ```
 
 ---

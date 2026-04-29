@@ -1,5 +1,5 @@
 """
-DialecticalComponentRepository for complex query operations.
+StatementRepository for complex query operations.
 
 All queries are scoped by sid (injected from DI context) to prevent cross-user data leaks.
 """
@@ -14,13 +14,13 @@ from gqlalchemy import Memgraph, Neo4j
 from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 
-class DialecticalComponentRepository:
+class StatementRepository:
     """
-    Repository for DialecticalComponent query operations.
+    Repository for Statement query operations.
 
     All queries are automatically scoped by sid (injected from DI context).
     """
@@ -31,16 +31,16 @@ class DialecticalComponentRepository:
         perspective: Perspective,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> list[tuple[DialecticalComponent, str]]:
+    ) -> list[tuple[Statement, str]]:
         """
-        Find all DialecticalComponents belonging to a Perspective with their aliases.
+        Find all Statements belonging to a Perspective with their aliases.
 
         Args:
             perspective: The Perspective to query for
             sid: Case ID (injected from DI context)
 
         Returns:
-            List of tuples: (DialecticalComponent, alias)
+            List of tuples: (Statement, alias)
         """
         if perspective._id is None:
             return []
@@ -51,7 +51,7 @@ class DialecticalComponentRepository:
 
         query = """
         // Aspect positions (T+, T-, A+, A-) directly on Perspective
-        MATCH (c:DialecticalComponent)-[r]->(pp:Perspective)
+        MATCH (c:Statement)-[r]->(pp:Perspective)
         WHERE id(pp) = $perspective_id
         AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
         RETURN c, r.alias AS alias
@@ -59,7 +59,7 @@ class DialecticalComponentRepository:
         UNION
 
         // T and A positions via Polarity
-        MATCH (pp:Perspective)-[:HAS_POLARITY]->(pol:Polarity)<-[r]-(c:DialecticalComponent)
+        MATCH (pp:Perspective)-[:HAS_POLARITY]->(pol:Polarity)<-[r]-(c:Statement)
         WHERE id(pp) = $perspective_id
         AND type(r) IN ['T', 'A']
         RETURN c, r.alias AS alias
@@ -67,7 +67,7 @@ class DialecticalComponentRepository:
         UNION
 
         // Synthesis positions (S+, S-) via Synthesis node
-        MATCH (c:DialecticalComponent)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)
+        MATCH (c:Statement)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)
         WHERE id(pp) = $perspective_id
         AND type(r) IN ['S_PLUS', 'S_MINUS']
         RETURN c, r.alias AS alias
@@ -81,21 +81,21 @@ class DialecticalComponentRepository:
         self,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-    ) -> set[DialecticalComponent]:
+    ) -> set[Statement]:
         """
-        Get all DialecticalComponents in the current scope.
+        Get all Statements in the current scope.
 
         Args:
             sid: Case ID (injected from DI context)
 
         Returns:
-            Set of DialecticalComponents with matching sid
+            Set of Statements with matching sid
         """
         if not sid:
             return set()
 
         query = """
-        MATCH (c:DialecticalComponent)
+        MATCH (c:Statement)
         WHERE c.sid = $sid
         RETURN c
         """
@@ -105,23 +105,23 @@ class DialecticalComponentRepository:
     @inject
     def safe_delete(
         self,
-        component: DialecticalComponent,
+        component: Statement,
         sid: Optional[str] = Provide[DI.sid],
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> bool:
         """
-        Safely delete a DialecticalComponent if it's orphaned.
+        Safely delete a Statement if it's orphaned.
 
-        A component is orphaned (safe to delete) if it has no structural connections:
+        A statement is orphaned (safe to delete) if it has no structural connections:
         - Not connected to any Perspective
         - Not connected to any Synthesis
         - Not connected to any Ideas or Input (via HAS_STATEMENT)
         - Not connected to any Transition
 
-        Rationales attached to the component are deleted along with it.
+        Rationales attached to the statement are deleted along with it.
 
         Args:
-            component: The component to delete
+            component: The statement to delete
             sid: Case ID (injected from DI context)
 
         Returns:
@@ -136,7 +136,7 @@ class DialecticalComponentRepository:
 
         # Check if orphaned (no structural connections)
         check_query = """
-        MATCH (c:DialecticalComponent)
+        MATCH (c:Statement)
         WHERE id(c) = $comp_id
         OPTIONAL MATCH (c)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(pp:Perspective)
         OPTIONAL MATCH (c)-[:S_PLUS|S_MINUS]->(synth:Synthesis)
@@ -155,9 +155,9 @@ class DialecticalComponentRepository:
         if not result or result[0]["connection_count"] > 0:
             return False
 
-        # Delete rationales and the component
+        # Delete rationales and the statement
         delete_query = """
-        MATCH (c:DialecticalComponent)
+        MATCH (c:Statement)
         WHERE id(c) = $comp_id
         OPTIONAL MATCH (rat:Rationale)-[:EXPLAINS]->(c)
         DETACH DELETE rat, c
@@ -188,7 +188,7 @@ class DialecticalComponentRepository:
 
             result.append({
                 "hash": comp.hash,
-                "statement": comp.statement,
+                "text": comp.text,
                 "meaning": comp.meaning,
                 "rejected": comp.rejected,
                 "rationale": rationale_text,

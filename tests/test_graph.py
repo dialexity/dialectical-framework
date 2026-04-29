@@ -20,7 +20,7 @@ import random
 import pytest
 
 from dialectical_framework.graph.nodes.perspective import Perspective
-from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transition import Transition
@@ -56,9 +56,9 @@ def create_perspective_with_polarity(
         where components_dict has keys: t, a, t_plus, t_minus, a_plus, a_minus
     """
     # Create T and A components
-    t = DialecticalComponent(statement=t_statement, meaning="test")
+    t = Statement(text=t_statement, meaning="test")
     t.commit()
-    a = DialecticalComponent(statement=a_statement, meaning="test")
+    a = Statement(text=a_statement, meaning="test")
     a.commit()
 
     # Create Polarity with T and A
@@ -73,13 +73,13 @@ def create_perspective_with_polarity(
     pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Create and connect aspects
-    t_plus = DialecticalComponent(statement=t_plus_statement, meaning="test")
+    t_plus = Statement(text=t_plus_statement, meaning="test")
     t_plus.commit()
-    t_minus = DialecticalComponent(statement=t_minus_statement, meaning="test")
+    t_minus = Statement(text=t_minus_statement, meaning="test")
     t_minus.commit()
-    a_plus = DialecticalComponent(statement=a_plus_statement, meaning="test")
+    a_plus = Statement(text=a_plus_statement, meaning="test")
     a_plus.commit()
-    a_minus = DialecticalComponent(statement=a_minus_statement, meaning="test")
+    a_minus = Statement(text=a_minus_statement, meaning="test")
     a_minus.commit()
 
     pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
@@ -100,12 +100,12 @@ def create_perspective_with_polarity(
 
 
 def create_pp_from_components(
-    t: DialecticalComponent,
-    a: DialecticalComponent,
-    t_plus: DialecticalComponent | None = None,
-    t_minus: DialecticalComponent | None = None,
-    a_plus: DialecticalComponent | None = None,
-    a_minus: DialecticalComponent | None = None,
+    t: Statement,
+    a: Statement,
+    t_plus: Statement | None = None,
+    t_minus: Statement | None = None,
+    a_plus: Statement | None = None,
+    a_minus: Statement | None = None,
     intent: str = "test",
     heuristic_similarity: float = 0.8,
 ) -> tuple[Perspective, Polarity]:
@@ -144,7 +144,7 @@ def create_pp_from_components(
 
 def create_cycle_wheel_setup(
     pps: list[Perspective],
-    components_for_transitions: list[DialecticalComponent],
+    components_for_transitions: list[Statement],
     cycle_intent: str = "preset:balanced",
     wheel_intent: str = "test_wheel",
 ) -> tuple[Cycle, Wheel, list[Transition]]:
@@ -214,11 +214,11 @@ def test_create_simple_perspective():
     # Verify connections through Polarity
     t_component = pp.t.get()
     assert t_component is not None
-    assert t_component[0].statement == "Democracy empowers citizens"
+    assert t_component[0].text == "Democracy empowers citizens"
 
     a_component = pp.a.get()
     assert a_component is not None
-    assert a_component[0].statement == "Authority provides order"
+    assert a_component[0].text == "Authority provides order"
 
     # Verify cardinality
     assert pp.t.count() == 1
@@ -235,9 +235,9 @@ def test_perspective_validation():
     """Test Perspective completeness validation."""
 
     # Create T and A components first
-    t = DialecticalComponent(statement="Test thesis", meaning="test")
+    t = Statement(text="Test thesis", meaning="test")
     t.commit()
-    a = DialecticalComponent(statement="Antithesis", meaning="test")
+    a = Statement(text="Antithesis", meaning="test")
     a.commit()
 
     # Create Polarity with T and A
@@ -255,19 +255,19 @@ def test_perspective_validation():
     assert not pp.is_complete()
 
     # Add remaining required aspect components
-    t_plus = DialecticalComponent(statement="T+", meaning="test")
+    t_plus = Statement(text="T+", meaning="test")
     t_plus.commit()
     pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias='T+', heuristic_similarity=0.9))
 
-    t_minus = DialecticalComponent(statement="T-", meaning="test")
+    t_minus = Statement(text="T-", meaning="test")
     t_minus.commit()
     pp.t_minus.connect(t_minus, relationship=TMinusRelationship(alias='T-', heuristic_similarity=0.9))
 
-    a_plus = DialecticalComponent(statement="A+", meaning="test")
+    a_plus = Statement(text="A+", meaning="test")
     a_plus.commit()
     pp.a_plus.connect(a_plus, relationship=APlusRelationship(alias='A+', heuristic_similarity=0.9))
 
-    a_minus = DialecticalComponent(statement="A-", meaning="test")
+    a_minus = Statement(text="A-", meaning="test")
     a_minus.commit()
     pp.a_minus.connect(a_minus, relationship=AMinusRelationship(alias='A-', heuristic_similarity=0.9))
 
@@ -281,8 +281,8 @@ def test_component_aliases():
     """Test getting components with their contextual aliases from relationships."""
 
     # Create T and A components
-    t = DialecticalComponent(statement="Thesis 3", meaning="test")
-    a = DialecticalComponent(statement="Antithesis 3", meaning="test")
+    t = Statement(text="Thesis 3", meaning="test")
+    a = Statement(text="Antithesis 3", meaning="test")
     t.commit()
     a.commit()
 
@@ -298,8 +298,8 @@ def test_component_aliases():
     pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Get all components with their aliases using repository
-    from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
-    repo = DialecticalComponentRepository()
+    from dialectical_framework.graph.repositories.statement_repository import StatementRepository
+    repo = StatementRepository()
     components_with_aliases = repo.find_by_perspective(pp)
 
     # Should find T and A through Polarity
@@ -316,7 +316,7 @@ def test_component_aliases():
     assert a_alias == 'A'
 
     # Test with component not in this perspective
-    other_comp = DialecticalComponent(statement="Not connected", meaning="test")
+    other_comp = Statement(text="Not connected", meaning="test")
     other_comp.commit()
 
     # Should raise ValueError when component not connected to PP
@@ -468,21 +468,21 @@ def test_transition_str_formatting():
     """Test Transition.__format__() with various modes."""
 
     # Create components (T- and A+ are source/target for transition)
-    source_comp = DialecticalComponent(statement="Negative aspect of thesis", meaning="test")
-    target_comp = DialecticalComponent(statement="Positive aspect of antithesis", meaning="test")
+    source_comp = Statement(text="Negative aspect of thesis", meaning="test")
+    target_comp = Statement(text="Positive aspect of antithesis", meaning="test")
     source_comp.commit()
     target_comp.commit()
 
     # Create T and A components for Polarity
-    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
+    t_comp = Statement(text="Thesis", meaning="test")
     t_comp.commit()
-    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
+    a_comp = Statement(text="Antithesis", meaning="test")
     a_comp.commit()
 
     # Create additional components for T+ and A- positions
-    t_plus_comp = DialecticalComponent(statement="Positive thesis aspect", meaning="test")
+    t_plus_comp = Statement(text="Positive thesis aspect", meaning="test")
     t_plus_comp.commit()
-    a_minus_comp = DialecticalComponent(statement="Negative antithesis aspect", meaning="test")
+    a_minus_comp = Statement(text="Negative antithesis aspect", meaning="test")
     a_minus_comp.commit()
 
     # Create Perspective with Polarity and connect all components with aliases
@@ -558,8 +558,8 @@ def test_transition_str_formatting():
     print(f"✓ Transition verbose format: {verbose_str}")
 
     # Test 5: Orphan transition (no wheel context) - should fallback to UID
-    orphan_comp1 = DialecticalComponent(statement="Orphan source", meaning="test")
-    orphan_comp2 = DialecticalComponent(statement="Orphan target", meaning="test")
+    orphan_comp1 = Statement(text="Orphan source", meaning="test")
+    orphan_comp2 = Statement(text="Orphan target", meaning="test")
     orphan_comp1.commit()
     orphan_comp2.commit()
     orphan_trans = Transition()
@@ -581,12 +581,12 @@ def test_transition_str_formatting():
 def test_transition_formatting_with_wheel():
     """Test Transition formatting shows segment aliases for Wheel."""
     # Create components for a full perspective
-    t = DialecticalComponent(statement="Main thesis", meaning="test")
-    t_plus = DialecticalComponent(statement="Positive thesis", meaning="test")
-    t_minus = DialecticalComponent(statement="Negative thesis", meaning="test")
-    a = DialecticalComponent(statement="Main antithesis", meaning="test")
-    a_plus = DialecticalComponent(statement="Positive antithesis", meaning="test")
-    a_minus = DialecticalComponent(statement="Negative antithesis", meaning="test")
+    t = Statement(text="Main thesis", meaning="test")
+    t_plus = Statement(text="Positive thesis", meaning="test")
+    t_minus = Statement(text="Negative thesis", meaning="test")
+    a = Statement(text="Main antithesis", meaning="test")
+    a_plus = Statement(text="Positive antithesis", meaning="test")
+    a_minus = Statement(text="Negative antithesis", meaning="test")
 
     for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
         comp.commit()
@@ -704,7 +704,7 @@ def test_estimation_properties():
     r2 = round(0.93 + random.random() * 0.05, 4)  # ~0.93-0.98
 
     # Create a component with unique statement
-    comp = DialecticalComponent(statement=f"Test component {random.random()}", meaning="test")
+    comp = Statement(text=f"Test component {random.random()}", meaning="test")
     comp.commit()
 
     # Test 1: No estimations - should return None
@@ -748,7 +748,7 @@ def test_estimation_properties():
     print(f"✓ Relevance property works correctly (GM): {comp.relevance:.4f}")
 
     # Test 5: Zero estimation - should return 0 (veto semantics)
-    comp2 = DialecticalComponent(statement=f"Test component 2 {random.random()}", meaning="test")
+    comp2 = Statement(text=f"Test component 2 {random.random()}", meaning="test")
     comp2.commit()
 
     prob_est3 = ProbabilityEstimation(value=round(0.79 + random.random() * 0.02, 4))
@@ -770,7 +770,7 @@ def test_estimation_properties():
 def test_best_rationale_property():
     """Test best_rationale property on AssessableEntity."""
     # Create a component
-    comp = DialecticalComponent(statement="Test component", meaning="test")
+    comp = Statement(text="Test component", meaning="test")
     comp.commit()
 
     # Test 1: No rationales - should return None
@@ -823,18 +823,18 @@ def test_wheel_navigation_properties():
     a_components = []
     for i in range(4):
         # Create all required components for a complete PP
-        t_comp = DialecticalComponent(statement=f"T Component {i}", meaning="test")
+        t_comp = Statement(text=f"T Component {i}", meaning="test")
         t_comp.commit()
-        t_plus = DialecticalComponent(statement=f"T+ Component {i}", meaning="test")
+        t_plus = Statement(text=f"T+ Component {i}", meaning="test")
         t_plus.commit()
-        t_minus = DialecticalComponent(statement=f"T- Component {i}", meaning="test")
+        t_minus = Statement(text=f"T- Component {i}", meaning="test")
         t_minus.commit()
 
-        a_comp = DialecticalComponent(statement=f"A Component {i}", meaning="test")
+        a_comp = Statement(text=f"A Component {i}", meaning="test")
         a_comp.commit()
-        a_plus = DialecticalComponent(statement=f"A+ Component {i}", meaning="test")
+        a_plus = Statement(text=f"A+ Component {i}", meaning="test")
         a_plus.commit()
-        a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
+        a_minus = Statement(text=f"A- Component {i}", meaning="test")
         a_minus.commit()
 
         # Create PP with Polarity and all aspects
@@ -877,18 +877,18 @@ def test_wheel_perspective_at():
     a_components = []
     for i in range(3):
         # Create all required components
-        t_comp = DialecticalComponent(statement=f"T Component {i}", meaning="test")
+        t_comp = Statement(text=f"T Component {i}", meaning="test")
         t_comp.commit()
-        t_plus = DialecticalComponent(statement=f"T+ Component {i}", meaning="test")
+        t_plus = Statement(text=f"T+ Component {i}", meaning="test")
         t_plus.commit()
-        t_minus = DialecticalComponent(statement=f"T- Component {i}", meaning="test")
+        t_minus = Statement(text=f"T- Component {i}", meaning="test")
         t_minus.commit()
 
-        a_comp = DialecticalComponent(statement=f"A Component {i}", meaning="test")
+        a_comp = Statement(text=f"A Component {i}", meaning="test")
         a_comp.commit()
-        a_plus = DialecticalComponent(statement=f"A+ Component {i}", meaning="test")
+        a_plus = Statement(text=f"A+ Component {i}", meaning="test")
         a_plus.commit()
-        a_minus = DialecticalComponent(statement=f"A- Component {i}", meaning="test")
+        a_minus = Statement(text=f"A- Component {i}", meaning="test")
         a_minus.commit()
 
         # Create PP with Polarity and all aspects
@@ -937,7 +937,7 @@ def test_wheel_perspective_at():
     assert pair.perspective.hash == pps[1][0].hash
 
     # Test 4: Component not found
-    orphan_comp = DialecticalComponent(statement="Orphan", meaning="test")
+    orphan_comp = Statement(text="Orphan", meaning="test")
     orphan_comp.commit()
     try:
         _ = wheel.polar_segment_at(orphan_comp)
@@ -960,18 +960,18 @@ def test_wheel_is_same_structure():
         pps = []
         for i in range(n_components):
             # Create all required components
-            t_comp = DialecticalComponent(statement=f"{prefix} T Component {i}", meaning="test")
+            t_comp = Statement(text=f"{prefix} T Component {i}", meaning="test")
             t_comp.commit()
-            t_plus = DialecticalComponent(statement=f"{prefix} T+ Component {i}", meaning="test")
+            t_plus = Statement(text=f"{prefix} T+ Component {i}", meaning="test")
             t_plus.commit()
-            t_minus = DialecticalComponent(statement=f"{prefix} T- Component {i}", meaning="test")
+            t_minus = Statement(text=f"{prefix} T- Component {i}", meaning="test")
             t_minus.commit()
 
-            a_comp = DialecticalComponent(statement=f"{prefix} A Component {i}", meaning="test")
+            a_comp = Statement(text=f"{prefix} A Component {i}", meaning="test")
             a_comp.commit()
-            a_plus = DialecticalComponent(statement=f"{prefix} A+ Component {i}", meaning="test")
+            a_plus = Statement(text=f"{prefix} A+ Component {i}", meaning="test")
             a_plus.commit()
-            a_minus = DialecticalComponent(statement=f"{prefix} A- Component {i}", meaning="test")
+            a_minus = Statement(text=f"{prefix} A- Component {i}", meaning="test")
             a_minus.commit()
 
             a_components.append(a_comp)
@@ -1023,17 +1023,17 @@ def test_wheel_segment_from_perspective():
     from dialectical_framework.graph.wheel_segment import WheelSegment
 
     # Create all components
-    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
+    t_comp = Statement(text="Thesis", meaning="test")
     t_comp.commit()
-    t_plus_comp = DialecticalComponent(statement="Thesis positive", meaning="test")
+    t_plus_comp = Statement(text="Thesis positive", meaning="test")
     t_plus_comp.commit()
-    t_minus_comp = DialecticalComponent(statement="Thesis negative", meaning="test")
+    t_minus_comp = Statement(text="Thesis negative", meaning="test")
     t_minus_comp.commit()
-    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
+    a_comp = Statement(text="Antithesis", meaning="test")
     a_comp.commit()
-    a_plus_comp = DialecticalComponent(statement="Antithesis positive", meaning="test")
+    a_plus_comp = Statement(text="Antithesis positive", meaning="test")
     a_plus_comp.commit()
-    a_minus_comp = DialecticalComponent(statement="Antithesis negative", meaning="test")
+    a_minus_comp = Statement(text="Antithesis negative", meaning="test")
     a_minus_comp.commit()
 
     # Create Perspective with Polarity
@@ -1085,11 +1085,11 @@ def test_wheel_segment_from_perspective():
 def test_wheel_segment_get_component_by_alias():
     """Test finding components within a segment by alias."""
     # Create components
-    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
+    t_comp = Statement(text="Thesis", meaning="test")
     t_comp.commit()
-    t_plus_comp = DialecticalComponent(statement="Thesis positive", meaning="test")
+    t_plus_comp = Statement(text="Thesis positive", meaning="test")
     t_plus_comp.commit()
-    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
+    a_comp = Statement(text="Antithesis", meaning="test")
     a_comp.commit()
 
     # Create Perspective with Polarity
@@ -1141,22 +1141,22 @@ def test_wheel_segment_at():
     a_comps = []
     for i in range(2):
         # Create all components
-        t_comp = DialecticalComponent(statement=f"Thesis {i}", meaning="test")
+        t_comp = Statement(text=f"Thesis {i}", meaning="test")
         t_comp.commit()
         t_comps.append(t_comp)
 
-        t_plus = DialecticalComponent(statement=f"T+ {i}", meaning="test")
+        t_plus = Statement(text=f"T+ {i}", meaning="test")
         t_plus.commit()
-        t_minus = DialecticalComponent(statement=f"T- {i}", meaning="test")
+        t_minus = Statement(text=f"T- {i}", meaning="test")
         t_minus.commit()
 
-        a_comp = DialecticalComponent(statement=f"Antithesis {i}", meaning="test")
+        a_comp = Statement(text=f"Antithesis {i}", meaning="test")
         a_comp.commit()
         a_comps.append(a_comp)
 
-        a_plus = DialecticalComponent(statement=f"A+ {i}", meaning="test")
+        a_plus = Statement(text=f"A+ {i}", meaning="test")
         a_plus.commit()
-        a_minus = DialecticalComponent(statement=f"A- {i}", meaning="test")
+        a_minus = Statement(text=f"A- {i}", meaning="test")
         a_minus.commit()
 
         # Create PP with Polarity
@@ -1208,13 +1208,13 @@ def test_wheel_segment_is_same():
     # Create PPs using helper
     pps = []
     for idx in range(2):
-        t_comp = DialecticalComponent(statement=f"Thesis PP{idx}", meaning="test")
+        t_comp = Statement(text=f"Thesis PP{idx}", meaning="test")
         t_comp.commit()
-        t_plus = DialecticalComponent(statement=f"T+ PP{idx}", meaning="test")
+        t_plus = Statement(text=f"T+ PP{idx}", meaning="test")
         t_plus.commit()
-        t_minus = DialecticalComponent(statement=f"T- PP{idx}", meaning="test")
+        t_minus = Statement(text=f"T- PP{idx}", meaning="test")
         t_minus.commit()
-        a_comp = DialecticalComponent(statement=f"Antithesis PP{idx}", meaning="test")
+        a_comp = Statement(text=f"Antithesis PP{idx}", meaning="test")
         a_comp.commit()
 
         pp, _ = create_pp_from_components(
@@ -1244,11 +1244,11 @@ def test_wheel_segment_is_same():
 def test_wheel_segment_is_set():
     """Test WheelSegment.is_set() method."""
     # Create components
-    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
+    t_comp = Statement(text="Thesis", meaning="test")
     t_comp.commit()
-    t_plus = DialecticalComponent(statement="T+", meaning="test")
+    t_plus = Statement(text="T+", meaning="test")
     t_plus.commit()
-    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
+    a_comp = Statement(text="Antithesis", meaning="test")
     a_comp.commit()
 
     # Create PP with Polarity
@@ -1289,21 +1289,21 @@ def test_wheel_perspective_at_segment():
     a_comps = []
     for i in range(2):
         # Create components
-        t = DialecticalComponent(statement=f"T{i}", meaning="test")
+        t = Statement(text=f"T{i}", meaning="test")
         t.commit()
 
-        t_plus = DialecticalComponent(statement=f"T{i}+", meaning="test")
+        t_plus = Statement(text=f"T{i}+", meaning="test")
         t_plus.commit()
-        t_minus = DialecticalComponent(statement=f"T{i}-", meaning="test")
+        t_minus = Statement(text=f"T{i}-", meaning="test")
         t_minus.commit()
 
-        a = DialecticalComponent(statement=f"A{i}", meaning="test")
+        a = Statement(text=f"A{i}", meaning="test")
         a.commit()
         a_comps.append(a)
 
-        a_plus = DialecticalComponent(statement=f"A{i}+", meaning="test")
+        a_plus = Statement(text=f"A{i}+", meaning="test")
         a_plus.commit()
-        a_minus = DialecticalComponent(statement=f"A{i}-", meaning="test")
+        a_minus = Statement(text=f"A{i}-", meaning="test")
         a_minus.commit()
 
         # Create PP with Polarity
@@ -1343,17 +1343,17 @@ def test_wheel_perspective_at_segment():
 def test_wheel_is_set():
     """Test Wheel.is_set() method."""
     # Create all required components
-    t = DialecticalComponent(statement="T", meaning="test")
+    t = Statement(text="T", meaning="test")
     t.commit()
-    t_plus = DialecticalComponent(statement="T+", meaning="test")
+    t_plus = Statement(text="T+", meaning="test")
     t_plus.commit()
-    t_wheel = DialecticalComponent(statement="T wheel specific (T-)", meaning="test")
+    t_wheel = Statement(text="T wheel specific (T-)", meaning="test")
     t_wheel.commit()
-    a = DialecticalComponent(statement="A", meaning="test")
+    a = Statement(text="A", meaning="test")
     a.commit()
-    a_wheel = DialecticalComponent(statement="A wheel specific (A+)", meaning="test")
+    a_wheel = Statement(text="A wheel specific (A+)", meaning="test")
     a_wheel.commit()
-    a_minus = DialecticalComponent(statement="A-", meaning="test")
+    a_minus = Statement(text="A-", meaning="test")
     a_minus.commit()
 
     # Create PP with Polarity and all aspects
@@ -1395,16 +1395,16 @@ def test_wheel_is_set():
     print("✓ Wheel.is_set() works correctly")
 
 
-def test_dialectical_component_repository_find_by_perspective():
-    """Test DialecticalComponentRepository.find_by_perspective()."""
-    from dialectical_framework.graph.repositories.dialectical_component_repository import DialecticalComponentRepository
+def test_statement_repository_find_by_perspective():
+    """Test StatementRepository.find_by_perspective()."""
+    from dialectical_framework.graph.repositories.statement_repository import StatementRepository
 
     # Create components
-    t_comp = DialecticalComponent(statement="Thesis", meaning="test")
+    t_comp = Statement(text="Thesis", meaning="test")
     t_comp.commit()
-    t_plus_comp = DialecticalComponent(statement="Thesis positive", meaning="test")
+    t_plus_comp = Statement(text="Thesis positive", meaning="test")
     t_plus_comp.commit()
-    a_comp = DialecticalComponent(statement="Antithesis", meaning="test")
+    a_comp = Statement(text="Antithesis", meaning="test")
     a_comp.commit()
 
     # Create PP with Polarity
@@ -1416,7 +1416,7 @@ def test_dialectical_component_repository_find_by_perspective():
     )
 
     # Use repository to find components
-    repo = DialecticalComponentRepository()
+    repo = StatementRepository()
     results = repo.find_by_perspective(pp)
 
     # Verify results (T, A through Polarity + T+ connected to PP)
@@ -1434,10 +1434,9 @@ def test_dialectical_component_repository_find_by_perspective():
     assert t_plus_comp.hash in component_uids
     assert a_comp.hash in component_uids
 
-    print("✓ DialecticalComponentRepository.find_by_perspective() works correctly")
+    print("✓ StatementRepository.find_by_perspective() works correctly")
 
 
-@pytest.mark.xfail(reason="Memgraph: 'Unbounded variables are not allowed in exists!' in is_isolated query")
 def test_perspective_repository_safe_delete(di_container):
     """Test PerspectiveRepository.safe_delete() with isolation checks."""
     from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
@@ -1447,17 +1446,17 @@ def test_perspective_repository_safe_delete(di_container):
 
     # ========== Test 1: Isolated PP deletion (should delete) ==========
     # Create components
-    t = DialecticalComponent(statement="Isolated thesis", meaning="meaning:T")
+    t = Statement(text="Isolated thesis", meaning="meaning:T")
     t.commit()
-    t_plus = DialecticalComponent(statement="Isolated T+", meaning="meaning:T+")
+    t_plus = Statement(text="Isolated T+", meaning="meaning:T+")
     t_plus.commit()
-    t_minus = DialecticalComponent(statement="Isolated T-", meaning="meaning:T-")
+    t_minus = Statement(text="Isolated T-", meaning="meaning:T-")
     t_minus.commit()
-    a = DialecticalComponent(statement="Isolated antithesis", meaning="meaning:A")
+    a = Statement(text="Isolated antithesis", meaning="meaning:A")
     a.commit()
-    a_plus = DialecticalComponent(statement="Isolated A+", meaning="meaning:A+")
+    a_plus = Statement(text="Isolated A+", meaning="meaning:A+")
     a_plus.commit()
-    a_minus = DialecticalComponent(statement="Isolated A-", meaning="meaning:A-")
+    a_minus = Statement(text="Isolated A-", meaning="meaning:A-")
     a_minus.commit()
 
     # Create PP with Polarity
@@ -1495,7 +1494,7 @@ def test_perspective_repository_safe_delete(di_container):
     assert len(result) == 0, "PP should be deleted"
 
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": t._id}
     ))
     assert len(result) == 0, "Component should be deleted"
@@ -1510,13 +1509,13 @@ def test_perspective_repository_safe_delete(di_container):
 
     # ========== Test 2: Shared component (should NOT delete) ==========
     # Create shared component (used by both PPs)
-    shared_comp = DialecticalComponent(statement="Shared thesis", meaning="meaning:T")
+    shared_comp = Statement(text="Shared thesis", meaning="meaning:T")
     shared_comp.commit()
 
     # Create unique A components for each PP
-    a1 = DialecticalComponent(statement="A1", meaning="meaning:A1")
+    a1 = Statement(text="A1", meaning="meaning:A1")
     a1.commit()
-    a2 = DialecticalComponent(statement="A2", meaning="meaning:A2")
+    a2 = Statement(text="A2", meaning="meaning:A2")
     a2.commit()
 
     # Create WU1 with shared T component
@@ -1555,14 +1554,14 @@ def test_perspective_repository_safe_delete(di_container):
 
     # Verify shared component still exists (preserved)
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": shared_comp._id}
     ))
     assert len(result) == 1, "Shared component should still exist (preserved)"
 
-    # Verify pp_shared_2 still has connection to shared component
+    # Verify pp_shared_2 still has connection to shared component (via Polarity)
     result = list(db.execute_and_fetch(
-        f"MATCH (pp:Perspective)<-[:T]-(c:DialecticalComponent) WHERE id(pp) = $pp_id AND id(c) = $c_id RETURN pp",
+        f"MATCH (c:Statement)-[:T]->(pol:Polarity)<-[:HAS_POLARITY]-(pp:Perspective) WHERE id(pp) = $pp_id AND id(c) = $c_id RETURN pp",
         {"pp_id": pp_shared_2._id, "c_id": shared_comp._id}
     ))
     assert len(result) == 1, "pp_shared_2 should still have shared component connected"
@@ -1571,7 +1570,7 @@ def test_perspective_repository_safe_delete(di_container):
 
     # ========== Test 2b: Conservative mode with shared component (should NOT delete) ==========
     # Create unique A component for pp_shared_3
-    a3 = DialecticalComponent(statement="A3", meaning="meaning:A3")
+    a3 = Statement(text="A3", meaning="meaning:A3")
     a3.commit()
 
     # Create WU3 with shared T component
@@ -1599,17 +1598,17 @@ def test_perspective_repository_safe_delete(di_container):
 
     # ========== Test 3: HAS_STATEMENT boundary (should disconnect, conditionally delete) ==========
     # Create components for boundary test
-    t_boundary = DialecticalComponent(statement="Boundary thesis", meaning="meaning:T")
+    t_boundary = Statement(text="Boundary thesis", meaning="meaning:T")
     t_boundary.commit()
-    a_boundary = DialecticalComponent(statement="Boundary antithesis", meaning="meaning:A")
+    a_boundary = Statement(text="Boundary antithesis", meaning="meaning:A")
     a_boundary.commit()
-    t_plus_boundary = DialecticalComponent(statement="T+", meaning="meaning:T+")
+    t_plus_boundary = Statement(text="T+", meaning="meaning:T+")
     t_plus_boundary.commit()
-    t_minus_boundary = DialecticalComponent(statement="T-", meaning="meaning:T-")
+    t_minus_boundary = Statement(text="T-", meaning="meaning:T-")
     t_minus_boundary.commit()
-    a_plus_boundary = DialecticalComponent(statement="A+", meaning="meaning:A+")
+    a_plus_boundary = Statement(text="A+", meaning="meaning:A+")
     a_plus_boundary.commit()
-    a_minus_boundary = DialecticalComponent(statement="A-", meaning="meaning:A-")
+    a_minus_boundary = Statement(text="A-", meaning="meaning:A-")
     a_minus_boundary.commit()
 
     # Create PP with Polarity
@@ -1633,7 +1632,7 @@ def test_perspective_repository_safe_delete(di_container):
     input_boundary = Input(content="Test input for boundary")
     input_boundary.commit()
 
-    stmt_comp_orphan = DialecticalComponent(statement="Statement component (orphan)", meaning="meaning:orphan")
+    stmt_comp_orphan = Statement(text="Statement component (orphan)", meaning="meaning:orphan")
     stmt_comp_orphan.commit()
     input_boundary.statements.connect(stmt_comp_orphan)
 
@@ -1653,7 +1652,7 @@ def test_perspective_repository_safe_delete(di_container):
 
     # Verify orphaned stmt_component also deleted (not in any PP)
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": stmt_comp_orphan._id}
     ))
     assert len(result) == 0, "Orphaned statement component should be deleted"
@@ -1661,23 +1660,40 @@ def test_perspective_repository_safe_delete(di_container):
     print("✓ Test 3: HAS_STATEMENT boundary handled correctly")
 
     # ========== Test 4: HAS_STATEMENT with component in another PP (should keep component) ==========
-    pp_boundary_2 = Perspective(intent="boundary_test_2")
-    pp_boundary_2.save()
-
-    pp_other = Perspective(intent="other_pp")
-    pp_other.save()
-
-    # Create PP components for pp_boundary_2
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(pp_boundary_2, pos).connect(comp, properties={'alias': stmt})
+    t4 = Statement(text="T4", meaning="meaning:T4")
+    t4.commit()
+    a4 = Statement(text="A4", meaning="meaning:A4")
+    a4.commit()
+    tp4 = Statement(text="T+4", meaning="meaning:T+4")
+    tp4.commit()
+    tm4 = Statement(text="T-4", meaning="meaning:T-4")
+    tm4.commit()
+    ap4 = Statement(text="A+4", meaning="meaning:A+4")
+    ap4.commit()
+    am4 = Statement(text="A-4", meaning="meaning:A-4")
+    am4.commit()
+    pp_boundary_2, _ = create_pp_from_components(
+        t=t4, a=a4, t_plus=tp4, t_minus=tm4, a_plus=ap4, a_minus=am4,
+        intent="boundary_test_2",
+    )
 
     # Create shared stmt_component used in another PP
-    stmt_comp_shared = DialecticalComponent(statement="Statement component (in another PP)", meaning="meaning:shared")
+    stmt_comp_shared = Statement(text="Statement component (in another PP)", meaning="meaning:shared")
     stmt_comp_shared.commit()
-    pp_other.t.connect(stmt_comp_shared, properties={'alias': 'T_other'})
+    a_other = Statement(text="A_other", meaning="meaning:A_other")
+    a_other.commit()
+    tp_other = Statement(text="T+_other", meaning="meaning:T+_other")
+    tp_other.commit()
+    tm_other = Statement(text="T-_other", meaning="meaning:T-_other")
+    tm_other.commit()
+    ap_other = Statement(text="A+_other", meaning="meaning:A+_other")
+    ap_other.commit()
+    am_other = Statement(text="A-_other", meaning="meaning:A-_other")
+    am_other.commit()
+    pp_other, _ = create_pp_from_components(
+        t=stmt_comp_shared, a=a_other, t_plus=tp_other, t_minus=tm_other,
+        a_plus=ap_other, a_minus=am_other, intent="other_pp",
+    )
 
     # Commit pp_boundary_2 so we can add rationales
     pp_boundary_2.commit()
@@ -1701,7 +1717,7 @@ def test_perspective_repository_safe_delete(di_container):
 
     # Verify shared stmt_component still exists (used in pp_other)
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": stmt_comp_shared._id}
     ))
     assert len(result) == 1, "Shared statement component should still exist"
@@ -1709,17 +1725,12 @@ def test_perspective_repository_safe_delete(di_container):
     print("✓ Test 4: HAS_STATEMENT with shared component kept component alive")
 
     # ========== Test 5: Rationales as attributes (should delete with PP) ==========
-    pp_rationale = Perspective(intent="rationale_test")
-    pp_rationale.save()
-
-    # Create components
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=stmt, meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(pp_rationale, pos).connect(comp, properties={'alias': stmt})
-
-    # Commit PP so we can add rationales
+    pp_rationale, _, _ = create_perspective_with_polarity(
+        intent="rationale_test",
+        t_statement="T5", a_statement="A5",
+        t_plus_statement="T+5", t_minus_statement="T-5",
+        a_plus_statement="A+5", a_minus_statement="A-5",
+    )
     pp_rationale.commit()
 
     # Create rationale chain (critique relationships)
@@ -1755,111 +1766,28 @@ def test_perspective_repository_safe_delete(di_container):
 
     print("✓ Test 5: All rationales deleted (including critique chain cascade)")
 
-    # ========== Test 6: PP with Transformation (should delete Transformation and its components) ==========
-    from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.graph.relationships.polarity_relationship import (
-        AcRelationship, ReRelationship,
-        AcPlusRelationship, AcMinusRelationship,
-        RePlusRelationship, ReMinusRelationship,
-    )
-
-    pp_with_trans = Perspective(intent="with_transformation")
-    pp_with_trans.save()
-
-    # Create components for the PP
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"PP Trans {stmt}", meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(pp_with_trans, pos).connect(comp, properties={'alias': stmt})
-
-    # Commit PP before creating Transformation
-    pp_with_trans.commit()
-
-    # Create Transformation with 6 Ac/Re positions
-    transformation = Transformation(intent="test_trans")
-    transformation.set_perspective(pp_with_trans)
-    transformation.save()
-
-    # Add Ac/Re components
-    ac_re_positions = [
-        ('ac', 'Ac', AcRelationship),
-        ('re', 'Re', ReRelationship),
-        ('ac_plus', 'Ac+', AcPlusRelationship),
-        ('ac_minus', 'Ac-', AcMinusRelationship),
-        ('re_plus', 'Re+', RePlusRelationship),
-        ('re_minus', 'Re-', ReMinusRelationship),
-    ]
-
-    for pos, stmt, rel_class in ac_re_positions:
-        comp = DialecticalComponent(statement=f"Trans {stmt}", meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(transformation, pos).connect(comp, relationship=rel_class(alias=stmt))
-
-    # Commit the Transformation
-    transformation.commit()
-
-    # Store ID for verification
-    trans_id = transformation._id
-
-    # Check isolation (should be isolated - Transformation is part of subgraph)
-    assert repo.is_isolated(pp_with_trans), "PP with Transformation should be isolated"
-
-    # Safe delete should succeed
-    deleted = repo.safe_delete(pp_with_trans)
-    assert deleted, "PP with Transformation should be deleted"
-
-    # Verify PP deleted
-    result = list(db.execute_and_fetch(
-        f"MATCH (pp:Perspective) WHERE id(pp) = $pp_id RETURN pp",
-        {"pp_id": pp_with_trans._id}
-    ))
-    assert len(result) == 0, "PP should be deleted"
-
-    # Verify Transformation deleted
-    result = list(db.execute_and_fetch(
-        f"MATCH (t:Transformation) WHERE id(t) = $t_id RETURN t",
-        {"t_id": trans_id}
-    ))
-    assert len(result) == 0, "Transformation should be deleted"
-
-    print("✓ Test 6: PP with Transformation deleted correctly")
-
-    # Note: Tests 7 and 8 for ac_re behavior have been removed.
-    # Transformation no longer has ac_re - it has its own 6 positions (Ac, Re, Ac+, Ac-, Re+, Re-).
-
-    # ========== Test 7: PP with Synthesis (should delete Synthesis and orphaned S+/S- components) ==========
+    # ========== Test 6: PP with Synthesis (should delete Synthesis and orphaned S+/S- components) ==========
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.relationships.polarity_relationship import SPlusRelationship, SMinusRelationship
 
-    pp_with_synth = Perspective(intent="with_synthesis")
-    pp_with_synth.save()
-
-    # Create core components
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Synth test {stmt}", meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(pp_with_synth, pos).connect(comp, properties={'alias': stmt})
-
-    # Commit PP before creating Transformation
+    pp_with_synth, _, _ = create_perspective_with_polarity(
+        intent="with_synthesis",
+        t_statement="Synth test T7", a_statement="Synth test A7",
+        t_plus_statement="Synth test T+7", t_minus_statement="Synth test T-7",
+        a_plus_statement="Synth test A+7", a_minus_statement="Synth test A-7",
+    )
     pp_with_synth.commit()
-
-    # Create Transformation for the PP
-    trans = Transformation(intent="test_transformation")
-    trans.set_perspective(pp_with_synth)
-    trans.commit()
 
     # Create Synthesis with S+ and S- components connected to PP
     # Synthesis uses IncrementalBuildMixin: save() first (HEAD), connect, then commit()
     synth = Synthesis()
     synth.save()  # HEAD state (hash=None)
 
-    s_plus_comp = DialecticalComponent(statement="Positive synthesis", meaning="meaning:S+")
+    s_plus_comp = Statement(text="Positive synthesis", meaning="meaning:S+")
     s_plus_comp.commit()
     synth.s_plus.connect(s_plus_comp, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_comp = DialecticalComponent(statement="Negative synthesis", meaning="meaning:S-")
+    s_minus_comp = Statement(text="Negative synthesis", meaning="meaning:S-")
     s_minus_comp.commit()
     synth.s_minus.connect(s_minus_comp, relationship=SMinusRelationship(alias="S-"))
 
@@ -1869,7 +1797,6 @@ def test_perspective_repository_safe_delete(di_container):
     synth_id = synth._id
     s_plus_id = s_plus_comp._id
     s_minus_id = s_minus_comp._id
-    trans_id = trans._id
 
     # Check isolation (should be isolated - no sharing)
     assert repo.is_isolated(pp_with_synth), "PP with isolated Synthesis should be isolated"
@@ -1886,13 +1813,6 @@ def test_perspective_repository_safe_delete(di_container):
     ))
     assert len(result) == 0, "PP should be deleted"
 
-    # Verify Transformation deleted
-    result = list(db.execute_and_fetch(
-        f"MATCH (t:Transformation) WHERE id(t) = $t_id RETURN t",
-        {"t_id": trans_id}
-    ))
-    assert len(result) == 0, "Transformation should be deleted"
-
     # Verify Synthesis deleted
     result = list(db.execute_and_fetch(
         f"MATCH (s:Synthesis) WHERE id(s) = $s_id RETURN s",
@@ -1902,13 +1822,13 @@ def test_perspective_repository_safe_delete(di_container):
 
     # Verify S+ and S- components deleted (orphaned)
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": s_plus_id}
     ))
     assert len(result) == 0, "Orphaned S+ component should be deleted"
 
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": s_minus_id}
     ))
     assert len(result) == 0, "Orphaned S- component should be deleted"
@@ -1916,32 +1836,25 @@ def test_perspective_repository_safe_delete(di_container):
     print("✓ Test 9: PP with Synthesis deleted Synthesis and orphaned S+/S- components")
 
     # ========== Test 10: Shared Synthesis component (should preserve shared S+ component) ==========
-    pp_synth_1 = Perspective(intent="synth_shared_1")
-    pp_synth_1.save()
-
-    pp_synth_2 = Perspective(intent="synth_shared_2")
-    pp_synth_2.save()
-
-    # Create core components for both PPs
-    for pp in [pp_synth_1, pp_synth_2]:
-        for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                           ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-            comp = DialecticalComponent(statement=f"{pp.intent} {stmt}", meaning=f"meaning:{stmt}")
-            comp.commit()
-            getattr(pp, pos).connect(comp, properties={'alias': stmt})
-
-    # Commit PPs before creating Transformations
+    pp_synth_1, _, _ = create_perspective_with_polarity(
+        intent="synth_shared_1",
+        t_statement="synth_shared_1 T10a", a_statement="synth_shared_1 A10a",
+        t_plus_statement="synth_shared_1 T+10a", t_minus_statement="synth_shared_1 T-10a",
+        a_plus_statement="synth_shared_1 A+10a", a_minus_statement="synth_shared_1 A-10a",
+    )
     pp_synth_1.commit()
+
+    pp_synth_2, _, _ = create_perspective_with_polarity(
+        intent="synth_shared_2",
+        t_statement="synth_shared_2 T10b", a_statement="synth_shared_2 A10b",
+        t_plus_statement="synth_shared_2 T+10b", t_minus_statement="synth_shared_2 T-10b",
+        a_plus_statement="synth_shared_2 A+10b", a_minus_statement="synth_shared_2 A-10b",
+    )
     pp_synth_2.commit()
 
     # Create shared S+ component
-    shared_s_plus = DialecticalComponent(statement=f"Shared positive synthesis {random.random()}", meaning="meaning:S+")
+    shared_s_plus = Statement(text=f"Shared positive synthesis {random.random()}", meaning="meaning:S+")
     shared_s_plus.commit()
-
-    # Create Transformation for pp_synth_1
-    trans_1 = Transformation(intent="trans_synth_1")
-    trans_1.set_perspective(pp_synth_1)
-    trans_1.commit()
 
     # Create Synthesis for pp_synth_1 using shared S+ connected to PP
     synth_1 = Synthesis(intent="synth_1")
@@ -1949,14 +1862,9 @@ def test_perspective_repository_safe_delete(di_container):
     synth_1.target.connect(pp_synth_1)
     synth_1.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_1 = DialecticalComponent(statement=f"S- for pp_synth_1 {random.random()}", meaning="meaning:S-")
+    s_minus_1 = Statement(text=f"S- for pp_synth_1 {random.random()}", meaning="meaning:S-")
     s_minus_1.commit()
     synth_1.s_minus.connect(s_minus_1, relationship=SMinusRelationship(alias="S-"))
-
-    # Create Transformation for pp_synth_2
-    trans_2 = Transformation(intent="trans_synth_2")
-    trans_2.set_perspective(pp_synth_2)
-    trans_2.commit()
 
     # Create Synthesis for pp_synth_2 using same shared S+ connected to PP
     synth_2 = Synthesis(intent="synth_2")
@@ -1964,7 +1872,7 @@ def test_perspective_repository_safe_delete(di_container):
     synth_2.target.connect(pp_synth_2)
     synth_2.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_2 = DialecticalComponent(statement=f"S- for pp_synth_2 {random.random()}", meaning="meaning:S-")
+    s_minus_2 = Statement(text=f"S- for pp_synth_2 {random.random()}", meaning="meaning:S-")
     s_minus_2.commit()
     synth_2.s_minus.connect(s_minus_2, relationship=SMinusRelationship(alias="S-"))
 
@@ -1996,14 +1904,14 @@ def test_perspective_repository_safe_delete(di_container):
 
     # Verify shared S+ component preserved (still used by pp_synth_2's Synthesis)
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": shared_s_plus_id}
     ))
     assert len(result) == 1, "Shared S+ component should be preserved"
 
     # Verify orphaned S- component deleted
     result = list(db.execute_and_fetch(
-        f"MATCH (c:DialecticalComponent) WHERE id(c) = $c_id RETURN c",
+        f"MATCH (c:Statement) WHERE id(c) = $c_id RETURN c",
         {"c_id": s_minus_1_id}
     ))
     assert len(result) == 0, "Orphaned S- component should be deleted"
@@ -2011,7 +1919,7 @@ def test_perspective_repository_safe_delete(di_container):
     # Verify pp_synth_2's Synthesis still has connection to shared S+
     result = list(db.execute_and_fetch(
         """
-        MATCH (synth:Synthesis)<-[:S_PLUS]-(c:DialecticalComponent)
+        MATCH (synth:Synthesis)<-[:S_PLUS]-(c:Statement)
         WHERE id(synth) = $synth_id AND id(c) = $c_id
         RETURN synth
         """,
@@ -2022,23 +1930,13 @@ def test_perspective_repository_safe_delete(di_container):
     print("✓ Test 10: Shared Synthesis component preserved, orphaned component deleted")
 
     # ========== Test 11: Conservative mode with shared Synthesis (should NOT delete) ==========
-    pp_synth_conservative = Perspective(intent="synth_conservative")
-    pp_synth_conservative.save()
-
-    # Create core components
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Conservative {stmt}", meaning=f"meaning:{stmt}")
-        comp.commit()
-        getattr(pp_synth_conservative, pos).connect(comp, properties={'alias': stmt})
-
-    # Commit PP before creating Transformation
+    pp_synth_conservative, _, _ = create_perspective_with_polarity(
+        intent="synth_conservative",
+        t_statement="Conservative T11", a_statement="Conservative A11",
+        t_plus_statement="Conservative T+11", t_minus_statement="Conservative T-11",
+        a_plus_statement="Conservative A+11", a_minus_statement="Conservative A-11",
+    )
     pp_synth_conservative.commit()
-
-    # Create Transformation for pp_synth_conservative
-    trans_conservative = Transformation(intent="trans_conservative")
-    trans_conservative.set_perspective(pp_synth_conservative)
-    trans_conservative.commit()
 
     # Create Synthesis using the shared S+ from pp_synth_2 connected to PP
     synth_conservative = Synthesis()
@@ -2046,7 +1944,7 @@ def test_perspective_repository_safe_delete(di_container):
     synth_conservative.target.connect(pp_synth_conservative)
     synth_conservative.s_plus.connect(shared_s_plus, relationship=SPlusRelationship(alias="S+"))
 
-    s_minus_cons = DialecticalComponent(statement="S- for conservative", meaning="meaning:S-")
+    s_minus_cons = Statement(text="S- for conservative", meaning="meaning:S-")
     s_minus_cons.commit()
     synth_conservative.s_minus.connect(s_minus_cons, relationship=SMinusRelationship(alias="S-"))
 
@@ -2071,10 +1969,10 @@ def test_perspective_repository_safe_delete(di_container):
 
 def test_feasibility_estimation_fallback(di_container):
     """FeasibilityEstimation should be used when RelevanceEstimation doesn't exist."""
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
 
-    component = DialecticalComponent(statement=f"Test feasibility fallback {random.random()}", meaning="test")
+    component = Statement(text=f"Test feasibility fallback {random.random()}", meaning="test")
     component.commit()
 
     # Add FeasibilityEstimation with unique value
@@ -2091,10 +1989,10 @@ def test_feasibility_estimation_fallback(di_container):
 
 def test_relevance_estimation_priority(di_container):
     """RelevanceEstimation should take priority over FeasibilityEstimation."""
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation, RelevanceEstimation
 
-    component = DialecticalComponent(statement=f"Test relevance priority {random.random()}", meaning="test")
+    component = Statement(text=f"Test relevance priority {random.random()}", meaning="test")
     component.commit()
 
     # Add both estimations with unique values
@@ -2116,14 +2014,14 @@ def test_relevance_estimation_priority(di_container):
 
 def test_calculated_relevance_priority(di_container):
     """CalculatedRelevanceEstimation should take priority over both manual estimations."""
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.estimation import (
         FeasibilityEstimation,
         RelevanceEstimation,
         CalculatedRelevanceEstimation
     )
 
-    component = DialecticalComponent(statement=f"Test calculated relevance {random.random()}", meaning="test")
+    component = Statement(text=f"Test calculated relevance {random.random()}", meaning="test")
     component.commit()
 
     # Add manual estimations with unique values
@@ -2151,11 +2049,11 @@ def test_calculated_relevance_priority(di_container):
 
 def test_multiple_feasibility_estimations(di_container):
     """Multiple FeasibilityEstimations should be aggregated via GM."""
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
     import math
 
-    component = DialecticalComponent(statement=f"Test multi feas {random.random()}", meaning="test")
+    component = Statement(text=f"Test multi feas {random.random()}", meaning="test")
     component.commit()
 
     # Add multiple FeasibilityEstimations with unique values
@@ -2200,7 +2098,7 @@ def test_wheel_multiple_transformations():
         uid = random.random()
         components = []
         for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
-            c = DialecticalComponent(statement=f"Multi trans Wheel {stmt} {uid}", meaning=f"meaning:{stmt}")
+            c = Statement(text=f"Multi trans Wheel {stmt} {uid}", meaning=f"meaning:{stmt}")
             c.commit()
             components.append(c)
 
@@ -2345,7 +2243,7 @@ def test_transformation_six_positions():
     pp_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Trans six PP {stmt} {uid}", meaning=f"meaning:{stmt}")
+        comp = Statement(text=f"Trans six PP {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
         pp_comps[pos] = comp
 
@@ -2441,7 +2339,7 @@ def test_transformation_incomplete():
     pp_comps = {}
     for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
                        ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = DialecticalComponent(statement=f"Trans incomplete PP {stmt} {uid}", meaning=f"meaning:{stmt}")
+        comp = Statement(text=f"Trans incomplete PP {stmt} {uid}", meaning=f"meaning:{stmt}")
         comp.commit()
         pp_comps[pos] = comp
 
@@ -2504,45 +2402,10 @@ def test_transformation_incomplete():
     print("✓ Transformation cardinality enforcement works correctly")
 
 
-@pytest.mark.xfail(reason="Pre-existing: dx:// reference transformation not implemented")
-def test_input_transforms_to_dx_reference_when_component_exists():
-    """
-    Test that Input transforms plain text content to dx:// reference
-    when a DialecticalComponent with the same statement already exists.
-
-    This prevents hash collision between Input and DialecticalComponent
-    when content == statement.
-    """
-    from dialectical_framework.graph.nodes.input import Input
-
-    uid = random.random()
-    statement = f"Democracy empowers citizens {uid}"
-
-    # First, create a DialecticalComponent
-    comp = DialecticalComponent(statement=statement, meaning="test", sid="test-case-id")
-    comp.commit()
-
-    # Now create Input with the same content
-    input_node = Input(content=statement, sid="test-case-id")
-    input_node.commit()
-
-    # Input content should have been transformed to dx:// reference
-    assert input_node.content.startswith("dx://"), \
-        f"Input content should be dx:// reference, got: {input_node.content}"
-    assert comp.hash in input_node.content, \
-        f"dx:// reference should contain component hash {comp.hash[:8]}"
-
-    # Hashes should be different (no collision)
-    assert input_node.hash != comp.hash, \
-        "Input hash should differ from Component hash after transformation"
-
-    print(f"✅ Input content transformed: {input_node.content[:50]}...")
-
-
 def test_input_keeps_plain_text_when_no_component_collision():
     """
     Test that Input keeps plain text content when no matching
-    DialecticalComponent exists (no collision risk).
+    Statement exists (no collision risk).
     """
     from dialectical_framework.graph.nodes.input import Input
 
@@ -2592,17 +2455,17 @@ def test_scope_vocabulary():
     """
     Test that get_vocabulary(sid) includes all components in the scope.
 
-    Vocabulary is simply all DialecticalComponents with matching sid.
+    Vocabulary is simply all Statements with matching sid.
     """
     from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
     from dialectical_framework.graph.nodes.ideas import Ideas
-    from dialectical_framework.graph.repositories.dialectical_component_repository import (
-        DialecticalComponentRepository
+    from dialectical_framework.graph.repositories.statement_repository import (
+        StatementRepository
     )
     from dialectical_framework.graph.scope_context import scope
 
-    repo = DialecticalComponentRepository()
+    repo = StatementRepository()
     uid = random.random()
 
     # Create Case (scope root)
@@ -2616,10 +2479,10 @@ def test_scope_vocabulary():
         case_node.inputs.connect(input_node)
 
         # Create component (inherits sid from scope context)
-        comp1 = DialecticalComponent(statement=f"Component 1 {uid}", meaning="test")
+        comp1 = Statement(text=f"Component 1 {uid}", meaning="test")
         comp1.commit()
 
-        comp2 = DialecticalComponent(statement=f"Component 2 {uid}", meaning="test")
+        comp2 = Statement(text=f"Component 2 {uid}", meaning="test")
         comp2.commit()
 
         # Get vocabulary - should include all components in scope
@@ -2648,7 +2511,7 @@ def test_critique_chain_temporal_order():
     import time
 
     # Create base rationale explaining a component
-    component = DialecticalComponent(statement=f"Test comp {random.random()}", meaning="test")
+    component = Statement(text=f"Test comp {random.random()}", meaning="test")
     component.commit()
 
     base = Rationale(text=f"Base rationale {random.random()}")

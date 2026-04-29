@@ -92,7 +92,7 @@ def scope(sid: str) -> _ScopeContextManager:
         with scope(case.sid):
             # All framework calls here see this sid
             vocab = repo.get_vocabulary()
-            comp = DialecticalComponent(statement="...")
+            comp = Statement(text="...")
             comp.commit()  # Inherits sid from scope
     """
     return _ScopeContextManager(sid)

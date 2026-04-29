@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.ai_dto.dialectical_component_dto import \
-    DialecticalComponentDto
+from dialectical_framework.ai_dto.statement_dto import \
+    StatementDto
 
 
-class DialecticalComponentsDeckDto(BaseModel):
-    dialectical_components: list[DialecticalComponentDto] = Field(
+class StatementsDeckDto(BaseModel):
+    statements: list[StatementDto] = Field(
         ...,
-        description="A list of dialectical components. It can be empty when no dialectical components are found. It might also be filled with only one dialectical component if only one is to be found.",
+        description="A list of dialectical statements. It can be empty when no statements are found. It might also be filled with only one statement if only one is to be found.",
     )
 
     def get_aliases_as_cycle_str(self) -> str:
@@ -35,38 +35,38 @@ class DialecticalComponentsDeckDto(BaseModel):
 
     def get_aliases(self) -> list[str]:
         """
-        Extract all aliases from the dialectical components.
+        Extract all aliases from the statements.
 
         Returns:
             List of alias strings (e.g., ["T", "A", "T+", "A-"])
         """
-        return [dc.alias for dc in self.dialectical_components]
+        return [dc.alias for dc in self.statements]
 
-    def get_by_alias(self, alias: str) -> DialecticalComponentDto:
+    def get_by_alias(self, alias: str) -> StatementDto:
         """
-        Retrieve a component by its alias.
+        Retrieve a statement by its alias.
 
         Args:
             alias: The alias to search for (e.g., "T", "A", "T+")
 
         Returns:
-            The DialecticalComponentDto with matching alias
+            The StatementDto with matching alias
 
         Raises:
             KeyError: If no component with given alias is found
         """
-        for dc in self.dialectical_components:
+        for dc in self.statements:
             if dc.alias == alias:
                 return dc
         raise KeyError(f"No component with alias '{alias}' found. Available: {self.get_aliases()}")
 
     def rearrange_by_aliases(
         self, ordered_aliases: list[str], mutate: bool = False
-    ) -> list[DialecticalComponentDto]:
+    ) -> list[StatementDto]:
         """
-        Reorder components according to a specified alias sequence.
+        Reorder statements according to a specified alias sequence.
 
-        This method reorders the dialectical components to match the order
+        This method reorders the statements to match the order
         specified in `ordered_aliases`. Duplicates in the alias list are
         removed (first occurrence wins).
 
@@ -75,11 +75,11 @@ class DialecticalComponentsDeckDto(BaseModel):
             mutate: If True, modifies the internal list in place. If False, returns new list.
 
         Returns:
-            The reordered list of DialecticalComponentDto objects
+            The reordered list of StatementDto objects
 
         Example:
             >>> deck.rearrange_by_aliases(["A", "T", "T+"], mutate=True)
-            # deck.dialectical_components is now reordered as [A, T, T+]
+            # deck.statements is now reordered as [A, T, T+]
         """
         # Use dict to maintain first occurrence order while removing duplicates
         unique_aliases = dict.fromkeys(ordered_aliases)
@@ -87,14 +87,14 @@ class DialecticalComponentsDeckDto(BaseModel):
         sorted_components = []
         for alias in unique_aliases:
             component = next(
-                (c for c in self.dialectical_components if c.alias == alias), None
+                (c for c in self.statements if c.alias == alias), None
             )
             if component:
                 sorted_components.append(component)
 
         if mutate:
             # mutate the existing list in place instead of rebinding the attribute
-            self.dialectical_components[:] = sorted_components
-            return self.dialectical_components
+            self.statements[:] = sorted_components
+            return self.statements
         else:
             return sorted_components

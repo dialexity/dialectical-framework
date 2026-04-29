@@ -27,8 +27,8 @@ from dialectical_framework.concerns.causality.causality_estimator_realistic impo
     CausalityEstimatorRealistic)
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.cycle import Cycle
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.perspective import Perspective
@@ -53,12 +53,12 @@ def create_complete_perspective(index: int = 0) -> Perspective:
     The modern Perspective structure requires a Polarity to hold T and A.
     """
     # Create T and A components
-    t = DialecticalComponent(
-        statement=f"Thesis {index}", meaning=f"thesis:test:{index}"
+    t = Statement(
+        text=f"Thesis {index}", meaning=f"thesis:test:{index}"
     )
     t.commit()
-    a = DialecticalComponent(
-        statement=f"Antithesis {index}", meaning=f"antithesis:test:{index}"
+    a = Statement(
+        text=f"Antithesis {index}", meaning=f"antithesis:test:{index}"
     )
     a.commit()
 
@@ -74,20 +74,20 @@ def create_complete_perspective(index: int = 0) -> Perspective:
     pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
     # Create and connect aspects
-    t_plus = DialecticalComponent(
-        statement=f"T+ benefit {index}", meaning=f"thesis:positive:{index}"
+    t_plus = Statement(
+        text=f"T+ benefit {index}", meaning=f"thesis:positive:{index}"
     )
     t_plus.commit()
-    t_minus = DialecticalComponent(
-        statement=f"T- drawback {index}", meaning=f"thesis:negative:{index}"
+    t_minus = Statement(
+        text=f"T- drawback {index}", meaning=f"thesis:negative:{index}"
     )
     t_minus.commit()
-    a_plus = DialecticalComponent(
-        statement=f"A+ benefit {index}", meaning=f"antithesis:positive:{index}"
+    a_plus = Statement(
+        text=f"A+ benefit {index}", meaning=f"antithesis:positive:{index}"
     )
     a_plus.commit()
-    a_minus = DialecticalComponent(
-        statement=f"A- drawback {index}", meaning=f"antithesis:negative:{index}"
+    a_minus = Statement(
+        text=f"A- drawback {index}", meaning=f"antithesis:negative:{index}"
     )
     a_minus.commit()
 

@@ -41,8 +41,8 @@ from dialectical_framework.concerns.aspect_generation import (AspectGeneration,
                                                               AspectResult)
 from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
                                                         Polarity)
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
@@ -54,8 +54,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, ARelationship,
     HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
     TRelationship)
-from dialectical_framework.graph.repositories.dialectical_component_repository import \
-    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import \
+    StatementRepository
 from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.node_repository import \
@@ -234,8 +234,8 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
 
     async def _get_or_create_polarity(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        thesis: Statement,
+        antithesis: Statement,
         text: str,
     ) -> Polarity:
         """
@@ -255,7 +255,7 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
         classifier = AntithesisClassification()
         classification = await classifier.resolve(
             thesis=thesis,
-            antithesis_statement=antithesis.statement,
+            antithesis_statement=antithesis.text,
             text=text,
         )
         self._report = self._report.merge(classifier.report)
@@ -340,7 +340,7 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
             return aspects
 
         # Get vocabulary
-        repo = DialecticalComponentRepository()
+        repo = StatementRepository()
         vocab = repo.get_vocabulary_with_rationales()
         if not vocab:
             return aspects
@@ -412,12 +412,12 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
                 return existing
         return None
 
-    def _resolve_component(self, component_hash: str) -> Optional[DialecticalComponent]:
+    def _resolve_component(self, component_hash: str) -> Optional[Statement]:
         """Resolve hash to component."""
         repo = NodeRepository()
         try:
             comp = repo.find_by_hash(component_hash)
-            if isinstance(comp, DialecticalComponent):
+            if isinstance(comp, Statement):
                 return comp
         except ValueError:
             pass

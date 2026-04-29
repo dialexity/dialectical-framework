@@ -50,8 +50,8 @@ from dialectical_framework.concerns.aspect_classification import \
 from dialectical_framework.concerns.aspect_generation import AspectGeneration
 from dialectical_framework.concerns.statement_classification import \
     StatementClassification
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
                                                         Polarity)
 from dialectical_framework.graph.nodes.rationale import Rationale
@@ -209,8 +209,8 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
         self._report = self._report.merge(t_classifier.report)
 
         # Create new thesis component
-        new_t = DialecticalComponent(
-            statement=new_t_statement,
+        new_t = Statement(
+            text=new_t_statement,
             meaning=t_classification.meaning,
         )
         new_t.commit()
@@ -232,8 +232,8 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
             )
 
         # Create new antithesis component
-        new_a = DialecticalComponent(
-            statement=new_a_statement,
+        new_a = Statement(
+            text=new_a_statement,
             meaning=a_validation.meaning,
         )
         new_a.commit()
@@ -281,8 +281,8 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
         self._report = self._report.merge(t_classifier.report)
 
         # Create new thesis component
-        new_t = DialecticalComponent(
-            statement=new_t_statement,
+        new_t = Statement(
+            text=new_t_statement,
             meaning=t_classification.meaning,
         )
         new_t.commit()
@@ -292,7 +292,7 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
         a_classifier = AntithesisClassification()
         a_validation = await a_classifier.resolve(
             thesis=new_t,
-            antithesis_statement=current_a.statement,
+            antithesis_statement=current_a.text,
             text=self._text,
         )
         self._report = self._report.merge(a_classifier.report)
@@ -404,14 +404,14 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
             return EditPolarityResult(
                 is_valid=False,
                 error_message=(
-                    f"'{new_a_statement}' is not a valid antithesis for '{current_t.statement}' "
+                    f"'{new_a_statement}' is not a valid antithesis for '{current_t.text}' "
                     f"(HS={a_validation.heuristic_similarity:.2f})"
                 ),
             )
 
         # Create new antithesis
-        new_a = DialecticalComponent(
-            statement=new_a_statement,
+        new_a = Statement(
+            text=new_a_statement,
             meaning=a_validation.meaning,
         )
         new_a.commit()
@@ -438,8 +438,8 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
     async def _fill_pp_and_regenerate_aspects(
         self,
-        thesis: DialecticalComponent,
-        antithesis: DialecticalComponent,
+        thesis: Statement,
+        antithesis: Statement,
         a_hs: float,
     ) -> None:
         """Fill working PP with T, A (via Polarity) and regenerate all aspects."""
@@ -505,7 +505,7 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
         return None
 
     def _create_edit_rationale(
-        self, component: DialecticalComponent, text: str
+        self, component: Statement, text: str
     ) -> None:
         """Create and attach rationale for the edit."""
         rationale = Rationale(text=f"Edit: {text}")

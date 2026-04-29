@@ -29,7 +29,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 
@@ -58,13 +58,13 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
     After commit(), the Polarity can be used as the basis for Perspectives, which add aspects to each side.
 
     Hierarchy:
-        DialecticalComponent(T) + DialecticalComponent(A) → Polarity → Perspective
+        Statement(T) + Statement(A) → Polarity → Perspective
 
     Example:
-        thesis = DialecticalComponent(statement="Remote work increases productivity")
+        thesis = Statement(text="Remote work increases productivity")
         thesis.commit()
 
-        antithesis = DialecticalComponent(statement="Office work enables collaboration")
+        antithesis = Statement(text="Office work enables collaboration")
         antithesis.commit()
 
         polarity = Polarity(intent="Work arrangement tension")
@@ -78,24 +78,24 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
     _a_hash: Optional[str] = None
 
     # Transient refs for auto-connecting after save (not persisted)
-    _t_ref: Optional[DialecticalComponent] = None
-    _a_ref: Optional[DialecticalComponent] = None
+    _t_ref: Optional[Statement] = None
+    _a_ref: Optional[Statement] = None
 
     # Relationship properties to store until commit
     _t_hs: float = 1.0  # T always has HS=1.0 (defines the apex)
     _a_hs: Optional[float] = None
 
     # T position (exactly one thesis)
-    t: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    t: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=TRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
     # A position (exactly one antithesis)
     # The ARelationship stores heuristic_similarity (HS) for the T-A pair
-    a: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    a: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=ARelationship,
         cardinality=(1, 1)  # Exactly one
     )
@@ -110,7 +110,7 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
 
     def set_t(
         self,
-        component: DialecticalComponent,
+        component: Statement,
         heuristic_similarity: float = 1.0,
     ) -> Self:
         """
@@ -135,7 +135,7 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
 
     def set_a(
         self,
-        component: DialecticalComponent,
+        component: Statement,
         heuristic_similarity: Optional[float] = None,
     ) -> Self:
         """
@@ -297,12 +297,12 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
                 return rel.heuristic_similarity
         return None
 
-    def get_t_component(self) -> DialecticalComponent | None:
+    def get_t_component(self) -> Statement | None:
         """Get the thesis component, or None if not connected."""
         result = self.t.get()
         return result[0] if result else None
 
-    def get_a_component(self) -> DialecticalComponent | None:
+    def get_a_component(self) -> Statement | None:
         """Get the antithesis component, or None if not connected."""
         result = self.a.get()
         return result[0] if result else None
@@ -312,16 +312,16 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
         hash_str = self.short_hash if self.is_committed else "uncommitted"
         t_comp = self.get_t_component()
         a_comp = self.get_a_component()
-        t_preview = t_comp.statement[:20] + "..." if t_comp and len(t_comp.statement) > 20 else (t_comp.statement if t_comp else "None")
-        a_preview = a_comp.statement[:20] + "..." if a_comp and len(a_comp.statement) > 20 else (a_comp.statement if a_comp else "None")
+        t_preview = t_comp.text[:20] + "..." if t_comp and len(t_comp.text) > 20 else (t_comp.text if t_comp else "None")
+        a_preview = a_comp.text[:20] + "..." if a_comp and len(a_comp.text) > 20 else (a_comp.text if a_comp else "None")
         return f"Polarity({hash_str}, T='{t_preview}', A='{a_preview}')"
 
     def __str__(self) -> str:
         """Human-readable string representation."""
         t_comp = self.get_t_component()
         a_comp = self.get_a_component()
-        t_str = t_comp.statement[:40] if t_comp else "?"
-        a_str = a_comp.statement[:40] if a_comp else "?"
+        t_str = t_comp.text[:40] if t_comp else "?"
+        a_str = a_comp.text[:40] if a_comp else "?"
         hs = self.heuristic_similarity
         hs_str = f", HS={hs:.2f}" if hs is not None else ""
         return f"T: {t_str} ↔ A: {a_str}{hs_str}"

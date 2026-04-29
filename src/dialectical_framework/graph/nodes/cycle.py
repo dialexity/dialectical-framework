@@ -149,21 +149,21 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         return len(self.perspective_hashes)
 
     @property
-    def dialectical_components(self) -> list:
+    def statements(self) -> list:
         """
-        Get the dialectical components (T components) for this cycle.
+        Get the statements (T components) for this cycle.
 
         Returns the thesis components from each Perspective in cycle order.
         Used by CausalityEstimator.estimate() for building estimation prompts.
 
         Returns:
-            List of DialecticalComponent instances (T components in order)
+            List of Statement instances (T components in order)
         """
-        from dialectical_framework.graph.nodes.dialectical_component import (
-            DialecticalComponent,
+        from dialectical_framework.graph.nodes.statement import (
+            Statement,
         )
 
-        components: list[DialecticalComponent] = []
+        components: list[Statement] = []
         for pp in self.perspectives:
             t_result = pp.t.get()
             if t_result:

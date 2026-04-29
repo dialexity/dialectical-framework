@@ -1,7 +1,7 @@
 """
-Calculator for DialecticalComponent nodes.
+Calculator for Statement nodes.
 
-DialecticalComponents are leaf nodes in the content hierarchy.
+Statements are leaf nodes in the content hierarchy.
 """
 
 from __future__ import annotations
@@ -12,14 +12,14 @@ from dialectical_framework.graph.scoring.tarorank_calculators.base_calculator im
 from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
 
 
-class ComponentCalculator(BaseCalculator):
+class StatementCalculator(BaseCalculator):
     """
-    Calculator for DialecticalComponent nodes.
+    Calculator for Statement nodes.
 
-    DialecticalComponents are leaf nodes in the content hierarchy.
+    Statements are leaf nodes in the content hierarchy.
 
     P calculation:
     - Default: 1.0 (facts exist with certainty)
@@ -28,26 +28,26 @@ class ComponentCalculator(BaseCalculator):
 
     R calculation:
     - Combines multiple independent evidence sources via GM:
-      * Component's own R (if provided)
+      * Statement's own R (if provided)
       * Each rationale R (no weighting)
     - Hard veto: R=0 → return 0 (structural impossibility)
     - Returns None if no evidence
     """
 
-    def calculate_probability(self, component: DialecticalComponent) -> Optional[float]:
+    def calculate_probability(self, component: Statement) -> Optional[float]:
         """
-        Calculate P for a DialecticalComponent.
+        Calculate P for a Statement.
 
         Algorithm:
-        1. Get component's P (from property, which aggregates all P estimations)
+        1. Get statement's P (from property, which aggregates all P estimations)
         2. Hard veto: if P=0, return 0
-        3. If no values: return 1.0 (default for components = facts)
+        3. If no values: return 1.0 (default for statements = facts)
 
-        Note: In the new model, rationale-provided estimations target the component
+        Note: In the new model, rationale-provided estimations target the statement
         directly, so they're already included in component.probability.
 
         Args:
-            component: DialecticalComponent to calculate P for
+            component: Statement to calculate P for
 
         Returns:
             P value (0.0-1.0) or 1.0 if no evidence (fact default)
@@ -63,20 +63,20 @@ class ComponentCalculator(BaseCalculator):
         # Default: 1.0 for components (facts)
         return 1.0
 
-    def calculate_relevance(self, component: DialecticalComponent) -> Optional[float]:
+    def calculate_relevance(self, component: Statement) -> Optional[float]:
         """
-        Calculate R for a DialecticalComponent.
+        Calculate R for a Statement.
 
         Algorithm:
-        1. Get component's R (from property, which aggregates all R estimations)
+        1. Get statement's R (from property, which aggregates all R estimations)
         2. Hard veto: if R=0, return 0
         3. Return None if no evidence
 
-        Note: In the new model, rationale-provided estimations target the component
+        Note: In the new model, rationale-provided estimations target the statement
         directly, so they're already included in component.relevance.
 
         Args:
-            component: DialecticalComponent to calculate R for
+            component: Statement to calculate R for
 
         Returns:
             R value (0.0-1.0) or None if no evidence

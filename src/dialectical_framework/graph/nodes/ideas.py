@@ -26,7 +26,7 @@ from dialectical_framework.graph.relationships.has_statement_relationship import
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
 
 
 class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas"):
@@ -44,7 +44,7 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
     save() → add statements → commit(). Statements must be connected before commit.
 
     Hierarchy:
-        Case → Input → Ideas → DialecticalComponent
+        Case → Input → Ideas → Statement
 
     Relationships:
     - Ideas comes from one or more Inputs (via DISTILLED_TO)
@@ -58,7 +58,7 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
         ideas.save()  # HEAD state - no hash yet
         ideas.inputs.connect(input_node)
 
-        comp = DialecticalComponent(statement="Remote work improves focus")
+        comp = Statement(text="Remote work improves focus")
         comp.commit()
         ideas.statements.connect(comp)  # Add statements before commit
 
@@ -76,8 +76,8 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
     )
 
     # Extracted statements/concepts
-    statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
+    statements: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
+        "Statement",
         model=HasStatementRelationship,
         cardinality=(0, None),  # Zero or more statements
     )
@@ -87,7 +87,7 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
         Get statements for hash computation.
 
         Yields:
-            DialecticalComponent nodes (statements)
+            Statement nodes
         """
         for comp, _ in self.statements.all():
             yield comp

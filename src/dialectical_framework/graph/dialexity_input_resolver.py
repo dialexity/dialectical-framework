@@ -40,7 +40,7 @@ class DialexityInputResolver:
 
     Supported node types:
         - Rationale: returns `text` field
-        - DialecticalComponent: returns `statement` field
+        - Statement: returns `text` field
 
     All other node types fail. The application is responsible for distilling
     new Ideas or Components from the resolved content.
@@ -196,7 +196,7 @@ class DialexityInputResolver:
 
         Supported types:
         - Rationale: returns `text` field
-        - DialecticalComponent: returns `statement` field
+        - Statement: returns `text` field
 
         Args:
             node: The node to extract content from
@@ -209,14 +209,14 @@ class DialexityInputResolver:
         """
         # Import node types here to avoid circular imports at module level
         from dialectical_framework.graph.nodes.rationale import Rationale
-        from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+        from dialectical_framework.graph.nodes.statement import Statement
 
         if isinstance(node, Rationale):
             return node.text
-        elif isinstance(node, DialecticalComponent):
-            return node.statement
+        elif isinstance(node, Statement):
+            return node.text
         else:
             raise UnsupportedNodeTypeError(
                 f"dx:// cannot reference node type: {type(node).__name__}. "
-                f"Supported types: Rationale, DialecticalComponent"
+                f"Supported types: Rationale, Statement"
             )

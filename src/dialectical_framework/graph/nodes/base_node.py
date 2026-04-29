@@ -307,7 +307,7 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
             forked_pp = pp.clone(branch="main")
             forked_pp.commit()  # origin_hash set, branch="main"
 
-            # For atoms (DialecticalComponent, etc.)
+            # For atoms (Statement, etc.)
             cloned = component.clone()
             cloned.commit()  # No origin_hash, just content-addressed
         """

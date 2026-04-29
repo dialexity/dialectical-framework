@@ -58,8 +58,8 @@ from dialectical_framework.concerns.statement_classification import \
     StatementClassification
 from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
-from dialectical_framework.graph.nodes.dialectical_component import \
-    DialecticalComponent
+from dialectical_framework.graph.nodes.statement import \
+    Statement
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
@@ -149,13 +149,13 @@ PlacementType = Literal["duplicate", "antithesis", "aspect", "thesis"]
 
 @dataclass
 class IdeaPlacementResult:
-    """Result of idea placement with the DialecticalComponent."""
+    """Result of idea placement with the Statement."""
 
     idea: str
     placement: PlacementType
     confidence: float
     reasoning: str
-    component: DialecticalComponent  # The component (new or existing duplicate)
+    component: Statement  # The component (new or existing duplicate)
 
     # For duplicate
     duplicate_of: Optional[str] = None  # Component hash of existing duplicate
@@ -190,7 +190,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
     """
     Concern for determining where an idea belongs in the dialectical graph.
 
-    Creates a DialecticalComponent for the idea, uses StatementDeduplication
+    Creates a Statement for the idea, uses StatementDeduplication
     to check for duplicates, then determines placement (antithesis, aspect, or thesis).
 
     The result always contains a component - either the newly created one or
@@ -203,7 +203,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
     async def resolve(
         self,
         idea: str,
-        vocabulary: list[DialecticalComponent],
+        vocabulary: list[Statement],
         tensions: list[TensionInfo],
         text: str = "",
     ) -> IdeaPlacementResult:
@@ -265,8 +265,8 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         )
 
         # Create component with classified meaning
-        component = DialecticalComponent(
-            statement=self._idea,
+        component = Statement(
+            text=self._idea,
             meaning=classification.meaning,
         )
         component.commit()
@@ -301,7 +301,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         vocab_dicts = [
             {
                 "hash": c.hash,
-                "statement": c.statement,
+                "statement": c.text,
                 "meaning": c.meaning,
                 "rejected": False,
                 "rationale": None,
@@ -322,7 +322,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
                 idea=self._idea,
                 placement="duplicate",
                 confidence=0.9,  # High confidence from deduplication
-                reasoning=f"Semantically equivalent to existing component '{existing.statement}'",
+                reasoning=f"Semantically equivalent to existing component '{existing.text}'",
                 component=existing,
                 duplicate_of=existing.hash,
             )
@@ -357,8 +357,8 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         )
 
         # Create component with classified meaning
-        component = DialecticalComponent(
-            statement=self._idea,
+        component = Statement(
+            text=self._idea,
             meaning=classification.meaning,
         )
         component.commit()
@@ -387,7 +387,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         # Find the thesis component
         repo = NodeRepository()
         thesis = repo.find_by_hash(analysis.antithesis_of_hash)
-        if not thesis or not isinstance(thesis, DialecticalComponent):
+        if not thesis or not isinstance(thesis, Statement):
             # Fallback to thesis if we can't find the target
             return await self._handle_thesis(analysis)
 
@@ -400,8 +400,8 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         )
 
         # Create component with classified meaning
-        component = DialecticalComponent(
-            statement=self._idea,
+        component = Statement(
+            text=self._idea,
             meaning=classification.meaning,
         )
         component.commit()
@@ -409,7 +409,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
 
         # Create rationale
         rationale_text = (
-            f"Placement: antithesis of '{thesis.statement}'\n"
+            f"Placement: antithesis of '{thesis.text}'\n"
             f"Reasoning: {analysis.reasoning}\n\n"
             f"Classification:\n"
             f"- Mode: {classification.mode_label} ({classification.mode_value})\n"
@@ -440,9 +440,9 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
             else None
         )
 
-        if not thesis or not isinstance(thesis, DialecticalComponent):
+        if not thesis or not isinstance(thesis, Statement):
             return await self._handle_thesis(analysis)
-        if not antithesis or not isinstance(antithesis, DialecticalComponent):
+        if not antithesis or not isinstance(antithesis, Statement):
             return await self._handle_thesis(analysis)
 
         position = analysis.position or "T+"
@@ -458,8 +458,8 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         )
 
         # Create component with classified meaning
-        component = DialecticalComponent(
-            statement=self._idea,
+        component = Statement(
+            text=self._idea,
             meaning=classification.meaning,
         )
         component.commit()
@@ -470,7 +470,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
             "valid" if classification.heuristic_similarity > 0.1 else "wrong category"
         )
         rationale_text = (
-            f"Placement: {position} aspect of tension '{thesis.statement}' ↔ '{antithesis.statement}'\n"
+            f"Placement: {position} aspect of tension '{thesis.text}' ↔ '{antithesis.text}'\n"
             f"Reasoning: {analysis.reasoning}\n\n"
             f"Classification ({validity}):\n"
             f"- Heuristic Similarity: {classification.heuristic_similarity:.2f}\n"
@@ -494,7 +494,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
             complementarity_a=classification.complementarity_a,
         )
 
-    def _create_rationale(self, component: DialecticalComponent, text: str) -> None:
+    def _create_rationale(self, component: Statement, text: str) -> None:
         """Create and attach rationale to component."""
         rationale = Rationale(text=text)
         rationale.set_explanation_target(component)
@@ -523,7 +523,7 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         # Build vocabulary list (use full hash for accurate matching)
         vocab_lines = []
         for comp in self._vocabulary[:50]:  # Limit for token budget
-            vocab_lines.append(f"  [{comp.hash}] {comp.statement}")
+            vocab_lines.append(f"  [{comp.hash}] {comp.text}")
         vocab_section = "\n".join(vocab_lines) if vocab_lines else "  (empty)"
 
         # Build tensions list (use full hash for accurate matching)
@@ -567,7 +567,7 @@ Provide confidence (0.0-1.0) in your placement decision and reasoning.
 Note: Actual metrics (HS, complementarity) will be computed by specialized classifiers."""
 
     def _build_result(
-        self, analysis: PlacementAnalysisDto, component: DialecticalComponent
+        self, analysis: PlacementAnalysisDto, component: Statement
     ) -> IdeaPlacementResult:
         """Build result from analysis DTO (after deduplication).
 

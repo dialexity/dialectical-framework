@@ -58,7 +58,7 @@ class UnsupportedNodeTypeError(TypeError):
     - Rationale: text field
     - Transition: source -> target instruction
     - Synthesis: S+ and S- statements
-    - DialecticalComponent: statement field
+    - Statement: text field
     - Input: content field (recursive)
     - Ideas: joined statement components
     """

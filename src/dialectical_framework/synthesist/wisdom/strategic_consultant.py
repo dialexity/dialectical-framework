@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, List
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.wheel_segment import WheelSegment
@@ -32,8 +32,8 @@ class StrategicConsultant(ABC, HasBrain):
     @staticmethod
     def find_duplicate_transition(
         existing_transitions: List[Transition],
-        source_comp: DialecticalComponent,
-        target_comp: DialecticalComponent
+        source_comp: Statement,
+        target_comp: Statement
     ) -> Optional[Transition]:
         """
         Find if a transition with the same source/target already exists.

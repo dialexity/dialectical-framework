@@ -33,7 +33,7 @@ from dialectical_framework.graph.relationships.has_statement_relationship import
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.wheel_segment import WheelSegment
@@ -90,17 +90,17 @@ class Transition(AssessableEntity, label="Transition"):
     _source_hash: Optional[str] = None
     _target_hash: Optional[str] = None
     # Transient refs for auto-connecting after save (not persisted)
-    _source_ref: Optional[DialecticalComponent] = None
-    _target_ref: Optional[DialecticalComponent] = None
+    _source_ref: Optional[Statement] = None
+    _target_ref: Optional[Statement] = None
 
-    source: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    source: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=IsSourceOfRelationship,
         cardinality=(1, 1)
     )
 
-    target: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
+    target: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
+        "Statement",
         model=IsTargetOfRelationship,
         cardinality=(1, 1)
     )
@@ -114,14 +114,14 @@ class Transition(AssessableEntity, label="Transition"):
     )
 
     # Vocabulary-grade DCs derived from the instruction (lazy, added by concerns)
-    statements: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipTo(
-        "DialecticalComponent",
+    statements: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
+        "Statement",
         model=HasStatementRelationship,
         cardinality=(0, None),
     )
 
 
-    def set_source(self, component: DialecticalComponent) -> Transition:
+    def set_source(self, component: Statement) -> Transition:
         """
         Set the source component for this transition (before save).
 
@@ -140,7 +140,7 @@ class Transition(AssessableEntity, label="Transition"):
         self._source_ref = component
         return self
 
-    def set_target(self, component: DialecticalComponent) -> Transition:
+    def set_target(self, component: Statement) -> Transition:
         """
         Set the target component for this transition (before save).
 
@@ -292,7 +292,7 @@ class Transition(AssessableEntity, label="Transition"):
 
         return self
 
-    def _find_pp_for_component(self, component: DialecticalComponent) -> Perspective | None:
+    def _find_pp_for_component(self, component: Statement) -> Perspective | None:
         """
         Find which Perspective contains this component.
 
@@ -376,7 +376,7 @@ class Transition(AssessableEntity, label="Transition"):
 
     @staticmethod
     def _get_component_label(
-        comp: DialecticalComponent,
+        comp: Statement,
         mode: str,
         perspectives: list[Perspective] | None
     ) -> str:
@@ -404,12 +404,12 @@ class Transition(AssessableEntity, label="Transition"):
 
         # Build label based on mode
         if mode == "statements":
-            return comp.statement
+            return comp.text
         elif mode == "explicit":
             if alias:
-                return f"{alias} ({comp.statement})"
+                return f"{alias} ({comp.text})"
             else:
-                return comp.statement
+                return comp.text
         else:  # "" or "aliases"
             if alias:
                 return alias
@@ -435,7 +435,7 @@ class Transition(AssessableEntity, label="Transition"):
 
     def _get_segment_source_labels(
         self,
-        source_comp: DialecticalComponent,
+        source_comp: Statement,
         mode: str,
         perspectives: list[Perspective] | None
     ) -> str:

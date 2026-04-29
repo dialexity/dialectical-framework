@@ -15,8 +15,8 @@ from dialectical_framework.agents.analyst.skills.surface_theses import \
     SurfaceTheses
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.input import Input
-from dialectical_framework.graph.repositories.dialectical_component_repository import \
-    DialecticalComponentRepository
+from dialectical_framework.graph.repositories.statement_repository import \
+    StatementRepository
 from dialectical_framework.graph.scope_context import scope
 
 # Sample text for tests - simulates resolved input content
@@ -84,7 +84,7 @@ class TestSurfaceTheses:
 
             report = json.loads(result)
             assert report["ok"] is True
-            vocab = DialecticalComponentRepository().get_vocabulary()
+            vocab = StatementRepository().get_vocabulary()
             assert len(vocab) >= 1
 
     @pytest.mark.asyncio
@@ -120,6 +120,6 @@ class TestSurfaceTheses:
 
             report = json.loads(result)
             assert report["ok"] is True
-            vocab = DialecticalComponentRepository().get_vocabulary()
-            trust_components = [c for c in vocab if "trust" in c.statement.lower()]
+            vocab = StatementRepository().get_vocabulary()
+            trust_components = [c for c in vocab if "trust" in c.text.lower()]
             assert len(trust_components) >= 1

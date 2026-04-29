@@ -33,7 +33,7 @@ from dialectical_framework.graph.relationships.belongs_to_nexus_relationship imp
 )
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.wheel_segment import WheelSegment
     from dialectical_framework.graph.nodes.nexus import Nexus
@@ -101,36 +101,36 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
 
     # Four aspect positions (each exactly one)
     # T+ side (exactly one positive thesis aspect)
-    t_plus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    t_plus: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=TPlusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
     # T- side (exactly one negative thesis aspect)
-    t_minus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    t_minus: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=TMinusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
     # A+ side (exactly one positive antithesis aspect)
-    a_plus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    a_plus: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=APlusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
     # A- side (exactly one negative antithesis aspect)
-    a_minus: ClassVar[RelationshipManager[DialecticalComponent]] = RelationshipFrom(
-        "DialecticalComponent",
+    a_minus: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
+        "Statement",
         model=AMinusRelationship,
         cardinality=(1, 1)  # Exactly one
     )
 
     # Convenience properties to access T and A through Polarity
     @property
-    def t(self) -> BoundRelationshipManager[DialecticalComponent]:
+    def t(self) -> BoundRelationshipManager[Statement]:
         """
         Access T component through Polarity.
 
@@ -147,7 +147,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         return pol.t
 
     @property
-    def a(self) -> BoundRelationshipManager[DialecticalComponent]:
+    def a(self) -> BoundRelationshipManager[Statement]:
         """
         Access A component through Polarity.
 
@@ -590,7 +590,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
             )
         return rel_class
 
-    def get_relationship_manager_by_position(self, position: str) -> BoundRelationshipManager[DialecticalComponent]:
+    def get_relationship_manager_by_position(self, position: str) -> BoundRelationshipManager[Statement]:
         """
         Get the bound relationship manager for a given position name.
 
@@ -644,7 +644,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         except ValueError:
             return False
 
-    def get_component(self, alias: str) -> Optional[DialecticalComponent]:
+    def get_component(self, alias: str) -> Optional[Statement]:
         """
         Get the component with a given alias by searching all positions.
 
@@ -670,7 +670,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
                     return component
         return None
 
-    def has_component(self, component: DialecticalComponent) -> bool:
+    def has_component(self, component: Statement) -> bool:
         """
         Check if this Perspective contains the given component.
 
@@ -804,7 +804,7 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
                 # alias is guaranteed to be non-empty by PolarityRelationship validation
                 old_alias = rel.alias  # Direct access, fully typed
 
-                # Apply same logic as legacy DialecticalComponent.set_human_friendly_index
+                # Apply same logic as legacy Statement.set_human_friendly_index
                 if human_friendly_index == 0:
                     # Remove the last sequence of digits entirely
                     new_alias = re.sub(r"(\d+)(?!.*\d)", "", old_alias)

@@ -34,8 +34,8 @@ from dialectical_framework.graph.nodes.perspective import (POSITION_A,
                                                           POSITION_T_PLUS)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.dialectical_component import \
-        DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import \
+        Statement
 
 
 # --- Taxonomy Constants ---
@@ -280,7 +280,7 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
     # --- Static Lookup Methods (no LLM) ---
 
     @staticmethod
-    def lookup_antithesis_meaning(thesis: DialecticalComponent) -> str:
+    def lookup_antithesis_meaning(thesis: Statement) -> str:
         """
         Derive antithesis meaning from thesis - deterministic, no LLM needed.
 
@@ -345,7 +345,7 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
     @staticmethod
     def lookup_aspect_meaning(
-        parent: DialecticalComponent,
+        parent: Statement,
         position: str,
     ) -> str:
         """
@@ -392,7 +392,7 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
     @staticmethod
     def lookup_aspect_apex(
-        parent: DialecticalComponent,
+        parent: Statement,
         position: str,
     ) -> str:
         """

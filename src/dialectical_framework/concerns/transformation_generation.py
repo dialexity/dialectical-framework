@@ -440,7 +440,7 @@ class TransformationGeneration(
             result = manager.get()
             if result:
                 comp, _ = result
-                parts.append(f"{name}: {comp.statement}")
+                parts.append(f"{name}: {comp.text}")
 
         return "\n".join(parts)
 

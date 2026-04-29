@@ -11,7 +11,7 @@ from typing import Literal, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.relationship_manager import BoundRelationshipManager
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
 
@@ -128,7 +128,7 @@ class WheelSegment:
         return self._side
 
     @property
-    def t(self) -> BoundRelationshipManager[DialecticalComponent]:
+    def t(self) -> BoundRelationshipManager[Statement]:
         """
         Get the t or a relationship manager (depending on side).
 
@@ -145,7 +145,7 @@ class WheelSegment:
         return self._perspective.t if self._side == 'T' else self._perspective.a
 
     @property
-    def t_plus(self) -> BoundRelationshipManager[DialecticalComponent]:
+    def t_plus(self) -> BoundRelationshipManager[Statement]:
         """
         Get the t_plus or a_plus relationship manager (depending on side).
 
@@ -159,7 +159,7 @@ class WheelSegment:
         return self._perspective.t_plus if self._side == 'T' else self._perspective.a_plus
 
     @property
-    def t_minus(self) -> BoundRelationshipManager[DialecticalComponent]:
+    def t_minus(self) -> BoundRelationshipManager[Statement]:
         """
         Get the t_minus or a_minus relationship manager (depending on side).
 
@@ -172,7 +172,7 @@ class WheelSegment:
         """
         return self._perspective.t_minus if self._side == 'T' else self._perspective.a_minus
 
-    def get_component(self, alias: str) -> Optional[DialecticalComponent]:
+    def get_component(self, alias: str) -> Optional[Statement]:
         """
         Find a component within this segment by its alias.
 
@@ -253,12 +253,12 @@ class WheelSegment:
 
         return True
 
-    def is_set(self, key: str | DialecticalComponent) -> bool:
+    def is_set(self, key: str | Statement) -> bool:
         """
         Check if a key (alias or component) exists in this segment.
 
         Args:
-            key: Either a string alias or a DialecticalComponent
+            key: Either a string alias or a Statement
 
         Returns:
             True if the key exists in this segment
@@ -272,7 +272,7 @@ class WheelSegment:
             # Check by alias
             return self.get_component(key) is not None
         else:
-            # Check by component (DialecticalComponent)
+            # Check by component (Statement)
             # Search all components in this segment
             t_result = self.t.get()
             if t_result and t_result[0].hash == key.hash:

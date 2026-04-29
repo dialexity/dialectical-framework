@@ -41,9 +41,9 @@ class Case(BaseNode, label="Case"):
 
     Graph structure:
         Case
-        ├──[HAS_INPUT]──► Input ──[HAS_STATEMENT]──► DialecticalComponent
+        ├──[HAS_INPUT]──► Input ──[HAS_STATEMENT]──► Statement
         │                   │
-        │                   └──[DISTILLED_TO]──► Ideas ──[HAS_STATEMENT]──► DialecticalComponent
+        │                   └──[DISTILLED_TO]──► Ideas ──[HAS_STATEMENT]──► Statement
         │
         └── Vocabulary = all Components via HAS_STATEMENT paths
 
@@ -55,8 +55,8 @@ class Case(BaseNode, label="Case"):
     Nexuses (explorations) reference this Case via sid field.
 
     Example:
-        from dialectical_framework.graph.repositories.dialectical_component_repository import (
-            DialecticalComponentRepository
+        from dialectical_framework.graph.repositories.statement_repository import (
+            StatementRepository
         )
 
         case = Case()
@@ -70,13 +70,13 @@ class Case(BaseNode, label="Case"):
         ideas.commit()
         input_node.ideas.connect(ideas)
 
-        comp = DialecticalComponent(statement="Remote work improves focus")
+        comp = Statement(text="Remote work improves focus")
         comp.commit()
         ideas.statements.connect(comp)
 
         # Vocabulary includes all components in scope
         from dialectical_framework.graph.scope_context import scope
-        repo = DialecticalComponentRepository()
+        repo = StatementRepository()
         with scope(case.sid):
             vocab = repo.get_vocabulary()
         assert comp in vocab
@@ -136,12 +136,12 @@ class Case(BaseNode, label="Case"):
 
     def __str__(self) -> str:
         """Human-readable string representation."""
-        from dialectical_framework.graph.repositories.dialectical_component_repository import (
-            DialecticalComponentRepository
+        from dialectical_framework.graph.repositories.statement_repository import (
+            StatementRepository
         )
 
         input_count = self.inputs.count()
-        repo = DialecticalComponentRepository()
+        repo = StatementRepository()
         with self:
             vocab_count = len(repo.get_vocabulary())
         return f"Case ({input_count} inputs, {vocab_count} components)"

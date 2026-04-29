@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Dict, List
 
 from mirascope import BaseMessageParam, Messages, prompt_template
 
-from dialectical_framework.ai_dto.dialectical_component_dto import \
-    DialecticalComponentDto
+from dialectical_framework.ai_dto.statement_dto import \
+    StatementDto
 from dialectical_framework.utils.extend_tpl import extend_tpl
 
 # Graph-native imports
@@ -13,13 +13,13 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.perspective import Perspective
-    from dialectical_framework.graph.nodes.dialectical_component import DialecticalComponent
+    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.relationship_manager import BoundRelationshipManager
 
 from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
 
 
-def _get_component_info(manager: BoundRelationshipManager[DialecticalComponent], position_name: str) -> tuple[str, str, str]:
+def _get_component_info(manager: BoundRelationshipManager[Statement], position_name: str) -> tuple[str, str, str]:
     """
     Extract component information from a relationship manager.
 
@@ -38,7 +38,7 @@ def _get_component_info(manager: BoundRelationshipManager[DialecticalComponent],
         alias = rel.alias
 
     # Get statement from a component
-    statement = component.statement
+    statement = component.text
 
     # Get rationale from a component
     rationale = component.best_rationale
@@ -67,14 +67,14 @@ class ReverseEngineer:
         USER:
         Consider these statements:
         
-        {dialectical_components:lists}
+        {statements:lists}
 
         ASSISTANT:
         OK, let's proceed.
         """
     )
     def prompt_input_theses(
-        self, *, dialectical_components: list[list[str]]
+        self, *, statements: list[list[str]]
     ) -> "Messages.Type": ...
 
     @prompt_template(
@@ -276,13 +276,13 @@ class ReverseEngineer:
 
     @staticmethod
     def till_theses(
-        theses: list[DialecticalComponentDto], text: str = None
+        theses: list[StatementDto], text: str = None
     ) -> list[BaseMessageParam]:
         """
         Build prompt template up to thesis introduction.
 
         Args:
-            theses: List of DialecticalComponentDto objects (DTOs used because this
+            theses: List of StatementDto objects (DTOs used because this
                    builds prompts for AI boundary - DTOs have exact structure needed)
             text: Optional context text
 
@@ -307,7 +307,7 @@ class ReverseEngineer:
             [
                 f"### Concept/Statement {index + 1} ({dc.alias})",
                 f"Alias: {dc.alias}",
-                f"Statement: {dc.statement}",
+                f"Statement: {dc.text}",
                 # Don't render explanations here, as these might be referring to other places in the perspective,
                 # which might be confusing or even misleading in further prompt
             ]
@@ -315,7 +315,7 @@ class ReverseEngineer:
         ]
 
         dc_messages = reverse_engineer.prompt_input_theses(
-            dialectical_components=theses
+            statements=theses
         )
         extend_tpl(tpl, dc_messages)
 

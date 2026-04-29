@@ -1,5 +1,5 @@
 """
-Polarity and Aspect relationships for connecting DialecticalComponents to Polarities and Perspectives.
+Polarity and Aspect relationships for connecting Statements to Polarities and Perspectives.
 
 Each polarity position has its own relationship type for fine-grained querying,
 but all store the contextual alias property.

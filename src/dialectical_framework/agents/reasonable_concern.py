@@ -28,7 +28,7 @@ class ReasonableConcern(ABC, Generic[R_co]):
         concern = ThesisExtraction()
         theses = await concern.resolve(text=text, count=4)
         for t in theses:
-            print(t.statement)
+            print(t.text)
 
         # With report access
         concern = AntithesisExtraction()

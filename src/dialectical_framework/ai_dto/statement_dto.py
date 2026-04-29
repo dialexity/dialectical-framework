@@ -3,18 +3,18 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
-class DialecticalComponentDto(BaseModel):
+class StatementDto(BaseModel):
     alias: str = Field(
         ...,
         description="The user friendly name of the dialectical component such as T, A, T+, A+, etc.",
     )
-    statement: str = Field(
+    text: str = Field(
         ...,
-        description="The dialectical component value that is provided after analysis.",
+        description="The statement text — a dialectical assertion.",
     )
     explanation: str = Field(
         default="",
-        description="The explanation how the dialectical component (statement) is derived.",
+        description="The explanation how the statement is derived.",
     )
 
     def set_human_friendly_index(self, index: int) -> None:
@@ -31,11 +31,11 @@ class DialecticalComponentDto(BaseModel):
             index: The 1-based index to set (0 means no index/single component)
 
         Example:
-            >>> dto = DialecticalComponentDto(alias="T", statement="Democracy")
+            >>> dto = StatementDto(alias="T", text="Democracy")
             >>> dto.set_human_friendly_index(1)
             >>> dto.alias
             "T1"
-            >>> dto = DialecticalComponentDto(alias="Ac-", statement="Action")
+            >>> dto = StatementDto(alias="Ac-", text="Action")
             >>> dto.set_human_friendly_index(1)
             >>> dto.alias
             "Ac1-"
@@ -74,13 +74,13 @@ class DialecticalComponentDto(BaseModel):
             The numeric index from the alias (e.g., "T1" → 1, "Ac2-" → 2, "T" → 0)
 
         Example:
-            >>> dto = DialecticalComponentDto(alias="T2", statement="Democracy")
+            >>> dto = StatementDto(alias="T2", text="Democracy")
             >>> dto.get_human_friendly_index()
             2
-            >>> dto = DialecticalComponentDto(alias="Ac1-", statement="Action")
+            >>> dto = StatementDto(alias="Ac1-", text="Action")
             >>> dto.get_human_friendly_index()
             1
-            >>> dto = DialecticalComponentDto(alias="T", statement="Freedom")
+            >>> dto = StatementDto(alias="T", text="Freedom")
             >>> dto.get_human_friendly_index()
             0
         """

@@ -32,7 +32,7 @@ GRAPH_SCHEMA = """
 - **Ideas**: Collection of extracted statements from inputs.
 
 ### Dialectical Structure
-- **DialecticalComponent**: A statement/thesis/position. Has `statement` (text) and optional `meaning` (semantic URI).
+- **Statement**: A statement/thesis/position. Has `text` (text) and optional `meaning` (semantic URI).
 - **Perspective**: A structured interpretation built around a Polarity (T-A pair), adding evaluative aspects (T+, T-, A+, A-).
 - **Cycle**: T-cycle - an ordered sequence of Perspectives defining abstract thesis causality.
 - **Wheel**: Concrete T-A arrangement implementing a Cycle with flip configurations and transitions.
@@ -48,7 +48,7 @@ GRAPH_SCHEMA = """
 
 ## Relationship Types
 
-### Perspective Positions (DialecticalComponent → Perspective)
+### Perspective Positions (Statement → Perspective)
 - **T**: Thesis position (neutral statement)
 - **A**: Antithesis position (opposing statement)
 - **T_PLUS**: Positive aspect of thesis
@@ -56,7 +56,7 @@ GRAPH_SCHEMA = """
 - **A_PLUS**: Positive aspect of antithesis
 - **A_MINUS**: Negative aspect of antithesis
 
-### Semantic Relations (between DialecticalComponents)
+### Semantic Relations (between Statements)
 - **OPPOSITE_OF**: T ↔ A dialectical opposition
 - **CONTRADICTION_OF**: Cross-polarity contradiction (T+ ↔ A-, A+ ↔ T-)
 - **POSITIVE_SIDE_OF**: Aspect → neutral (T+ → T)
@@ -65,11 +65,11 @@ GRAPH_SCHEMA = """
 
 ### Structural Relations
 - **HAS_INPUT**: Case → Input
-- **HAS_STATEMENT**: Ideas → DialecticalComponent
+- **HAS_STATEMENT**: Ideas → Statement
 - **HAS_WHEEL**: Cycle → Wheel
 - **HAS_TRANSFORMATION**: Wheel → Transformation
-- **IS_SOURCE_OF**: DialecticalComponent → Transition
-- **IS_TARGET_OF**: DialecticalComponent → Transition
+- **IS_SOURCE_OF**: Statement → Transition
+- **IS_TARGET_OF**: Statement → Transition
 - **AC**: Action transition → Transformation
 - **RE**: Reflection transition → Transformation
 
@@ -84,8 +84,8 @@ All nodes have:
 - `sid`: Session identifier (for multi-tenant isolation)
 - `committed_at`: Timestamp when committed
 
-DialecticalComponent:
-- `statement`: The text of the thesis/position
+Statement:
+- `text`: The text of the thesis/position
 - `meaning`: Optional semantic URI
 - `rejected`: Boolean if rejected
 
