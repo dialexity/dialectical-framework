@@ -111,6 +111,38 @@ class PerspectiveRepository:
         return [(result["pp"], result["rel_type"]) for result in results]
 
     @inject
+    def discard_uncommitted(
+        self,
+        perspective: Perspective,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> bool:
+        """
+        Discard an uncommitted Perspective node (and its relationships) from the graph.
+
+        Only deletes if the PP is uncommitted and belongs to the current scope.
+        Does NOT delete connected Statement or Polarity nodes (they may be shared).
+
+        Args:
+            perspective: The uncommitted Perspective to discard
+
+        Returns:
+            True if deleted, False if not eligible (committed or wrong scope)
+        """
+        if perspective._id is None:
+            return False
+        if perspective.is_committed:
+            return False
+        if sid and perspective.sid != sid:
+            return False
+
+        graph_db.execute(
+            "MATCH (n) WHERE id(n) = $node_id DETACH DELETE n",
+            {"node_id": perspective._id},
+        )
+        return True
+
+    @inject
     def safe_delete(
         self,
         perspective: Perspective,

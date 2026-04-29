@@ -1,6 +1,11 @@
 """
 EditPolarity: Skill for editing T or A components of a Perspective.
 
+Edits Statement.text — creates new Statement nodes with the given text.
+Since T or A are the foundation of the tetrad, ALL aspects are regenerated
+from scratch via AspectGeneration. If the original Statement had display_text
+set, it is NOT inherited (new node = fresh semantic content).
+
 Handles modifications to T or A with proper validation and regeneration:
 - Changing T -> validate A compatibility, regenerate A if needed, regenerate aspects
 - Changing A -> validate T compatibility, handle misclassification
@@ -13,7 +18,7 @@ Editing behavior based on PP state:
 In both cases, the returned PP is committed with all 6 positions set.
 
 Use EditTetrad for editing aspects (T+, T-, A+, A-).
-Use PerspectiveValidation concern separately for full tetrad validation.
+Use ExpandPolarities to generate alternative tetrads for the same T-A pair.
 
 Uses ForkableMixin: forked PP has origin_hash pointing to the original.
 
@@ -174,6 +179,9 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
         # Route based on what's being changed
         result = await self._route_changes()
+
+        if not result.is_valid:
+            self._discard_working_pp()
 
         self._build_report(result)
         return result
@@ -487,6 +495,14 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
         pp.commit()
         self._report.node_created(pp)
+
+    def _discard_working_pp(self) -> None:
+        """Delete the uncommitted working PP from the graph to avoid dangling nodes."""
+        if not hasattr(self, "_working_pp"):
+            return
+        from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
+        repo = PerspectiveRepository()
+        repo.discard_uncommitted(self._working_pp)
 
     def _resolve_perspective(self, pp_hash: str) -> Optional[Perspective]:
         """Resolve hash to Perspective."""

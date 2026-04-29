@@ -1,9 +1,16 @@
 """
 EditTetrad: Skill for editing aspects (T+, T-, A+, A-) of a Perspective.
 
-Handles modifications to aspects with proper validation:
-- Validates each aspect against its position
-- Suggests correct position if aspect doesn't fit
+Edits Statement.text — creates new Statement nodes with the given text.
+If the original Statement had display_text set, it is NOT inherited (new node).
+
+Validation pipeline (all must pass for commit):
+1. AspectClassification — each changed aspect fits its position (HS > threshold)
+2. DiagonalOppositionsCheck — T+ contradicts A-, A+ contradicts T- (score >= 0.7)
+3. ControlStatementsCheck — "T+ without A+ yields T-" and "A+ without T+ yields A-" (CC >= 0.7)
+
+If any check fails, the edit is rejected with detailed error messages.
+The agent can then adjust the proposed text and retry.
 
 Editing behavior based on PP state:
 - Uncommitted PP -> edit in place, commit it
@@ -11,8 +18,8 @@ Editing behavior based on PP state:
 
 In both cases, the returned PP is committed with all 6 positions filled.
 
-Use EditPolarity for editing T or A.
-Use PerspectiveValidation concern separately for full tetrad validation.
+Use EditPolarity for editing T or A (regenerates all aspects).
+Use ExpandPolarities to generate alternative tetrads for the same T-A pair.
 
 Uses ForkableMixin: forked PP has origin_hash pointing to the original.
 
@@ -25,6 +32,8 @@ Usage:
 
     if result.is_valid:
         pp = result.perspective  # Committed PP with all 6 aspects
+    else:
+        print(result.error_message)  # Tetrad coherence violated: ...
 """
 
 from __future__ import annotations
@@ -40,6 +49,10 @@ from dialectical_framework.agents.reasonable_concern import \
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
+from dialectical_framework.concerns.diagonal_oppositions_check import \
+    DiagonalOppositionsCheck
+from dialectical_framework.concerns.control_statements_check import \
+    ControlStatementsCheck
 from dialectical_framework.graph.nodes.statement import \
     Statement
 from dialectical_framework.graph.nodes.polarity import POSITION_A, POSITION_T
@@ -221,13 +234,27 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
                     )
 
         if invalid_aspects:
+            self._discard_working_pp()
             return EditTetradResult(
                 is_valid=False,
                 error_message="Invalid aspect(s): " + "; ".join(invalid_aspects),
             )
 
-        # Fill working PP with validated aspects
-        await self._fill_pp_with_aspects(aspect_validations)
+        # Fill working PP with validated aspects (does NOT commit)
+        self._fill_pp_with_aspects(aspect_validations)
+
+        # Validate tetrad entanglement constraints before committing
+        coherence_errors = await self._validate_tetrad_coherence()
+        if coherence_errors:
+            self._discard_working_pp()
+            return EditTetradResult(
+                is_valid=False,
+                error_message="Tetrad coherence violated: " + "; ".join(coherence_errors),
+            )
+
+        # All constraints pass — commit
+        self._working_pp.commit()
+        self._report.node_created(self._working_pp)
 
         return EditTetradResult(
             perspective=self._working_pp,
@@ -235,11 +262,11 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
             changed_positions=list(self._changes.keys()),
         )
 
-    async def _fill_pp_with_aspects(
+    def _fill_pp_with_aspects(
         self,
         aspect_validations: dict[str, tuple[Statement, object]],
     ) -> None:
-        """Fill working PP with changed aspects, copying unchanged from original."""
+        """Fill working PP with changed aspects, copying unchanged from original. Does NOT commit."""
         pp = self._working_pp
 
         # Copy Polarity (T-A pair) from original if not connected
@@ -301,8 +328,74 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
                             ),
                         )
 
-        pp.commit()
-        self._report.node_created(pp)
+    def _discard_working_pp(self) -> None:
+        """Delete the uncommitted working PP from the graph to avoid dangling nodes."""
+        from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
+        repo = PerspectiveRepository()
+        repo.discard_uncommitted(self._working_pp)
+
+    async def _validate_tetrad_coherence(self) -> list[str]:
+        """
+        Run diagonal opposition and control statement checks on the working PP.
+
+        Returns list of error messages. Empty list means valid.
+        """
+        pp = self._working_pp
+        errors: list[str] = []
+
+        # Diagonal oppositions: T+ vs A-, A+ vs T-
+        diag_checker = DiagonalOppositionsCheck()
+        try:
+            diag_result = await diag_checker.resolve(
+                perspective=pp, text=self._text
+            )
+            self._report = self._report.merge(diag_checker.report)
+
+            if not diag_result.is_valid:
+                details = []
+                if diag_result.t_plus_vs_a_minus_score < 0.7:
+                    details.append(
+                        f"T+ vs A- contradiction too weak "
+                        f"(score={diag_result.t_plus_vs_a_minus_score:.2f}, "
+                        f"reason: {diag_result.t_plus_vs_a_minus_reasoning})"
+                    )
+                if diag_result.a_plus_vs_t_minus_score < 0.7:
+                    details.append(
+                        f"A+ vs T- contradiction too weak "
+                        f"(score={diag_result.a_plus_vs_t_minus_score:.2f}, "
+                        f"reason: {diag_result.a_plus_vs_t_minus_reasoning})"
+                    )
+                errors.extend(details)
+        except ValueError:
+            pass
+
+        # Control statements: "T+ without A+ yields T-", "A+ without T+ yields A-"
+        ctrl_checker = ControlStatementsCheck()
+        try:
+            ctrl_result = await ctrl_checker.resolve(
+                perspective=pp, text=self._text
+            )
+            self._report = self._report.merge(ctrl_checker.report)
+
+            if not ctrl_result.is_coherent:
+                details = []
+                if ctrl_result.t_plus_without_a_plus_yields_t_minus_score < 0.7:
+                    details.append(
+                        f"Control statement '{ctrl_result.t_plus_without_a_plus_yields_t_minus_statement}' "
+                        f"not coherent (score={ctrl_result.t_plus_without_a_plus_yields_t_minus_score:.2f}, "
+                        f"reason: {ctrl_result.t_plus_without_a_plus_yields_t_minus_reasoning})"
+                    )
+                if ctrl_result.a_plus_without_t_plus_yields_a_minus_score < 0.7:
+                    details.append(
+                        f"Control statement '{ctrl_result.a_plus_without_t_plus_yields_a_minus_statement}' "
+                        f"not coherent (score={ctrl_result.a_plus_without_t_plus_yields_a_minus_score:.2f}, "
+                        f"reason: {ctrl_result.a_plus_without_t_plus_yields_a_minus_reasoning})"
+                    )
+                errors.extend(details)
+        except ValueError:
+            pass
+
+        return errors
 
     async def _find_better_aspect_position(
         self,
