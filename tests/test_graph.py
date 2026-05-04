@@ -2591,7 +2591,7 @@ def test_cannot_critique_uncommitted_rationale():
 
 
 class TestDisplayText:
-    """Tests for Statement.display_text and Transition.display_instruction."""
+    """Tests for Statement.display_text and Transition mutable fields."""
 
     def test_statement_display_text_defaults_to_none(self):
         stmt = Statement(text="Original text", meaning="test")
@@ -2644,7 +2644,7 @@ class TestDisplayText:
         stmt.display_text = "Display text"
         assert f"{stmt:short}" == "Display text"
 
-    def test_transition_display_instruction_defaults_to_none(self):
+    def test_transition_instruction_mutable_after_commit(self):
         t = Statement(text="Source", meaning="test")
         t.commit()
         a = Statement(text="Target", meaning="test")
@@ -2653,46 +2653,12 @@ class TestDisplayText:
         tr = Transition(instruction="Navigate carefully")
         tr.set_source(t).set_target(a)
         tr.commit()
-        assert tr.display_instruction is None
-        assert tr.prompt_instruction == "Navigate carefully"
+        original_hash = tr.hash
 
-    def test_transition_display_instruction_overrides(self):
-        t = Statement(text="Source2", meaning="test")
-        t.commit()
-        a = Statement(text="Target2", meaning="test")
-        a.commit()
-
-        tr = Transition(instruction="Navigate from source to target with care")
-        tr.set_source(t).set_target(a)
-        tr.commit()
-        tr.display_instruction = "Go carefully"
-        assert tr.display_instruction == "Go carefully"
-        assert tr.instruction == "Navigate from source to target with care"
-
-    def test_transition_prompt_instruction_includes_both(self):
-        t = Statement(text="Source3", meaning="test")
-        t.commit()
-        a = Statement(text="Target3", meaning="test")
-        a.commit()
-
-        tr = Transition(instruction="Navigate from source to target with care")
-        tr.set_source(t).set_target(a)
-        tr.commit()
-        tr.display_instruction = "Go carefully"
-        assert tr.prompt_instruction == "Go carefully (derived from: Navigate from source to target with care)"
-
-    def test_transition_no_instruction_no_display(self):
-        t = Statement(text="Source4", meaning="test")
-        t.commit()
-        a = Statement(text="Target4", meaning="test")
-        a.commit()
-
-        tr = Transition()
-        tr.set_source(t).set_target(a)
-        tr.commit()
-        assert tr.instruction is None
-        assert tr.display_instruction is None
-        assert tr.prompt_instruction is None
+        tr.instruction = "Updated instruction"
+        tr.save()
+        assert tr.instruction == "Updated instruction"
+        assert tr.hash == original_hash
 
 
 class TestDisplayTextPureLogic:
@@ -2725,35 +2691,18 @@ class TestDisplayTextPureLogic:
         stmt2.display_text = "Something else entirely"
         assert stmt1.compute_hash() == stmt2.compute_hash()
 
-    def test_transition_display_instruction_field(self):
+    def test_transition_instruction_field(self):
         tr = Transition(instruction="Do the thing")
-        assert tr.display_instruction is None
+        assert tr.instruction == "Do the thing"
 
-        tr.display_instruction = "Do it"
-        assert tr.display_instruction == "Do it"
-
-    def test_transition_display_instruction_none(self):
+    def test_transition_instruction_defaults_none(self):
         tr = Transition()
-        assert tr.display_instruction is None
+        assert tr.instruction is None
 
-    def test_transition_prompt_instruction_no_display(self):
-        tr = Transition(instruction="Full instruction")
-        assert tr.prompt_instruction == "Full instruction"
-
-    def test_transition_prompt_instruction_with_display(self):
-        tr = Transition(instruction="Full verbose instruction text")
-        tr.display_instruction = "Short"
-        assert tr.prompt_instruction == "Short (derived from: Full verbose instruction text)"
-
-    def test_transition_prompt_instruction_none(self):
-        tr = Transition()
-        assert tr.prompt_instruction is None
-
-    def test_transition_prompt_instruction_display_only(self):
-        tr = Transition()
-        tr.display_instruction = "User set this"
-        assert tr.display_instruction == "User set this"
-        assert tr.prompt_instruction is None
+    def test_transition_summary_and_haiku_fields(self):
+        tr = Transition(instruction="Act", summary="A summary", haiku="Five seven five here")
+        assert tr.summary == "A summary"
+        assert tr.haiku == "Five seven five here"
 
 
 if __name__ == "__main__":

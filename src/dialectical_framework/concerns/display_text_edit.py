@@ -1,9 +1,10 @@
 """
-DisplayTextEdit: Concern for editing cosmetic display text on Statement and Transition nodes.
+DisplayTextEdit: Concern for editing display text on Statement and Transition nodes.
 
-Sets or clears `display_text` / `display_instruction` — the user-facing override
-that does NOT affect the node's hash or structural identity. No forking, no new nodes,
-no LLM calls.
+For Statement: sets `display_text` — a cosmetic override that does NOT affect hash.
+For Transition: edits `instruction` directly (it's mutable, not part of hash).
+
+No forking, no new nodes, no LLM calls.
 
 Usage:
     concern = DisplayTextEdit()
@@ -47,11 +48,11 @@ class DisplayTextEditResult:
 
 class DisplayTextEdit(ReasonableConcern[DisplayTextEditResult]):
     """
-    Concern for editing cosmetic display text on committed nodes.
+    Concern for editing display text on committed nodes.
 
     Supports:
-    - Statement.display_text
-    - Transition.display_instruction
+    - Statement.display_text (cosmetic override, text is structural/immutable)
+    - Transition.instruction (directly mutable, not part of hash)
 
     No LLM calls, no hash change, no forking. Just a field update + save().
     """
@@ -66,6 +67,9 @@ class DisplayTextEdit(ReasonableConcern[DisplayTextEditResult]):
     ) -> DisplayTextEditResult:
         """
         Set or clear display text on a Statement or Transition.
+
+        For Statement: sets display_text (override for immutable text).
+        For Transition: sets instruction directly (mutable field).
 
         Args:
             node_hash: Hash (or prefix) of the node to edit
@@ -109,9 +113,11 @@ class DisplayTextEdit(ReasonableConcern[DisplayTextEditResult]):
         if isinstance(node, Statement):
             previous = node.display_text
             node.display_text = display_text
+            field_name = "display_text"
         else:
-            previous = node.display_instruction
-            node.display_instruction = display_text
+            previous = node.instruction
+            node.instruction = display_text
+            field_name = "instruction"
 
         node.save()
 
@@ -122,7 +128,6 @@ class DisplayTextEdit(ReasonableConcern[DisplayTextEditResult]):
         )
 
         action = "Set" if display_text else "Cleared"
-        field_name = "display_text" if isinstance(node, Statement) else "display_instruction"
         self._report.ok = True
         self._report.summary = f"{action} {field_name} on {node.short_hash}"
         self._report.artifacts["node_hash"] = node.hash

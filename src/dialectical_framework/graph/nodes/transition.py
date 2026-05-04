@@ -77,6 +77,7 @@ class Transition(AssessableEntity, label="Transition"):
 
     # Instructive label describing the transformation path
     # e.g. "Establish boundaries to enable autonomy"
+    # Mutable post-commit (not part of hash).
     instruction: Optional[str] = None
 
     # Fuller actionable description (1-15 words)
@@ -84,18 +85,6 @@ class Transition(AssessableEntity, label="Transition"):
 
     # Poetic 3-line summary (5-7-5 syllables)
     haiku: Optional[str] = None
-
-    # User-facing cosmetic override for instruction.
-    # Does NOT affect hash computation — mutable post-commit.
-    # When set, UI/reports/prompts render this instead of `instruction`.
-    display_instruction: Optional[str] = None
-
-    @property
-    def prompt_instruction(self) -> str | None:
-        """Instruction for LLM prompts: includes both display and canonical text when they differ."""
-        if self.display_instruction and self.instruction and self.display_instruction != self.instruction:
-            return f"{self.display_instruction} (derived from: {self.instruction})"
-        return self.instruction
 
     def __init__(self, **data: Any) -> None:
         # Auto-generate nonce if not provided
