@@ -28,10 +28,61 @@ from dialectical_framework.concerns.causality.causality_estimator import (
 from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
-from dialectical_framework.synthesist.reverse_engineer import ReverseEngineer
+from mirascope import BaseMessageParam
+
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
+
+
+@prompt_template(
+    """
+    USER:
+    Consider the following text as the initial context for further analysis:
+
+    <context>{text}</context>
+
+    ASSISTANT:
+    OK, let's start.
+    """
+)
+def _prompt_input_text(*, text: str) -> "Messages.Type": ...
+
+
+@prompt_template(
+    """
+    USER:
+    Consider these statements:
+
+    {statements:lists}
+
+    ASSISTANT:
+    OK, let's proceed.
+    """
+)
+def _prompt_input_theses(*, statements: list[list[str]]) -> "Messages.Type": ...
+
+
+def _build_thesis_context(
+    theses: list[StatementDto], text: str = None
+) -> list[BaseMessageParam]:
+    """Build prompt context from thesis DTOs and optional source text."""
+    tpl: list[BaseMessageParam] = []
+
+    if text:
+        extend_tpl(tpl, _prompt_input_text(text=text))
+
+    statements = [
+        [
+            f"### Concept/Statement {index + 1} ({dc.alias})",
+            f"Alias: {dc.alias}",
+            f"Statement: {dc.text}",
+        ]
+        for index, dc in enumerate(theses)
+    ]
+
+    extend_tpl(tpl, _prompt_input_theses(statements=statements))
+    return tpl
 
 
 class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
@@ -235,7 +286,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
             @use_brain(brain=self.brain, response_model=CausalCycleAssessmentDto)
             async def _estimate_single_call() -> CausalCycleAssessmentDto:
                 prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
-                tpl = ReverseEngineer.till_theses(
+                tpl = _build_thesis_context(
                     theses=statements_deck_dto.statements,
                     text=text,
                 )
