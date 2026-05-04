@@ -6,14 +6,14 @@ following the Coherence Constraint (CC).
 
 Usage:
     service = TransformationGeneration()
-    tetrad = await service.resolve(pp, ac_plus, apexes, input_text)
+    tetrad = await service.resolve(edge, ac_plus, apexes, input_text)
     print(f"Ac+: {tetrad.ac_plus.statement}")
     print(f"Re+: {tetrad.re_plus.statement}")
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -27,12 +27,15 @@ from dialectical_framework.concerns.ac_re_taxonomy import (
     proactiveness_label_to_value)
 from dialectical_framework.concerns.action_extraction import \
     ActionCandidateResultDto
+from dialectical_framework.graph.repositories.transformation_repository import (
+    CoarserTransformation, TransformationRepository)
+from dialectical_framework.utils.edge_context import build_edge_context as _build_edge_context
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
     ApexDerivationResultDto
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.transition import Transition
 
 
 SYSTEM_PROMPT = """You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
@@ -295,7 +298,7 @@ class TransformationGeneration(
 
     async def resolve(
         self,
-        pp: Perspective,
+        edge: Transition,
         ac_plus: ActionCandidateResultDto,
         apexes: ApexDerivationResultDto,
         input_text: str = "",
@@ -303,8 +306,14 @@ class TransformationGeneration(
         """
         Generate a complete transformation tetrad from an Ac+ candidate.
 
+        The edge's source segment becomes the T-side context and
+        the edge's target segment becomes the A-side context.
+
+        Automatically looks up coarser-layer parent Transformations for
+        hierarchical refinement context.
+
         Args:
-            pp: The Perspective context
+            edge: The wheel edge (Transition between main statements)
             ac_plus: The Ac+ candidate to build the tetrad around
             apexes: Derived apex statements for HS calculation
             input_text: Optional source content context
@@ -314,14 +323,22 @@ class TransformationGeneration(
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not pp.is_complete():
-            raise ValueError("Perspective must have all 6 positions")
+        source_segment = edge.get_source_wheel_segment()
+        target_segment = edge.get_target_wheel_segment()
+        if not source_segment or not target_segment:
+            raise ValueError(f"Cannot resolve segments for edge {edge.short_hash}")
 
-        # Initialize conversation
+        if not source_segment.is_complete() or not target_segment.is_complete():
+            raise ValueError("Both segments must be complete for transformation generation")
+
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        # Get PP context
-        pp_context = self._build_pp_context(pp)
+        edge_context = _build_edge_context(source_segment, target_segment)
+
+        # Look up coarser-layer parents for refinement context
+        tr_repo = TransformationRepository()
+        parents = tr_repo.find_parent_transformations(edge=edge)
+        parent_context = self._build_coarser_context(parents)
 
         # Determine expected Re+ category based on Ac+ polar pair
         expected_re_category = self._get_expected_re_category(
@@ -330,7 +347,8 @@ class TransformationGeneration(
 
         # Generate tetrad completion
         completion = await self._generate_tetrad_completion(
-            pp_context, input_text, ac_plus, expected_re_category
+            edge_context, input_text, ac_plus, expected_re_category,
+            parent_context=parent_context,
         )
 
         # Build transition DTOs
@@ -423,26 +441,6 @@ class TransformationGeneration(
 
         return result
 
-    def _build_pp_context(self, pp: Perspective) -> str:
-        """Build context string from Perspective components."""
-        parts = []
-
-        positions = [
-            ("T", pp.t),
-            ("T+", pp.t_plus),
-            ("T-", pp.t_minus),
-            ("A", pp.a),
-            ("A+", pp.a_plus),
-            ("A-", pp.a_minus),
-        ]
-
-        for name, manager in positions:
-            result = manager.get()
-            if result:
-                comp, _ = result
-                parts.append(f"{name}: {comp.text}")
-
-        return "\n".join(parts)
 
     def _get_expected_re_category(self, ac_proactiveness_label: str) -> str:
         """Get the expected Re category based on Ac+ polar pair."""
@@ -452,22 +450,93 @@ class TransformationGeneration(
             # Default to Interpretation if no polar pair found
             return "Interpretation"
 
+    def _build_coarser_context(
+        self, parents: list[CoarserTransformation]
+    ) -> Optional[str]:
+        """
+        Build hierarchical refinement context from coarser parent Transformations.
+
+        Parents are ordered coarsest-first. Each represents a broader transition
+        that the current edge is a sub-step of.
+
+        Returns:
+            Formatted string for LLM prompt, or None if no parents
+        """
+        if not parents:
+            return None
+
+        parts = []
+        current_edge_id = None
+
+        for ct in parents:
+            tr = ct.transformation
+
+            edge_result = tr.edge.get()
+            if not edge_result:
+                continue
+            tr_edge, _ = edge_result
+
+            edge_source = tr_edge.source.get()
+            edge_target = tr_edge.target.get()
+            if not edge_source or not edge_target:
+                continue
+
+            source_text = edge_source[0].text
+            target_text = edge_target[0].text
+
+            indent = "  " * (ct.layer - 1)
+
+            if tr_edge._id != current_edge_id:
+                current_edge_id = tr_edge._id
+                parts.append(f"{indent}\"{source_text}\" → \"{target_text}\":")
+            else:
+                parts.append(f"{indent}(variant):")
+
+            ac_plus_result = tr.ac_plus.get()
+            if ac_plus_result:
+                trans, _ = ac_plus_result
+                parts.append(f"{indent}  Action: {trans.instruction}")
+
+            re_plus_result = tr.re_plus.get()
+            if re_plus_result:
+                trans, _ = re_plus_result
+                parts.append(f"{indent}  Reflection: {trans.instruction}")
+
+        return "\n".join(parts) if parts else None
+
     async def _generate_tetrad_completion(
         self,
-        pp_context: str,
+        edge_context: str,
         input_text: str,
         ac_plus: ActionCandidateResultDto,
         expected_re_category: str,
+        parent_context: Optional[str] = None,
     ) -> TetradCompletionDto:
         """Generate the remaining tetrad positions from Ac+."""
         context_section = (
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
 
-        prompt = f"""{context_section}Given this Perspective:
+        parent_section = ""
+        if parent_context:
+            parent_section = f"""
+<broader_journey>
+Your current edge is one detailed sub-step within a broader transition.
+Below is the hierarchy from broadest to most specific (indented = more detailed):
+
+{parent_context}
+
+Your tetrad details one sub-step of the most-indented transition above.
+Be more concrete and specific than the broader path, while staying coherent
+with its overall direction.
+</broader_journey>
+
+"""
+
+        prompt = f"""{context_section}{parent_section}Given this Perspective:
 
 <perspective>
-{pp_context}
+{edge_context}
 </perspective>
 
 And this Ac+ (action targeting A+) statement:

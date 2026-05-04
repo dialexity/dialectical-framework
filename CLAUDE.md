@@ -2,6 +2,10 @@
 
 This file provides context for Claude Code to be an effective co-developer on the Dialectical Framework.
 
+## Collaboration Style
+
+When reasoning together on design decisions, give honest opinions with clear tradeoffs — not agreement for the sake of agreement. State what you actually think is the better approach and why. If both options are defensible, say so directly rather than leaning toward whichever the user seems to prefer.
+
 ## What is the Dialectical Framework?
 
 A semantic graph system for dialectical reasoning - modeling thesis-antithesis-synthesis dynamics as graph structures. Used for systems analysis, wisdom mining, and ethical modeling.
@@ -554,9 +558,11 @@ with scope(case.sid):
     vocab = repo.get_vocabulary()
 ```
 
-### Query Safety: All Queries Must Be Scoped by sid
+### Query Safety: All Queries Must Live in Repositories
 
-**CRITICAL: All database queries must be scoped by `sid` to prevent cross-user data leaks.**
+**CRITICAL: All database queries must go through repository classes and be scoped by `sid` to prevent cross-user data leaks.**
+
+Never write raw `graph_db.execute_and_fetch()` calls outside of a repository. If you need a new query, add a method to the appropriate repository (or create a new one). This ensures all queries are sid-scoped and centralized.
 
 Since different users/sessions have different `sid` values, unscoped queries could return data belonging to other users. Always use repository helper methods which automatically inject `sid` from DI:
 

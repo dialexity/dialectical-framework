@@ -47,7 +47,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **EditPolarity**: Modify T or A of existing Perspective (regenerates aspects)
 - **EditTetrad**: Modify aspects (T+, T-, A+, A-) of existing Perspective
 - **BuildWheels**: Combine Perspectives into Cycles and Wheels within a Nexus, then estimate causality
-- **ExploreTransformations**: Generate action-reflection transformations
+- **ExploreTransformations**: Generate action-reflection transformations for a Wheel's edge pairs
 
 ### Querying
 - **ListPerspectives**: Show all Perspectives in scope

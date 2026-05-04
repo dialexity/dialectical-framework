@@ -1,8 +1,8 @@
 """
-AcReApexDerivation: Concern for deriving Re+ and Ac+ apex statements for a Perspective.
+AcReApexDerivation: Concern for deriving Re+ and Ac+ apex statements for a wheel edge.
 
 The apex statements represent the reference transformation paths for this specific
-Perspective context, against which other transformations are measured (via HS).
+edge context, against which other transformations are measured (via HS).
 
 Apexes are generated within fixed coordinate ranges (sweet spots):
 - Re+ apex: X (proactiveness) = 0.2-0.3, Y (insight) = 0.5-0.7
@@ -10,14 +10,14 @@ Apexes are generated within fixed coordinate ranges (sweet spots):
 
 Usage:
     service = AcReApexDerivation()
-    apexes = await service.resolve(pp, input_text)
+    apexes = await service.resolve(edge, input_text)
     print(f"Re+ apex: {apexes.re_plus_apex.statement}")
     print(f"Ac+ apex: {apexes.ac_plus_apex.statement}")
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -29,10 +29,12 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, RE_PLUS_APEX_TARGET, insight_label_to_value,
     proactiveness_label_to_value)
+from dialectical_framework.utils.edge_context import build_edge_context as _build_edge_context
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.wheel_segment import WheelSegment
 
 
 # Sweet spot margin around apex targets
@@ -219,7 +221,7 @@ class AcReApexDerivation(
     ReasonableConcern[AcReApexDerivationResultDto], SettingsAware
 ):
     """
-    Concern for deriving Re+ and Ac+ apex statements for a Perspective context.
+    Concern for deriving Re+ and Ac+ apex statements for a wheel edge context.
 
     The derived apexes serve as reference points for calculating Heuristic Similarity (HS)
     of other transformation candidates. Apexes are constrained to sweet spot ranges.
@@ -230,14 +232,17 @@ class AcReApexDerivation(
 
     async def resolve(
         self,
-        pp: Perspective,
+        edge: Transition,
         input_text: str = "",
     ) -> AcReApexDerivationResultDto:
         """
-        Derive Re+ and Ac+ apex statements for a Perspective.
+        Derive Re+ and Ac+ apex statements for a wheel edge.
+
+        The edge's source segment becomes the T-side context and
+        the edge's target segment becomes the A-side context.
 
         Args:
-            pp: The Perspective to derive apexes for (must be complete)
+            edge: The wheel edge (Transition between main statements)
             input_text: Optional source content context
 
         Returns:
@@ -245,19 +250,20 @@ class AcReApexDerivation(
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not pp.is_complete():
-            raise ValueError("Perspective must have all 6 positions to derive apexes")
+        source_segment = edge.get_source_wheel_segment()
+        target_segment = edge.get_target_wheel_segment()
+        if not source_segment or not target_segment:
+            raise ValueError(f"Cannot resolve segments for edge {edge.short_hash}")
 
-        # Initialize conversation
+        if not source_segment.is_complete() or not target_segment.is_complete():
+            raise ValueError("Both segments must be complete to derive apexes")
+
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        # Get PP context
-        pp_context = self._build_pp_context(pp)
+        context = _build_edge_context(source_segment, target_segment)
 
-        # Generate apex pair
-        apex_pair = await self._generate_apex_pair(pp_context, input_text)
+        apex_pair = await self._generate_apex_pair(context, input_text)
 
-        # Convert to result with numeric coordinates (clamped to sweet spots)
         re_plus_apex = self._to_apex_dto(apex_pair.re_plus_apex, RE_PLUS_SWEET_SPOT)
         ac_plus_apex = self._to_apex_dto(apex_pair.ac_plus_apex, AC_PLUS_SWEET_SPOT)
 
@@ -266,42 +272,20 @@ class AcReApexDerivation(
             ac_plus_apex=ac_plus_apex,
         )
 
-        # Report artifacts
-        self._report.artifacts["pp_hash"] = pp.short_hash
+        self._report.artifacts["edge_hash"] = edge.short_hash
         self._report.artifacts["re_plus_apex"] = re_plus_apex.model_dump()
         self._report.artifacts["ac_plus_apex"] = ac_plus_apex.model_dump()
         self._report.summary = (
-            f"Derived apexes for PP {pp.short_hash}: "
+            f"Derived apexes for edge {edge.short_hash}: "
             f"Re+ ({re_plus_apex.proactiveness:.1f}, {re_plus_apex.insight:.1f}), "
             f"Ac+ ({ac_plus_apex.proactiveness:.1f}, {ac_plus_apex.insight:.1f})"
         )
 
         return result
 
-    def _build_pp_context(self, pp: Perspective) -> str:
-        """Build context string from Perspective components."""
-        parts = []
-
-        positions = [
-            ("T", pp.t),
-            ("T+", pp.t_plus),
-            ("T-", pp.t_minus),
-            ("A", pp.a),
-            ("A+", pp.a_plus),
-            ("A-", pp.a_minus),
-        ]
-
-        for name, manager in positions:
-            result = manager.get()
-            if result:
-                comp, _ = result
-                parts.append(f"{name}: {comp.text}")
-
-        return "\n".join(parts)
-
     async def _generate_apex_pair(
         self,
-        pp_context: str,
+        edge_context: str,
         input_text: str,
     ) -> ApexPairDto:
         """Generate Re+ and Ac+ apex candidates."""
@@ -312,7 +296,7 @@ class AcReApexDerivation(
         prompt = f"""{context_section}Given this Perspective:
 
 <perspective>
-{pp_context}
+{edge_context}
 </perspective>
 
 Generate apex statements for both transformation paths within the specified sweet spots:

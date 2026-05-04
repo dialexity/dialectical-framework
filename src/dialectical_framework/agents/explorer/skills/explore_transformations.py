@@ -1,28 +1,29 @@
 """
-ExploreTransformations: Subagent for generating Action-Reflection transformations for Perspectives.
+ExploreTransformations: Subagent for generating Action-Reflection transformations for Wheel edge pairs.
 
-Orchestrates the transformation generation pipeline:
-1. Derives contextual apexes (Re+ and Ac+) for the PP
-2. Extracts Ac+ candidates along the Insight axis
-3. Generates full tetrads from each Ac+ candidate
-4. Creates Transformation nodes in the graph
+Orchestrates the transformation generation pipeline at the wheel level:
+1. Resolves the wheel and its edge pairs (diametrically opposite edges)
+2. For each pair, checks for reusable Transformations in the same Nexus
+3. If not found: derives context from the edge pair's source/target PPs
+4. Runs ApexDerivation → ActionExtraction → TransformationGeneration
+5. Creates Transformation nodes scoped to the Nexus
 
 Usage:
     # Programmatic use
-    agent = ExploreTransformations(perspective_hash="abc123...")
+    agent = ExploreTransformations(wheel_hash="abc123...")
     result = await agent.resolve()
     for t in result.all:
         print(f"{t}")
 
-    # LLM tool use
-    agent = ExploreTransformations(perspective_hash="abc123...")
-    json_result = await agent.call()  # Returns JSON string
+    # Target a specific edge pair
+    agent = ExploreTransformations(wheel_hash="abc123...", edge_hash="def456...")
+    result = await agent.resolve()
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import Optional, TYPE_CHECKING
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import BaseTool
@@ -49,7 +50,9 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     ReMinusRelationship, RePlusRelationship, ReRelationship)
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.wheel_segment import WheelSegment
     from dialectical_framework.protocols.input_resolver import InputResolver
 
 
@@ -57,9 +60,9 @@ if TYPE_CHECKING:
 class ExploreTransformationsResult:
     """Result from the ExploreTransformations."""
 
-    existing: list[Transformation]
-    new: list[Transformation]
-    apexes: ApexDerivationResultDto
+    existing: list[Transformation] = field(default_factory=list)
+    new: list[Transformation] = field(default_factory=list)
+    apexes: Optional[ApexDerivationResultDto] = None
 
     @property
     def all(self) -> list[Transformation]:
@@ -71,18 +74,24 @@ class ExploreTransformations(
     BaseTool, ReasonableConcern[ExploreTransformationsResult]
 ):
     """
-    Subagent for generating Action-Reflection transformations for Perspectives.
+    Subagent for generating Action-Reflection transformations at wheel level.
 
     This agent orchestrates the full transformation generation pipeline,
-    producing multiple transformation alternatives for a single Perspective.
+    producing Transformations for wheel edge pairs (diametrically opposite edges).
+    Transformations are scoped by Nexus and reusable across wheels sharing the
+    same logical edge pairs.
 
     Dual interface:
     - resolve() returns ExploreTransformationsResult for programmatic use
     - call() returns JSON string for LLM tool use
     """
 
-    perspective_hash: str = Field(
-        description="Hash (full or prefix) of the Perspective to transform"
+    wheel_hash: str = Field(
+        description="Hash (full or prefix) of the Wheel to generate transformations for"
+    )
+    edge_hash: Optional[str] = Field(
+        default=None,
+        description="Optional: hash of a specific edge to target (generates for that pair only)"
     )
 
     _report: ExecutionReport = PrivateAttr()
@@ -94,86 +103,184 @@ class ExploreTransformations(
 
     async def resolve(self) -> ExploreTransformationsResult:
         """
-        Resolve the transformation generation pipeline.
+        Resolve the transformation generation pipeline at wheel level.
 
         Returns:
             ExploreTransformationsResult with existing and new transformations
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        # 1. Resolve and validate PP
-        pp = self._resolve_perspective()
-        if not pp.is_complete():
-            raise ValueError(
-                f"Perspective {pp.short_hash} must have all 6 positions to generate transformations"
-            )
+        # 1. Resolve wheel and nexus
+        wheel = self._resolve_wheel()
+        nexus = self._resolve_nexus(wheel)
 
-        # 2. Get existing committed transformations
-        existing = [t for t, _ in pp.transformations.all() if t.is_committed]
+        # 2. Get edge pairs (optionally filtered to pair containing a specific edge)
+        edge_pairs = self._get_target_edge_pairs(wheel)
+
+        if not edge_pairs:
+            self._report.summary = f"No edge pairs found for Wheel {wheel.short_hash}"
+            return ExploreTransformationsResult()
 
         # 3. Get input text from scope
         input_text = await self._get_input_text()
 
-        # 4. Derive apexes for this PP context
-        apex_service = ApexDerivation()
-        apexes = await apex_service.resolve(pp, input_text)
-        self._report.merge(apex_service.report)
+        # 4. Process each edge pair — both edges get Transformations
+        all_existing: list[Transformation] = []
+        all_new: list[Transformation] = []
+        last_apexes: Optional[ApexDerivationResultDto] = None
 
-        # 5. Extract Ac+ candidates (avoiding existing)
-        extractor = ActionExtraction()
-        ac_candidates = await extractor.resolve(pp, input_text, not_like_these=existing)
-        self._report.merge(extractor.report)
-
-        if not ac_candidates:
-            self._report.summary = f"No new Ac+ candidates for PP {pp.short_hash}"
-            return ExploreTransformationsResult(
-                existing=existing,
-                new=[],
-                apexes=apexes,
-            )
-
-        # 6. For each Ac+, generate full tetrad and create graph nodes
-        new_transformations = []
-        for ac_plus in ac_candidates:
-            generator = TransformationGeneration()
-            tetrad = await generator.resolve(pp, ac_plus, apexes, input_text)
-            self._report.merge(generator.report)
-
-            # 6. Create graph nodes
-            transformation = self._create_transformation(pp, tetrad)
-            new_transformations.append(transformation)
+        for ac_edge, re_edge in edge_pairs:
+            for edge in (ac_edge, re_edge):
+                existing, new, apexes = await self._process_edge(
+                    wheel, nexus, edge, input_text
+                )
+                all_existing.extend(existing)
+                all_new.extend(new)
+                if apexes:
+                    last_apexes = apexes
 
         # Summary
-        self._report.artifacts["pp_hash"] = pp.short_hash
-        self._report.artifacts["existing_count"] = len(existing)
-        self._report.artifacts["new_count"] = len(new_transformations)
+        self._report.artifacts["wheel_hash"] = wheel.short_hash
+        self._report.artifacts["nexus_hash"] = nexus.short_hash
+        self._report.artifacts["edge_pairs_processed"] = len(edge_pairs)
+        self._report.artifacts["existing_count"] = len(all_existing)
+        self._report.artifacts["new_count"] = len(all_new)
         self._report.summary = (
-            f"Generated {len(new_transformations)} new transformation(s) for PP {pp.short_hash} "
-            f"({len(existing)} existing)"
+            f"Processed {len(edge_pairs)} edge pair(s) for Wheel {wheel.short_hash}: "
+            f"{len(all_new)} new, {len(all_existing)} existing"
         )
 
         return ExploreTransformationsResult(
-            existing=existing,
-            new=new_transformations,
-            apexes=apexes,
+            existing=all_existing,
+            new=all_new,
+            apexes=last_apexes,
         )
 
-    def _resolve_perspective(self) -> Perspective:
-        """Resolve Perspective from hash or prefix."""
-        from dialectical_framework.graph.nodes.perspective import Perspective
+    async def _process_edge(
+        self,
+        wheel: Wheel,
+        nexus: Nexus,
+        edge: Transition,
+        input_text: str,
+    ) -> tuple[list[Transformation], list[Transformation], Optional[ApexDerivationResultDto]]:
+        """
+        Process a single edge: check reuse, or generate new transformations.
+
+        Each edge independently gets its own Transformation(s). The Transformation's
+        Re+ provides complementary reflection within this edge's context — it does NOT
+        substitute for the opposite edge's Transformation.
+
+        Returns:
+            Tuple of (existing, new, apexes)
+        """
+        from dialectical_framework.graph.repositories.transformation_repository import TransformationRepository
+
+        # Check if this edge already has Transformations (idempotency)
+        tr_repo = TransformationRepository()
+        existing = tr_repo.find_by_edge(edge=edge)
+
+        if existing:
+            return existing, [], None
+
+        # Resolve segments from the edge
+        source_segment = edge.get_source_wheel_segment()
+        target_segment = edge.get_target_wheel_segment()
+        if not source_segment or not target_segment:
+            return [], [], None
+
+        if not source_segment.is_complete() or not target_segment.is_complete():
+            return [], [], None
+
+        # Derive apexes from the edge
+        apex_service = ApexDerivation()
+        apexes = await apex_service.resolve(edge, input_text)
+        self._report.merge(apex_service.report)
+
+        # Extract Ac+ candidates (avoiding existing transformations on this wheel)
+        extractor = ActionExtraction()
+        ac_candidates = await extractor.resolve(
+            edge, input_text,
+            not_like_these=wheel.transformations,
+        )
+        self._report.merge(extractor.report)
+
+        if not ac_candidates:
+            return [], [], apexes
+
+        # For each Ac+, generate full tetrad and create graph nodes
+        # TransformationGeneration looks up coarser-layer parents internally
+        new_transformations: list[Transformation] = []
+        for ac_plus in ac_candidates:
+            generator = TransformationGeneration()
+            tetrad = await generator.resolve(edge, ac_plus, apexes, input_text)
+            self._report.merge(generator.report)
+
+            transformation = self._create_transformation(
+                nexus, edge, source_segment, target_segment, tetrad,
+            )
+            new_transformations.append(transformation)
+
+        return [], new_transformations, apexes
+
+    def _resolve_wheel(self) -> Wheel:
+        """Resolve Wheel from hash or prefix."""
+        from dialectical_framework.graph.nodes.wheel import Wheel
         from dialectical_framework.graph.repositories.node_repository import \
             NodeRepository
 
         repo = NodeRepository()
-        node = repo.find_by_hash(self.perspective_hash, node_type=Perspective)
+        node = repo.find_by_hash(self.wheel_hash, node_type=Wheel)
         if node is None:
-            raise ValueError(f"Perspective not found: {self.perspective_hash}")
+            raise ValueError(f"Wheel not found: {self.wheel_hash}")
         return node
+
+    def _resolve_nexus(self, wheel: Wheel) -> Nexus:
+        """
+        Resolve Nexus from Wheel → Cycle → Perspectives → Nexus.
+
+        Traverses: Wheel's parent Cycle has perspective_hashes → find a PP → get its Nexus.
+        """
+        from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
+
+        # Get PPs from the wheel (via edges)
+        pps = wheel._perspectives
+        if not pps:
+            raise ValueError(
+                f"Wheel {wheel.short_hash} has no Perspectives, cannot determine Nexus"
+            )
+
+        # Find the Nexus from the first PP
+        for pp in pps:
+            nexus_result = pp.nexus.get()
+            if nexus_result:
+                nexus_node, _ = nexus_result
+                return nexus_node
+
+        raise ValueError(
+            f"No Nexus found for Wheel {wheel.short_hash}'s Perspectives"
+        )
+
+    def _get_target_edge_pairs(self, wheel: Wheel) -> list[tuple[Transition, Transition]]:
+        """Get edge pairs to process, optionally filtered to pair containing edge_hash."""
+        all_pairs = wheel.edge_pairs
+
+        if self.edge_hash is None:
+            return all_pairs
+
+        # Filter to the pair containing the specified edge
+        for ac_edge, re_edge in all_pairs:
+            if (ac_edge.hash and ac_edge.hash.startswith(self.edge_hash)) or \
+               (re_edge.hash and re_edge.hash.startswith(self.edge_hash)):
+                return [(ac_edge, re_edge)]
+
+        raise ValueError(
+            f"Edge {self.edge_hash} not found in Wheel edge pairs"
+        )
 
     @inject
     async def _get_input_text(
         self,
-        input_resolver: "InputResolver" = Provide[DI.input_resolver],
+        input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
         """Get concatenated text from all inputs in scope."""
         from dialectical_framework.graph.repositories.input_repository import \
@@ -194,26 +301,28 @@ class ExploreTransformations(
 
     def _create_transformation(
         self,
-        pp: Perspective,
+        nexus: Nexus,
+        ac_edge: Transition,
+        source_segment: WheelSegment,
+        target_segment: WheelSegment,
         tetrad: TransformationTetradDto,
     ) -> Transformation:
         """
-        Create a Transformation node with all 6 positions.
+        Create a Transformation node with all 6 positions, scoped to Nexus and edge.
 
-        Args:
-            pp: The containing Perspective
-            tetrad: The generated tetrad with category reframings and aspects
-
-        Returns:
-            The committed Transformation node
+        Source/target components are derived from the edge segments:
+        - T-side (T, T+, T-) from source_segment (slice containing edge source)
+        - A-side (A, A+, A-) from target_segment (slice containing edge target)
         """
-        # Get all PP components for transitions
-        t_result = pp.t.get()
-        t_minus_result = pp.t_minus.get()
-        t_plus_result = pp.t_plus.get()
-        a_result = pp.a.get()
-        a_plus_result = pp.a_plus.get()
-        a_minus_result = pp.a_minus.get()
+        # Get components from the edge segments
+        # WheelSegment.t/t_plus/t_minus map to the correct PP positions
+        # regardless of whether the slice is a T-side or A-side
+        t_result = source_segment.t.get()
+        t_minus_result = source_segment.t_minus.get()
+        t_plus_result = source_segment.t_plus.get()
+        a_result = target_segment.t.get()
+        a_plus_result = target_segment.t_plus.get()
+        a_minus_result = target_segment.t_minus.get()
 
         if not all(
             [
@@ -226,7 +335,7 @@ class ExploreTransformations(
             ]
         ):
             raise ValueError(
-                "Perspective missing required components for transformation"
+                "Source/target Perspectives missing required components for transformation"
             )
 
         t, _ = t_result
@@ -236,13 +345,13 @@ class ExploreTransformations(
         a_plus, _ = a_plus_result
         a_minus, _ = a_minus_result
 
-        # Create Transformation node
+        # Create Transformation node scoped to Nexus + edge
         transformation = Transformation()
-        transformation.set_perspective(pp)
+        transformation.set_nexus(nexus)
+        transformation.set_on_edge(ac_edge)
         transformation.save()
 
         # Create neutral category transitions (Ac: T → A, Re: A → T)
-        # Ac (Action category): contextualized taxonomy category for T → A
         ac_transition = self._create_transition(
             headline=tetrad.ac.headline,
             statement=tetrad.ac.statement,
@@ -259,7 +368,7 @@ class ExploreTransformations(
         )
         self._report.node_created(ac_transition, meta={"position": POSITION_AC})
 
-        # Re (Reflection category): contextualized taxonomy category for A → T
+        # Re (Reflection category): A → T
         re_transition = self._create_transition(
             headline=tetrad.re.headline,
             statement=tetrad.re.statement,
@@ -276,7 +385,6 @@ class ExploreTransformations(
         )
         self._report.node_created(re_transition, meta={"position": POSITION_RE})
 
-        # Create transitions for each position using PP aspects as source/target
         # Ac+: T- → A+ (positive action: escape T- problems toward A+ benefits)
         ac_plus_transition = self._create_transition(
             headline=tetrad.ac_plus.headline,
@@ -331,7 +439,7 @@ class ExploreTransformations(
             re_minus_transition,
             relationship=ReMinusRelationship(
                 alias=POSITION_RE_MINUS,
-                heuristic_similarity=None,  # Negative aspects don't have HS
+                heuristic_similarity=None,
                 insight=tetrad.re_minus.insight,
                 proactiveness=tetrad.re_minus.proactiveness,
             ),
@@ -352,7 +460,7 @@ class ExploreTransformations(
             ac_minus_transition,
             relationship=AcMinusRelationship(
                 alias=POSITION_AC_MINUS,
-                heuristic_similarity=None,  # Negative aspects don't have HS
+                heuristic_similarity=None,
                 insight=tetrad.ac_minus.insight,
                 proactiveness=tetrad.ac_minus.proactiveness,
             ),
@@ -376,13 +484,13 @@ class ExploreTransformations(
         explanation: str,
     ) -> Transition:
         """
-        Create a Transition node between PP aspects.
+        Create a Transition node between components.
 
         Args:
             headline: Short headline (~7 words) - stored on Transition.instruction and Rationale.headline
             statement: Fuller statement (1-15 words) - stored on Rationale.summary
-            source: The source component from the Perspective (e.g., T-)
-            target: The target component from the Perspective (e.g., A+)
+            source: The source component (e.g., T-)
+            target: The target component (e.g., A+)
             explanation: Full explanation - stored on Rationale.text
 
         Returns:
@@ -393,10 +501,6 @@ class ExploreTransformations(
         transition.set_target(target)
         transition.commit()
 
-        # Add rationale with three-tier structure:
-        # - headline: short essence (~7 words)
-        # - summary: fuller statement (1-15 words)
-        # - text: full explanation
         rationale = Rationale(
             headline=headline,
             summary=statement,

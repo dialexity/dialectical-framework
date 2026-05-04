@@ -2086,6 +2086,7 @@ def test_wheel_multiple_transformations():
     at different insight/proactiveness levels.
     """
     from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.scope_context import scope
 
@@ -2113,6 +2114,11 @@ def test_wheel_multiple_transformations():
             intent=f"pp_{random.random()}",
         )
         pp.commit()
+
+        # Create Nexus (exploration context for transformations)
+        nexus = Nexus(intent=f"nexus_{uid}")
+        nexus.commit()
+        pp.nexus.connect(nexus)
 
         # Create Cycle
         cycle = Cycle(intent="preset:balanced")
@@ -2158,8 +2164,9 @@ def test_wheel_multiple_transformations():
             re_plus_trans.commit()
             trans.re_plus.connect(re_plus_trans, relationship=RePlusRelationship(alias="Re+"))
 
-        # Create first transformation and connect to causality step (wheel_trans1)
+        # Create first transformation spanning the edge pair (wheel_trans1, wheel_trans2)
         trans1 = Transformation(intent=f"multi_trans1_{uid}")
+        trans1.set_nexus(nexus)
         trans1.set_on_edge(wheel_trans1)
         trans1.save()
         add_required_transitions(trans1)
@@ -2168,8 +2175,10 @@ def test_wheel_multiple_transformations():
         # Verify wheel has 1 transformation
         assert len(wheel.transformations) == 1, "Wheel should have 1 transformation"
 
-        # Create second transformation and connect to SAME causality step - should succeed
+        # Create second transformation spanning the SAME edge pair - should succeed
+        # (multiple alternatives at different insight/proactiveness levels)
         trans2 = Transformation(intent=f"multi_trans2_{uid}")
+        trans2.set_nexus(nexus)
         trans2.set_on_edge(wheel_trans1)
         trans2.save()
         add_required_transitions(trans2)
@@ -2178,14 +2187,14 @@ def test_wheel_multiple_transformations():
         # Verify wheel now has 2 transformations
         assert len(wheel.transformations) == 2, "Wheel should have 2 transformations"
 
-        # Verify both transformations point to the same edge
+        # Verify both transformations are linked to the action-direction edge
         for tr in wheel.transformations:
             edge_result = tr.edge.get()
-            assert edge_result is not None
-            edge_transition, _ = edge_result
-            assert edge_transition.hash == wheel_trans1.hash, "Transformation should point to wheel_trans1"
+            assert edge_result is not None, "Transformation should be linked to an edge"
+            linked_edge, _ = edge_result
+            assert linked_edge.hash == wheel_trans1.hash, "Should be linked to wheel_trans1 (action direction)"
 
-        print("✓ Edge can have multiple transformations")
+        print("✓ Edge pair can have multiple transformations")
 
 
 # =============================================================================
@@ -2230,6 +2239,9 @@ def test_transformation_six_positions():
         POSITION_AC_PLUS, POSITION_AC_MINUS,
         POSITION_RE_PLUS, POSITION_RE_MINUS,
     )
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.case import Case
+    from dialectical_framework.graph.scope_context import scope
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.relationships.polarity_relationship import (
         AcRelationship, ReRelationship,
@@ -2239,165 +2251,188 @@ def test_transformation_six_positions():
 
     uid = random.random()
 
-    # Create components for Perspective
-    pp_comps = {}
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = Statement(text=f"Trans six PP {stmt} {uid}", meaning=f"meaning:{stmt}")
-        comp.commit()
-        pp_comps[pos] = comp
+    case_node = Case()
+    case_node.commit()
 
-    # Create PP with Polarity
-    pp, _ = create_pp_from_components(
-        t=pp_comps['t'],
-        a=pp_comps['a'],
-        t_plus=pp_comps['t_plus'],
-        t_minus=pp_comps['t_minus'],
-        a_plus=pp_comps['a_plus'],
-        a_minus=pp_comps['a_minus'],
-        intent=f"trans_six_{uid}",
-    )
-    pp.commit()
+    with scope(case_node.sid):
+        # Create components for Perspective
+        pp_comps = {}
+        for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                           ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+            comp = Statement(text=f"Trans six PP {stmt} {uid}", meaning=f"meaning:{stmt}")
+            comp.commit()
+            pp_comps[pos] = comp
+
+        # Create PP with Polarity
+        pp, _ = create_pp_from_components(
+            t=pp_comps['t'],
+            a=pp_comps['a'],
+            t_plus=pp_comps['t_plus'],
+            t_minus=pp_comps['t_minus'],
+            a_plus=pp_comps['a_plus'],
+            a_minus=pp_comps['a_minus'],
+            intent=f"trans_six_{uid}",
+        )
+        pp.commit()
+
+        # Create Nexus (exploration context)
+        nexus = Nexus(intent=f"nexus_six_{uid}")
+        nexus.commit()
+        pp.nexus.connect(nexus)
 
     # Create Cycle
-    cycle = Cycle(intent="preset:balanced")
-    cycle.set_perspectives([pp])
-    cycle.commit()
+        cycle = Cycle(intent="preset:balanced")
+        cycle.set_perspectives([pp])
+        cycle.commit()
 
-    # Create Wheel
-    wheel = Wheel(intent=f"wheel_{uid}")
-    wheel.save()
+        # Create Wheel
+        wheel = Wheel(intent=f"wheel_{uid}")
+        wheel.save()
 
-    # Add wheel-level transitions (required before connecting to cycle)
-    wheel_trans1 = Transition()
-    wheel_trans1.set_source(pp_comps['t']).set_target(pp_comps['a'])
-    wheel_trans1.commit()
-    wheel_trans1.cycle.connect(wheel)
+        # Add wheel-level transitions (required before connecting to cycle)
+        wheel_trans1 = Transition()
+        wheel_trans1.set_source(pp_comps['t']).set_target(pp_comps['a'])
+        wheel_trans1.commit()
+        wheel_trans1.cycle.connect(wheel)
 
-    wheel_trans2 = Transition()
-    wheel_trans2.set_source(pp_comps['a']).set_target(pp_comps['t'])
-    wheel_trans2.commit()
-    wheel_trans2.cycle.connect(wheel)
+        wheel_trans2 = Transition()
+        wheel_trans2.set_source(pp_comps['a']).set_target(pp_comps['t'])
+        wheel_trans2.commit()
+        wheel_trans2.cycle.connect(wheel)
 
-    # Now connect wheel to cycle and commit it
-    cycle.wheels.connect(wheel)
-    wheel.commit()
+        # Now connect wheel to cycle and commit it
+        cycle.wheels.connect(wheel)
+        wheel.commit()
 
-    # Create transformation with 6 transition positions
-    # Transformation now belongs to a causality step (wheel transition)
-    transformation = Transformation(intent="test_6_positions")
-    transformation.set_on_edge(wheel_trans1)
-    transformation.save()
+        # Create transformation with 6 transition positions
+        # Transformation spans an opposite edge pair (wheel_trans1, wheel_trans2)
+        transformation = Transformation(intent="test_6_positions")
+        transformation.set_nexus(nexus)
+        transformation.set_on_edge(wheel_trans1)
+        transformation.save()
 
-    # Define transitions: position -> (source_pos, target_pos)
-    # Ac: T → A, Ac+: T- → A+, Ac-: T+ → A-
-    # Re: A → T, Re+: A- → T+, Re-: A+ → T-
-    transition_specs = [
-        (POSITION_AC, 't', 'a', transformation.ac, AcRelationship),
-        (POSITION_RE, 'a', 't', transformation.re, ReRelationship),
-        (POSITION_AC_PLUS, 't_minus', 'a_plus', transformation.ac_plus, AcPlusRelationship),
-        (POSITION_AC_MINUS, 't_plus', 'a_minus', transformation.ac_minus, AcMinusRelationship),
-        (POSITION_RE_PLUS, 'a_minus', 't_plus', transformation.re_plus, RePlusRelationship),
-        (POSITION_RE_MINUS, 'a_plus', 't_minus', transformation.re_minus, ReMinusRelationship),
-    ]
+        # Define transitions: position -> (source_pos, target_pos)
+        # Ac: T → A, Ac+: T- → A+, Ac-: T+ → A-
+        # Re: A → T, Re+: A- → T+, Re-: A+ → T-
+        transition_specs = [
+            (POSITION_AC, 't', 'a', transformation.ac, AcRelationship),
+            (POSITION_RE, 'a', 't', transformation.re, ReRelationship),
+            (POSITION_AC_PLUS, 't_minus', 'a_plus', transformation.ac_plus, AcPlusRelationship),
+            (POSITION_AC_MINUS, 't_plus', 'a_minus', transformation.ac_minus, AcMinusRelationship),
+            (POSITION_RE_PLUS, 'a_minus', 't_plus', transformation.re_plus, RePlusRelationship),
+            (POSITION_RE_MINUS, 'a_plus', 't_minus', transformation.re_minus, ReMinusRelationship),
+        ]
 
-    for pos_name, source_pos, target_pos, manager, rel_class in transition_specs:
-        trans = Transition()
-        trans.set_source(pp_comps[source_pos])
-        trans.set_target(pp_comps[target_pos])
-        trans.commit()
-        manager.connect(trans, relationship=rel_class(alias=pos_name))
+        for pos_name, source_pos, target_pos, manager, rel_class in transition_specs:
+            trans = Transition()
+            trans.set_source(pp_comps[source_pos])
+            trans.set_target(pp_comps[target_pos])
+            trans.commit()
+            manager.connect(trans, relationship=rel_class(alias=pos_name))
 
-    # Commit transformation (cardinality enforced here)
-    transformation.commit()
+        # Commit transformation (cardinality enforced here)
+        transformation.commit()
 
-    # Verify all positions are accessible
-    for pos_name, _, _, manager, _ in transition_specs:
-        result = manager.get()
-        assert result is not None, f"Position {pos_name} should have transition"
-        trans, rel = result
-        assert rel.alias == pos_name, f"Position {pos_name} should have correct alias"
+        # Verify all positions are accessible
+        for pos_name, _, _, manager, _ in transition_specs:
+            result = manager.get()
+            assert result is not None, f"Position {pos_name} should have transition"
+            trans, rel = result
+            assert rel.alias == pos_name, f"Position {pos_name} should have correct alias"
 
-    # Verify get_relationship_manager_by_position works
-    for pos_name, _, _, _, _ in transition_specs:
-        manager = transformation.get_relationship_manager_by_position(pos_name)
-        assert manager.count() == 1, f"Position {pos_name} should have exactly one transition"
+        # Verify get_relationship_manager_by_position works
+        for pos_name, _, _, _, _ in transition_specs:
+            manager = transformation.get_relationship_manager_by_position(pos_name)
+            assert manager.count() == 1, f"Position {pos_name} should have exactly one transition"
 
-    print("✓ Transformation 6-position structure works correctly")
+        print("✓ Transformation 6-position structure works correctly")
 
 
 def test_transformation_incomplete():
     """Test that Transformation commit fails when required positions (Ac+, Re+) are missing."""
     import pytest
     from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.case import Case
+    from dialectical_framework.graph.scope_context import scope
     from dialectical_framework.graph.nodes.transition import Transition
     from dialectical_framework.graph.relationships.polarity_relationship import AcRelationship
 
     uid = random.random()
 
-    # Create components for Perspective
-    pp_comps = {}
-    for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
-                       ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
-        comp = Statement(text=f"Trans incomplete PP {stmt} {uid}", meaning=f"meaning:{stmt}")
-        comp.commit()
-        pp_comps[pos] = comp
+    case_node = Case()
+    case_node.commit()
 
-    # Create PP with Polarity
-    pp, _ = create_pp_from_components(
-        t=pp_comps['t'],
-        a=pp_comps['a'],
-        t_plus=pp_comps['t_plus'],
-        t_minus=pp_comps['t_minus'],
-        a_plus=pp_comps['a_plus'],
-        a_minus=pp_comps['a_minus'],
-        intent=f"trans_incomplete_{uid}",
-    )
-    pp.commit()
+    with scope(case_node.sid):
+        # Create components for Perspective
+        pp_comps = {}
+        for pos, stmt in [('t', 'T'), ('t_plus', 'T+'), ('t_minus', 'T-'),
+                           ('a', 'A'), ('a_plus', 'A+'), ('a_minus', 'A-')]:
+            comp = Statement(text=f"Trans incomplete PP {stmt} {uid}", meaning=f"meaning:{stmt}")
+            comp.commit()
+            pp_comps[pos] = comp
 
-    # Create Cycle
-    cycle = Cycle(intent="preset:balanced")
-    cycle.set_perspectives([pp])
-    cycle.commit()
+        # Create PP with Polarity
+        pp, _ = create_pp_from_components(
+            t=pp_comps['t'],
+            a=pp_comps['a'],
+            t_plus=pp_comps['t_plus'],
+            t_minus=pp_comps['t_minus'],
+            a_plus=pp_comps['a_plus'],
+            a_minus=pp_comps['a_minus'],
+            intent=f"trans_incomplete_{uid}",
+        )
+        pp.commit()
 
-    # Create Wheel
-    wheel = Wheel(intent=f"wheel_{uid}")
-    wheel.save()
+        # Create Nexus (exploration context)
+        nexus = Nexus(intent=f"nexus_incomplete_{uid}")
+        nexus.commit()
+        pp.nexus.connect(nexus)
 
-    # Add wheel-level transitions (required before connecting to cycle)
-    from dialectical_framework.graph.nodes.transition import Transition as Trans
-    wheel_trans1 = Trans()
-    wheel_trans1.set_source(pp_comps['t']).set_target(pp_comps['a'])
-    wheel_trans1.commit()
-    wheel_trans1.cycle.connect(wheel)
+        # Create Cycle
+        cycle = Cycle(intent="preset:balanced")
+        cycle.set_perspectives([pp])
+        cycle.commit()
 
-    wheel_trans2 = Trans()
-    wheel_trans2.set_source(pp_comps['a']).set_target(pp_comps['t'])
-    wheel_trans2.commit()
-    wheel_trans2.cycle.connect(wheel)
+        # Create Wheel
+        wheel = Wheel(intent=f"wheel_{uid}")
+        wheel.save()
 
-    # Now connect wheel to cycle
-    cycle.wheels.connect(wheel)
-    wheel.commit()
+        # Add wheel-level transitions (required before connecting to cycle)
+        from dialectical_framework.graph.nodes.transition import Transition as Trans
+        wheel_trans1 = Trans()
+        wheel_trans1.set_source(pp_comps['t']).set_target(pp_comps['a'])
+        wheel_trans1.commit()
+        wheel_trans1.cycle.connect(wheel)
 
-    # Create transformation with only Ac position (missing required Ac+ and Re+)
-    transformation = Transformation(intent="test_incomplete")
-    transformation.set_on_edge(wheel_trans1)
-    transformation.save()
+        wheel_trans2 = Trans()
+        wheel_trans2.set_source(pp_comps['a']).set_target(pp_comps['t'])
+        wheel_trans2.commit()
+        wheel_trans2.cycle.connect(wheel)
 
-    # Add only one transition (Ac: T → A) - optional position
-    trans = Transition()
-    trans.set_source(pp_comps['t'])
-    trans.set_target(pp_comps['a'])
-    trans.commit()
-    transformation.ac.connect(trans, relationship=AcRelationship(alias="Ac"))
+        # Now connect wheel to cycle
+        cycle.wheels.connect(wheel)
+        wheel.commit()
 
-    # Verify commit fails due to missing required positions (Ac+ and Re+)
-    with pytest.raises(ValueError) as exc_info:
-        transformation.commit()
+        # Create transformation with only Ac position (missing required Ac+ and Re+)
+        transformation = Transformation(intent="test_incomplete")
+        transformation.set_nexus(nexus)
+        transformation.set_on_edge(wheel_trans1)
+        transformation.save()
 
-    assert "ac_plus" in str(exc_info.value), "Error should mention missing ac_plus"
-    assert "re_plus" in str(exc_info.value), "Error should mention missing re_plus"
+        # Add only one transition (Ac: T → A) - optional position
+        trans = Transition()
+        trans.set_source(pp_comps['t'])
+        trans.set_target(pp_comps['a'])
+        trans.commit()
+        transformation.ac.connect(trans, relationship=AcRelationship(alias="Ac"))
+
+        # Verify commit fails due to missing required positions (Ac+ and Re+)
+        with pytest.raises(ValueError) as exc_info:
+            transformation.commit()
+
+        assert "ac_plus" in str(exc_info.value), "Error should mention missing ac_plus"
+        assert "re_plus" in str(exc_info.value), "Error should mention missing re_plus"
 
     print("✓ Transformation cardinality enforcement works correctly")
 

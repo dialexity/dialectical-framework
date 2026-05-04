@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.settings import Settings
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 
@@ -179,7 +178,7 @@ class WheelRepository:
         if not perspectives:
             return []
 
-        pp_hashes = sorted([pp.hash for pp in perspectives])
+        pp_hashes = sorted([pp.hash for pp in perspectives if pp.hash is not None])
 
         # Find all Wheels belonging to Cycles with exactly these Perspective hashes
         query = """
@@ -205,73 +204,3 @@ class WheelRepository:
 
         return [row["w"] for row in results]
 
-    @inject
-    def find_parent_wheels(
-        self,
-        wheel: Wheel,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        sid: Optional[str] = Provide[DI.sid],
-        settings: Settings = Provide[DI.settings],
-    ) -> list[Wheel]:
-        """
-        Find all potential parent wheels for Transformation computation.
-
-        Returns wheels that:
-        - Have one fewer Perspective than this wheel
-        - Have a Perspective set that is a subset of this wheel's Perspectives
-        - Match the effective intent
-
-        Args:
-            wheel: The Wheel to find parents for
-            graph_db: Graph database (injected)
-            sid: Case ID (injected from DI context)
-
-        Returns:
-            List of parent Wheel nodes
-        """
-        from dialectical_framework.graph.nodes.wheel import Wheel as WheelNode
-
-        wheel_pp_hashes = [pp.hash for pp in wheel._perspectives]
-        if len(wheel_pp_hashes) <= 1:
-            return []  # Layer 1 wheels have no parents
-
-        effective_intent = wheel.get_effective_intent() or settings.cycle_preset
-        wheel_pp_set = set(wheel_pp_hashes)
-        target_layer = len(wheel_pp_hashes) - 1
-
-        # Get the Cycle
-        cycle_result = wheel.cycle.get()
-        if not cycle_result:
-            return []
-        cycle_obj, _ = cycle_result
-
-        # Query all wheels belonging to this Cycle, filter in Python
-        query = """
-        MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
-        WHERE id(c) = $cycle_id AND w.sid = $sid
-        RETURN w
-        """
-        results = list(graph_db.execute_and_fetch(query, {
-            "cycle_id": cycle_obj._id,
-            "sid": sid,
-        }))
-
-        parents: list[WheelNode] = []
-        for row in results:
-            candidate: WheelNode = row["w"]
-            candidate_pp_hashes = [pp.hash for pp in candidate._perspectives]
-
-            # Check layer match (one fewer Perspective)
-            if len(candidate_pp_hashes) != target_layer:
-                continue
-
-            candidate_pp_set = set(candidate_pp_hashes)
-
-            # Check if candidate's Perspectives are a subset of this wheel's Perspectives
-            if candidate_pp_set.issubset(wheel_pp_set):
-                # Check intent match
-                candidate_intent = candidate.get_effective_intent() or settings.cycle_preset
-                if candidate_intent == effective_intent:
-                    parents.append(candidate)
-
-        return parents

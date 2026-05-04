@@ -127,13 +127,29 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Get causality edges in order by following source->target chain.
 
         Each edge is a Transition representing one step in the wheel's causality sequence.
-        Transformations belong to individual edges.
+        Transformations span pairs of opposite edges.
 
         Returns:
             List of Transition nodes in order, or empty list if no edges
         """
         all_edges = [edge for edge, _ in self._edges.all()]
         return order_transitions(all_edges)
+
+    @property
+    def edge_pairs(self) -> list[tuple[Transition, Transition]]:
+        """
+        Get pairs of diametrically opposite edges.
+
+        A wheel with 2N edges has N opposite pairs. Edge at index i pairs with
+        edge at index (i + N) % 2N. Each pair corresponds to one Transformation
+        (ac_edge direction and re_edge direction).
+
+        Returns:
+            List of (ac_edge, re_edge) tuples — N pairs for 2N edges
+        """
+        ordered_edges = self.edges
+        n = len(ordered_edges) // 2
+        return [(ordered_edges[i], ordered_edges[(i + n) % len(ordered_edges)]) for i in range(n)]
 
     @property
     def transformations(self) -> list[Transformation]:

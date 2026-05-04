@@ -6,7 +6,7 @@ allowing exploration of various transformation depths.
 
 Usage:
     service = ActionExtraction()
-    candidates = await service.resolve(pp, input_text, not_like_these=existing)
+    candidates = await service.resolve(edge, input_text, not_like_these=existing)
     for c in candidates:
         print(f"{c.insight_label}: {c.statement}")
 """
@@ -25,6 +25,7 @@ from dialectical_framework.agents.reasonable_concern import \
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, insight_label_to_value, proactiveness_label_to_value)
+from dialectical_framework.utils.edge_context import build_edge_context as _build_edge_context
 from dialectical_framework.protocols.has_config import SettingsAware
 
 # Insight hierarchy categories for exploration
@@ -52,7 +53,7 @@ INSIGHT_CATEGORIES = {
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transformation import Transformation
-    from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.transition import Transition
 
 
 SYSTEM_PROMPT = """You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
@@ -156,15 +157,18 @@ class ActionExtraction(
 
     async def resolve(
         self,
-        pp: Perspective,
+        edge: Transition,
         input_text: str = "",
         not_like_these: Optional[list[Transformation]] = None,
     ) -> list[ActionCandidateResultDto]:
         """
-        Extract Ac+ candidates for a Perspective.
+        Extract Ac+ candidates for a wheel edge.
+
+        The edge's source segment becomes the T-side context and
+        the edge's target segment becomes the A-side context.
 
         Args:
-            pp: The Perspective to generate candidates for (must be complete)
+            edge: The wheel edge (Transition between main statements)
             input_text: Optional source content context
             not_like_these: Existing transformations to avoid duplicating
 
@@ -173,63 +177,39 @@ class ActionExtraction(
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
-        if not pp.is_complete():
-            raise ValueError("Perspective must have all 6 positions to extract actions")
+        source_segment = edge.get_source_wheel_segment()
+        target_segment = edge.get_target_wheel_segment()
+        if not source_segment or not target_segment:
+            raise ValueError(f"Cannot resolve segments for edge {edge.short_hash}")
 
-        # Initialize conversation
+        if not source_segment.is_complete() or not target_segment.is_complete():
+            raise ValueError("Both segments must be complete to extract actions")
+
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        # Get PP context
-        pp_context = self._build_pp_context(pp)
+        context = _build_edge_context(source_segment, target_segment)
 
-        # Build exclusion list
         exclusion_statements = self._build_exclusion_list(not_like_these or [])
 
-        # Generate candidates in parallel - one per hierarchy category
         tasks = [
             self._generate_candidate_for_category(
-                pp_context, input_text, category, info, exclusion_statements
+                context, input_text, category, info, exclusion_statements
             )
             for category, info in INSIGHT_CATEGORIES.items()
         ]
         candidates = await asyncio.gather(*tasks)
 
-        # Convert to results with numeric coordinates
         results = [self._to_result_dto(c) for c in candidates if c is not None]
-
-        # Filter out any that match exclusions
         results = [r for r in results if r.statement not in exclusion_statements]
 
-        # Report artifacts
-        self._report.artifacts["pp_hash"] = pp.short_hash
+        self._report.artifacts["edge_hash"] = edge.short_hash
         self._report.artifacts["candidate_count"] = len(results)
         self._report.artifacts["insight_categories"] = list(INSIGHT_CATEGORIES.keys())
         self._report.summary = (
-            f"Extracted {len(results)} Ac+ candidates for PP {pp.short_hash}"
+            f"Extracted {len(results)} Ac+ candidates for edge {edge.short_hash}"
         )
 
         return results
-
-    def _build_pp_context(self, pp: Perspective) -> str:
-        """Build context string from Perspective components."""
-        parts = []
-
-        positions = [
-            ("T", pp.t),
-            ("T+", pp.t_plus),
-            ("T-", pp.t_minus),
-            ("A", pp.a),
-            ("A+", pp.a_plus),
-            ("A-", pp.a_minus),
-        ]
-
-        for name, manager in positions:
-            result = manager.get()
-            if result:
-                comp, _ = result
-                parts.append(f"{name}: {comp.text}")
-
-        return "\n".join(parts)
 
     def _build_exclusion_list(self, transformations: list[Transformation]) -> list[str]:
         """Extract Ac+ statements from existing transformations to avoid."""
@@ -246,7 +226,7 @@ class ActionExtraction(
 
     async def _generate_candidate_for_category(
         self,
-        pp_context: str,
+        edge_context: str,
         input_text: str,
         category: str,
         category_info: dict,
@@ -272,7 +252,7 @@ Generate something DIFFERENT from the statements above.
         prompt = f"""{context_section}Given this Perspective:
 
 <perspective>
-{pp_context}
+{edge_context}
 </perspective>
 {exclusion_section}
 Generate an Ac+ (Positive Action) statement at the **{category.upper()}** insight level.

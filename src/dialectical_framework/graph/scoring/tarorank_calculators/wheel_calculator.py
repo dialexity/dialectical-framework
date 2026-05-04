@@ -47,7 +47,7 @@ class WheelCalculator(BaseCalculator):
             self.scorer.calculate_score(cycle_result[0], force=force)
 
         # Score Transformations
-        for transformation, _ in wheel.transformations.all():
+        for transformation in wheel.transformations:
             self.scorer.calculate_score(transformation, force=force)
 
     def calculate_relevance(self, wheel: Wheel) -> Optional[float]:
@@ -86,7 +86,7 @@ class WheelCalculator(BaseCalculator):
                 values.append(trans_r)
 
         # Transformation Rs
-        for transformation, _ in wheel.transformations.all():
+        for transformation in wheel.transformations:
             trans_r = transformation.relevance
             if trans_r is not None:
                 values.append(trans_r)
@@ -156,7 +156,7 @@ class WheelCalculator(BaseCalculator):
                 all_terms.append(wheel_trans_p)
 
         # Transformation Ps
-        for transformation, _ in wheel.transformations.all():
+        for transformation in wheel.transformations:
             trans_p = transformation.probability
             if trans_p is not None:
                 all_terms.append(trans_p)
@@ -180,5 +180,5 @@ class WheelCalculator(BaseCalculator):
             self.scorer.clear_scores(cycle_result[0])
 
         # Clear Transformations
-        for transformation, _ in wheel.transformations.all():
+        for transformation in wheel.transformations:
             self.scorer.clear_scores(transformation)

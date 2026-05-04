@@ -25,6 +25,9 @@ from dialectical_framework.graph.relationship_manager import RelationshipTo, Rel
 from dialectical_framework.graph.relationships.action_reflection_relationship import (
     ActionReflectionRelationship,
 )
+from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
+    BelongsToNexusRelationship,
+)
 from dialectical_framework.graph.relationships.polarity_relationship import (
     PolarityRelationship,
     AcRelationship,
@@ -36,6 +39,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 )
 
 if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.wheel import Wheel, WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.transition import Transition
 
@@ -76,52 +80,124 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
 
     Lifecycle (IncrementalBuildMixin pattern):
         1. Create: transformation = Transformation()
-        2. Set edge: transformation.set_on_edge(wheel_edge)
+        2. Set edge: transformation.set_on_edge(edge)
         3. Save (HEAD state): transformation.save()
         4. Add transitions: transformation.ac_plus.connect(transition), etc.
         5. Commit (immutable): transformation.commit()
 
     Relationships:
-    - Transformations belong to an edge (wheel Transition) via ACTION_REFLECTION
-    - Access via: transformation.edge.get() to get the (Transition, rel) tuple
+    - Transformation links to exactly one wheel edge via ACTION_REFLECTION
+    - Access via: transformation.edge.get() to get (Transition, rel) or None
     - They contain 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-)
     """
 
     # Hash inputs - set before save() to include in hash
-    _edge_hash: Optional[str] = None
-    # Transient ref for auto-connecting after save
+    _nexus_hash: Optional[str] = None
+    # Transient refs for auto-connecting after save
+    _nexus_ref: Optional[Nexus] = None
     _edge_ref: Optional[Transition] = None
 
-    def set_on_edge(self, edge: Transition) -> Transformation:
+    def set_nexus(self, nexus: Nexus) -> Transformation:
         """
-        Set the edge (wheel transition) for this transformation.
+        Set the Nexus scope for this transformation.
 
-        This stores the reference for hash computation and auto-connection after save.
-        The Transition must already be committed.
+        The nexus hash is included in the Transformation's identity hash,
+        ensuring the same 6 positions produce different Transformations
+        in different exploration contexts.
 
         Args:
-            edge: The committed wheel Transition this transformation is an alternative for
+            nexus: The committed Nexus this transformation belongs to
 
         Returns:
             Self for chaining
 
         Raises:
-            ValueError: If Transition is not committed
+            ValueError: If Nexus is not committed
+        """
+        if not nexus.is_committed:
+            raise ValueError(
+                "Nexus must be committed before setting on transformation."
+            )
+        self._nexus_hash = nexus.hash
+        self._nexus_ref = nexus
+        return self
+
+    def set_on_edge(self, edge: Transition) -> Transformation:
+        """
+        Set the wheel edge this Transformation belongs to.
+
+        Before commit: stores the ref for auto-connecting during commit().
+        After commit: validates the edge belongs to the same Nexus, then connects
+        immediately (analytical relationship, allowed post-commit).
+
+        Args:
+            edge: The committed wheel Transition (action direction)
+
+        Returns:
+            Self for chaining
+
+        Raises:
+            ValueError: If Transition is not committed, or (post-commit) if
+                        the edge belongs to a different Nexus
         """
         if not edge.is_committed:
             raise ValueError(
                 "Edge (Transition) must be committed before setting on transformation."
             )
-        self._edge_hash = edge.hash
-        self._edge_ref = edge
+
+        if not self.is_committed:
+            self._edge_ref = edge
+            return self
+
+        # Post-commit: validate Nexus match and connect immediately
+        self._validate_edge_nexus(edge)
+        self.edge.connect(edge)
         return self
 
-    # The edge this transformation is an alternative for
+    def _validate_edge_nexus(self, edge: Transition) -> None:
+        """Validate that edge belongs to the same Nexus as this Transformation."""
+        from dialectical_framework.graph.nodes.wheel import Wheel
+
+        edge_nexus_hash: Optional[str] = None
+        for container, _ in edge.cycle.all():
+            if isinstance(container, Wheel):
+                for pp in container._perspectives:
+                    nexus_result = pp.nexus.get()
+                    if nexus_result:
+                        edge_nexus_hash = nexus_result[0].hash
+                        break
+                if edge_nexus_hash:
+                    break
+
+        if not edge_nexus_hash:
+            raise ValueError("Cannot determine Nexus for the target edge.")
+
+        my_nexus_result = self.nexus.get()
+        if not my_nexus_result:
+            raise ValueError("Transformation has no Nexus set.")
+
+        my_nexus_hash = my_nexus_result[0].hash
+        if my_nexus_hash != edge_nexus_hash:
+            raise ValueError(
+                f"Cannot link: edge belongs to Nexus {edge_nexus_hash[:7]}, "
+                f"but Transformation belongs to Nexus {my_nexus_hash[:7]}."
+            )
+
+    # Nexus scope: Transformation belongs to exactly one Nexus (exploration context)
+    nexus: ClassVar[RelationshipManager[Nexus]] = RelationshipTo(
+        "Nexus",
+        model=BelongsToNexusRelationship,
+        cardinality=(1, 1)  # Required - scopes the transformation's identity
+    )
+
+    # Action-direction edge this transformation belongs to.
     # Uses ACTION_REFLECTION relationship: Transformation --ACTION_REFLECTION--> Transition
+    # Each Transformation is unique to its wheel edge — the same logical edge in a
+    # different wheel gets its own Transformation (richer context → better result).
     edge: ClassVar[RelationshipManager[Transition]] = RelationshipTo(
         "Transition",
         model=ActionReflectionRelationship,
-        cardinality=(1, 1)  # Required - transformation belongs to one edge
+        cardinality=(1, 1)  # Exactly one wheel edge
     )
 
     # 6 transition position relationships (Ac-Re structure)
@@ -168,7 +244,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
 
     def get_wheel(self) -> Wheel | None:
         """
-        Get the Wheel this transformation belongs to (via edge).
+        Get the Wheel this transformation belongs to (via edges).
 
         Returns:
             Wheel instance or None if not connected
@@ -176,9 +252,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         edge_result = self.edge.get()
         if edge_result:
             edge_transition, _ = edge_result
-            # Edge is a wheel transition, find its wheel
             for wheel, _ in edge_transition.cycle.all():
-                # cycle relationship returns Cycle/Wheel containers
                 from dialectical_framework.graph.nodes.wheel import Wheel
                 if isinstance(wheel, Wheel):
                     return wheel
@@ -203,33 +277,34 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         """
         Collect structure hash parts for this Transformation.
 
-        Parts: edge (Transition) hash, hashes of all 6 transition positions.
-        Source/target segments are derivable from transitions (no need to store indices).
+        Parts: nexus hash + hashes of all 6 transition positions.
+        The nexus hash scopes the identity so the same positions in different
+        exploration contexts produce different Transformations.
 
         Returns:
             List of strings for hash computation
 
         Raises:
-            ValueError: If edge is not set
+            ValueError: If nexus is not set
         """
         parts = []
 
-        # Get edge hash
-        step_hash = self._edge_hash
-        if not step_hash:
-            edge_result = self.edge.get()
-            if edge_result:
-                edge_transition, _ = edge_result
-                if edge_transition.is_committed:
-                    step_hash = edge_transition.hash
+        # Get nexus hash (scopes transformation identity)
+        nexus_hash = self._nexus_hash
+        if not nexus_hash:
+            nexus_result = self.nexus.get()
+            if nexus_result:
+                nexus_node, _ = nexus_result
+                if nexus_node.is_committed:
+                    nexus_hash = nexus_node.hash
 
-        if not step_hash:
+        if not nexus_hash:
             raise ValueError(
-                "Transformation must have an edge set before computing hash. "
-                "Use set_on_edge() first."
+                "Transformation must have a nexus set before computing hash. "
+                "Use set_nexus() first."
             )
 
-        parts.append(step_hash)
+        parts.append(nexus_hash)
 
         # Get hashes for all 6 transition positions in order
         for manager in [self.ac, self.re, self.ac_plus, self.ac_minus, self.re_plus, self.re_minus]:
@@ -256,7 +331,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         Commit this transformation: save (if needed), compute hash, persist, and create relationships.
 
         Lifecycle:
-        1. Create transformation and set_on_edge()
+        1. Create transformation and set_on_edge(edge)
         2. (Optional) save() and add transitions explicitly
         3. commit() - auto-saves if needed, computes hash from components, makes immutable
 
@@ -273,10 +348,15 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
             if result is not None and result._id is not None:
                 self._id = result._id
 
+        # Auto-connect nexus BEFORE commit
+        if self._nexus_ref and self.nexus.count() == 0:
+            self.nexus.connect(self._nexus_ref)
+            self._nexus_ref = None
+
         # Auto-connect edge BEFORE commit
-        if self._edge_ref and self.edge.count() == 0:
+        if self._edge_ref and self.edge.get() is None:
             self.edge.connect(self._edge_ref)
-            self._edge_ref = None  # Clear transient ref
+            self._edge_ref = None
 
         # Call IncrementalBuildMixin.commit() which validates children and computes hash
         super().commit()
