@@ -181,6 +181,7 @@ class TransitionDto(BaseModel):
     explanation: str = Field(
         description="Full explanation of why this transition makes sense"
     )
+    haiku: str = Field(description="3-line haiku capturing the transition essence")
     insight: float = Field(ge=0.0, le=1.0, description="Insight level (0.0-1.0)")
     proactiveness: float = Field(
         ge=0.0, le=1.0, description="Proactiveness level (0.0-1.0)"
@@ -196,6 +197,7 @@ class TetradCompletionDto(BaseModel):
     re_plus_headline: str = Field(description="Re+ headline (component length)")
     re_plus_statement: str = Field(description="Re+ statement (1-15 words)")
     re_plus_explanation: str = Field(description="How Re+ complements Ac+")
+    re_plus_haiku: str = Field(description="Re+ haiku (3-line poem)")
     re_plus_insight_label: str = Field(description="Insight level for Re+")
     re_plus_proactiveness_label: str = Field(
         description="Proactiveness category for Re+"
@@ -207,6 +209,7 @@ class TetradCompletionDto(BaseModel):
     re_minus_explanation: str = Field(
         description="Why this is the failure mode of unguided action"
     )
+    re_minus_haiku: str = Field(description="Re- haiku (3-line poem)")
     re_minus_insight_label: str = Field(description="Insight level for Re-")
     re_minus_proactiveness_label: str = Field(
         description="Proactiveness category for Re-"
@@ -218,6 +221,7 @@ class TetradCompletionDto(BaseModel):
     ac_minus_explanation: str = Field(
         description="Why this is the failure mode of ungrounded reflection"
     )
+    ac_minus_haiku: str = Field(description="Ac- haiku (3-line poem)")
     ac_minus_insight_label: str = Field(description="Insight level for Ac-")
     ac_minus_proactiveness_label: str = Field(
         description="Proactiveness category for Ac-"
@@ -250,6 +254,7 @@ class CategoryReframingDto(BaseModel):
     ac_explanation: str = Field(
         description="Why this reframing captures how the action category manifests"
     )
+    ac_haiku: str = Field(description="Ac haiku (3-line poem)")
     ac_insight_label: str = Field(description="Insight level for Ac")
     ac_proactiveness_label: str = Field(description="Proactiveness category for Ac")
 
@@ -259,6 +264,7 @@ class CategoryReframingDto(BaseModel):
     re_explanation: str = Field(
         description="Why this reframing captures how the reflection category manifests"
     )
+    re_haiku: str = Field(description="Re haiku (3-line poem)")
     re_insight_label: str = Field(description="Insight level for Re")
     re_proactiveness_label: str = Field(description="Proactiveness category for Re")
 
@@ -360,6 +366,7 @@ class TransformationGeneration(
             insight_label=ac_plus.insight_label,
             proactiveness_label=ac_plus.proactiveness_label,
             explanation=ac_plus.explanation,
+            haiku=ac_plus.haiku,
         )
 
         re_plus_dto = self._build_transition_dto(
@@ -368,6 +375,7 @@ class TransformationGeneration(
             completion.re_plus_insight_label,
             completion.re_plus_proactiveness_label,
             completion.re_plus_explanation,
+            completion.re_plus_haiku,
         )
 
         re_minus_dto = self._build_transition_dto(
@@ -376,6 +384,7 @@ class TransformationGeneration(
             completion.re_minus_insight_label,
             completion.re_minus_proactiveness_label,
             completion.re_minus_explanation,
+            completion.re_minus_haiku,
         )
 
         ac_minus_dto = self._build_transition_dto(
@@ -384,6 +393,7 @@ class TransformationGeneration(
             completion.ac_minus_insight_label,
             completion.ac_minus_proactiveness_label,
             completion.ac_minus_explanation,
+            completion.ac_minus_haiku,
         )
 
         # Score HS in a separate LLM call
@@ -408,6 +418,7 @@ class TransformationGeneration(
             category_reframings.ac_insight_label,
             category_reframings.ac_proactiveness_label,
             category_reframings.ac_explanation,
+            category_reframings.ac_haiku,
         )
         re_dto = self._build_transition_dto(
             category_reframings.re_headline,
@@ -415,6 +426,7 @@ class TransformationGeneration(
             category_reframings.re_insight_label,
             category_reframings.re_proactiveness_label,
             category_reframings.re_explanation,
+            category_reframings.re_haiku,
         )
 
         result = TransformationTetradDto(
@@ -576,6 +588,7 @@ What happens when Re+ is taken WITHOUT Ac+?
 
 Requirements:
 - Headlines ~{self.settings.component_length} words, statements 1-15 words
+- For each position, also produce a haiku (3 lines, 5-7-5 syllables) — easy to memorize
 - Re+ must be in the {expected_re_category} category (polar pair of {ac_plus.proactiveness_label})
 - Re+ must genuinely complement Ac+ (address DIFFERENT aspects of the tension)
 - Diagonal contradictions: Re+ vs Ac-, Ac+ vs Re-"""
@@ -642,6 +655,7 @@ For each, provide:
 - **headline** (~{self.settings.component_length} words) - short, memorable reframing
 - **statement** (1-15 words) - fuller description of the contextualized category
 - **explanation** - why this reframing captures how the category operates here
+- **haiku** (3 lines, 5-7-5 syllables) - poetic capture of the category's essence
 - **insight_label** and **proactiveness_label** - should match the base category"""
 
         return await self._conversation.submit(
@@ -656,6 +670,7 @@ For each, provide:
         insight_label: str,
         proactiveness_label: str,
         explanation: str,
+        haiku: str,
     ) -> TransitionDto:
         """Build a TransitionDto with numeric coordinates."""
         insight_label_key = insight_label.capitalize()
@@ -679,4 +694,5 @@ For each, provide:
             insight_label=insight_label_key,
             proactiveness_label=proactiveness_label_key,
             explanation=explanation,
+            haiku=haiku,
         )

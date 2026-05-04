@@ -139,6 +139,14 @@ class ExploreTransformations(
                 if apexes:
                     last_apexes = apexes
 
+        # 5. Audit new transformations for feasibility
+        if all_new:
+            from dialectical_framework.concerns.transformation_audit import TransformationAudit
+            for tr in all_new:
+                auditor = TransformationAudit()
+                await auditor.resolve(tr, input_text)
+                self._report.merge(auditor.report)
+
         # Summary
         self._report.artifacts["wheel_hash"] = wheel.short_hash
         self._report.artifacts["nexus_hash"] = nexus.short_hash
@@ -358,6 +366,7 @@ class ExploreTransformations(
             source=t,
             target=a,
             explanation=tetrad.ac.explanation,
+            haiku=tetrad.ac.haiku,
         )
         transformation.ac.connect(
             ac_transition,
@@ -375,6 +384,7 @@ class ExploreTransformations(
             source=a,
             target=t,
             explanation=tetrad.re.explanation,
+            haiku=tetrad.re.haiku,
         )
         transformation.re.connect(
             re_transition,
@@ -392,6 +402,7 @@ class ExploreTransformations(
             source=t_minus,
             target=a_plus,
             explanation=tetrad.ac_plus.explanation,
+            haiku=tetrad.ac_plus.haiku,
         )
         transformation.ac_plus.connect(
             ac_plus_transition,
@@ -413,6 +424,7 @@ class ExploreTransformations(
             source=a_minus,
             target=t_plus,
             explanation=tetrad.re_plus.explanation,
+            haiku=tetrad.re_plus.haiku,
         )
         transformation.re_plus.connect(
             re_plus_transition,
@@ -434,6 +446,7 @@ class ExploreTransformations(
             source=a_plus,
             target=t_minus,
             explanation=tetrad.re_minus.explanation,
+            haiku=tetrad.re_minus.haiku,
         )
         transformation.re_minus.connect(
             re_minus_transition,
@@ -455,6 +468,7 @@ class ExploreTransformations(
             source=t_plus,
             target=a_minus,
             explanation=tetrad.ac_minus.explanation,
+            haiku=tetrad.ac_minus.haiku,
         )
         transformation.ac_minus.connect(
             ac_minus_transition,
@@ -482,30 +496,32 @@ class ExploreTransformations(
         source: Statement,
         target: Statement,
         explanation: str,
+        haiku: str,
     ) -> Transition:
         """
         Create a Transition node between components.
 
         Args:
-            headline: Short headline (~7 words) - stored on Transition.instruction and Rationale.headline
-            statement: Fuller statement (1-15 words) - stored on Rationale.summary
+            headline: Short headline (~7 words) - stored on Transition.instruction
+            statement: Fuller statement (1-15 words) - stored on Transition.summary
             source: The source component (e.g., T-)
             target: The target component (e.g., A+)
-            explanation: Full explanation - stored on Rationale.text
+            explanation: Full reasoning - stored on Rationale.text (evidence/justification)
+            haiku: 3-line poem - stored on Transition.haiku
 
         Returns:
             The committed Transition node
         """
-        transition = Transition(instruction=headline)
+        transition = Transition(
+            instruction=headline,
+            summary=statement,
+            haiku=haiku,
+        )
         transition.set_source(source)
         transition.set_target(target)
         transition.commit()
 
-        rationale = Rationale(
-            headline=headline,
-            summary=statement,
-            text=explanation,
-        )
+        rationale = Rationale(text=explanation)
         rationale.set_explanation_target(transition)
         rationale.commit()
         self._report.node_created(rationale)

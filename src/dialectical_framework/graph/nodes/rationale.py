@@ -55,12 +55,6 @@ class Rationale(BaseNode, label="Rationale"):
         - Rationale is the source of evidence, not what's being estimated
         - TaroRank aggregates estimations on entities, getting provenance from PROVIDES
 
-    Rationales can have multiple text formats:
-    - text: Full detailed explanation (required)
-    - headline: Short title/summary
-    - haiku: Poetic 3-line summary
-    - summary: Medium-length summary
-
     Rationales follow "auditor-wins semantics":
     - Child rationales (critiques) override parent assessment values
     - Zero values don't veto parent (soft exclusion)
@@ -83,9 +77,6 @@ class Rationale(BaseNode, label="Rationale"):
     """
 
     text: str
-    headline: Optional[str] = None
-    haiku: Optional[str] = None
-    summary: Optional[str] = None
 
     # metadata
     rating: Optional[float] = None  # Importance/quality rating (0.0-1.0), used for weighting critiques
@@ -331,4 +322,4 @@ class Rationale(BaseNode, label="Rationale"):
 
     def __str__(self) -> str:
         """Human-readable string representation."""
-        return self.headline if self.headline else self.text
+        return self.text[:80] if len(self.text) > 80 else self.text

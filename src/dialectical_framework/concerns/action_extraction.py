@@ -128,6 +128,7 @@ class ActionCandidateDto(BaseModel):
         description="Action category: coordination/intervention/implementation/etc"
     )
     explanation: str = Field(description="How this action helps transition T- → A+")
+    haiku: str = Field(description="3-line haiku capturing the action's essence")
 
 
 class ActionCandidateResultDto(BaseModel):
@@ -140,6 +141,7 @@ class ActionCandidateResultDto(BaseModel):
     insight_label: str
     proactiveness_label: str
     explanation: str
+    haiku: str
 
 
 class ActionExtraction(
@@ -266,6 +268,7 @@ The Ac+ must:
 3. Choose the appropriate action category (Coordination/Intervention/Implementation/Configuration/Governance/Stewardship)
 4. Provide a short headline (~{self.settings.component_length} words) - the essence of the action
 5. Provide a fuller statement/summary (1-15 words) - actionable and memorable
+6. Provide a haiku (3 lines, 5-7-5 syllables) capturing the action's essence — easy to memorize
 
 Focus on the T- → A+ transition path, not the destination."""
 
@@ -301,4 +304,5 @@ Focus on the T- → A+ transition path, not the destination."""
             insight_label=insight_label,
             proactiveness_label=proactiveness_label,
             explanation=candidate.explanation,
+            haiku=candidate.haiku,
         )
