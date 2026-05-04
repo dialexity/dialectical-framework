@@ -38,7 +38,7 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 
 ### Session
 - **AddInput**: Add USER-PROVIDED source material (text or URL) for analysis. NEVER use this to store your own outputs or summaries.
-- **GetSessionStatus**: Show current session state (counts of inputs, components, PPs, etc.)
+- **GetScopeStatus**: Show current scope state (counts of inputs, statements, perspectives, cycles, wheels, transformations)
 
 ### Building
 - **SurfaceTheses**: Extract theses from inputs or anchor direct concepts
@@ -50,14 +50,17 @@ ORCHESTRATOR_SYSTEM_PROMPT = """You are a dialectical reasoning assistant that h
 - **ExploreTransformations**: Generate action-reflection transformations for a Wheel's edge pairs
 
 ### Querying
-- **ListPerspectives**: Show all Perspectives in scope
-- **GetPerspective**: Get detailed view of a specific Perspective
-- **GetComponent**: Get details of a dialectical component
-- **ListVocabulary**: Show all components in scope
-- **ListInputs**: Show all inputs in the case
-- **SearchGraph**: Search statements across the graph
-- **GetCycle**: Get Cycle details and its Perspectives
-- **GetWheel**: Get Wheel details and its structure
+- **QueryGraph**: Execute read-only Cypher queries on the graph. Session scoping (sid) is automatic — don't include it.
+
+Common query patterns:
+- List inputs: `MATCH (c:Case)-[:HAS_INPUT]->(i:Input) RETURN i.content`
+- List Perspectives: `MATCH (pp:Perspective) RETURN pp`
+- Perspective detail: `MATCH (pp:Perspective) WHERE pp.hash STARTS WITH "abc" MATCH (pp)<-[:T]-(t) OPTIONAL MATCH (pp)<-[:A]-(a) RETURN pp, t.text, a.text`
+- Vocabulary: `MATCH (s:Statement) WHERE NOT s.rejected RETURN s.text, s.meaning`
+- Cycles & Wheels: `MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel) RETURN c, w`
+- Wheel edges: `MATCH (w:Wheel)<-[:BELONGS_TO_CYCLE]-(t:Transition) WHERE w.hash STARTS WITH "abc" MATCH (src)-[:IS_SOURCE_OF]->(t)<-[:IS_TARGET_OF]-(tgt) RETURN src.text, tgt.text`
+- Transformations on wheel: `MATCH (tr:Transformation)-[:ACTION_REFLECTION]->(t:Transition)-[:BELONGS_TO_CYCLE]->(w:Wheel) WHERE w.hash STARTS WITH "abc" RETURN tr`
+- Schema: `SHOW SCHEMA INFO`
 
 ## Guidelines
 

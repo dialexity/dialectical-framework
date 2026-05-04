@@ -108,6 +108,8 @@ from dialectical_framework.agents.explorer.skills.explore_transformations import
     ExploreTransformations
 # Import orchestrator tools
 from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
+from dialectical_framework.agents.orchestrator.tools.get_scope_status import \
+    GetScopeStatus
 from dialectical_framework.agents.orchestrator.tools.query_graph import \
     QueryGraph
 from dialectical_framework.enums.di import DI
@@ -218,6 +220,7 @@ class Orchestrator:
         """Build the list of tools available to the orchestrator."""
         session_tools = [
             AddInput,
+            GetScopeStatus,
         ]
 
         query_tools = [
