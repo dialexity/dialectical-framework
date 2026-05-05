@@ -12,7 +12,7 @@ from typing import Optional, TYPE_CHECKING
 from dialectical_framework.graph.mixins.persistable_mixin import PersistableMixin
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.base_node import BaseNode
+    pass
 
 
 class ForkableMixin(PersistableMixin):

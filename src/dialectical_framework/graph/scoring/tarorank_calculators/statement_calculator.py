@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.scoring.tarorank_calculators.base_calculator import BaseCalculator
-from dialectical_framework.graph.scoring.gm import gm_with_zeros_and_nones_handled
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.statement import Statement

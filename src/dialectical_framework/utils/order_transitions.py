@@ -1,5 +1,5 @@
 """
-Utility functions for ordering transitions in cycles and spirals.
+Utility functions for ordering transitions in cycles.
 """
 
 from __future__ import annotations
@@ -14,9 +14,8 @@ def order_transitions(transitions: list[Transition]) -> list[Transition]:
     """
     Order transitions by following the source→target chain.
 
-    Works for Cycles where transitions form a continuous chain.
-    For Spirals with discrete transitions, this produces ordering
-    based on the component chain.
+    Works for Cycles where transitions form a continuous chain,
+    producing ordering based on the component chain.
 
     Algorithm:
     1. Start with first transition's source component

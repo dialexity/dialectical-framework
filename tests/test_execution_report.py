@@ -3,10 +3,7 @@
 import pytest
 
 from dialectical_framework.agents.execution_report import (
-    Effect,
     ExecutionReport,
-    NodeRef,
-    RelationshipRef,
     _resolve_rel_type,
 )
 

@@ -12,4 +12,3 @@ class ExplainsRelationship(AnalyticalStructure, type="EXPLAINS"):
     to the entities they analyze. Target stored in Rationale's data.
     """
 
-    pass

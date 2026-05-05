@@ -17,7 +17,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -34,7 +34,6 @@ from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
-    from dialectical_framework.graph.wheel_segment import WheelSegment
 
 
 # Sweet spot margin around apex targets

@@ -11,4 +11,3 @@ class IsSourceOfRelationship(IdentityRelationship, type="IS_SOURCE_OF"):
     Part of the structural layer - defines what the Transition represents.
     """
 
-    pass

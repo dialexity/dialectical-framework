@@ -75,7 +75,6 @@ class BaseCalculator(ABC):
             node: Parent node whose children should be scored
             force: If True, force rescore even if children appear valid
         """
-        pass
 
     def clear_children(self, node: AssessableEntity) -> None:
         """
@@ -86,4 +85,3 @@ class BaseCalculator(ABC):
         Args:
             node: Parent node whose children should be cleared
         """
-        pass

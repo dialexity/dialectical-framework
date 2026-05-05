@@ -28,15 +28,10 @@ vs graph-native (new) implementations on the same scenarios.
 
 import pytest
 import random
-from datetime import datetime, timedelta
 
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.nodes.perspective import Perspective
-from dialectical_framework.graph.nodes.cycle import Cycle
-from dialectical_framework.graph.nodes.transformation import Transformation
-from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.nodes.estimation import (
     ProbabilityEstimation,
     RelevanceEstimation
@@ -315,7 +310,6 @@ class TestInvalidationTracking:
     def test_score_invalidated_when_estimation_changes(self, graph_db_available):
         """Score should be invalidated when estimations are modified."""
         from dialectical_framework.graph.estimation_manager import EstimationManager
-        from dialectical_framework.graph.nodes.estimation import CalculatedScoreEstimation
 
         if not graph_db_available:
             pytest.skip("Graph database not available")
@@ -1135,7 +1129,6 @@ class TestManualVsCalculatedSeparation:
             ProbabilityEstimation,
             CalculatedProbabilityEstimation
         )
-        from dialectical_framework.graph.estimation_manager import EstimationManager
 
         comp = Statement(text=f"test {random.random()}", meaning="test")
         comp.commit()

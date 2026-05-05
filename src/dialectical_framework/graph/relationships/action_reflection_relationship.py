@@ -18,4 +18,3 @@ class ActionReflectionRelationship(AnalyticalStructure, type="ACTION_REFLECTION"
     affect the Transition's structural hash.
     """
 
-    pass

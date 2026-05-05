@@ -13,4 +13,3 @@ class BelongsToCycleRelationship(ContainerMembership, type="BELONGS_TO_CYCLE"):
     includes its transitions via _get_committed_children().
     """
 
-    pass

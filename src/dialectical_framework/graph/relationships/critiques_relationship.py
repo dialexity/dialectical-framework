@@ -12,4 +12,3 @@ class CritiquesRelationship(AnalyticalStructure, type="CRITIQUES"):
     to form chains of deepening analysis. Target stored in Rationale's data.
     """
 
-    pass

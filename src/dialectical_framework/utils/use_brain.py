@@ -77,7 +77,6 @@ def use_brain(brain: Optional[Brain] = None, retry_max: int = 10, **llm_call_kwa
                     """
                     The parallel function calls are not supported by the model, so no need to pass anything.
                     """
-                    pass
 
             # https://mirascope.com/docs/mirascope/learn/retries
             @llm.call(**call_params)

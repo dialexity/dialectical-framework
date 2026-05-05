@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from dialectical_framework.agents.explorer.skills.build_wheels import (
-    BuildWheels, BuildWheelsResult)
+    BuildWheels)
 from dialectical_framework.enums.causality_preset import CausalityPreset
 from dialectical_framework.concerns.causality.estimator_resolver import (
     resolve_estimator)
@@ -26,7 +26,6 @@ from dialectical_framework.concerns.causality.causality_estimator_feasible impor
 from dialectical_framework.concerns.causality.causality_estimator_realistic import (
     CausalityEstimatorRealistic)
 from dialectical_framework.graph.nodes.case import Case
-from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.statement import \
     Statement
 from dialectical_framework.graph.nodes.nexus import Nexus

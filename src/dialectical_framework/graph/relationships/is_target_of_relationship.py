@@ -11,4 +11,3 @@ class IsTargetOfRelationship(IdentityRelationship, type="IS_TARGET_OF"):
     Part of the structural layer - defines what the Transition represents.
     """
 
-    pass

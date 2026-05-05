@@ -18,7 +18,6 @@ from dialectical_framework.graph.scoring.tarorank_calculators.base_calculator im
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 
-from dialectical_framework.enums.di import DI
 
 
 class TaroRank:

@@ -262,7 +262,6 @@ class ProbabilityEstimation(Estimation, label="Probability"):
     This is a MANUAL estimation - set by users or agents.
     """
 
-    pass
 
 
 class RelevanceEstimation(Estimation, label="Relevance"):
@@ -275,7 +274,6 @@ class RelevanceEstimation(Estimation, label="Relevance"):
     This is a MANUAL estimation - set by users or agents.
     """
 
-    pass
 
 
 class CalculatedEstimation(Estimation, label="CalculatedEstimation"):
@@ -324,7 +322,6 @@ class CalculatedProbabilityEstimation(CalculatedEstimation, label="CalculatedPro
     Typically there is at most one calculated estimation per node.
     """
 
-    pass
 
 
 class CalculatedRelevanceEstimation(CalculatedEstimation, label="CalculatedRelevance"):
@@ -337,7 +334,6 @@ class CalculatedRelevanceEstimation(CalculatedEstimation, label="CalculatedRelev
     Typically there is at most one calculated estimation per node.
     """
 
-    pass
 
 
 class CalculatedScoreEstimation(CalculatedEstimation, label="CalculatedScore"):
@@ -353,7 +349,6 @@ class CalculatedScoreEstimation(CalculatedEstimation, label="CalculatedScore"):
     Typically there is at most one calculated score estimation per node.
     """
 
-    pass
 
 
 class FeasibilityEstimation(Estimation, label="Feasibility"):
@@ -389,7 +384,6 @@ class FeasibilityEstimation(Estimation, label="Feasibility"):
         rel = component.relevance  # Returns 0.9 (FeasibilityEstimation ignored)
     """
 
-    pass
 
 class ModeEstimation(Estimation, label="Mode"):
     """
@@ -399,7 +393,6 @@ class ModeEstimation(Estimation, label="Mode"):
     characterizes the opposition direction (how A opposes T).
     """
 
-    pass
 
 
 class ArousalEstimation(Estimation, label="Arousal"):
@@ -410,7 +403,6 @@ class ArousalEstimation(Estimation, label="Arousal"):
     characterizes the opposition intensity.
     """
 
-    pass
 
 
 class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):

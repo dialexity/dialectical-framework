@@ -45,11 +45,10 @@ from dialectical_framework.concerns.statement_deduplication import (
 from dialectical_framework.graph.nodes.statement import \
     Statement
 from dialectical_framework.graph.nodes.ideas import Ideas
-from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
-                                                        Polarity)
+from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    ARelationship, TRelationship)
+    ARelationship)
 from dialectical_framework.graph.repositories.statement_repository import \
     StatementRepository
 from dialectical_framework.graph.repositories.input_repository import \
@@ -58,8 +57,6 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
-from dialectical_framework.graph.repositories.perspective_repository import \
-    PerspectiveRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver

@@ -142,7 +142,6 @@ class CycleRepository:
         Returns:
             List of Cycle nodes in this layer
         """
-        from dialectical_framework.graph.nodes.cycle import Cycle
 
         if not perspectives:
             return []

@@ -19,4 +19,3 @@ class BelongsToNexusRelationship(AnalyticalStructure, type="BELONGS_TO_NEXUS"):
     PP commit since it tracks exploration relationships, not node identity.
     """
 
-    pass

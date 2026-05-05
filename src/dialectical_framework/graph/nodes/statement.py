@@ -7,7 +7,7 @@ This version uses the RelationshipManager layer for clean, neomodel-like syntax.
 from __future__ import annotations
 
 import hashlib
-from typing import Any, ClassVar, Optional, TYPE_CHECKING, Union, Self
+from typing import ClassVar, Optional, TYPE_CHECKING, Union, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j

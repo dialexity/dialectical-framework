@@ -22,4 +22,3 @@ class ContradictionOfRelationship(Relationship, type="CONTRADICTION_OF"):
     captures logical incompatibility between polarized aspects.
     """
 
-    pass

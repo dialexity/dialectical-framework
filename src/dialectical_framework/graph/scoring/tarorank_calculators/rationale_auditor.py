@@ -95,7 +95,6 @@ class RationaleAuditor:
         Returns:
             R value or None if no relevance evidence
         """
-        from dialectical_framework.graph.nodes.estimation import RelevanceEstimation, FeasibilityEstimation
 
         # Get deepest critiques (matching legacy _get_deepest_critiques)
         deepest_critiques = self._get_deepest_critiques(rationale)

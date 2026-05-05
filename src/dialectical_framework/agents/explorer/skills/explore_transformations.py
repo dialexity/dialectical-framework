@@ -319,7 +319,6 @@ class ExploreTransformations(
 
         Traverses: Wheel's parent Cycle has perspective_hashes → find a PP → get its Nexus.
         """
-        from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
 
         # Get PPs from the wheel (via edges)
         pps = wheel._perspectives

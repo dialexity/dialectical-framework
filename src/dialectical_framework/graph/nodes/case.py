@@ -16,7 +16,6 @@ from gqlalchemy import Memgraph, Neo4j
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
-    RelationshipFrom,
     RelationshipTo,
     RelationshipManager,
 )

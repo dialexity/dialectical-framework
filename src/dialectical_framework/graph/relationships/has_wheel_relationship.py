@@ -13,4 +13,3 @@ class HasWheelRelationship(AnalyticalStructure, type="HAS_WHEEL"):
     new Wheels attached.
     """
 
-    pass

@@ -17,4 +17,3 @@ class HasStatementRelationship(OutgoingContainerMembership, type="HAS_STATEMENT"
     commit since their hashes don't include statements.
     """
 
-    pass

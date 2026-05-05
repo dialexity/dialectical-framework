@@ -12,4 +12,3 @@ class EstimatesRelationship(AnalyticalStructure, type="ESTIMATES"):
     Target stored in Estimation's target_hash field.
     """
 
-    pass

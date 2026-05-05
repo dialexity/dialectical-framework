@@ -43,17 +43,15 @@ from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
 from dialectical_framework.graph.nodes.statement import \
     Statement
-from dialectical_framework.graph.nodes.polarity import (POSITION_A, POSITION_T,
-                                                        Polarity)
+from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_A_PLUS,
                                                            POSITION_T_MINUS,
                                                            POSITION_T_PLUS,
                                                            Perspective)
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AMinusRelationship, APlusRelationship, ARelationship,
-    HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
-    TRelationship)
+    AMinusRelationship, APlusRelationship, HasPolarityRelationship,
+    TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.repositories.statement_repository import \
     StatementRepository
 from dialectical_framework.graph.repositories.input_repository import \

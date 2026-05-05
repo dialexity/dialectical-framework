@@ -22,7 +22,6 @@ class MalformedDxUriError(ValueError):
     - dx:///hash       (empty sid)
     """
 
-    pass
 
 
 class NodeNotFoundError(LookupError):
@@ -35,7 +34,6 @@ class NodeNotFoundError(LookupError):
     - The node was deleted
     """
 
-    pass
 
 
 class ScopeMismatchError(ValueError):
@@ -46,7 +44,6 @@ class ScopeMismatchError(ValueError):
     only accesses nodes from the expected scope/realm.
     """
 
-    pass
 
 
 class UnsupportedNodeTypeError(TypeError):
@@ -63,7 +60,6 @@ class UnsupportedNodeTypeError(TypeError):
     - Ideas: joined statement components
     """
 
-    pass
 
 
 class AmbiguousHashPrefixError(LookupError):
@@ -73,4 +69,3 @@ class AmbiguousHashPrefixError(LookupError):
     Solution: Use a longer prefix to uniquely identify the node.
     """
 
-    pass

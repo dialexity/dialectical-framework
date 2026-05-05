@@ -12,4 +12,3 @@ class SynthesisOfRelationship(AnalyticalStructure, type="SYNTHESIS_OF"):
     the Perspective's T-A tension that produced them.
     """
 
-    pass

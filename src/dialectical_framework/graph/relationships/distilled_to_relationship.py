@@ -11,4 +11,3 @@ class DistilledToRelationship(Relationship, type="DISTILLED_TO"):
     Not a BackboneStructure - created after Input is committed to track derivation.
     """
 
-    pass

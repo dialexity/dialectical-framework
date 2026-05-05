@@ -28,7 +28,6 @@ from dialectical_framework.graph.relationships.provides_relationship import (
 from dialectical_framework.protocols.has_brain import di_brain
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.estimation import Estimation
     from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 

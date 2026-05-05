@@ -12,4 +12,3 @@ class ProvidesRelationship(AnalyticalStructure, type="PROVIDES"):
     estimations they justify.
     """
 
-    pass

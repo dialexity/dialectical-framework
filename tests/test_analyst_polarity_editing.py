@@ -22,9 +22,8 @@ from dialectical_framework.graph.nodes.perspective import (POSITION_A,
                                                            POSITION_T_PLUS,
                                                            Perspective)
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AMinusRelationship, APlusRelationship, ARelationship,
-    HasPolarityRelationship, TMinusRelationship, TPlusRelationship,
-    TRelationship)
+    AMinusRelationship, APlusRelationship, HasPolarityRelationship,
+    TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.scope_context import scope
 
 

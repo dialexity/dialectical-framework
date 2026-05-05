@@ -18,4 +18,3 @@ class OppositeOfRelationship(Relationship, type="OPPOSITE_OF"):
     Used exclusively for thesis-antithesis pairs.
     """
 
-    pass

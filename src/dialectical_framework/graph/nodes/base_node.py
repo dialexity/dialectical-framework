@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from typing import Any, Optional, Union, Self, get_type_hints
+from typing import Any, Optional, Union, Self
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j, Node

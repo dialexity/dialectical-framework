@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 
 from dialectical_framework.concerns.statement_classification import (
-    VIABILITY_CATEGORY, parse_meaning_uri)
+    parse_meaning_uri)
 
 SIMPLE_MEANING = "dx://taxonomy/Simple"
 

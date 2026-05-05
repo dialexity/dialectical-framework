@@ -42,12 +42,10 @@ class PolarityRelationship(IdentityRelationship):
 # T and A relationships (reference points - no complementarity)
 class TRelationship(PolarityRelationship, type="T"):
     """Neutral thesis relationship. T is the reference point, no complementarity."""
-    pass
 
 
 class ARelationship(PolarityRelationship, type="A"):
     """Neutral antithesis relationship. A is the reference point, no complementarity."""
-    pass
 
 
 # Aspect relationships (have complementarity to T and A)
@@ -79,33 +77,27 @@ class AspectRelationship(PolarityRelationship):
 
 class TPlusRelationship(AspectRelationship, type="T_PLUS"):
     """Positive thesis aspect relationship."""
-    pass
 
 
 class TMinusRelationship(AspectRelationship, type="T_MINUS"):
     """Negative thesis aspect relationship."""
-    pass
 
 
 class APlusRelationship(AspectRelationship, type="A_PLUS"):
     """Positive antithesis aspect relationship."""
-    pass
 
 
 class AMinusRelationship(AspectRelationship, type="A_MINUS"):
     """Negative antithesis aspect relationship."""
-    pass
 
 
 # S-side relationships
 class SPlusRelationship(PolarityRelationship, type="S_PLUS"):
     """Positive synthesis relationship."""
-    pass
 
 
 class SMinusRelationship(PolarityRelationship, type="S_MINUS"):
     """Negative synthesis relationship."""
-    pass
 
 
 # Transition aspect relationships for Transformation (Action-Reflection structure)
@@ -131,33 +123,27 @@ class TransitionAspectRelationship(PolarityRelationship):
 # Neutral positions (reference points - no insight/proactiveness)
 class AcRelationship(PolarityRelationship, type="AC"):
     """Action relationship: T → A transition. Reference point, no scoring properties."""
-    pass
 
 
 class ReRelationship(PolarityRelationship, type="RE"):
     """Reflection relationship: A → T transition. Reference point, no scoring properties."""
-    pass
 
 
 # Ac/Re aspect positions (have insight/proactiveness)
 class AcPlusRelationship(TransitionAspectRelationship, type="AC_PLUS"):
     """Positive action relationship: T- → A+ transition."""
-    pass
 
 
 class AcMinusRelationship(TransitionAspectRelationship, type="AC_MINUS"):
     """Negative action relationship: T+ → A- transition."""
-    pass
 
 
 class RePlusRelationship(TransitionAspectRelationship, type="RE_PLUS"):
     """Positive reflection relationship: A- → T+ transition."""
-    pass
 
 
 class ReMinusRelationship(TransitionAspectRelationship, type="RE_MINUS"):
     """Negative reflection relationship: A+ → T- transition."""
-    pass
 
 
 # Structural relationships for Polarity node
@@ -168,4 +154,3 @@ class HasPolarityRelationship(IdentityRelationship, type="HAS_POLARITY"):
     The Polarity contains the thesis (T) and antithesis (A) reference points.
     Perspective references Polarity and adds the 4 aspects (T+, T-, A+, A-).
     """
-    pass

@@ -21,7 +21,6 @@ from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
     from mirascope import BaseTool
-    from mirascope.core.base import BaseMessageParam
 
 T = TypeVar("T")
 

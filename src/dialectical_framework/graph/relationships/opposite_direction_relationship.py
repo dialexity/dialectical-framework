@@ -18,4 +18,3 @@ class OppositeDirectionRelationship(Relationship, type="OPPOSITE_DIRECTION"):
     then B is the opposite direction of A.
     """
 
-    pass

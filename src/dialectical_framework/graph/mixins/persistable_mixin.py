@@ -20,4 +20,3 @@ class PersistableMixin:
         class MyNode(IntentMixin, BaseNode):
             pass  # intent field will be persisted
     """
-    pass

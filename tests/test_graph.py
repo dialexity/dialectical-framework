@@ -25,10 +25,8 @@ from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
-from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.utils.order_transitions import order_transitions
 from dialectical_framework.graph.relationships.polarity_relationship import (
     HasPolarityRelationship,
     TPlusRelationship,
@@ -2494,7 +2492,6 @@ def test_scope_vocabulary():
     """
     from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
-    from dialectical_framework.graph.nodes.ideas import Ideas
     from dialectical_framework.graph.repositories.statement_repository import (
         StatementRepository
     )

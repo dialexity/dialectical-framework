@@ -518,7 +518,6 @@ class TestLineageTracking:
     def test_forking_point_has_origin_hash(self):
         """Cloned forking points (Perspective) should have origin_hash set."""
         import random
-        from dialectical_framework.graph.nodes.perspective import Perspective
 
         case_node1 = Case()
         case_node1.commit()

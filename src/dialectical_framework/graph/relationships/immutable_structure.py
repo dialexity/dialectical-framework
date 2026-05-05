@@ -46,7 +46,6 @@ class ImmutableStructure(Relationship):
     for proper validation behavior.
     """
 
-    pass
 
 
 class IdentityRelationship(ImmutableStructure):
@@ -61,7 +60,6 @@ class IdentityRelationship(ImmutableStructure):
     changing identity relationships would change the node's hash.
     """
 
-    pass
 
 
 class ContainerMembership(ImmutableStructure):
@@ -76,7 +74,6 @@ class ContainerMembership(ImmutableStructure):
     because the child's hash doesn't include container membership.
     """
 
-    pass
 
 
 class OutgoingContainerMembership(ImmutableStructure):
@@ -91,7 +88,6 @@ class OutgoingContainerMembership(ImmutableStructure):
     owns the outgoing edge rather than receiving incoming edges.
     """
 
-    pass
 
 
 class AnalyticalStructure(Relationship):
@@ -99,7 +95,7 @@ class AnalyticalStructure(Relationship):
     Marker for analytical layer relationships.
 
     These relationships attach analytical artifacts to the structure:
-    - Transformations and Spirals (reasoning through tensions)
+    - Transformations (reasoning through tensions)
     - Rationales and Estimations (explanations and scores)
     - Syntheses (emergent insights)
 
@@ -111,4 +107,3 @@ class AnalyticalStructure(Relationship):
     commit rules - once committed, they cannot accept new members.
     """
 
-    pass

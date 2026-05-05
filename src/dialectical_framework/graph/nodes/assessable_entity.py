@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.base_node import BaseNode
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
+from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.explains_relationship import (
     ExplainsRelationship,
 )
@@ -21,12 +21,7 @@ from dialectical_framework.graph.relationships.estimates_relationship import (
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.estimation import (
         Estimation,
-        CalculatedEstimation,
-        CalculatedScoreEstimation,
-        ProbabilityEstimation,
-        RelevanceEstimation,
-        CalculatedProbabilityEstimation,
-        CalculatedRelevanceEstimation
+        CalculatedScoreEstimation
     )
     from dialectical_framework.graph.nodes.rationale import Rationale
 
@@ -346,7 +341,6 @@ class AssessableEntity(BaseNode, label="Assessable"):
 
             best = component.best_rationale  # Returns r2 (higher rating)
         """
-        from dialectical_framework.graph.nodes.rationale import Rationale
 
         rationales_with_props = self.rationales.all()
         if not rationales_with_props:

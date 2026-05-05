@@ -11,4 +11,3 @@ class HasInputRelationship(Relationship, type="HAS_INPUT"):
     Not a BackboneStructure - Case doesn't have immutable structure.
     """
 
-    pass
