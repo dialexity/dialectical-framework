@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.ai_dto.statement_dto import \
-    StatementDto
+from dialectical_framework.concerns.ai_dto.statement_dto import StatementDto
 
 
 class StatementsDeckDto(BaseModel):

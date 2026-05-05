@@ -7,15 +7,10 @@ from dependency_injector.wiring import Provide, inject
 from mirascope import Messages, prompt_template
 from mirascope.integrations.langfuse import with_langfuse
 
-from dialectical_framework.ai_dto.causal_cycle_assessment_dto import \
-    CausalCycleAssessmentDto
-from dialectical_framework.ai_dto.causal_cycle_dto import CausalCycleDto
-from dialectical_framework.ai_dto.causal_cycles_deck_dto import \
-    CausalCyclesDeckDto
-from dialectical_framework.ai_dto.statement_dto import \
-    StatementDto
-from dialectical_framework.ai_dto.statements_deck_dto import \
-    StatementsDeckDto
+from pydantic import BaseModel, Field
+
+from dialectical_framework.concerns.ai_dto.statement_dto import StatementDto
+from dialectical_framework.concerns.ai_dto.statements_deck_dto import StatementsDeckDto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.statement import \
@@ -33,6 +28,34 @@ from mirascope import BaseMessageParam
 from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
+
+
+class CausalCycleAssessmentDto(BaseModel):
+    probability: float = Field(
+        default=0,
+        description="The probability 0 to 1 of the arranged cycle to exist in reality.",
+    )
+    reasoning_explanation: str = Field(
+        default="", description="Explanation why/how this cycle might occur."
+    )
+    argumentation: str = Field(
+        default="",
+        description="Circumstances or contexts where this cycle would be most applicable or useful.",
+    )
+
+
+class CausalCycleDto(CausalCycleAssessmentDto):
+    aliases: list[str] = Field(
+        ...,
+        description="Aliases arranged in the circular causality sequence where the last element points to the first",
+    )
+
+
+class CausalCyclesDeckDto(BaseModel):
+    causal_cycles: list[CausalCycleDto] = Field(
+        ...,
+        description="A list of causal circular sequences (cycles).",
+    )
 
 
 @prompt_template(
