@@ -189,7 +189,7 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
             duplicate_of = self._find_duplicate(pp, complete_pps + completed_pps)
             if duplicate_of:
                 # Discard the duplicate - delete uncommitted PP
-                pp_repo.safe_delete(pp)
+                pp_repo.discard_uncommitted(pp)
                 self._report.artifacts.setdefault("duplicates_discarded", []).append(
                     {
                         "discarded": pp.short_hash if pp.hash else "uncommitted",
