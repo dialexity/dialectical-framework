@@ -81,6 +81,10 @@ class Case(BaseNode, label="Case"):
         assert comp in vocab
     """
 
+    # Display title (not part of hash — purely metadata).
+    # NOTE: Cannot use Optional[str] here due to GQLAlchemy metaclass + future annotations.
+    title: str = None
+
     # Input sources (required - at least one Input)
     inputs: ClassVar[RelationshipManager[Input]] = RelationshipTo(
         "Input",
