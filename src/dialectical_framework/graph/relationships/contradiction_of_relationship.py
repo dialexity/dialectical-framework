@@ -1,8 +1,8 @@
 """
-Relationship model for dialectical component contradiction.
+Relationship model for statement contradiction.
 
 This module provides the ContradictionOfRelationship class for representing
-mutually exclusive/contradicting statements between components.
+mutually exclusive/contradicting statements.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from gqlalchemy import Relationship
 
 class ContradictionOfRelationship(Relationship, type="CONTRADICTION_OF"):
     """
-    Relationship representing contradiction between dialectical components.
+    Relationship representing contradiction between statements.
 
     This is a symmetric relationship for mutually exclusive statements:
     - T+ vs A- (positive thesis contradicts negative antithesis)

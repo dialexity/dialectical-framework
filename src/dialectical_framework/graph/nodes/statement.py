@@ -87,7 +87,7 @@ class Statement(AssessableEntity, label="Statement"):
     display_text: Optional[str] = None
 
     # Optional rejection marker for analyst suggestions
-    # When set, this component is excluded from future suggestions
+    # When set, this statement is excluded from future suggestions
     # The value can be a reason string or just "rejected" to indicate rejection
     # Does NOT affect hash computation (analytical metadata)
     rejected: Optional[str] = None
@@ -192,7 +192,7 @@ class Statement(AssessableEntity, label="Statement"):
 
     def _collect_structure_hash_parts(self) -> list[str]:
         """
-        Collect structure hash parts for this component.
+        Collect structure hash parts for this statement.
 
         Parts: normalized statement text + meaning.
         Normalization (strip + lowercase) ensures case/whitespace variations
@@ -280,21 +280,21 @@ class Statement(AssessableEntity, label="Statement"):
     @property
     def is_simple(self) -> bool:
         """
-        Check if this component is considered "simple".
+        Check if this statement is considered "simple".
 
-        A component is simple if:
+        A statement is simple if:
         - meaning is not set (None or empty string), OR
         - meaning starts with "dx://taxonomy/Simple"
 
         Returns:
-            True if component is simple, False otherwise
+            True if statement is simple, False otherwise
         """
         if not self.meaning:
             return True
         return self.meaning.lower().startswith("dx://taxonomy/Simple".lower())
 
     def __repr__(self) -> str:
-        """String representation of the component."""
+        """String representation of the statement."""
         display = self.display_text or self.text
         statement_preview = (
             display[:47] + "..." if len(display) > 50 else display
@@ -304,7 +304,7 @@ class Statement(AssessableEntity, label="Statement"):
 
     def __format__(self, format_spec: str) -> str:
         """
-        Format this component using Python's format string protocol.
+        Format this statement using Python's format string protocol.
 
         Format Specifications:
         ----------------------

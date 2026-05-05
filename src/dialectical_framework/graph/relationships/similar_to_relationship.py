@@ -1,4 +1,4 @@
-"""Relationship model for semantic similarity between components."""
+"""Relationship model for semantic similarity between statements."""
 from __future__ import annotations
 
 from typing import Optional
@@ -7,13 +7,13 @@ from gqlalchemy import Relationship
 
 
 class SimilarToRelationship(Relationship, type="SIMILAR_TO"):
-    """Links semantically similar dialectical components.
+    """Links semantically similar statements.
 
-    This relationship captures similarity between components,
+    This relationship captures similarity between statements,
     complementing the OppositeOfRelationship for opposition.
 
     Example:
-        Component("Democracy") -[strength=0.8]-> Component("Republic")
+        Statement("Democracy") -[strength=0.8]-> Statement("Republic")
     """
 
     strength: float = 1.0

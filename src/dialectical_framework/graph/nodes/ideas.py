@@ -2,7 +2,7 @@
 Ideas node for the dialectical framework.
 
 Ideas represents a collection of extracted concepts/statements from an Input.
-It serves as a distillation of raw content into dialectical components.
+It serves as a distillation of raw content into statements.
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
     A collection of extracted concepts from one or more Input sources.
 
     Ideas represents the distillation of raw content (from Inputs) into
-    structured dialectical components (statements). Each Ideas node can
-    have one or more source Inputs and multiple extracted statements.
+    structured statements. Each Ideas node can have one or more source
+    Inputs and multiple extracted statements.
 
     The intent field (from IntentMixin) captures what kind of extraction
     was performed (e.g., "Extract productivity claims", "Find ethical arguments").

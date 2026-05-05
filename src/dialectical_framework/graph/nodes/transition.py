@@ -2,7 +2,7 @@
 Transition node for the dialectical framework.
 
 This module provides the Transition class which represents relationships
-between dialectical components (causal, convergence, transformation).
+between statements (causal, convergence, transformation).
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
 class Transition(AssessableEntity, label="Transition"):
     """
-    Represents a transition (relationship) between dialectical components.
+    Represents a transition (relationship) between statements.
 
     Transitions are nodes (not edges) in the graph because they:
     1. Can be assessed/scored
@@ -49,8 +49,8 @@ class Transition(AssessableEntity, label="Transition"):
     3. Can have estimations (probability of transition)
 
     Relationships:
-    - source: The source component (1:1)
-    - target: The target component (1:1)
+    - source: The source statement (1:1)
+    - target: The target statement (1:1)
     - cycle: Container (Cycle or Wheel) for causal transitions (0:1)
     - Transformation positions (ac, re, ac_plus, etc.) use typed relationships
 
@@ -307,10 +307,10 @@ class Transition(AssessableEntity, label="Transition"):
         containing the given component.
 
         Args:
-            component: The dialectical component to find
+            component: The statement to find
 
         Returns:
-            The Perspective containing this component, or None if not found
+            The Perspective containing this statement, or None if not found
         """
         perspectives = self._get_perspectives()
         if not perspectives:
@@ -391,7 +391,7 @@ class Transition(AssessableEntity, label="Transition"):
         Get label for a component based on format mode.
 
         Args:
-            comp: The dialectical component
+            comp: The statement
             mode: Format mode ("aliases", "statements", "explicit")
             perspectives: Optional list of Perspectives for alias resolution
 

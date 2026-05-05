@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class StatementDto(BaseModel):
     alias: str = Field(
         ...,
-        description="The user friendly name of the dialectical component such as T, A, T+, A+, etc.",
+        description="The user friendly name of the statement position such as T, A, T+, A+, etc.",
     )
     text: str = Field(
         ...,

@@ -1,8 +1,8 @@
 """
-Relationship model for dialectical component opposition.
+Relationship model for dialectical opposition.
 
 This module provides the OppositeOfRelationship class for representing
-dialectical opposition between T (thesis) and A (antithesis) components.
+dialectical opposition between T (thesis) and A (antithesis) statements.
 """
 
 from __future__ import annotations

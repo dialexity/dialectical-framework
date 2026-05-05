@@ -1,16 +1,16 @@
 import re
 
 
-def dc_replace(text: str, dialectical_component_name: str, replace_to: str) -> str:
+def dc_replace(text: str, alias: str, replace_to: str) -> str:
     """
-    Replace a dialectical component alias in text, respecting word boundaries.
+    Replace a statement alias in text, respecting word boundaries.
 
     Use this for single replacements where there's no risk of overlapping aliases.
     For multiple replacements with overlapping aliases (e.g., T, T+, T-), use dc_safe_replace.
 
     Args:
         text: The text to perform replacement in
-        dialectical_component_name: The alias to find (e.g., "T-", "C1_1")
+        alias: The alias to find (e.g., "T-", "C1_1")
         replace_to: The replacement string (e.g., "A-", "T1")
 
     Returns:
@@ -28,7 +28,7 @@ def dc_replace(text: str, dialectical_component_name: str, replace_to: str) -> s
     """
     return re.sub(
         r'(?<!\w)(["\'\(\[\{]?)'
-        rf"{re.escape(dialectical_component_name)}"
+        rf"{re.escape(alias)}"
         r"(\s|[\]\'\"\)\},.!?:]|$)",
         # Replacement pattern (preserves surrounding characters and spaces)
         r"\1" rf"{replace_to}" r"\2",
@@ -39,7 +39,7 @@ def dc_replace(text: str, dialectical_component_name: str, replace_to: str) -> s
 
 def dc_safe_replace(text: str, replacements: dict[str, str]) -> str:
     """
-    Replace multiple dialectical component aliases safely, handling overlapping keys.
+    Replace multiple statement aliases safely, handling overlapping keys.
 
     Use this when replacing multiple aliases that could overlap (e.g., swapping T↔A
     where T, T+, T-, A, A+, A- all exist). Direct replacement would corrupt longer

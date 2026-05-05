@@ -2,7 +2,7 @@
 Abstract base class for causality estimation.
 
 Causality estimators estimate transition probabilities for Cycles and Wheels
-by analyzing causal relationships between dialectical components.
+by analyzing causal relationships between statements.
 
 The estimate() method runs AI estimation and returns raw results.
 The CausalityEstimation concern handles normalization and database persistence.
@@ -32,7 +32,7 @@ class CausalityEstimator(ABC):
     """
     Abstract base class for estimating causality in circular topologies.
 
-    Implementations analyze relationships between components and
+    Implementations analyze relationships between statements and
     generate probability estimates for Cycles and Wheels.
 
     This is a "dumb" estimator - it runs AI on whatever it gets and returns

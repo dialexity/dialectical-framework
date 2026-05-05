@@ -16,7 +16,7 @@ class Settings(BaseModel):
 
     ai_model: str = Field(..., description="AI model alias/deployment to use.")
     ai_provider: Optional[str] = Field(default=None, description="AI model provider to use.")
-    component_length: int = Field(default=7, description="Approximate length in words of the dialectical component.")
+    component_length: int = Field(default=7, description="Approximate length in words of the statement.")
     cycle_preset: str = Field(default=CausalityPreset.BALANCED, description="Default preset for causality estimation (e.g., preset:realistic, preset:desirable, preset:feasible, preset:balanced).")
     tarorank_default_transition_probability: Optional[float] = Field(
         default=None,
