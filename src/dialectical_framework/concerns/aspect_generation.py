@@ -461,7 +461,7 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
         lines = ["The following aspect(s) are already defined:"]
         for pos, component in relevant_aspects.items():
-            lines.append(f'- {pos} = "{component.text}"')
+            lines.append(f'- {pos} = "{component.prompt_text}"')
         lines.append("Generate the remaining aspects to be coherent with these.")
         return "\n".join(lines)
 
@@ -498,7 +498,7 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
                 if result:
                     # Remap position if T-A are swapped
                     display_pos = self._swap_position(pos) if is_swapped else pos
-                    lines.append(f'  - {display_pos}: "{result[0].text}"')
+                    lines.append(f'  - {display_pos}: "{result[0].prompt_text}"')
         lines.append("")
         lines.append(
             "Generate semantically distinct aspects while maintaining contradiction relationships."
@@ -539,8 +539,8 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
         return f"""{text_section}Generate a complete tetrad for this thesis-antithesis pair.
 
-Thesis (T): "{self._thesis.text}"
-Antithesis (A): "{self._antithesis.text}"
+Thesis (T): "{self._thesis.prompt_text}"
+Antithesis (A): "{self._antithesis.prompt_text}"
 
 Taxonomy apex concepts for reference:
 - T+ apex: {t_plus_apex}
@@ -595,8 +595,8 @@ Ensure T+ contradicts A-, and A+ contradicts T-."""
 
         return f"""{text_section}Generate a contradiction pair for this thesis-antithesis pair.
 
-Thesis (T): "{self._thesis.text}"
-Antithesis (A): "{self._antithesis.text}"
+Thesis (T): "{self._thesis.prompt_text}"
+Antithesis (A): "{self._antithesis.prompt_text}"
 
 Generate {positive_pos} and {negative_pos} that contradict each other.
 
@@ -649,8 +649,8 @@ They must contradict each other - they cannot both be true/good simultaneously."
 
         return f"""{text_section}Generate {position} for this thesis-antithesis pair.
 
-Thesis (T): "{self._thesis.text}"
-Antithesis (A): "{self._antithesis.text}"
+Thesis (T): "{self._thesis.prompt_text}"
+Antithesis (A): "{self._antithesis.prompt_text}"
 
 {position} is the {desc}.
 Taxonomy apex concept: {apex}

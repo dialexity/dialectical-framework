@@ -258,7 +258,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
 
                     component_dtos[component.hash] = StatementDto(
                         alias=technical_alias,
-                        text=component.text,
+                        text=component.prompt_text,
                         explanation=explanation,
                     )
 
@@ -268,7 +268,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
             cycle_str = " → ".join(sequence_aliases + [sequence_aliases[0]]) + "..."
 
             # Add human-readable statements for clarity
-            readable_parts = [comp.text for comp in sequence]
+            readable_parts = [comp.prompt_text for comp in sequence]
             readable_cycle = " → ".join(readable_parts + [readable_parts[0]]) + "..."
 
             full_cycle_str = f"{cycle_str} ({readable_cycle})"

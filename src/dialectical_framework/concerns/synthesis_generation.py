@@ -163,7 +163,7 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
             if result:
                 dc, rel = result
                 alias = rel.alias if hasattr(rel, "alias") else position
-                pp_components.append(f"{alias} = {dc.text}")
+                pp_components.append(f"{alias} = {dc.prompt_text}")
 
         if len(pp_components) < 6:
             self._report.ok = False

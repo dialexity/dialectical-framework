@@ -288,8 +288,8 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
         return f"""{context_section}Evaluate this aspect statement for a dialectical tension.
 
 **Tension:**
-- Thesis (T): "{self._thesis.text}"
-- Antithesis (A): "{self._antithesis.text}"
+- Thesis (T): "{self._thesis.prompt_text}"
+- Antithesis (A): "{self._antithesis.prompt_text}"
 
 **Aspect to evaluate:**
 - Statement: "{self._aspect_statement}"
@@ -301,10 +301,10 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
 1. **heuristic_similarity** (0.0-1.0): How well does this aspect represent the apex concept "{apex_concept}"?
    Use the HS scale from the system guidelines. Remember: HS > 0.1 = valid, HS ≤ 0.1 = wrong category.
 
-2. **complementarity_t** (K_T, 0.0-1.0): How well does this aspect complement, enhance, or support the thesis "{self._thesis.text}"?
+2. **complementarity_t** (K_T, 0.0-1.0): How well does this aspect complement, enhance, or support the thesis "{self._thesis.prompt_text}"?
    Use the K_T scale from the system guidelines.
 
-3. **complementarity_a** (K_A, 0.0-1.0): How well does this aspect complement, enhance, or support the antithesis "{self._antithesis.text}"?
+3. **complementarity_a** (K_A, 0.0-1.0): How well does this aspect complement, enhance, or support the antithesis "{self._antithesis.prompt_text}"?
    Use the K_A scale from the system guidelines.
 
 4. **suggested_position**: If HS is very low (not a good fit for {self._position}), which position might fit better?

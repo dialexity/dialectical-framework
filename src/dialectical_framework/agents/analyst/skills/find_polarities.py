@@ -156,8 +156,8 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
             # Add existing to not_like_these to avoid re-extraction
             for comp in existing_antitheses:
-                if comp.text not in not_like_these:
-                    not_like_these.append(comp.text)
+                if comp.prompt_text not in not_like_these:
+                    not_like_these.append(comp.prompt_text)
 
             # 1b. Extract new antitheses (with retry if none found)
             antitheses, antithesis_data, extraction_reports = (
@@ -175,8 +175,8 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
             # Track extracted for not_like_these
             for comp in antitheses:
-                if comp.text not in not_like_these:
-                    not_like_these.append(comp.text)
+                if comp.prompt_text not in not_like_these:
+                    not_like_these.append(comp.prompt_text)
 
             results.append(result)
 

@@ -149,8 +149,8 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
         a_minus = perspective.get_component(POSITION_A_MINUS)
 
         # Build control statements
-        stmt_1 = f'"{t_plus.text}" without "{a_plus.text}" yields "{t_minus.text}"'
-        stmt_2 = f'"{a_plus.text}" without "{t_plus.text}" yields "{a_minus.text}"'
+        stmt_1 = f'"{t_plus.prompt_text}" without "{a_plus.prompt_text}" yields "{t_minus.prompt_text}"'
+        stmt_2 = f'"{a_plus.prompt_text}" without "{t_plus.prompt_text}" yields "{a_minus.prompt_text}"'
 
         # Evaluate both statements in parallel using isolated conversations
         result_1, result_2 = await asyncio.gather(

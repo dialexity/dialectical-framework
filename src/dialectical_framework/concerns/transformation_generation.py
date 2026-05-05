@@ -29,7 +29,7 @@ from dialectical_framework.concerns.action_extraction import \
     ActionCandidateResultDto
 from dialectical_framework.graph.repositories.transformation_repository import (
     CoarserTransformation, TransformationRepository)
-from dialectical_framework.utils.edge_context import build_edge_context as _build_edge_context
+from dialectical_framework.utils.edge_context import build_edge_context
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
     ApexDerivationResultDto
 from dialectical_framework.protocols.has_config import SettingsAware
@@ -359,8 +359,8 @@ class TransformationGeneration(
 
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        edge_context = _build_edge_context(source_segment, target_segment)
-        opposite_edge_context = _build_edge_context(
+        edge_context = build_edge_context(source_segment, target_segment)
+        opposite_edge_context = build_edge_context(
             source_segment.opposite, target_segment.opposite
         )
 
@@ -522,8 +522,8 @@ class TransformationGeneration(
             if not edge_source or not edge_target:
                 continue
 
-            source_text = edge_source[0].text
-            target_text = edge_target[0].text
+            source_text = edge_source[0].prompt_text
+            target_text = edge_target[0].prompt_text
 
             indent = "  " * (ct.layer - 1)
 

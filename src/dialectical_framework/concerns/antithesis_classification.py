@@ -449,7 +449,7 @@ class AntithesisClassification(ReasonableConcern[AntithesisClassificationResult]
         )
         return f"""{context_section}Evaluate this antithesis for a simple (binary/literal) thesis.
 
-Thesis: "{self._thesis.text}"
+Thesis: "{self._thesis.prompt_text}"
 Antithesis to evaluate: "{self._antithesis_statement}"
 
 For simple theses, the "apex" is the direct logical negation of the thesis.
@@ -514,7 +514,7 @@ Determine:
     def _complex_evaluation_prompt(self, taxonomy: ContextualizedTaxonomyDto) -> str:
         """Build prompt for complex thesis evaluation."""
         # Build taxonomy reference
-        taxonomy_ref = f"""Contextualized taxonomy for thesis "{self._thesis.text}":
+        taxonomy_ref = f"""Contextualized taxonomy for thesis "{self._thesis.prompt_text}":
 - Apex: {taxonomy.apex}
 - Negation (1.0): {taxonomy.negation}
 - Inversion (0.9): {taxonomy.inversion}
@@ -530,7 +530,7 @@ Determine:
 
         return f"""Evaluate this antithesis against the contextualized taxonomy.
 
-Thesis: "{self._thesis.text}"
+Thesis: "{self._thesis.prompt_text}"
 Antithesis to evaluate: "{self._antithesis_statement}"
 
 {taxonomy_ref}

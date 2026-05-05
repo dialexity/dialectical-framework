@@ -39,16 +39,16 @@ def build_edge_context(source_segment: WheelSegment, target_segment: WheelSegmen
     target_t_minus = target_segment.t_minus.get()
 
     if source_t:
-        parts.append(f"T: {source_t[0].text}")
+        parts.append(f"T: {source_t[0].prompt_text}")
     if source_t_plus:
-        parts.append(f"T+: {source_t_plus[0].text}")
+        parts.append(f"T+: {source_t_plus[0].prompt_text}")
     if source_t_minus:
-        parts.append(f"T-: {source_t_minus[0].text}")
+        parts.append(f"T-: {source_t_minus[0].prompt_text}")
     if target_t:
-        parts.append(f"A: {target_t[0].text}")
+        parts.append(f"A: {target_t[0].prompt_text}")
     if target_t_plus:
-        parts.append(f"A+: {target_t_plus[0].text}")
+        parts.append(f"A+: {target_t_plus[0].prompt_text}")
     if target_t_minus:
-        parts.append(f"A-: {target_t_minus[0].text}")
+        parts.append(f"A-: {target_t_minus[0].prompt_text}")
 
     return "\n".join(parts)

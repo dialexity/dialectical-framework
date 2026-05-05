@@ -29,7 +29,7 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, RE_PLUS_APEX_TARGET, insight_label_to_value,
     proactiveness_label_to_value)
-from dialectical_framework.utils.edge_context import build_edge_context as _build_edge_context
+from dialectical_framework.utils.edge_context import build_edge_context
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
@@ -260,7 +260,7 @@ class AcReApexDerivation(
 
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        context = _build_edge_context(source_segment, target_segment)
+        context = build_edge_context(source_segment, target_segment)
 
         apex_pair = await self._generate_apex_pair(context, input_text)
 

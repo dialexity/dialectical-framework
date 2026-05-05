@@ -25,7 +25,7 @@ from dialectical_framework.agents.reasonable_concern import \
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, insight_label_to_value, proactiveness_label_to_value)
-from dialectical_framework.utils.edge_context import build_edge_context as _build_edge_context
+from dialectical_framework.utils.edge_context import build_edge_context
 from dialectical_framework.protocols.has_config import SettingsAware
 
 # Insight hierarchy categories for exploration
@@ -189,7 +189,7 @@ class ActionExtraction(
 
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        context = _build_edge_context(source_segment, target_segment)
+        context = build_edge_context(source_segment, target_segment)
 
         exclusion_statements = self._build_exclusion_list(not_like_these or [])
 
@@ -223,7 +223,7 @@ class ActionExtraction(
                 target_result = transition.target.get()
                 if target_result:
                     comp, _ = target_result
-                    exclusions.append(comp.text)
+                    exclusions.append(comp.prompt_text)
         return exclusions
 
     async def _generate_candidate_for_category(

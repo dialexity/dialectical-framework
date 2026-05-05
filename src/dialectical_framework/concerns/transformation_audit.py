@@ -226,8 +226,8 @@ class TransformationAudit(
         if not source_result or not target_result:
             return None
 
-        source_text = source_result[0].text
-        target_text = target_result[0].text
+        source_text = source_result[0].prompt_text
+        target_text = target_result[0].prompt_text
 
         context_section = (
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""

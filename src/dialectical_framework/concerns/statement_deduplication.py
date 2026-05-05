@@ -269,7 +269,7 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
             comp = self._resolve_component(h)
             if comp and comp.is_committed:
                 extraction_lines.append(
-                    f"[{comp.short_hash}] {comp.text} (meaning: {comp.meaning or 'none'})"
+                    f"[{comp.short_hash}] {comp.prompt_text} (meaning: {comp.meaning or 'none'})"
                 )
                 extracted_prefixes.add(_extract_meaning_prefix(comp.meaning))
 
