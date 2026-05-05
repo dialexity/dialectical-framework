@@ -129,15 +129,14 @@ class ExploreTransformations(
         all_new: list[Transformation] = []
         last_apexes: Optional[ApexDerivationResultDto] = None
 
-        for ac_edge, re_edge in edge_pairs:
-            for edge in (ac_edge, re_edge):
-                existing, new, apexes = await self._process_edge(
-                    wheel, nexus, edge, input_text
-                )
-                all_existing.extend(existing)
-                all_new.extend(new)
-                if apexes:
-                    last_apexes = apexes
+        for edge_a, edge_b in edge_pairs:
+            existing, new, apexes = await self._process_edge_pair(
+                wheel, nexus, edge_a, edge_b, input_text
+            )
+            all_existing.extend(existing)
+            all_new.extend(new)
+            if apexes:
+                last_apexes = apexes
 
         # 5. Audit new transformations for feasibility
         if all_new:
@@ -164,71 +163,143 @@ class ExploreTransformations(
             apexes=last_apexes,
         )
 
-    async def _process_edge(
+    async def _process_edge_pair(
         self,
         wheel: Wheel,
         nexus: Nexus,
-        edge: Transition,
+        edge_a: Transition,
+        edge_b: Transition,
         input_text: str,
     ) -> tuple[list[Transformation], list[Transformation], Optional[ApexDerivationResultDto]]:
         """
-        Process a single edge: check reuse, or generate new transformations.
+        Process a diametrically opposite edge pair.
 
-        Each edge independently gets its own Transformation(s). The Transformation's
-        Re+ provides complementary reflection within this edge's context — it does NOT
-        substitute for the opposite edge's Transformation.
+        Phase 1: Extract Ac+ candidates for both edges independently.
+        Phase 2: Generate tetrads for each edge, passing the opposite Ac+ for Re-side.
 
         Returns:
             Tuple of (existing, new, apexes)
         """
         from dialectical_framework.graph.repositories.transformation_repository import TransformationRepository
 
-        # Check if this edge already has Transformations (idempotency)
         tr_repo = TransformationRepository()
-        existing = tr_repo.find_by_edge(edge=edge)
+        all_existing: list[Transformation] = []
+        all_new: list[Transformation] = []
+        last_apexes: Optional[ApexDerivationResultDto] = None
 
-        if existing:
-            return existing, [], None
+        # Phase 1: Extract Ac+ for both edges (check existing first)
+        edge_data: dict[str, dict] = {}
+        for edge in (edge_a, edge_b):
+            existing = tr_repo.find_by_edge(edge=edge)
+            if existing:
+                all_existing.extend(existing)
+                edge_data[edge.hash] = {"existing": True, "transformations": existing}
+                continue
 
-        # Resolve segments from the edge
-        source_segment = edge.get_source_wheel_segment()
-        target_segment = edge.get_target_wheel_segment()
-        if not source_segment or not target_segment:
-            return [], [], None
+            source_segment = edge.get_source_wheel_segment()
+            target_segment = edge.get_target_wheel_segment()
+            if not source_segment or not target_segment:
+                edge_data[edge.hash] = {"skip": True}
+                continue
+            if not source_segment.is_complete() or not target_segment.is_complete():
+                edge_data[edge.hash] = {"skip": True}
+                continue
 
-        if not source_segment.is_complete() or not target_segment.is_complete():
-            return [], [], None
+            apex_service = ApexDerivation()
+            apexes = await apex_service.resolve(edge, input_text)
+            self._report.merge(apex_service.report)
+            last_apexes = apexes
 
-        # Derive apexes from the edge
-        apex_service = ApexDerivation()
-        apexes = await apex_service.resolve(edge, input_text)
-        self._report.merge(apex_service.report)
-
-        # Extract Ac+ candidates (avoiding existing transformations on this wheel)
-        extractor = ActionExtraction()
-        ac_candidates = await extractor.resolve(
-            edge, input_text,
-            not_like_these=wheel.transformations,
-        )
-        self._report.merge(extractor.report)
-
-        if not ac_candidates:
-            return [], [], apexes
-
-        # For each Ac+, generate full tetrad and create graph nodes
-        # TransformationGeneration looks up coarser-layer parents internally
-        new_transformations: list[Transformation] = []
-        for ac_plus in ac_candidates:
-            generator = TransformationGeneration()
-            tetrad = await generator.resolve(edge, ac_plus, apexes, input_text)
-            self._report.merge(generator.report)
-
-            transformation = self._create_transformation(
-                nexus, edge, source_segment, target_segment, tetrad,
+            extractor = ActionExtraction()
+            ac_candidates = await extractor.resolve(
+                edge, input_text,
+                not_like_these=wheel.transformations,
             )
-            new_transformations.append(transformation)
+            self._report.merge(extractor.report)
 
-        return [], new_transformations, apexes
+            edge_data[edge.hash] = {
+                "ac_candidates": ac_candidates or [],
+                "apexes": apexes,
+                "source_segment": source_segment,
+                "target_segment": target_segment,
+            }
+
+        # Phase 2: Generate tetrads using opposite Ac+ for Re-side
+        for edge, opposite_edge in [(edge_a, edge_b), (edge_b, edge_a)]:
+            data = edge_data.get(edge.hash, {})
+            if data.get("existing") or data.get("skip"):
+                continue
+
+            ac_candidates = data.get("ac_candidates", [])
+            apexes = data.get("apexes")
+            source_segment = data.get("source_segment")
+            target_segment = data.get("target_segment")
+
+            if not ac_candidates:
+                continue
+
+            # Get opposite edge's Ac+ candidates for Re-side context
+            opp_data = edge_data.get(opposite_edge.hash, {})
+            opp_ac_candidates = opp_data.get("ac_candidates", [])
+
+            for ac_plus in ac_candidates:
+                opposite_ac = self._find_matching_category(
+                    opp_ac_candidates, ac_plus.insight_label
+                )
+                if not opposite_ac:
+                    continue
+
+                generator = TransformationGeneration()
+                tetrad = await generator.resolve(
+                    edge, ac_plus, opposite_ac, apexes, input_text
+                )
+                self._report.merge(generator.report)
+
+                transformation = self._create_transformation(
+                    nexus, edge, source_segment, target_segment, tetrad,
+                )
+                all_new.append(transformation)
+
+        return all_existing, all_new, last_apexes
+
+    @staticmethod
+    def _find_matching_category(
+        candidates: list,
+        insight_label: str,
+    ):
+        """Find an Ac+ candidate matching the given insight category."""
+        if not candidates:
+            return None
+
+        # Determine category from insight label
+        from dialectical_framework.concerns.ac_re_taxonomy import insight_label_to_value
+        try:
+            target_value = insight_label_to_value(insight_label)
+        except ValueError:
+            return candidates[0]
+
+        # Categories: Generative (0.6-1.0), Configurational (0.4-0.5), Corrective (0.0-0.3)
+        if target_value >= 0.6:
+            target_category = "generative"
+        elif target_value >= 0.4:
+            target_category = "configurational"
+        else:
+            target_category = "corrective"
+
+        for candidate in candidates:
+            try:
+                val = insight_label_to_value(candidate.insight_label)
+            except ValueError:
+                continue
+            if val >= 0.6 and target_category == "generative":
+                return candidate
+            elif 0.4 <= val < 0.6 and target_category == "configurational":
+                return candidate
+            elif val < 0.4 and target_category == "corrective":
+                return candidate
+
+        # Fallback: return first available
+        return candidates[0]
 
     def _resolve_wheel(self) -> Wheel:
         """Resolve Wheel from hash or prefix."""
@@ -318,13 +389,13 @@ class ExploreTransformations(
         """
         Create a Transformation node with all 6 positions, scoped to Nexus and edge.
 
-        Source/target components are derived from the edge segments:
-        - T-side (T, T+, T-) from source_segment (slice containing edge source)
-        - A-side (A, A+, A-) from target_segment (slice containing edge target)
+        Ac-side (Ac, Ac+, Ac-) uses this edge's segments:
+        - source_segment → T-side, target_segment → A-side
+
+        Re-side (Re, Re+, Re-) uses opposite segments:
+        - source_segment.opposite → Re source, target_segment.opposite → Re target
         """
-        # Get components from the edge segments
-        # WheelSegment.t/t_plus/t_minus map to the correct PP positions
-        # regardless of whether the slice is a T-side or A-side
+        # Ac-side components from this edge
         t_result = source_segment.t.get()
         t_minus_result = source_segment.t_minus.get()
         t_plus_result = source_segment.t_plus.get()
@@ -332,18 +403,24 @@ class ExploreTransformations(
         a_plus_result = target_segment.t_plus.get()
         a_minus_result = target_segment.t_minus.get()
 
-        if not all(
-            [
-                t_result,
-                t_minus_result,
-                t_plus_result,
-                a_result,
-                a_plus_result,
-                a_minus_result,
-            ]
-        ):
+        # Re-side components from opposite edge
+        opp_source = source_segment.opposite
+        opp_target = target_segment.opposite
+        re_source_result = opp_source.t.get()
+        re_source_minus_result = opp_source.t_minus.get()
+        re_source_plus_result = opp_source.t_plus.get()
+        re_target_result = opp_target.t.get()
+        re_target_plus_result = opp_target.t_plus.get()
+        re_target_minus_result = opp_target.t_minus.get()
+
+        if not all([
+            t_result, t_minus_result, t_plus_result,
+            a_result, a_plus_result, a_minus_result,
+            re_source_result, re_source_minus_result, re_source_plus_result,
+            re_target_result, re_target_plus_result, re_target_minus_result,
+        ]):
             raise ValueError(
-                "Source/target Perspectives missing required components for transformation"
+                "Segments missing required components for transformation"
             )
 
         t, _ = t_result
@@ -353,13 +430,22 @@ class ExploreTransformations(
         a_plus, _ = a_plus_result
         a_minus, _ = a_minus_result
 
+        re_src, _ = re_source_result
+        re_src_minus, _ = re_source_minus_result
+        re_src_plus, _ = re_source_plus_result
+        re_tgt, _ = re_target_result
+        re_tgt_plus, _ = re_target_plus_result
+        re_tgt_minus, _ = re_target_minus_result
+
         # Create Transformation node scoped to Nexus + edge
         transformation = Transformation()
         transformation.set_nexus(nexus)
         transformation.set_on_edge(ac_edge)
         transformation.save()
 
-        # Create neutral category transitions (Ac: T → A, Re: A → T)
+        # === Ac-side (this edge's segments) ===
+
+        # Ac (neutral): T → A
         ac_transition = self._create_transition(
             headline=tetrad.ac.headline,
             statement=tetrad.ac.statement,
@@ -377,25 +463,7 @@ class ExploreTransformations(
         )
         self._report.node_created(ac_transition, meta={"position": POSITION_AC})
 
-        # Re (Reflection category): A → T
-        re_transition = self._create_transition(
-            headline=tetrad.re.headline,
-            statement=tetrad.re.statement,
-            source=a,
-            target=t,
-            explanation=tetrad.re.explanation,
-            haiku=tetrad.re.haiku,
-        )
-        transformation.re.connect(
-            re_transition,
-            relationship=ReRelationship(
-                alias=POSITION_RE,
-                heuristic_similarity=None,
-            ),
-        )
-        self._report.node_created(re_transition, meta={"position": POSITION_RE})
-
-        # Ac+: T- → A+ (positive action: escape T- problems toward A+ benefits)
+        # Ac+: T- → A+
         ac_plus_transition = self._create_transition(
             headline=tetrad.ac_plus.headline,
             statement=tetrad.ac_plus.statement,
@@ -417,51 +485,7 @@ class ExploreTransformations(
             ac_plus_transition, meta={"position": POSITION_AC_PLUS}
         )
 
-        # Re+: A- → T+ (positive reflection: escape A- problems toward T+ benefits)
-        re_plus_transition = self._create_transition(
-            headline=tetrad.re_plus.headline,
-            statement=tetrad.re_plus.statement,
-            source=a_minus,
-            target=t_plus,
-            explanation=tetrad.re_plus.explanation,
-            haiku=tetrad.re_plus.haiku,
-        )
-        transformation.re_plus.connect(
-            re_plus_transition,
-            relationship=RePlusRelationship(
-                alias=POSITION_RE_PLUS,
-                heuristic_similarity=tetrad.re_plus_hs,
-                insight=tetrad.re_plus.insight,
-                proactiveness=tetrad.re_plus.proactiveness,
-            ),
-        )
-        self._report.node_created(
-            re_plus_transition, meta={"position": POSITION_RE_PLUS}
-        )
-
-        # Re-: A+ → T- (negative reflection: action without reflection leads here)
-        re_minus_transition = self._create_transition(
-            headline=tetrad.re_minus.headline,
-            statement=tetrad.re_minus.statement,
-            source=a_plus,
-            target=t_minus,
-            explanation=tetrad.re_minus.explanation,
-            haiku=tetrad.re_minus.haiku,
-        )
-        transformation.re_minus.connect(
-            re_minus_transition,
-            relationship=ReMinusRelationship(
-                alias=POSITION_RE_MINUS,
-                heuristic_similarity=None,
-                insight=tetrad.re_minus.insight,
-                proactiveness=tetrad.re_minus.proactiveness,
-            ),
-        )
-        self._report.node_created(
-            re_minus_transition, meta={"position": POSITION_RE_MINUS}
-        )
-
-        # Ac-: T+ → A- (negative action: reflection without action leads here)
+        # Ac-: T+ → A-
         ac_minus_transition = self._create_transition(
             headline=tetrad.ac_minus.headline,
             statement=tetrad.ac_minus.statement,
@@ -481,6 +505,70 @@ class ExploreTransformations(
         )
         self._report.node_created(
             ac_minus_transition, meta={"position": POSITION_AC_MINUS}
+        )
+
+        # === Re-side (opposite edge's segments) ===
+
+        # Re (neutral): opp_source → opp_target
+        re_transition = self._create_transition(
+            headline=tetrad.re.headline,
+            statement=tetrad.re.statement,
+            source=re_src,
+            target=re_tgt,
+            explanation=tetrad.re.explanation,
+            haiku=tetrad.re.haiku,
+        )
+        transformation.re.connect(
+            re_transition,
+            relationship=ReRelationship(
+                alias=POSITION_RE,
+                heuristic_similarity=None,
+            ),
+        )
+        self._report.node_created(re_transition, meta={"position": POSITION_RE})
+
+        # Re+: opp_source.neg → opp_target.pos
+        re_plus_transition = self._create_transition(
+            headline=tetrad.re_plus.headline,
+            statement=tetrad.re_plus.statement,
+            source=re_src_minus,
+            target=re_tgt_plus,
+            explanation=tetrad.re_plus.explanation,
+            haiku=tetrad.re_plus.haiku,
+        )
+        transformation.re_plus.connect(
+            re_plus_transition,
+            relationship=RePlusRelationship(
+                alias=POSITION_RE_PLUS,
+                heuristic_similarity=tetrad.re_plus_hs,
+                insight=tetrad.re_plus.insight,
+                proactiveness=tetrad.re_plus.proactiveness,
+            ),
+        )
+        self._report.node_created(
+            re_plus_transition, meta={"position": POSITION_RE_PLUS}
+        )
+
+        # Re-: opp_source.pos → opp_target.neg
+        re_minus_transition = self._create_transition(
+            headline=tetrad.re_minus.headline,
+            statement=tetrad.re_minus.statement,
+            source=re_src_plus,
+            target=re_tgt_minus,
+            explanation=tetrad.re_minus.explanation,
+            haiku=tetrad.re_minus.haiku,
+        )
+        transformation.re_minus.connect(
+            re_minus_transition,
+            relationship=ReMinusRelationship(
+                alias=POSITION_RE_MINUS,
+                heuristic_similarity=None,
+                insight=tetrad.re_minus.insight,
+                proactiveness=tetrad.re_minus.proactiveness,
+            ),
+        )
+        self._report.node_created(
+            re_minus_transition, meta={"position": POSITION_RE_MINUS}
         )
 
         # Commit transformation

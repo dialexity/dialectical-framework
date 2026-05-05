@@ -40,32 +40,43 @@ if TYPE_CHECKING:
 
 SYSTEM_PROMPT = """You are an expert in dialectical reasoning, specializing in Action-Reflection transformations.
 
-Your task is to complete a transformation tetrad given an Ac+ statement.
+Your task is to generate a transformation tetrad. A transformation captures BOTH your action AND how the opposite side's action reflects back on you.
+
+## Two-Perspective Model
+
+Every wheel edge has a diametrically opposite edge. A transformation uses BOTH:
+
+- **Action Perspective** (this edge): Where you ACT. Ac, Ac+, Ac- are generated from this context.
+- **Reflection Perspective** (opposite edge): Where the OTHER SIDE acts. Re, Re+, Re- respond to their action.
+
+In a 1-PP wheel (e.g., Love/Hate), the same nodes appear on both sides but carry different semantic content — "my action toward independence" vs "their reconnection action that grounds me."
 
 ## Transformation Structure
 
 The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
-- "+" aspects target beneficial states (T+ or A+)
-- "-" aspects target problematic states (T- or A-)
+- "+" aspects target beneficial states
+- "-" aspects target problematic states
 
-A transformation has 4 transition aspects:
-- **Ac+**: T- → A+ (action targeting A+: escaping T's problems toward A's benefits)
-- **Re+**: A- → T+ (reflection targeting T+: escaping A's problems toward T's benefits)
-- **Re-**: A+ → T- (reflection targeting T-: what happens when action lacks reflection)
-- **Ac-**: T+ → A- (action targeting A-: what happens when reflection lacks action)
+**Action side** (from Action Perspective):
+- **Ac+**: source.neg → target.pos (escaping your problems toward their benefits)
+- **Ac-**: source.pos → target.neg (your strength wasted — failure when reflection lacks action)
+
+**Reflection side** (from Reflection Perspective, responding to opposite Ac+):
+- **Re+**: opp_source.neg → opp_target.pos (how their action grounds you toward growth)
+- **Re-**: opp_source.pos → opp_target.neg (what happens when you ignore their action)
 
 ## Circular Causality: Why Ac+ and Re+ Must Be Complementary
 
-Positive synthesis (S+) emerges ONLY when Ac+ and Re+ work together as complementary transitions:
-- Ac+ alone (action without reflection) regresses to Re- (back to T-)
-- Re+ alone (reflection without action) drifts to Ac- (toward A-)
+Positive synthesis (S+) emerges ONLY when Ac+ and Re+ work together:
+- Ac+ alone (action without reflection on the other side) regresses to Re-
+- Re+ alone (reflection without your own action) drifts to Ac-
 
-Together, they form a closed loop of circular causality — the source of self-regulation in healthy systems.
+Together, they form a closed loop — your action + awareness of the other side's action = self-regulation.
 
 **Re+ should NOT simply restate or mirror Ac+.** It must be a genuinely complementary reflection that:
-- Addresses a DIFFERENT aspect of the tension (what Ac+ doesn't cover)
-- Works harmoniously WITH Ac+ to create a complete solution
-- Could stand alone as valuable insight, not just a reaction to Ac+
+- Responds to what the OPPOSITE SIDE is doing (their Ac+)
+- Addresses what YOUR action doesn't cover
+- Could stand alone as valuable insight grounded in the other side's dynamics
 
 ## Diagonal Contradictions
 
@@ -76,8 +87,8 @@ The tetrad has diagonal contradictions that must be preserved:
 ## Coherence Constraint (CC)
 
 The "-" aspects describe failure modes when transitions are unbalanced:
-- Re-: "Ac+ without Re+ yields Re-" — unguided action regresses toward T-
-- Ac-: "Re+ without Ac+ yields Ac-" — ungrounded reflection drifts toward A-
+- Re-: "Ac+ without Re+ yields Re-" — acting without reflecting on the other side regresses you
+- Ac-: "Re+ without Ac+ yields Ac-" — reflecting without acting drifts you toward problems
 
 ## Y-Axis: Insight (0.0 → 1.0)
 
@@ -147,29 +158,35 @@ APEX
 6. Re- and Ac- typically have lower insight than the "+" aspects
 7. All statements should be 1-15 words, actionable and memorable
 
-## Example (T = Love, A = Indifference)
+## Example (1-PP: T = Love, A = Indifference)
 
-**Perspective aspects:**
-- T+ = Bonding (healthy connection)
-- T- = Enmeshment (loss of identity)
-- A+ = Autonomy (healthy independence)
-- A- = Alienation (disconnection)
+**Action Perspective** (edge Love→Indifference):
+- T = Love, T+ = Bonding, T- = Enmeshment
+- A = Indifference, A+ = Autonomy, A- = Alienation
 
-**Ac+ (T- → A+):** "Establish personal boundaries while staying emotionally available"
-- This ACTION helps escape Enmeshment toward Autonomy
+**Reflection Perspective** (opposite edge Indifference→Love):
+- T = Indifference, T+ = Autonomy, T- = Alienation
+- A = Love, A+ = Bonding, A- = Enmeshment
 
-**Re+ (A- → T+):** "Recognize connection needs without demanding fusion"
-- This REFLECTION helps escape Alienation toward Bonding
-- COMPLEMENTS Ac+ (boundaries + recognition = balanced relationship)
-- Does NOT simply restate "be autonomous" — addresses the OTHER side
+**Opposite side's Ac+ (their action, Alienation → Bonding):**
+"Recognize isolation patterns to rebuild genuine connection"
 
-**Re- (A+ → T-):** "Autonomy pursued without reflection becomes cold detachment"
-- Failure mode: taking Ac+ without Re+ leads back to Enmeshment patterns
+**Your Ac+ (T- → A+, Enmeshment → Autonomy):**
+"Establish personal boundaries while staying emotionally available"
 
-**Ac- (T+ → A-):** "Bonding valued without action becomes passive withdrawal"
-- Failure mode: taking Re+ without Ac+ drifts toward Alienation
+**Your Re+ (responding to their Ac+, Alienation → Autonomy):**
+"Their effort to reconnect grounds me — healthy distance requires acknowledging their reach"
+- Responds to THEIR action (reconnection) by grounding YOUR position (autonomy)
+- COMPLEMENTS your Ac+ (boundaries + awareness of their effort = balanced)
+- Does NOT mirror Ac+ — it's about how their action affects you
 
-Notice: Re+ contradicts Ac- (recognition vs. withdrawal), Ac+ contradicts Re- (boundaries vs. detachment).
+**Re- (Autonomy → Alienation):** "Ignoring their reconnection effort hardens into cold isolation"
+- Failure: acting (boundaries) without reflecting on their effort → regression
+
+**Ac- (Bonding → Enmeshment):** "Bonding valued without action becomes passive fusion"
+- Failure: reflecting without acting → drift toward enmeshment
+
+Notice: Re+ contradicts Ac- (grounded awareness vs. passive fusion), Ac+ contradicts Re- (boundaries vs. cold isolation).
 """
 
 
@@ -190,13 +207,28 @@ class TransitionDto(BaseModel):
     proactiveness_label: str = Field(description="Proactiveness category label")
 
 
-class TetradCompletionDto(BaseModel):
-    """LLM response for completing a tetrad (without category reframings)."""
+class AcMinusCompletionDto(BaseModel):
+    """LLM response for generating Ac- (action failure mode)."""
+
+    ac_minus_headline: str = Field(description="Ac- headline (component length)")
+    ac_minus_statement: str = Field(description="Ac- statement (1-15 words)")
+    ac_minus_explanation: str = Field(
+        description="Why this is the failure mode of ungrounded reflection"
+    )
+    ac_minus_haiku: str = Field(description="Ac- haiku (3-line poem)")
+    ac_minus_insight_label: str = Field(description="Insight level for Ac-")
+    ac_minus_proactiveness_label: str = Field(
+        description="Proactiveness category for Ac-"
+    )
+
+
+class ReSideCompletionDto(BaseModel):
+    """LLM response for generating Re+ and Re- from opposite edge context."""
 
     # Re+ fields
     re_plus_headline: str = Field(description="Re+ headline (component length)")
     re_plus_statement: str = Field(description="Re+ statement (1-15 words)")
-    re_plus_explanation: str = Field(description="How Re+ complements Ac+")
+    re_plus_explanation: str = Field(description="How Re+ responds to the opposite action")
     re_plus_haiku: str = Field(description="Re+ haiku (3-line poem)")
     re_plus_insight_label: str = Field(description="Insight level for Re+")
     re_plus_proactiveness_label: str = Field(
@@ -207,24 +239,12 @@ class TetradCompletionDto(BaseModel):
     re_minus_headline: str = Field(description="Re- headline (component length)")
     re_minus_statement: str = Field(description="Re- statement (1-15 words)")
     re_minus_explanation: str = Field(
-        description="Why this is the failure mode of unguided action"
+        description="Why this is the failure mode when the opposite action goes unexamined"
     )
     re_minus_haiku: str = Field(description="Re- haiku (3-line poem)")
     re_minus_insight_label: str = Field(description="Insight level for Re-")
     re_minus_proactiveness_label: str = Field(
         description="Proactiveness category for Re-"
-    )
-
-    # Ac- fields
-    ac_minus_headline: str = Field(description="Ac- headline (component length)")
-    ac_minus_statement: str = Field(description="Ac- statement (1-15 words)")
-    ac_minus_explanation: str = Field(
-        description="Why this is the failure mode of ungrounded reflection"
-    )
-    ac_minus_haiku: str = Field(description="Ac- haiku (3-line poem)")
-    ac_minus_insight_label: str = Field(description="Insight level for Ac-")
-    ac_minus_proactiveness_label: str = Field(
-        description="Proactiveness category for Ac-"
     )
 
 
@@ -306,26 +326,26 @@ class TransformationGeneration(
         self,
         edge: Transition,
         ac_plus: ActionCandidateResultDto,
+        opposite_ac_plus: ActionCandidateResultDto,
         apexes: ApexDerivationResultDto,
         input_text: str = "",
     ) -> TransformationTetradDto:
         """
         Generate a complete transformation tetrad from an Ac+ candidate.
 
-        The edge's source segment becomes the T-side context and
-        the edge's target segment becomes the A-side context.
-
-        Automatically looks up coarser-layer parent Transformations for
-        hierarchical refinement context.
+        The Ac-side (Ac, Ac+, Ac-) uses this edge's context.
+        The Re-side (Re, Re+, Re-) uses the opposite edge's context,
+        derived via source_segment.opposite / target_segment.opposite.
 
         Args:
             edge: The wheel edge (Transition between main statements)
-            ac_plus: The Ac+ candidate to build the tetrad around
+            ac_plus: The Ac+ candidate for this edge
+            opposite_ac_plus: The Ac+ from the opposite edge (grounds Re-side)
             apexes: Derived apex statements for HS calculation
             input_text: Optional source content context
 
         Returns:
-            TransformationTetradDto with all 4 positions and HS scores
+            TransformationTetradDto with all 6 positions and HS scores
         """
         self._report = ExecutionReport(tool=self.__class__.__name__)
 
@@ -340,6 +360,9 @@ class TransformationGeneration(
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         edge_context = _build_edge_context(source_segment, target_segment)
+        opposite_edge_context = _build_edge_context(
+            source_segment.opposite, target_segment.opposite
+        )
 
         # Look up coarser-layer parents for refinement context
         tr_repo = TransformationRepository()
@@ -351,10 +374,15 @@ class TransformationGeneration(
             ac_plus.proactiveness_label
         )
 
-        # Generate tetrad completion
-        completion = await self._generate_tetrad_completion(
-            edge_context, input_text, ac_plus, expected_re_category,
-            parent_context=parent_context,
+        # Generate Ac- (this-edge context)
+        ac_minus_completion = await self._generate_ac_minus(
+            edge_context, input_text, ac_plus, parent_context=parent_context,
+        )
+
+        # Generate Re+, Re- (opposite-edge context + opposite Ac+)
+        re_side_completion = await self._generate_re_side(
+            opposite_edge_context, opposite_ac_plus, ac_plus,
+            expected_re_category,
         )
 
         # Build transition DTOs
@@ -370,30 +398,30 @@ class TransformationGeneration(
         )
 
         re_plus_dto = self._build_transition_dto(
-            completion.re_plus_headline,
-            completion.re_plus_statement,
-            completion.re_plus_insight_label,
-            completion.re_plus_proactiveness_label,
-            completion.re_plus_explanation,
-            completion.re_plus_haiku,
+            re_side_completion.re_plus_headline,
+            re_side_completion.re_plus_statement,
+            re_side_completion.re_plus_insight_label,
+            re_side_completion.re_plus_proactiveness_label,
+            re_side_completion.re_plus_explanation,
+            re_side_completion.re_plus_haiku,
         )
 
         re_minus_dto = self._build_transition_dto(
-            completion.re_minus_headline,
-            completion.re_minus_statement,
-            completion.re_minus_insight_label,
-            completion.re_minus_proactiveness_label,
-            completion.re_minus_explanation,
-            completion.re_minus_haiku,
+            re_side_completion.re_minus_headline,
+            re_side_completion.re_minus_statement,
+            re_side_completion.re_minus_insight_label,
+            re_side_completion.re_minus_proactiveness_label,
+            re_side_completion.re_minus_explanation,
+            re_side_completion.re_minus_haiku,
         )
 
         ac_minus_dto = self._build_transition_dto(
-            completion.ac_minus_headline,
-            completion.ac_minus_statement,
-            completion.ac_minus_insight_label,
-            completion.ac_minus_proactiveness_label,
-            completion.ac_minus_explanation,
-            completion.ac_minus_haiku,
+            ac_minus_completion.ac_minus_headline,
+            ac_minus_completion.ac_minus_statement,
+            ac_minus_completion.ac_minus_insight_label,
+            ac_minus_completion.ac_minus_proactiveness_label,
+            ac_minus_completion.ac_minus_explanation,
+            ac_minus_completion.ac_minus_haiku,
         )
 
         # Score HS in a separate LLM call
@@ -405,10 +433,11 @@ class TransformationGeneration(
         ac_plus_hs = hs_scores.ac_plus_hs
         re_plus_hs = hs_scores.re_plus_hs
 
-        # Generate category reframings in a separate LLM call (same conversation)
+        # Generate category reframings (Ac from this-edge, Re from opposite-edge)
         category_reframings = await self._generate_category_reframings(
             ac_plus.proactiveness_label,
             expected_re_category,
+            opposite_edge_context,
         )
 
         # Build neutral category transitions
@@ -516,15 +545,14 @@ class TransformationGeneration(
 
         return "\n".join(parts) if parts else None
 
-    async def _generate_tetrad_completion(
+    async def _generate_ac_minus(
         self,
         edge_context: str,
         input_text: str,
         ac_plus: ActionCandidateResultDto,
-        expected_re_category: str,
         parent_context: Optional[str] = None,
-    ) -> TetradCompletionDto:
-        """Generate the remaining tetrad positions from Ac+."""
+    ) -> AcMinusCompletionDto:
+        """Generate Ac- (failure mode when reflection lacks grounding action)."""
         context_section = (
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
@@ -545,56 +573,85 @@ with its overall direction.
 
 """
 
-        prompt = f"""{context_section}{parent_section}Given this Perspective:
+        prompt = f"""{context_section}{parent_section}Given this Action Perspective:
 
-<perspective>
+<action_perspective>
 {edge_context}
-</perspective>
+</action_perspective>
 
-And this Ac+ (action targeting A+) statement:
+And this Ac+ (positive action: T- → A+):
 - Statement: "{ac_plus.statement}"
 - Insight: {ac_plus.insight_label} ({ac_plus.insight})
 - Proactiveness: {ac_plus.proactiveness_label} ({ac_plus.proactiveness})
 
-Complete the transformation tetrad.
+Generate Ac- (the action failure mode: T+ → A-).
 
-For each position, provide:
-- A **headline** (~{self.settings.component_length} words) - short, memorable essence
-- A **statement** (1-15 words) - fuller actionable description
-- An **explanation** - why this transition makes sense
+## Ac- (action targeting A-)
 
-## 1. Re+ (reflection targeting T+)
-
-Generate a COMPLEMENTARY reflection at the {expected_re_category.upper()} proactiveness level.
-- Re+ guides the A- → T+ path (escaping A's problems toward T's benefits)
-- **CRITICAL**: Re+ must COMPLEMENT Ac+, not mirror it — address what Ac+ doesn't cover
-- Together, Ac+ and Re+ should form a complete solution (circular causality for S+)
-- Insight should be similar to Ac+ (~{ac_plus.insight_label})
-- Re+ must CONTRADICT Ac- (the positive reflection opposes drift toward A-)
-
-## 2. Re- (reflection targeting T-)
-
-What happens when Ac+ is taken WITHOUT Re+?
-- Describes regression toward T- when action lacks guiding reflection
-- Ac+ must CONTRADICT Re- (the positive action opposes this regression)
-- Usually lower insight than Re+
-
-## 3. Ac- (action targeting A-)
-
-What happens when Re+ is taken WITHOUT Ac+?
-- Describes drift toward A- when reflection lacks grounding action
-- Re+ must CONTRADICT Ac- (the positive reflection opposes this drift)
+What happens when reflection occurs WITHOUT grounding action?
+- Describes drift toward A- when reflection lacks the grounding of Ac+
+- The path from T+ (strength) toward A- (problem) — strength wasted
 - Usually lower insight than Ac+
 
 Requirements:
+- Headline ~{self.settings.component_length} words, statement 1-15 words
+- Produce a haiku (3 lines, 5-7-5 syllables)
+- Ac- must be something that Re+ can CONTRADICT (positive reflection opposes this drift)"""
+
+        return await self._conversation.submit(
+            response_model=AcMinusCompletionDto,
+            user_content=prompt,
+        )
+
+    async def _generate_re_side(
+        self,
+        opposite_edge_context: str,
+        opposite_ac_plus: ActionCandidateResultDto,
+        own_ac_plus: ActionCandidateResultDto,
+        expected_re_category: str,
+    ) -> ReSideCompletionDto:
+        """Generate Re+ and Re- from the opposite edge's context and action."""
+        prompt = f"""Now consider the opposite edge — the other side's dynamics that ground your reflection.
+
+<reflection_perspective>
+{opposite_edge_context}
+</reflection_perspective>
+
+The opposite side has taken this action (their Ac+):
+- Statement: "{opposite_ac_plus.statement}"
+- Insight: {opposite_ac_plus.insight_label} ({opposite_ac_plus.insight})
+- Proactiveness: {opposite_ac_plus.proactiveness_label} ({opposite_ac_plus.proactiveness})
+
+Your own action (Ac+) is: "{own_ac_plus.statement}"
+
+Generate the Reflection side — how their action grounds and challenges you.
+
+## 1. Re+ (positive reflection: how their action grounds you)
+
+Given their action, what reflection does it trigger that leads to growth?
+- Path: escaping the Reflection Perspective's negative toward its positive
+- Re+ at the {expected_re_category.upper()} proactiveness level
+- **CRITICAL**: Re+ must COMPLEMENT your Ac+ ("{own_ac_plus.statement}") — together they form S+
+- Re+ addresses what your action DOESN'T cover — the other side's contribution
+- Insight should be similar to Ac+ (~{own_ac_plus.insight_label})
+- Re+ must CONTRADICT Ac- (the positive reflection opposes drift)
+
+## 2. Re- (negative reflection: what if you ignore their action?)
+
+What happens when their action goes unexamined — how does it pull you back?
+- Path: the Reflection Perspective's positive regresses you toward your negative
+- Describes regression when you act (Ac+) without reflecting on the other side
+- Your Ac+ must CONTRADICT Re- (your positive action opposes this regression)
+- Usually lower insight than Re+
+
+Requirements:
 - Headlines ~{self.settings.component_length} words, statements 1-15 words
-- For each position, also produce a haiku (3 lines, 5-7-5 syllables) — easy to memorize
-- Re+ must be in the {expected_re_category} category (polar pair of {ac_plus.proactiveness_label})
-- Re+ must genuinely complement Ac+ (address DIFFERENT aspects of the tension)
+- For each position, produce a haiku (3 lines, 5-7-5 syllables)
+- Re+ must be in the {expected_re_category} category (polar pair of {own_ac_plus.proactiveness_label})
 - Diagonal contradictions: Re+ vs Ac-, Ac+ vs Re-"""
 
         return await self._conversation.submit(
-            response_model=TetradCompletionDto,
+            response_model=ReSideCompletionDto,
             user_content=prompt,
         )
 
@@ -635,21 +692,26 @@ Score each transition by comparing its semantic meaning to the corresponding ape
         self,
         ac_category: str,
         re_category: str,
+        opposite_edge_context: str,
     ) -> CategoryReframingDto:
         """Generate contextualized category reframings for Ac and Re as full transitions."""
         prompt = f"""Now generate the neutral category transitions for this transformation.
 
-These are the T ↔ A transitions that contextualize the taxonomy categories:
-
 ## Ac (Action category: T → A): {ac_category}
-Generate a transition that describes how "{ac_category}" specifically manifests in this T-A polarity.
+Generate a transition that describes how "{ac_category}" specifically manifests in the Action Perspective's T-A polarity.
 - Example: For Love/Indifference, "Intervention" → "Boundary-setting intervention"
 - This is a NEUTRAL action category (not + or -), describing the general T → A movement
 
 ## Re (Reflection category: A → T): {re_category}
-Generate a transition that describes how "{re_category}" specifically manifests in this A-T polarity.
+The Reflection Perspective (opposite edge):
+
+<reflection_perspective>
+{opposite_edge_context}
+</reflection_perspective>
+
+Generate a transition that describes how "{re_category}" specifically manifests as reflective response from the opposite side.
 - Example: For Love/Indifference, "Interpretation" → "Connection needs interpretation"
-- This is a NEUTRAL reflection category (not + or -), describing the general A → T movement
+- This is a NEUTRAL reflection category (not + or -), describing the general reflective movement
 
 For each, provide:
 - **headline** (~{self.settings.component_length} words) - short, memorable reframing
