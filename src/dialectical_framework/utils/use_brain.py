@@ -5,6 +5,7 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, TypeVar, overload
 
 from dependency_injector.wiring import Provide, inject
+from langfuse import get_client, observe
 from mirascope import llm
 from mirascope.llm.exceptions import ParseError
 
@@ -46,6 +47,7 @@ def use_brain(
     Decorator factory for Mirascope v2 LLM calls.
 
     Retries on ParseError (validation failures) with exponential backoff.
+    Automatically traces all LLM calls via Langfuse when configured.
 
     When ``format`` is provided, returns the parsed model instance.
     Otherwise returns the raw AsyncResponse (useful for tool calls).
@@ -60,6 +62,7 @@ def use_brain(
 
     def decorator(method: F) -> Callable[..., Any]:
         @wraps(method)
+        @observe(as_type="generation")
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             resolved = ai_model
             if resolved is None:
@@ -81,6 +84,7 @@ def use_brain(
                     call_params[key] = llm_call_kwargs[key]
 
             has_format = "format" in call_params
+            format_name = call_params["format"].__name__ if has_format else None
 
             @llm.call(resolved, **call_params)
             async def _llm_call() -> Any:
@@ -93,6 +97,13 @@ def use_brain(
             for attempt in range(attempts):
                 try:
                     response = await _llm_call()
+                    _trace_generation(
+                        response=response,
+                        model=resolved,
+                        format_name=format_name,
+                        caller=method.__qualname__,
+                        attempt=attempt + 1,
+                    )
                     if has_format:
                         return response.parse()
                     return response
@@ -107,6 +118,64 @@ def use_brain(
         return wrapper
 
     return decorator
+
+
+def _trace_generation(
+    response: Any,
+    model: str,
+    format_name: Optional[str],
+    caller: str,
+    attempt: int,
+) -> None:
+    """Report a completed LLM generation to Langfuse (if active)."""
+    try:
+        lf = get_client()
+
+        usage_details: Optional[dict[str, int]] = None
+        if response.usage:
+            usage_details = {
+                "input": response.usage.input_tokens,
+                "output": response.usage.output_tokens,
+            }
+            if response.usage.cache_read_tokens:
+                usage_details["cache_read"] = response.usage.cache_read_tokens
+            if response.usage.cache_write_tokens:
+                usage_details["cache_write"] = response.usage.cache_write_tokens
+
+        input_messages = [_serialize_message(m) for m in response.input_messages]
+        output_text = response.text if response.texts else str(response.tool_calls)
+
+        metadata: dict[str, Any] = {"caller": caller, "attempt": attempt}
+        if format_name:
+            metadata["format"] = format_name
+
+        lf.update_current_generation(
+            model=model,
+            input=input_messages,
+            output=output_text,
+            usage_details=usage_details,
+            metadata=metadata,
+        )
+    except Exception:
+        pass
+
+
+def _serialize_message(msg: Any) -> dict[str, Any]:
+    """Best-effort serialization of a Mirascope message for Langfuse."""
+    if isinstance(msg, dict):
+        return msg
+    if hasattr(msg, "role") and hasattr(msg, "content"):
+        content = msg.content
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if hasattr(part, "text"):
+                    parts.append(part.text)
+                else:
+                    parts.append(str(part))
+            content = "\n".join(parts)
+        return {"role": msg.role, "content": str(content)}
+    return {"content": str(msg)}
 
 
 @inject

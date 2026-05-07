@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
+from langfuse import observe
 from mirascope import llm
 
 from dialectical_framework.protocols.has_config import SettingsAware
@@ -97,6 +98,7 @@ class ConversationFacilitator(SettingsAware):
         isolated._messages = [*self._messages]  # Copy messages
         return isolated
 
+    @observe()
     async def submit(
         self,
         response_model: type[T],
