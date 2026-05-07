@@ -40,12 +40,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from mirascope import BaseTool
+from mirascope import llm
 from pydantic import Field, PrivateAttr
 
 from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
-from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
 from dialectical_framework.concerns.antithesis_extraction import \
@@ -111,25 +111,15 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
     - call() returns JSON string for LLM tool use
     """
 
-    perspective_hash: str = Field(description="Hash of the Perspective to edit")
-    changes: dict[str, str] = Field(
-        description="Dict of {position: new_statement} for T and/or A changes"
-    )
-    text: str = Field(
-        default="", description="Optional context for classification/generation"
-    )
+    perspective_hash: str = Field(description="Hash (or prefix) of the Perspective to edit")
+    changes: dict[str, str] = Field(description="Dict of {position: new_statement_text} e.g. {'T': 'New thesis'}")
+    text: str = Field(default="", description="Optional context text for classification")
 
-    _report: ExecutionReport = PrivateAttr()
-    _working_pp: Perspective = PrivateAttr()
-    _original_pp: Perspective = PrivateAttr()
-    _was_committed: bool = PrivateAttr()
-    _changes: dict[str, str] = PrivateAttr()
-    _text: str = PrivateAttr()
-
-    @property
-    def report(self) -> ExecutionReport:
-        """Access the execution report."""
-        return self._report
+    _working_pp: Optional[Perspective] = PrivateAttr(default=None)
+    _original_pp: Optional[Perspective] = PrivateAttr(default=None)
+    _was_committed: bool = PrivateAttr(default=False)
+    _changes: dict[str, str] = PrivateAttr(default_factory=dict)
+    _text: str = PrivateAttr(default="")
 
     async def call(self) -> str:
         """Resolve editing and return ExecutionReport as JSON."""
@@ -138,7 +128,6 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
     async def resolve(self) -> EditPolarityResult:
         """Resolve the editing operation."""
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Resolve Perspective
         pp = self._resolve_perspective(self.perspective_hash)
@@ -169,13 +158,15 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
             return result
 
         # Prepare working PP
+        working_pp: Perspective
         if self._was_committed:
-            self._working_pp = pp.clone()
-            self._working_pp.save()
+            working_pp = pp.clone()
+            working_pp.save()
         else:
-            self._working_pp = pp
-            if not self._working_pp._id:
-                self._working_pp.save()
+            working_pp = pp
+            if not working_pp._id:
+                working_pp.save()
+        self._working_pp = working_pp
 
         # Route based on what's being changed
         result = await self._route_changes()
@@ -205,6 +196,7 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
     async def _handle_both_ta_changed(self) -> EditPolarityResult:
         """Handle when both T and A are changed together."""
+        assert self._working_pp is not None
         new_t_statement = self._changes[POSITION_T]
         new_a_statement = self._changes[POSITION_A]
 
@@ -270,6 +262,8 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
     async def _handle_thesis_change(self) -> EditPolarityResult:
         """Handle T change."""
+        assert self._original_pp is not None
+        assert self._working_pp is not None
         new_t_statement = self._changes[POSITION_T]
 
         # Get current antithesis
@@ -360,6 +354,8 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
     async def _handle_antithesis_change(self) -> EditPolarityResult:
         """Handle A change."""
+        assert self._original_pp is not None
+        assert self._working_pp is not None
         new_a_statement = self._changes[POSITION_A]
 
         # Get current thesis
@@ -451,6 +447,7 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
         a_hs: float,
     ) -> None:
         """Fill working PP with T, A (via Polarity) and regenerate all aspects."""
+        assert self._working_pp is not None
         pp = self._working_pp
 
         # Create Polarity for T-A pair
@@ -498,13 +495,14 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
 
     def _discard_working_pp(self) -> None:
         """Delete the uncommitted working PP from the graph to avoid dangling nodes."""
-        if not hasattr(self, "_working_pp"):
+        if self._working_pp is None:
             return
         from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
         repo = PerspectiveRepository()
         repo.discard_uncommitted(self._working_pp)
 
-    def _resolve_perspective(self, pp_hash: str) -> Optional[Perspective]:
+    @staticmethod
+    def _resolve_perspective(pp_hash: str) -> Optional[Perspective]:
         """Resolve hash to Perspective."""
         repo = NodeRepository()
         try:
@@ -512,12 +510,7 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
             if isinstance(node, Perspective):
                 return node
         except ValueError:
-            try:
-                node = repo.find_by_prefix(pp_hash)
-                if isinstance(node, Perspective):
-                    return node
-            except ValueError:
-                pass
+            pass
         return None
 
     def _create_edit_rationale(
@@ -533,9 +526,7 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
         """Build execution report from result."""
         self._report.artifacts["is_valid"] = result.is_valid
         self._report.artifacts["changes"] = self.changes
-        self._report.artifacts["was_committed"] = (
-            self._was_committed if hasattr(self, "_was_committed") else None
-        )
+        self._report.artifacts["was_committed"] = self._was_committed
 
         if result.perspective:
             if result.perspective.hash:
@@ -562,13 +553,16 @@ class EditPolarity(BaseTool, ReasonableConcern[EditPolarityResult]):
                 else "none"
             )
             warning_count = len(result.warnings)
-            action = (
-                "Forked and edited"
-                if (hasattr(self, "_was_committed") and self._was_committed)
-                else "Edited"
-            )
+            action = "Forked and edited" if self._was_committed else "Edited"
             self._report.summary = f"{action} {positions}"
             if warning_count > 0:
                 self._report.summary += f" ({warning_count} warning(s))"
         else:
             self._report.summary = f"Edit failed: {result.error_message}"
+
+
+@llm.tool
+async def edit_polarity(perspective_hash: str, changes: dict[str, str], text: str = "") -> str:
+    """Edit T or A components of a Perspective with validation. Changes is a dict of {position: new_statement} for T and/or A. Optional text provides context for classification/generation."""
+    concern = EditPolarity(perspective_hash=perspective_hash, changes=changes, text=text)
+    return await concern.call()

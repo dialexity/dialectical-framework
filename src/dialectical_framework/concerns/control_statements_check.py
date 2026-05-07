@@ -137,7 +137,6 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
         Raises:
             ValueError: If Perspective is missing required components
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         if not perspective.is_complete():
             raise ValueError("Perspective must be complete (have all 6 positions)")

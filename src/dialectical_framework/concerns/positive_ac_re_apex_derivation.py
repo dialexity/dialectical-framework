@@ -247,7 +247,6 @@ class AcReApexDerivation(
         Returns:
             AcReApexDerivationResultDto with Re+ and Ac+ apexes including coordinates
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         source_segment = edge.get_source_wheel_segment()
         target_segment = edge.get_target_wheel_segment()

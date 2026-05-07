@@ -132,7 +132,6 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
         Returns:
             List of extracted Statement theses
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Early validation - don't hit LLM for nothing
         text = text.strip() if text else ""

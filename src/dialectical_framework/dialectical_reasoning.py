@@ -5,7 +5,6 @@ from typing import Optional, Union
 from dependency_injector import containers, providers
 from gqlalchemy import Memgraph, Neo4j
 
-from dialectical_framework.brain import Brain
 from dialectical_framework.graph.scoring.tarorank import TaroRank
 from dialectical_framework.settings import Settings
 from dialectical_framework.protocols.input_resolver import InputResolver
@@ -168,11 +167,6 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     # Graph database (Memgraph or Neo4j) for graph-native dialectical structures
     graph_db: providers.Singleton[Union[Memgraph, Neo4j]] = providers.Singleton(
         _create_graph_db,
-        settings=settings
-    )
-
-    brain: providers.Factory[Brain] = providers.Factory(
-        lambda settings: Brain(ai_model=settings.ai_model, ai_provider=settings.ai_provider),
         settings=settings
     )
 

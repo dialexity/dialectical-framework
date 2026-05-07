@@ -219,7 +219,6 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
             List of AspectResult with components and scoring.
             Caller is responsible for connecting these to the PP.
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
         self._pp = perspective
         self._text = text
 

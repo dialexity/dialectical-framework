@@ -20,7 +20,6 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
 from dialectical_framework.graph.estimation_manager import EstimationManager
@@ -126,7 +125,6 @@ class TransformationAudit(
         Returns:
             List of audit results with feasibility scores
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         positions = self._collect_positions(transformation, audit_all)

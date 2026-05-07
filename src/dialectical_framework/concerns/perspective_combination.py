@@ -117,7 +117,6 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
             CombinationResult with newly created Cycles and Wheels
         """
         self._preset = preset or nexus.preset
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         if not nexus.is_committed:
             self._report.ok = False

@@ -226,7 +226,6 @@ class IdeaPlacement(ReasonableConcern[IdeaPlacementResult]):
         Returns:
             IdeaPlacementResult with placement type, component, and metadata
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Validate input
         if not idea or not idea.strip():

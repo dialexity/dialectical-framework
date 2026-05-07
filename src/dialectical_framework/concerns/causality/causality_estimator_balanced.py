@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Union
+from typing import Optional, Union
 
 from dependency_injector.wiring import Provide, inject
-from mirascope import Messages, prompt_template
-from mirascope.integrations.langfuse import with_langfuse
+from mirascope import llm
 
 from pydantic import BaseModel, Field
 
@@ -13,20 +12,15 @@ from dialectical_framework.concerns.ai_dto.statement_dto import StatementDto
 from dialectical_framework.concerns.ai_dto.statements_deck_dto import StatementsDeckDto
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.cycle import Cycle
-from dialectical_framework.graph.nodes.statement import \
-    Statement
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.concerns.causality.causality_estimator import (
     CausalityEstimator,
     EstimationStructured,
 )
-from dialectical_framework.protocols.has_brain import HasBrain
-from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
-from mirascope import BaseMessageParam
 
 from dialectical_framework.utils.dc_replace import dc_replace
-from dialectical_framework.utils.extend_tpl import extend_tpl
 from dialectical_framework.utils.use_brain import use_brain
 
 
@@ -58,42 +52,34 @@ class CausalCyclesDeckDto(BaseModel):
     )
 
 
-@prompt_template(
-    """
-    USER:
-    Consider the following text as the initial context for further analysis:
-
-    <context>{text}</context>
-
-    ASSISTANT:
-    OK, let's start.
-    """
-)
-def _prompt_input_text(*, text: str) -> "Messages.Type": ...
+def _prompt_input_text(*, text: str) -> list:
+    return [
+        llm.messages.user(
+            f"Consider the following text as the initial context for further analysis:\n\n"
+            f"<context>{text}</context>"
+        ),
+        llm.messages.assistant("OK, let's start.", model_id=None, provider_id=None),
+    ]
 
 
-@prompt_template(
-    """
-    USER:
-    Consider these statements:
-
-    {statements:lists}
-
-    ASSISTANT:
-    OK, let's proceed.
-    """
-)
-def _prompt_input_theses(*, statements: list[list[str]]) -> "Messages.Type": ...
+def _prompt_input_theses(*, statements: list[list[str]]) -> list:
+    formatted = "\n\n".join("\n".join(item) for item in statements)
+    return [
+        llm.messages.user(
+            f"Consider these statements:\n\n{formatted}"
+        ),
+        llm.messages.assistant("OK, let's proceed.", model_id=None, provider_id=None),
+    ]
 
 
 def _build_thesis_context(
-    theses: list[StatementDto], text: str = None
-) -> list[BaseMessageParam]:
+    theses: list[StatementDto], text: Optional[str] = None
+) -> list:
     """Build prompt context from thesis DTOs and optional source text."""
-    tpl: list[BaseMessageParam] = []
+    tpl: list = []
 
     if text:
-        extend_tpl(tpl, _prompt_input_text(text=text))
+        tpl.extend(_prompt_input_text(text=text))
 
     statements = [
         [
@@ -104,11 +90,11 @@ def _build_thesis_context(
         for index, dc in enumerate(theses)
     ]
 
-    extend_tpl(tpl, _prompt_input_theses(statements=statements))
+    tpl.extend(_prompt_input_theses(statements=statements))
     return tpl
 
 
-class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
+class CausalityEstimatorBalanced(CausalityEstimator):
     """
     Causality estimator that estimates probabilities for Cycles and Wheels.
 
@@ -135,53 +121,45 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
     def input_resolver(self) -> InputResolver:
         return self._input_resolver
 
-    @prompt_template(
-        """
-        USER:
-        Which of the following circular causality sequences provides the best assessment considering realism, desirability, and feasibility (given that the final step cycles back to the first step):
-        {sequences:list}
-
-        <instructions>
-        For each sequence:
-        1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility
-        2) Explain why this sequence might occur (or already occurs) in reality
-        3) Describe circumstances or contexts where this sequence would be most applicable or useful
-
-        - Only use the sequences **exactly as provided**, do not shorten, skip, collapse, or reorder steps.
-        </instructions>
-
-        <formatting>
-        - Output each circular causality sequence (cycle) as ordered aliases (technical placeholders) of statements as provided e.g. C1, C2, C3, ...
-        - In the explanations, for fluency, use explicit wording instead of aliases.
-        - Probability is a float between 0 and 1.
-        </formatting>
-        """
-    )
     def prompt_assess_multiple_sequences(
         self, *, sequences: list[str]
-    ) -> "Messages.Type": ...
+    ) -> list:
+        sequences_text = "\n".join(f"- {s}" for s in sequences)
+        return [llm.messages.user(
+            f"Which of the following circular causality sequences provides the best assessment "
+            f"considering realism, desirability, and feasibility "
+            f"(given that the final step cycles back to the first step):\n"
+            f"{sequences_text}\n\n"
+            f"<instructions>\n"
+            f"For each sequence:\n"
+            f"1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility\n"
+            f"2) Explain why this sequence might occur (or already occurs) in reality\n"
+            f"3) Describe circumstances or contexts where this sequence would be most applicable or useful\n\n"
+            f"- Only use the sequences **exactly as provided**, do not shorten, skip, collapse, or reorder steps.\n"
+            f"</instructions>\n\n"
+            f"<formatting>\n"
+            f"- Output each circular causality sequence (cycle) as ordered aliases (technical placeholders) of statements as provided e.g. C1, C2, C3, ...\n"
+            f"- In the explanations, for fluency, use explicit wording instead of aliases.\n"
+            f"- Probability is a float between 0 and 1.\n"
+            f"</formatting>"
+        )]
 
-    @prompt_template(
-        """
-        USER:
-        Assess the following circular causality sequence considering realism, desirability, and feasibility (given that the final step cycles back to the first step):
-        {sequence}
-
-        <instructions>
-        1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility
-        2) Explain why this sequence might occur (or already occurs) in reality
-        3) Describe circumstances or contexts where this sequence would be most applicable or useful
-
-        - Only use the sequence **exactly as provided**, do not shorten, skip, collapse, or reorder steps.
-        </instructions>
-
-        <formatting>
-        - In the explanations and argumentation, for fluency, try to use explicit wording instead of technical aliases.
-        - Probability is a float between 0 and 1.
-        </formatting>
-        """
-    )
-    def prompt_assess_single_sequence(self, *, sequence: str) -> "Messages.Type": ...
+    def prompt_assess_single_sequence(self, *, sequence: str) -> list:
+        return [llm.messages.user(
+            f"Assess the following circular causality sequence considering realism, desirability, and feasibility "
+            f"(given that the final step cycles back to the first step):\n"
+            f"{sequence}\n\n"
+            f"<instructions>\n"
+            f"1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility\n"
+            f"2) Explain why this sequence might occur (or already occurs) in reality\n"
+            f"3) Describe circumstances or contexts where this sequence would be most applicable or useful\n\n"
+            f"- Only use the sequence **exactly as provided**, do not shorten, skip, collapse, or reorder steps.\n"
+            f"</instructions>\n\n"
+            f"<formatting>\n"
+            f"- In the explanations and argumentation, for fluency, try to use explicit wording instead of technical aliases.\n"
+            f"- Probability is a float between 0 and 1.\n"
+            f"</formatting>"
+        )]
 
     async def estimate(
         self,
@@ -205,7 +183,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         """
         # Normalize to list
         structure_list: list[Union[Cycle, Wheel]] = (
-            [structures] if not isinstance(structures, list) else list(structures)
+            [structures] if not isinstance(structures, list) else structures
         )
 
         if not structure_list:
@@ -252,27 +230,17 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         """
         sequences_str: dict[str, list[str]] = {}
 
-        # Track graph-native components for later mapping back
-        component_map: dict[str, Statement] = (
-            {}
-        )  # uid -> graph-native component
-
         # Build DTOs for AI boundary
-        component_dtos: dict[str, StatementDto] = {}  # identity -> DTO
+        component_dtos: dict[str, StatementDto] = {}
 
         for seq_idx, sequence in enumerate(sequences, 1):
             sequence_aliases: list[str] = []
 
             for comp_idx, component in enumerate(sequence, 1):
-                # Generate uniform technical alias to avoid AI bias
                 technical_alias = f"C{seq_idx}_{comp_idx}"
+                assert component.hash is not None
 
-                # Store graph-native component by identity for later mapping
-                if component.hash not in component_map:
-                    component_map[component.hash] = component
-
-                    # Convert graph-native component → DTO for AI
-                    # Get first rationale as explanation if available
+                if component.hash not in component_dtos:
                     explanation = ""
                     rationales = list(component.rationales.all())
                     if rationales:
@@ -305,17 +273,17 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         async def _estimate_single(
             sequence_str: str, aliases: list[str]
         ) -> CausalCycleDto:
-            @with_langfuse()
-            @use_brain(brain=self.brain, response_model=CausalCycleAssessmentDto)
-            async def _estimate_single_call() -> CausalCycleAssessmentDto:
+            @use_brain(format=CausalCycleAssessmentDto)
+            async def _estimate_single_call() -> list:
                 prompt = self.prompt_assess_single_sequence(sequence=sequence_str)
                 tpl = _build_thesis_context(
                     theses=statements_deck_dto.statements,
                     text=text,
                 )
-                return extend_tpl(tpl, prompt)
+                tpl.extend(prompt)
+                return tpl
 
-            assessment = await _estimate_single_call()
+            assessment: CausalCycleAssessmentDto = await _estimate_single_call()
             return CausalCycleDto(
                 aliases=aliases,
                 probability=assessment.probability,
@@ -356,8 +324,8 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
 
         for sequence in sequences:
             for component in sequence:
-                # Get Input(s) this component was extracted from
                 for input_node, _ in component.inputs.all():
+                    assert input_node.hash is not None
                     if input_node.hash not in seen_inputs:
                         seen_inputs.add(input_node.hash)
                         input_nodes.append(input_node)
@@ -368,8 +336,8 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
         # Use InputResolver to resolve all inputs
         return await self.input_resolver.resolve_all(input_nodes)
 
+    @staticmethod
     def _map_results_to_structures(
-        self,
         structures: list[Union[Cycle, Wheel]],
         causal_cycles_deck: CausalCyclesDeckDto,
         sequences: list[list[Statement]],
@@ -395,8 +363,9 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
 
         # Build component-alias translations for text replacement
         components_with_aliases: list[tuple[Statement, str]] = []
-        for seq_idx, sequence in enumerate(sequences):
+        for sequence in sequences:
             for comp in sequence:
+                assert comp.hash is not None
                 alias = None
                 for existing_comp, existing_alias in components_with_aliases:
                     if existing_comp.hash == comp.hash:
@@ -407,14 +376,15 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
                     components_with_aliases.append((comp, alias))
 
         # Build alias translation map
-        id_to_original_alias: dict[str, str] = {
-            comp.hash: original_alias
-            for comp, original_alias in components_with_aliases
-        }
+        id_to_original_alias: dict[str, str] = {}
+        for comp, original_alias in components_with_aliases:
+            assert comp.hash is not None
+            id_to_original_alias[comp.hash] = original_alias
         alias_translations: dict[str, str] = {}
         for seq_idx, sequence in enumerate(sequences, 1):
             for comp_idx, component in enumerate(sequence, 1):
                 technical_alias = f"C{seq_idx}_{comp_idx}"
+                assert component.hash is not None
                 original_alias = id_to_original_alias.get(component.hash)
                 if original_alias:
                     alias_translations[technical_alias] = original_alias
@@ -438,7 +408,7 @@ class CausalityEstimatorBalanced(CausalityEstimator, HasBrain, SettingsAware):
                 continue
 
             matched_structure = index_to_structure.get(seq_idx)
-            if not matched_structure:
+            if not matched_structure or not matched_structure.hash:
                 continue
 
             # Translate aliases in text

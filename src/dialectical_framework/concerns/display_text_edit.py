@@ -26,7 +26,6 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
@@ -78,12 +77,9 @@ class DisplayTextEdit(ReasonableConcern[DisplayTextEditResult]):
         Returns:
             DisplayTextEditResult with the updated node
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         repo = NodeRepository()
         node = repo.find_by_hash(node_hash)
-        if node is None:
-            node = repo.find_by_prefix(node_hash)
 
         if node is None:
             result = DisplayTextEditResult(

@@ -153,7 +153,6 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
             SynthesisResult with S+ and S- components, or None if generation failed.
             Components are committed. Caller creates Synthesis node and connects them.
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Build context from PP components
         pp_components = []

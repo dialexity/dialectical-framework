@@ -190,15 +190,15 @@ class TestOrchestratorInitialization:
         tool_names = [t.__name__ for t in orchestrator._tools]
 
         # Session tools
-        assert "AddInput" in tool_names
+        assert "add_input" in tool_names
 
         # Query tools
-        assert "QueryGraph" in tool_names
+        assert "query_graph" in tool_names
 
         # Build tools (subagents)
-        assert "SurfaceTheses" in tool_names
-        assert "FindPolarities" in tool_names
-        assert "ExploreTransformations" in tool_names
+        assert "surface_theses" in tool_names
+        assert "find_polarities" in tool_names
+        assert "explore_transformations" in tool_names
 
 
 class TestOrchestratorWorkflow:

@@ -39,16 +39,16 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, cast
 
-from mirascope import BaseTool
+from mirascope import llm
 from pydantic import Field, PrivateAttr
 
 from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
-from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.concerns.aspect_classification import \
-    AspectClassification
+from dialectical_framework.protocols.base_tool import BaseTool
+from dialectical_framework.concerns.aspect_classification import (
+    AspectClassification, AspectClassificationResult)
 from dialectical_framework.concerns.diagonal_oppositions_check import \
     DiagonalOppositionsCheck
 from dialectical_framework.concerns.control_statements_check import \
@@ -63,7 +63,7 @@ from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            Perspective)
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, HasPolarityRelationship,
-    TMinusRelationship, TPlusRelationship)
+    PolarityRelationship, TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 
@@ -104,23 +104,15 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
     - call() returns JSON string for LLM tool use
     """
 
-    perspective_hash: str = Field(description="Hash of the Perspective to edit")
-    changes: dict[str, str] = Field(
-        description="Dict of {position: new_statement} for aspect changes (T+, T-, A+, A-)"
-    )
-    text: str = Field(default="", description="Optional context for classification")
+    perspective_hash: str = Field(description="Hash (or prefix) of the Perspective to edit")
+    changes: dict[str, str] = Field(description="Dict of {position: new_statement_text} e.g. {'T+': 'New positive aspect'}")
+    text: str = Field(default="", description="Optional context text for classification")
 
-    _report: ExecutionReport = PrivateAttr()
-    _working_pp: Perspective = PrivateAttr()
-    _original_pp: Perspective = PrivateAttr()
-    _was_committed: bool = PrivateAttr()
-    _changes: dict[str, str] = PrivateAttr()
-    _text: str = PrivateAttr()
-
-    @property
-    def report(self) -> ExecutionReport:
-        """Access the execution report."""
-        return self._report
+    _working_pp: Optional[Perspective] = PrivateAttr(default=None)
+    _original_pp: Optional[Perspective] = PrivateAttr(default=None)
+    _was_committed: bool = PrivateAttr(default=False)
+    _changes: dict[str, str] = PrivateAttr(default_factory=dict)
+    _text: str = PrivateAttr(default="")
 
     async def call(self) -> str:
         """Resolve editing and return ExecutionReport as JSON."""
@@ -129,7 +121,6 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
 
     async def resolve(self) -> EditTetradResult:
         """Resolve the editing operation."""
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Resolve Perspective
         pp = self._resolve_perspective(self.perspective_hash)
@@ -160,8 +151,8 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
             return result
 
         # Verify PP has T and A
-        current_t = self._original_pp.get_component(POSITION_T)
-        current_a = self._original_pp.get_component(POSITION_A)
+        current_t = pp.get_component(POSITION_T)
+        current_a = pp.get_component(POSITION_A)
 
         if not current_t or not current_a:
             result = EditTetradResult(
@@ -172,13 +163,15 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
             return result
 
         # Prepare working PP
+        working_pp: Perspective
         if self._was_committed:
-            self._working_pp = pp.clone()
-            self._working_pp.save()
+            working_pp = pp.clone()
+            working_pp.save()
         else:
-            self._working_pp = pp
-            if not self._working_pp._id:
-                self._working_pp.save()
+            working_pp = pp
+            if not working_pp._id:
+                working_pp.save()
+        self._working_pp = working_pp
 
         # Handle aspect changes
         result = await self._handle_aspects_changed(current_t, current_a)
@@ -192,8 +185,9 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
         antithesis: Statement,
     ) -> EditTetradResult:
         """Handle when aspects are changed."""
+        assert self._working_pp is not None
         # Validate all changed aspects
-        aspect_validations: dict[str, tuple[Statement, object]] = {}
+        aspect_validations: dict[str, tuple[Statement, AspectClassificationResult]] = {}
         invalid_aspects: list[str] = []
 
         for aspect_pos in self._changes:
@@ -264,9 +258,11 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
 
     def _fill_pp_with_aspects(
         self,
-        aspect_validations: dict[str, tuple[Statement, object]],
+        aspect_validations: dict[str, tuple[Statement, AspectClassificationResult]],
     ) -> None:
         """Fill working PP with changed aspects, copying unchanged from original. Does NOT commit."""
+        assert self._working_pp is not None
+        assert self._original_pp is not None
         pp = self._working_pp
 
         # Copy Polarity (T-A pair) from original if not connected
@@ -311,25 +307,21 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
                         ).get()
                     )
                     if orig_result:
-                        orig_comp, orig_rel = orig_result
+                        orig_comp, orig_rel_raw = orig_result
+                        orig_rel = cast(PolarityRelationship, orig_rel_raw)
                         manager.connect(
                             orig_comp,
                             relationship=rel_class(
                                 alias=pos,
-                                heuristic_similarity=(
-                                    orig_rel.heuristic_similarity if orig_rel else None
-                                ),
-                                complementarity_t=(
-                                    orig_rel.complementarity_t if orig_rel else None
-                                ),
-                                complementarity_a=(
-                                    orig_rel.complementarity_a if orig_rel else None
-                                ),
+                                heuristic_similarity=orig_rel.heuristic_similarity,
+                                complementarity_t=getattr(orig_rel, "complementarity_t", None),
+                                complementarity_a=getattr(orig_rel, "complementarity_a", None),
                             ),
                         )
 
     def _discard_working_pp(self) -> None:
         """Delete the uncommitted working PP from the graph to avoid dangling nodes."""
+        assert self._working_pp is not None
         from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
         repo = PerspectiveRepository()
         repo.discard_uncommitted(self._working_pp)
@@ -340,6 +332,7 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
 
         Returns list of error messages. Empty list means valid.
         """
+        assert self._working_pp is not None
         pp = self._working_pp
         errors: list[str] = []
 
@@ -428,20 +421,13 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
 
         return best_match
 
-    def _resolve_perspective(self, pp_hash: str) -> Optional[Perspective]:
-        """Resolve hash to Perspective."""
+    @staticmethod
+    def _resolve_perspective(pp_hash: str) -> Optional[Perspective]:
+        """Resolve hash or prefix to Perspective."""
         repo = NodeRepository()
-        try:
-            node = repo.find_by_hash(pp_hash)
-            if isinstance(node, Perspective):
-                return node
-        except ValueError:
-            try:
-                node = repo.find_by_prefix(pp_hash)
-                if isinstance(node, Perspective):
-                    return node
-            except ValueError:
-                pass
+        node = repo.find_by_hash(pp_hash)
+        if isinstance(node, Perspective):
+            return node
         return None
 
     def _build_report(self, result: EditTetradResult) -> None:
@@ -479,3 +465,9 @@ class EditTetrad(BaseTool, ReasonableConcern[EditTetradResult]):
             self._report.summary = f"{action} aspects: {positions}"
         else:
             self._report.summary = f"Edit failed: {result.error_message}"
+
+
+@llm.tool
+async def edit_tetrad(perspective_hash: str, changes: dict[str, str], text: str = "") -> str:
+    """Edit aspects (T+, T-, A+, A-) of a Perspective with validation. Changes is a dict of {position: new_statement}. Optional text provides context for classification."""
+    return await EditTetrad(perspective_hash=perspective_hash, changes=changes, text=text).call()

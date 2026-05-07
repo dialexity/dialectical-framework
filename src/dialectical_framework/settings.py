@@ -14,8 +14,7 @@ class Settings(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-    ai_model: str = Field(..., description="AI model alias/deployment to use.")
-    ai_provider: Optional[str] = Field(default=None, description="AI model provider to use.")
+    ai_model: str = Field(..., description="AI model in 'provider/model' format (e.g., 'bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0').")
     component_length: int = Field(default=7, description="Approximate length in words of the statement.")
     cycle_preset: str = Field(default=CausalityPreset.BALANCED, description="Default preset for causality estimation (e.g., preset:realistic, preset:desirable, preset:feasible, preset:balanced).")
     tarorank_default_transition_probability: Optional[float] = Field(
@@ -72,19 +71,10 @@ class Settings(BaseModel):
         load_dotenv()
 
         model = os.getenv("DIALEXITY_DEFAULT_MODEL", None)
-        provider = os.getenv("DIALEXITY_DEFAULT_MODEL_PROVIDER", None)
-        missing = []
         if not model:
-            missing.append("DIALEXITY_DEFAULT_MODEL")
-        if not provider:
-            if "/" not in model:
-                missing.append("DIALEXITY_DEFAULT_MODEL_PROVIDER")
-            else:
-                # We will give litellm a chance to derive the provider from the model
-                pass
-        if missing:
             raise ValueError(
-                f"Missing required environment variables: {', '.join(missing)}"
+                "Missing required environment variable: DIALEXITY_DEFAULT_MODEL "
+                "(must be in 'provider/model' format, e.g., 'bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0')"
             )
 
         # Handle tarorank_default_transition_probability from environment
@@ -111,7 +101,6 @@ class Settings(BaseModel):
 
         return cls(
             ai_model=model,
-            ai_provider=provider,
             component_length=int(os.getenv("DIALEXITY_DEFAULT_COMPONENT_LENGTH", 7)),
             cycle_preset=os.getenv("DIALEXITY_DEFAULT_CYCLE_PRESET", CausalityPreset.BALANCED),
             tarorank_default_transition_probability=default_prob,

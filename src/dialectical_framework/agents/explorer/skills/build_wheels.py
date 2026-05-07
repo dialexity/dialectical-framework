@@ -32,12 +32,11 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
-from mirascope import BaseTool, Messages, prompt_template
-from mirascope.integrations.langfuse import with_langfuse
-from pydantic import BaseModel, Field, PrivateAttr
+from mirascope import llm
+from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.causality_preset import CausalityPreset
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.cycle import Cycle
@@ -47,7 +46,6 @@ from dialectical_framework.graph.repositories.node_repository import NodeReposit
 from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
-    from dialectical_framework.brain import Brain
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 
@@ -71,41 +69,36 @@ class _AutoPresetResolutionDto(BaseModel):
     )
 
 
-@prompt_template(
-    """
-    USER:
-    Given the following exploration purpose:
-    {exploration_intent}
+def _auto_preset_prompt(*, exploration_intent: str) -> list:
+    return [llm.messages.user(f"""Given the following exploration purpose:
+{exploration_intent}
 
-    Determine the best assessment strategy for evaluating circular causality sequences
-    (ordered chains of thesis statements that cycle back to the beginning).
+Determine the best assessment strategy for evaluating circular causality sequences
+(ordered chains of thesis statements that cycle back to the beginning).
 
-    <system_presets>
-    The following system presets exist. Pick one if it clearly fits the exploration purpose:
+<system_presets>
+The following system presets exist. Pick one if it clearly fits the exploration purpose:
 
-    - preset:realistic — Evaluates what is most likely to happen in reality.
-      Best for: practical analysis, real-world dynamics, predicting outcomes.
+- preset:realistic — Evaluates what is most likely to happen in reality.
+  Best for: practical analysis, real-world dynamics, predicting outcomes.
 
-    - preset:desirable — Evaluates what would be most beneficial or ideal.
-      Best for: aspirational goals, ethical reasoning, envisioning best outcomes.
+- preset:desirable — Evaluates what would be most beneficial or ideal.
+  Best for: aspirational goals, ethical reasoning, envisioning best outcomes.
 
-    - preset:feasible — Evaluates what is most achievable given constraints.
-      Best for: implementation planning, resource-aware analysis, pragmatic paths.
+- preset:feasible — Evaluates what is most achievable given constraints.
+  Best for: implementation planning, resource-aware analysis, pragmatic paths.
 
-    - preset:balanced — Generic balanced assessment with no particular lens.
-      Best for: when no specific angle is needed, general-purpose exploration.
-    </system_presets>
+- preset:balanced — Generic balanced assessment with no particular lens.
+  Best for: when no specific angle is needed, general-purpose exploration.
+</system_presets>
 
-    <instructions>
-    1. If the exploration purpose clearly aligns with one of the system presets above,
-       return that preset. Prefer system presets — they are well-tuned.
-    2. Only if the intent requires a perspective that none of the system presets capture,
-       formulate 2-4 concise custom assessment criteria as a single paragraph.
-    3. Return EITHER a preset OR criteria, never both.
-    </instructions>
-    """
-)
-def _auto_preset_prompt(*, exploration_intent: str) -> Messages.Type: ...
+<instructions>
+1. If the exploration purpose clearly aligns with one of the system presets above,
+   return that preset. Prefer system presets — they are well-tuned.
+2. Only if the intent requires a perspective that none of the system presets capture,
+   formulate 2-4 concise custom assessment criteria as a single paragraph.
+3. Return EITHER a preset OR criteria, never both.
+</instructions>""")]
 
 
 @dataclass
@@ -138,20 +131,8 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
     - call() returns JSON string for LLM tool use
     """
 
-    nexus_hash: str = Field(
-        description="Hash (or prefix) of the Nexus to explore"
-    )
-    perspective_hashes: list[str] = Field(
-        default_factory=list,
-        description="Perspective hashes to add to the Nexus and combine. "
-        "If empty, does nothing.",
-    )
-    _report: ExecutionReport = PrivateAttr()
-
-    @property
-    def report(self) -> ExecutionReport:
-        """Access the execution report."""
-        return self._report
+    nexus_hash: str = Field(description="Hash of the Nexus to build wheels in")
+    perspective_hashes: list[str] = Field(default_factory=list, description="Perspective hashes to add to Nexus before building")
 
     async def call(self) -> str:
         """Resolve and return ExecutionReport as JSON (for LLM tool use)."""
@@ -165,7 +146,6 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
         Returns:
             BuildWheelsResult with newly created structures
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # 1. Resolve Nexus
         nexus = self._resolve_nexus()
@@ -226,7 +206,7 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
         combination_result = combination.resolve(
             nexus=nexus, perspectives=perspectives, preset=cycle_intent
         )
-        self._report.merge(combination.report)
+        self._report = self._report.merge(combination.report)
 
         new_cycles = combination_result.cycles
         new_wheels = combination_result.wheels
@@ -277,12 +257,12 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
         if cycles:
             estimation = CausalityEstimation()
             await estimation.resolve(cycles)
-            self._report.merge(estimation.report)
+            self._report = self._report.merge(estimation.report)
 
         if wheels:
             estimation = CausalityEstimation()
             await estimation.resolve(wheels)
-            self._report.merge(estimation.report)
+            self._report = self._report.merge(estimation.report)
 
     @inject
     def _resolve_nexus(
@@ -343,11 +323,9 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
 
         return None
 
-    @inject
     async def _resolve_auto_preset(
         self,
         exploration_intent: str,
-        brain: Brain = Provide[DI.brain],
     ) -> str:
         """
         Resolve preset:auto — LLM picks a system preset or formulates custom criteria.
@@ -357,12 +335,11 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
         - Custom criteria text if no preset fits
         - "preset:balanced" as fallback
         """
-        @with_langfuse()
-        @use_brain(brain=brain, response_model=_AutoPresetResolutionDto)
-        async def _resolve() -> _AutoPresetResolutionDto:
+        @use_brain(format=_AutoPresetResolutionDto)
+        async def _resolve() -> list:
             return _auto_preset_prompt(exploration_intent=exploration_intent)
 
-        result = await _resolve()
+        result: _AutoPresetResolutionDto = await _resolve()
 
         if result.preset:
             return result.preset
@@ -384,3 +361,10 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
                 raise ValueError(f"Perspective not found: {pp_hash}")
             perspectives.append(node)
         return perspectives
+
+
+@llm.tool
+async def build_wheels(nexus_hash: str, perspective_hashes: Optional[list[str]] = None) -> str:
+    """Create structural combinations (Cycles + Wheels) from Perspectives within a Nexus and estimate them. Provide Nexus hash and Perspective hashes to combine."""
+    concern = BuildWheels(nexus_hash=nexus_hash, perspective_hashes=perspective_hashes or [])
+    return await concern.call()

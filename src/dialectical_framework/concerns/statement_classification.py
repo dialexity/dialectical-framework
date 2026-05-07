@@ -471,7 +471,6 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
         Returns:
             ClassificationResult with is_simple, meaning URI, and reasoning
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
         self._statement = statement.strip() if statement else ""
 
         # Early validation

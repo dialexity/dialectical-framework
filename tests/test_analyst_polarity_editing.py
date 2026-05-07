@@ -5,7 +5,7 @@ Tests for EditPolarity and EditTetrad skills.
 from __future__ import annotations
 
 import pytest
-from langfuse.decorators import observe
+from langfuse import observe
 
 from dialectical_framework.agents.analyst.skills.edit_polarity import (
     HS_WRONG_CATEGORY_THRESHOLD, EditPolarity)

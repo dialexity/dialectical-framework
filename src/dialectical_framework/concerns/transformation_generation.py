@@ -347,7 +347,6 @@ class TransformationGeneration(
         Returns:
             TransformationTetradDto with all 6 positions and HS scores
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         source_segment = edge.get_source_wheel_segment()
         target_segment = edge.get_target_wheel_segment()

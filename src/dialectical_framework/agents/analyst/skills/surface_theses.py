@@ -29,7 +29,7 @@ import asyncio
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
-from mirascope import BaseTool
+from mirascope import llm
 from pydantic import BaseModel, Field, PrivateAttr
 
 from dialectical_framework.agents.conversation_facilitator import \
@@ -37,6 +37,7 @@ from dialectical_framework.agents.conversation_facilitator import \
 from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.statement_classification import (
     ClassificationResult, StatementClassification)
@@ -135,17 +136,9 @@ class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
     - call() returns JSON string for LLM tool use
     """
 
-    intent: str = Field(
-        description=(
-            "Unstructured intent from AnalystAgent describing what theses to surface. "
-            "Examples: 'extract 5 theses about trust and integrity', "
-            "'find theses from inputs, prefer existing ones if suitable', "
-            "'surface 3 new theses about security, avoid anything about performance'"
-        )
-    )
+    intent: str = Field(description="Unstructured intent describing what theses to extract")
 
     _conversation: Optional[ConversationFacilitator] = PrivateAttr(default=None)
-    _report: Optional[ExecutionReport] = PrivateAttr(default=None)
 
     async def call(self) -> str:
         """Resolve anchoring and return ExecutionReport as JSON (for LLM tool use)."""
@@ -155,7 +148,6 @@ class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
     async def resolve(self) -> Optional[Ideas]:
         """Resolve anchoring: extract, dedup, cleanup, create Ideas. Returns Ideas container."""
         # Reset report on each execution (allows instance reuse)
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Initialize conversation (lazy init for Mirascope tool compatibility)
         self._conversation = ConversationFacilitator()
@@ -574,3 +566,18 @@ Determine:
             )
 
         return ideas
+
+
+@llm.tool
+async def surface_theses(intent: str) -> str:
+    """Surfaces theses for dialectical analysis by fulfilling anchoring intent.
+
+    Receives unstructured intent and extracts theses from inputs,
+    deduplicates against existing vocabulary, and creates Ideas node.
+
+    Examples: 'extract 5 theses about trust and integrity',
+    'find theses from inputs, prefer existing ones if suitable',
+    'surface 3 new theses about security, avoid anything about performance'
+    """
+    concern = SurfaceTheses(intent=intent)
+    return await concern.call()

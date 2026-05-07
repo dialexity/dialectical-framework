@@ -205,7 +205,6 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
         Returns:
             AspectClassificationResult with validity, HS, complementarity (no DB nodes created)
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Validate inputs
         if not thesis or not thesis.text:

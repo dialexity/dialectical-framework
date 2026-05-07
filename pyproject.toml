@@ -43,18 +43,16 @@ from = "src"
 [tool.poetry.dependencies]
 python = "^3.11"
 mirascope = {extras = [
-    "azure",
     "openai",
     "anthropic",
-    "bedrock",
-    "langfuse",
-    "tenacity"
-], version = "^1.25.7"}
+    "ops"
+], version = "^2.4.0"}
 python-dotenv = "^1.2.1"
 tabulate = "^0.9.0"
 dependency-injector = "^4.48.2"
-litellm = "^1.79.3"
 gqlalchemy = "^1.8.0"
+langfuse = "^4.5.1"
+boto3 = "^1.43.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
@@ -77,8 +75,6 @@ markers = [
     "real_llm: tests that require a real LLM endpoint (skipped unless --real-llm)",
 ]
 filterwarnings = [
-    "ignore::DeprecationWarning:mirascope.*",
-    "ignore::UserWarning:mirascope.*",
     "ignore::DeprecationWarning:pydantic._internal._config",
     "ignore::DeprecationWarning:httpx._models",
     "ignore::UserWarning:pydantic.main"

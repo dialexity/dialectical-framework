@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.real_llm
-from langfuse.decorators import observe
+from langfuse import observe
 
 from dialectical_framework.concerns.idea_placement import (IdeaPlacement,
                                                            TensionInfo)

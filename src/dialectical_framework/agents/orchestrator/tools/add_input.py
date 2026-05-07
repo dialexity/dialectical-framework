@@ -11,11 +11,12 @@ from typing import Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
-from mirascope import BaseTool
+from mirascope import llm
 from pydantic import Field
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.input import Input
+from dialectical_framework.protocols.base_tool import BaseTool
 
 
 class AddInput(BaseTool):
@@ -45,8 +46,6 @@ class AddInput(BaseTool):
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         sid: Optional[str] = Provide[DI.sid],
     ) -> str:
-        """Add input content to the current case."""
-        # Find the case
         query = """
         MATCH (c:Case {sid: $sid})
         RETURN c
@@ -58,12 +57,10 @@ class AddInput(BaseTool):
 
         case = results[0]["c"]
 
-        # Create and connect input
         input_node = Input(content=self.content)
         input_node.commit()
         case.inputs.connect(input_node)
 
-        # Preview for response
         preview = (
             self.content[:100] + "..." if len(self.content) > 100 else self.content
         )
@@ -74,3 +71,10 @@ class AddInput(BaseTool):
             f"Preview: {preview}\n"
             f"You can now extract theses using SurfaceTheses."
         )
+
+
+@llm.tool
+async def add_input(content: str) -> str:
+    """Add external source material (user-provided text or URL) for analysis to the current case. Not for storing analytical outputs."""
+    tool = AddInput(content=content)
+    return await tool.call()

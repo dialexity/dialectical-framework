@@ -177,7 +177,6 @@ class ActionExtraction(
         Returns:
             List of ActionCandidateResultDto with statements and coordinates
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         source_segment = edge.get_source_wheel_segment()
         target_segment = edge.get_target_wheel_segment()

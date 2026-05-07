@@ -14,10 +14,11 @@ from typing import Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
-from mirascope import BaseTool
+from mirascope import llm
 from pydantic import Field
 
 from dialectical_framework.enums.di import DI
+from dialectical_framework.protocols.base_tool import BaseTool
 
 
 def _is_schema_query(query: str) -> bool:
@@ -131,13 +132,8 @@ class QueryGraph(BaseTool):
                        HAS_INPUT, HAS_WHEEL, HAS_TRANSFORMATION (structural)
     """
 
-    cypher: str = Field(
-        description="Cypher query. Don't include sid - it's automatically injected for security."
-    )
-    limit: int = Field(
-        default=50,
-        description="Maximum rows to return (safety limit, not applied to schema queries)",
-    )
+    cypher: str = Field(description="Cypher query to execute. Do not include sid - it's auto-injected.")
+    limit: int = Field(default=50, description="Maximum number of results to return.")
 
     @inject
     async def call(
@@ -220,3 +216,10 @@ class QueryGraph(BaseTool):
             lines.append(f"... (showing {self.limit} of {len(results)})")
 
         return "\n".join(lines)
+
+
+@llm.tool
+async def query_graph(cypher: str, limit: int = 50) -> str:
+    """Execute a read-only Cypher query on the graph database. Session scoping (sid) is automatically injected. Do not include sid in your query."""
+    tool = QueryGraph(cypher=cypher, limit=limit)
+    return await tool.call()

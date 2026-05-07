@@ -93,31 +93,29 @@ Perspective, Cycle, Wheel, etc.:
 - `intent`: Optional intent/purpose description
 """
 from dialectical_framework.agents.analyst.skills.edit_polarity import \
-    EditPolarity
-from dialectical_framework.agents.analyst.skills.edit_tetrad import EditTetrad
+    edit_polarity
+from dialectical_framework.agents.analyst.skills.edit_tetrad import edit_tetrad
 from dialectical_framework.agents.analyst.skills.expand_polarities import \
-    ExpandPolarities
+    expand_polarities
 from dialectical_framework.agents.analyst.skills.find_polarities import \
-    FindPolarities
-# Import existing subagents
+    find_polarities
 from dialectical_framework.agents.analyst.skills.surface_theses import \
-    SurfaceTheses
+    surface_theses
 from dialectical_framework.agents.explorer.skills.build_wheels import \
-    BuildWheels
+    build_wheels
 from dialectical_framework.agents.explorer.skills.explore_transformations import \
-    ExploreTransformations
-# Import orchestrator tools
-from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
+    explore_transformations
+from dialectical_framework.agents.orchestrator.tools.add_input import add_input
 from dialectical_framework.agents.orchestrator.tools.get_scope_status import \
-    GetScopeStatus
+    get_scope_status
 from dialectical_framework.agents.orchestrator.tools.query_graph import \
-    QueryGraph
+    query_graph
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.scope_context import scope
 
 if TYPE_CHECKING:
-    from mirascope import BaseTool
+    pass
 
 
 class ChatResponse(BaseModel):
@@ -216,25 +214,25 @@ class Orchestrator:
         return "\n".join(lines)
 
     @staticmethod
-    def _build_tool_list() -> list[type[BaseTool]]:
+    def _build_tool_list() -> list:
         """Build the list of tools available to the orchestrator."""
         session_tools = [
-            AddInput,
-            GetScopeStatus,
+            add_input,
+            get_scope_status,
         ]
 
         query_tools = [
-            QueryGraph,
+            query_graph,
         ]
 
         build_tools = [
-            SurfaceTheses,
-            FindPolarities,
-            ExpandPolarities,
-            EditPolarity,
-            EditTetrad,
-            BuildWheels,
-            ExploreTransformations,
+            surface_theses,
+            find_polarities,
+            expand_polarities,
+            edit_polarity,
+            edit_tetrad,
+            build_wheels,
+            explore_transformations,
         ]
 
         return session_tools + query_tools + build_tools

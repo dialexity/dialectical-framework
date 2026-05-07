@@ -197,7 +197,6 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
         Returns:
             DedupResult with replacements, deleted_count, and kept_hashes
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
         self._text = text
 
         if not extracted_hashes or not vocabulary:

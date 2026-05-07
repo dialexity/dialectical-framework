@@ -14,6 +14,7 @@ from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
+from dialectical_framework.settings import Settings
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.explains_relationship import (
@@ -25,7 +26,8 @@ from dialectical_framework.graph.relationships.critiques_relationship import (
 from dialectical_framework.graph.relationships.provides_relationship import (
     ProvidesRelationship,
 )
-from dialectical_framework.protocols.has_brain import di_brain
+from dependency_injector.wiring import Provide, inject
+from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.estimation import Estimation
@@ -82,14 +84,10 @@ class Rationale(BaseNode, label="Rationale"):
     agent: Optional[str] = None  # Agent identifier (<provider>:<model>) that generated this rationale
 
     def __init__(self, **data: Any) -> None:
-        # Auto-populate agent from DI brain if not provided
         if "agent" not in data or data["agent"] is None:
             try:
-                brain = di_brain()
-                provider, model = brain.specification()
-                data["agent"] = f"{provider}:{model}"
+                data["agent"] = _get_ai_model()
             except Exception:
-                # DI not configured (e.g., in tests) - leave as None
                 pass
         super().__init__(**data)
 
@@ -322,3 +320,8 @@ class Rationale(BaseNode, label="Rationale"):
     def __str__(self) -> str:
         """Human-readable string representation."""
         return self.text[:80] if len(self.text) > 80 else self.text
+
+
+@inject
+def _get_ai_model(settings: Settings = Provide[DI.settings]) -> str:
+    return settings.ai_model

@@ -268,21 +268,20 @@ def mock_llm(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def cleanup_test_graph_data(di_container):
+    """Delete all test-labeled nodes after each test to prevent cross-test contamination."""
+    yield
+    if is_cleanup_enabled():
+        db = di_container.graph_db()
+        cleanup_test_data(db)
+
+
+@pytest.fixture(autouse=True)
 async def cleanup_async_resources():
     """Cleanup async resources after each test"""
     yield
     # Give time for any pending operations to complete
     await asyncio.sleep(0.1)
-
-    # Gracefully drain + stop LiteLLM worker so pytest doesn't cancel it mid-teardown
-    try:
-        from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
-        from litellm._logging import verbose_logger
-        verbose_logger.exception = lambda *a, **k: None  # silence the cancel log once
-        await GLOBAL_LOGGING_WORKER.clear_queue()
-        await GLOBAL_LOGGING_WORKER.stop()
-    except Exception:
-        pass
 
     # Cancel all remaining tasks
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]

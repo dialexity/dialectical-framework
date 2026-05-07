@@ -124,8 +124,10 @@ def install_mock_brain(monkeypatch: Any) -> None:
     a function that auto-constructs the response_model.
 
     use_brain decorator is replaced with a passthrough that, when
-    response_model is set, auto-constructs it instead of calling the LLM.
+    format/response_model is set, auto-constructs it instead of calling the LLM.
     """
+    from mirascope import llm
+
     from dialectical_framework.agents import conversation_facilitator as cf_mod
     from dialectical_framework.utils import use_brain as ub_mod
 
@@ -133,8 +135,7 @@ def install_mock_brain(monkeypatch: Any) -> None:
 
     async def _mock_call_with_response_model(self: Any, response_model: type) -> Any:
         result = build_mock_response(response_model)
-        from mirascope import Messages
-        self._messages.append(Messages.Assistant(str(result)))
+        self._messages.append(llm.messages.assistant(str(result), model_id=None, provider_id=None))
         return result
 
     monkeypatch.setattr(
@@ -145,17 +146,19 @@ def install_mock_brain(monkeypatch: Any) -> None:
 
     # --- Patch use_brain ---
 
-    def mock_use_brain(brain=None, retry_max=10, **llm_call_kwargs):
-        response_model = llm_call_kwargs.get("response_model")
+    def mock_use_brain(ai_model=None, retry_max=10, **llm_call_kwargs):
+        format_model = llm_call_kwargs.get("format") or llm_call_kwargs.get("response_model")
 
         def decorator(method):
             async def wrapper(*args, **kwargs):
-                if response_model is not None and isinstance(response_model, type) and issubclass(response_model, BaseModel):
-                    return build_mock_response(response_model)
-                # No response_model — return a mock CallResponse-like object
+                if format_model is not None and isinstance(format_model, type) and issubclass(format_model, BaseModel):
+                    return build_mock_response(format_model)
+                # No format — return a mock AsyncResponse-like object
                 mock = AsyncMock()
+                mock.text = lambda: "mocked response"
+                mock.tool_calls = []
                 mock.content = "mocked response"
-                mock.tools = []
+                mock.messages = []
                 return mock
 
             return wrapper
@@ -163,3 +166,12 @@ def install_mock_brain(monkeypatch: Any) -> None:
         return decorator
 
     monkeypatch.setattr(ub_mod, "use_brain", mock_use_brain)
+
+    # Also patch use_brain where it's imported by name (direct binding)
+    from dialectical_framework.agents import conversation_facilitator as cf_use_brain_mod
+    from dialectical_framework.agents.explorer.skills import build_wheels as bw_mod
+    from dialectical_framework.concerns.causality import causality_estimator_balanced as ceb_mod
+
+    monkeypatch.setattr(cf_use_brain_mod, "use_brain", mock_use_brain)
+    monkeypatch.setattr(bw_mod, "use_brain", mock_use_brain)
+    monkeypatch.setattr(ceb_mod, "use_brain", mock_use_brain)

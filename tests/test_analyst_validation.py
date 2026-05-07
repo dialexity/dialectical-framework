@@ -7,19 +7,22 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.real_llm
-from langfuse.decorators import observe
+from langfuse import observe
 
 from dialectical_framework.concerns.control_statements_check import \
     ControlStatementsCheck
 from dialectical_framework.concerns.perspective_validation import \
     PerspectiveValidation
 from dialectical_framework.graph.nodes.case import Case
-from dialectical_framework.graph.nodes.statement import \
-    Statement
-from dialectical_framework.graph.nodes.perspective import Perspective
+from dialectical_framework.graph.nodes.polarity import Polarity
+from dialectical_framework.graph.nodes.perspective import (
+    POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS, POSITION_T_PLUS,
+    Perspective,
+)
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AMinusRelationship, APlusRelationship, TMinusRelationship,
-    TPlusRelationship)
+    AMinusRelationship, APlusRelationship, HasPolarityRelationship,
+    TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.scope_context import scope
 
 
@@ -39,22 +42,27 @@ def _create_test_perspective(
     pp = Perspective()
     pp.save()
 
-    # Create and connect T
-    t = Statement(text=t_statement)
+    # Create T and A via Polarity
+    t = Statement(text=t_statement, meaning=t_statement.lower())
     t.commit()
-    pp.t.connect(t)
 
-    # Create and connect A
-    a = Statement(text=a_statement)
+    a = Statement(text=a_statement, meaning=a_statement.lower())
     a.commit()
-    pp.a.connect(a)
 
-    # Create and connect T+ with complementarity
-    t_plus = Statement(text=t_plus_statement)
+    polarity = Polarity()
+    polarity.set_t(t, heuristic_similarity=1.0)
+    polarity.set_a(a, heuristic_similarity=0.8)
+    polarity.commit()
+
+    pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
+
+    # Create and connect T+
+    t_plus = Statement(text=t_plus_statement, meaning=t_plus_statement.lower())
     t_plus.commit()
     pp.t_plus.connect(
         t_plus,
-        TPlusRelationship(
+        relationship=TPlusRelationship(
+            alias=POSITION_T_PLUS,
             heuristic_similarity=0.8,
             complementarity_t=ks_t_plus,
             complementarity_a=ks_t_plus,
@@ -62,11 +70,12 @@ def _create_test_perspective(
     )
 
     # Create and connect T-
-    t_minus = Statement(text=t_minus_statement)
+    t_minus = Statement(text=t_minus_statement, meaning=t_minus_statement.lower())
     t_minus.commit()
     pp.t_minus.connect(
         t_minus,
-        TMinusRelationship(
+        relationship=TMinusRelationship(
+            alias=POSITION_T_MINUS,
             heuristic_similarity=0.8,
             complementarity_t=ks_t_minus,
             complementarity_a=ks_t_minus,
@@ -74,11 +83,12 @@ def _create_test_perspective(
     )
 
     # Create and connect A+
-    a_plus = Statement(text=a_plus_statement)
+    a_plus = Statement(text=a_plus_statement, meaning=a_plus_statement.lower())
     a_plus.commit()
     pp.a_plus.connect(
         a_plus,
-        APlusRelationship(
+        relationship=APlusRelationship(
+            alias=POSITION_A_PLUS,
             heuristic_similarity=0.8,
             complementarity_t=ks_a_plus,
             complementarity_a=ks_a_plus,
@@ -86,11 +96,12 @@ def _create_test_perspective(
     )
 
     # Create and connect A-
-    a_minus = Statement(text=a_minus_statement)
+    a_minus = Statement(text=a_minus_statement, meaning=a_minus_statement.lower())
     a_minus.commit()
     pp.a_minus.connect(
         a_minus,
-        AMinusRelationship(
+        relationship=AMinusRelationship(
+            alias=POSITION_A_MINUS,
             heuristic_similarity=0.8,
             complementarity_t=ks_a_minus,
             complementarity_a=ks_a_minus,
@@ -244,7 +255,7 @@ class TestPerspectiveValidation:
 
             assert result.is_empirically_valid is False
             assert not result.is_valid
-            assert any("Empirical synthesis" in r for r in result.failure_reasons)
+            assert any("Positive aspect threshold" in r for r in result.failure_reasons)
 
     @pytest.mark.asyncio
     @observe()
@@ -264,7 +275,7 @@ class TestPerspectiveValidation:
     @pytest.mark.asyncio
     @observe()
     async def test_requires_complete_perspective(self):
-        """PerspectiveValidation requires complete Perspective."""
+        """Incomplete Perspective cannot be committed (cardinality enforced)."""
         case_node = Case()
         case_node.commit()
 
@@ -272,12 +283,17 @@ class TestPerspectiveValidation:
             pp = Perspective()
             pp.save()
 
-            # Only add T - incomplete
-            t = Statement(text="Trust")
+            # Only add Polarity with T and A (no aspects) - incomplete
+            t = Statement(text="Trust", meaning="trust")
             t.commit()
-            pp.t.connect(t)
-            pp.commit()
+            a = Statement(text="Distrust", meaning="distrust")
+            a.commit()
+            polarity = Polarity()
+            polarity.set_t(t, heuristic_similarity=1.0)
+            polarity.set_a(a, heuristic_similarity=0.8)
+            polarity.commit()
+            pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
 
-            validator = PerspectiveValidation()
-            with pytest.raises(ValueError, match="must be complete"):
-                await validator.resolve(perspective=pp)
+            # Committing without aspects should fail cardinality check
+            with pytest.raises(ValueError, match="Cardinality constraints violated"):
+                pp.commit()

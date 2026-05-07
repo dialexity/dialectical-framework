@@ -141,7 +141,6 @@ class PerspectiveValidation(ReasonableConcern[PerspectiveValidationResult]):
         Raises:
             ValueError: If Perspective is not committed or not complete
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         if not perspective.is_committed:
             raise ValueError("Perspective must be committed before validation")

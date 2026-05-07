@@ -10,22 +10,20 @@ Facilitator that:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
-from mirascope import Messages
-from mirascope.integrations.langfuse import with_langfuse
+from mirascope import llm
 
-from dialectical_framework.protocols.has_brain import HasBrain
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
-    from mirascope import BaseTool
+    from mirascope.llm.responses import AsyncResponse
 
 T = TypeVar("T")
 
 
-class ConversationFacilitator(HasBrain, SettingsAware):
+class ConversationFacilitator(SettingsAware):
     """
     Helper for managing LLM conversation with optional tool calling.
 
@@ -38,7 +36,7 @@ class ConversationFacilitator(HasBrain, SettingsAware):
         result = await facilitator.submit(MyDto, "Extract...")
 
     Example with tools:
-        facilitator = ConversationFacilitator(tools=[ExtractTheses, ExtractAntitheses])
+        facilitator = ConversationFacilitator(tools=[extract_theses, extract_antitheses])
         facilitator.set_system_prompt("You are an agent...")
         result = await facilitator.submit(FinalResultDto, "Find 3 theses about trust")
         # Tools are automatically called and results injected into conversation
@@ -48,8 +46,8 @@ class ConversationFacilitator(HasBrain, SettingsAware):
         results = await asyncio.gather(*tasks)
     """
 
-    def __init__(self, tools: Optional[list[type[BaseTool]]] = None) -> None:
-        self._messages: list[Messages.Type] = []
+    def __init__(self, tools: Optional[list[Any]] = None) -> None:
+        self._messages: list = []
         self._tools = tools or []
 
     def set_system_prompt(self, system_prompt: str) -> None:
@@ -59,23 +57,25 @@ class ConversationFacilitator(HasBrain, SettingsAware):
         Must be the first message. If called after other messages exist,
         inserts at the beginning (if no system prompt yet) or raises error.
         """
-        system_msg = Messages.System(system_prompt)
+        system_msg = llm.messages.system(system_prompt)
 
         if not self._messages:
             self._messages.append(system_msg)
-        elif self._messages[0].get("role") == "system":
+        elif hasattr(self._messages[0], "role") and self._messages[0].role == "system":
+            raise ValueError("System prompt already set. Cannot set it twice.")
+        elif isinstance(self._messages[0], dict) and self._messages[0].get("role") == "system":
             raise ValueError("System prompt already set. Cannot set it twice.")
         else:
             self._messages.insert(0, system_msg)
 
     def add_user_message(self, content: str) -> ConversationFacilitator:
         """Add a user message to the conversation. Returns self for chaining."""
-        self._messages.append(Messages.User(content))
+        self._messages.append(llm.messages.user(content))
         return self
 
     def add_assistant_message(self, content: str) -> ConversationFacilitator:
         """Add an assistant message to the conversation. Returns self for chaining."""
-        self._messages.append(Messages.Assistant(content))
+        self._messages.append(llm.messages.assistant(content, model_id=None, provider_id=None))
         return self
 
     def isolate(self) -> ConversationFacilitator:
@@ -108,7 +108,7 @@ class ConversationFacilitator(HasBrain, SettingsAware):
 
         If tools are configured, runs an agentic loop:
         1. Call LLM with tools available
-        2. If LLM calls tools, execute them and add results to messages
+        2. If LLM calls tools, execute them and resume conversation
         3. Repeat until LLM returns final response (no tool calls)
         4. Extract structured response from final message
 
@@ -120,84 +120,45 @@ class ConversationFacilitator(HasBrain, SettingsAware):
         Returns:
             Structured response matching response_model
         """
-        self._messages.append(Messages.User(user_content))
+        self._messages.append(llm.messages.user(user_content))
 
         if not self._tools:
-            # Simple path: no tools, just call LLM with response_model
             return await self._call_with_response_model(response_model)
 
-        # Agentic loop: call LLM with tools until no more tool calls
+        # Agentic loop: resume() accumulates messages internally
+        response = await self._call_with_tools()
         for _ in range(max_tool_rounds):
-            response = await self._call_with_tools()
+            if not response.tool_calls:
+                break
+            tool_outputs = await response.execute_tools()
+            response = await response.resume(tool_outputs)
 
-            if response.tools:
-                # Execute tools and collect results
-                tools_and_outputs: list[tuple[BaseTool, str]] = []
-                for tool in response.tools:
-                    output = await tool.call()
-                    tools_and_outputs.append((tool, output))
+        # Sync full conversation history from the response chain
+        self._messages = list(response.messages)
 
-                # Add assistant message with tool calls
-                self._add_assistant_tool_call_message(response)
-
-                # Add tool results to messages
-                self._messages += response.tool_message_params(tools_and_outputs)
-            else:
-                # No more tool calls - get final structured response
-                self._messages.append(response.message_param)
-
-                # Now extract structured response
-                return await self._call_with_response_model(response_model)
-
-        # Max rounds reached - try to extract response anyway
+        # Extract structured response
         return await self._call_with_response_model(response_model)
 
     # --- Internal helpers ---
 
-    async def _call_with_tools(self):
-        """Call LLM with tools available (no response_model)."""
+    async def _call_with_tools(self) -> AsyncResponse:
+        """Call LLM with tools available (no format)."""
         messages = self._messages
 
-        @with_langfuse()
-        @use_brain(brain=self.brain, tools=self._tools)
+        @use_brain(tools=self._tools)
         async def _llm_call():
-            return {"messages": messages}
+            return messages
 
         return await _llm_call()
 
     async def _call_with_response_model(self, response_model: type[T]) -> T:
-        """Call LLM with response_model for structured output."""
+        """Call LLM with format for structured output."""
         messages = self._messages
 
-        @with_langfuse()
-        @use_brain(brain=self.brain, response_model=response_model)
+        @use_brain(format=response_model)
         async def _llm_call():
-            return {"messages": messages}
+            return messages
 
         result = await _llm_call()
-        self._messages.append(Messages.Assistant(str(result)))
+        self._messages.append(llm.messages.assistant(str(result), model_id=None, provider_id=None))
         return result
-
-    def _add_assistant_tool_call_message(self, response) -> None:
-        """Add assistant message with tool calls to history."""
-        tool_calls = []
-        for t in response.common_tools or []:
-            tc = t.tool_call
-            tool_calls.append(
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                }
-            )
-
-        self._messages.append(
-            {
-                "role": "assistant",
-                "content": response.content or "",
-                "tool_calls": tool_calls,
-            }
-        )

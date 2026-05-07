@@ -10,9 +10,10 @@ from typing import Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
-from mirascope import BaseTool
+from mirascope import llm
 
 from dialectical_framework.enums.di import DI
+from dialectical_framework.protocols.base_tool import BaseTool
 
 
 class GetScopeStatus(BaseTool):
@@ -67,3 +68,10 @@ class GetScopeStatus(BaseTool):
         ]
 
         return "\n".join(lines)
+
+
+@llm.tool
+async def get_scope_status() -> str:
+    """Show counts of all node types (Inputs, Statements, Perspectives, Cycles, Wheels, Transformations) in the current scope."""
+    tool = GetScopeStatus()
+    return await tool.call()

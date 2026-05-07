@@ -95,7 +95,6 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
             resolve_estimator,
         )
 
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         if not structures:
             self._report.summary = "No structures provided"

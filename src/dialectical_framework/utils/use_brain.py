@@ -1,100 +1,114 @@
+from __future__ import annotations
+
+import asyncio
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
-import logging
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, TypeVar, overload
 
-import litellm
+from dependency_injector.wiring import Provide, inject
 from mirascope import llm
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log, retry_if_exception_type
+from mirascope.llm.exceptions import ParseError
 
-from dialectical_framework.brain import Brain
-from dialectical_framework.protocols.has_brain import HasBrain
+from dialectical_framework.enums.di import DI
+from dialectical_framework.settings import Settings
+from dialectical_framework.utils.bedrock_provider import ensure_bedrock_provider
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from mirascope.llm.responses import AsyncResponse
 
 T = TypeVar("T")
+F = TypeVar("F", bound=Callable[..., Any])
 
-def use_brain(brain: Optional[Brain] = None, retry_max: int = 10, **llm_call_kwargs):
+
+@overload
+def use_brain(
+    ai_model: Optional[str] = ...,
+    retry_max: int = ...,
+    *,
+    format: type[T],
+    **llm_call_kwargs: Any,
+) -> Callable[[F], Callable[..., Awaitable[T]]]: ...
+
+
+@overload
+def use_brain(
+    ai_model: Optional[str] = ...,
+    retry_max: int = ...,
+    **llm_call_kwargs: Any,
+) -> Callable[[F], Callable[..., Awaitable[AsyncResponse]]]: ...
+
+
+def use_brain(
+    ai_model: Optional[str] = None,
+    retry_max: int = 10,
+    **llm_call_kwargs: Any,
+) -> Callable[[F], Callable[..., Any]]:
     """
-    Decorator factory for Mirascope that creates an LLM call using the brain's AI provider and model.
+    Decorator factory for Mirascope v2 LLM calls.
+
+    Retries on ParseError (validation failures) with exponential backoff.
+
+    When ``format`` is provided, returns the parsed model instance.
+    Otherwise returns the raw AsyncResponse (useful for tool calls).
 
     Args:
-        brain: Optional Brain instance to use. If not provided, will expect 'self' to implement HasBrain protocol
-        retry_max: Maximum number of attempts (default: 10). Set to 0 or 1 to disable retries.
-        **llm_call_kwargs: All keyword arguments to pass to @llm.call, including response_model
-
-    Returns:
-        A decorator that wraps methods to make LLM calls
+        ai_model: Model ID (e.g., 'bedrock/anthropic/claude-...'). Reads from DI if not provided.
+        retry_max: Maximum attempts (default: 10). Set to 1 to disable retries.
+        format: Pydantic model class for structured output.
+        tools: List of tool functions/classes to make available.
+        **llm_call_kwargs: Additional kwargs for @llm.call (temperature, max_tokens, etc.)
     """
 
-    def decorator(method: Callable[..., Any]) -> Callable[..., T]:
+    def decorator(method: F) -> Callable[..., Any]:
         @wraps(method)
-        async def wrapper(*args, **kwargs) -> T:
-            target_brain = None
-            if brain is not None:
-                target_brain = brain
-            else:
-                # Expect first argument to be self with HasBrain protocol
-                if not args:
-                    raise TypeError(
-                        "No arguments provided, no brain specified in decorator, and no brain available from DI container"
-                    )
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            resolved = ai_model
+            if resolved is None:
+                resolved = _get_ai_model()
 
-                first_arg = args[0]
-                if isinstance(first_arg, HasBrain) and target_brain is None:
-                    target_brain = first_arg.brain
-                else:
-                    raise TypeError(
-                        f"{first_arg.__class__.__name__} must implement {HasBrain.__name__} protocol, "
-                        "pass brain parameter to decorator, or have Brain available in DI container"
-                    )
+            if resolved.startswith("bedrock/"):
+                ensure_bedrock_provider()
 
-            overridden_ai_provider, overridden_ai_model = target_brain.specification()
-            if overridden_ai_provider == "bedrock":
-                # TODO: with Mirascope v2 async should be possible with bedrock, so we should get rid of fallback to litellm
-                # Issue: https://github.com/boto/botocore/issues/458, fallback to "litellm"
-                overridden_ai_provider, overridden_ai_model = (
-                    target_brain.modified_specification(ai_provider="litellm")
-                )
+            call_params: dict[str, Any] = {}
+            if "response_model" in llm_call_kwargs:
+                call_params["format"] = llm_call_kwargs["response_model"]
+            elif "format" in llm_call_kwargs:
+                call_params["format"] = llm_call_kwargs["format"]
+            if "tools" in llm_call_kwargs:
+                call_params["tools"] = llm_call_kwargs["tools"]
 
-            # Merge brain specification with all parameters
-            call_params = {
-                "provider": overridden_ai_provider,
-                "model": overridden_ai_model,
-                **llm_call_kwargs,  # All parameters including response_model
-            }
+            for key in ("temperature", "max_tokens", "top_p", "top_k", "seed", "stop_sequences", "thinking"):
+                if key in llm_call_kwargs:
+                    call_params[key] = llm_call_kwargs[key]
 
-            if overridden_ai_provider == "litellm":
-                # We use LiteLLM just for convenience, the real framework is Mirascope.
-                # So anything related to litellm can be suppressed
-                litellm.turn_off_message_logging = True
+            has_format = "format" in call_params
 
-                # Parallel function calls create problems with litellm, let's just forcefully disable it
-                if litellm.supports_parallel_function_calling(overridden_ai_model):
-                    if "call_params" not in call_params:
-                        call_params["call_params"] = {}
-                    call_params["call_params"]["parallel_tool_calls"] = False
-                else:
-                    """
-                    The parallel function calls are not supported by the model, so no need to pass anything.
-                    """
-
-            # https://mirascope.com/docs/mirascope/learn/retries
-            @llm.call(**call_params)
-            async def _llm_call():
+            @llm.call(resolved, **call_params)
+            async def _llm_call() -> Any:
                 return await method(*args, **kwargs)
 
-            @retry(
-                stop=stop_after_attempt(max(retry_max, 1)),
-                wait=wait_exponential(multiplier=1, min=10, max=120),
-                retry=retry_if_exception_type((Exception,)),
-                before_sleep=before_sleep_log(logger, logging.WARNING),
-                reraise=True,
-            )
-            async def _retry_wrapper():
-                return await _llm_call()
+            attempts = max(1, retry_max)
+            delay = 10.0
+            last_error: Optional[ParseError] = None
 
-            return await _retry_wrapper()
+            for attempt in range(attempts):
+                try:
+                    response = await _llm_call()
+                    if has_format:
+                        return response.parse()
+                    return response
+                except ParseError as e:
+                    last_error = e
+                    if attempt < attempts - 1:
+                        await asyncio.sleep(delay)
+                        delay = min(delay * 2.0, 120.0)
+
+            raise last_error  # type: ignore[misc]
 
         return wrapper
 
     return decorator
+
+
+@inject
+def _get_ai_model(settings: Settings = Provide[DI.settings]) -> str:
+    return settings.ai_model

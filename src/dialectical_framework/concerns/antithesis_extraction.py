@@ -130,7 +130,6 @@ class AntithesisExtraction(
             List of AntithesisResult containing component and metadata (mode, arousal, HS)
         """
         # Reset report on each execution (allows instance reuse)
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Early validation
         if not thesis or not thesis.text:

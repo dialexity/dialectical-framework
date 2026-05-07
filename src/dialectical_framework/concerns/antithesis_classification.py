@@ -370,7 +370,6 @@ class AntithesisClassification(ReasonableConcern[AntithesisClassificationResult]
         Returns:
             AntithesisClassificationResult with mode, arousal, HS, meaning (no DB nodes created)
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Early validation
         if not thesis or not thesis.text:

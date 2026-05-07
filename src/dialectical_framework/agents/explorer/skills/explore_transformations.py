@@ -26,20 +26,19 @@ from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
 
 from dependency_injector.wiring import Provide, inject
-from mirascope import BaseTool
-from pydantic import Field, PrivateAttr
+from mirascope import llm
+from pydantic import Field
 
-from dialectical_framework.agents.reasonable_concern import \
-    ReasonableConcern
-from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.di import DI
-from dialectical_framework.concerns.action_extraction import ActionExtraction
+from dialectical_framework.concerns.action_extraction import (
+    ActionCandidateResultDto, ActionExtraction)
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import (
     ApexDerivation, ApexDerivationResultDto)
 from dialectical_framework.concerns.transformation_generation import (
     TransformationGeneration, TransformationTetradDto)
-from dialectical_framework.graph.nodes.statement import \
-    Statement
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.transformation import (
     POSITION_AC, POSITION_AC_MINUS, POSITION_AC_PLUS, POSITION_RE,
@@ -57,6 +56,18 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class _EdgeProcessingData:
+    """Typed intermediate data for edge pair processing."""
+
+    existing: bool = False
+    skip: bool = False
+    ac_candidates: list = field(default_factory=list)
+    apexes: Optional[ApexDerivationResultDto] = None
+    source_segment: Optional[WheelSegment] = None
+    target_segment: Optional[WheelSegment] = None
+
+
+@dataclass
 class ExploreTransformationsResult:
     """Result from the ExploreTransformations."""
 
@@ -70,9 +81,7 @@ class ExploreTransformationsResult:
         return self.existing + self.new
 
 
-class ExploreTransformations(
-    BaseTool, ReasonableConcern[ExploreTransformationsResult]
-):
+class ExploreTransformations(BaseTool, ReasonableConcern[ExploreTransformationsResult]):
     """
     Subagent for generating Action-Reflection transformations at wheel level.
 
@@ -86,15 +95,8 @@ class ExploreTransformations(
     - call() returns JSON string for LLM tool use
     """
 
-    wheel_hash: str = Field(
-        description="Hash (full or prefix) of the Wheel to generate transformations for"
-    )
-    edge_hash: Optional[str] = Field(
-        default=None,
-        description="Optional: hash of a specific edge to target (generates for that pair only)"
-    )
-
-    _report: ExecutionReport = PrivateAttr()
+    wheel_hash: str = Field(description="Hash of the Wheel to generate transformations for")
+    edge_hash: Optional[str] = Field(default=None, description="Specific edge hash to process. If None, processes all edges.")
 
     async def call(self) -> str:
         """Resolve transformation generation and return ExecutionReport as JSON (for LLM tool use)."""
@@ -108,7 +110,6 @@ class ExploreTransformations(
         Returns:
             ExploreTransformationsResult with existing and new transformations
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # 1. Resolve wheel and nexus
         wheel = self._resolve_wheel()
@@ -144,7 +145,7 @@ class ExploreTransformations(
             for tr in all_new:
                 auditor = TransformationAudit()
                 await auditor.resolve(tr, input_text)
-                self._report.merge(auditor.report)
+                self._report = self._report.merge(auditor.report)
 
         # Summary
         self._report.artifacts["wheel_hash"] = wheel.short_hash
@@ -188,26 +189,27 @@ class ExploreTransformations(
         last_apexes: Optional[ApexDerivationResultDto] = None
 
         # Phase 1: Extract Ac+ for both edges (check existing first)
-        edge_data: dict[str, dict] = {}
+        edge_data: dict[str, _EdgeProcessingData] = {}
         for edge in (edge_a, edge_b):
+            assert edge.hash is not None
             existing = tr_repo.find_by_edge(edge=edge)
             if existing:
                 all_existing.extend(existing)
-                edge_data[edge.hash] = {"existing": True, "transformations": existing}
+                edge_data[edge.hash] = _EdgeProcessingData(existing=True)
                 continue
 
             source_segment = edge.get_source_wheel_segment()
             target_segment = edge.get_target_wheel_segment()
             if not source_segment or not target_segment:
-                edge_data[edge.hash] = {"skip": True}
+                edge_data[edge.hash] = _EdgeProcessingData(skip=True)
                 continue
             if not source_segment.is_complete() or not target_segment.is_complete():
-                edge_data[edge.hash] = {"skip": True}
+                edge_data[edge.hash] = _EdgeProcessingData(skip=True)
                 continue
 
             apex_service = ApexDerivation()
             apexes = await apex_service.resolve(edge, input_text)
-            self._report.merge(apex_service.report)
+            self._report = self._report.merge(apex_service.report)
             last_apexes = apexes
 
             extractor = ActionExtraction()
@@ -215,34 +217,37 @@ class ExploreTransformations(
                 edge, input_text,
                 not_like_these=wheel.transformations,
             )
-            self._report.merge(extractor.report)
+            self._report = self._report.merge(extractor.report)
 
-            edge_data[edge.hash] = {
-                "ac_candidates": ac_candidates or [],
-                "apexes": apexes,
-                "source_segment": source_segment,
-                "target_segment": target_segment,
-            }
+            edge_data[edge.hash] = _EdgeProcessingData(
+                ac_candidates=ac_candidates or [],
+                apexes=apexes,
+                source_segment=source_segment,
+                target_segment=target_segment,
+            )
 
         # Phase 2: Generate tetrads using opposite Ac+ for Re-side
         for edge, opposite_edge in [(edge_a, edge_b), (edge_b, edge_a)]:
-            data = edge_data.get(edge.hash, {})
-            if data.get("existing") or data.get("skip"):
+            assert edge.hash is not None
+            assert opposite_edge.hash is not None
+            data = edge_data.get(edge.hash)
+            if not data or data.existing or data.skip:
                 continue
 
-            ac_candidates = data.get("ac_candidates", [])
-            apexes = data.get("apexes")
-            source_segment = data.get("source_segment")
-            target_segment = data.get("target_segment")
+            if not data.ac_candidates:
+                continue
 
-            if not ac_candidates:
+            source_segment = data.source_segment
+            target_segment = data.target_segment
+            apexes = data.apexes
+            if not source_segment or not target_segment or not apexes:
                 continue
 
             # Get opposite edge's Ac+ candidates for Re-side context
-            opp_data = edge_data.get(opposite_edge.hash, {})
-            opp_ac_candidates = opp_data.get("ac_candidates", [])
+            opp_data = edge_data.get(opposite_edge.hash)
+            opp_ac_candidates = opp_data.ac_candidates if opp_data else []
 
-            for ac_plus in ac_candidates:
+            for ac_plus in data.ac_candidates:
                 opposite_ac = self._find_matching_category(
                     opp_ac_candidates, ac_plus.insight_label
                 )
@@ -253,7 +258,7 @@ class ExploreTransformations(
                 tetrad = await generator.resolve(
                     edge, ac_plus, opposite_ac, apexes, input_text
                 )
-                self._report.merge(generator.report)
+                self._report = self._report.merge(generator.report)
 
                 transformation = self._create_transformation(
                     nexus, edge, source_segment, target_segment, tetrad,
@@ -264,9 +269,9 @@ class ExploreTransformations(
 
     @staticmethod
     def _find_matching_category(
-        candidates: list,
+        candidates: list[ActionCandidateResultDto],
         insight_label: str,
-    ):
+    ) -> Optional[ActionCandidateResultDto]:
         """Find an Ac+ candidate matching the given insight category."""
         if not candidates:
             return None
@@ -313,7 +318,8 @@ class ExploreTransformations(
             raise ValueError(f"Wheel not found: {self.wheel_hash}")
         return node
 
-    def _resolve_nexus(self, wheel: Wheel) -> Nexus:
+    @staticmethod
+    def _resolve_nexus(wheel: Wheel) -> Nexus:
         """
         Resolve Nexus from Wheel → Cycle → Perspectives → Nexus.
 
@@ -421,6 +427,19 @@ class ExploreTransformations(
             raise ValueError(
                 "Segments missing required components for transformation"
             )
+
+        assert t_result is not None
+        assert t_minus_result is not None
+        assert t_plus_result is not None
+        assert a_result is not None
+        assert a_plus_result is not None
+        assert a_minus_result is not None
+        assert re_source_result is not None
+        assert re_source_minus_result is not None
+        assert re_source_plus_result is not None
+        assert re_target_result is not None
+        assert re_target_plus_result is not None
+        assert re_target_minus_result is not None
 
         t, _ = t_result
         t_minus, _ = t_minus_result
@@ -614,3 +633,10 @@ class ExploreTransformations(
         self._report.node_created(rationale)
 
         return transition
+
+
+@llm.tool
+async def explore_transformations(wheel_hash: str, edge_hash: Optional[str] = None) -> str:
+    """Generate Action-Reflection transformations for a Wheel's edge pairs. Optionally target a specific edge by hash."""
+    concern = ExploreTransformations(wheel_hash=wheel_hash, edge_hash=edge_hash)
+    return await concern.call()

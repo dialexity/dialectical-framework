@@ -43,9 +43,17 @@ class ReasonableConcern(ABC, Generic[R_co]):
 
     _report: ExecutionReport
 
+    def __getattr__(self, name: str) -> Any:
+        if name == "_report":
+            from dialectical_framework.agents.execution_report import ExecutionReport
+            report = ExecutionReport(tool=self.__class__.__name__)
+            object.__setattr__(self, "_report", report)
+            return report
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
     @property
     def report(self) -> ExecutionReport:
-        """Access the report from the last resolution."""
+        """Access the report. Lazily initialized with class name."""
         return self._report
 
     @abstractmethod

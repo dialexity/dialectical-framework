@@ -28,12 +28,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
-from mirascope import BaseTool
+from mirascope import llm
 from pydantic import Field, PrivateAttr
 
 from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
@@ -86,19 +87,9 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
     - call() returns JSON string for LLM tool use
     """
 
-    thesis_hash: str = Field(description="Hash of the thesis component")
-    antithesis_hash: str = Field(description="Hash of the antithesis component")
-    positions: Optional[list[str]] = Field(
-        default=None,
-        description="Which aspects to generate (T+, T-, A+, A-). If None, generates all 4.",
-    )
-
-    _report: ExecutionReport = PrivateAttr()
-
-    @property
-    def report(self) -> ExecutionReport:
-        """Access the execution report."""
-        return self._report
+    thesis_hash: str = Field(description="Hash of the thesis statement")
+    antithesis_hash: str = Field(description="Hash of the antithesis statement")
+    positions: Optional[list[str]] = Field(default=None, description="Specific positions to generate (e.g. ['T+', 'A-']). If None, generates all missing.")
 
     async def call(self) -> str:
         """Resolve Perspective creation and return ExecutionReport as JSON."""
@@ -115,7 +106,6 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
         Returns:
             List of complete, committed Perspectives
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         # Resolve components
         thesis = self._resolve_component(self.thesis_hash)
@@ -439,6 +429,13 @@ class ExpandPolarities(BaseTool, ReasonableConcern[list[Perspective]]):
             texts.append(resolved)
 
         return "\n\n---\n\n".join(texts)
+
+
+@llm.tool
+async def expand_polarities(thesis_hash: str, antithesis_hash: str, positions: Optional[list[str]] = None) -> str:
+    """Create Perspectives from a T-A Polarity by generating aspects (T+, T-, A+, A-). Specify positions to generate only specific aspects."""
+    concern = ExpandPolarities(thesis_hash=thesis_hash, antithesis_hash=antithesis_hash, positions=positions)
+    return await concern.call()
 
 
 # Backward compatibility alias

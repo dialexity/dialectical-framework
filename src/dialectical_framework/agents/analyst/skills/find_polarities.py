@@ -31,12 +31,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
-from mirascope import BaseTool
+from mirascope import llm
 from pydantic import Field, PrivateAttr
 
 from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.antithesis_extraction import \
     AntithesisExtraction
@@ -95,11 +96,7 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
     - call() returns JSON string for LLM tool use (includes HS data)
     """
 
-    thesis_hashes: list[str] = Field(
-        description="Hashes of theses to generate antitheses for"
-    )
-
-    _report: ExecutionReport = PrivateAttr()
+    thesis_hashes: list[str] = Field(description="List of thesis statement hashes to find antitheses for")
 
     async def call(self) -> str:
         """Resolve polarity creation and return ExecutionReport as JSON (for LLM tool use)."""
@@ -113,7 +110,6 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
         Returns:
             Ideas containing all T and A components (with OPPOSITE_OF relationships)
         """
-        self._report = ExecutionReport(tool=self.__class__.__name__)
 
         if not self.thesis_hashes:
             self._report.ok = True
@@ -491,3 +487,10 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
         self._report.node_created(rationale)
 
         return ideas
+
+
+@llm.tool
+async def find_polarities(thesis_hashes: list[str]) -> str:
+    """Find antitheses for given theses and create Polarity nodes (T-A pairs) with heuristic similarity metadata."""
+    concern = FindPolarities(thesis_hashes=thesis_hashes)
+    return await concern.call()
