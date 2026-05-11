@@ -10,15 +10,27 @@ Facilitator that:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+import asyncio
+import json
+import logging
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional, TypeVar
 
 from langfuse import observe
 from mirascope import llm
 
+from dialectical_framework.agents.execution_report import ExecutionReport
+from dialectical_framework.agents.stream_events import (
+    ResponseComplete,
+    StreamEvent,
+    TextDelta,
+    ToolResult,
+    ToolStart,
+)
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
+    from mirascope.llm.calls import AsyncCall
     from mirascope.llm.responses import AsyncResponse
 
 T = TypeVar("T")
@@ -141,7 +153,101 @@ class ConversationFacilitator(SettingsAware):
         # Extract structured response
         return await self._call_with_response_model(response_model)
 
+    @observe()
+    async def submit_stream(
+        self,
+        response_model: type[T],
+        user_content: str,
+        max_tool_rounds: int = 10,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """
+        Submit a message and yield stream events as they arrive.
+
+        Yields:
+            TextDelta: token-by-token text from intermediate LLM rounds
+            ToolStart: when LLM invokes a tool
+            ToolResult: after tool execution (with optional ExecutionReport)
+            ResponseComplete: final structured message
+        """
+        self._messages.append(llm.messages.user(user_content))
+
+        if not self._tools:
+            result = await self._call_with_response_model(response_model)
+            yield ResponseComplete(result=result)
+            return
+
+        stream = await self._open_stream_with_retry()
+
+        for _ in range(max_tool_rounds):
+            async for text in stream.text_stream():
+                yield TextDelta(text=text)
+
+            if not stream.tool_calls:
+                break
+
+            for tc in stream.tool_calls:
+                yield ToolStart(
+                    tool_name=tc.name,
+                    tool_args=json.loads(tc.args) if tc.args else {},
+                )
+
+            tool_outputs = await stream.execute_tools()
+
+            for i, output in enumerate(tool_outputs):
+                tool_name = stream.tool_calls[i].name if i < len(stream.tool_calls) else "unknown"
+                raw_str = str(output)
+                report = self._try_parse_execution_report(raw_str)
+                yield ToolResult(tool_name=tool_name, report=report, raw_output=raw_str)
+
+            stream = await stream.resume(tool_outputs)
+
+        self._messages = list(stream.messages)
+        result = await self._call_with_response_model(response_model)
+        yield ResponseComplete(result=result)
+
     # --- Internal helpers ---
+
+    async def _open_stream_with_retry(self, max_attempts: int = 3) -> Any:
+        """Open a streaming connection with retry on transient failures.
+
+        Retries the initial stream connection (provider errors, network blips).
+        Once streaming begins and tokens are yielded, retry is no longer possible
+        for that round — only the connection handshake is retried.
+        """
+        delay = 5.0
+        last_error: Optional[Exception] = None
+        for attempt in range(max_attempts):
+            try:
+                call = await self._get_tools_call()
+                return await call.stream()
+            except Exception as e:
+                last_error = e
+                if attempt < max_attempts - 1:
+                    logging.getLogger(__name__).warning(
+                        "Stream connection failed (attempt %d/%d): %s",
+                        attempt + 1, max_attempts, e,
+                    )
+                    await asyncio.sleep(delay)
+                    delay = min(delay * 2.0, 30.0)
+        raise last_error  # type: ignore[misc]
+
+    async def _get_tools_call(self) -> AsyncCall:
+        """Get AsyncCall object for streaming tool-calling mode."""
+        messages = self._messages
+
+        @use_brain(tools=self._tools, raw_call=True)
+        async def _llm_call():
+            return messages
+
+        return await _llm_call()
+
+    @staticmethod
+    def _try_parse_execution_report(raw_output: str) -> ExecutionReport | None:
+        """Attempt to parse tool output as ExecutionReport. Returns None if not parseable."""
+        try:
+            return ExecutionReport.model_validate_json(raw_output)
+        except Exception:
+            return None
 
     async def _call_with_tools(self) -> AsyncResponse:
         """Call LLM with tools available (no format)."""

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Optional, TypeVar, overload
 
 from dependency_injector.wiring import Provide, inject
 from langfuse import get_client, observe
@@ -14,6 +14,7 @@ from dialectical_framework.settings import Settings
 from dialectical_framework.utils.bedrock_provider import ensure_bedrock_provider
 
 if TYPE_CHECKING:
+    from mirascope.llm.calls import AsyncCall
     from mirascope.llm.responses import AsyncResponse
 
 T = TypeVar("T")
@@ -28,6 +29,16 @@ def use_brain(
     format: type[T],
     **llm_call_kwargs: Any,
 ) -> Callable[[F], Callable[..., Awaitable[T]]]: ...
+
+
+@overload
+def use_brain(
+    ai_model: Optional[str] = ...,
+    retry_max: int = ...,
+    *,
+    raw_call: Literal[True],
+    **llm_call_kwargs: Any,
+) -> Callable[[F], Callable[..., Awaitable[AsyncCall]]]: ...
 
 
 @overload
@@ -60,6 +71,8 @@ def use_brain(
         **llm_call_kwargs: Additional kwargs for @llm.call (temperature, max_tokens, etc.)
     """
 
+    raw_call = llm_call_kwargs.pop("raw_call", False)
+
     def decorator(method: F) -> Callable[..., Any]:
         @wraps(method)
         @observe(as_type="generation")
@@ -89,6 +102,15 @@ def use_brain(
             @llm.call(resolved, **call_params)
             async def _llm_call() -> Any:
                 return await method(*args, **kwargs)
+
+            # raw_call mode: return the AsyncCall for caller to .stream() or await.
+            # Skips retry and Langfuse _trace_generation intentionally:
+            # - Retry: stream lifecycle is owned by the caller (submit_stream retries
+            #   at the connection level, not per-token)
+            # - Tracing: @observe() on submit_stream creates the span; detailed token
+            #   usage requires post-consumption stats not available here
+            if raw_call:
+                return _llm_call
 
             attempts = max(1, retry_max)
             delay = 10.0

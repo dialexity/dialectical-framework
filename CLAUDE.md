@@ -457,6 +457,49 @@ def score_wheel(
     print(f"R: {wheel.relevance}")
 ```
 
+### Tool Pattern (Mirascope v2)
+
+Tools use a two-layer pattern:
+
+1. **`BaseTool(BaseModel)` class** — internal logic with `ExecutionReport` tracking and DI injection
+2. **`@llm.tool` async function** — thin entry point that Mirascope sees (registered in tool lists)
+
+```python
+from mirascope import llm
+from dialectical_framework.protocols.base_tool import BaseTool
+
+# Layer 1: Internal logic (NOT passed to Mirascope)
+class GetScopeStatus(BaseTool):
+    """Docstring here is for developers, not the LLM."""
+
+    @inject
+    async def call(self, graph_db=Provide[DI.graph_db], sid=Provide[DI.sid]) -> str:
+        # ... logic with ExecutionReport tracking ...
+        return str(self._report)
+
+# Layer 2: Mirascope-facing entry point (THIS is what goes in tool lists)
+@llm.tool
+async def get_scope_status() -> str:
+    """Docstring here IS the tool description the LLM sees."""
+    tool = GetScopeStatus()
+    return await tool.call()
+```
+
+**Key rules:**
+- Only `@llm.tool`-decorated functions go into `ConversationFacilitator(tools=[...])` or `_build_tool_list()`
+- `BaseTool` classes are never passed directly to Mirascope — they lack the `.name` attribute Mirascope requires
+- The `@llm.tool` function's docstring becomes the tool description visible to the LLM
+- Tool parameters (typed function args) become the tool's input schema
+
+**For simple tools without graph mutations** (e.g., in tests), skip `BaseTool`:
+
+```python
+@llm.tool
+async def get_current_time() -> str:
+    """Return the current UTC time."""
+    return datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+```
+
 ---
 
 ## Environment Configuration
@@ -736,20 +779,80 @@ Tests are split into three groups:
 | `@pytest.mark.llm` | Exercises LLM code paths | Runs with **mock brain** | Runs with **real LLM** |
 | `@pytest.mark.real_llm` | Must have real LLM (e.g. provider connectivity) | **Skipped** | Runs with **real LLM** |
 
-**Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic response models without hitting inference endpoints. It patches `ConversationFacilitator._call_with_response_model` and the `use_brain` decorator. The `mock_llm` autouse fixture in `conftest.py` installs it for all tests unless `--real-llm` is passed.
+**Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic response models without hitting inference endpoints. It patches two things:
+1. `ConversationFacilitator._call_with_response_model` — returns auto-constructed Pydantic model
+2. The `use_brain` decorator — when `format` is set, auto-constructs; otherwise returns mock AsyncResponse
 
-**When to use which marker:**
-- No marker: test doesn't touch LLM code at all (graph ops, scoring, validation)
-- `@pytest.mark.llm`: test calls concerns/skills that use LLM internally — works with mock, but can also verify with real LLM
-- `@pytest.mark.real_llm`: test *only* makes sense with a real endpoint (provider connectivity checks)
+The `mock_llm` autouse fixture in `conftest.py` installs it for **all** tests unless `--real-llm` is passed.
+
+### When to Use Which Marker
+
+| Scenario | Marker | Why |
+|----------|--------|-----|
+| Graph operations, scoring, validation | *(none)* | No LLM paths touched |
+| Test calls concerns/skills using `use_brain` or `ConversationFacilitator` | `@pytest.mark.llm` | Mock brain fakes responses; `--real-llm` verifies with real provider |
+| End-to-end integration that MUST hit real provider (streaming, connectivity) | `@pytest.mark.real_llm` | Only meaningful with real inference |
 
 Apply markers at module level (`pytestmark = pytest.mark.llm`) or per class/function.
+
+### What Mock Brain Does NOT Test
+
+**Critical:** Mock brain only fakes the final structured extraction (`_call_with_response_model`) and direct `use_brain` calls. It does NOT exercise:
+
+- **Mirascope tool registration** — tools need `@llm.tool` decorator; mock won't catch a missing decorator
+- **Streaming infrastructure** — `AsyncCall.stream()`, `text_stream()`, `tool_calls`, `execute_tools()`, `resume()`
+- **Tool argument parsing** — real `ToolCall.args` is a JSON string, not a dict
+- **Provider-specific behavior** — Bedrock streaming, token limits, rate limits
+
+If your code touches these paths, you need `@pytest.mark.real_llm` tests that go end-to-end without patches.
+
+### Writing Tests That Don't Need the DB
+
+The conftest has autouse fixtures (`cleanup_graph_db`, `cleanup_test_graph_data`) that skip tests when Memgraph is unavailable. For pure unit tests that don't touch the DB, override them:
+
+```python
+@pytest.fixture(autouse=True)
+def cleanup_graph_db():
+    """Override — this test module doesn't need the DB."""
+    yield
+
+@pytest.fixture(autouse=True)
+def cleanup_test_graph_data():
+    """Override — this test module doesn't need the DB."""
+    yield
+```
+
+For tests that construct an `Orchestrator` without DB, patch its constructor dependencies:
+
+```python
+with patch("...orchestrator.Case") as mock_case, \
+     patch.object(Orchestrator, "_query_live_schema", return_value=""):
+    mock_case.return_value.commit.return_value = None
+    mock_case.return_value.sid = "test-sid"
+    orchestrator = Orchestrator()
+```
+
+### Tool Definition for Tests
+
+Tools must be decorated with `@llm.tool` to work with Mirascope's toolkit (it expects `.name` attribute):
+
+```python
+from mirascope import llm
+
+@llm.tool
+async def my_test_tool(query: str) -> str:
+    """Description visible to the LLM."""
+    return "result"
+```
+
+Plain functions or BaseModel subclasses without `@llm.tool` will fail with `AttributeError: 'function' object has no attribute 'name'`.
 
 ### Key Test Files
 
 - `test_graph.py`: Core graph operations, Perspectives, statements
 - `test_tarorank.py`: Comprehensive scoring tests
 - `test_analyst_*.py`: Analyst agent concerns (LLM-marked)
+- `test_streaming.py`: Stream events, submit_stream, chat_stream (unit + real_llm end-to-end)
 - `conftest.py`: DI setup, mock brain fixture, graph DB cleanup
 
 ### DI in Tests

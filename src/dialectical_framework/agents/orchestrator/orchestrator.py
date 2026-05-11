@@ -11,7 +11,7 @@ Run directly:
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, AsyncGenerator, Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -21,6 +21,7 @@ from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.orchestrator.system_prompts import \
     ORCHESTRATOR_SYSTEM_PROMPT
+from dialectical_framework.agents.stream_events import StreamEvent
 
 # Curated schema description derived from GQLAlchemy node/relationship definitions
 GRAPH_SCHEMA = """
@@ -151,10 +152,11 @@ class Orchestrator:
             sid: Optional existing session ID to load. If None, creates new session.
         """
         if sid:
-            self._sid = sid
+            self._sid: str = sid
         else:
             case = Case()
             case.commit()
+            assert case.sid is not None
             self._sid = case.sid
 
         self._tools = self._build_tool_list()
@@ -252,6 +254,17 @@ class Orchestrator:
         with scope(self._sid):
             result = await self._conversation.submit(ChatResponse, user_message)
         return result.message
+
+    async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
+        """
+        Process a user message with streaming events.
+
+        Yields StreamEvent instances as the agentic loop progresses:
+        TextDelta, ToolStart, ToolResult, ResponseComplete.
+        """
+        with scope(self._sid):
+            async for event in self._conversation.submit_stream(ChatResponse, user_message):
+                yield event
 
     @property
     def sid(self) -> str:
