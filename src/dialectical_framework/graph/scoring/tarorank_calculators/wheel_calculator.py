@@ -35,7 +35,7 @@ class WheelCalculator(BaseCalculator):
 
     def score_children(self, wheel: Wheel, force: bool = False) -> None:
         """
-        Score parent Cycle (which scores PPs) and Transformations.
+        Score parent Cycle (which scores PPs), Transformations, and Synthesis.
 
         Args:
             wheel: Wheel whose children should be scored
@@ -49,6 +49,10 @@ class WheelCalculator(BaseCalculator):
         # Score Transformations
         for transformation in wheel.transformations:
             self.scorer.calculate_score(transformation, force=force)
+
+        # Score Synthesis alternatives
+        for synthesis, _ in wheel.synthesis.all():
+            self.scorer.calculate_score(synthesis, force=force)
 
     def calculate_relevance(self, wheel: Wheel) -> Optional[float]:
         """
@@ -90,6 +94,15 @@ class WheelCalculator(BaseCalculator):
             trans_r = transformation.relevance
             if trans_r is not None:
                 values.append(trans_r)
+
+        # Synthesis Rs (wheel-level, aggregate if multiple)
+        synth_rs = []
+        for synthesis, _ in wheel.synthesis.all():
+            synth_r = synthesis.relevance
+            if synth_r is not None:
+                synth_rs.append(synth_r)
+        if synth_rs:
+            values.append(gm_with_zeros_and_nones_handled(synth_rs))
 
         # Wheel-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
@@ -169,7 +182,7 @@ class WheelCalculator(BaseCalculator):
 
     def clear_children(self, wheel: Wheel) -> None:
         """
-        Clear scores from Cycle (which clears PPs) and Transformations.
+        Clear scores from Cycle (which clears PPs), Transformations, and Synthesis.
 
         Args:
             wheel: Wheel whose children should be cleared
@@ -182,3 +195,7 @@ class WheelCalculator(BaseCalculator):
         # Clear Transformations
         for transformation in wheel.transformations:
             self.scorer.clear_scores(transformation)
+
+        # Clear Synthesis alternatives
+        for synthesis, _ in wheel.synthesis.all():
+            self.scorer.clear_scores(synthesis)

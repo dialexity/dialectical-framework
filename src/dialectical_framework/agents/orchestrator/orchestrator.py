@@ -47,7 +47,7 @@ GRAPH_SCHEMA = """
 | Wheel | Concrete T-A arrangement implementing a Cycle | `intent` |
 | Transformation | Action-reflection structure (Ac, Re, Ac+, Ac-, Re+, Re-) on a Wheel edge | `intent` |
 | Transition | Movement between two Statements (source → target) | `statement`, `headline`, `haiku` |
-| Synthesis | Emergent S+/S- pair from a Perspective | |
+| Synthesis | Emergent S+/S- pair from a Wheel's circular causality | |
 | Rationale | Explanation attached to any node | `text` |
 | Estimation | Numeric assessment (probability, relevance, feasibility) | `value` |
 
@@ -96,10 +96,10 @@ All nodes share: `hash` (content-addressable ID), `sid` (session scope), `commit
 - `(tr:Transformation)-[:ACTION_REFLECTION]->(t:Transition)` — which Wheel edge this Transformation belongs to
 - `(tr:Transformation)-[:BELONGS_TO_NEXUS]->(nx:Nexus)` — scoped to Nexus
 
-**Synthesis positions** (Statement → Synthesis):
+**Synthesis positions** (Statement → Synthesis → Wheel):
 - `(s:Statement)-[:S_PLUS]->(syn:Synthesis)` — positive synthesis
 - `(s:Statement)-[:S_MINUS]->(syn:Synthesis)` — negative synthesis
-- `(syn:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)` — which Perspective it synthesizes
+- `(syn:Synthesis)-[:SYNTHESIS_OF]->(w:Wheel)` — which Wheel it synthesizes
 
 **Container membership**:
 - `(case:Case)-[:HAS_INPUT]->(i:Input)` — Case owns Inputs

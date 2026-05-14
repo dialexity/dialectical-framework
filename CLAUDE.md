@@ -37,7 +37,7 @@ Think of a Dialectical Wheel as a pizza:
   - Belongs to a wheel edge via ACTION_REFLECTION relationship (`transformation.edge`)
   - Each edge can have multiple Transformation alternatives at different insight/proactiveness levels
   - Source/target segments derived from Ac+ transition's source/target components
-- **Synthesis**: Emergent S+/S- pair from Transformation
+- **Synthesis**: Emergent S+/S- pair from Wheel's circular causality
 - **Cycle**: T-cycle - ordered sequence of Perspectives defining abstract thesis causality
   - Stores PP hashes directly (cycle.perspective_hashes)
   - Intent field for dynamics type ("preset:balanced", "preset:realistic", etc.)
@@ -121,7 +121,7 @@ for tr in wheel.transformations:
 - Different PP pools → Create different **Cycles** within the same **Nexus**
 - Different PP arrangements → Create different **Wheels** for the same **Cycle**
 
-Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on Transformation.
+Multiple synthesis interpretations are supported via `Synthesis (0, ∞)` on Wheel.
 
 ### Layered Combination Model
 
@@ -497,11 +497,11 @@ Cycle.perspective_hashes → [PP hashes] (field, not relationship)
 **Complete scoring hierarchy:**
 ```
 Statement → PP → Cycle → Wheel
-    │        ▲            ▲
-    │        │            │
-    │   Transformation ← Synthesis
-    │                │
-    └→ Synthesis ────┘
+    │                       ▲
+    │                       │
+    │              Transformation
+    │                       │
+    └→ Synthesis ───────────┘
 ```
 
 ### Scoring

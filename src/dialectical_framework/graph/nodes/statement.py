@@ -380,9 +380,8 @@ class Statement(AssessableEntity, label="Statement"):
         Get the alias of this component within a specific Perspective's context.
 
         This method searches all relationship managers on the Perspective (6 core positions)
-        and the optional Synthesis node (S+, S-) to find where this component is connected
-        and returns the alias from the edge properties. If no custom alias is set, returns
-        the position constant as the default alias.
+        to find where this component is connected and returns the alias from the edge
+        properties. If no custom alias is set, returns the position constant as the default alias.
 
         Args:
             perspective: The Perspective to look up the alias in
@@ -432,19 +431,6 @@ class Statement(AssessableEntity, label="Statement"):
                         return rel.alias if rel.alias else position
                     return position  # Non-polarity relationship, use position
 
-        # Also check synthesis on PP (synthesis is now on Perspective, not Transformation)
-        for synthesis, _ in perspective.synthesis.all():
-            # Check S+ and S- on the Synthesis node
-            for manager in [synthesis.s_plus, synthesis.s_minus]:
-                components = manager.all()
-                for comp, rel in components:
-                    if comp.hash == self.hash:
-                        # Use isinstance for type-safe property access
-                        if isinstance(rel, PolarityRelationship):
-                            # Return custom alias if set, otherwise position constant
-                            return rel.alias if rel.alias else position
-                        return position  # Non-polarity relationship, use position
-
         # Should not reach here since get_position() already validated connection
         return position
 
@@ -453,14 +439,13 @@ class Statement(AssessableEntity, label="Statement"):
         Get the position name of this component within a specific Perspective's context.
 
         This method searches all relationship managers on the Perspective (6 core positions)
-        and the optional Synthesis node (S+, S-) to find where this component is connected
-        and returns the position constant.
+        to find where this component is connected and returns the position constant.
 
         Args:
             perspective: The Perspective to look up the position in
 
         Returns:
-            The position constant (e.g., "T", "T+", "A-", "S+", "S-") or None if not connected
+            The position constant (e.g., "T", "T+", "A-") or None if not connected
 
         Example:
             from dialectical_framework.graph.nodes.polarity import POSITION_T
@@ -480,9 +465,6 @@ class Statement(AssessableEntity, label="Statement"):
             POSITION_T_PLUS, POSITION_T_MINUS,
             POSITION_A_PLUS, POSITION_A_MINUS,
         )
-        from dialectical_framework.graph.nodes.synthesis import (
-            POSITION_S_PLUS, POSITION_S_MINUS
-        )
 
         # Search through all 6 core position relationship managers on the perspective
         positions = [
@@ -501,18 +483,5 @@ class Statement(AssessableEntity, label="Statement"):
                 # Check if this is the component we're looking for
                 if comp.hash == self.hash:
                     return position_name
-
-        # Also check synthesis on PP (synthesis is now on Perspective, not Transformation)
-        for synthesis, _ in perspective.synthesis.all():
-            # Check S+ and S- on the Synthesis node
-            synth_positions = [
-                (POSITION_S_PLUS, synthesis.s_plus),
-                (POSITION_S_MINUS, synthesis.s_minus),
-            ]
-            for position_name, manager in synth_positions:
-                components = manager.all()
-                for comp, rel in components:
-                    if comp.hash == self.hash:
-                        return position_name
 
         return None

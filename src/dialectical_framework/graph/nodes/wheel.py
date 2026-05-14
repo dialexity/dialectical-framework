@@ -23,6 +23,9 @@ from dialectical_framework.graph.relationships.belongs_to_cycle_relationship imp
 from dialectical_framework.graph.relationships.opposite_direction_relationship import (
     OppositeDirectionRelationship,
 )
+from dialectical_framework.graph.relationships.synthesis_of_relationship import (
+    SynthesisOfRelationship,
+)
 from dialectical_framework.graph.nodes.perspective import (
     POSITION_T,
     POSITION_T_PLUS,
@@ -36,6 +39,7 @@ from dialectical_framework.utils.order_transitions import order_transitions
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.statement import Statement
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.wheel_segment import WheelSegment
     from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
     from dialectical_framework.graph.nodes.cycle import Cycle
@@ -119,6 +123,13 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
     opposite_direction: ClassVar[RelationshipManager[Wheel]] = RelationshipBoth(
         "Wheel",
         model=OppositeDirectionRelationship,
+    )
+
+    # Synthesis alternatives (S+/S- pairs) emerging from this Wheel's circular causality
+    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
+        "Synthesis",
+        model=SynthesisOfRelationship,
+        cardinality=(0, None)  # Zero or more synthesis alternatives
     )
 
     @property

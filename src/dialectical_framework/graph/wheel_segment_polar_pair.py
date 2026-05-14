@@ -170,8 +170,8 @@ class WheelSegmentPolarPair:
             (empty) - Uses custom aliases as stored
             "positions" - Uses canonical positions
             "strip_index" - Strips numeric indexes
-            "full" - Vertical layout with synthesis + segments + transformation
-            "full:compact" - Tabular layout with synthesis + segments side-by-side
+            "full" - Vertical layout with segments + transformation
+            "full:compact" - Tabular layout with segments + transformation side-by-side
 
         Newlines (optional, for non-"full" modes):
             :0 - Comma separation (compact single line, NO explanations)
@@ -225,7 +225,7 @@ class WheelSegmentPolarPair:
 
     def _format_full(self) -> str:
         """
-        Format in full mode: Synthesis, both segments, Transformation, Rationales (vertical).
+        Format in full mode: both segments, Transformation, Rationales (vertical).
 
         Returns:
             Formatted string with all sections separated vertically
@@ -233,18 +233,7 @@ class WheelSegmentPolarPair:
         from tabulate import tabulate
         sections = []
 
-        # Section 1: Synthesis (now on Perspective, not transformation)
-        synthesis_list = list(self._perspective.synthesis.all())
-
-        if synthesis_list:
-            synthesis_parts = ["=== Synthesis ==="]
-
-            for synthesis, _ in synthesis_list:
-                synthesis_parts.append(f"{synthesis}")
-
-            sections.append("\n\n".join(synthesis_parts))
-
-        # Section 2: Both segments (6 core positions total)
+        # Section 1: Both segments (6 core positions total)
         sections.append("=== Perspective ===")
         sections.append(self.__format__(""))  # Default format with explanations
 
@@ -288,39 +277,17 @@ class WheelSegmentPolarPair:
 
     def _format_full_compact(self) -> str:
         """
-        Format in full compact mode: Synthesis first, then segments side-by-side.
+        Format in full compact mode: segments side-by-side with transformation.
 
         Returns:
-            Formatted string with synthesis vertical, then segments tabular without explanations
+            Formatted string with segments tabular without explanations
         """
         from dialectical_framework.graph.relationships.polarity_relationship import PolarityRelationship
         from tabulate import tabulate
 
         lines = []
 
-        # Section 1: Synthesis (now on PP, not transformation)
-        synthesis_list = list(self._perspective.synthesis.all())
-
-        if synthesis_list:
-            lines.append("=== Synthesis ===")
-
-            for synthesis, _ in synthesis_list:
-                s_plus_result = synthesis.s_plus.get()
-                s_minus_result = synthesis.s_minus.get()
-
-                if s_plus_result:
-                    s_plus_comp, s_plus_rel = s_plus_result
-                    assert isinstance(s_plus_rel, PolarityRelationship)
-                    lines.append(f"{s_plus_rel.alias} = {s_plus_comp:short}")
-
-                if s_minus_result:
-                    s_minus_comp, s_minus_rel = s_minus_result
-                    assert isinstance(s_minus_rel, PolarityRelationship)
-                    lines.append(f"{s_minus_rel.alias} = {s_minus_comp:short}")
-
-            lines.append("")  # Blank line separator
-
-        # Section 2: Perspective and Transformation side-by-side (tabular)
+        # Section 1: Perspective and Transformation side-by-side (tabular)
         lines.append("=== Perspective / Transformation ===")
 
         # Helper to get component info

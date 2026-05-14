@@ -21,7 +21,7 @@ class IntentMixin(PersistableMixin):
     question it's trying to answer.
 
     Used by: Case, Ideas, Perspective, Cycle, Wheel,
-             Transformation, Synthesis
+             Transformation
 
     Example:
         case = Case(intent="Explore remote work dynamics")

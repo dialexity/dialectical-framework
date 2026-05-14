@@ -24,9 +24,6 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship,
     HasPolarityRelationship,
 )
-from dialectical_framework.graph.relationships.synthesis_of_relationship import (
-    SynthesisOfRelationship,
-)
 from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
     BelongsToNexusRelationship,
 )
@@ -36,7 +33,6 @@ from dialectical_framework.graph.relationships.changed_to_relationship import (
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.synthesis import Synthesis
     from dialectical_framework.graph.wheel_segment import WheelSegment
     from dialectical_framework.graph.nodes.nexus import Nexus
 
@@ -45,7 +41,6 @@ from dialectical_framework.graph.nodes.polarity import Polarity, POSITION_T, POS
 
 # Position constants for aspects - module level to avoid GQLAlchemy metaclass interference
 # Note: POSITION_T and POSITION_A are in polarity.py (T/A belong to Polarity)
-# Note: S+ and S- constants are in synthesis.py (Synthesis belongs to Perspective)
 POSITION_T_PLUS = "T+"
 POSITION_T_MINUS = "T-"
 POSITION_A_PLUS = "A+"
@@ -67,10 +62,9 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
     consequences or alternative perspectives on the same T-A pair, create multiple
     Perspectives that share the same Polarity (different tetrad interpretations).
 
-    Synthesis (S+, S-) emerges from the Perspective's T-A tension, not from individual
-    transformation paths. A PP can have multiple transformations (different Ac-Re paths)
-    but synthesis belongs to the PP level.
-    Access synthesis via: pp.synthesis.all()
+    Synthesis (S+, S-) is a wheel-level phenomenon — it emerges from the complete
+    circular causality system, not from individual Perspectives.
+    Access synthesis via: wheel.synthesis.all()
 
     The cardinality constraints are enforced at the RelationshipManager level,
     providing automatic validation and runtime checks.
@@ -167,14 +161,6 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
             raise ValueError("Perspective has no Polarity connected - cannot access A")
         pol, _ = polarity_result
         return pol.a
-
-    # Synthesis alternatives (S+/S- pairs) derived from this Perspective
-    # Synthesis emerges from the T-A tension, not from specific transformation paths
-    synthesis: ClassVar[RelationshipManager[Synthesis]] = RelationshipFrom(
-        "Synthesis",
-        model=SynthesisOfRelationship,
-        cardinality=(0, None)  # Zero or more synthesis alternatives
-    )
 
     # Exploration context: Nexuses this PP belongs to
     # PP→Nexus: PP can belong to multiple exploration contexts
@@ -862,8 +848,8 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
             (empty) - Uses custom aliases as stored, core positions only
             "positions" - Uses canonical positions (T, T+, T-, A, A+, A-)
             "strip_index" - Strips numeric indexes: "T1" → "T", "Foo2+" → "Foo+"
-            "full" - Synthesis + Perspective + Transformation (vertical)
-            "full:compact" - Synthesis + Perspective/Transformation side-by-side (tabular, no explanations)
+            "full" - Perspective + Transformation (vertical)
+            "full:compact" - Perspective/Transformation side-by-side (tabular, no explanations)
 
         Newlines (optional):
             Default: 2 newlines between components (if not specified)
@@ -877,8 +863,8 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
         "positions"     - Canonical positions, 2 newlines, with explanations
         ":0"            - Core positions, comma separated, NO explanations
         "positions:0"   - Canonical positions, comma separated, NO explanations
-        "full"          - Synthesis, Perspective, Transformation (vertical)
-        "full:compact"  - Synthesis, Perspective/Transformation tabular (no explanations)
+        "full"          - Perspective + Transformation (vertical)
+        "full:compact"  - Perspective/Transformation tabular (no explanations)
 
         Returns:
             Formatted string

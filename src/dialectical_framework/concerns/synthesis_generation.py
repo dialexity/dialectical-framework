@@ -1,12 +1,12 @@
 """
-SynthesisGeneration: Concern for generating S+/S- synthesis pairs from Perspectives.
+SynthesisGeneration: DEPRECATED — Synthesis now belongs to Wheel, not Perspective.
 
-TODO: This concern needs revision. Synthesis calculation is more complex than
-the current simple LLM prompt approach. The actual synthesis should consider:
-- Transformation paths (Ac-Re sequences)
-- Multiple synthesis interpretations per PP
-- Context from the wheel/cycle structure
-- Scoring and ranking of synthesis alternatives
+TODO: Rewrite this concern to generate synthesis at the Wheel level.
+Synthesis is a wheel-level phenomenon emerging from circular causality:
+- 1-PP wheel: emerges from the single Transformation's Ac+/Re+ loop
+- 2-PP wheel: emerges from two opposite Transformations working together
+- N-PP wheel: system-level emergence, uses lower-layer wheel syntheses as context
+The Wheel must have Transformations computed before synthesis can be generated.
 
 Synthesis represents emergent properties from thesis-antithesis dialectic:
 - S+ (Positive Synthesis): Complementary harmony where 1+1>2

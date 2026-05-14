@@ -74,7 +74,7 @@ The scoring system is built on the `Assessable` protocol with the following inhe
   - `AssessableCycle` - Abstract base for cycles (inherits from Assessable)
     - `Cycle` - Sequences of transitions between statements
     - `Spiral` - Transformational cycles between segments
-  - `Perspective` - Thesis-antithesis pairs with synthesis and transformation
+  - `Perspective` - Thesis-antithesis pairs with aspect positions
   - `Nexus` - Pool of Perspectives where collective insights emerge (staging area before cycle arrangement)
   - `Wheel` - Complete dialectical systems (detailed implementation of a cycle arrangement)
 
@@ -105,7 +105,6 @@ Level 3: Nexus (pool of Perspectives)
 
 Level 2: Perspective
          ├─ Aggregates both WheelSegment Rs (T-side + A-side)
-         ├─ Includes Transformation R (internal spiral, includes ac_re R and Synthesis R)
          └─ Includes Perspective-level Rationale Rs
 
 Level 1: WheelSegment
@@ -213,14 +212,12 @@ SCORING FLOW (scores aggregate upward):
 
                                     ┌─────────────────────────────────────────────┐
                                     ▼                                             │
-Statement ──► Perspective ──► Nexus ──► Cycle ──► Wheel                            │
-       │                     ▲                               ▲                    │
-       │                     │                               │                    │
-       │              Transformation ◄── Synthesis           │                    │
-       │                                    │                │                    │
-       └──► Synthesis ──────────────────────┼──► Spiral ─────┘                    │
-                                            │       ▲                             │
-                                            └───────┘                             │
+Statement ──► Perspective ──► Nexus ──► Cycle ──► Wheel ◄── Synthesis             │
+       │                                            ▲                             │
+       │                                            │                             │
+       │                                     Transformation                       │
+       │                                                                          │
+       └──► Synthesis ────────────────────────────────────────────────────────────┘
 Transition ───────────────────────────────────────────────────────────────────────┘
 Rationale ──► (any AssessableEntity)
 ```
@@ -231,8 +228,7 @@ Rationale ──► (any AssessableEntity)
 |--------------|-------------|-----------|---------|
 | Statement | Perspective | T/A/T+/T-/A+/A- (polarity) | Statement score contributes to PP |
 | Statement | Synthesis | S+/S- (polarity) | Statement score contributes to Synthesis |
-| Synthesis | Transformation | SYNTHESIS_OF | Synthesis score contributes to Transformation |
-| Synthesis | Spiral | SYNTHESIS_OF | Synthesis score contributes to Spiral (meta-synthesis) |
+| Synthesis | Wheel | SYNTHESIS_OF | Synthesis score contributes to Wheel |
 | Transformation | Perspective | IS_SPIRAL_OF | Transformation score contributes to PP |
 | Perspective | Nexus | BELONGS_TO_NEXUS | PP score contributes to Nexus score |
 | Nexus | Cycle | HAS_CYCLE | Nexus score contributes to Cycle score |
@@ -250,13 +246,7 @@ When Perspective changes:
 3. Query finds outgoing edge: `(Cycle)-[HAS_WHEEL]->(Wheel)` → Wheel invalidated
 
 When Synthesis changes (e.g., S+ statement updated):
-1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Transformation)` → Transformation invalidated
-2. Query finds outgoing edge: `(Transformation)-[IS_SPIRAL_OF]->(PP)` → PP invalidated
-3. Continues: PP → Nexus → Cycle → Wheel (as above)
-
-Or for Spiral-level Synthesis:
-1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Spiral)` → Spiral invalidated
-2. Query finds outgoing edge: `(Spiral)-[IS_SPIRAL_OF]->(Wheel)` → Wheel invalidated
+1. Query finds outgoing edge: `(Synthesis)-[SYNTHESIS_OF]->(Wheel)` → Wheel invalidated
 
 This ensures that when a scoring input changes, all nodes that depend on it are marked for rescoring.
 

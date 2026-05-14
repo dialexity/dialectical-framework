@@ -158,14 +158,6 @@ class PerspectiveRepository:
         WHERE id(c) = $component_id
         AND type(r) IN ['T', 'A']
         RETURN pp, type(r) AS rel_type
-
-        UNION
-
-        // Synthesis positions (S+, S-) via Synthesis node
-        MATCH (c:Statement)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)
-        WHERE id(c) = $component_id
-        AND type(r) IN ['S_PLUS', 'S_MINUS']
-        RETURN pp, type(r) AS rel_type
         """
 
         results = graph_db.execute_and_fetch(query, {"component_id": component._id})

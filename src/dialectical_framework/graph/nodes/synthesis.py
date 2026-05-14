@@ -24,7 +24,7 @@ from dialectical_framework.graph.relationships.synthesis_of_relationship import 
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.wheel import Wheel
 
 # Position constants for S+/S- (canonical names)
 POSITION_S_PLUS = "S+"
@@ -33,16 +33,18 @@ POSITION_S_MINUS = "S-"
 
 class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
     """
-    Represents ONE synthesis interpretation of a dialectical tension.
+    Represents ONE synthesis interpretation emerging from a Wheel's circular causality.
 
     Each Synthesis contains a symmetric S+/S- pair representing emergent properties:
     - S+ (exactly one): Positive synthesis - complementary harmony (1+1>2)
     - S- (exactly one): Negative synthesis - reinforcing uniformity (1+1<2)
 
-    Synthesis emerges from Perspective: The T-A tension itself
-    (many transformation paths → ONE synthesis).
+    Synthesis is a wheel-level phenomenon:
+    - 1-PP wheel: emerges from the single Transformation's Ac+/Re+ loop
+    - 2-PP wheel: emerges from two opposite Transformations (the transformation pair)
+    - N-PP wheel: system-level emergence, uses lower-layer wheel syntheses as context
 
-    A Perspective can have multiple Synthesis nodes to explore
+    A Wheel can have multiple Synthesis nodes to explore
     alternative synthesis interpretations.
     """
 
@@ -60,10 +62,9 @@ class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
         cardinality=(1, 1)  # Exactly one
     )
 
-    # Target relationship (Perspective only)
-    # Synthesis emerges from PP-level tension (many Ac-Re paths → ONE synthesis)
-    target: ClassVar[RelationshipManager[Perspective]] = RelationshipTo(
-        "Perspective",
+    # Target relationship: Synthesis belongs to a Wheel (circular causality outcome)
+    target: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
+        "Wheel",
         model=SynthesisOfRelationship,
         cardinality=(1, 1)  # Exactly one target
     )
@@ -71,7 +72,7 @@ class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
     @property
     def target_type(self) -> str:
         """
-        Return type of target: 'perspective' or 'none'.
+        Return type of target: 'wheel' or 'none'.
 
         Returns:
             Lowercase name of the target class, or 'none' if not connected.
@@ -106,7 +107,7 @@ class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
             List of strings: [s+_hash, s-_hash]
 
         Note:
-            Target (Perspective/Transformation) and S+/S- components must be committed.
+            Target Wheel and S+/S- components must be committed.
         """
         # Verify target is committed - Synthesis only makes sense for finalized structures
         target_result = self.target.get()
@@ -119,7 +120,7 @@ class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
                 )
         else:
             raise ValueError(
-                "Synthesis must be connected to a target Perspective "
+                "Synthesis must be connected to a target Wheel "
                 "before computing structure hash."
             )
 

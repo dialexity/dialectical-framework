@@ -32,10 +32,10 @@ Perspective → Cycle → Wheel (edges) → Transformation
 | **Perspective** | Full polar interpretation | `polarity`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus`, `changed_to` |
 | **Nexus** | Exploration container for Perspectives | `perspectives`, `intent`, `preset` |
 | **Cycle** | T-cycle (ordered Perspective sequence) | `perspective_hashes`, `wheels`, `opposite_direction` |
-| **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `opposite_direction` |
+| **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `opposite_direction`, `synthesis` |
 | **Transition** | Edge between statements | `source`, `target`, `cycle` (→Wheel) |
 | **Transformation** | Action-Reflection per edge | `edge` (→Transition via ACTION_REFLECTION), `nexus`, positions (ac, re, ac+, etc.) |
-| **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Perspective) |
+| **Synthesis** | Emergent S+/S- pair from Wheel's circular causality | `s_plus`, `s_minus`, `target` (→Wheel) |
 | **Rationale** | Evidence/explanation | `explains`, `critiques`, `provided_estimations` |
 | **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `_provider` (←Rationale via PROVIDES) |
 | **Input** | Content source | `has_statements`, `ideas` |
@@ -211,17 +211,19 @@ Nexus [PP1, PP2, PP3]
 
 ### Multiple Synthesis Interpretations
 
-Each edge can have multiple Transformations, and each Transformation can have multiple Syntheses:
+Synthesis is a wheel-level phenomenon — it emerges from the complete circular causality system:
 
 ```
-Edge (T1- → A2+)
-├── Transformation A (insight level 1)
-│   └── Synthesis (0, ∞)  ← Multiple interpretations
-└── Transformation B (insight level 2)
-    └── Synthesis (0, ∞)  ← Multiple interpretations
+Wheel (2-PP)
+├── Edge pair: T1→A2 / A2→T1 (two opposite Transformations)
+└── Synthesis (0, ∞)  ← Multiple interpretations of what emerges
+
+Wheel (3-PP)
+├── Edges: T1→A2, T2→A3, T3→A1 (each with Transformation)
+└── Synthesis (0, ∞)  ← System-level emergence (uses layer-2 syntheses as context)
 ```
 
-This allows exploring different synthesis outcomes without duplicating structural paths.
+Higher-layer wheel synthesis uses lower-layer (sub-wheel) syntheses as input context.
 
 ## Structural vs Analytical Layers
 
@@ -267,7 +269,7 @@ Think of the analytical layer as **pins and sticky notes** attached to the struc
 | Rationale | Any AssessableEntity (explains why) |
 | Estimation | Any AssessableEntity (P/R values) |
 | Critique | Rationales (audit/challenge) |
-| Synthesis | Transformation (emergent S+/S-) |
+| Synthesis | Wheel (emergent S+/S- from circular causality) |
 | ac_re PP | Transformation (action-reflection context) |
 
 ### Why This Separation?

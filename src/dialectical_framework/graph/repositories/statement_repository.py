@@ -63,14 +63,6 @@ class StatementRepository:
         WHERE id(pp) = $perspective_id
         AND type(r) IN ['T', 'A']
         RETURN c, r.alias AS alias
-
-        UNION
-
-        // Synthesis positions (S+, S-) via Synthesis node
-        MATCH (c:Statement)-[r]->(synth:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)
-        WHERE id(pp) = $perspective_id
-        AND type(r) IN ['S_PLUS', 'S_MINUS']
-        RETURN c, r.alias AS alias
         """
 
         results = graph_db.execute_and_fetch(query, {"perspective_id": perspective._id})

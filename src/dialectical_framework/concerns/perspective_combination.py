@@ -272,7 +272,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         all_cycles: list[Cycle] = []
         new_cycles: list[Cycle] = []
 
-        # For single PP, only one trivial T-cycle
+        # Single PP: one Cycle with one self-referencing Wheel (circular causality base case)
         if len(perspectives) == 1:
             cycle, is_new = self._find_or_create_cycle(perspectives)
             all_cycles.append(cycle)
@@ -316,14 +316,15 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         Find existing Cycle or create new one.
 
         Checks if a Cycle with the same PP ordering and intent already exists.
-        Layer-1 Cycles (single PP) have no intent — causality requires 2+ PPs.
+        Layer-1 Cycles (single PP) have no causality intent — ordering requires 2+ PPs.
+        They still produce Wheels that need Transformations (circular causality base case).
 
         Returns:
             Tuple of (Cycle, is_new)
         """
         from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
 
-        # Layer-1 (single PP) Cycles have no intent
+        # Layer-1 (single PP) Cycles have no causality intent (nothing to order)
         intent = self._preset if len(perspectives) >= 2 else None
 
         cycle_repo = CycleRepository()

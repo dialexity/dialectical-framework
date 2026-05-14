@@ -203,14 +203,20 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         self._report.artifacts["new_cycles"] = len(new_cycles)
         self._report.artifacts["new_wheels"] = len(new_wheels)
 
-        # 5. Estimate new structures (layer 2+ only — single-PP cycles are tautological)
-        #    CausalityEstimation resolves the estimator from Cycle.intent
+        # 5. Estimate causality ordering (layer 2+ only — 1-PP has nothing to order)
+        #    Estimation determines which PP causes which — requires 2+ PPs.
         causal_cycles = [c for c in new_cycles if c.perspective_count >= 2]
         causal_wheels = [w for w in new_wheels if w.polarity_count >= 2]
         if causal_cycles or causal_wheels:
             await self._run_estimation(causal_cycles, causal_wheels)
 
-        # 6. Build summary
+        # 6. Generate Transformations for 1-PP wheels (circular causality base case)
+        #    These are foundational — higher-layer transformations use them as context.
+        layer1_wheels = [w for w in new_wheels if w.polarity_count == 1]
+        if layer1_wheels:
+            await self._run_layer1_transformations(layer1_wheels)
+
+        # 7. Build summary
         if not new_cycles and not new_wheels:
             self._report.summary = (
                 f"All structures already exist for Nexus {nexus.short_hash} "
@@ -253,6 +259,23 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
             await estimation.resolve(wheels)
             self._report = self._report.merge(estimation.report)
 
+    async def _run_layer1_transformations(self, wheels: list[Wheel]) -> None:
+        """
+        Generate Transformations for 1-PP wheels.
+
+        1-PP wheels are the circular causality base case: Ac+ (T- → A+) and
+        Re+ (A- → T+) within a single Perspective. These serve as foundational
+        context for higher-layer transformation generation.
+        """
+        from dialectical_framework.agents.explorer.skills.explore_transformations import (
+            ExploreTransformations,
+        )
+
+        for wheel in wheels:
+            concern = ExploreTransformations(wheel_hash=wheel.hash)
+            await concern.resolve()
+            self._report = self._report.merge(concern.report)
+
     def _resolve_nexus(self) -> Optional[Nexus]:
         """Resolve Nexus by hash prefix, scoped by sid."""
         repo = NexusRepository()
@@ -267,7 +290,7 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         is already on existing Cycles. Reuse it to avoid redundant LLM calls.
 
         Looks at layer 2+ Cycles (2+ PPs) since layer-1 (single PP)
-        Cycles are tautological and not estimated.
+        Cycles have no causality intent (nothing to order).
 
         Returns:
             The intent from an existing Cycle, or None if no Cycles exist.

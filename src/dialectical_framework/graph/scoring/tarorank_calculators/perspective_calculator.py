@@ -28,7 +28,6 @@ class PerspectiveCalculator(BaseCalculator):
       * T ↔ A (neutral pair)
       * T+ ↔ A- (positive thesis aspect ↔ negative antithesis aspect)
       * T- ↔ A+ (negative thesis aspect ↔ positive antithesis aspect)
-    - Includes synthesis Rs (PP-level, aggregated if multiple)
     - Includes Perspective-level rationale Rs (with rating)
     - Aggregates all via GM
 
@@ -39,7 +38,7 @@ class PerspectiveCalculator(BaseCalculator):
 
     def score_children(self, pp: Perspective, force: bool = False) -> None:
         """
-        Score all components, transformations, and synthesis in this PP.
+        Score all components in this PP.
 
         Args:
             pp: Perspective whose children should be scored
@@ -50,10 +49,6 @@ class PerspectiveCalculator(BaseCalculator):
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
                 self.scorer.calculate_score(comp, force=force)
-
-        # Score all synthesis alternatives (PP-level)
-        for synthesis, _ in pp.synthesis.all():
-            self.scorer.calculate_score(synthesis, force=force)
 
     def calculate_relevance(self, pp: Perspective) -> Optional[float]:
         """
@@ -118,20 +113,6 @@ class PerspectiveCalculator(BaseCalculator):
             if pair_r is not None:
                 values.append(pair_r)
 
-        # Synthesis Rs (PP-level, aggregate if multiple)
-        synth_rs = []
-        for synthesis, _ in pp.synthesis.all():
-            synth_r = synthesis.relevance
-            if synth_r is not None:
-                synth_rs.append(synth_r)
-        if synth_rs:
-            if len(synth_rs) == 1:
-                values.append(synth_rs[0])
-            else:
-                aggregated_synth_r = gm_with_zeros_and_nones_handled(synth_rs)
-                if aggregated_synth_r is not None:
-                    values.append(aggregated_synth_r)
-
         # Perspective-level rationales
         # Apply rationale.rating as per scoring.md (parent applies rating)
         auditor = RationaleAuditor(self.scorer)
@@ -168,7 +149,7 @@ class PerspectiveCalculator(BaseCalculator):
 
     def clear_children(self, pp: Perspective) -> None:
         """
-        Clear scores from all components, transformations, and synthesis.
+        Clear scores from all components.
 
         Args:
             pp: Perspective whose children should be cleared
@@ -178,7 +159,3 @@ class PerspectiveCalculator(BaseCalculator):
             components = [comp for comp, _ in rel_manager.all()]
             for comp in components:
                 self.scorer.clear_scores(comp)
-
-        # Clear all synthesis alternatives (PP-level)
-        for synthesis, _ in pp.synthesis.all():
-            self.scorer.clear_scores(synthesis)
