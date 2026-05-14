@@ -193,7 +193,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
 
         if synthesis_pair is None:
             self._report.ok = False
-            self._report.summary = f"Synthesis generation failed for PP {perspective.short_hash}"
+            self._report.summary = f"Synthesis generation failed for Perspective {perspective.short_hash}"
             return None
 
         # Compute indexed alias (e.g., S2+ for PP index 2)
@@ -213,7 +213,7 @@ Create S+ (positive synthesis) and S- (negative synthesis) that emerge from this
         self._report.node_created(s_minus_comp, meta={"position": s_minus_alias})
 
         self._report.summary = (
-            f"Generated synthesis for PP {perspective.short_hash}: "
+            f"Generated synthesis for Perspective {perspective.short_hash}: "
             f"{s_plus_alias}, {s_minus_alias}"
         )
 

@@ -93,7 +93,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         if not partial_pps:
             self._report.ok = True
             self._report.summary = (
-                f"{len(complete_pps)} complete Perspective(s), no partial PPs to expand"
+                f"{len(complete_pps)} complete Perspective(s), no partial Perspectives to expand"
             )
             self._report.artifacts["perspective_hashes"] = [
                 pp.hash for pp in complete_pps if pp.hash
@@ -171,6 +171,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         pp.save()
         pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
         self._report.node_created(pp)
+        self._report.relationship_created(pp.polarity, pp, polarity)
         return pp
 
     def _connect_aspect(self, pp: Perspective, aspect: AspectResult) -> None:

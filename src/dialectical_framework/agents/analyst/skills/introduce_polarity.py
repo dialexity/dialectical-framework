@@ -96,6 +96,9 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
 
         # 3. Connect OPPOSITE_OF
         thesis_stmt.oppositions.connect(antithesis_stmt)
+        self._report.relationship_created(
+            thesis_stmt.oppositions, thesis_stmt, antithesis_stmt
+        )
 
         # 4. Classify the antithesis against the thesis (get HS)
         classifier = AntithesisClassification()
@@ -162,6 +165,9 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
 
             # Connect OPPOSITE_OF
             thesis_stmt.oppositions.connect(alt_stmt)
+            self._report.relationship_created(
+                thesis_stmt.oppositions, thesis_stmt, alt_stmt
+            )
 
             # Check if Polarity already exists
             existing = pol_repo.find_by_tension(thesis_stmt, alt_stmt)

@@ -530,10 +530,12 @@ Determine:
         input_repo = InputRepository()
         for input_node in input_repo.get_all():
             ideas.inputs.connect(input_node)
+            self._report.relationship_created(ideas.inputs, ideas, input_node)
 
         # Connect to components
         for comp in components:
             ideas.statements.connect(comp)
+            self._report.relationship_created(ideas.statements, ideas, comp)
 
         ideas.commit()
         self._report.node_created(ideas)

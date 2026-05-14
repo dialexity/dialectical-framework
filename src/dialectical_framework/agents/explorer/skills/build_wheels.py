@@ -183,7 +183,7 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
                 new_wheels=[],
             )
 
-        self._report.artifacts["pp_count"] = len(perspectives)
+        self._report.artifacts["perspective_count"] = len(perspectives)
 
         # 4. Create structural combinations (Cycles + Wheels)
         #    cycle_intent flows onto Cycle.intent — never "preset:auto"
@@ -214,7 +214,7 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         if not new_cycles and not new_wheels:
             self._report.summary = (
                 f"All structures already exist for Nexus {nexus.short_hash} "
-                f"({len(perspectives)} PPs, intent: {cycle_intent})"
+                f"({len(perspectives)} Perspectives, intent: {cycle_intent})"
             )
         else:
             self._report.summary = (

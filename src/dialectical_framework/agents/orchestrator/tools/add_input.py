@@ -34,6 +34,7 @@ class AddInput(ReasonableConcern[Input]):
         case.inputs.connect(input_node)
 
         self._report.node_created(input_node)
+        self._report.relationship_created(case.inputs, case, input_node)
         self._report.ok = True
         self._report.summary = f"Added input {input_node.short_hash}"
         self._report.artifacts["input_hash"] = input_node.short_hash

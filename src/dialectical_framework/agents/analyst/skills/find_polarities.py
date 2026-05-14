@@ -384,6 +384,9 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             thesis = hash_to_thesis.get(ext_hash)
             if thesis and db_comp:
                 thesis.oppositions.connect(db_comp)
+                self._report.relationship_created(
+                    thesis.oppositions, thesis, db_comp
+                )
 
     def _resolve_component(self, hash: str) -> Optional[Statement]:
         """Resolve hash to component."""
@@ -458,14 +461,21 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         input_repo = InputRepository()
         for inp in input_repo.get_all():
             ideas.inputs.connect(inp)
+            self._report.relationship_created(ideas.inputs, ideas, inp)
 
         # Connect all theses and antitheses
         for result in valid_results:
             ideas.statements.connect(result.thesis)
+            self._report.relationship_created(
+                ideas.statements, ideas, result.thesis
+            )
             for data in result.antithesis_data:
                 comp = self._resolve_component(data["hash"])
                 if comp:
                     ideas.statements.connect(comp)
+                    self._report.relationship_created(
+                        ideas.statements, ideas, comp
+                    )
 
         ideas.commit()
         self._report.node_created(ideas)

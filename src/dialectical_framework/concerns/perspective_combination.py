@@ -148,7 +148,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         self._add_perspectives_to_nexus(nexus, perspectives)
 
         self._report.artifacts["nexus_hash"] = nexus.short_hash
-        self._report.artifacts["pp_count"] = len(perspectives)
+        self._report.artifacts["perspective_count"] = len(perspectives)
 
         # Build from all PPs in Nexus (not just the ones passed in)
         all_nexus_pps = [pp for pp, _ in nexus.perspectives.all()]
@@ -175,8 +175,8 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         self._report.artifacts["layers_built"] = total_pps
 
         self._report.summary = (
-            f"Combined {total_pps} PPs: created {len(new_cycles)} new cycles "
-            f"and {len(new_wheels)} new wheels"
+            f"Combined {total_pps} Perspectives: created {len(new_cycles)} new Cycles "
+            f"and {len(new_wheels)} new Wheels"
         )
 
         return CombinationResult(
@@ -200,6 +200,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         for pp in perspectives:
             if pp.hash not in existing_hashes:
                 pp.nexus.connect(nexus)
+                self._report.relationship_created(pp.nexus, pp, nexus)
                 existing_hashes.add(pp.hash)
 
     def _build_layer(
@@ -336,6 +337,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         cycle = Cycle(intent=intent)
         cycle.set_perspectives(perspectives)
         cycle.commit()
+        self._report.node_created(cycle)
 
         return cycle, True
 
@@ -375,6 +377,9 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
                 cycle_result = existing_wheel.cycle.get()
                 if not cycle_result or cycle_result[0].hash != cycle.hash:
                     cycle.wheels.connect(existing_wheel)
+                    self._report.relationship_created(
+                        cycle.wheels, cycle, existing_wheel
+                    )
                 all_wheels.append(existing_wheel)
                 continue
 
@@ -392,11 +397,17 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
                 transition.set_target(target_comp)
                 transition.commit()
                 transition.cycle.connect(wheel)
+                self._report.node_created(transition)
+                self._report.relationship_created(
+                    transition.cycle, transition, wheel
+                )
 
             # Connect to cycle
             cycle.wheels.connect(wheel)
 
             wheel.commit()
+            self._report.node_created(wheel)
+            self._report.relationship_created(cycle.wheels, cycle, wheel)
 
             all_wheels.append(wheel)
             new_wheels.append(wheel)
@@ -434,11 +445,13 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
             # have no distinct reverse). Wheels always have 2n components,
             # so 2 PPs → 4-component sequences which can have reversals.
             if len(pp_combo) >= 3:
-                _connect_opposite_direction_cycles(all_layer_cycles)
-            _connect_opposite_direction_wheels(all_layer_wheels)
+                _connect_opposite_direction_cycles(all_layer_cycles, self._report)
+            _connect_opposite_direction_wheels(all_layer_wheels, self._report)
 
 
-def _connect_opposite_direction_cycles(cycles: list[Cycle]) -> None:
+def _connect_opposite_direction_cycles(
+    cycles: list[Cycle], report: ExecutionReport
+) -> None:
     """Connect cycles that are circular reverses of each other."""
     connected: set[tuple[str, str]] = set()
 
@@ -450,10 +463,15 @@ def _connect_opposite_direction_cycles(cycles: list[Cycle]) -> None:
                 pair_id = tuple(sorted([cycle_a.hash, cycle_b.hash]))
                 if pair_id not in connected:
                     cycle_a.opposite_direction.connect(cycle_b)
+                    report.relationship_created(
+                        cycle_a.opposite_direction, cycle_a, cycle_b
+                    )
                     connected.add(pair_id)
 
 
-def _connect_opposite_direction_wheels(wheels: list[Wheel]) -> None:
+def _connect_opposite_direction_wheels(
+    wheels: list[Wheel], report: ExecutionReport
+) -> None:
     """Connect wheels that are circular reverses of each other."""
     connected: set[tuple[str, str]] = set()
 
@@ -469,6 +487,9 @@ def _connect_opposite_direction_wheels(wheels: list[Wheel]) -> None:
                 pair_id = tuple(sorted([wheel_a.hash, wheel_b.hash]))
                 if pair_id not in connected:
                     wheel_a.opposite_direction.connect(wheel_b)
+                    report.relationship_created(
+                        wheel_a.opposite_direction, wheel_a, wheel_b
+                    )
                     connected.add(pair_id)
 
 

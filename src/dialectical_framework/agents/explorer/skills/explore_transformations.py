@@ -471,6 +471,10 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             ),
         )
         self._report.node_created(ac_transition, meta={"position": POSITION_AC})
+        self._report.relationship_created(
+            transformation.ac, transformation, ac_transition,
+            meta={"position": POSITION_AC},
+        )
 
         # Ac+: T- → A+
         ac_plus_transition = self._create_transition(
@@ -492,6 +496,10 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         )
         self._report.node_created(
             ac_plus_transition, meta={"position": POSITION_AC_PLUS}
+        )
+        self._report.relationship_created(
+            transformation.ac_plus, transformation, ac_plus_transition,
+            meta={"position": POSITION_AC_PLUS},
         )
 
         # Ac-: T+ → A-
@@ -515,6 +523,10 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         self._report.node_created(
             ac_minus_transition, meta={"position": POSITION_AC_MINUS}
         )
+        self._report.relationship_created(
+            transformation.ac_minus, transformation, ac_minus_transition,
+            meta={"position": POSITION_AC_MINUS},
+        )
 
         # === Re-side (opposite edge's segments) ===
 
@@ -535,6 +547,10 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             ),
         )
         self._report.node_created(re_transition, meta={"position": POSITION_RE})
+        self._report.relationship_created(
+            transformation.re, transformation, re_transition,
+            meta={"position": POSITION_RE},
+        )
 
         # Re+: opp_source.neg → opp_target.pos
         re_plus_transition = self._create_transition(
@@ -557,6 +573,10 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         self._report.node_created(
             re_plus_transition, meta={"position": POSITION_RE_PLUS}
         )
+        self._report.relationship_created(
+            transformation.re_plus, transformation, re_plus_transition,
+            meta={"position": POSITION_RE_PLUS},
+        )
 
         # Re-: opp_source.pos → opp_target.neg
         re_minus_transition = self._create_transition(
@@ -578,6 +598,10 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         )
         self._report.node_created(
             re_minus_transition, meta={"position": POSITION_RE_MINUS}
+        )
+        self._report.relationship_created(
+            transformation.re_minus, transformation, re_minus_transition,
+            meta={"position": POSITION_RE_MINUS},
         )
 
         # Commit transformation

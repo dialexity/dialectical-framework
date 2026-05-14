@@ -151,6 +151,12 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
                     changed_positions=list(valid_changes.keys()),
                 ),
             )
+            self._report.relationship_created(
+                self._original_pp.changed_to,
+                self._original_pp,
+                result.perspective,
+                patch={"changed_positions": list(valid_changes.keys())},
+            )
 
         self._build_report(result)
         return result
@@ -339,6 +345,7 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         self._report.node_created(polarity)
 
         pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
+        self._report.relationship_created(pp.polarity, pp, polarity)
 
         generator = AspectGeneration()
         generated_aspects = await generator.resolve(perspective=pp, positions=ASPECT_POSITIONS, text=self.text)
@@ -362,6 +369,10 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
                     complementarity_t=aspect.complementarity_t,
                     complementarity_a=aspect.complementarity_a,
                 ),
+            )
+            self._report.relationship_created(
+                manager, pp, aspect.component,
+                meta={"position": aspect.position},
             )
 
         pp.commit()
@@ -455,6 +466,7 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
             if orig_polarity_result:
                 orig_polarity, _ = orig_polarity_result
                 pp.polarity.connect(orig_polarity, relationship=HasPolarityRelationship())
+                self._report.relationship_created(pp.polarity, pp, orig_polarity)
 
         rel_classes = {
             POSITION_T_PLUS: TPlusRelationship,
@@ -478,6 +490,9 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
                         complementarity_a=aspect_result.complementarity_a,
                     ),
                 )
+                self._report.relationship_created(
+                    manager, pp, new_aspect, meta={"position": pos}
+                )
             else:
                 if manager.count() == 0:
                     orig_result = self._original_pp.get_relationship_manager_by_position(pos).get()
@@ -492,6 +507,9 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
                                 complementarity_t=getattr(orig_rel, "complementarity_t", None),
                                 complementarity_a=getattr(orig_rel, "complementarity_a", None),
                             ),
+                        )
+                        self._report.relationship_created(
+                            manager, pp, orig_comp, meta={"position": pos}
                         )
 
     async def _validate_tetrad_coherence(self) -> list[str]:
