@@ -502,7 +502,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
 async def find_polarities(
     thesis_hashes: list[str] = Field(description="Hashes of thesis Statements to find antitheses for"),
 ) -> str:
-    """Find antitheses for given theses and create Polarity nodes (T-A pairs). Each thesis gets one or more antitheses with heuristic similarity scores. Returns polarity_hash for each pair."""
+    """Find antitheses for given theses and create Polarity nodes (T-A tensions). Each thesis gets one or more antitheses with heuristic similarity scores. Returns polarity_hash for each pair."""
     concern = FindPolarities(thesis_hashes=thesis_hashes)
     await concern.resolve()
     return str(concern.report)

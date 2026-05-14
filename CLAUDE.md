@@ -654,6 +654,17 @@ TODOs often represent important reminders about incomplete work, edge cases, or 
 2. Use `ClassVar[RelationshipManager[T]]` for relationship descriptors
 3. If assessable, add calculator in `graph/scoring/tarorank_calculators/`
 4. Register calculator in `tarorank.py`
+5. **Update `GRAPH_SCHEMA`** in `agents/orchestrator/orchestrator.py` — the LLM relies on it for `query_graph` Cypher composition
+
+### Maintain GRAPH_SCHEMA When Refactoring
+
+The `GRAPH_SCHEMA` constant in `agents/orchestrator/orchestrator.py` is the LLM's reference for composing Cypher queries. It documents node types, relationship directions, and query patterns. When you:
+
+- Add/remove/rename a node type or relationship
+- Change relationship direction or endpoints
+- Add significant properties to nodes
+
+**You must update `GRAPH_SCHEMA` to match.** Wrong directions or fictional relationships cause the LLM to write broken queries. The live DB schema (from `SchemaRepository`) only provides bare label/type lists — `GRAPH_SCHEMA` provides the semantic understanding of how things connect.
 
 ### Relationship Cardinality
 

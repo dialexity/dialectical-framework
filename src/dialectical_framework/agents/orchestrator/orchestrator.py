@@ -30,72 +30,123 @@ from dialectical_framework.graph.repositories.schema_repository import \
 
 # Curated schema description derived from GQLAlchemy node/relationship definitions
 GRAPH_SCHEMA = """
-## Node Types
+## Graph Schema
 
-### Session & Input
-- **Case**: Case container. The root of a case analysis session.
-- **Input**: External content (text, URL) added to a case for analysis.
-- **Ideas**: Collection of extracted statements from inputs.
+### Node Types
 
-### Dialectical Structure
-- **Statement**: A statement/thesis/position. Has `text` (text) and optional `meaning` (semantic URI).
-- **Perspective**: A structured interpretation built around a Polarity (T-A pair), adding evaluative aspects (T+, T-, A+, A-).
-- **Cycle**: T-cycle - an ordered sequence of Perspectives defining abstract thesis causality.
-- **Wheel**: Concrete T-A arrangement implementing a Cycle with flip configurations and transitions.
+| Node | Description | Key Properties |
+|------|-------------|----------------|
+| Case | Root session container | |
+| Input | External content (text, URL) for analysis | `content` |
+| Ideas | Collection of extracted Statements from Inputs | `intent` |
+| Statement | A thesis, position, or claim | `text`, `meaning`, `rejected` |
+| Polarity | A tension — structural T-A pair (thesis vs antithesis) | |
+| Perspective | Full interpretation: Polarity + evaluative aspects (T+, T-, A+, A-) | `intent`, `rejected` |
+| Nexus | Exploration container grouping Perspectives for combination | `intent`, `preset` |
+| Cycle | Ordered sequence of Perspectives defining causality | `intent` |
+| Wheel | Concrete T-A arrangement implementing a Cycle | `intent` |
+| Transformation | Action-reflection structure (Ac, Re, Ac+, Ac-, Re+, Re-) on a Wheel edge | `intent` |
+| Transition | Movement between two Statements (source → target) | `statement`, `headline`, `haiku` |
+| Synthesis | Emergent S+/S- pair from a Perspective | |
+| Rationale | Explanation attached to any node | `text` |
+| Estimation | Numeric assessment (probability, relevance, feasibility) | `value` |
 
-### Transformation & Synthesis
-- **Transformation**: Action-reflection structure belonging to Wheel (Ac, Re, Ac+, Ac-, Re+, Re-).
-- **Transition**: Movement between dialectical positions (e.g., T- → A+).
-- **Synthesis**: Emergent S+/S- pair from transformation.
+All nodes share: `hash` (content-addressable ID), `sid` (session scope), `committed_at`.
 
-### Metadata
-- **Rationale**: Explanation text attached to any node.
-- **Estimation**: Numeric assessment (probability, relevance, feasibility).
+### Relationship Types and Directions
 
-## Relationship Types
+**Polarity positions** (Statement → Polarity):
+- `(s:Statement)-[:T]->(p:Polarity)` — thesis pole
+- `(s:Statement)-[:A]->(p:Polarity)` — antithesis pole
 
-### Perspective Positions (Statement → Perspective)
-- **T**: Thesis position (neutral statement)
-- **A**: Antithesis position (opposing statement)
-- **T_PLUS**: Positive aspect of thesis
-- **T_MINUS**: Negative aspect of thesis
-- **A_PLUS**: Positive aspect of antithesis
-- **A_MINUS**: Negative aspect of antithesis
+**Perspective positions** (Statement → Perspective):
+- `(s:Statement)-[:T_PLUS]->(pp:Perspective)` — positive thesis aspect
+- `(s:Statement)-[:T_MINUS]->(pp:Perspective)` — negative thesis aspect
+- `(s:Statement)-[:A_PLUS]->(pp:Perspective)` — positive antithesis aspect
+- `(s:Statement)-[:A_MINUS]->(pp:Perspective)` — negative antithesis aspect
 
-### Semantic Relations (between Statements)
-- **OPPOSITE_OF**: T ↔ A dialectical opposition
-- **CONTRADICTION_OF**: Cross-polarity contradiction (T+ ↔ A-, A+ ↔ T-)
-- **POSITIVE_SIDE_OF**: Aspect → neutral (T+ → T)
-- **NEGATIVE_SIDE_OF**: Aspect → neutral (T- → T)
+**Perspective structure**:
+- `(pp:Perspective)-[:HAS_POLARITY]->(pol:Polarity)` — which tension this Perspective interprets
+- `(pp:Perspective)-[:BELONGS_TO_NEXUS]->(nx:Nexus)` — grouped for exploration
+- `(pp:Perspective)-[:CHANGED_TO]->(pp2:Perspective)` — edit lineage (old → new)
 
-### Structural Relations
-- **HAS_INPUT**: Case → Input
-- **HAS_STATEMENT**: Ideas → Statement
-- **HAS_WHEEL**: Cycle → Wheel
-- **HAS_TRANSFORMATION**: Wheel → Transformation
-- **IS_SOURCE_OF**: Statement → Transition
-- **IS_TARGET_OF**: Statement → Transition
-- **AC**: Action transition → Transformation
-- **RE**: Reflection transition → Transformation
+**Semantic relations** (between Statements):
+- `(s1:Statement)-[:OPPOSITE_OF]->(s2:Statement)` — dialectical opposition (symmetric)
+- `(s1:Statement)-[:CONTRADICTION_OF]->(s2:Statement)` — cross-polarity (T+ ↔ A-, symmetric)
+- `(s:Statement)-[:POSITIVE_SIDE_OF]->(s2:Statement)` — aspect → neutral
+- `(s:Statement)-[:NEGATIVE_SIDE_OF]->(s2:Statement)` — aspect → neutral
 
-### Analytical Relations
-- **EXPLAINS**: Rationale → any node
-- **ESTIMATES**: Estimation → any node
+**Exploration structure**:
+- `(c:Cycle)-[:HAS_WHEEL]->(w:Wheel)` — Cycle contains Wheels
+- `(t:Transition)-[:BELONGS_TO_CYCLE]->(w:Wheel)` — Transition is an edge in a Wheel
+- `(c:Cycle)-[:OPPOSITE_DIRECTION]->(c2:Cycle)` — reversed causal order (symmetric)
+- `(w:Wheel)-[:OPPOSITE_DIRECTION]->(w2:Wheel)` — reversed arrangement (symmetric)
 
-## Key Properties
+**Transition structure**:
+- `(s:Statement)-[:IS_SOURCE_OF]->(t:Transition)` — source component
+- `(t:Transition)-[:IS_TARGET_OF]->(s:Statement)` — target component
 
-All nodes have:
-- `hash`: Content-addressable identifier (Merkle hash)
-- `sid`: Session identifier (for multi-tenant isolation)
-- `committed_at`: Timestamp when committed
+**Transformation positions** (Transition → Transformation):
+- `(t:Transition)-[:AC]->(tr:Transformation)` — action (T → A)
+- `(t:Transition)-[:AC_PLUS]->(tr:Transformation)` — positive action (T- → A+)
+- `(t:Transition)-[:AC_MINUS]->(tr:Transformation)` — negative action (T+ → A-)
+- `(t:Transition)-[:RE]->(tr:Transformation)` — reflection (A → T)
+- `(t:Transition)-[:RE_PLUS]->(tr:Transformation)` — positive reflection (A- → T+)
+- `(t:Transition)-[:RE_MINUS]->(tr:Transformation)` — negative reflection (A+ → T-)
+- `(tr:Transformation)-[:ACTION_REFLECTION]->(t:Transition)` — which Wheel edge this Transformation belongs to
+- `(tr:Transformation)-[:BELONGS_TO_NEXUS]->(nx:Nexus)` — scoped to Nexus
 
-Statement:
-- `text`: The text of the thesis/position
-- `meaning`: Optional semantic URI
-- `rejected`: Boolean if rejected
+**Synthesis positions** (Statement → Synthesis):
+- `(s:Statement)-[:S_PLUS]->(syn:Synthesis)` — positive synthesis
+- `(s:Statement)-[:S_MINUS]->(syn:Synthesis)` — negative synthesis
+- `(syn:Synthesis)-[:SYNTHESIS_OF]->(pp:Perspective)` — which Perspective it synthesizes
 
-Perspective, Cycle, Wheel, etc.:
-- `intent`: Optional intent/purpose description
+**Container membership**:
+- `(case:Case)-[:HAS_INPUT]->(i:Input)` — Case owns Inputs
+- `(ideas:Ideas)-[:HAS_STATEMENT]->(s:Statement)` — Ideas contains Statements
+- `(ideas:Ideas)-[:DISTILLED_TO]->(i:Input)` — Ideas derived from Input
+
+**Metadata**:
+- `(r:Rationale)-[:EXPLAINS]->(n)` — explanation for any node
+- `(e:Estimation)-[:ESTIMATES]->(n)` — numeric assessment of any node
+
+### Common Query Patterns
+
+```cypher
+-- All Perspectives with T and A statements
+MATCH (pp:Perspective)-[:HAS_POLARITY]->(pol:Polarity)
+MATCH (t:Statement)-[:T]->(pol)
+MATCH (a:Statement)-[:A]->(pol)
+RETURN pp.hash, t.text AS thesis, a.text AS antithesis
+
+-- Full Perspective (all 6 positions)
+MATCH (pp:Perspective) WHERE pp.hash STARTS WITH "abc"
+MATCH (pp)-[:HAS_POLARITY]->(pol)
+MATCH (t:Statement)-[:T]->(pol), (a:Statement)-[:A]->(pol)
+OPTIONAL MATCH (tp:Statement)-[:T_PLUS]->(pp)
+OPTIONAL MATCH (tm:Statement)-[:T_MINUS]->(pp)
+OPTIONAL MATCH (ap:Statement)-[:A_PLUS]->(pp)
+OPTIONAL MATCH (am:Statement)-[:A_MINUS]->(pp)
+RETURN t.text, a.text, tp.text, tm.text, ap.text, am.text
+
+-- Wheel edges (transitions in order)
+MATCH (w:Wheel) WHERE w.hash STARTS WITH "abc"
+MATCH (t:Transition)-[:BELONGS_TO_CYCLE]->(w)
+MATCH (src:Statement)-[:IS_SOURCE_OF]->(t)
+MATCH (t)-[:IS_TARGET_OF]->(tgt:Statement)
+RETURN src.text AS source, tgt.text AS target
+
+-- Transformations for a Wheel
+MATCH (w:Wheel) WHERE w.hash STARTS WITH "abc"
+MATCH (edge:Transition)-[:BELONGS_TO_CYCLE]->(w)
+MATCH (tr:Transformation)-[:ACTION_REFLECTION]->(edge)
+MATCH (ac_t:Transition)-[:AC_PLUS]->(tr)
+MATCH (re_t:Transition)-[:RE_PLUS]->(tr)
+RETURN tr.hash, ac_t.statement AS action, re_t.statement AS reflection
+
+-- Vocabulary (all non-rejected Statements)
+MATCH (s:Statement) WHERE s.rejected IS NULL RETURN s.text, s.hash
+```
 """
 from dialectical_framework.agents.analyst.skills.edit_perspective import \
     edit_perspective

@@ -253,7 +253,7 @@ async def introduce_polarity(
     antithesis: str = Field(description="The antithesis statement text"),
     text: str = Field(default="", description="Additional context for classification"),
 ) -> str:
-    """Introduce a known thesis-antithesis tension directly into the graph. Classifies both statements, creates a Polarity, and discovers alternative antitheses. Use when the tension is already clear from conversation rather than needing extraction from source material."""
+    """Introduce a known thesis-antithesis tension directly as a Polarity. Classifies both statements, creates the Polarity node (T-A pair), and discovers alternative antitheses. Use when the tension is already clear from conversation rather than needing extraction from source material."""
     concern = IntroducePolarity(thesis=thesis, antithesis=antithesis, text=text)
     await concern.resolve()
     return str(concern.report)
