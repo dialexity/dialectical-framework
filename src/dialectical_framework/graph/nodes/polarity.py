@@ -16,8 +16,6 @@ from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
-from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
 from dialectical_framework.graph.relationship_manager import (
     RelationshipFrom,
     RelationshipManager,
@@ -38,7 +36,7 @@ POSITION_T = "T"
 POSITION_A = "A"
 
 
-class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
+class Polarity(AssessableEntity, label="Polarity"):
     """
     Represents a T-A dialectical pair.
 
@@ -46,8 +44,8 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
     The heuristic_similarity (HS) on the ARelationship measures how similar/related
     the T-A pair is semantically.
 
-    The intent field (from IntentMixin) captures the framing or perspective
-    under which this polarity was identified.
+    Polarity is a shared structural atom — same T+A = same Polarity. The interpretive
+    lens belongs on Perspective (via intent), not here.
 
     Lifecycle (atomic creation like Transition):
         1. polarity = Polarity()
@@ -67,7 +65,7 @@ class Polarity(ForkableMixin, IntentMixin, AssessableEntity, label="Polarity"):
         antithesis = Statement(text="Office work enables collaboration")
         antithesis.commit()
 
-        polarity = Polarity(intent="Work arrangement tension")
+        polarity = Polarity()
         polarity.set_t(thesis)
         polarity.set_a(antithesis, heuristic_similarity=0.72)
         polarity.commit()

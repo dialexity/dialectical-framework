@@ -62,7 +62,7 @@ def create_complete_perspective(index: int = 0) -> Perspective:
     a.commit()
 
     # Create Polarity with T and A
-    polarity = Polarity(intent="test")
+    polarity = Polarity()
     polarity.set_t(t, heuristic_similarity=1.0)
     polarity.set_a(a, heuristic_similarity=0.8)
     polarity.commit()

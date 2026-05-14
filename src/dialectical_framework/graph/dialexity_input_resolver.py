@@ -8,7 +8,7 @@ to follow the same Input→HAS_STATEMENT pattern as Gen-0 components.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from dialectical_framework.exceptions.resolver_errors import (
     AmbiguousHashPrefixError,
@@ -28,12 +28,10 @@ class DialexityInputResolver:
     Resolves dx:// URIs to node content.
 
     dx:// URI Format:
-        dx://<sid>/<hash>           (sid + hash)
-        dx://<sid>/<branch>/<hash>  (sid + branch + hash)
+        dx://<sid>/<hash>
 
     Examples:
         dx://a1b2c3d4-e5f6-7890/abc123def456...
-        dx://a1b2c3d4-e5f6-7890/main/abc123def456...
 
     The sid is always required for security - it prevents accessing nodes
     from disallowed scopes/realms. Hash can be a full hash or a 7+ char prefix.
@@ -51,7 +49,7 @@ class DialexityInputResolver:
     def __init__(self) -> None:
         self._hash_repo = NodeRepository()
 
-    def parse_uri(self, uri: str) -> tuple[str, Optional[str], str]:
+    def parse_uri(self, uri: str) -> tuple[str, str]:
         """
         Parse a dx:// URI into its components.
 
@@ -59,9 +57,8 @@ class DialexityInputResolver:
             uri: The dx:// URI to parse
 
         Returns:
-            Tuple of (sid, branch, hash_or_prefix)
+            Tuple of (sid, hash_or_prefix)
             - sid: Required scope identifier
-            - branch: Optional branch name (None if not specified)
             - hash_or_prefix: The hash or hash prefix (7+ chars)
 
         Raises:
@@ -84,26 +81,14 @@ class DialexityInputResolver:
         # Filter out empty segments (handles trailing slashes)
         segments = [s for s in segments if s]
 
-        if len(segments) < 2:
+        if len(segments) != 2:
             raise MalformedDxUriError(
-                f"dx:// URI requires at least sid and hash. "
-                f"Format: dx://<sid>/<hash> or dx://<sid>/<branch>/<hash>. "
+                f"dx:// URI requires exactly sid and hash. "
+                f"Format: dx://<sid>/<hash>. "
                 f"Got: {uri}"
             )
 
-        if len(segments) == 2:
-            # dx://sid/hash
-            sid, hash_or_prefix = segments
-            branch = None
-        elif len(segments) == 3:
-            # dx://sid/branch/hash
-            sid, branch, hash_or_prefix = segments
-        else:
-            raise MalformedDxUriError(
-                f"dx:// URI has too many segments. "
-                f"Format: dx://<sid>/<hash> or dx://<sid>/<branch>/<hash>. "
-                f"Got: {uri}"
-            )
+        sid, hash_or_prefix = segments
 
         # Validate sid is not empty
         if not sid:
@@ -118,7 +103,7 @@ class DialexityInputResolver:
                 f"Got {len(hash_or_prefix)} characters in: {uri}"
             )
 
-        return sid, branch, hash_or_prefix
+        return sid, hash_or_prefix
 
     async def resolve(self, uri: str) -> str:
         """
@@ -136,22 +121,20 @@ class DialexityInputResolver:
             ScopeMismatchError: If sid doesn't match the node
             UnsupportedNodeTypeError: If node type has no content extractor
         """
-        sid, branch, hash_or_prefix = self.parse_uri(uri)
-        node = self._lookup_node(sid, branch, hash_or_prefix)
+        sid, hash_or_prefix = self.parse_uri(uri)
+        node = self._lookup_node(sid, hash_or_prefix)
         return self._extract_content(node)
 
     def _lookup_node(
         self,
         sid: str,
-        branch: Optional[str],
         hash_or_prefix: str,
     ) -> BaseNode:
         """
-        Find a node by hash/prefix and validate sid/branch.
+        Find a node by hash/prefix and validate sid.
 
         Args:
             sid: Required scope identifier
-            branch: Optional branch name for additional validation
             hash_or_prefix: Full hash or prefix (7+ chars)
 
         Returns:
@@ -180,13 +163,6 @@ class DialexityInputResolver:
             raise ScopeMismatchError(
                 f"sid mismatch: URI specifies '{sid}' but node has '{node.sid}'"
             )
-
-        # Validate branch if specified
-        if branch is not None:
-            if not self._hash_repo.is_on_branch(node, branch):
-                raise ScopeMismatchError(
-                    f"branch mismatch: node is not on branch '{branch}'"
-                )
 
         return node
 

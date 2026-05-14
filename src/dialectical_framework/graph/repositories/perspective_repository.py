@@ -27,6 +27,40 @@ class PerspectiveRepository:
     """
 
     @inject
+    def is_in_use_by_cycle(
+        self,
+        perspective: Perspective,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> bool:
+        """
+        Check if a Perspective's hash appears in any Cycle's perspective_hashes.
+
+        A PP "in use" means it's part of committed downstream structures
+        (Cycles → Wheels → Transformations) that depend on it structurally.
+
+        Args:
+            perspective: The committed Perspective to check
+
+        Returns:
+            True if this PP is referenced by at least one Cycle
+        """
+        if not perspective.is_committed:
+            return False
+        if sid and perspective.sid != sid:
+            return False
+
+        query = """
+        MATCH (c:Cycle)
+        WHERE c.sid = $sid AND $pp_hash IN c.perspective_hashes
+        RETURN c LIMIT 1
+        """
+        results = list(graph_db.execute_and_fetch(
+            query, {"sid": sid, "pp_hash": perspective.hash}
+        ))
+        return len(results) > 0
+
+    @inject
     def find_by_polarity(
         self,
         polarity: Polarity,

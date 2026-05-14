@@ -1,5 +1,5 @@
 """
-Tests for classification concerns: AspectClassification and IdeaPlacement.
+Tests for classification concerns: AspectClassification and StatementPlacement.
 """
 
 from __future__ import annotations
@@ -9,8 +9,7 @@ import pytest
 pytestmark = pytest.mark.real_llm
 from langfuse import observe
 
-from dialectical_framework.concerns.idea_placement import (IdeaPlacement,
-                                                           TensionInfo)
+from dialectical_framework.concerns.statement_placement import StatementPlacement
 from dialectical_framework.concerns.aspect_classification import \
     AspectClassification
 from dialectical_framework.graph.nodes.case import Case
@@ -189,61 +188,28 @@ class TestAspectClassification:
                 )
 
 
-class TestIdeaPlacement:
-    """Tests for IdeaPlacement capability."""
+class TestStatementPlacement:
+    """Tests for StatementPlacement (search/recognition only)."""
 
     @pytest.mark.asyncio
     @observe()
-    async def test_idea_placement_empty_vocabulary(self):
-        """IdeaPlacement treats idea as thesis when vocabulary is empty."""
+    async def test_placement_empty_vocabulary(self):
+        """StatementPlacement returns not-found when vocabulary is empty."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.sid):
-            placer = IdeaPlacement()
-            result = await placer.resolve(
-                idea="Trust",
-                vocabulary=[],
-                tensions=[],
-            )
+            placer = StatementPlacement()
+            result = await placer.resolve(statement="Trust")
 
             assert placer.report.ok
-            assert result.placement == "thesis"
-            assert result.confidence == 1.0
-            assert result.component is not None
-            assert result.component.text == "Trust"
+            assert not result.found
+            assert result.statement is None
 
     @pytest.mark.asyncio
     @observe()
-    async def test_idea_placement_detects_antithesis(self):
-        """IdeaPlacement detects idea as antithesis of existing thesis."""
-        case_node = Case()
-        case_node.commit()
-
-        with scope(case_node.sid):
-            love = Statement(
-                text="Love",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
-            )
-            love.commit()
-
-            placer = IdeaPlacement()
-            result = await placer.resolve(
-                idea="Hate",
-                vocabulary=[love],
-                tensions=[],
-            )
-
-            assert placer.report.ok
-            assert result.placement == "antithesis"
-            assert result.antithesis_of == love.hash
-            assert result.component is not None
-            assert result.component.text == "Hate"
-
-    @pytest.mark.asyncio
-    @observe()
-    async def test_idea_placement_detects_duplicate(self):
-        """IdeaPlacement detects semantic duplicate."""
+    async def test_placement_finds_existing(self):
+        """StatementPlacement finds a semantic match in the vocabulary."""
         case_node = Case()
         case_node.commit()
 
@@ -254,24 +220,18 @@ class TestIdeaPlacement:
             )
             trust.commit()
 
-            placer = IdeaPlacement()
-            result = await placer.resolve(
-                idea="Faith and trust",  # Semantically similar
-                vocabulary=[trust],
-                tensions=[],
-            )
+            placer = StatementPlacement()
+            result = await placer.resolve(statement="Faith and trust")
 
             assert placer.report.ok
-            # Should detect as duplicate or at least related
-            # (LLM may classify as duplicate, thesis, antithesis, or aspect depending on interpretation)
-            assert result.placement in ("duplicate", "thesis", "antithesis", "aspect")
-            # Component should always be present
-            assert result.component is not None
+            if result.found:
+                assert result.statement is not None
+                assert result.statement.hash == trust.hash
 
     @pytest.mark.asyncio
     @observe()
-    async def test_idea_placement_detects_aspect(self):
-        """IdeaPlacement detects idea as aspect of existing tension."""
+    async def test_placement_not_found_unrelated(self):
+        """StatementPlacement returns not-found for unrelated statements."""
         case_node = Case()
         case_node.commit()
 
@@ -282,62 +242,16 @@ class TestIdeaPlacement:
             )
             love.commit()
 
-            indifference = Statement(
-                text="Indifference",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
-            )
-            indifference.commit()
-
-            tension = TensionInfo(
-                thesis_hash=love.hash,
-                thesis_statement=love.text,
-                antithesis_hash=indifference.hash,
-                antithesis_statement=indifference.text,
-            )
-
-            placer = IdeaPlacement()
-            result = await placer.resolve(
-                idea="Personal autonomy and freedom",
-                vocabulary=[love, indifference],
-                tensions=[tension],
-            )
+            placer = StatementPlacement()
+            result = await placer.resolve(statement="Database indexing strategies")
 
             assert placer.report.ok
-            # Should detect as A+ (positive aspect of indifference)
-            # Or could be thesis if LLM interprets differently
-            if result.placement == "aspect":
-                assert result.position in ("A+", "T-", "T+", "A-")
-                assert result.aspect_of is not None
+            assert not result.found
 
     @pytest.mark.asyncio
     @observe()
-    async def test_idea_placement_new_thesis(self):
-        """IdeaPlacement treats unrelated idea as new thesis."""
-        case_node = Case()
-        case_node.commit()
-
-        with scope(case_node.sid):
-            love = Statement(
-                text="Love",
-                meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
-            )
-            love.commit()
-
-            placer = IdeaPlacement()
-            result = await placer.resolve(
-                idea="Database indexing strategies",  # Unrelated to Love
-                vocabulary=[love],
-                tensions=[],
-            )
-
-            assert placer.report.ok
-            # Should be thesis since unrelated
-            assert result.placement == "thesis"
-
-    @pytest.mark.asyncio
-    @observe()
-    async def test_idea_placement_with_context(self):
-        """IdeaPlacement uses context for better placement."""
+    async def test_placement_with_context(self):
+        """StatementPlacement uses context for better matching."""
         case_node = Case()
         case_node.commit()
 
@@ -351,17 +265,14 @@ class TestIdeaPlacement:
             context = """
             In distributed databases, the CAP theorem states that you can only
             have two of: Consistency, Availability, Partition tolerance.
-            Eventual consistency sacrifices immediate consistency for availability.
             """
 
-            placer = IdeaPlacement()
+            placer = StatementPlacement()
             result = await placer.resolve(
-                idea="Eventual consistency",
-                vocabulary=[consistency],
-                tensions=[],
+                statement="Strong consistency guarantees",
                 text=context,
             )
 
             assert placer.report.ok
-            # Should detect as antithesis of strong consistency
-            assert result.placement in ("antithesis", "thesis")
+            if result.found:
+                assert result.statement.hash == consistency.hash

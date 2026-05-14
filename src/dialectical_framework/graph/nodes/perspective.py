@@ -11,7 +11,6 @@ from typing import Any, ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
-from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager, BoundRelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
@@ -30,6 +29,9 @@ from dialectical_framework.graph.relationships.synthesis_of_relationship import 
 )
 from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
     BelongsToNexusRelationship,
+)
+from dialectical_framework.graph.relationships.changed_to_relationship import (
+    ChangedToRelationship,
 )
 
 if TYPE_CHECKING:
@@ -50,7 +52,7 @@ POSITION_A_PLUS = "A+"
 POSITION_A_MINUS = "A-"
 
 
-class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableEntity, label="Perspective"):
+class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Perspective"):
     """
     Represents ONE coherent dialectical analysis with enforced cardinality.
 
@@ -86,6 +88,9 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         8. pp.a_minus.connect(a_minus_comp, relationship=AMinusRelationship(...))
         9. pp.commit()
     """
+
+    # Rejection marker — does not affect hash (metadata-only)
+    rejected: Optional[str] = None
 
     def __init__(self, **data: Any):
         super().__init__(**data)
@@ -179,7 +184,19 @@ class Perspective(IncrementalBuildMixin, ForkableMixin, IntentMixin, AssessableE
         cardinality=(0, None)  # Zero or more nexuses (explored in different contexts)
     )
 
-    # History tracking now uses origin_hash chain (set during clone).
+    # Lineage: what this PP evolved into (old→new direction)
+    changed_to: ClassVar[RelationshipManager[Perspective]] = RelationshipTo(
+        "Perspective",
+        model=ChangedToRelationship,
+        cardinality=(0, None)  # Can evolve into multiple variants
+    )
+
+    # Lineage: what this PP was derived from (new←old direction)
+    derived_from: ClassVar[RelationshipManager[Perspective]] = RelationshipFrom(
+        "Perspective",
+        model=ChangedToRelationship,
+        cardinality=(0, 1)  # At most one source (single parent)
+    )
 
     def _get_commit_dependents(self):
         """

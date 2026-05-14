@@ -80,10 +80,6 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
         sid: Scope ID - the UUID of the root Case.
         committed_at: Unix timestamp (seconds since epoch) when node was committed.
                       Part of hash for structural nodes to ensure temporal ordering.
-
-    Note:
-        origin_hash and branch are only available on ForkableMixin nodes
-        (Perspective) for lineage tracking.
     """
 
     hash: Optional[str] = None
@@ -142,11 +138,10 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
         """
         Compute the full content hash for this node.
 
-        Content hash = sha256(structure_parts + forkable_parts + intent + committed_at)
+        Content hash = sha256(structure_parts + intent + committed_at)
 
         This combines:
         - structure_parts: The node's structural content (from _collect_structure_hash_parts)
-        - forkable_parts: origin_hash if node is ForkableMixin (from _get_forkable_hash_parts)
         - intent: If node has IntentMixin
         - committed_at: Unix timestamp (ensures temporal ordering for structural nodes)
 
@@ -164,11 +159,6 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
 
         # Collect structure parts from subclass
         parts = self._collect_structure_hash_parts()
-
-        # Add origin_hash if this is a ForkableMixin node
-        from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
-        if isinstance(self, ForkableMixin) and self.origin_hash:
-            parts.append(self.origin_hash)
 
         # Add intent if present (from IntentMixin)
         if isinstance(self, IntentMixin) and self.intent:
@@ -275,67 +265,35 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
         self.save()
         return self
 
-    def clone(
-        self,
-        destination_sid: Optional[str] = None,
-        branch: Optional[str] = None
-    ) -> Self:
+    def clone(self, destination_sid: Optional[str] = None) -> Self:
         """
         Clone this node, creating a new uncommitted copy.
 
         Clone semantics:
-        - For ForkableMixin nodes (Perspective):
-          - origin_hash = source's hash (lineage tracking)
-          - branch = provided branch name (mutable metadata)
-        - For other nodes:
-          - No origin_hash (atoms don't track lineage)
         - hash = None (uncommitted, must call commit())
-        - sid = destination_sid if provided
+        - sid = destination_sid if provided, otherwise inherited
 
         Args:
             destination_sid: Optional scope ID for the clone
-            branch: Optional branch name (only for ForkableMixin nodes)
 
         Returns:
             New uncommitted node instance
 
         Raises:
             ValueError: If source node has not been committed
-
-        Example:
-            # For forkable nodes (Perspective)
-            forked_pp = pp.clone(branch="main")
-            forked_pp.commit()  # origin_hash set, branch="main"
-
-            # For atoms (Statement, etc.)
-            cloned = component.clone()
-            cloned.commit()  # No origin_hash, just content-addressed
         """
         if not self.is_committed:
             raise ValueError("Cannot clone uncommitted node. Call commit() first.")
 
-        # Collect field values, excluding identity and timestamp fields
         data: dict[str, Any] = {}
-        excluded_fields = {
-            'hash', 'origin_hash', 'sid',
-            '_id', 'committed_at', 'branch'
-        }
+        excluded_fields = {'hash', '_id', 'committed_at'}
 
         for field_name in self.__fields__:
             if field_name not in excluded_fields:
                 data[field_name] = getattr(self, field_name)
 
-        # Set new scope if provided
         if destination_sid is not None:
             data['sid'] = destination_sid
-
-        # Handle forking points (Perspective) - only ForkableMixin nodes get lineage
-        from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
-        if isinstance(self, ForkableMixin):
-            # Set lineage: origin_hash = source's hash
-            data['origin_hash'] = self.hash
-            # Branch is mutable metadata - set if provided, otherwise None
-            data['branch'] = branch
 
         return self.__class__(**data)
 

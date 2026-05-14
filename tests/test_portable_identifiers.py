@@ -1,10 +1,9 @@
 """
-Tests for the Merkle identity system: hash, origin_hash, sid.
+Tests for the Merkle identity system: hash, sid.
 
 These tests verify the identifier model:
-- hash (primary identity): sha256 of node's structure + origin_hash
-- origin_hash (lineage ID): Parent's hash, preserved across clones
-- sid (scope ID): Case's hash propagates to all descendants
+- hash (primary identity): sha256 of node's structure + intent + committed_at
+- sid (scope ID): Case's UUID propagates to all descendants
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ def _create_complete_pp(
     t, a, t_plus, t_minus, a_plus, a_minus, intent=None
 ) -> Perspective:
     """Helper: create a complete Perspective with Polarity and all aspects."""
-    polarity = Polarity(intent=intent)
+    polarity = Polarity()
     polarity.set_t(t, heuristic_similarity=1.0)
     polarity.set_a(a, heuristic_similarity=0.8)
     polarity.commit()
@@ -251,11 +250,8 @@ class TestOrphanNodes:
 class TestCloneOperation:
     """Tests for the clone operation.
 
-    Important: Clone behavior differs between node categories:
-    - Atoms (Statement, Input, etc.): Content-addressable, NO origin_hash.
-      Same content = same hash regardless of cloning.
-    - Forking Points (Perspective, Nexus): Have origin_hash for lineage tracking.
-      Clones get different hashes due to origin_hash in computation.
+    All nodes are content-addressable: same content = same hash regardless of cloning.
+    Clone produces an uncommitted copy that can be modified before commit.
     """
 
     def test_atom_clone_has_same_hash(self):
@@ -277,8 +273,8 @@ class TestCloneOperation:
         # Atoms are content-addressable: same content = same hash
         assert cloned.hash == original.hash
 
-    def test_atom_clone_has_no_origin_hash(self):
-        """Cloned atom should NOT have origin_hash - atoms don't track lineage."""
+    def test_clone_has_no_origin_hash(self):
+        """Cloned nodes don't track lineage."""
         import random
         case_node1 = Case()
         case_node1.commit()
@@ -289,8 +285,7 @@ class TestCloneOperation:
 
         cloned = original.clone(destination_sid=case_node1.sid)
 
-        # Atoms don't have origin_hash attribute (not ForkableMixin)
-        assert not hasattr(cloned, 'origin_hash') or cloned.origin_hash is None
+        assert not hasattr(cloned, 'origin_hash') or getattr(cloned, 'origin_hash', None) is None
 
     def test_clone_sets_new_sid(self):
         """Cloned node should have the destination sid."""
@@ -310,8 +305,8 @@ class TestCloneOperation:
 
         assert cloned.sid == case_node2.sid
 
-    def test_forking_point_clone_sets_origin_hash(self):
-        """Cloned forking point (Perspective) should have origin_hash pointing to original."""
+    def test_perspective_clone_sets_new_sid(self):
+        """Cloned Perspective should have the destination sid."""
         import random
         case_node1 = Case()
         case_node1.commit()
@@ -334,50 +329,8 @@ class TestCloneOperation:
 
         cloned_pp = original_pp.clone(destination_sid=case_node2.sid)
 
-        # Forking points have origin_hash pointing to source
-        assert cloned_pp.origin_hash == original_pp.hash
-
-    def test_forking_point_clone_has_different_hash(self):
-        """Cloned forking point should have different hash due to origin_hash."""
-        import random
-        case_node1 = Case()
-        case_node1.commit()
-
-        case_node2 = Case()
-        case_node2.commit()
-
-        # Create orphan components (sid=None) so they can be shared across scopes
-        t = Statement(text=f"Thesis {random.random()}", meaning="test")
-        t_plus = Statement(text=f"Thesis plus {random.random()}", meaning="test")
-        t_minus = Statement(text=f"Thesis minus {random.random()}", meaning="test")
-        a = Statement(text=f"Antithesis {random.random()}", meaning="test")
-        a_plus = Statement(text=f"Antithesis plus {random.random()}", meaning="test")
-        a_minus = Statement(text=f"Antithesis minus {random.random()}", meaning="test")
-        for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
-            comp.commit()
-
-        with scope(case_node1.sid):
-            original_pp = _create_complete_pp(t, a, t_plus, t_minus, a_plus, a_minus)
-            original_pp.commit()
-
-        # Clone and reconnect components (clone doesn't copy relationships)
-        cloned_pp = original_pp.clone(destination_sid=case_node2.sid)
-        # Reconnect Polarity and aspects for the clone
-        polarity = Polarity()
-        polarity.set_t(t, heuristic_similarity=1.0)
-        polarity.set_a(a, heuristic_similarity=0.8)
-        polarity.commit()
-        cloned_pp.save()
-        cloned_pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
-        cloned_pp.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
-        cloned_pp.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
-        cloned_pp.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
-        cloned_pp.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
-        cloned_pp.commit()
-
-        # Forking points have different hashes due to origin_hash in computation
-        assert cloned_pp.hash != original_pp.hash
-        assert cloned_pp.origin_hash == original_pp.hash
+        assert cloned_pp.sid == case_node2.sid
+        assert not cloned_pp.is_committed
 
     def test_clone_returns_uncommitted_node(self):
         """Clone should return uncommitted (draft) node."""
@@ -508,82 +461,6 @@ class TestHashLookup:
         assert found.hash == comp.hash
 
 
-class TestLineageTracking:
-    """Tests for origin_hash lineage tracking.
-
-    Note: origin_hash is only set on forking points (Perspective, Nexus).
-    Atoms don't have lineage tracking - they're global facts.
-    """
-
-    def test_forking_point_has_origin_hash(self):
-        """Cloned forking points (Perspective) should have origin_hash set."""
-        import random
-
-        case_node1 = Case()
-        case_node1.commit()
-
-        # Create orphan components (shared globally)
-        t = Statement(text=f"Thesis {random.random()}", meaning="test")
-        t_plus = Statement(text=f"Thesis plus {random.random()}", meaning="test")
-        t_minus = Statement(text=f"Thesis minus {random.random()}", meaning="test")
-        a = Statement(text=f"Antithesis {random.random()}", meaning="test")
-        a_plus = Statement(text=f"Antithesis plus {random.random()}", meaning="test")
-        a_minus = Statement(text=f"Antithesis minus {random.random()}", meaning="test")
-
-        for comp in [t, t_plus, t_minus, a, a_plus, a_minus]:
-            comp.commit()
-
-        with scope(case_node1.sid):
-            original_pp = _create_complete_pp(t, a, t_plus, t_minus, a_plus, a_minus, intent="original")
-            original_pp.commit()
-
-        # Original should have no origin_hash
-        assert original_pp.origin_hash is None
-
-        # Create fork
-        clone = original_pp.clone(destination_sid=case_node1.sid)
-        clone.intent = "fork"
-
-        # Before commit, origin_hash should be set
-        assert clone.origin_hash == original_pp.hash
-
-        # After commit, origin_hash should still be set - reconnect Polarity and aspects
-        polarity = Polarity(intent="fork")
-        polarity.set_t(t, heuristic_similarity=1.0)
-        polarity.set_a(a, heuristic_similarity=0.8)
-        polarity.commit()
-        clone.save()
-        clone.polarity.connect(polarity, relationship=HasPolarityRelationship())
-        clone.t_plus.connect(t_plus, relationship=TPlusRelationship(alias="T+", heuristic_similarity=0.9))
-        clone.t_minus.connect(t_minus, relationship=TMinusRelationship(alias="T-", heuristic_similarity=0.9))
-        clone.a_plus.connect(a_plus, relationship=APlusRelationship(alias="A+", heuristic_similarity=0.9))
-        clone.a_minus.connect(a_minus, relationship=AMinusRelationship(alias="A-", heuristic_similarity=0.9))
-        clone.commit()
-
-        assert clone.origin_hash == original_pp.hash
-
-        # Verify different hashes due to origin_hash
-        assert clone.hash != original_pp.hash
-
-    def test_atoms_have_no_lineage(self):
-        """Atoms (Statement) should NOT have origin_hash after clone."""
-        import random
-
-        case_node = Case()
-        case_node.commit()
-
-        with scope(case_node.sid):
-            original = Statement(text=f"Original {random.random()}", meaning="test")
-            original.commit()
-
-        clone = original.clone(destination_sid=case_node.sid)
-        clone.commit()
-
-        # Atoms don't have origin_hash (ForkableMixin is not in inheritance)
-        assert not hasattr(clone, 'origin_hash') or clone.origin_hash is None
-
-        # Same content = same hash (content-addressable)
-        assert clone.hash == original.hash
 
 
 class TestIntegration:

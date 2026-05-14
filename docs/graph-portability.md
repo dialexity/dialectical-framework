@@ -21,9 +21,9 @@ This document defines the Merkle-based identifier model used in the dialectical 
    - The same database instance may store many independent explorations.
    - Queries and references must not accidentally cross between explorations.
 
-4. **Fork-friendly provenance**
-   - Forking points (Perspective, Nexus) preserve lineage via `origin_hash` when exploring alternative framings.
-   - Atoms are globally shared — same content = same node, no forking needed.
+4. **Create-new, reject-old editing model**
+   - Editing a committed node means creating a new node and rejecting the old one.
+   - No per-node lineage tracking — the Case is the unit of versioning.
 
 5. **Immutable committed state**
    - Uncommitted (draft) nodes can be modified; committed nodes are immutable.
@@ -44,13 +44,12 @@ This document defines the Merkle-based identifier model used in the dialectical 
 - **Meaning**: Identifies this specific node based on its content.
 - **Computed from** (varies by node category):
   - Structure parts: Node's structural content (type-specific, see tables below)
-  - `origin_hash`: Only for forking points (Perspective, Nexus)
   - `intent`: Only for intent-aware nodes
-  - `committed_at`: Only for forking points and derived structures
+  - `committed_at`: Ensures temporal ordering
 - **Stability**:
   - Immutable once computed (committed).
-  - Atoms: same content = same hash (globally deduplicated).
-  - Forking points: same content + same origin + same timestamp = same hash.
+  - Content-addressable atoms: same content = same hash (globally deduplicated).
+  - Structural nodes: same content + same timestamp = same hash.
 - **Notes**:
   - This is the primary identifier used by application code.
   - Supports short prefix lookups (minimum 7 characters).
@@ -66,25 +65,7 @@ This document defines the Merkle-based identifier model used in the dialectical 
   - The scope root (Case) generates a UUID for `sid` on creation.
   - All nodes under that Case carry the same `sid` value.
 
-### 3) `origin_hash` — Lineage Identity (Forking Points Only)
-- **Type**: SHA256 hex string (64 characters) or None
-- **Meaning**: Points to the hash of the node this was forked from.
-- **Available on**: Perspective, Nexus only (the forking points)
-- **Stability**:
-  - Set during fork/clone operation; never changes after.
-- **Rules**:
-  - For a node created "from scratch": `origin_hash = None`.
-  - For a forked node: `origin_hash = source.hash`.
-- **Note**: origin_hash affects the computed hash, so forks have different identities than originals.
-- **Not used by**: Atoms (Statement, Input, Transition, Rationale, Estimation, Synthesis) and derived structures (Ideas, Cycle, Wheel, Transformation, Spiral).
-
-### 4) `branch` — Alternative Interpretation (Optional)
-- **Type**: String or None
-- **Meaning**: Human-readable label for alternative interpretations.
-- **Available on**: Perspective, Nexus (forking points with `ForkableMixin`)
-- **Purpose**: Label forks for easier identification (e.g., "conservative-framing", "aggressive-collection").
-
-### 5) `committed_at` — Temporal Ordering
+### 3) `committed_at` — Temporal Ordering
 - **Type**: Float (Unix timestamp) or None
 - **Meaning**: When the node was committed.
 - **Purpose**:
@@ -176,9 +157,9 @@ Nodes are organized into categories based on their role and identity model.
 
 ### Container
 
-| Node | hash | origin_hash | Role |
-|------|------|-------------|------|
-| **Case** | None (UUID sid) | No | Scope root, never finished |
+| Node | hash | Role |
+|------|------|------|
+| **Case** | None (UUID sid) | Scope root, never finished |
 
 ### Atoms — Content
 
@@ -208,15 +189,14 @@ Computed outcomes where each instance is unique. No lineage tracking.
 | **Transition** | source.hash, target.hash, nonce, committed_at | Effect |
 | **Synthesis** | s+.hash, s-.hash, [intent], committed_at | Effect |
 
-### Forking Points
+### Reasoning Foundations
 
-These are the basis of reasoning. They support `origin_hash` for lineage tracking
-when you want to explore alternative framings or collections.
+These are the basis of reasoning. Editing means creating a new node and rejecting the old one.
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
-| **Perspective** | t.hash, t+.hash, t-.hash, a.hash, a+.hash, a-.hash, [origin_hash], [intent], committed_at | Tension framing |
-| **Nexus** | sorted(perspective_hashes), [origin_hash], [intent], committed_at | Tension collection |
+| **Perspective** | polarity.hash, t+.hash, t-.hash, a+.hash, a-.hash, [intent], committed_at | Tension framing |
+| **Nexus** | preset, [intent], committed_at | Exploration container |
 
 ### Derived Structures
 
@@ -235,61 +215,31 @@ Uses `IncrementalBuildMixin` for staged building (save → add children → comm
 
 ### Key Observations
 
-- **Atoms have no `origin_hash`**: They're global facts/effects. Same content = same node.
-- **Forking happens at Perspective and Nexus**: These are the reasoning foundations.
-- **Derived structures don't fork**: To explore alternatives, fork the upstream Nexus or PP.
-- **`committed_at`** on forking points and derived structures ensures temporal ordering.
+- **Atoms are global facts/effects**: Same content = same node.
+- **Reasoning foundations (Perspective, Nexus)** are immutable after commit — editing means creating a new node and rejecting the old.
+- **`committed_at`** ensures temporal ordering.
 - **`nonce`** (Transition only) ensures uniqueness for repeated source→target pairs.
 - **Sorting** makes order-independent containers produce consistent hashes.
 
-## Forking Semantics
+## Editing Semantics
 
-Forking applies only to **Perspective** and **Nexus** — the reasoning foundations.
-Atoms don't fork (same content = same node globally). Derived structures don't fork (fork upstream instead).
-
-### Why fork?
-
-- **Perspective**: "I want to explore a different framing of this tension" (different T+/T-/A+/A-)
-- **Nexus**: "I want to explore a different collection of tensions" (add/remove Perspectives)
-
-### Fork operation
+Committed nodes are immutable. To "edit" a Perspective or Nexus:
+1. Clone the node (creates an uncommitted copy)
+2. Modify the clone
+3. Commit the clone (gets a new hash)
+4. Reject the old node (`rejected` field)
 
 ```python
-# Fork a Perspective to try different polarity framing
-forked_pp = original_pp.clone(destination_sid=new_scope_sid)
-forked_pp.t_plus.disconnect(old_stmt)
-forked_pp.t_plus.connect(new_stmt)
-forked_pp.commit()
+# Edit a Perspective by creating a new one
+new_pp = original_pp.clone()
+new_pp.save()
+new_pp.t_plus.disconnect(old_stmt)
+new_pp.t_plus.connect(new_stmt)
+new_pp.commit()
 
-# Result:
-# - forked_pp.origin_hash = original_pp.hash
-# - forked_pp.sid = new_scope_sid
-# - forked_pp.hash is different (new framing + origin_hash in computation)
-```
-
-### Lineage Tracking
-
-The `origin_hash` field creates a lineage tree for forking points:
-
-```
-PP-Original (origin_hash=None)
-    ├── PP-Fork-A (origin_hash=PP-Original.hash)
-    │       └── PP-Fork-A2 (origin_hash=PP-Fork-A.hash)
-    └── PP-Fork-B (origin_hash=PP-Original.hash)
-```
-
-Use `NodeRepository` to traverse lineage:
-
-```python
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
-
-repo = NodeRepository()
-
-# Find all Perspectives forked from an original
-forks = repo.find_by_origin(original_pp.hash)
-
-# Trace full ancestry chain
-lineage = repo.find_lineage(pp.hash)
+# Mark old PP as rejected
+original_pp.rejected = "replaced by edit"
+original_pp.save()
 ```
 
 ### Cross-scope references
@@ -331,7 +281,6 @@ Access is a **scope-level property**, not part of identifiers:
 The following indexes support efficient lookups:
 
 - `hash`: Primary identity lookups, unique constraint
-- `origin_hash`: Lineage queries (find clones of a node)
 - `sid`: Scope-based queries (find all nodes in a scope)
 
 ## Summary
@@ -342,23 +291,22 @@ The following indexes support efficient lookups:
 |-------|------|---------|---------|
 | `hash` | SHA256 | All except Case | Primary identity (content-derived) |
 | `sid` | UUID | All | Scope identity (Case's UUID) |
-| `origin_hash` | SHA256 | Perspective, Nexus only | Lineage tracking for forks |
-| `committed_at` | Float | Forking points + derived | Temporal ordering |
+| `committed_at` | Float | Structural nodes | Temporal ordering |
 | `intent` | String | Intent-aware nodes | Reasoning purpose |
 
 ### Node Categories
 
-| Category | Nodes | origin_hash | Role |
-|----------|-------|-------------|------|
-| Container | Case | No | Scope root |
-| Atoms (Content) | Statement, Input | No | Global facts |
-| Atoms (Effect) | Transition, Rationale, Estimation, Synthesis | No | Computed outcomes |
-| Forking Points | Perspective, Nexus | **Yes** | Reasoning foundations |
-| Derived | Ideas, Cycle, Wheel, Transformation, Spiral | No | Computed from inputs/forking points |
+| Category | Nodes | Role |
+|----------|-------|------|
+| Container | Case | Scope root |
+| Atoms (Content) | Statement, Input | Global facts |
+| Atoms (Effect) | Transition, Rationale, Estimation, Synthesis | Computed outcomes |
+| Reasoning Foundations | Perspective, Nexus | Tension framing & exploration |
+| Derived | Ideas, Cycle, Wheel, Transformation, Spiral | Computed from inputs/foundations |
 
 ### Key Properties
 
 - **Atoms are global**: Same content = same hash = same node across all of Indranet
-- **Forking at foundations**: Only Perspective and Nexus support lineage tracking
-- **Derived structures flow down**: Fork upstream (Nexus/PP) to explore alternatives
+- **Immutable after commit**: Editing = create new + reject old
+- **Derived structures flow down**: Create new upstream (Nexus/PP) to explore alternatives
 - **Scoped address**: `sid:hash` for global uniqueness across scopes

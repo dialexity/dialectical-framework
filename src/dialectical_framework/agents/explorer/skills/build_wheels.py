@@ -36,7 +36,6 @@ from mirascope import llm
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.causality_preset import CausalityPreset
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.cycle import Cycle
@@ -110,7 +109,7 @@ class BuildWheelsResult:
     new_wheels: list[Wheel]
 
 
-class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
+class BuildWheels(ReasonableConcern[BuildWheelsResult]):
     """
     Main LLM-facing entry point for dialectical exploration.
 
@@ -125,19 +124,11 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
     4. Estimate new structures (via CausalityEstimation)
 
     Idempotent: re-running with same inputs creates no duplicates.
-
-    Dual interface:
-    - resolve() returns BuildWheelsResult for programmatic use
-    - call() returns JSON string for LLM tool use
     """
 
-    nexus_hash: str = Field(description="Hash of the Nexus to build wheels in")
-    perspective_hashes: list[str] = Field(default_factory=list, description="Perspective hashes to add to Nexus before building")
-
-    async def call(self) -> str:
-        """Resolve and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.resolve()
-        return str(self._report)
+    def __init__(self, nexus_hash: str, perspective_hashes: Optional[list[str]] = None) -> None:
+        self.nexus_hash = nexus_hash
+        self.perspective_hashes = perspective_hashes or []
 
     async def resolve(self) -> BuildWheelsResult:
         """
@@ -364,7 +355,11 @@ class BuildWheels(BaseTool, ReasonableConcern[BuildWheelsResult]):
 
 
 @llm.tool
-async def build_wheels(nexus_hash: str, perspective_hashes: Optional[list[str]] = None) -> str:
-    """Create structural combinations (Cycles + Wheels) from Perspectives within a Nexus and estimate them. Provide Nexus hash and Perspective hashes to combine."""
+async def build_wheels(
+    nexus_hash: str = Field(description="Hash of the Nexus to build combinations in"),
+    perspective_hashes: Optional[list[str]] = Field(default=None, description="Perspective hashes to add to Nexus before building"),
+) -> str:
+    """Generate causal structures from a Nexus: Cycles (ordered sequences of Perspectives forming circular causality chains) and Wheels (concrete thesis-antithesis arrangements implementing those cycles). Estimates each structure's plausibility."""
     concern = BuildWheels(nexus_hash=nexus_hash, perspective_hashes=perspective_hashes or [])
-    return await concern.call()
+    await concern.resolve()
+    return str(concern.report)

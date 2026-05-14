@@ -1,8 +1,5 @@
 """
-Input tool for the Orchestrator.
-
-AddInput is for adding SOURCE MATERIAL (user-provided content) for analysis.
-It is NOT for storing analytical outputs - those go through agent tools.
+AddInput: Concern + tool for capturing source material into the case.
 """
 
 from __future__ import annotations
@@ -14,38 +11,28 @@ from gqlalchemy import Memgraph, Neo4j
 from mirascope import llm
 from pydantic import Field
 
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.input import Input
-from dialectical_framework.protocols.base_tool import BaseTool
 
 
-class AddInput(BaseTool):
+class AddInput(ReasonableConcern[Input]):
     """
-    Add SOURCE MATERIAL for analysis to the current case.
+    Captures source material (text or URL) and links it to the current Case.
 
-    ONLY use this for external content the user wants to analyze:
-    - Text the user pastes or provides
-    - URLs to articles/documents
-    - Uploaded file contents
-
-    DO NOT use this for:
-    - Your own summaries or analysis
-    - Generated outputs or conclusions
-    - Anything YOU wrote (use the appropriate agent tools instead)
-
-    Think of Input as "what goes IN for analysis", not "where to store results".
+    Programmatic usage:
+        concern = AddInput()
+        input_node = await concern.resolve(content="...")
+        print(input_node.short_hash)
     """
-
-    content: str = Field(
-        description="External source material to analyze (user-provided text or URL). NOT for storing your outputs."
-    )
 
     @inject
-    async def call(
+    async def resolve(
         self,
+        content: str,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         sid: Optional[str] = Provide[DI.sid],
-    ) -> str:
+    ) -> Input:
         query = """
         MATCH (c:Case {sid: $sid})
         RETURN c
@@ -53,28 +40,27 @@ class AddInput(BaseTool):
         results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
 
         if not results:
-            return f"Case not found: {sid}"
+            raise ValueError(f"Case not found for sid: {sid}")
 
         case = results[0]["c"]
 
-        input_node = Input(content=self.content)
+        input_node = Input(content=content)
         input_node.commit()
         case.inputs.connect(input_node)
 
-        preview = (
-            self.content[:100] + "..." if len(self.content) > 100 else self.content
-        )
+        self._report.node_created(input_node)
+        self._report.ok = True
+        self._report.summary = f"Added input {input_node.short_hash}"
+        self._report.artifacts["input_hash"] = input_node.short_hash
 
-        return (
-            f"Added input to case.\n"
-            f"Input hash: {input_node.short_hash}\n"
-            f"Preview: {preview}\n"
-            f"You can now extract theses using SurfaceTheses."
-        )
+        return input_node
 
 
 @llm.tool
-async def add_input(content: str) -> str:
-    """Add external source material (user-provided text or URL) for analysis to the current case. Not for storing analytical outputs."""
-    tool = AddInput(content=content)
-    return await tool.call()
+async def add_input(
+    content: str = Field(description="Source material: user-provided text, URL, or captured conversation fragment"),
+) -> str:
+    """Add source material for analysis — user-provided text, URL, or captured conversation fragment. Use proactively when the user describes their situation. Not for storing your analytical outputs."""
+    concern = AddInput()
+    input_node = await concern.resolve(content=content)
+    return str(concern.report)

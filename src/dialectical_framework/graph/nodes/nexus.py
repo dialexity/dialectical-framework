@@ -16,7 +16,6 @@ from gqlalchemy import Memgraph, Neo4j
 from dialectical_framework.enums.causality_preset import CausalityPreset
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
-from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
 from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
@@ -27,7 +26,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
 
 
-class Nexus(ForkableMixin, IntentMixin, BaseNode, label="Nexus"):
+class Nexus(IntentMixin, BaseNode, label="Nexus"):
     """
     Exploration container for Perspectives.
 

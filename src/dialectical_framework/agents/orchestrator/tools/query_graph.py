@@ -17,8 +17,8 @@ from gqlalchemy import Memgraph, Neo4j
 from mirascope import llm
 from pydantic import Field
 
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
-from dialectical_framework.protocols.base_tool import BaseTool
 
 
 def _is_schema_query(query: str) -> bool:
@@ -104,45 +104,18 @@ def _has_hardcoded_sid(query: str) -> bool:
     return False
 
 
-class QueryGraph(BaseTool):
-    """
-    Execute a Cypher query on the graph database.
-
-    Use this for flexible exploration of the dialectical knowledge graph.
-    Session scoping (sid) is AUTOMATICALLY INJECTED - you don't need to add it.
-
-    SCHEMA QUERIES (to understand the graph structure):
-    - "SHOW SCHEMA INFO" - show all node labels and relationship types
-    - "CALL db.labels() YIELD label RETURN label" - list all node labels
-    - "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
-
-    DATA QUERIES (sid is auto-injected, don't include it):
-    - "MATCH (c:Case) RETURN c" - get session case
-    - "MATCH (c:Statement) RETURN c.text LIMIT 10" - list components
-    - "MATCH (c:Case)-[:HAS_INPUT]->(i:Input) RETURN i.content" - list inputs
-    - "MATCH (pp:Perspective)<-[:T]-(t) RETURN pp, t.text" - Perspectives with thesis
-    - "MATCH (a)-[:OPPOSITE_OF]->(b) RETURN a.text, b.text" - oppositions
-    - "MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel) RETURN c, w" - cycle and wheels
-
-    KEY NODE TYPES: Case, Input, Statement, Perspective,
-                    Cycle, Wheel, Transformation, Transition, Synthesis, Rationale
-
-    KEY RELATIONSHIPS: T, A, T_PLUS, T_MINUS, A_PLUS, A_MINUS (positions),
-                       OPPOSITE_OF, CONTRADICTION_OF (semantic),
-                       HAS_INPUT, HAS_WHEEL, HAS_TRANSFORMATION (structural)
-    """
-
-    cypher: str = Field(description="Cypher query to execute. Do not include sid - it's auto-injected.")
-    limit: int = Field(default=50, description="Maximum number of results to return.")
+class QueryGraph(ReasonableConcern[str]):
+    """Executes read-only Cypher with automatic sid injection and security checks."""
 
     @inject
-    async def call(
+    async def resolve(
         self,
+        cypher: str,
+        limit: int = 50,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         sid: Optional[str] = Provide[DI.sid],
     ) -> str:
-        """Execute the Cypher query with automatic sid scoping."""
-        query_upper = self.cypher.upper()
+        query_upper = cypher.upper()
 
         # Security: Block write operations
         blocked_keywords = [
@@ -161,25 +134,25 @@ class QueryGraph(BaseTool):
                 )
 
         # Security: Block hardcoded sid values (injection attempt)
-        if _has_hardcoded_sid(self.cypher):
+        if _has_hardcoded_sid(cypher):
             return (
                 "Error: Hardcoded sid values are not allowed for security reasons.\n"
                 "Don't include sid in your query - it's automatically injected."
             )
 
         # Check if this is a schema query (doesn't need sid scoping)
-        is_schema = _is_schema_query(self.cypher)
+        is_schema = _is_schema_query(cypher)
 
         # Prepare query
         if is_schema:
-            query = self.cypher.strip()
+            query = cypher.strip()
         else:
             # Auto-inject sid scoping into all node patterns
-            query = _inject_sid_scoping(self.cypher.strip())
+            query = _inject_sid_scoping(cypher.strip())
 
             # Add LIMIT if not present
             if "LIMIT" not in query_upper:
-                query = f"{query} LIMIT {self.limit}"
+                query = f"{query} LIMIT {limit}"
 
         try:
             results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
@@ -192,7 +165,7 @@ class QueryGraph(BaseTool):
         # Format results
         lines = [f"Found {len(results)} result(s):", ""]
 
-        for i, row in enumerate(results[: self.limit]):
+        for i, row in enumerate(results[:limit]):
             row_parts = []
             for key, value in row.items():
                 # Format node objects nicely
@@ -212,14 +185,19 @@ class QueryGraph(BaseTool):
                     row_parts.append(f"{key}: {val_str}")
             lines.append(f"{i+1}. {', '.join(row_parts)}")
 
-        if len(results) > self.limit:
-            lines.append(f"... (showing {self.limit} of {len(results)})")
+        if len(results) > limit:
+            lines.append(f"... (showing {limit} of {len(results)})")
 
+        self._report.ok = True
+        self._report.summary = f"Query returned {len(results)} results"
         return "\n".join(lines)
 
 
 @llm.tool
-async def query_graph(cypher: str, limit: int = 50) -> str:
+async def query_graph(
+    cypher: str = Field(description="Read-only Cypher query. Do not include sid — it's injected automatically."),
+    limit: int = Field(default=50, description="Max rows to return"),
+) -> str:
     """Execute a read-only Cypher query on the graph database. Session scoping (sid) is automatically injected. Do not include sid in your query."""
-    tool = QueryGraph(cypher=cypher, limit=limit)
-    return await tool.call()
+    concern = QueryGraph()
+    return await concern.resolve(cypher=cypher, limit=limit)

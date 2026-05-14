@@ -1,7 +1,5 @@
 """
-Scope status tool for the Orchestrator.
-
-Reports counts of all node types within the current sid scope.
+GetScopeStatus: Quick counts of all node types in scope.
 """
 
 from __future__ import annotations
@@ -12,26 +10,19 @@ from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
 from mirascope import llm
 
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
-from dialectical_framework.protocols.base_tool import BaseTool
 
 
-class GetScopeStatus(BaseTool):
-    """
-    Show counts of all node types in the current scope.
-
-    Returns a summary of how many Inputs, Statements, Perspectives,
-    Cycles, Wheels, and Transformations exist in this scope.
-    Use this to get a quick overview of what has been built so far.
-    """
+class GetScopeStatus(ReasonableConcern[str]):
+    """Queries node counts within the current scope."""
 
     @inject
-    async def call(
+    async def resolve(
         self,
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         sid: Optional[str] = Provide[DI.sid],
     ) -> str:
-        """Query node counts within the current scope."""
         query = """
         MATCH (c:Case {sid: $sid})
         OPTIONAL MATCH (c)-[:HAS_INPUT]->(i:Input)
@@ -51,9 +42,13 @@ class GetScopeStatus(BaseTool):
         try:
             results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
         except Exception as e:
+            self._report.ok = False
+            self._report.summary = f"Error: {e}"
             return f"Error querying scope status: {e}"
 
         if not results:
+            self._report.ok = True
+            self._report.summary = "No case found"
             return "No case found in current scope."
 
         row = results[0]
@@ -67,11 +62,13 @@ class GetScopeStatus(BaseTool):
             f"  Transformations: {row['tr_count']}",
         ]
 
+        self._report.ok = True
+        self._report.summary = "Status retrieved"
         return "\n".join(lines)
 
 
 @llm.tool
 async def get_scope_status() -> str:
     """Show counts of all node types (Inputs, Statements, Perspectives, Cycles, Wheels, Transformations) in the current scope."""
-    tool = GetScopeStatus()
-    return await tool.call()
+    concern = GetScopeStatus()
+    return await concern.resolve()

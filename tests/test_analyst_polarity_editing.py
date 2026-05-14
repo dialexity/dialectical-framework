@@ -1,5 +1,5 @@
 """
-Tests for EditPolarity and EditTetrad skills.
+Tests for EditPerspective skill (unified polarity + tetrad editing).
 """
 
 from __future__ import annotations
@@ -7,9 +7,8 @@ from __future__ import annotations
 import pytest
 from langfuse import observe
 
-from dialectical_framework.agents.analyst.skills.edit_polarity import (
-    HS_WRONG_CATEGORY_THRESHOLD, EditPolarity)
-from dialectical_framework.agents.analyst.skills.edit_tetrad import EditTetrad
+from dialectical_framework.agents.analyst.skills.edit_perspective import (
+    HS_WRONG_CATEGORY_THRESHOLD, EditPerspective)
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.statement import \
     Statement
@@ -123,7 +122,7 @@ def create_test_pp(sid: str, commit: bool = False) -> Perspective:
 
 
 @pytest.mark.llm
-class TestEditPolarityThesis:
+class TestEditPerspectiveThesis:
     """Tests for editing thesis (T)."""
 
     @pytest.mark.asyncio
@@ -136,7 +135,7 @@ class TestEditPolarityThesis:
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_T: "Trust"},
             )
@@ -150,8 +149,6 @@ class TestEditPolarityThesis:
                 assert a_result is not None
                 _, a_rel = a_result
                 assert a_rel.heuristic_similarity is not None
-                # Should be forked since original was committed
-                assert result.perspective.origin_hash == pp.hash
                 # PP should be committed
                 assert result.perspective.is_committed
 
@@ -165,7 +162,7 @@ class TestEditPolarityThesis:
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_T: "Database Indexing"},
             )
@@ -180,7 +177,7 @@ class TestEditPolarityThesis:
 
 
 @pytest.mark.llm
-class TestEditPolarityAntithesis:
+class TestEditPerspectiveAntithesis:
     """Tests for editing antithesis (A)."""
 
     @pytest.mark.asyncio
@@ -193,7 +190,7 @@ class TestEditPolarityAntithesis:
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_A: "Hate"},
             )
@@ -219,7 +216,7 @@ class TestEditPolarityAntithesis:
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_A: "Obsession"},
             )
@@ -232,7 +229,7 @@ class TestEditPolarityAntithesis:
 
 
 @pytest.mark.llm
-class TestEditTetradAspect:
+class TestEditPerspectiveAspect:
     """Tests for editing aspects (T+, T-, A+, A-)."""
 
     @pytest.mark.asyncio
@@ -245,7 +242,7 @@ class TestEditTetradAspect:
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditTetrad(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_T_PLUS: "Deep bond"},
             )
@@ -269,7 +266,7 @@ class TestEditTetradAspect:
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditTetrad(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_T_PLUS: "Complete isolation"},
             )
@@ -282,8 +279,8 @@ class TestEditTetradAspect:
 
 
 @pytest.mark.llm
-class TestEditPolarityForking:
-    """Tests for forking behavior (committed vs uncommitted PP)."""
+class TestEditPerspectiveCloning:
+    """Tests for cloning behavior (committed vs uncommitted PP)."""
 
     @pytest.mark.asyncio
     @observe()
@@ -297,14 +294,14 @@ class TestEditPolarityForking:
             # Don't commit - leave uncommitted
             pp.save()  # But save so it has _id
 
-            # Note: EditPolarity/EditTetrad require a committed PP hash or prefix
+            # Note: EditPerspective requires a committed PP hash or prefix
             # For uncommitted PPs, the caller should commit first or use a different pattern
             # This test documents that limitation
 
     @pytest.mark.asyncio
     @observe()
-    async def test_committed_pp_creates_fork(self):
-        """Editing committed PP creates a fork with origin_hash."""
+    async def test_committed_pp_creates_clone(self):
+        """Editing committed PP creates a new PP (clone, not mutation)."""
         case_node = Case()
         case_node.commit()
 
@@ -312,7 +309,7 @@ class TestEditPolarityForking:
             pp = create_test_pp(case_node.sid, commit=True)
             original_hash = pp.hash
 
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_A: "Hatred"},
             )
@@ -321,11 +318,9 @@ class TestEditPolarityForking:
             if result.is_valid:
                 # Should be a different PP
                 assert result.perspective.hash != original_hash
-                # Should have origin_hash pointing to original
-                assert result.perspective.origin_hash == original_hash
 
 
-class TestEditPolarityValidation:
+class TestEditPerspectiveValidation:
     """Tests for validation edge cases."""
 
     @pytest.mark.asyncio
@@ -337,36 +332,32 @@ class TestEditPolarityValidation:
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={POSITION_T: ""},
             )
             result = await editor.resolve()
 
             assert not result.is_valid
-            assert "must provide" in result.error_message.lower()
+            assert "No valid changes" in result.error_message
 
     @pytest.mark.asyncio
     async def test_edit_invalid_position_fails(self):
-        """Invalid position (not T or A) should fail for EditPolarity."""
+        """Invalid position should fail."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.sid):
             pp = create_test_pp(case_node.sid, commit=True)
 
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash=pp.hash,
                 changes={"X+": "Something"},
             )
             result = await editor.resolve()
 
             assert not result.is_valid
-            # EditPolarity only accepts T/A, so invalid positions are filtered out
-            assert (
-                "T and/or A" in result.error_message
-                or "EditTetrad" in result.error_message
-            )
+            assert "No valid changes" in result.error_message
 
     @pytest.mark.asyncio
     async def test_edit_nonexistent_pp_fails(self):
@@ -375,7 +366,7 @@ class TestEditPolarityValidation:
         case_node.commit()
 
         with scope(case_node.sid):
-            editor = EditPolarity(
+            editor = EditPerspective(
                 perspective_hash="nonexistent123",
                 changes={POSITION_T: "Something"},
             )

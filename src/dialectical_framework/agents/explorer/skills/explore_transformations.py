@@ -30,7 +30,6 @@ from mirascope import llm
 from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.action_extraction import (
     ActionCandidateResultDto, ActionExtraction)
@@ -81,7 +80,7 @@ class ExploreTransformationsResult:
         return self.existing + self.new
 
 
-class ExploreTransformations(BaseTool, ReasonableConcern[ExploreTransformationsResult]):
+class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
     """
     Subagent for generating Action-Reflection transformations at wheel level.
 
@@ -89,19 +88,11 @@ class ExploreTransformations(BaseTool, ReasonableConcern[ExploreTransformationsR
     producing Transformations for wheel edge pairs (diametrically opposite edges).
     Transformations are scoped by Nexus and reusable across wheels sharing the
     same logical edge pairs.
-
-    Dual interface:
-    - resolve() returns ExploreTransformationsResult for programmatic use
-    - call() returns JSON string for LLM tool use
     """
 
-    wheel_hash: str = Field(description="Hash of the Wheel to generate transformations for")
-    edge_hash: Optional[str] = Field(default=None, description="Specific edge hash to process. If None, processes all edges.")
-
-    async def call(self) -> str:
-        """Resolve transformation generation and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.resolve()
-        return str(self._report)
+    def __init__(self, wheel_hash: str, edge_hash: Optional[str] = None) -> None:
+        self.wheel_hash = wheel_hash
+        self.edge_hash = edge_hash
 
     async def resolve(self) -> ExploreTransformationsResult:
         """
@@ -636,7 +627,11 @@ class ExploreTransformations(BaseTool, ReasonableConcern[ExploreTransformationsR
 
 
 @llm.tool
-async def explore_transformations(wheel_hash: str, edge_hash: Optional[str] = None) -> str:
-    """Generate Action-Reflection transformations for a Wheel's edge pairs. Optionally target a specific edge by hash."""
+async def explore_transformations(
+    wheel_hash: str = Field(description="Hash of the Wheel to generate transformations for"),
+    edge_hash: Optional[str] = Field(default=None, description="Specific edge hash to process. If None, processes all edges."),
+) -> str:
+    """Generate Action-Reflection transformations for a Wheel's edges — practical navigation recipes showing how to move between dialectical positions. Each transformation has 6 positions (Ac, Ac+, Ac-, Re, Re+, Re-) describing actions and reflections at different insight levels."""
     concern = ExploreTransformations(wheel_hash=wheel_hash, edge_hash=edge_hash)
-    return await concern.call()
+    await concern.resolve()
+    return str(concern.report)

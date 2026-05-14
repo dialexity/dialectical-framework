@@ -63,19 +63,18 @@ Think of a Dialectical Wheel as a pizza:
 
 ### Intent Levels
 
-All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Optional[str]` field. Intent maps to the reflective practice framework:
+Reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Optional[str]` field. Intent is part of the hash — same structure + different intent = different node. Maps to the reflective practice framework:
 
 | Level | Reflection | Question | Lives On |
 |-------|------------|----------|----------|
 | **Discovery** | (Gathering) | What sources to explore? | Ideas |
 | **Focus** | What? | What tensions exist? | Cycle |
 | **Dynamics** | So What? | Why do they matter? | Cycle (intent field) |
-| **Path** | Now What? | How to navigate? | Perspective, Transformation, Wheel |
-| **Synthesis** | (Outcome) | What emerges? | Synthesis |
+| **Path** | Now What? | How to navigate? | Perspective, Transformation, Wheel, Nexus |
 
-**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Synthesis, Wheel
+**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Wheel, Nexus
 
-Note: Case does not have intent - it's a container for inputs.
+**Nodes WITHOUT IntentMixin:** Polarity (shared atom — intent belongs on Perspective), Synthesis (S+/S- content IS the outcome), Statement, Case
 
 ### Transformation Model
 
@@ -175,6 +174,34 @@ transformation.ac_re.connect(new_pp)      # OK even after commit
 
 See `docs/graph.md` → "Structural vs Analytical Layers" for full details.
 
+### Rejection and Editing
+
+**`rejected: Optional[str]`** is a metadata field (does not affect hash) on:
+- **Statement** — "this idea is wrong/irrelevant"
+- **Perspective** — "this framing is superseded or unwanted"
+
+**NOT rejectable:** Polarity, Nexus, Cycle, Wheel. Polarity is a shared structural atom (T-A pairing). If the opposition is bad, reject the Perspective(s) that use it. Nexus is an exploration container — filter rejected PPs at query time.
+
+**Rejection blocking rules:**
+- **Statement**: blocked if used by any non-rejected Perspective. Reject/edit those PPs first.
+- **Perspective**: blocked if it participates in any Cycle. Delete Cycles first or use `edit_perspective`.
+
+**Editing a committed Perspective** (via `edit_perspective`):
+1. Clone → modify → commit (new PP with new hash)
+2. Connect old→new via `CHANGED_TO` relationship (analytical lineage)
+3. Polarity and Statements are untouched (shared atoms)
+4. New PP is independent — not attached to old PP's Nexuses or Cycles
+
+Editing is evolution, not replacement. The old PP and its downstream structures
+remain valid. The caller decides what to do with the new PP (add to a new Nexus, etc.).
+
+**`CHANGED_TO` lineage** (analytical layer, old_pp→new_pp):
+- If old PP is not rejected: lineage is meaningful (evolution chain)
+- If old PP is rejected: new PP lives as a first-class citizen
+- `changed_positions` property records what changed (e.g. `["T+", "A-"]`)
+
+**Querying should filter rejected nodes:** `WHERE pp.rejected IS NULL`.
+
 ### Semantic Relationships (auto-created)
 
 When connecting statements to Perspective positions, semantic relationships are automatically created:
@@ -269,19 +296,29 @@ src/dialectical_framework/
 │   └── ...                     # 15 concern modules total
 │
 ├── agents/                  # LLM-driven agentic orchestrators
-│   ├── reasonable_concern.py    # Base class: makes concerns agent-usable
+│   ├── reasonable_concern.py    # ReasonableConcern base class
 │   ├── analyst/            # Analysis mode: Input → Ideas → Perspectives
-│   │   ├── skills/         # Reasoning brain centers
-│   │   │   ├── anchoring.py        # Thesis surfacing & anchoring
-│   │   │   ├── polarity.py         # Antithesis finding & polarity creation
-│   │   │   └── wisdom.py           # Perspective building
-│   │   └── tools/          # Mirascope tools for analyst
+│   │   ├── skills/         # Workflows orchestrating concerns
+│   │   │   ├── surface_theses.py      # Thesis extraction & deduplication
+│   │   │   ├── find_polarities.py     # Antithesis finding & Polarity creation
+│   │   │   ├── introduce_polarity.py  # Direct T-A tension introduction
+│   │   │   ├── expand_polarities.py    # Perspective building (T+, T-, A+, A-)
+│   │   │   └── edit_perspective.py     # Unified edit: any position(s) of a Perspective
+│   │   └── tools/          # Thin tools (minimal logic, no multi-concern orchestration)
+│   │       └── place_statement.py  # Recognize if statement exists in graph
 │   ├── explorer/           # Exploration mode: PP pool → Cycles → Wheels
 │   │   ├── skills/
-│   │   │   ├── causality.py        # Cycle & Wheel arrangement
-│   │   │   └── transformation.py   # Action-Reflection transformation
+│   │   │   ├── build_wheels.py     # Cycle & Wheel arrangement + estimation
+│   │   │   └── explore_transformations.py  # Action-Reflection generation
 │   │   └── tools/
+│   │       └── create_nexus.py     # Create exploration container
 │   └── orchestrator/       # Conversation layer, delegates to analyst/explorer
+│       └── tools/          # Phase-agnostic utilities
+│           ├── add_input.py        # Capture source material
+│           ├── get_scope_status.py # Node counts in scope
+│           ├── present_analysis.py # Readable graph summary
+│           ├── query_graph.py      # Read-only Cypher queries
+│           └── reject.py           # Discard statements/perspectives
 │
 ├── synthesist/              # Reasoning engines
 │   ├── polarity/           # Polar reasoning (PolarReasoner, Perspective building)
@@ -296,6 +333,35 @@ src/dialectical_framework/
 ├── enums/                   # DI enum, etc.
 └── utils/                   # Helpers
 ```
+
+### Orchestrator Architecture
+
+The Orchestrator is the main entry point for LLM-driven graph curation.
+
+**Design: one conversation, all tools available, phase-aware behavior.**
+No hard mode switching — the LLM recognizes Analysis vs Exploration phases
+and shifts naturally. Like Claude Code: all capabilities always available,
+posture adapts to context.
+
+**App-level persona via `app_preamble`:**
+
+```python
+# The host app (Chainlit, API) controls persona via system prompt prefix
+orchestrator = Orchestrator(
+    sid="existing-sid",           # Resume existing session, or None for new
+    app_preamble="You are a wise counselor helping someone think clearly..."
+)
+```
+
+System prompt = `app_preamble` (persona/tone) + `BASE_SYSTEM_PROMPT` (framework behavior) + `GRAPH_SCHEMA` + live DB schema.
+
+**UI actions as synthetic messages:**
+
+When the user acts on the graph via UI (reject, select, regenerate), the host app
+injects synthetic messages: `orchestrator.chat("[SYSTEM] User rejected statement abc1234")`
+
+**Resuming sessions:** Pass an existing `sid` to pick up where a previous conversation
+left off. The LLM uses `present_analysis` to orient itself on first message.
 
 ---
 
@@ -461,37 +527,85 @@ def score_wheel(
 
 Tools use a two-layer pattern:
 
-1. **`BaseTool(BaseModel)` class** — internal logic with `ExecutionReport` tracking and DI injection
-2. **`@llm.tool` async function** — thin entry point that Mirascope sees (registered in tool lists)
+1. **`ReasonableConcern[T]` class** — the implementation. Provides `ExecutionReport` tracking and `resolve()`. **The LLM never sees this class.**
+2. **`@llm.tool` async function** — the LLM-facing interface. Its docstring = tool description. Its `Field(description=...)` defaults = parameter descriptions. This is what goes in tool lists.
+
+The framework hierarchy (all inherit from `ReasonableConcern`):
+
+- **Concern** = standalone service (e.g. `ThesisExtraction`)
+- **Skill** = workflow that orchestrates concerns (e.g. `SurfaceTheses`)
+- **Agent** = orchestrator with tools + skills (e.g. `Orchestrator`)
+
+**What the LLM sees vs. what it doesn't:**
+
+| Source | LLM sees it? | Purpose |
+|--------|-------------|---------|
+| `@llm.tool` function docstring | **YES** — becomes tool description | Tell the LLM WHEN and HOW to use the tool |
+| `@llm.tool` function `Field(description=...)` | **YES** — becomes parameter description | Tell the LLM what each parameter means |
+| `ReasonableConcern` class docstring | **NO** | Developer documentation only |
+
+**Simple concern (params in resolve):**
 
 ```python
 from mirascope import llm
-from dialectical_framework.protocols.base_tool import BaseTool
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 
-# Layer 1: Internal logic (NOT passed to Mirascope)
-class GetScopeStatus(BaseTool):
-    """Docstring here is for developers, not the LLM."""
-
+class GetScopeStatus(ReasonableConcern[str]):
     @inject
-    async def call(self, graph_db=Provide[DI.graph_db], sid=Provide[DI.sid]) -> str:
-        # ... logic with ExecutionReport tracking ...
-        return str(self._report)
+    async def resolve(self, graph_db=Provide[DI.graph_db], sid=Provide[DI.sid]) -> str:
+        self._report.ok = True
+        return result
 
-# Layer 2: Mirascope-facing entry point (THIS is what goes in tool lists)
 @llm.tool
 async def get_scope_status() -> str:
-    """Docstring here IS the tool description the LLM sees."""
-    tool = GetScopeStatus()
-    return await tool.call()
+    """Show counts of all node types in the current scope."""
+    concern = GetScopeStatus()
+    return await concern.resolve()
 ```
+
+**Skill (params in __init__, orchestrates concerns):**
+
+```python
+from mirascope import llm
+from pydantic import Field
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+
+class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
+    def __init__(self, intent: str) -> None:
+        self.intent = intent
+
+    async def resolve(self) -> Optional[Ideas]:
+        # uses ThesisExtraction, StatementDeduplication, etc.
+        return ideas
+
+@llm.tool
+async def surface_theses(
+    intent: str = Field(description="What theses to find"),
+) -> str:
+    """Surfaces theses for dialectical analysis."""
+    skill = SurfaceTheses(intent=intent)
+    await skill.resolve()
+    return str(skill.report)
+```
+
+**Folder conventions — where to put new tools:**
+
+| Folder | Contains | Complexity | Example |
+|--------|----------|-----------|---------|
+| `concerns/` | Standalone services (no `@llm.tool`) | Single responsibility, reusable | `ThesisExtraction`, `AspectGeneration` |
+| `agents/{phase}/tools/` | Thin `@llm.tool` wrappers | Minimal logic, calls one concern or does simple DB ops | `place_statement`, `create_nexus`, `add_input` |
+| `agents/{phase}/skills/` | Workflow `@llm.tool` wrappers | Orchestrates multiple concerns, has retry/dedup/validation | `SurfaceTheses`, `BuildWheels` |
+| `agents/orchestrator/tools/` | Phase-agnostic utilities | Shared across analyst/explorer | `query_graph`, `reject`, `present_analysis` |
+
+**Decision rule:** If the `ReasonableConcern` class calls other concerns or has multi-step logic (retry, dedup, validation), it's a **skill**. If it's a single DB operation or thin wrapper around one concern, it's a **tool**.
 
 **Key rules:**
 - Only `@llm.tool`-decorated functions go into `ConversationFacilitator(tools=[...])` or `_build_tool_list()`
-- `BaseTool` classes are never passed directly to Mirascope — they lack the `.name` attribute Mirascope requires
-- The `@llm.tool` function's docstring becomes the tool description visible to the LLM
-- Tool parameters (typed function args) become the tool's input schema
+- `ReasonableConcern` classes are never passed directly to Mirascope — they lack the `.name` attribute Mirascope requires
+- The `@llm.tool` function's docstring = tool description visible to the LLM
+- `Field(description=...)` on `@llm.tool` function parameters = parameter descriptions visible to the LLM
 
-**For simple tools without graph mutations** (e.g., in tests), skip `BaseTool`:
+**For simple tools without graph mutations** (e.g., in tests), skip the service class:
 
 ```python
 @llm.tool
@@ -557,18 +671,17 @@ rationales: ClassVar[...] = RelationshipFrom(..., cardinality=(0, None))
 
 ### Prefer `isinstance` over `getattr` for Mixin Attributes
 
-When checking for mixin-provided attributes (like `origin_hash`, `branch` from `ForkableMixin`), use `isinstance` checks instead of `getattr`. This enables easier refactoring and provides better IDE support.
+When checking for mixin-provided attributes (like `intent` from `IntentMixin`), use `isinstance` checks instead of `getattr`. This enables easier refactoring and provides better IDE support.
 
 ```python
 # GOOD - isinstance for mixin attributes
-from dialectical_framework.graph.mixins.forkable_mixin import ForkableMixin
+from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 
-if isinstance(node, ForkableMixin):
-    origin = node.origin_hash  # IDE knows this exists
-    branch = node.branch
+if isinstance(node, IntentMixin):
+    intent = node.intent  # IDE knows this exists
 
 # BAD - getattr hides the dependency
-origin = getattr(node, 'origin_hash', None)  # No IDE support, harder to refactor
+intent = getattr(node, 'intent', None)  # No IDE support, harder to refactor
 ```
 
 **When to use `getattr`:** For class-level attributes like `label` or `type` that aren't mixin-based, `getattr` with a default is acceptable. When unsure, ask whether `isinstance` or `getattr` is appropriate.
@@ -618,7 +731,6 @@ from dialectical_framework.graph.repositories.perspective_repository import Pers
 repo = NodeRepository()
 node = repo.find_by_hash("abc123...")       # Scoped by sid
 node = repo.find_by_prefix("abc123")        # Scoped by sid
-nodes = repo.find_by_origin("origin_hash")  # Scoped by sid
 
 stmt_repo = StatementRepository()
 vocab = stmt_repo.get_vocabulary()                    # Scoped by sid
@@ -635,7 +747,7 @@ graph_db.execute_and_fetch("MATCH (n:Node {hash: $hash}) RETURN n", {"hash": has
 **Repository method pattern:** All repository methods use `@inject` with `sid: Optional[str] = Provide[DI.sid]` to automatically scope queries. The `sid` is read from the DI context set by `with scope(case.sid):`.
 
 **Key repositories:**
-- `NodeRepository` - Hash lookups, lineage queries
+- `NodeRepository` - Hash lookups
 - `StatementRepository` - Vocabulary queries
 - `PerspectiveRepository` - PP lifecycle and usage queries
 

@@ -4,6 +4,11 @@ Orchestrator: Main LLM orchestrator for the dialectical framework.
 Provides a Claude Code-like UX where users chat with an LLM that helps them
 build and navigate the dialectical knowledge graph.
 
+The Orchestrator is initialized with an optional `app_preamble` — a system prompt
+prefix set by the host application (e.g. Chainlit) to define persona, tone, and
+transparency level. The framework's own instructions (BASE_SYSTEM_PROMPT) are
+appended automatically.
+
 Run directly:
     python -m dialectical_framework.agents.orchestrator.orchestrator
 """
@@ -20,7 +25,7 @@ from pydantic import BaseModel, Field
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.orchestrator.system_prompts import \
-    ORCHESTRATOR_SYSTEM_PROMPT
+    BASE_SYSTEM_PROMPT
 from dialectical_framework.agents.stream_events import StreamEvent
 
 # Curated schema description derived from GQLAlchemy node/relationship definitions
@@ -93,13 +98,14 @@ Statement:
 Perspective, Cycle, Wheel, etc.:
 - `intent`: Optional intent/purpose description
 """
-from dialectical_framework.agents.analyst.skills.edit_polarity import \
-    edit_polarity
-from dialectical_framework.agents.analyst.skills.edit_tetrad import edit_tetrad
+from dialectical_framework.agents.analyst.skills.edit_perspective import \
+    edit_perspective
 from dialectical_framework.agents.analyst.skills.expand_polarities import \
     expand_polarities
 from dialectical_framework.agents.analyst.skills.find_polarities import \
     find_polarities
+from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+    introduce_polarity
 from dialectical_framework.agents.analyst.skills.surface_theses import \
     surface_theses
 from dialectical_framework.agents.explorer.skills.build_wheels import \
@@ -107,10 +113,19 @@ from dialectical_framework.agents.explorer.skills.build_wheels import \
 from dialectical_framework.agents.explorer.skills.explore_transformations import \
     explore_transformations
 from dialectical_framework.agents.orchestrator.tools.add_input import add_input
+from dialectical_framework.agents.explorer.tools.create_nexus import \
+    create_nexus
 from dialectical_framework.agents.orchestrator.tools.get_scope_status import \
     get_scope_status
+from dialectical_framework.agents.orchestrator.tools.inspect_node import \
+    inspect_node
+from dialectical_framework.agents.analyst.tools.place_statement import \
+    place_statement
+from dialectical_framework.agents.orchestrator.tools.present_analysis import \
+    present_analysis
 from dialectical_framework.agents.orchestrator.tools.query_graph import \
     query_graph
+from dialectical_framework.agents.orchestrator.tools.reject import reject
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.scope_context import scope
@@ -132,24 +147,37 @@ class Orchestrator:
     One orchestrator instance = one session = one sid.
     Either creates a new case or loads an existing one.
 
+    The host application (Chainlit, API, CLI) provides an `app_preamble` —
+    a system prompt prefix that defines persona, tone, and transparency level.
+    The framework's own BASE_SYSTEM_PROMPT is appended automatically.
+
     Usage:
-        # Interactive REPL
-        Orchestrator().run()
+        # Simple advisor persona
+        Orchestrator(app_preamble="You are a wise counselor. Speak warmly...")
 
-        # Or with existing session
-        Orchestrator(sid="existing-sid").run()
+        # Pro coach persona
+        Orchestrator(
+            sid="existing-sid",
+            app_preamble="You are collaborating with a professional coach..."
+        )
 
-        # Programmatic
-        orchestrator = Orchestrator()
-        response = await orchestrator.chat("Extract theses about remote work")
+        # Expert/debug persona
+        Orchestrator(app_preamble="Be maximally transparent about graph operations...")
     """
 
-    def __init__(self, sid: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        sid: Optional[str] = None,
+        app_preamble: Optional[str] = None,
+    ) -> None:
         """
         Initialize the orchestrator.
 
         Args:
             sid: Optional existing session ID to load. If None, creates new session.
+            app_preamble: Optional system prompt prefix from the host application.
+                Defines persona, tone, transparency. The framework's own instructions
+                (tool usage, phases, behavioral rules) are appended automatically.
         """
         if sid:
             self._sid: str = sid
@@ -159,14 +187,20 @@ class Orchestrator:
             assert case.sid is not None
             self._sid = case.sid
 
+        self._app_preamble = app_preamble
         self._tools = self._build_tool_list()
         self._conversation = ConversationFacilitator(tools=self._tools)
         self._conversation.set_system_prompt(self._build_system_prompt())
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt with curated schema + live DB schema."""
-        live_schema = self._query_live_schema()
-        return f"{ORCHESTRATOR_SYSTEM_PROMPT}\n\n{GRAPH_SCHEMA}\n\n{live_schema}"
+        """Build system prompt: app_preamble + base prompt + schema."""
+        parts = []
+        if self._app_preamble:
+            parts.append(self._app_preamble)
+        parts.append(BASE_SYSTEM_PROMPT)
+        parts.append(GRAPH_SCHEMA)
+        parts.append(self._query_live_schema())
+        return "\n\n".join(parts)
 
     @inject
     def _query_live_schema(
@@ -218,26 +252,34 @@ class Orchestrator:
     @staticmethod
     def _build_tool_list() -> list:
         """Build the list of tools available to the orchestrator."""
-        session_tools = [
+        capture_tools = [
             add_input,
-            get_scope_status,
         ]
 
-        query_tools = [
-            query_graph,
-        ]
-
-        build_tools = [
+        analysis_tools = [
             surface_theses,
             find_polarities,
+            introduce_polarity,
             expand_polarities,
-            edit_polarity,
-            edit_tetrad,
+            place_statement,
+            edit_perspective,
+            reject,
+        ]
+
+        exploration_tools = [
+            create_nexus,
             build_wheels,
             explore_transformations,
         ]
 
-        return session_tools + query_tools + build_tools
+        query_tools = [
+            get_scope_status,
+            present_analysis,
+            inspect_node,
+            query_graph,
+        ]
+
+        return capture_tools + analysis_tools + exploration_tools + query_tools
 
     async def chat(self, user_message: str) -> str:
         """

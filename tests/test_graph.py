@@ -60,7 +60,7 @@ def create_perspective_with_polarity(
     a.commit()
 
     # Create Polarity with T and A
-    polarity = Polarity(intent=intent)
+    polarity = Polarity()
     polarity.set_t(t, heuristic_similarity=1.0)
     polarity.set_a(a, heuristic_similarity=heuristic_similarity)
     polarity.commit()
@@ -117,7 +117,7 @@ def create_pp_from_components(
         Tuple of (perspective, polarity)
     """
     # Create Polarity with T and A
-    polarity = Polarity(intent=intent)
+    polarity = Polarity()
     polarity.set_t(t, heuristic_similarity=1.0)
     polarity.set_a(a, heuristic_similarity=heuristic_similarity)
     polarity.commit()

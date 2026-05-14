@@ -9,7 +9,7 @@ Flow:
            ↓
     FindPolarities → Polarity nodes (T-A pairs with HS) + Ideas with all T and A
            ↓
-    ExpandPolarities → Creates Perspectives from Polarities by adding aspects (T+, T-, A+, A-)
+    expand_polarities → Creates Perspectives from Polarities by adding aspects (T+, T-, A+, A-)
 
 Usage:
     # Programmatic (web app)
@@ -32,12 +32,10 @@ from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
-from pydantic import Field, PrivateAttr
+from pydantic import Field
 
-from dialectical_framework.agents.reasonable_concern import \
-    ReasonableConcern
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.antithesis_extraction import \
     AntithesisExtraction
@@ -73,12 +71,14 @@ class ThesisResult:
         self.thesis = thesis
         self.antithesis_data: list[dict] = []  # [{hash, heuristic_similarity}, ...]
         self.error: Optional[str] = None
+        self.extracted: list[Statement] = []
+        self.existing: list[Statement] = []
 
 
 # --- Main Orchestrator ---
 
 
-class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
+class FindPolarities(ReasonableConcern[Optional[Ideas]]):
     """
     Orchestrate Polarity creation (T-A pairs).
 
@@ -90,18 +90,10 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
     The HS (Heuristic Similarity) for each T-A pair is available in:
     - Report artifacts: polarity_data[{thesis_hash, antithesis_hash, heuristic_similarity}]
     - Polarity nodes: ARelationship.heuristic_similarity
-
-    Dual interface:
-    - resolve() returns Ideas for programmatic use
-    - call() returns JSON string for LLM tool use (includes HS data)
     """
 
-    thesis_hashes: list[str] = Field(description="List of thesis statement hashes to find antitheses for")
-
-    async def call(self) -> str:
-        """Resolve polarity creation and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.resolve()
-        return str(self._report)
+    def __init__(self, thesis_hashes: list[str]) -> None:
+        self.thesis_hashes = thesis_hashes
 
     async def resolve(self) -> Optional[Ideas]:
         """
@@ -129,49 +121,48 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
         all_existing: list[Statement] = []
         newly_extracted: list[Statement] = []
 
-        # Phase 1: For each thesis, collect existing oppositions + extract new ones
-        for thesis_hash in self.thesis_hashes:
+        # Phase 1: For each thesis, collect existing oppositions + extract new ones (parallel)
+        import asyncio
+
+        async def _process_thesis(thesis_hash: str) -> ThesisResult:
             thesis = self._resolve_component(thesis_hash)
             if thesis is None:
                 result = ThesisResult(thesis=Statement(text=""))
                 result.error = f"Thesis with hash '{thesis_hash}' not found"
-                results.append(result)
-                continue
+                return result
 
             result = ThesisResult(thesis=thesis)
 
-            # 1a. Collect existing oppositions from database
+            # Collect existing oppositions from database
             existing_antitheses, existing_data = await self._get_existing_oppositions(
                 thesis, input_text
             )
             result.antithesis_data.extend(existing_data)
-            all_existing.extend(existing_antitheses)
 
-            # Add existing to not_like_these to avoid re-extraction
-            for comp in existing_antitheses:
-                if comp.prompt_text not in not_like_these:
-                    not_like_these.append(comp.prompt_text)
-
-            # 1b. Extract new antitheses (with retry if none found)
+            # Extract new antitheses (not_like_these = vocab only, no cross-thesis coordination)
             antitheses, antithesis_data, extraction_reports = (
                 await self._extract_with_retry(
                     thesis=thesis,
                     text=input_text,
-                    not_like_these=not_like_these,
+                    not_like_these=not_like_these + [c.prompt_text for c in existing_antitheses],
                 )
             )
             for r in extraction_reports:
                 self._report = self._report.merge(r)
 
             result.antithesis_data.extend(antithesis_data)
-            newly_extracted.extend(antitheses)
+            result.extracted = antitheses
+            result.existing = existing_antitheses
+            return result
 
-            # Track extracted for not_like_these
-            for comp in antitheses:
-                if comp.prompt_text not in not_like_these:
-                    not_like_these.append(comp.prompt_text)
+        thesis_results = await asyncio.gather(
+            *[_process_thesis(h) for h in self.thesis_hashes]
+        )
 
+        for result in thesis_results:
             results.append(result)
+            all_existing.extend(result.existing)
+            newly_extracted.extend(result.extracted)
 
         # Phase 2: Semantic deduplication (only newly extracted, not existing)
         newly_extracted_hashes = [c.hash for c in newly_extracted]
@@ -206,7 +197,7 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
         # Phase 4: Create Polarities and Ideas with all T-A pairs
         ideas = self._create_ideas(results)
-        self._create_polarities(results)
+        polarity_map = self._create_polarities(results)
 
         # Build polarity_data for report (includes HS for each T-A pair)
         polarity_data = []
@@ -214,8 +205,10 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
             if result.error:
                 continue
             for data in result.antithesis_data:
+                pol_hash = polarity_map.get((result.thesis.hash, data["hash"]))
                 polarity_data.append(
                     {
+                        "polarity_hash": pol_hash,
                         "thesis_hash": result.thesis.hash,
                         "antithesis_hash": data["hash"],
                         "heuristic_similarity": data["heuristic_similarity"],
@@ -403,10 +396,15 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
             pass
         return None
 
-    def _create_polarities(self, results: list[ThesisResult]) -> list[Polarity]:
-        """Create Polarity nodes (T-A pairs) for each T-A pair."""
+    def _create_polarities(self, results: list[ThesisResult]) -> dict[tuple[str, str], str]:
+        """Create Polarity nodes (T-A pairs) for each T-A pair.
+
+        Returns:
+            Mapping of (thesis_hash, antithesis_hash) -> polarity_hash
+        """
         pol_repo = PolarityRepository()
-        created_polarities: list[Polarity] = []
+        created_count = 0
+        polarity_map: dict[tuple[str, str], str] = {}
 
         for result in results:
             if result.error:
@@ -420,7 +418,7 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
                 # Check if Polarity already exists for this T-A pair
                 existing_pols = pol_repo.find_by_tension(result.thesis, antithesis)
                 if existing_pols:
-                    # Polarity already exists - skip creation
+                    polarity_map[(result.thesis.hash, data["hash"])] = existing_pols[0].hash
                     self._report.artifacts.setdefault("existing_polarity_count", 0)
                     self._report.artifacts["existing_polarity_count"] += 1
                     continue
@@ -433,13 +431,14 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
                 )
                 polarity.commit()
 
-                created_polarities.append(polarity)
+                polarity_map[(result.thesis.hash, data["hash"])] = polarity.hash
+                created_count += 1
                 self._report.node_created(
                     polarity, meta={"hs": data["heuristic_similarity"]}
                 )
 
-        self._report.artifacts["created_polarity_count"] = len(created_polarities)
-        return created_polarities
+        self._report.artifacts["created_polarity_count"] = created_count
+        return polarity_map
 
     def _create_ideas(self, results: list[ThesisResult]) -> Optional[Ideas]:
         """Create Ideas node with all theses and their antitheses."""
@@ -490,7 +489,10 @@ class FindPolarities(BaseTool, ReasonableConcern[Optional[Ideas]]):
 
 
 @llm.tool
-async def find_polarities(thesis_hashes: list[str]) -> str:
-    """Find antitheses for given theses and create Polarity nodes (T-A pairs) with heuristic similarity metadata."""
+async def find_polarities(
+    thesis_hashes: list[str] = Field(description="Hashes of thesis Statements to find antitheses for"),
+) -> str:
+    """Find antitheses for given theses and create Polarity nodes (T-A pairs). Each thesis gets one or more antitheses with heuristic similarity scores. Returns polarity_hash for each pair."""
     concern = FindPolarities(thesis_hashes=thesis_hashes)
-    return await concern.call()
+    await concern.resolve()
+    return str(concern.report)

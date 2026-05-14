@@ -17,10 +17,6 @@ Usage:
     theses = await agent.resolve()
     for t in theses:
         print(t.text)
-
-    # LLM tool use (returns JSON)
-    agent = SurfaceTheses(intent="...")
-    json_result = await agent.call()
 """
 
 from __future__ import annotations
@@ -30,14 +26,12 @@ from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.reasonable_concern import \
-    ReasonableConcern
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.protocols.base_tool import BaseTool
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.statement_classification import (
     ClassificationResult, StatementClassification)
@@ -115,7 +109,7 @@ class ParsedIntentDto(BaseModel):
 # --- Main Agent ---
 
 
-class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
+class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
     """
     Surfaces theses for AnalystAgent by fulfilling anchoring intent.
 
@@ -130,20 +124,11 @@ class SurfaceTheses(BaseTool, ReasonableConcern[Optional[Ideas]]):
     5. Creates Ideas node with final component set
 
     This is Phase 1 of the polarity-finder algorithm (Steps 1-4).
-
-    Dual interface:
-    - resolve() returns list[Statement] for programmatic use
-    - call() returns JSON string for LLM tool use
     """
 
-    intent: str = Field(description="Unstructured intent describing what theses to extract")
-
-    _conversation: Optional[ConversationFacilitator] = PrivateAttr(default=None)
-
-    async def call(self) -> str:
-        """Resolve anchoring and return ExecutionReport as JSON (for LLM tool use)."""
-        await self.resolve()
-        return str(self._report)
+    def __init__(self, intent: str) -> None:
+        self.intent = intent
+        self._conversation: Optional[ConversationFacilitator] = None
 
     async def resolve(self) -> Optional[Ideas]:
         """Resolve anchoring: extract, dedup, cleanup, create Ideas. Returns Ideas container."""
@@ -569,7 +554,9 @@ Determine:
 
 
 @llm.tool
-async def surface_theses(intent: str) -> str:
+async def surface_theses(
+    intent: str = Field(description="What theses to find — e.g. 'extract 3 theses about trust', 'Love', 'find tensions in the situation'"),
+) -> str:
     """Surfaces theses for dialectical analysis by fulfilling anchoring intent.
 
     Receives unstructured intent and extracts theses from inputs,
@@ -580,4 +567,5 @@ async def surface_theses(intent: str) -> str:
     'surface 3 new theses about security, avoid anything about performance'
     """
     concern = SurfaceTheses(intent=intent)
-    return await concern.call()
+    await concern.resolve()
+    return str(concern.report)

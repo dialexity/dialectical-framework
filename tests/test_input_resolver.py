@@ -237,29 +237,26 @@ class TestDialexityInputResolverParsing:
 
     def test_parse_two_segments(self, resolver):
         """Parses dx://sid/hash correctly."""
-        sid, branch, hash_part = resolver.parse_uri("dx://scope-123/abc1234def")
+        sid, hash_part = resolver.parse_uri("dx://scope-123/abc1234def")
         assert sid == "scope-123"
-        assert branch is None
         assert hash_part == "abc1234def"
 
-    def test_parse_three_segments(self, resolver):
-        """Parses dx://sid/branch/hash correctly."""
-        sid, branch, hash_part = resolver.parse_uri("dx://scope-123/main/abc1234def")
-        assert sid == "scope-123"
-        assert branch == "main"
-        assert hash_part == "abc1234def"
+    def test_parse_three_segments_rejected(self, resolver):
+        """Rejects dx://sid/branch/hash (branch no longer supported)."""
+        from dialectical_framework.exceptions.resolver_errors import MalformedDxUriError
+        with pytest.raises(MalformedDxUriError, match="exactly sid and hash"):
+            resolver.parse_uri("dx://scope-123/main/abc1234def")
 
     def test_parse_uuid_sid(self, resolver):
         """Parses UUID-style sid."""
-        sid, branch, hash_part = resolver.parse_uri("dx://a1b2c3d4-e5f6-7890-abcd-ef1234567890/abc1234def")
+        sid, hash_part = resolver.parse_uri("dx://a1b2c3d4-e5f6-7890-abcd-ef1234567890/abc1234def")
         assert sid == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-        assert branch is None
         assert hash_part == "abc1234def"
 
     def test_parse_full_hash(self, resolver):
         """Parses full 64-char hash."""
         full_hash = "abc1234def567890" * 4  # 64 chars
-        sid, branch, hash_part = resolver.parse_uri(f"dx://scope/{full_hash}")
+        sid, hash_part = resolver.parse_uri(f"dx://scope/{full_hash}")
         assert hash_part == full_hash
 
     def test_parse_rejects_missing_scheme(self, resolver):
@@ -277,7 +274,7 @@ class TestDialexityInputResolverParsing:
     def test_parse_rejects_hash_only(self, resolver):
         """Rejects hash-only URI (no sid)."""
         from dialectical_framework.exceptions.resolver_errors import MalformedDxUriError
-        with pytest.raises(MalformedDxUriError, match="requires at least sid and hash"):
+        with pytest.raises(MalformedDxUriError, match="exactly sid and hash"):
             resolver.parse_uri("dx://abc1234def")
 
     def test_parse_rejects_short_hash(self, resolver):
@@ -289,14 +286,13 @@ class TestDialexityInputResolverParsing:
     def test_parse_rejects_too_many_segments(self, resolver):
         """Rejects URI with too many segments."""
         from dialectical_framework.exceptions.resolver_errors import MalformedDxUriError
-        with pytest.raises(MalformedDxUriError, match="too many segments"):
+        with pytest.raises(MalformedDxUriError, match="exactly sid and hash"):
             resolver.parse_uri("dx://scope/branch/extra/abc1234")
 
     def test_parse_handles_trailing_slash(self, resolver):
         """Handles trailing slash correctly."""
-        sid, branch, hash_part = resolver.parse_uri("dx://scope-123/abc1234def/")
+        sid, hash_part = resolver.parse_uri("dx://scope-123/abc1234def/")
         assert sid == "scope-123"
-        assert branch is None
         assert hash_part == "abc1234def"
 
 

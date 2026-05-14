@@ -1,8 +1,11 @@
 """
-ReasonableConcern: Abstract base for concerns with report tracking.
+ReasonableConcern: Base for all concerns, skills, and tools.
 
-All concerns inherit from this and implement resolve().
-The report is reset on each resolution, allowing instance reuse.
+Concern = standalone service, wrappable as a tool.
+Skill = workflow that uses concerns, itself exposed as a tool.
+Agent = orchestrator with tools + skills, itself a tool.
+
+All three levels inherit from ReasonableConcern — same interface (resolve + report).
 """
 
 from __future__ import annotations
@@ -18,27 +21,15 @@ R_co = TypeVar("R_co", covariant=True)
 
 class ReasonableConcern(ABC, Generic[R_co]):
     """
-    Base class for concerns.
+    Base class for concerns, skills, and tools.
 
     Subclasses implement resolve() with specific parameters and return type.
     Report is available via .report property after resolution.
 
     Usage:
-        # Programmatic (web app)
         concern = ThesisExtraction()
         theses = await concern.resolve(text=text, count=4)
-        for t in theses:
-            print(t.text)
-
-        # With report access
-        concern = AntithesisExtraction()
-        antitheses = await concern.resolve(thesis=t, text=text)
-        print(concern.report.heuristic_similarity_by_hash)
-
-        # LLM orchestrator
-        concern = ThesisExtraction()
-        await concern.resolve(text=text, count=4)
-        return concern.report.model_dump_json()
+        print(concern.report)
     """
 
     _report: ExecutionReport
@@ -62,7 +53,6 @@ class ReasonableConcern(ABC, Generic[R_co]):
         Resolve the concern.
 
         Subclasses define specific parameters via overloaded signatures.
-        Must reset self._report at the start of resolution.
 
         Returns:
             Domain objects (type specified by generic parameter)

@@ -85,12 +85,12 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         """
         Ensure required indexes and constraints exist on the graph database.
 
-        Creates indexes on :Node for Merkle identity fields (hash, origin_hash, sid).
+        Creates indexes on :Node for Merkle identity fields (hash, sid).
         Creates a unique constraint on :Node(hash, sid) - composite constraint ensures
         uniqueness within scope while allowing same content in different scopes.
         Works with both Memgraph and Neo4j by detecting DB type and using appropriate syntax.
         """
-        required_indexes = {"hash", "origin_hash", "sid"}
+        required_indexes = {"hash", "sid"}
         is_neo4j = isinstance(graph_db, Neo4j)
 
         # Get existing indexes

@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import ClassVar, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
-from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipTo, RelationshipManager
 from dialectical_framework.graph.relationships.polarity_relationship import (
@@ -32,7 +31,7 @@ POSITION_S_PLUS = "S+"
 POSITION_S_MINUS = "S-"
 
 
-class Synthesis(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Synthesis"):
+class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
     """
     Represents ONE synthesis interpretation of a dialectical tension.
 
