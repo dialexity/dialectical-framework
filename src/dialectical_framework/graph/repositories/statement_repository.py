@@ -188,7 +188,7 @@ class StatementRepository:
 
             result.append({
                 "hash": comp.hash,
-                "text": comp.text,
+                "statement": comp.text,
                 "meaning": comp.meaning,
                 "rejected": comp.rejected,
                 "rationale": rationale_text,
