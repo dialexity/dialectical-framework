@@ -14,34 +14,35 @@ Perspective → Cycle → Wheel (edges) → Transformation
 
 **Simplified model:**
 - **Perspective**: Tetrad (T, A, T+, T-, A+, A-) — atomic polar structure
-- **Cycle**: T-cycle — ordered sequence of PPs defining abstract thesis causality
+- **Cycle**: T-cycle — ordered sequence of Perspectives defining abstract thesis causality
 - **Wheel**: TA-cycle — concrete arrangement with edges between statements
 - **Transformation**: Action-Reflection structure per edge (Ac, Re, Ac+, Ac-, Re+, Re-)
 
-**Evolution model:**
-- Cycles evolve by adding PPs to the pool (Cycle → `evolutions` → child Cycle)
-- Wheels grow in layers within a Cycle's pool (Wheel → `evolutions` → child Wheel)
-- All wheels in an evolution chain point to the same parent Cycle
+**Layered combination model:**
+- A Nexus groups Perspectives for exploration
+- Cycles and Wheels are built in layers (1-PP, 2-PP, 3-PP combinations)
+- Wheels with the same component set are reused across Cycles
 
 ## Core Nodes
 
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
 | **Statement** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `source_of`, `target_of` |
-| **Perspective** | Thesis-antithesis tetrad | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus` |
-| **Cycle** | T-cycle (ordered PP pool) | `perspective_hashes`, `wheels`, `evolutions`, `evolved_from` |
-| **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `evolutions`, `evolved_from` |
+| **Polarity** | T-A tension (thesis-antithesis pair) | `t`, `a`, `perspectives` |
+| **Perspective** | Full polar interpretation | `polarity`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus`, `changed_to` |
+| **Nexus** | Exploration container for Perspectives | `perspectives`, `intent`, `preset` |
+| **Cycle** | T-cycle (ordered Perspective sequence) | `perspective_hashes`, `wheels`, `opposite_direction` |
+| **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `opposite_direction` |
 | **Transition** | Edge between statements | `source`, `target`, `cycle` (→Wheel) |
-| **Transformation** | Action-Reflection per edge | `edge` (→Transition), `ac_re`, `synthesis` (0-N) |
-| **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Transformation) |
-| **Rationale** | Evidence/explanation | `explanation`, `critiques`, `provided_estimations` |
+| **Transformation** | Action-Reflection per edge | `edge` (→Transition via ACTION_REFLECTION), `nexus`, positions (ac, re, ac+, etc.) |
+| **Synthesis** | Emergent S+/S- pair | `s_plus`, `s_minus`, `target` (→Perspective) |
+| **Rationale** | Evidence/explanation | `explains`, `critiques`, `provided_estimations` |
 | **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `_provider` (←Rationale via PROVIDES) |
 | **Input** | Content source | `has_statements`, `ideas` |
-| **Ideas** | Distilled concepts from Input | `input` (→Input), `has_statements` |
-| **Case** | Multi-input exploration | `inputs` (→Input), `get_vocabulary()` |
+| **Ideas** | Distilled concepts from Input | `inputs` (→Input), `statements` |
+| **Case** | Multi-input exploration | `inputs` (→Input) |
 
 **DEPRECATED** (kept for backwards compatibility):
-- **Nexus**: Replaced by Cycle storing PP hashes directly
 - **Spiral**: Replaced by Transformations on edges
 
 ## Intent Levels
@@ -56,9 +57,9 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 | **Path** | Now What? | How to navigate? | Perspective, Transformation, Wheel | "preset:general_concepts", "growth_based" |
 | **Synthesis** | (Outcome) | What emerges? | Synthesis | "practical_compromise" |
 
-**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Synthesis, Wheel
+**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Wheel, Nexus
 
-**Intent inheritance:** Wheels inherit intent from parent Wheel (via `evolved_from`) or from Cycle. Use `get_effective_intent()` to resolve.
+**Intent inheritance:** Wheels inherit intent from their parent Cycle. Use `get_effective_intent()` to resolve (checks wheel's own intent first, then cycle's).
 
 **Intent enables grouping:** Explicit intent on the graph allows finding explorations with similar focus, grouping by dynamics, and making the graph a readable analysis artifact. Presets like "preset:balanced" or "preset:realistic" serve as defaults but can be replaced with natural language.
 
@@ -98,54 +99,23 @@ Layer 3:  Wheel(PP1,PP2,PP3) ── Transformation (refines Layer 2)
 
 **Context is snapshot-based:** The parent's Transformations are input to computing child Transformations. No bidirectional feedback.
 
-## Evolution Model (Layered Growth)
+## Layered Combination Model
 
-### Cycle Evolution
-
-Cycles evolve by adding Perspectives to the pool:
+Cycles and Wheels are generated combinatorially from a Nexus's Perspectives:
 
 ```
-Cycle [PP1] ──evolutions──► Cycle [PP1, PP2] ──evolutions──► Cycle [PP1, PP2, PP3]
+Given Nexus with [PP1, PP2, PP3]:
+
+Layer 1:  Cycle(PP1)    Cycle(PP2)    Cycle(PP3)
+Layer 2:  Cycle(PP1,PP2)  Cycle(PP1,PP3)  Cycle(PP2,PP3)
+Layer 3:  Cycle(PP1,PP2,PP3)
+
+Each Cycle can have multiple Wheels (different TA arrangements).
 ```
 
-**Note:** Adding a PP can create multiple child Cycles with different orderings:
-- Cycle [PP1, PP2] + PP3 → Cycle [PP1, PP2, PP3] (different causalities possible)
+**Wheel reuse:** Wheels with the same component set (rotation-invariant hash) are reused across Cycles.
 
-### Wheel Evolution (Layered Growth)
-
-Wheels grow in layers within a Cycle's PP pool:
-
-```
-Given Cycle [PP1, PP2, PP3]:
-
-Layer 1:  Wheel(PP1)    Wheel(PP2)    Wheel(PP3)
-              │             │             │
-Layer 2:  Wheel(PP1,PP2)  ...          ...
-              │
-Layer 3:  Wheel(PP1,PP2,PP3)
-```
-
-**All wheels in an evolution chain point to the same parent Cycle.**
-
-### Wheel Reuse
-
-Wheels with the same PP set (rotation-invariant hash) are reused across branches:
-
-```
-             Cycle A                    Cycle B
-                │                          │
-    Wheel(PP1,PP2) ◄─────────────────► Wheel(PP1,PP2)  [SAME wheel reused]
-```
-
-**Rotation-invariant:** `Wheel(PP1→PP2)` and `Wheel(PP2→PP1)` hash to the same canonical form.
-
-### Intent Inheritance
-
-Resolve intent via `get_effective_intent()`:
-1. This wheel's intent (if set)
-2. Parent wheel's effective intent (via `evolved_from`)
-3. Parent Cycle's effective intent
-4. Default ("preset:balanced")
+**Opposite direction:** Cycles/Wheels that are circular reverses of each other are linked via `OPPOSITE_DIRECTION`.
 
 ## Case Layer
 
@@ -214,11 +184,7 @@ with scope(case.sid):
 
 When a PP pool needs to grow:
 - The original Cycle remains (immutable once committed)
-- Create a new Cycle with the additional PP via `evolutions` relationship
-
-```
-Cycle₁ [PP1, PP2] ──evolutions──► Cycle₂ [PP1, PP2, PP3]
-```
+- Create a new Cycle within the same Nexus with additional Perspectives
 
 ### Where Branching Happens
 
@@ -226,24 +192,21 @@ To explore different dialectical paths, branch at the appropriate upstream level
 
 ```
 Different polar interpretations         → Create different Perspectives
-Different PP pools                      → Create different Cycles (via evolutions)
+Different PP pools                      → Create different Nexuses (or add to existing)
 Different PP orderings/causality types  → Create different Cycles
-Different layer subsets                 → Create different Wheels (via evolutions)
+Different TA arrangements               → Create different Wheels for same Cycle
 Different transformation interpretations → Create different Transformations on same edge
 ```
 
 **Example:** Exploring different transformation paths:
 
 ```
-Cycle [PP1, PP2, PP3]
+Nexus [PP1, PP2, PP3]
      │
-     ├── Wheel(PP1) ── Transformation A (fear-based)
-     │       │
-     │       └── Wheel(PP1,PP2) ── Transformation (refines A)
+     ├── Cycle(PP1,PP2) → Wheel → Transformation A (fear-based)
+     │                         └── Transformation B (growth-based)
      │
-     └── Wheel(PP1) ── Transformation B (growth-based)  [different Transformation on same edge]
-             │
-             └── Wheel(PP1,PP2) ── Transformation (refines B)
+     └── Cycle(PP1,PP2,PP3) → Wheel → Transformation (uses A/B as context)
 ```
 
 ### Multiple Synthesis Interpretations
@@ -266,11 +229,10 @@ The graph architecture separates into two distinct layers.
 
 ### Structural Layer: The Immutable Backbone
 
-Think of the structural layer as a **3D tree growing downward**:
+Think of the structural layer as a **tree growing downward**:
 
-- **Vertical dimension**: Containment hierarchy (Wheel → Cycle → PP → Statements)
-- **Horizontal dimension**: Sibling relationships (multiple PPs in a Cycle, multiple Wheels per Cycle)
-- **Depth dimension**: Branching via evolution (Cycle₁ → Cycle₂ with added PP)
+- **Vertical dimension**: Containment hierarchy (Nexus → Cycle → Wheel → Transition → Statement)
+- **Horizontal dimension**: Sibling relationships (multiple Perspectives in a Nexus, multiple Wheels per Cycle)
 
 **Properties:**
 - **Hash-linked**: Each node's hash includes its children's hashes (Merkle tree)
@@ -352,11 +314,12 @@ class AnalyticalStructure(Relationship):
 |--------------|-------|------------|
 | Polarity (T, A) and Aspects (T+, T-, A+, A-) | Structural | IdentityRelationship |
 | `IS_SOURCE_OF`, `IS_TARGET_OF` | Structural | IdentityRelationship |
-| `BELONGS_TO_CYCLE` | Structural | ContainerMembership |
-| `HAS_WHEEL`, `EVOLVED_TO` | Structural | IdentityRelationship |
+| `BELONGS_TO_CYCLE`, `BELONGS_TO_NEXUS` | Structural | ContainerMembership |
+| `HAS_WHEEL`, `HAS_POLARITY` | Structural | IdentityRelationship |
 | `EXPLAINS`, `CRITIQUES` | Analytical | AnalyticalStructure |
 | `SYNTHESIS_OF`, `ACTION_REFLECTION` | Analytical | AnalyticalStructure |
 | `ESTIMATES`, `PROVIDES` | Analytical | AnalyticalStructure |
+| `CHANGED_TO` | Analytical | AnalyticalStructure |
 
 ### Practical Effect
 
@@ -377,15 +340,14 @@ rationale.set_explanation_target(any_node)  # OK - pointing into structure
 
 **The simplified hierarchy:**
 ```
-Perspective → Cycle → Wheel → Transformation
-     ↓          ↓       ↓          ↓
-  (tetrad)  (T-cycle) (edges)  (per-edge)
+Nexus → Cycle → Wheel → Transformation
+  ↓        ↓       ↓          ↓
+(PPs)  (T-cycle) (edges)  (per-edge)
 ```
 
-**Evolution hierarchy:**
+**Perspective lineage:**
 ```
-Cycle ──evolutions──► Cycle' (PP added)
-Wheel ──evolutions──► Wheel' (layer added)
+Perspective ──CHANGED_TO──► Perspective' (edited version)
 ```
 
 **Complete scoring hierarchy (child → parent edges):**
@@ -457,7 +419,8 @@ Statements have semantic relationships that capture dialectical structure:
 | `POSITIVE_SIDE_OF` | T+ → T, A+ → A | Positive aspect of neutral |
 | `NEGATIVE_SIDE_OF` | T- → T, A- → A | Negative aspect of neutral |
 
-**Auto-creation:** When connecting statements to Perspective positions, semantic relationships are automatically created:
+**Auto-creation:** When connecting statements to positions, semantic relationships are automatically created.
+Note: T and A live on the Polarity node. `pp.t` and `pp.a` are convenience properties that delegate to `pp.polarity → Polarity.t / Polarity.a`.
 
 ```python
 pp = Perspective()
@@ -465,7 +428,7 @@ pp.save()
 
 t = Statement(text="Democracy")
 t.save()
-pp.t.connect(t)
+pp.t.connect(t)  # Actually connects to pp's Polarity
 
 a = Statement(text="Autocracy")
 a.save()
