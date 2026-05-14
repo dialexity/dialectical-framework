@@ -116,26 +116,36 @@ assert len(stmt.hash) == 64
 assert stmt._id is not None  # Already in database
 ```
 
-**Container nodes** (Nexus, Cycle, Wheel, Spiral - via IncrementalBuildMixin):
+**Container nodes** (Ideas, Cycle, Wheel, Transformation - via IncrementalBuildMixin):
 
 ```python
 # 1. Create container (draft state)
-nexus = Nexus(intent="Focus on productivity tensions")
+wheel = Wheel()
 
 # 2. Save as HEAD state (persisted but hash=None)
-nexus.save()
-assert nexus._id is not None  # In database
-assert nexus.hash is None     # Not committed yet
+wheel.save()
+assert wheel._id is not None  # In database
+assert wheel.hash is None     # Not committed yet
 
 # 3. Add children incrementally
-nexus.perspectives.connect(pp1)
-nexus.perspectives.connect(pp2)
+edge1.cycle.connect(wheel)
+edge2.cycle.connect(wheel)
 
 # 4. Commit (computes Merkle hash, makes immutable)
+wheel.commit()
+assert wheel.is_committed
+assert wheel.hash is not None
+# Cannot add more edges after commit
+```
+
+**Note:** Nexus commits in a single step (not IncrementalBuildMixin). Perspectives connect to a Nexus after it's committed:
+
+```python
+nexus = Nexus(intent="Focus on productivity tensions", preset="preset:auto")
 nexus.commit()
-assert nexus.is_committed
-assert nexus.hash is not None
-# Cannot add more perspectives after commit
+
+pp1.nexus.connect(nexus)
+pp2.nexus.connect(nexus)
 ```
 
 **Case** (scope root):
@@ -187,7 +197,7 @@ Computed outcomes where each instance is unique. No lineage tracking.
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
 | **Transition** | source.hash, target.hash, nonce, committed_at | Effect |
-| **Synthesis** | s+.hash, s-.hash, [intent], committed_at | Effect |
+| **Synthesis** | s+.hash, s-.hash, committed_at | Effect |
 
 ### Reasoning Foundations
 
@@ -205,11 +215,10 @@ Uses `IncrementalBuildMixin` for staged building (save → add children → comm
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
-| **Ideas** | input.hash, sorted(statement_hashes), [intent], committed_at | Extraction (from Input) |
-| **Cycle** | nexus.hash, sorted(transition_hashes), [intent], committed_at | Ordering (from Nexus) |
-| **Wheel** | cycle.hash, sorted(transition_hashes), [intent], committed_at | Detail (from Cycle) |
-| **Transformation** | pp.hash, ordered(transition_hashes), [intent], committed_at | Resolution (from PP) |
-| **Spiral** | wheel.hash, sorted(transition_hashes), [intent], committed_at | Navigation (from Wheel) |
+| **Ideas** | sorted(statement_hashes), [intent], committed_at | Extraction (from Inputs) |
+| **Cycle** | ordered(perspective_hashes), [intent], committed_at | Ordering (PP sequence matters) |
+| **Wheel** | cycle.hash, sorted(edge_hashes), [intent], committed_at | Arrangement (from Cycle) |
+| **Transformation** | nexus.hash, ac, re, ac+, ac-, re+, re- (fixed order), [intent], committed_at | Resolution (from Nexus) |
 
 [brackets] = optional, only included if non-None
 
@@ -302,7 +311,7 @@ The following indexes support efficient lookups:
 | Atoms (Content) | Statement, Input | Global facts |
 | Atoms (Effect) | Transition, Rationale, Estimation, Synthesis | Computed outcomes |
 | Reasoning Foundations | Perspective, Nexus | Tension framing & exploration |
-| Derived | Ideas, Cycle, Wheel, Transformation, Spiral | Computed from inputs/foundations |
+| Derived | Ideas, Cycle, Wheel, Transformation | Computed from inputs/foundations |
 
 ### Key Properties
 
