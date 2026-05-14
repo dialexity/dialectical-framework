@@ -11,6 +11,7 @@ from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
 from dialectical_framework.graph.composite_input_resolver import CompositeInputResolver
+from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.events.graph_event_bus import GraphEventBus
 from dialectical_framework.graph.scope_context import get_current_sid
 
@@ -31,6 +32,7 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         """Create a new container instance with user-specific settings."""
         container = cls()
         container.settings.override(settings)
+        ExecutionReport.set_event_bus(container.event_bus())
         return container
 
     # It will be the same settings for all services in the container
