@@ -53,6 +53,7 @@ dependency-injector = "^4.48.2"
 gqlalchemy = "^1.8.0"
 langfuse = "^4.5.1"
 boto3 = "^1.43.4"
+broadcaster = "^0.3.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"

@@ -14,3 +14,6 @@ class DI(str, Enum):
 
     # Scope ID (sid) - reads from contextvar, set by app layer
     sid = "sid"
+
+    # Event bus for graph mutation fan-out
+    event_bus = "event_bus"

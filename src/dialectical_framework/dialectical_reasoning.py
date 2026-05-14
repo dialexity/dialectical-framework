@@ -11,6 +11,7 @@ from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
 from dialectical_framework.graph.dialexity_input_resolver import DialexityInputResolver
 from dialectical_framework.graph.composite_input_resolver import CompositeInputResolver
+from dialectical_framework.events.graph_event_bus import GraphEventBus
 from dialectical_framework.graph.scope_context import get_current_sid
 
 
@@ -213,6 +214,13 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         CompositeInputResolver,
         verbatim_resolver=verbatim_resolver,
         dialexity_resolver=dialexity_resolver
+    )
+
+    # -- Event Bus --
+    # In-process async pub/sub for graph mutation fan-out.
+    # App layer calls `await bus.connect()` at startup, subscribes by sid.
+    event_bus: providers.Singleton[GraphEventBus] = providers.Singleton(
+        GraphEventBus
     )
 
     # -- Scope ID (sid) --
