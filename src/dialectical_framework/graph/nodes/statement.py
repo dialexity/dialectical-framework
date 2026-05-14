@@ -44,9 +44,6 @@ from dialectical_framework.graph.relationships.positive_side_of_relationship imp
 from dialectical_framework.graph.relationships.negative_side_of_relationship import (
     NegativeSideOfRelationship,
 )
-from dialectical_framework.graph.relationships.similar_to_relationship import (
-    SimilarToRelationship,
-)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
@@ -145,13 +142,6 @@ class Statement(AssessableEntity, label="Statement"):
     negative_sides: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
         "Statement",
         model=NegativeSideOfRelationship,
-        cardinality=(0, None)
-    )
-
-    # Semantic relationship: similarity between components
-    similar_to: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
-        "Statement",
-        model=SimilarToRelationship,
         cardinality=(0, None)
     )
 

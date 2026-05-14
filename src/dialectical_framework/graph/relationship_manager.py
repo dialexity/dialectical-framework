@@ -585,7 +585,7 @@ class BoundRelationshipManager(Generic[T]):
         - If T and A are in the same PP, they should be OPPOSITE_OF, not POSITIVE_SIDE_OF
 
         This is called automatically by connect() for semantic relationships
-        (OPPOSITE_OF, CONTRADICTION_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF, SIMILAR_TO).
+        (OPPOSITE_OF, CONTRADICTION_OF, POSITIVE_SIDE_OF, NEGATIVE_SIDE_OF).
 
         Raises:
             ValueError: If the relationship contradicts Perspective structure
@@ -593,7 +593,7 @@ class BoundRelationshipManager(Generic[T]):
         from dialectical_framework.graph.nodes.statement import Statement
 
         # Only validate Component-to-Component semantic relationships
-        semantic_types = {'OPPOSITE_OF', 'CONTRADICTION_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO'}
+        semantic_types = {'OPPOSITE_OF', 'CONTRADICTION_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF'}
 
         if not (isinstance(self.source_node, Statement) and
                 isinstance(target_node, Statement) and

@@ -27,7 +27,7 @@ Perspective → Cycle → Wheel (edges) → Transformation
 
 | Node | Purpose | Key Relationships |
 |------|---------|-------------------|
-| **Statement** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `similar_to`, `source_of`, `target_of` |
+| **Statement** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `source_of`, `target_of` |
 | **Perspective** | Thesis-antithesis tetrad | `t`, `a`, `t_plus`, `t_minus`, `a_plus`, `a_minus` |
 | **Cycle** | T-cycle (ordered PP pool) | `perspective_hashes`, `wheels`, `evolutions`, `evolved_from` |
 | **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `evolutions`, `evolved_from` |
@@ -456,7 +456,6 @@ Statements have semantic relationships that capture dialectical structure:
 | `CONTRADICTION_OF` | Symmetric | T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity) |
 | `POSITIVE_SIDE_OF` | T+ → T, A+ → A | Positive aspect of neutral |
 | `NEGATIVE_SIDE_OF` | T- → T, A- → A | Negative aspect of neutral |
-| `SIMILAR_TO` | Directed | Semantic similarity between statements |
 
 **Auto-creation:** When connecting statements to Perspective positions, semantic relationships are automatically created:
 

@@ -138,17 +138,19 @@ class StatementRepository:
         check_query = """
         MATCH (c:Statement)
         WHERE id(c) = $comp_id
-        OPTIONAL MATCH (c)-[:T|T_PLUS|T_MINUS|A|A_PLUS|A_MINUS]->(pp:Perspective)
+        OPTIONAL MATCH (c)-[:T|A]->(pol:Polarity)
+        OPTIONAL MATCH (c)-[:T_PLUS|T_MINUS|A_PLUS|A_MINUS]->(pp:Perspective)
         OPTIONAL MATCH (c)-[:S_PLUS|S_MINUS]->(synth:Synthesis)
         OPTIONAL MATCH (c)<-[:HAS_STATEMENT]-(container)
-        OPTIONAL MATCH (c)-[:SOURCE|TARGET]->(trans:Transition)
-        OPTIONAL MATCH (c)<-[:SOURCE|TARGET]-(trans2:Transition)
+        OPTIONAL MATCH (c)-[:IS_SOURCE_OF]->(trans:Transition)
+        OPTIONAL MATCH (c)<-[:IS_TARGET_OF]-(trans2:Transition)
         WITH c,
+             count(DISTINCT pol) AS pol_count,
              count(DISTINCT pp) AS pp_count,
              count(DISTINCT synth) AS synth_count,
              count(DISTINCT container) AS container_count,
              count(DISTINCT trans) + count(DISTINCT trans2) AS trans_count
-        RETURN pp_count + synth_count + container_count + trans_count AS connection_count
+        RETURN pol_count + pp_count + synth_count + container_count + trans_count AS connection_count
         """
         result = list(graph_db.execute_and_fetch(check_query, {"comp_id": component._id}))
 

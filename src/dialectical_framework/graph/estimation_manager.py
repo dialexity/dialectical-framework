@@ -97,11 +97,10 @@ def invalidate_node_and_parents(
     # - CONTRADICTION_OF: Component↔Component (semantic contradiction, not scoring)
     # - POSITIVE_SIDE_OF: Component→Component (semantic polarity, not scoring)
     # - NEGATIVE_SIDE_OF: Component→Component (semantic polarity, not scoring)
-    # - SIMILAR_TO: Component→Component (semantic similarity, not scoring)
     query = """
         MATCH (child)-[rel]->(parent:Assessable)
         WHERE id(child) = $child_id
-        AND NOT type(rel) IN ['HAS_STATEMENT', 'IS_SOURCE_OF', 'IS_TARGET_OF', 'ESTIMATES', 'PROVIDES', 'OPPOSITE_OF', 'CONTRADICTION_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF', 'SIMILAR_TO']
+        AND NOT type(rel) IN ['HAS_STATEMENT', 'IS_SOURCE_OF', 'IS_TARGET_OF', 'ESTIMATES', 'PROVIDES', 'OPPOSITE_OF', 'CONTRADICTION_OF', 'POSITIVE_SIDE_OF', 'NEGATIVE_SIDE_OF']
         RETURN DISTINCT id(parent) as parent_id
     """
 

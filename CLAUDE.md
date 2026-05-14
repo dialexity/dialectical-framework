@@ -212,7 +212,6 @@ When connecting statements to Perspective positions, semantic relationships are 
 | `CONTRADICTION_OF` | Symmetric | T+ ↔ A-, A+ ↔ T- (mutually exclusive cross-polarity) |
 | `POSITIVE_SIDE_OF` | Directed | T+ → T, A+ → A |
 | `NEGATIVE_SIDE_OF` | Directed | T- → T, A- → A |
-| `SIMILAR_TO` | Directed | Manual creation only |
 
 ---
 

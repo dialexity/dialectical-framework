@@ -67,7 +67,6 @@ GRAPH_SCHEMA = """
 - **CONTRADICTION_OF**: Cross-polarity contradiction (T+ ↔ A-, A+ ↔ T-)
 - **POSITIVE_SIDE_OF**: Aspect → neutral (T+ → T)
 - **NEGATIVE_SIDE_OF**: Aspect → neutral (T- → T)
-- **SIMILAR_TO**: Semantic similarity
 
 ### Structural Relations
 - **HAS_INPUT**: Case → Input
