@@ -165,6 +165,48 @@ class StatementRepository:
         graph_db.execute(delete_query, {"comp_id": component._id})
         return True
 
+    @inject
+    def find_unconnected(
+        self,
+        limit: int = 50,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> list[Statement]:
+        """
+        Find Statements not connected to any Polarity or Perspective position.
+
+        These are "orphan" statements that haven't been placed into the
+        dialectical structure yet.
+
+        Args:
+            limit: Maximum number of results
+            sid: Case ID (injected from DI context)
+
+        Returns:
+            List of unconnected, non-rejected Statements
+        """
+        if not sid:
+            return []
+
+        query = """
+        MATCH (s:Statement {sid: $sid})
+        WHERE s.rejected IS NULL
+        AND NOT (s)-[:T]->(:Polarity)
+        AND NOT (s)-[:A]->(:Polarity)
+        AND NOT (s)-[:T_PLUS]->(:Perspective)
+        AND NOT (s)-[:T_MINUS]->(:Perspective)
+        AND NOT (s)-[:A_PLUS]->(:Perspective)
+        AND NOT (s)-[:A_MINUS]->(:Perspective)
+        RETURN s
+        ORDER BY s.committed_at
+        LIMIT $limit
+        """
+        try:
+            results = list(graph_db.execute_and_fetch(query, {"sid": sid, "limit": limit}))
+            return [r["s"] for r in results]
+        except Exception:
+            return []
+
     def get_vocabulary_with_rationales(self) -> list[dict]:
         """
         Get committed vocabulary components with their rationales.

@@ -112,7 +112,6 @@ rather than starting over.
 - **explore_transformations** — Generate action-reflection transformations for a Wheel's edges.
 
 ### Querying
-- **get_scope_status** — Quick overview: counts of all node types in scope.
 - **present_analysis** — Readable summary: Perspectives (with T/A/aspects), unconnected Statements/Polarities not yet in use, and Nexus groups. Use to orient yourself.
 - **inspect_node** — Deep-dive into any node by hash. Shows full details based on type: positions with explanations and scores for Perspectives, usage context for Statements, referencing Perspectives for Polarities.
 - **query_graph** — Raw Cypher for advanced queries. Sid scoping is automatic.

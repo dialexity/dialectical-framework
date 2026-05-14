@@ -38,18 +38,17 @@ nodes get a [DRAFT] tag. Rejected items have their own dedicated tool.
 
 from __future__ import annotations
 
-from typing import Optional, Union
-
-from dependency_injector.wiring import Provide, inject
-from gqlalchemy import Memgraph, Neo4j
 from mirascope import llm
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.statement import Statement
+from dialectical_framework.graph.repositories.nexus_repository import NexusRepository
+from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
+from dialectical_framework.graph.repositories.polarity_repository import PolarityRepository
+from dialectical_framework.graph.repositories.statement_repository import StatementRepository
 
 
 class PresentAnalysis(ReasonableConcern[str]):
@@ -62,18 +61,18 @@ class PresentAnalysis(ReasonableConcern[str]):
         print(summary)
     """
 
-    @inject
-    async def resolve(
-        self,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        sid: Optional[str] = Provide[DI.sid],
-    ) -> str:
+    async def resolve(self) -> str:
         sections: list[str] = []
 
-        perspectives = self._get_perspectives(graph_db, sid)
-        unconnected_statements = self._get_unconnected_statements(graph_db, sid)
-        unconnected_polarities = self._get_unconnected_polarities(graph_db, sid)
-        nexuses = self._get_nexuses(graph_db, sid)
+        pp_repo = PerspectiveRepository()
+        stmt_repo = StatementRepository()
+        pol_repo = PolarityRepository()
+        nexus_repo = NexusRepository()
+
+        perspectives = pp_repo.find_all_active()
+        unconnected_statements = stmt_repo.find_unconnected()
+        unconnected_polarities = pol_repo.find_unconnected()
+        nexuses = nexus_repo.find_all()
 
         if not perspectives and not unconnected_statements and not unconnected_polarities:
             self._report.ok = True
@@ -99,70 +98,6 @@ class PresentAnalysis(ReasonableConcern[str]):
             f"{len(nexuses)} nexuses"
         )
         return "\n\n".join(sections)
-
-    @staticmethod
-    def _get_perspectives(graph_db: Union[Memgraph, Neo4j], sid: Optional[str]) -> list[Perspective]:
-        query = """
-        MATCH (pp:Perspective {sid: $sid})
-        WHERE pp.rejected IS NULL
-        RETURN pp
-        ORDER BY pp.committed_at
-        """
-        try:
-            results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
-            return [r["pp"] for r in results]
-        except Exception:
-            return []
-
-    @staticmethod
-    def _get_unconnected_statements(graph_db: Union[Memgraph, Neo4j], sid: Optional[str]) -> list[Statement]:
-        query = """
-        MATCH (s:Statement {sid: $sid})
-        WHERE s.rejected IS NULL
-        AND NOT (s)-[:T]->(:Polarity)
-        AND NOT (s)-[:A]->(:Polarity)
-        AND NOT (s)-[:T_PLUS]->(:Perspective)
-        AND NOT (s)-[:T_MINUS]->(:Perspective)
-        AND NOT (s)-[:A_PLUS]->(:Perspective)
-        AND NOT (s)-[:A_MINUS]->(:Perspective)
-        RETURN s
-        ORDER BY s.committed_at
-        LIMIT 50
-        """
-        try:
-            results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
-            return [r["s"] for r in results]
-        except Exception:
-            return []
-
-    @staticmethod
-    def _get_unconnected_polarities(graph_db: Union[Memgraph, Neo4j], sid: Optional[str]) -> list[Polarity]:
-        query = """
-        MATCH (pol:Polarity {sid: $sid})
-        WHERE pol.rejected IS NULL
-        AND NOT EXISTS {
-            MATCH (pp:Perspective {sid: $sid})-[:HAS_POLARITY]->(pol)
-            WHERE pp.rejected IS NULL
-        }
-        RETURN pol
-        """
-        try:
-            results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
-            return [r["pol"] for r in results]
-        except Exception:
-            return []
-
-    @staticmethod
-    def _get_nexuses(graph_db: Union[Memgraph, Neo4j], sid: Optional[str]) -> list[Nexus]:
-        query = """
-        MATCH (n:Nexus {sid: $sid})
-        RETURN n
-        """
-        try:
-            results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
-            return [r["n"] for r in results]
-        except Exception:
-            return []
 
     @staticmethod
     def _node_tag(node) -> str:

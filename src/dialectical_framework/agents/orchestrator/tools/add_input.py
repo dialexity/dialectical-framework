@@ -4,16 +4,12 @@ AddInput: Concern + tool for capturing source material into the case.
 
 from __future__ import annotations
 
-from typing import Optional, Union
-
-from dependency_injector.wiring import Provide, inject
-from gqlalchemy import Memgraph, Neo4j
 from mirascope import llm
 from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.input import Input
+from dialectical_framework.graph.repositories.case_repository import CaseRepository
 
 
 class AddInput(ReasonableConcern[Input]):
@@ -26,23 +22,12 @@ class AddInput(ReasonableConcern[Input]):
         print(input_node.short_hash)
     """
 
-    @inject
-    async def resolve(
-        self,
-        content: str,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-        sid: Optional[str] = Provide[DI.sid],
-    ) -> Input:
-        query = """
-        MATCH (c:Case {sid: $sid})
-        RETURN c
-        """
-        results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
+    async def resolve(self, content: str) -> Input:
+        repo = CaseRepository()
+        case = repo.find_by_sid()
 
-        if not results:
-            raise ValueError(f"Case not found for sid: {sid}")
-
-        case = results[0]["c"]
+        if not case:
+            raise ValueError("Case not found for current scope")
 
         input_node = Input(content=content)
         input_node.commit()

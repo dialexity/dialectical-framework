@@ -39,7 +39,7 @@ class ToolResult:
     """Tool execution completed.
 
     report is None for non-graph tools that return plain text
-    (e.g., query_graph, get_scope_status).
+    (e.g., query_graph).
     """
 
     tool_name: str

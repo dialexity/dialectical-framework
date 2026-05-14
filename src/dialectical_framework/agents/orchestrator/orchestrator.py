@@ -16,10 +16,8 @@ Run directly:
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, AsyncGenerator, Optional, Union
+from typing import TYPE_CHECKING, AsyncGenerator, Optional
 
-from dependency_injector.wiring import Provide, inject
-from gqlalchemy import Memgraph, Neo4j
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
@@ -27,6 +25,8 @@ from dialectical_framework.agents.conversation_facilitator import \
 from dialectical_framework.agents.orchestrator.system_prompts import \
     BASE_SYSTEM_PROMPT
 from dialectical_framework.agents.stream_events import StreamEvent
+from dialectical_framework.graph.repositories.schema_repository import \
+    SchemaRepository
 
 # Curated schema description derived from GQLAlchemy node/relationship definitions
 GRAPH_SCHEMA = """
@@ -115,8 +115,6 @@ from dialectical_framework.agents.explorer.skills.explore_transformations import
 from dialectical_framework.agents.orchestrator.tools.add_input import add_input
 from dialectical_framework.agents.explorer.tools.create_nexus import \
     create_nexus
-from dialectical_framework.agents.orchestrator.tools.get_scope_status import \
-    get_scope_status
 from dialectical_framework.agents.orchestrator.tools.inspect_node import \
     inspect_node
 from dialectical_framework.agents.analyst.tools.place_statement import \
@@ -202,49 +200,25 @@ class Orchestrator:
         parts.append(self._query_live_schema())
         return "\n\n".join(parts)
 
-    @inject
-    def _query_live_schema(
-        self,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-    ) -> str:
+    def _query_live_schema(self) -> str:
         """Query live schema from the database."""
+        repo = SchemaRepository()
         lines = ["## Live Database Schema"]
 
-        # Get node labels (works in both Memgraph and Neo4j)
-        try:
-            results = list(
-                graph_db.execute_and_fetch(
-                    "MATCH (n) RETURN DISTINCT labels(n) AS labels"
-                )
-            )
-            if results:
-                # Flatten and dedupe labels
-                all_labels = set()
-                for row in results:
-                    all_labels.update(row["labels"])
-                # Filter out base labels
-                all_labels.discard("Node")
-                all_labels.discard("Assessable")
-                if all_labels:
-                    lines.append("\nNode labels in DB:")
-                    for label in sorted(all_labels):
-                        lines.append(f"  - {label}")
-        except Exception:
+        all_labels = repo.get_node_labels()
+        if all_labels:
+            lines.append("\nNode labels in DB:")
+            for label in sorted(all_labels):
+                lines.append(f"  - {label}")
+        else:
             lines.append("\nCould not query node labels.")
 
-        # Get relationship types (works in both Memgraph and Neo4j)
-        try:
-            results = list(
-                graph_db.execute_and_fetch(
-                    "MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel_type"
-                )
-            )
-            if results:
-                rel_types = sorted(row["rel_type"] for row in results)
-                lines.append("\nRelationship types in DB:")
-                for rel_type in rel_types:
-                    lines.append(f"  - {rel_type}")
-        except Exception:
+        rel_types = repo.get_relationship_types()
+        if rel_types:
+            lines.append("\nRelationship types in DB:")
+            for rel_type in rel_types:
+                lines.append(f"  - {rel_type}")
+        else:
             lines.append("\nCould not query relationship types.")
 
         return "\n".join(lines)
@@ -273,7 +247,6 @@ class Orchestrator:
         ]
 
         query_tools = [
-            get_scope_status,
             present_analysis,
             inspect_node,
             query_graph,

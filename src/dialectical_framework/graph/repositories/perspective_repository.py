@@ -27,6 +27,33 @@ class PerspectiveRepository:
     """
 
     @inject
+    def find_all_active(
+        self,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> list[Perspective]:
+        """
+        Find all non-rejected Perspectives in the current scope, ordered by commit time.
+
+        Returns:
+            List of active (non-rejected) Perspectives
+        """
+        if not sid:
+            return []
+
+        query = """
+        MATCH (pp:Perspective {sid: $sid})
+        WHERE pp.rejected IS NULL
+        RETURN pp
+        ORDER BY pp.committed_at
+        """
+        try:
+            results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
+            return [r["pp"] for r in results]
+        except Exception:
+            return []
+
+    @inject
     def is_in_use_by_cycle(
         self,
         perspective: Perspective,

@@ -28,19 +28,17 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
-from dependency_injector.wiring import Provide, inject
-from gqlalchemy import Memgraph, Neo4j
 from mirascope import llm
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.causality_preset import CausalityPreset
-from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.wheel import Wheel
+from dialectical_framework.graph.repositories.nexus_repository import NexusRepository
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.utils.use_brain import use_brain
 
@@ -255,31 +253,10 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
             await estimation.resolve(wheels)
             self._report = self._report.merge(estimation.report)
 
-    @inject
-    def _resolve_nexus(
-        self,
-        sid: Optional[str] = Provide[DI.sid],
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
-    ) -> Optional[Nexus]:
+    def _resolve_nexus(self) -> Optional[Nexus]:
         """Resolve Nexus by hash prefix, scoped by sid."""
-        query = """
-            MATCH (n:Nexus)
-            WHERE n.hash STARTS WITH $nexus_hash AND n.sid = $sid
-            RETURN n
-        """
-        results = list(
-            graph_db.execute_and_fetch(
-                query, {"nexus_hash": self.nexus_hash, "sid": sid}
-            )
-        )
-        if not results:
-            return None
-        if len(results) > 1:
-            raise ValueError(
-                f"Ambiguous nexus hash '{self.nexus_hash}': "
-                f"matches {len(results)} nexuses"
-            )
-        return results[0]["n"]
+        repo = NexusRepository()
+        return repo.find_by_hash_prefix(self.nexus_hash)
 
     @staticmethod
     def _find_existing_cycle_intent(nexus: Nexus) -> Optional[str]:

@@ -718,7 +718,7 @@ with scope(case.sid):
 
 **CRITICAL: All database queries must go through repository classes and be scoped by `sid` to prevent cross-user data leaks.**
 
-Never write raw `graph_db.execute_and_fetch()` calls outside of a repository. If you need a new query, add a method to the appropriate repository (or create a new one). This ensures all queries are sid-scoped and centralized.
+Never write raw `graph_db.execute_and_fetch()` calls in tools, skills, concerns, or node classes. If you need a new query, add a method to the appropriate repository (or create a new one). This ensures all queries are sid-scoped and centralized.
 
 Since different users/sessions have different `sid` values, unscoped queries could return data belonging to other users. Always use repository helper methods which automatically inject `sid` from DI:
 
@@ -747,9 +747,26 @@ graph_db.execute_and_fetch("MATCH (n:Node {hash: $hash}) RETURN n", {"hash": has
 **Repository method pattern:** All repository methods use `@inject` with `sid: Optional[str] = Provide[DI.sid]` to automatically scope queries. The `sid` is read from the DI context set by `with scope(case.sid):`.
 
 **Key repositories:**
-- `NodeRepository` - Hash lookups
+- `NodeRepository` - Hash lookups, generic node retrieval
 - `StatementRepository` - Vocabulary queries
 - `PerspectiveRepository` - PP lifecycle and usage queries
+- `CaseRepository` - Case lookups
+- `NexusRepository` - Nexus lookups, scope status aggregation
+- `SchemaRepository` - Live DB schema discovery (labels, relationship types)
+
+**Allowed exceptions** (infrastructure code that operates below the repository layer):
+- `dialectical_reasoning.py` — schema initialization (indexes, constraints) at DI setup time
+- `relationship_manager.py` — generic relationship CRUD (framework plumbing)
+- `estimation_manager.py` — estimation node CRUD (framework plumbing)
+- `query_graph.py` — LLM-driven arbitrary read-only Cypher (sid auto-injected, write-blocked)
+
+**Everything else MUST use a repository.** When adding a new query:
+1. Identify which repository it belongs to (by entity type)
+2. If no suitable repository exists, create one in `graph/repositories/`
+3. Add the method with `@inject` and `sid: Optional[str] = Provide[DI.sid]`
+4. Call the repository method from your tool/skill/concern
+
+**If you find a raw query outside the allowed exceptions, move it to a repository before proceeding with other work.**
 
 ---
 

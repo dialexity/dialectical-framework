@@ -152,6 +152,39 @@ class PolarityRepository:
         return [p for p, _ in results]
 
     @inject
+    def find_unconnected(
+        self,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> list[Polarity]:
+        """
+        Find Polarities not referenced by any active (non-rejected) Perspective.
+
+        These are "orphan" polarities that exist but aren't used in any
+        Perspective structure.
+
+        Returns:
+            List of unconnected, non-rejected Polarities
+        """
+        if not sid:
+            return []
+
+        query = """
+        MATCH (pol:Polarity {sid: $sid})
+        WHERE pol.rejected IS NULL
+        AND NOT EXISTS {
+            MATCH (pp:Perspective {sid: $sid})-[:HAS_POLARITY]->(pol)
+            WHERE pp.rejected IS NULL
+        }
+        RETURN pol
+        """
+        try:
+            results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
+            return [r["pol"] for r in results]
+        except Exception:
+            return []
+
+    @inject
     def find_all(
         self,
         committed_only: bool = True,
