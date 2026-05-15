@@ -53,6 +53,25 @@ GRAPH_SCHEMA = """
 
 All nodes share: `hash` (content-addressable ID), `sid` (session scope), `committed_at`.
 
+**Scoring properties** (on assessable nodes: Statement, Polarity, Perspective, Ideas, Cycle, Wheel, Transformation, Transition, Synthesis):
+- `probability` (float, 0.0-1.0) — P dimension, aggregated from estimations
+- `relevance` (float, 0.0-1.0) — R dimension, aggregated from estimations
+- `score` (float, 0.0-1.0) — TaroRank composite: P × R^α
+
+### Relationship Edge Properties
+
+**Polarity positions** (T, A, T_PLUS, T_MINUS, A_PLUS, A_MINUS relationships) carry:
+- `heuristic_similarity` (float, 0.0-1.0) — HS: similarity to taxonomy apex
+
+**Aspect positions** (T_PLUS, T_MINUS, A_PLUS, A_MINUS) additionally carry:
+- `complementarity_t` (float, 0.0-1.0) — K_T: how well this aspect complements the thesis
+- `complementarity_a` (float, 0.0-1.0) — K_A: how well this aspect complements the antithesis
+
+**Transformation aspect positions** (AC_PLUS, AC_MINUS, RE_PLUS, RE_MINUS) carry:
+- `heuristic_similarity` (same as above)
+- `insight` (float, 0.0-1.0) — how much understanding the transition provides
+- `proactiveness` (float, 0.0-1.0) — how actionable the transition is
+
 ### Relationship Types and Directions
 
 **Polarity positions** (Statement → Polarity):
@@ -146,6 +165,22 @@ RETURN tr.hash, ac_t.statement AS action, re_t.statement AS reflection
 
 -- Vocabulary (all non-rejected Statements)
 MATCH (s:Statement) WHERE s.rejected IS NULL RETURN s.text, s.hash
+
+-- Top-scored Perspectives
+MATCH (pp:Perspective) WHERE pp.score IS NOT NULL
+RETURN pp.hash, pp.score, pp.probability, pp.relevance
+ORDER BY pp.score DESC LIMIT 10
+
+-- Aspect relationships with complementarity scores
+MATCH (s:Statement)-[r:T_PLUS]->(pp:Perspective)
+WHERE r.complementarity_t IS NOT NULL
+RETURN s.text, r.heuristic_similarity, r.complementarity_t, r.complementarity_a
+
+-- Transformation positions with insight/proactiveness
+MATCH (tr:Transformation)-[:ACTION_REFLECTION]->(edge:Transition)
+MATCH (t:Transition)-[r:AC_PLUS]->(tr)
+WHERE r.insight IS NOT NULL
+RETURN t.statement, r.insight, r.proactiveness
 ```
 """
 from dialectical_framework.agents.analyst.skills.edit_perspective import \
