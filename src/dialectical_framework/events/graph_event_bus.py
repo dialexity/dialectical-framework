@@ -34,14 +34,19 @@ class GraphEventBus:
 
     def __init__(self) -> None:
         self._broadcast = Broadcast(url="memory://")
+        self._connected = False
 
     async def connect(self) -> None:
         await self._broadcast.connect()
+        self._connected = True
 
     async def disconnect(self) -> None:
         await self._broadcast.disconnect()
+        self._connected = False
 
     async def publish(self, sid: str, effect: Effect) -> None:
+        if not self._connected:
+            return
         event = GraphEvent(sid=sid, effect=effect, timestamp=time.time())
         await self._broadcast.publish(channel=sid, message=event)
 

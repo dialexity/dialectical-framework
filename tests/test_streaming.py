@@ -186,7 +186,9 @@ class TestSubmitStream:
         stream_resp = MockStreamResponse(texts=["I'll just ", "respond directly."], tool_calls=[])
         mock_call = MockAsyncCall(stream_resp)
 
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call):
+        mock_response_model = MockResponseModel(message="I'll just respond directly.")
+        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
+             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
             events = []
             async for event in facilitator.submit_stream(MockResponseModel, "Hi"):
                 events.append(event)
@@ -214,7 +216,9 @@ class TestSubmitStream:
         )
         mock_call = MockAsyncCall(stream_resp)
 
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call):
+        mock_response_model = MockResponseModel(message="Analysis complete.")
+        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
+             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
             events = []
             async for event in facilitator.submit_stream(MockResponseModel, "Analyze trust"):
                 events.append(event)
@@ -250,7 +254,9 @@ class TestSubmitStream:
         )
         mock_call = MockAsyncCall(stream_resp)
 
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call):
+        mock_response_model = MockResponseModel(message="Query results shown.")
+        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
+             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
             events = []
             async for event in facilitator.submit_stream(MockResponseModel, "Query"):
                 events.append(event)
