@@ -181,10 +181,14 @@ class ActionExtraction(
         source_segment = edge.get_source_wheel_segment()
         target_segment = edge.get_target_wheel_segment()
         if not source_segment or not target_segment:
-            raise ValueError(f"Cannot resolve segments for edge {edge.short_hash}")
+            self._report.ok = False
+            self._report.summary = f"Cannot resolve segments for edge {edge.short_hash}"
+            return []
 
         if not source_segment.is_complete() or not target_segment.is_complete():
-            raise ValueError("Both segments must be complete to extract actions")
+            self._report.ok = False
+            self._report.summary = "Both segments must be complete to extract actions"
+            return []
 
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 

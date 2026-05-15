@@ -665,10 +665,21 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
             pp.get_component('T1')  # Finds component with alias='T1'
             pp.get_component('Democracy')  # Finds component with alias='Democracy'
         """
-        # Search all 6 core positions
-        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+        # Search all 6 core positions (t/a go through Polarity, may not be available)
+        managers = []
+        try:
+            managers.append(self.t)
+        except ValueError:
+            pass
+        managers.extend([self.t_plus, self.t_minus])
+        try:
+            managers.append(self.a)
+        except ValueError:
+            pass
+        managers.extend([self.a_plus, self.a_minus])
+
+        for manager in managers:
             for component, rel in manager.all():
-                # Use isinstance for type-safe property access
                 if isinstance(rel, PolarityRelationship) and rel.alias == alias:
                     return component
         return None
@@ -689,7 +700,19 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
             return False
 
         target_hash = component.hash
-        for manager in [self.t, self.t_plus, self.t_minus, self.a, self.a_plus, self.a_minus]:
+        managers = []
+        try:
+            managers.append(self.t)
+        except ValueError:
+            pass
+        managers.extend([self.t_plus, self.t_minus])
+        try:
+            managers.append(self.a)
+        except ValueError:
+            pass
+        managers.extend([self.a_plus, self.a_minus])
+
+        for manager in managers:
             for comp, _ in manager.all():
                 if comp.hash == target_hash:
                     return True

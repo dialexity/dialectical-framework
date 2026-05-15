@@ -272,9 +272,14 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         )
 
         for wheel in wheels:
-            concern = ExploreTransformations(wheel_hash=wheel.hash)
-            await concern.resolve()
-            self._report = self._report.merge(concern.report)
+            try:
+                concern = ExploreTransformations(wheel_hash=wheel.hash)
+                await concern.resolve()
+                self._report = self._report.merge(concern.report)
+            except (ValueError, Exception) as e:
+                self._report.artifacts.setdefault("transformation_errors", []).append(
+                    f"Wheel {wheel.short_hash}: {e}"
+                )
 
     def _resolve_nexus(self) -> Optional[Nexus]:
         """Resolve Nexus by hash prefix, scoped by sid."""
