@@ -206,13 +206,19 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         # 5. Estimate causality ordering (layer 2+ only — 1-PP has nothing to order)
         #    Estimation determines which PP causes which — requires 2+ PPs.
         causal_cycles = [c for c in new_cycles if c.perspective_count >= 2]
-        causal_wheels = [w for w in new_wheels if w.polarity_count >= 2]
+        causal_wheels = [
+            w for w in new_wheels
+            if self._safe_polarity_count(w) >= 2
+        ]
         if causal_cycles or causal_wheels:
             await self._run_estimation(causal_cycles, causal_wheels)
 
         # 6. Generate Transformations for 1-PP wheels (circular causality base case)
         #    These are foundational — higher-layer transformations use them as context.
-        layer1_wheels = [w for w in new_wheels if w.polarity_count == 1]
+        layer1_wheels = [
+            w for w in new_wheels
+            if self._safe_polarity_count(w) == 1
+        ]
         if layer1_wheels:
             await self._run_layer1_transformations(layer1_wheels)
 
@@ -280,6 +286,13 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
                 self._report.artifacts.setdefault("transformation_errors", []).append(
                     f"Wheel {wheel.short_hash}: {e}"
                 )
+
+    @staticmethod
+    def _safe_polarity_count(wheel: Wheel) -> int:
+        try:
+            return wheel.polarity_count
+        except ValueError:
+            return 0
 
     def _resolve_nexus(self) -> Optional[Nexus]:
         """Resolve Nexus by hash prefix, scoped by sid."""

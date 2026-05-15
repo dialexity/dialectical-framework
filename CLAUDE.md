@@ -899,9 +899,18 @@ The `mock_llm` autouse fixture in `conftest.py` installs it for **all** tests un
 
 | Scenario | Marker | Why |
 |----------|--------|-----|
-| Graph operations, validation | *(none)* | No LLM paths touched |
+| Graph operations, validation, pure logic | *(none)* | No LLM paths touched |
 | Test calls concerns/skills using `use_brain` or `ConversationFacilitator` | `@pytest.mark.llm` | Mock brain fakes responses; `--real-llm` verifies with real provider |
 | End-to-end integration that MUST hit real provider (streaming, connectivity) | `@pytest.mark.real_llm` | Only meaningful with real inference |
+
+**Default to `@pytest.mark.llm`** for any test that exercises LLM code paths. Use `real_llm` when:
+- The test asserts on downstream effects that require semantically meaningful LLM output (e.g., "vocabulary has statements" after extraction)
+- The test exercises streaming, tool argument parsing, or provider-specific behavior
+- Mock brain's auto-constructed empty/default responses would always fail the assertions
+
+**How `--real-llm` affects test selection:**
+- Without flag: all tests run, `llm`-marked use mock brain, `real_llm`-marked are skipped
+- With flag: only `llm` + `real_llm` marked tests run (pure logic tests are deselected), all hit real provider
 
 Apply markers at module level (`pytestmark = pytest.mark.llm`) or per class/function.
 

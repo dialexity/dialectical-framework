@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-pytestmark = pytest.mark.real_llm
+pytestmark = pytest.mark.llm
 from langfuse import observe
 
 from dialectical_framework.concerns.statement_placement import StatementPlacement

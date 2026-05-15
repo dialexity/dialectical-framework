@@ -255,6 +255,9 @@ class CausalityEstimatorBalanced(CausalityEstimator):
 
                 sequence_aliases.append(technical_alias)
 
+            if not sequence_aliases:
+                continue
+
             # Build cycle string: "C1_1 → C1_2 → C1_3 → C1_1..."
             cycle_str = " → ".join(sequence_aliases + [sequence_aliases[0]]) + "..."
 
