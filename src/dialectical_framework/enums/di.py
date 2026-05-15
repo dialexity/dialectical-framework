@@ -7,8 +7,6 @@ class DI(str, Enum):
     settings = "settings"
     graph_db = "graph_db"
 
-    tarorank = "tarorank"
-
     # Content resolution (app provides implementation)
     input_resolver = "input_resolver"
 

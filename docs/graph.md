@@ -352,7 +352,7 @@ Nexus → Cycle → Wheel → Transformation
 Perspective ──CHANGED_TO──► Perspective' (edited version)
 ```
 
-**Complete scoring hierarchy (child → parent edges):**
+**Structural containment hierarchy:**
 ```
 Statement ──► Perspective
                               │
@@ -457,33 +457,20 @@ for pos, _ in stmt.positive_sides.all():
     print(f"Has positive side: {pos.text}")
 ```
 
-## Scoring (TaroRank)
+## Quality Signals
 
-**Formula:** `Score = P × R^α`
+Quality is measured by structural edge properties, not a separate scoring system:
 
-- **P (Probability):** Structural feasibility (0.0-1.0)
-- **R (Relevance):** Dialectical quality (0.0-1.0)
-- **α (Alpha):** Relevance exponent (default 1.0)
-
-| Method | Use Case |
-|--------|----------|
-| **GM** | Independent evidence (statement + rationales) |
-| **PM (p=4)** | Symmetric pairs (T↔A) |
-| **Product** | Sequential probability (cycle transitions) |
-
-**Score flow:** Statement → PP → Cycle → Wheel (child to parent)
-
-**Wheel aggregation:** Wheel scores derive from edges and their Transformations.
-
-**Hard veto:** Element's own P=0 or R=0 → returns 0
-**Soft exclusion:** Rationale P=0 or R=0 → filtered out
+- **heuristic_similarity** (0.0-1.0) on T/A/aspect edges — similarity to taxonomy apex
+- **complementarity_t**, **complementarity_a** (0.0-1.0) on aspect edges — how well aspect complements T/A
+- **insight**, **proactiveness** (0.0-1.0) on transformation aspect edges
+- **Perspective computed properties:** `diff_t`, `diff_a`, `area_normalized`, `rectangularity`
 
 ## Key Conventions
 
 - **Cardinality (1,1):** Exactly one statement per polarity position
 - **TYPE_CHECKING:** Always use `from __future__ import annotations` + TYPE_CHECKING guard
 - **ClassVar:** Required for RelationshipManager descriptors on GQLAlchemy nodes
-- **Manual vs Calculated:** Separate estimation types prevent circular dependencies
 
 ## Node Lifecycle Patterns
 
@@ -531,7 +518,6 @@ from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.relationships.polarity_relationship import TRelationship
-from dialectical_framework.graph.scoring.tarorank import TaroRank
 
 # Create Perspectives with statements
 pp1 = Perspective()
@@ -579,11 +565,6 @@ for pp in wheel._perspectives:
 # Access Transformations
 for tr in wheel.transformations:
     print(f"Transformation: {tr.short_hash}")
-
-# Score the hierarchy
-scorer = TaroRank(alpha=1.0)
-scorer.calculate_score(wheel)
-print(f"Wheel score: {wheel.score}")
 ```
 
 ## Estimation Architecture
@@ -604,25 +585,16 @@ Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
 
 | Type | Purpose |
 |------|---------|
-| `ProbabilityEstimation` | Manual P value (user/agent input) |
-| `RelevanceEstimation` | Manual R value (user/agent input) |
-| `FeasibilityEstimation` | Fallback R value (user/agent input) |
-| `CalculatedProbabilityEstimation` | TaroRank-computed P (algorithm output) |
-| `CalculatedRelevanceEstimation` | TaroRank-computed R (algorithm output) |
-| `CalculatedScoreEstimation` | TaroRank-computed Score = P × R^α |
+| `CausalityProbabilityEstimation` | Causality ordering likelihood (raw on Cycles/Wheels, normalized on Transitions) |
+| `FeasibilityEstimation` | Practical achievability |
+| `ModeEstimation` | T-A opposition characterization |
+| `ArousalEstimation` | T-A opposition intensity |
+| `ConceptualCoherenceEstimation` | Tetrad validation (control statements) |
+| `DiagonalContradictionEstimation` | Tetrad validation (diagonal pairs) |
 
 **Content-addressed identity:** Estimations are identified by `(type, value, target)`. Same tuple = same hash = reused node.
 
-**Access via properties:**
-```python
-node.probability  # Returns calculated or manual P
-node.relevance    # Returns calculated or manual R or feasibility
-node.score        # Returns calculated score (via CalculatedScoreEstimation)
-node.is_score_valid()  # True if score hasn't been invalidated
-```
-
 ## Further Reading
 
-- **Scoring specification:** `docs/scoring.md`
 - **Portability & identifiers:** `docs/graph-portability.md` (uid, sid, nid, scopes, cloning, realms)
 - **Project conventions:** `CLAUDE.md`

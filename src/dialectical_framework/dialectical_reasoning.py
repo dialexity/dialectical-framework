@@ -5,7 +5,6 @@ from typing import Optional, Union
 from dependency_injector import containers, providers
 from gqlalchemy import Memgraph, Neo4j
 
-from dialectical_framework.graph.scoring.tarorank import TaroRank
 from dialectical_framework.settings import Settings
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputResolver
@@ -171,19 +170,6 @@ class DialecticalReasoning(containers.DeclarativeContainer):
     graph_db: providers.Singleton[Union[Memgraph, Neo4j]] = providers.Singleton(
         _create_graph_db,
         settings=settings
-    )
-
-    @staticmethod
-    def _create_tarorank(settings: Settings) -> TaroRank:
-        """Factory method to create TaroRank scorer with settings-based configuration."""
-        return TaroRank(
-            alpha=settings.tarorank_alpha,
-            default_transition_probability=settings.tarorank_default_transition_probability
-        )
-
-    tarorank: providers.Factory[TaroRank] = providers.Factory(
-        _create_tarorank,
-        settings=settings,
     )
 
     # -- Content Resolution --

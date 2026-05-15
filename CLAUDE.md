@@ -225,7 +225,7 @@ When connecting statements to Perspective positions, semantic relationships are 
 | Graph nodes | `src/dialectical_framework/graph/nodes/*.py` |
 | Relationships | `src/dialectical_framework/graph/relationships/*.py` |
 | Relationship API | `src/dialectical_framework/graph/relationship_manager.py` |
-| Scoring (TaroRank) | `src/dialectical_framework/graph/scoring/tarorank.py` |
+| Estimation management | `src/dialectical_framework/graph/estimation_manager.py` |
 | Concerns (API) | `src/dialectical_framework/concerns/` |
 | Agentic orchestration | `src/dialectical_framework/agents/` |
 | AI/LLM reasoning | `src/dialectical_framework/synthesist/` |
@@ -236,11 +236,10 @@ When connecting statements to Perspective positions, semantic relationships are 
 ### Key Files to Understand First
 
 1. `graph/nodes/base_node.py` - Foundation (hash, commit(), update())
-2. `graph/nodes/assessable_entity.py` - Scoreable nodes (P, R, score)
+2. `graph/nodes/assessable_entity.py` - Entities with estimations and rationales
 3. `graph/relationship_manager.py` - Declarative relationship API
 4. `graph/relationships/immutable_structure.py` - Layer base classes (Structural vs Analytical)
-5. `graph/scoring/tarorank.py` - Score = P × R^α
-6. `dialectical_reasoning.py` - DI container setup
+5. `dialectical_reasoning.py` - DI container setup
 
 ---
 
@@ -283,8 +282,6 @@ src/dialectical_framework/
 │   ├── nodes/               # BaseNode → AssessableEntity → {Statement, PP, Wheel, ...}
 │   ├── mixins/              # Shared node behaviors (IntentMixin)
 │   ├── relationships/       # Polarity, opposition relationship models
-│   ├── scoring/             # TaroRank: Score = P × R^α
-│   │   └── tarorank_calculators/  # Per-node-type calculators
 │   ├── repositories/        # Data access layer
 │   └── relationship_manager.py    # RelationshipTo/From declarative API
 │
@@ -376,7 +373,6 @@ from dialectical_framework.enums.di import DI
 def my_function(
     graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     settings: Settings = Provide[DI.settings],
-    tarorank: TaroRank = Provide[DI.tarorank],
 ):
     # All services injected automatically
     pass
@@ -494,33 +490,11 @@ Cycle.wheels → Wheel
 Cycle.perspective_hashes → [PP hashes] (field, not relationship)
 ```
 
-**Complete scoring hierarchy:**
-```
-Statement → PP → Cycle → Wheel
-    │                       ▲
-    │                       │
-    │              Transformation
-    │                       │
-    └→ Synthesis ───────────┘
-```
-
-### Scoring
-
-```python
-from dependency_injector.wiring import inject, Provide
-from dialectical_framework.enums.di import DI
-from dialectical_framework.graph.scoring.tarorank import TaroRank
-
-@inject
-def score_wheel(
-    wheel: Wheel,
-    tarorank: TaroRank = Provide[DI.tarorank]
-):
-    tarorank.score_node(wheel)  # Recursive depth-first scoring
-    print(f"Score: {wheel.score}")  # P × R^α
-    print(f"P: {wheel.probability}")
-    print(f"R: {wheel.relevance}")
-```
+**Quality is measured by structural edge properties:**
+- `heuristic_similarity` on T/A/aspect edges (0.0-1.0)
+- `complementarity_t`, `complementarity_a` on aspect edges (0.0-1.0)
+- `insight`, `proactiveness` on transformation aspect edges (0.0-1.0)
+- Perspective computed properties: `diff_t`, `diff_a`, `area_normalized`, `rectangularity`
 
 ### Tool Pattern (Mirascope v2)
 
@@ -625,7 +599,6 @@ Optional:
 - `DIALEXITY_GRAPH_DB_VENDOR`: "memgraph" (default) or "neo4j"
 - `DIALEXITY_GRAPH_DB_HOST`: Database host (default: "127.0.0.1")
 - `DIALEXITY_GRAPH_DB_PORT`: Database port (default: 7687)
-- `DIALEXITY_TARORANK_ALPHA`: Relevance exponent (default: 1.0)
 - `DIALEXITY_DEFAULT_CYCLE_PRESET`: Default causality preset (default: "preset:balanced"). Also reads legacy `DIALEXITY_DEFAULT_CYCLE_INTENT`.
 
 Store these in a `.env` file in the project root.
@@ -652,9 +625,7 @@ TODOs often represent important reminders about incomplete work, edge cases, or 
 
 1. Create class in `graph/nodes/`, inherit from `BaseNode` or `AssessableEntity`
 2. Use `ClassVar[RelationshipManager[T]]` for relationship descriptors
-3. If assessable, add calculator in `graph/scoring/tarorank_calculators/`
-4. Register calculator in `tarorank.py`
-5. **Update `GRAPH_SCHEMA`** in `agents/orchestrator/orchestrator.py` — the LLM relies on it for `query_graph` Cypher composition
+3. **Update `GRAPH_SCHEMA`** in `agents/orchestrator/orchestrator.py` — the LLM relies on it for `query_graph` Cypher composition
 
 ### Maintain GRAPH_SCHEMA When Refactoring
 
@@ -928,7 +899,7 @@ The `mock_llm` autouse fixture in `conftest.py` installs it for **all** tests un
 
 | Scenario | Marker | Why |
 |----------|--------|-----|
-| Graph operations, scoring, validation | *(none)* | No LLM paths touched |
+| Graph operations, validation | *(none)* | No LLM paths touched |
 | Test calls concerns/skills using `use_brain` or `ConversationFacilitator` | `@pytest.mark.llm` | Mock brain fakes responses; `--real-llm` verifies with real provider |
 | End-to-end integration that MUST hit real provider (streaming, connectivity) | `@pytest.mark.real_llm` | Only meaningful with real inference |
 
@@ -989,7 +960,6 @@ Plain functions or BaseModel subclasses without `@llm.tool` will fail with `Attr
 ### Key Test Files
 
 - `test_graph.py`: Core graph operations, Perspectives, statements
-- `test_tarorank.py`: Comprehensive scoring tests
 - `test_analyst_*.py`: Analyst agent concerns (LLM-marked)
 - `test_streaming.py`: Stream events, submit_stream, chat_stream (unit + real_llm end-to-end)
 - `conftest.py`: DI setup, mock brain fixture, graph DB cleanup
@@ -1034,4 +1004,3 @@ def test_create_perspective():
 |-----|---------|
 | `docs/graph.md` | Graph data model reference |
 | `docs/graph-portability.md` | Identifiers, scopes, cloning & realms |
-| `docs/scoring.md` | Complete TaroRank specification |

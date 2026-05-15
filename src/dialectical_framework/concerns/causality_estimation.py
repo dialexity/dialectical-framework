@@ -29,7 +29,7 @@ from dialectical_framework.concerns.causality.causality_normalizer import (
 )
 from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.cycle import Cycle
-from dialectical_framework.graph.nodes.estimation import RelevanceEstimation
+from dialectical_framework.graph.nodes.estimation import CausalityProbabilityEstimation
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
@@ -56,8 +56,8 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
     This is the "smart" orchestrator that:
     - Groups structures by type (Cycle/Wheel) and size (Perspective count)
     - Runs estimation in parallel for each group
-    - Persists Rationale + RelevanceEstimation nodes
-    - Normalizes probabilities (ProbabilityEstimation) across ALL structures
+    - Persists Rationale + CausalityProbabilityEstimation nodes
+    - Normalizes probabilities (CausalityProbabilityEstimation) across ALL structures
       of same type+size in the DB
 
     Estimation logic per group:
@@ -190,7 +190,7 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
         if not raw_estimations:
             return []
 
-        # Persist RelevanceEstimation + Rationale for estimated structures
+        # Persist CausalityProbabilityEstimation + Rationale for estimated structures
         self._persist_estimations(to_estimate, raw_estimations)
 
         # Normalize probabilities across ALL structures in DB for this layer
@@ -228,11 +228,11 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
         """
         Normalize probabilities across all structures in a layer.
 
-        Only normalizes structures that have RelevanceEstimation.
+        Only normalizes structures that have CausalityProbabilityEstimation.
         Structures without estimation are skipped (not an error here,
         unlike CausalityNormalizer which raises).
         """
-        # Filter to only structures with RelevanceEstimation
+        # Filter to only structures with CausalityProbabilityEstimation
         with_estimation = [
             s for s in all_structures if self._has_estimation(s)
         ]
@@ -244,9 +244,9 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
         normalizer.normalize(with_estimation)
 
     def _has_estimation(self, structure: Union[Cycle, Wheel]) -> bool:
-        """Check if a structure has a RelevanceEstimation."""
+        """Check if a structure has a CausalityProbabilityEstimation."""
         for est, _ in structure.estimations.all():
-            if isinstance(est, RelevanceEstimation):
+            if isinstance(est, CausalityProbabilityEstimation):
                 return True
         return False
 
@@ -258,7 +258,7 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
         """
         Persist raw estimations to the database.
 
-        Creates Rationale + RelevanceEstimation for each structure.
+        Creates Rationale + CausalityProbabilityEstimation for each structure.
         """
         estimation_manager = EstimationManager()
 
@@ -276,7 +276,7 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
             rationale.set_explanation_target(structure)
             rationale.commit()
 
-            # Store raw AI score as RelevanceEstimation
+            # Store raw AI score as CausalityProbabilityEstimation
             estimation_manager.upsert_estimation(
-                structure, RelevanceEstimation, est.probability, provider=rationale
+                structure, CausalityProbabilityEstimation, est.probability, provider=rationale
             )

@@ -939,8 +939,6 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         ---------
         f"{wheel}"              - Default format
         f"{wheel:compact}"      - Compact format
-        f"{wheel:scores}"       - Default with S/R/P scores
-        f"{wheel:compact:scores}" - Compact with S/R/P scores
 
         Returns:
             Multi-line formatted string
@@ -949,39 +947,23 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         modifiers = set(format_spec.split(":")) if format_spec else set()
         modifiers.discard("")  # Remove empty strings
 
-        show_scores = "scores" in modifiers
         is_compact = "compact" in modifiers
         output = []
 
-        # Import score formatting if needed
-        if show_scores:
-            from dialectical_framework.utils.score_format import (
-                fmt_scores, fmt_score, fmt_relevance, fmt_probability
-            )
-
-        # Helper to format cycle with rationale (and optionally scores)
+        # Helper to format cycle with rationale
         def _format_cycle(cycle_obj, cycle_name: str) -> list[str]:
             lines = []
-            header = f"=== {cycle_name} ==="
-            if show_scores:
-                header = f"=== {cycle_name} [{fmt_scores(cycle_obj, colorize=True)}] ==="
-            lines.append(header)
+            lines.append(f"=== {cycle_name} ===")
 
             from dialectical_framework.graph.nodes.cycle import Cycle
             prefix = f"{cycle_obj.intent} : " if isinstance(cycle_obj, Cycle) and cycle_obj.intent else ""
             lines.append(f"{prefix}{cycle_obj:aliases}")
 
-            # Add the best rationale if it exists
             rationale = cycle_obj.best_rationale
             if rationale and rationale.text:
                 lines.append(f"Rationale: {rationale.text}")
 
             return lines
-
-        # Wheel header with scores
-        if show_scores:
-            output.append(f"=== Wheel [{fmt_scores(self, colorize=True)}] ===")
-            output.append("")
 
         # Parent Cycle (t_cycle level)
         cycle_result = self.cycle.get()
@@ -993,14 +975,9 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         # Wheel edges (ta_cycle level causality sequence)
         if len(self.edges) > 0:
             lines = []
-            header = "=== Wheel Edges (ta_cycle) ==="
-            if show_scores:
-                header = f"=== Wheel Edges [{fmt_scores(self, colorize=True)}] ==="
-            lines.append(header)
-            # Format edges as alias chain
+            lines.append("=== Wheel Edges (ta_cycle) ===")
             lines.append(self._format_edges("aliases"))
 
-            # Add the best rationale if it exists
             rationale = self.best_rationale
             if rationale and rationale.text:
                 lines.append(f"Rationale: {rationale.text}")
@@ -1009,13 +986,11 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             output.append("")
 
         # Perspectives (tabular with transformations)
-        # Use polar_segments to get perspectives in transition order with correct polarity
         output.append("=== Perspectives / Transformations ===")
 
         try:
             polar_segments = self.polar_segments
         except ValueError:
-            # No transitions, fall back to unordered perspectives
             from dialectical_framework.graph.wheel_segment_polar_pair import WheelSegmentPolarPair
             polar_segments = [WheelSegmentPolarPair(pp, "normal") for pp in self._perspectives]
 
@@ -1032,14 +1007,12 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 ("a_minus", POSITION_A_MINUS),
             ]
 
-            # Build table: each row is a position, columns are (alias, statement) pairs for each PP
             table = []
             for position_attr, position_label in positions:
                 row = []
                 for pair in polar_segments:
                     pp = pair.perspective
 
-                    # Perspective columns
                     manager = getattr(pp, position_attr)
                     result = manager.get()
                     if result:
@@ -1054,100 +1027,9 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 table.append(row)
 
             output.append(tabulate(table, tablefmt="plain"))
-
-            # Show transformation scores if in scores mode
-            # Transformations now belong to Transitions (causality steps), not PPs
-            if show_scores and self.transformations:
-                output.append("")
-                output.append("Transformation Scores:")
-                for idx, transformation in enumerate(self.transformations, 1):
-                    output.append(f"  Step {idx}: [{fmt_scores(transformation, colorize=True)}]")
         else:
             output.append("[No perspectives]")
         output.append("")
-
-        # Transitions table with scores (only in scores mode)
-        if show_scores:
-            output.append("=== Transitions ===")
-            from tabulate import tabulate
-
-            transitions_data = []
-
-            # Collect transitions from all sources
-            cycles_to_check = [
-                ("Cycle", cycle_result[0] if cycle_result else None),
-                ("Wheel", self),  # Wheel itself has transitions (ta_cycle level)
-            ]
-
-            # Note: Transformation no longer has transitions - it has 6 component positions (Ac, Re, Ac+, Ac-, Re+, Re-)
-
-            def format_rationale_tree(rationales: list, indent: int = 0) -> list[str]:
-                """Format rationale hierarchy with provided P/R values and rating."""
-                from dialectical_framework.graph.nodes.estimation import (
-                    ProbabilityEstimation,
-                    RelevanceEstimation,
-                    FeasibilityEstimation
-                )
-                lines = []
-                prefix = "  " * indent + "- " if indent > 0 else "- "
-                for rat in rationales:
-                    # Format rationale line with provided P/R values and rating
-                    text_preview = rat.text[:40] + "..." if rat.text and len(rat.text) > 40 else (rat.text or "Unnamed rationale")
-
-                    # Get P/R values from provided estimations
-                    provided = list(rat.provided_estimations.all())
-                    p_val = None
-                    r_val = None
-                    for est, _ in provided:
-                        if isinstance(est, ProbabilityEstimation):
-                            p_val = est.value
-                        elif isinstance(est, (RelevanceEstimation, FeasibilityEstimation)):
-                            r_val = est.value
-
-                    # Format the values
-                    parts = []
-                    if r_val is not None:
-                        parts.append(f"R={r_val:.2f}")
-                    if p_val is not None:
-                        parts.append(f"P={p_val:.2f}")
-                    if rat.rating is not None:
-                        parts.append(f"rating={rat.rating:.2f}")
-
-                    info_str = " | ".join(parts) if parts else "no values"
-                    lines.append(f"{prefix}{text_preview} [{info_str}]")
-
-                    # Get critiques (audit rationales)
-                    critiques = [c for c, _ in rat.critiques.all()]
-                    if critiques:
-                        lines.extend(format_rationale_tree(critiques, indent + 1))
-                return lines
-
-            for cycle_name, cycle_obj in cycles_to_check:
-                if cycle_obj is None:
-                    continue
-
-                for trans in cycle_obj.transitions:
-                    trans_repr = f"{trans}"  # Uses Transition.__str__
-                    s = fmt_score(trans.score, colorize=True)
-                    r = fmt_relevance(trans, colorize=True)
-                    p = fmt_probability(trans, colorize=True)
-
-                    # Get rationale hierarchy
-                    rationales = [rat for rat, _ in trans.rationales.all()]
-                    if rationales:
-                        rationale_lines = format_rationale_tree(rationales)
-                        rationale_text = "\n".join(rationale_lines)
-                    else:
-                        rationale_text = "No rationales"
-
-                    transitions_data.append([cycle_name, trans_repr, s, r, p, rationale_text])
-
-            if transitions_data:
-                headers = ["Cycle", "Transition", "S", "R", "P", "Rationales"]
-                output.append(tabulate(transitions_data, headers=headers, tablefmt="grid"))
-            else:
-                output.append("[No transitions]")
-            output.append("")
 
         return "\n".join(output)
 

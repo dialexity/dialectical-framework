@@ -87,11 +87,11 @@ class TestSessionTools:
         orchestrator = Orchestrator()
 
         with scope(orchestrator.sid):
-            tool = AddInput(content="Remote work increases productivity.")
-            result = await tool.call()
+            concern = AddInput()
+            input_node = await concern.resolve(content="Remote work increases productivity.")
 
-            assert "Added input to case" in result
-            assert "Input hash:" in result
+            assert input_node.is_committed
+            assert concern.report.ok
 
 
 class TestQueryTools:
@@ -103,15 +103,15 @@ class TestQueryTools:
         orchestrator = Orchestrator()
 
         with scope(orchestrator.sid):
+            concern = QueryGraph()
+
             # Test CREATE blocked
-            tool = QueryGraph(cypher="CREATE (n:Node) RETURN n")
-            result = await tool.call()
+            result = await concern.resolve(cypher="CREATE (n:Node) RETURN n")
             assert "Write operations not allowed" in result
             assert "CREATE" in result
 
             # Test DELETE blocked
-            tool = QueryGraph(cypher="MATCH (n) DELETE n")
-            result = await tool.call()
+            result = await concern.resolve(cypher="MATCH (n) DELETE n")
             assert "Write operations not allowed" in result
 
     @pytest.mark.asyncio
@@ -120,8 +120,8 @@ class TestQueryTools:
         orchestrator = Orchestrator()
 
         with scope(orchestrator.sid):
-            tool = QueryGraph(cypher="MATCH (n {sid: 'evil-session'}) RETURN n")
-            result = await tool.call()
+            concern = QueryGraph()
+            result = await concern.resolve(cypher="MATCH (n {sid: 'evil-session'}) RETURN n")
 
             assert "Hardcoded sid values are not allowed" in result
 
@@ -131,9 +131,8 @@ class TestQueryTools:
         orchestrator = Orchestrator()
 
         with scope(orchestrator.sid):
-            # Query WITHOUT sid - should work because we inject it
-            tool = QueryGraph(cypher="MATCH (b:Case) RETURN b")
-            result = await tool.call()
+            concern = QueryGraph()
+            result = await concern.resolve(cypher="MATCH (b:Case) RETURN b")
 
             assert "Found" in result
             assert "Case" in result
@@ -144,8 +143,8 @@ class TestQueryTools:
         orchestrator = Orchestrator()
 
         with scope(orchestrator.sid):
-            tool = QueryGraph(cypher="MATCH (pp:Perspective) RETURN pp")
-            result = await tool.call()
+            concern = QueryGraph()
+            result = await concern.resolve(cypher="MATCH (pp:Perspective) RETURN pp")
 
             assert "No results found" in result
 
@@ -155,8 +154,8 @@ class TestQueryTools:
         orchestrator = Orchestrator()
 
         with scope(orchestrator.sid):
-            tool = QueryGraph(cypher="SHOW SCHEMA INFO")
-            result = await tool.call()
+            concern = QueryGraph()
+            result = await concern.resolve(cypher="SHOW SCHEMA INFO")
 
             # Should not get any error - schema queries don't need sid
             assert "Error" not in result or "Query error" in result  # Query error OK if DB doesn't support
@@ -211,16 +210,15 @@ class TestOrchestratorWorkflow:
 
         with scope(orchestrator.sid):
             # Add input
-            add_tool = AddInput(content="Remote work increases productivity and flexibility.")
-            result = await add_tool.call()
+            concern = AddInput()
+            input_node = await concern.resolve(content="Remote work increases productivity and flexibility.")
 
-            assert "Added input to case" in result
-            assert "Input hash:" in result
+            assert input_node.is_committed
 
             # Query inputs - no sid needed, auto-injected
-            query_tool = QueryGraph(
+            query_concern = QueryGraph()
+            query_result = await query_concern.resolve(
                 cypher="MATCH (b:Case)-[:HAS_INPUT]->(i:Input) RETURN i.content"
             )
-            query_result = await query_tool.call()
 
             assert "Remote work" in query_result

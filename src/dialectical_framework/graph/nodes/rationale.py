@@ -54,12 +54,7 @@ class Rationale(BaseNode, label="Rationale"):
     This design means:
         - P=0.8 describes the Component, not the Rationale
         - Rationale is the source of evidence, not what's being estimated
-        - TaroRank aggregates estimations on entities, getting provenance from PROVIDES
-
-    Rationales follow "auditor-wins semantics":
-    - Child rationales (critiques) override parent assessment values
-    - Zero values don't veto parent (soft exclusion)
-    - Rationales can critique other rationales (recursive)
+        - PROVIDES relationship tracks provenance (which rationale contributed which estimation)
 
     Note: Rationale extends BaseNode (not AssessableEntity) because rationales
     are sources of evidence, not entities that get scored themselves.
@@ -71,7 +66,7 @@ class Rationale(BaseNode, label="Rationale"):
         rationale.commit()
 
         # Create estimation that this rationale provides
-        prob_est = ProbabilityEstimation(value=0.8)
+        prob_est = CausalityProbabilityEstimation(value=0.8)
         prob_est.set_target(component)      # Estimation targets the component
         prob_est.set_provider(rationale)    # Rationale is the provider of evidence
         prob_est.commit()

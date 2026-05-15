@@ -25,7 +25,7 @@ from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
-from dialectical_framework.graph.nodes.estimation import ProbabilityEstimation, RelevanceEstimation
+
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.relationships.polarity_relationship import (
     HasPolarityRelationship,
@@ -688,81 +688,6 @@ def test_cycle_hash_identity():
     print(f"  cycle1 (balanced, 1-2-3): {cycle1.short_hash}")
     print(f"  cycle3 (balanced, 2-1-3): {cycle3.short_hash}")
     print(f"  cycle4 (realistic, 1-2-3): {cycle4.short_hash}")
-
-
-def test_estimation_properties():
-    """Test probability and relevance properties on AssessableEntity."""
-    import math
-    import random
-
-    # Use random values to avoid collision with previous test runs
-    p1 = round(0.7 + random.random() * 0.05, 4)  # ~0.70-0.75
-    p2 = round(0.88 + random.random() * 0.05, 4)  # ~0.88-0.93
-    r1 = round(0.83 + random.random() * 0.05, 4)  # ~0.83-0.88
-    r2 = round(0.93 + random.random() * 0.05, 4)  # ~0.93-0.98
-
-    # Create a component with unique statement
-    comp = Statement(text=f"Test component {random.random()}", meaning="test")
-    comp.commit()
-
-    # Test 1: No estimations - should return None
-    assert comp.probability is None
-    assert comp.relevance is None
-
-    # Test 2: Single probability estimation
-    prob_est = ProbabilityEstimation(value=p1)
-    prob_est.set_target(comp)  # Set target before save
-    prob_est.commit()
-
-    assert comp.probability == p1
-    assert comp.relevance is None  # Still no relevance
-
-    # Test 3: Single relevance estimation
-    rel_est = RelevanceEstimation(value=r1)
-    rel_est.set_target(comp)
-    rel_est.commit()
-
-    assert comp.probability == p1
-    assert comp.relevance == r1
-
-    # Test 4: Multiple estimations - should return geometric mean
-    prob_est2 = ProbabilityEstimation(value=p2)
-    prob_est2.set_target(comp)
-    prob_est2.commit()
-
-    rel_est2 = RelevanceEstimation(value=r2)
-    rel_est2.set_target(comp)
-    rel_est2.commit()
-
-    # Geometric mean: GM(p1, p2) = sqrt(p1 * p2)
-    expected_prob = math.sqrt(p1 * p2)
-    assert abs(comp.probability - expected_prob) < 0.001
-
-    # Geometric mean: GM(r1, r2) = sqrt(r1 * r2)
-    expected_rel = math.sqrt(r1 * r2)
-    assert abs(comp.relevance - expected_rel) < 0.001
-
-    print(f"✓ Probability property works correctly (GM): {comp.probability:.4f}")
-    print(f"✓ Relevance property works correctly (GM): {comp.relevance:.4f}")
-
-    # Test 5: Zero estimation - should return 0 (veto semantics)
-    comp2 = Statement(text=f"Test component 2 {random.random()}", meaning="test")
-    comp2.commit()
-
-    prob_est3 = ProbabilityEstimation(value=round(0.79 + random.random() * 0.02, 4))
-    prob_est3.set_target(comp2)
-    prob_est3.commit()
-
-    # Use tiny random value (near zero) to test veto semantics while avoiding hash collision
-    tiny_value = random.random() * 1e-10  # Very small but not exactly 0
-    prob_est4 = ProbabilityEstimation(value=tiny_value)
-    prob_est4.set_target(comp2)
-    prob_est4.commit()
-
-    # Near-zero value should effectively veto (geometric mean approaches zero)
-    assert comp2.probability < 0.01  # Effectively vetoed
-
-    print(f"✓ Near-zero estimation veto works correctly: {comp2.probability}")
 
 
 def test_best_rationale_property():
@@ -1433,113 +1358,6 @@ def test_statement_repository_find_by_perspective():
     assert a_comp.hash in component_uids
 
     print("✓ StatementRepository.find_by_perspective() works correctly")
-
-
-def test_feasibility_estimation_fallback(di_container):
-    """FeasibilityEstimation should be used when RelevanceEstimation doesn't exist."""
-    from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
-
-    component = Statement(text=f"Test feasibility fallback {random.random()}", meaning="test")
-    component.commit()
-
-    # Add FeasibilityEstimation with unique value
-    feas_value = 0.75 + random.random() * 0.001
-    feas_est = FeasibilityEstimation(value=feas_value)
-    feas_est.set_target(component)
-    feas_est.commit()
-
-    # Should use FeasibilityEstimation as relevance
-    assert abs(component.relevance - feas_value) < 0.01, f"Expected relevance~{feas_value}, got {component.relevance}"
-
-    print("✓ FeasibilityEstimation fallback works correctly")
-
-
-def test_relevance_estimation_priority(di_container):
-    """RelevanceEstimation should take priority over FeasibilityEstimation."""
-    from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation, RelevanceEstimation
-
-    component = Statement(text=f"Test relevance priority {random.random()}", meaning="test")
-    component.commit()
-
-    # Add both estimations with unique values
-    feas_value = 0.6 + random.random() * 0.001
-    feas_est = FeasibilityEstimation(value=feas_value)
-    feas_est.set_target(component)
-    feas_est.commit()
-
-    rel_value = 0.9 + random.random() * 0.001
-    rel_est = RelevanceEstimation(value=rel_value)
-    rel_est.set_target(component)
-    rel_est.commit()
-
-    # Should use RelevanceEstimation (priority)
-    assert abs(component.relevance - rel_value) < 0.01, f"Expected relevance~{rel_value}, got {component.relevance}"
-
-    print("✓ RelevanceEstimation takes priority over FeasibilityEstimation")
-
-
-def test_calculated_relevance_priority(di_container):
-    """CalculatedRelevanceEstimation should take priority over both manual estimations."""
-    from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.estimation import (
-        FeasibilityEstimation,
-        RelevanceEstimation,
-        CalculatedRelevanceEstimation
-    )
-
-    component = Statement(text=f"Test calculated relevance {random.random()}", meaning="test")
-    component.commit()
-
-    # Add manual estimations with unique values
-    feas_value = 0.6 + random.random() * 0.001
-    feas_est = FeasibilityEstimation(value=feas_value)
-    feas_est.set_target(component)
-    feas_est.commit()
-
-    rel_value = 0.9 + random.random() * 0.001
-    rel_est = RelevanceEstimation(value=rel_value)
-    rel_est.set_target(component)
-    rel_est.commit()
-
-    # Add calculated estimation with unique value
-    calc_value = 0.75 + random.random() * 0.001
-    calc_rel = CalculatedRelevanceEstimation(value=calc_value)
-    calc_rel.set_target(component)
-    calc_rel.commit()
-
-    # Should use CalculatedRelevanceEstimation (highest priority)
-    assert abs(component.relevance - calc_value) < 0.01, f"Expected relevance~{calc_value}, got {component.relevance}"
-
-    print("✓ CalculatedRelevanceEstimation takes priority over both manual estimations")
-
-
-def test_multiple_feasibility_estimations(di_container):
-    """Multiple FeasibilityEstimations should be aggregated via GM."""
-    from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
-    import math
-
-    component = Statement(text=f"Test multi feas {random.random()}", meaning="test")
-    component.commit()
-
-    # Add multiple FeasibilityEstimations with unique values
-    feas_value1 = 0.8 + random.random() * 0.001
-    feas_est1 = FeasibilityEstimation(value=feas_value1)
-    feas_est1.set_target(component)
-    feas_est1.commit()
-
-    feas_value2 = 0.6 + random.random() * 0.001
-    feas_est2 = FeasibilityEstimation(value=feas_value2)
-    feas_est2.set_target(component)
-    feas_est2.commit()
-
-    # Should aggregate via geometric mean: sqrt(feas_value1 * feas_value2)
-    expected_gm = math.sqrt(feas_value1 * feas_value2)
-    assert abs(component.relevance - expected_gm) < 0.01, f"Expected relevance≈{expected_gm}, got {component.relevance}"
-
-    print("✓ Multiple FeasibilityEstimations aggregated correctly via geometric mean")
 
 
 # =============================================================================

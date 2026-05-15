@@ -54,9 +54,6 @@ class Transition(AssessableEntity, label="Transition"):
     - cycle: Container (Cycle or Wheel) for causal transitions (0:1)
     - Transformation positions (ac, re, ac_plus, etc.) use typed relationships
 
-    Note: Default probability fallback is handled by the scorer (TaroRank.default_transition_probability)
-    from settings, not stored on individual transition nodes.
-
     Nonce Field:
         Transitions include a `nonce` (number used once) in their hash computation.
         This is necessary because:

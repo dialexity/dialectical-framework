@@ -1,8 +1,8 @@
 """
 CausalityNormalizer: Normalizes probabilities across a group of Cycles or Wheels.
 
-Takes structures that already have estimations and renormalizes their probabilities
-so they sum to 1.0. This is useful after adding new structures to an existing layer.
+Takes structures that already have CausalityProbabilityEstimation (raw AI scores)
+and normalizes into per-transition probabilities that sum to 1.0.
 
 Usage:
     from dialectical_framework.concerns.causality.causality_normalizer import CausalityNormalizer
@@ -23,10 +23,7 @@ from typing import Union
 
 from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.cycle import Cycle
-from dialectical_framework.graph.nodes.estimation import (
-    ProbabilityEstimation,
-    RelevanceEstimation,
-)
+from dialectical_framework.graph.nodes.estimation import CausalityProbabilityEstimation
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.utils.decompose_probability_uniformly import (
     decompose_probability_uniformly,
@@ -35,22 +32,22 @@ from dialectical_framework.utils.decompose_probability_uniformly import (
 
 class CausalityNormalizer:
     """
-    Normalizes probabilities across a group of Cycles or Wheels.
+    Normalizes causality probabilities across a group of Cycles or Wheels.
 
-    Uses RelevanceEstimation as the raw score and updates ProbabilityEstimation
-    with normalized values that sum to 1.0.
+    Reads CausalityProbabilityEstimation from structures (raw AI scores),
+    normalizes to sum to 1.0, and decomposes into per-transition probabilities.
 
     Requirements:
-    - All structures must have RelevanceEstimation (raw AI score)
+    - All structures must have CausalityProbabilityEstimation (raw AI score)
     - All structures must be same type (all Cycles or all Wheels)
     """
 
     def normalize(self, structures: list[Union[Cycle, Wheel]]) -> None:
         """
-        Normalize probabilities across structures so they sum to 1.0.
+        Normalize probabilities across structures and decompose into transitions.
 
-        Uses RelevanceEstimation as the raw score for normalization.
-        Updates ProbabilityEstimation with normalized values.
+        Reads raw CausalityProbabilityEstimation from structures, normalizes,
+        then writes normalized probabilities on individual Transitions.
 
         Args:
             structures: List of Cycles or Wheels (must all have estimations)
@@ -68,36 +65,30 @@ class CausalityNormalizer:
                 "All structures must be same type (all Cycles or all Wheels)"
             )
 
-        # Collect raw scores (RelevanceEstimation)
+        # Collect raw scores (CausalityProbabilityEstimation on structures)
         scores: dict[str, Decimal] = {}
         for structure in structures:
-            relevance = self._get_relevance(structure)
-            if relevance is None:
+            raw_score = self._get_raw_score(structure)
+            if raw_score is None:
                 raise ValueError(
-                    f"Structure {structure.short_hash} is missing RelevanceEstimation. "
+                    f"Structure {structure.short_hash} is missing CausalityProbabilityEstimation. "
                     "All structures must have estimations before normalization."
                 )
-            scores[structure.hash] = Decimal(str(relevance))
+            scores[structure.hash] = Decimal(str(raw_score))
 
         # Normalize
         normalized = self._normalize_scores(scores)
 
-        # Update ProbabilityEstimation on each structure
-        estimation_manager = EstimationManager()
+        # Decompose into transitions for Wheels
         for structure in structures:
-            prob_value = float(normalized[structure.hash])
-            estimation_manager.upsert_estimation(
-                structure, ProbabilityEstimation, prob_value
-            )
-
-            # Decompose into transitions for Wheels
             if isinstance(structure, Wheel):
+                prob_value = float(normalized[structure.hash])
                 self._decompose_probability_into_transitions(structure, prob_value)
 
-    def _get_relevance(self, structure: Union[Cycle, Wheel]) -> float | None:
-        """Get RelevanceEstimation value from structure."""
+    def _get_raw_score(self, structure: Union[Cycle, Wheel]) -> float | None:
+        """Get CausalityProbabilityEstimation value from structure."""
         for est, _ in structure.estimations.all():
-            if isinstance(est, RelevanceEstimation):
+            if isinstance(est, CausalityProbabilityEstimation):
                 return est.value
         return None
 
@@ -144,8 +135,8 @@ class CausalityNormalizer:
 
         # Clear existing and set uniform
         for trans in transitions:
-            estimation_manager.clear_estimations(trans, [ProbabilityEstimation])
+            estimation_manager.clear_estimations(trans, [CausalityProbabilityEstimation])
 
         individual_prob = decompose_probability_uniformly(probability, len(transitions))
         for trans in transitions:
-            estimation_manager.upsert_estimation(trans, ProbabilityEstimation, individual_prob)
+            estimation_manager.upsert_estimation(trans, CausalityProbabilityEstimation, individual_prob)

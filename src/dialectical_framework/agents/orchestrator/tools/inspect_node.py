@@ -128,10 +128,6 @@ def _inspect_perspective(pp: Perspective) -> str:
         if hs is not None:
             lines.append(f"Heuristic Similarity (HS): {hs:.3f}")
 
-    # Scoring
-    if pp.score is not None:
-        lines.append(f"Score: {pp.score:.4f} (P={pp.probability:.4f}, R={pp.relevance:.4f})")
-
     # Tetrad quality metrics
     diff_t = pp.diff_t
     diff_a = pp.diff_a
@@ -190,10 +186,6 @@ def _inspect_statement(stmt: Statement) -> str:
     # Meaning
     if stmt.meaning:
         lines.append(f"Meaning: {stmt.meaning}")
-
-    # Scoring
-    if stmt.score is not None:
-        lines.append(f"Score: {stmt.score:.4f} (P={stmt.probability:.4f}, R={stmt.relevance:.4f})")
 
     # Which Perspectives use this statement
     repo = PerspectiveRepository()

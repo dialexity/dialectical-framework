@@ -79,7 +79,7 @@ def _get_all_labels_for_class_name(class_name: str) -> list[str]:
 
     Handles polymorphic relationships where the target might be any subclass.
     For example, 'Estimation' returns ['Estimation', 'Probability', 'Relevance',
-    'CalculatedProbability', 'CalculatedRelevance', 'Feasibility'].
+    'Feasibility', 'Mode', 'Arousal'].
 
     Args:
         class_name: The class name to resolve

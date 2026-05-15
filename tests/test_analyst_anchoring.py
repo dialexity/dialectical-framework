@@ -4,8 +4,6 @@ Tests for SurfaceTheses - thesis extraction and anchoring.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 pytestmark = pytest.mark.real_llm
@@ -63,9 +61,10 @@ class TestSurfaceTheses:
         case_node.commit()
 
         with scope(case_node.sid):
-            agent = SurfaceTheses(intent="extract 3 theses")
-            result = await agent.call()
-            assert "No inputs" in result
+            skill = SurfaceTheses(intent="extract 3 theses")
+            result = await skill.resolve()
+            assert result is None
+            assert "No inputs" in skill.report.summary
 
     @pytest.mark.asyncio
     @observe()
@@ -79,11 +78,10 @@ class TestSurfaceTheses:
             input_node.commit()
             case_node.inputs.connect(input_node)
 
-            agent = SurfaceTheses(intent="extract 2 theses about software architecture")
-            result = await agent.call()
+            skill = SurfaceTheses(intent="extract 2 theses about software architecture")
+            result = await skill.resolve()
 
-            report = json.loads(result)
-            assert report["ok"] is True
+            assert skill.report.ok is True
             vocab = StatementRepository().get_vocabulary()
             assert len(vocab) >= 1
 
@@ -99,11 +97,10 @@ class TestSurfaceTheses:
             input_node.commit()
             case_node.inputs.connect(input_node)
 
-            agent = SurfaceTheses(intent="extract 2 theses")
-            result = await agent.call()
+            skill = SurfaceTheses(intent="extract 2 theses")
+            result = await skill.resolve()
 
-            report = json.loads(result)
-            assert report["artifacts"]["ideas_hash"] is not None
+            assert skill.report.artifacts["ideas_hash"] is not None
 
     @pytest.mark.asyncio
     @observe()
@@ -113,13 +110,12 @@ class TestSurfaceTheses:
         case_node.commit()
 
         with scope(case_node.sid):
-            agent = SurfaceTheses(
+            skill = SurfaceTheses(
                 intent="anchor direct thesis 'Trust' - create component for concept of Trust"
             )
-            result = await agent.call()
+            result = await skill.resolve()
 
-            report = json.loads(result)
-            assert report["ok"] is True
+            assert skill.report.ok is True
             vocab = StatementRepository().get_vocabulary()
             trust_components = [c for c in vocab if "trust" in c.text.lower()]
             assert len(trust_components) >= 1

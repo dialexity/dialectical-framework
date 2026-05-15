@@ -47,14 +47,11 @@ class Estimation(BaseNode, label="Estimation"):
     feasibility, and cost. They are stored as separate nodes connected to
     assessable entities via ESTIMATES relationships.
 
-    The scoring architecture uses two primary dimensions:
-    - Probability (P): Likelihood of truth/occurrence
-    - Relevance (R): Importance/significance
-
-    Formula: Score = P × R^α
-
-    Additional estimations like feasibility and cost can be used for
-    specialized analysis and filtering.
+    Estimation types serve different purposes:
+    - CausalityProbabilityEstimation: Causality ordering likelihood (on Cycles/Wheels and Transitions)
+    - FeasibilityEstimation: Practical achievability (on Transitions in Transformations)
+    - ModeEstimation / ArousalEstimation: T-A opposition characterization
+    - ConceptualCoherenceEstimation / DiagonalContradictionEstimation: Tetrad validation
 
     Estimation is an analytical artifact - it points TO its target entity.
     Hash is based on: type + value + target hash. This means:
@@ -73,7 +70,7 @@ class Estimation(BaseNode, label="Estimation"):
     Lifecycle:
         entity.commit()  # Target committed first
         rationale.commit()  # Optional: provider rationale committed
-        est = ProbabilityEstimation(value=0.8)
+        est = CausalityProbabilityEstimation(value=0.8)
         est.set_target(entity)  # Required: what this estimation measures
         est.set_provider(rationale)  # Optional: provenance
         est.commit()  # Hash = type|value|target_hash, auto-connects both
@@ -252,101 +249,17 @@ class Estimation(BaseNode, label="Estimation"):
         return f"{self.__class__.__name__}({hash_str}, value={self.value})"
 
 
-class ProbabilityEstimation(Estimation, label="Probability"):
+class CausalityProbabilityEstimation(Estimation, label="CausalityProbability"):
     """
-    Probability estimation (P dimension in scoring formula).
+    Causality probability estimation.
 
-    Represents the likelihood that a component/assessment is true or
-    will occur. Values typically range from 0.0 (impossible) to 1.0 (certain).
+    Represents causality ordering likelihood. Context depends on the target node:
+    - On a Cycle/Wheel: raw LLM assessment of how plausible this ordering is
+    - On a Transition: normalized per-edge probability (sums to 1.0 across layer)
 
-    This is a MANUAL estimation - set by users or agents.
-    """
-
-
-
-class RelevanceEstimation(Estimation, label="Relevance"):
-    """
-    Relevance estimation (R dimension in scoring formula).
-
-    Represents the importance or significance of a component/assessment.
-    Values typically range from 0.0 (irrelevant) to 1.0 (highly relevant).
-
-    This is a MANUAL estimation - set by users or agents.
-    """
-
-
-
-class CalculatedEstimation(Estimation, label="CalculatedEstimation"):
-    """
-    Base class for TaroRank-computed estimations.
-
-    Calculated estimations are algorithm outputs, not user/agent inputs.
-    They have validity tracking via invalidated_at timestamp.
-
-    Validity logic:
-    - Valid if invalidated_at is None (never invalidated)
-    - Valid if committed_at > invalidated_at (recomputed after invalidation)
-    - Invalid otherwise (upstream data changed, needs recomputation)
-
-    Subclasses:
-    - CalculatedProbabilityEstimation: Aggregated P from TaroRank
-    - CalculatedRelevanceEstimation: Aggregated R from TaroRank
-    - CalculatedScoreEstimation: Final Score = P × R^α from TaroRank
-    """
-
-    # metadata
-    # Unix timestamp (float) for consistency with committed_at
-    invalidated_at: Optional[float] = None
-
-    def is_valid(self) -> bool:
-        """
-        Check if this calculated estimation is still valid.
-
-        Returns:
-            True if valid (not invalidated or recomputed after invalidation)
-        """
-        if self.invalidated_at is None:
-            return True
-        if self.committed_at is None:
-            return False
-        return self.committed_at > self.invalidated_at
-
-
-class CalculatedProbabilityEstimation(CalculatedEstimation, label="CalculatedProbability"):
-    """
-    Calculated probability from TaroRank aggregation.
-
-    This is TaroRank's output, representing the aggregated probability
-    from all manual estimations and rationales.
-
-    Typically there is at most one calculated estimation per node.
-    """
-
-
-
-class CalculatedRelevanceEstimation(CalculatedEstimation, label="CalculatedRelevance"):
-    """
-    Calculated relevance from TaroRank aggregation.
-
-    This is TaroRank's output, representing the aggregated relevance
-    from all manual estimations and rationales.
-
-    Typically there is at most one calculated estimation per node.
-    """
-
-
-
-class CalculatedScoreEstimation(CalculatedEstimation, label="CalculatedScore"):
-    """
-    Calculated score from TaroRank aggregation.
-
-    This is TaroRank's final output: Score = P × R^α
-
-    The score estimation replaces the score/score_computed_at/score_invalidated_at
-    fields that were previously on AssessableEntity. This keeps all scoring
-    artifacts as separate Estimation nodes for cleaner separation.
-
-    Typically there is at most one calculated score estimation per node.
+    Used by:
+    - CausalityEstimation: stores raw AI score on Cycles/Wheels
+    - CausalityNormalizer: reads raw scores from structures, writes normalized probabilities on Transitions
     """
 
 
@@ -357,31 +270,6 @@ class FeasibilityEstimation(Estimation, label="Feasibility"):
 
     Represents how achievable or practical an outcome is.
     Values typically range from 0.0 (infeasible) to 1.0 (easily achievable).
-
-    **TaroRank Semantics**:
-    FeasibilityEstimation is treated semantically the same as RelevanceEstimation.
-
-    Priority order for relevance calculation:
-    1. CalculatedRelevanceEstimation (TaroRank output)
-    2. RelevanceEstimation (manual)
-    3. FeasibilityEstimation (manual fallback)
-
-    When both RelevanceEstimation and FeasibilityEstimation exist on the same node,
-    RelevanceEstimation takes priority for relevance calculation, and FeasibilityEstimation
-    becomes additional metadata.
-
-    Example:
-        # FeasibilityEstimation used as relevance fallback on a component
-        est = FeasibilityEstimation(value=0.7)
-        est.set_target(component)
-        est.commit()
-        rel = component.relevance  # Returns 0.7
-
-        # RelevanceEstimation takes priority
-        est2 = RelevanceEstimation(value=0.9)
-        est2.set_target(component)
-        est2.commit()
-        rel = component.relevance  # Returns 0.9 (FeasibilityEstimation ignored)
     """
 
 
