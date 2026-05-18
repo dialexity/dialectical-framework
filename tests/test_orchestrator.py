@@ -182,22 +182,56 @@ class TestOrchestratorInitialization:
 
         assert second.sid == sid
 
-    def test_orchestrator_has_all_tool_types(self):
-        """Test orchestrator has session, query, and build tools."""
+    def test_default_mode_has_autonomous_tools(self):
+        """Test default mode has autonomous agents + steering + query tools."""
         orchestrator = Orchestrator()
 
         tool_names = [t.__name__ for t in orchestrator._tools]
 
-        # Session tools
-        assert "add_input" in tool_names
-
-        # Query tools
+        assert "analyze" in tool_names
+        assert "explore" in tool_names
+        assert "edit_perspective" in tool_names
+        assert "reject" in tool_names
+        assert "present_analysis" in tool_names
+        assert "inspect_node" in tool_names
         assert "query_graph" in tool_names
+        assert "get_schema" in tool_names
 
-        # Build tools (subagents)
+        # Granular tools NOT in default mode
+        assert "surface_theses" not in tool_names
+        assert "find_polarities" not in tool_names
+        assert "build_wheels" not in tool_names
+
+    def test_advanced_mode_has_granular_tools(self):
+        """Test advanced mode has all granular tools + query tools."""
+        orchestrator = Orchestrator(mode="advanced")
+
+        tool_names = [t.__name__ for t in orchestrator._tools]
+
+        # Granular analysis tools
+        assert "add_input" in tool_names
         assert "surface_theses" in tool_names
         assert "find_polarities" in tool_names
+        assert "introduce_polarity" in tool_names
+        assert "expand_polarities" in tool_names
+        assert "place_statement" in tool_names
+        assert "edit_perspective" in tool_names
+        assert "reject" in tool_names
+
+        # Granular exploration tools
+        assert "create_nexus" in tool_names
+        assert "build_wheels" in tool_names
         assert "explore_transformations" in tool_names
+
+        # Query tools
+        assert "present_analysis" in tool_names
+        assert "inspect_node" in tool_names
+        assert "query_graph" in tool_names
+        assert "get_schema" in tool_names
+
+        # Autonomous agents NOT in advanced mode
+        assert "analyze" not in tool_names
+        assert "explore" not in tool_names
 
 
 class TestOrchestratorWorkflow:

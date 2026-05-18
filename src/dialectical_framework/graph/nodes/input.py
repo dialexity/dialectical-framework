@@ -25,7 +25,7 @@ from dialectical_framework.graph.relationships.has_statement_relationship import
     HasStatementRelationship,
 )
 from dialectical_framework.graph.relationships.distilled_to_relationship import (
-    DistilledToRelationship,
+    DistilledFromRelationship,
 )
 from dialectical_framework.graph.relationships.has_input_relationship import (
     HasInputRelationship,
@@ -89,10 +89,10 @@ class Input(BaseNode, label="Input"):
     )
 
     # Ideas distilled from this input (reverse relationship)
-    # Ideas→Input: Ideas connects to its source Input(s)
+    # Ideas -[:DISTILLED_FROM]-> Input: provenance link from Ideas to its source
     ideas: ClassVar[RelationshipManager[Ideas]] = RelationshipFrom(
         "Ideas",
-        model=DistilledToRelationship,
+        model=DistilledFromRelationship,
         cardinality=(0, None),  # Zero or more Ideas
     )
 

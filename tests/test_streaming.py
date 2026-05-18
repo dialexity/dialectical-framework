@@ -340,8 +340,7 @@ class TestOrchestratorChatStream:
 
     def _make_orchestrator(self):
         """Create Orchestrator without hitting the DB."""
-        with patch("dialectical_framework.agents.orchestrator.orchestrator.Case") as mock_case, \
-             patch.object(Orchestrator, "_query_live_schema", return_value=""):
+        with patch("dialectical_framework.agents.orchestrator.orchestrator.Case") as mock_case:
             mock_case.return_value.commit.return_value = None
             mock_case.return_value.sid = "test-sid"
             return Orchestrator()

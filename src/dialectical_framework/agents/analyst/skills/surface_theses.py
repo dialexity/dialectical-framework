@@ -57,20 +57,12 @@ if TYPE_CHECKING:
 
 SYSTEM_PROMPT = """You are an anchoring agent for dialectical analysis.
 
-Your task is to:
-1. Parse unstructured intent into structured parameters
-2. Identify direct theses from intent or determine what to extract
-3. Perform semantic deduplication against existing vocabulary
+Your task is to parse unstructured intent into structured parameters for thesis extraction.
 
 When parsing intent:
 - Look for direct thesis mentions (e.g., "anchor thesis Trust", "Love", single concepts)
 - Extract count, focus, constraints, domain hints
-- If no inputs available and intent mentions a topic, treat it as direct thesis
-
-For semantic deduplication:
-- Compare newly extracted statements against existing vocabulary
-- Only match if confidence >= 0.7 (clearly the same concept)
-- Consider same core concept even if worded differently"""
+- If no inputs available and intent mentions a topic, treat it as direct thesis"""
 
 
 # --- DTOs for LLM structured outputs ---

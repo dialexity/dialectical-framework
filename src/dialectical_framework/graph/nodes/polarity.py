@@ -237,6 +237,13 @@ class Polarity(AssessableEntity, label="Polarity"):
                 "Use set_t() and set_a()."
             )
 
+        # T and A must be different Statements (a polarity requires genuine opposition)
+        if self._t_hash == self._a_hash:
+            raise ValueError(
+                "Polarity requires T and A to be different Statements. "
+                f"Both point to the same hash: {self._t_hash[:7]}..."
+            )
+
         # Save node (get _id) before connecting relationships
         if self._id is None:
             result = graph_db.save_node(self)

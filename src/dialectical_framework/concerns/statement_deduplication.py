@@ -2,7 +2,8 @@
 SemanticDeduplicator: Service for semantic deduplication of components.
 
 Compares newly extracted components against existing vocabulary using LLM
-to find semantic equivalents (same concept, different wording).
+to find semantic duplicates (same assertion/claim, different wording).
+Statements about the same topic but taking different stances are NOT duplicates.
 """
 
 from __future__ import annotations
@@ -308,7 +309,7 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
 """
 
         prompt = f"""Compare these newly extracted statements against existing vocabulary.
-Find semantic equivalents (same concept, possibly different wording).
+Find semantic duplicates: statements that make the SAME claim or assertion, just worded differently.
 {context_section}
 **Newly Extracted Statements:**
 {chr(10).join(extraction_lines)}
@@ -316,11 +317,14 @@ Find semantic equivalents (same concept, possibly different wording).
 **Existing Vocabulary:**
 {chr(10).join(vocab_lines)}
 
-For each extraction, determine if there's a semantically equivalent
-statement in the existing vocabulary. Consider same core concept (even if worded differently).
-Use the source context to understand the intended meaning of extracted statements.
+For each extraction, determine if there's a semantically equivalent statement in the existing vocabulary.
 
-Only match if confidence >= 0.7 (clearly the same concept).
+IMPORTANT: Two statements are duplicates ONLY if they assert the same thing from the same stance.
+Statements that discuss the same topic but take different positions are NOT duplicates.
+For example, "growth requires structure" and "growth dilutes culture" are about the same topic
+but make different claims — they are NOT duplicates.
+
+Only match if confidence >= 0.7 (clearly the same assertion).
 If no match, set db_hash to null."""
 
         return await self._conversation.submit(
@@ -447,10 +451,10 @@ If no match, set db_hash to null."""
 **Existing vocabulary:**
 {chr(10).join(vocab_lines)}
 
-Determine if "{idea}" means the same thing as any existing component.
-Consider the same core concept even if worded differently.
+Determine if "{idea}" asserts the same thing as any existing component (same claim, possibly different wording).
+Statements about the same topic but taking different positions are NOT duplicates.
 
-Only mark as duplicate if confidence >= 0.8 (clearly the same concept).
+Only mark as duplicate if confidence >= 0.8 (clearly the same assertion).
 If not a duplicate, set is_duplicate=false and matched_hash=null."""
 
         result = await self._conversation.submit(

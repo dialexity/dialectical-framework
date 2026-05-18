@@ -191,7 +191,7 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
         focus_guidance = f"\nFocus on: {self._focus}" if self._focus else ""
         rule_out = ""
         if self._not_like_these:
-            rule_out = "\nAvoid items similar to:\n- " + "\n- ".join(
+            rule_out = "\nAvoid items that make the same assertion as:\n- " + "\n- ".join(
                 self._not_like_these
             )
 

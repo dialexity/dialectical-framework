@@ -42,7 +42,7 @@ class Case(BaseNode, label="Case"):
         Case
         ├──[HAS_INPUT]──► Input ──[HAS_STATEMENT]──► Statement
         │                   │
-        │                   └──[DISTILLED_TO]──► Ideas ──[HAS_STATEMENT]──► Statement
+        │                   ◄──[DISTILLED_FROM]── Ideas ──[HAS_STATEMENT]──► Statement
         │
         └── Vocabulary = all Components via HAS_STATEMENT paths
 

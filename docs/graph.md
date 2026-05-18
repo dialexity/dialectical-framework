@@ -124,10 +124,10 @@ The Case layer provides multi-input exploration before Perspective construction:
 ```
 Case (multi-input exploration)
 ├── HAS_INPUT → Input₁
-│              └── DISTILLED_TO → Ideas₁ (intent: "thesis_extraction")
-│                                └── HAS_STATEMENT → Statements...
+│              ◄── DISTILLED_FROM ── Ideas₁ (intent: "thesis_extraction")
+│                                      └── HAS_STATEMENT → Statements...
 ├── HAS_INPUT → Input₂
-│              └── DISTILLED_TO → Ideas₂ (intent: "antithesis_extraction")
+│              ◄── DISTILLED_FROM ── Ideas₂ (intent: "antithesis_extraction")
 └── get_vocabulary() → All statements in scope (uses DI scope)
 ```
 
@@ -136,7 +136,7 @@ Case (multi-input exploration)
 | Node | Purpose | Cardinality |
 |------|---------|-------------|
 | **Case** | Multi-input exploration with shared vocabulary | HAS_INPUT (1, ∞) to Input |
-| **Ideas** | Distilled concepts from a single Input | DISTILLED_TO (1, 1) from Input |
+| **Ideas** | Distilled concepts from a single Input | DISTILLED_FROM (0, ∞) to Input |
 
 **Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
 

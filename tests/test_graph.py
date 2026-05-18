@@ -275,6 +275,19 @@ def test_perspective_validation():
     print("✓ Perspective completeness validation works correctly")
 
 
+def test_polarity_rejects_identical_t_and_a():
+    """Polarity.commit() rejects T == A (same Statement in both positions)."""
+    stmt = Statement(text="Same statement", meaning="test")
+    stmt.commit()
+
+    polarity = Polarity()
+    polarity.set_t(stmt, heuristic_similarity=1.0)
+    polarity.set_a(stmt, heuristic_similarity=0.8)
+
+    with pytest.raises(ValueError, match="T and A to be different"):
+        polarity.commit()
+
+
 def test_component_aliases():
     """Test getting components with their contextual aliases from relationships."""
 

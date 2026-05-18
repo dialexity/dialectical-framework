@@ -167,10 +167,15 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         # Phase 2: Semantic deduplication (only newly extracted, not existing)
         newly_extracted_hashes = [c.hash for c in newly_extracted]
         if newly_extracted_hashes and vocab:
+            # Exclude theses from dedup vocabulary — an antithesis must never
+            # be "deduped" to its own thesis (they're dialectically opposed, not equivalent)
+            thesis_hash_set = set(self.thesis_hashes)
+            dedup_vocab = [v for v in vocab if v.get("hash") not in thesis_hash_set]
+
             deduplicator = StatementDeduplication()
             dedup_result = await deduplicator.resolve(
                 extracted_hashes=newly_extracted_hashes,
-                vocabulary=vocab,
+                vocabulary=dedup_vocab,
                 text=input_text,
             )
 
@@ -414,6 +419,10 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                 continue
 
             for data in result.antithesis_data:
+                # Skip if deduplication mapped the antithesis back to its own thesis
+                if data["hash"] == result.thesis.hash:
+                    continue
+
                 antithesis = self._resolve_component(data["hash"])
                 if antithesis is None:
                     continue
