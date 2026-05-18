@@ -146,8 +146,8 @@ def install_mock_brain(monkeypatch: Any) -> None:
 
     # --- Patch use_brain ---
 
-    def mock_use_brain(ai_model=None, retry_max=10, **llm_call_kwargs):
-        format_model = llm_call_kwargs.get("format") or llm_call_kwargs.get("response_model")
+    def mock_use_brain(*, ai_model=None, retry_max=10, format=None, tools=None, thinking=None, raw_call=False, **llm_call_kwargs):
+        format_model = format
 
         def decorator(method):
             async def wrapper(*args, **kwargs):

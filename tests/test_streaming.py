@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from mirascope import llm
+from mirascope.llm import TextChunk, ThoughtChunk
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
@@ -28,6 +29,7 @@ from dialectical_framework.agents.stream_events import (
     ResponseComplete,
     StreamEvent,
     TextDelta,
+    ThinkingDelta,
     ToolResult,
     ToolStart,
 )
@@ -55,6 +57,11 @@ class MockResponseModel(BaseModel):
 
 class TestStreamEvents:
     """Test stream event dataclass construction and properties."""
+
+    def test_thinking_delta(self):
+        event = ThinkingDelta(text="Reasoning...")
+        assert event.text == "Reasoning..."
+        assert asdict(event) == {"text": "Reasoning..."}
 
     def test_text_delta(self):
         event = TextDelta(text="Hello")
@@ -130,15 +137,24 @@ class TestExecutionReportParsing:
 class MockStreamResponse:
     """Mock AsyncStreamResponse for testing submit_stream."""
 
-    def __init__(self, texts: list[str], tool_calls: list | None = None, tool_outputs: list[str] | None = None):
+    def __init__(
+        self,
+        texts: list[str],
+        thoughts: list[str] | None = None,
+        tool_calls: list | None = None,
+        tool_outputs: list[str] | None = None,
+    ):
         self._texts = texts
+        self._thoughts = thoughts or []
         self.tool_calls = tool_calls or []
         self._tool_outputs = tool_outputs or []
         self.messages = [{"role": "assistant", "content": "".join(texts)}]
 
-    async def text_stream(self):
+    async def chunk_stream(self):
+        for thought in self._thoughts:
+            yield ThoughtChunk(delta=thought)
         for text in self._texts:
-            yield text
+            yield TextChunk(delta=text)
 
     async def execute_tools(self) -> Sequence:
         return self._tool_outputs
@@ -265,6 +281,53 @@ class TestSubmitStream:
         assert len(tool_results) == 1
         assert tool_results[0].report is None
         assert "Found 5 nodes" in tool_results[0].raw_output
+
+    async def test_stream_with_thinking_chunks(self):
+        """When model returns thinking chunks, ThinkingDelta events are yielded before TextDelta."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        stream_resp = MockStreamResponse(
+            texts=["Here is my answer."],
+            thoughts=["Let me reason about this..."],
+            tool_calls=[],
+        )
+        mock_call = MockAsyncCall(stream_resp)
+
+        mock_response_model = MockResponseModel(message="Answer provided.")
+        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
+             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
+            events = []
+            async for event in facilitator.submit_stream(MockResponseModel, "Think about this"):
+                events.append(event)
+
+        thinking_events = [e for e in events if isinstance(e, ThinkingDelta)]
+        text_events = [e for e in events if isinstance(e, TextDelta)]
+
+        assert len(thinking_events) == 1
+        assert thinking_events[0].text == "Let me reason about this..."
+        assert len(text_events) == 1
+        assert text_events[0].text == "Here is my answer."
+
+        thinking_idx = events.index(thinking_events[0])
+        text_idx = events.index(text_events[0])
+        assert thinking_idx < text_idx
+
+    async def test_stream_without_thinking_no_thinking_events(self):
+        """Without thinking chunks from model, no ThinkingDelta events are emitted."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        stream_resp = MockStreamResponse(texts=["Just text."], tool_calls=[])
+        mock_call = MockAsyncCall(stream_resp)
+
+        mock_response_model = MockResponseModel(message="Done.")
+        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
+             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
+            events = []
+            async for event in facilitator.submit_stream(MockResponseModel, "Hi"):
+                events.append(event)
+
+        thinking_events = [e for e in events if isinstance(e, ThinkingDelta)]
+        assert len(thinking_events) == 0
 
 
 # --- Test Orchestrator.chat_stream ---

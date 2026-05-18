@@ -2,6 +2,7 @@
 StreamEvent: Tagged-union protocol for real-time events from the agentic loop.
 
 Consumers (Chainlit, CLI, test harness) iterate over these events to drive UX:
+- ThinkingDelta: token-by-token extended thinking/reasoning from the LLM
 - TextDelta: token-by-token LLM output (during tool-calling rounds)
 - ToolStart: LLM is invoking a tool
 - ToolResult: tool execution completed (with optional graph effects)
@@ -17,6 +18,13 @@ if TYPE_CHECKING:
     from dialectical_framework.agents.execution_report import ExecutionReport
 
 T = TypeVar("T")
+
+
+@dataclass(frozen=True, slots=True)
+class ThinkingDelta:
+    """A token/chunk of LLM reasoning/thinking (extended thinking output)."""
+
+    text: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,4 +71,4 @@ class ResponseComplete(Generic[T]):
         return str(self.result)
 
 
-StreamEvent = Union[TextDelta, ToolStart, ToolResult, ResponseComplete]
+StreamEvent = Union[ThinkingDelta, TextDelta, ToolStart, ToolResult, ResponseComplete]

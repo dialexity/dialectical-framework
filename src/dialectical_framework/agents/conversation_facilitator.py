@@ -23,11 +23,14 @@ from dialectical_framework.agents.stream_events import (
     ResponseComplete,
     StreamEvent,
     TextDelta,
+    ThinkingDelta,
     ToolResult,
     ToolStart,
 )
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.use_brain import use_brain
+
+from mirascope.llm import TextChunk, ThoughtChunk
 
 if TYPE_CHECKING:
     from mirascope.llm.calls import AsyncCall
@@ -179,8 +182,11 @@ class ConversationFacilitator(SettingsAware):
         stream = await self._open_stream_with_retry()
 
         for _ in range(max_tool_rounds):
-            async for text in stream.text_stream():
-                yield TextDelta(text=text)
+            async for chunk in stream.chunk_stream():
+                if isinstance(chunk, ThoughtChunk):
+                    yield ThinkingDelta(text=chunk.delta)
+                elif isinstance(chunk, TextChunk):
+                    yield TextDelta(text=chunk.delta)
 
             if not stream.tool_calls:
                 break
@@ -235,7 +241,7 @@ class ConversationFacilitator(SettingsAware):
         """Get AsyncCall object for streaming tool-calling mode."""
         messages = self._messages
 
-        @use_brain(tools=self._tools, raw_call=True)
+        @use_brain(tools=self._tools, raw_call=True, **self._thinking_kwargs())
         async def _llm_call():
             return messages
 
@@ -249,11 +255,18 @@ class ConversationFacilitator(SettingsAware):
         except Exception:
             return None
 
+    def _thinking_kwargs(self) -> dict[str, Any]:
+        """Build thinking kwargs from settings, if configured."""
+        thinking_level = self.settings.thinking_level
+        if thinking_level:
+            return {"thinking": thinking_level}
+        return {}
+
     async def _call_with_tools(self) -> AsyncResponse:
         """Call LLM with tools available (no format)."""
         messages = self._messages
 
-        @use_brain(tools=self._tools)
+        @use_brain(tools=self._tools, **self._thinking_kwargs())
         async def _llm_call():
             return messages
 

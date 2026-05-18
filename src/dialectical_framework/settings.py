@@ -27,6 +27,17 @@ class Settings(BaseModel):
     graph_db_encrypted: bool = Field(default=False, description="Use encrypted connection (SSL/TLS)")
     graph_db_client_name: str = Field(default="dialectical_framework", description="Client name for connection identification")
 
+    # Extended thinking: None = disabled, or one of the levels below.
+    # Levels map to provider-specific token budgets (% of max_tokens for Anthropic):
+    #   "none"    - disable thinking entirely
+    #   "minimal" - minimum budget (1024 tokens)
+    #   "low"     - 20% of max_tokens
+    #   "medium"  - 40% of max_tokens
+    #   "high"    - 60% of max_tokens
+    #   "max"     - 80% of max_tokens
+    # If the model doesn't support thinking, the setting is silently ignored (warning logged).
+    thinking_level: Optional[str] = Field(default=None, description="Extended thinking level. None = disabled.")
+
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
         """
@@ -77,4 +88,5 @@ class Settings(BaseModel):
             graph_db_password=os.getenv("DIALEXITY_GRAPH_DB_PASSWORD"),
             graph_db_encrypted=os.getenv("DIALEXITY_GRAPH_DB_ENCRYPTED", "false").lower() == "true",
             graph_db_client_name=os.getenv("DIALEXITY_GRAPH_DB_CLIENT_NAME", "dialectical_framework"),
+            thinking_level=os.getenv("DIALEXITY_THINKING_LEVEL"),
         )

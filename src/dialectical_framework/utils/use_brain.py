@@ -23,35 +23,49 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 @overload
 def use_brain(
+    *,
     ai_model: Optional[str] = ...,
     retry_max: int = ...,
-    *,
     format: type[T],
+    tools: Optional[list[Any]] = ...,
+    thinking: Optional[str | dict[str, Any]] = ...,
+    raw_call: bool = ...,
     **llm_call_kwargs: Any,
 ) -> Callable[[F], Callable[..., Awaitable[T]]]: ...
 
 
 @overload
 def use_brain(
+    *,
     ai_model: Optional[str] = ...,
     retry_max: int = ...,
-    *,
     raw_call: Literal[True],
+    format: Optional[type] = ...,
+    tools: Optional[list[Any]] = ...,
+    thinking: Optional[str | dict[str, Any]] = ...,
     **llm_call_kwargs: Any,
 ) -> Callable[[F], Callable[..., Awaitable[AsyncCall]]]: ...
 
 
 @overload
 def use_brain(
+    *,
     ai_model: Optional[str] = ...,
     retry_max: int = ...,
+    tools: Optional[list[Any]] = ...,
+    thinking: Optional[str | dict[str, Any]] = ...,
     **llm_call_kwargs: Any,
 ) -> Callable[[F], Callable[..., Awaitable[AsyncResponse]]]: ...
 
 
 def use_brain(
+    *,
     ai_model: Optional[str] = None,
     retry_max: int = 10,
+    format: Optional[type] = None,
+    tools: Optional[list[Any]] = None,
+    thinking: Optional[str | dict[str, Any]] = None,
+    raw_call: bool = False,
     **llm_call_kwargs: Any,
 ) -> Callable[[F], Callable[..., Any]]:
     """
@@ -68,10 +82,11 @@ def use_brain(
         retry_max: Maximum attempts (default: 10). Set to 1 to disable retries.
         format: Pydantic model class for structured output.
         tools: List of tool functions/classes to make available.
+        thinking: Extended thinking level string ("medium", "high", etc.)
+            or a dict ({"level": "high", ...}). include_thoughts=True is added automatically.
+        raw_call: If True, returns AsyncCall for caller to .stream() or await.
         **llm_call_kwargs: Additional kwargs for @llm.call (temperature, max_tokens, etc.)
     """
-
-    raw_call = llm_call_kwargs.pop("raw_call", False)
 
     def decorator(method: F) -> Callable[..., Any]:
         @wraps(method)
@@ -85,14 +100,19 @@ def use_brain(
                 ensure_bedrock_provider()
 
             call_params: dict[str, Any] = {}
-            if "response_model" in llm_call_kwargs:
-                call_params["format"] = llm_call_kwargs["response_model"]
-            elif "format" in llm_call_kwargs:
-                call_params["format"] = llm_call_kwargs["format"]
-            if "tools" in llm_call_kwargs:
-                call_params["tools"] = llm_call_kwargs["tools"]
+            if format is not None:
+                call_params["format"] = format
+            if tools is not None:
+                call_params["tools"] = tools
 
-            for key in ("temperature", "max_tokens", "top_p", "top_k", "seed", "stop_sequences", "thinking"):
+            if thinking is not None:
+                if isinstance(thinking, str):
+                    call_params["thinking"] = {"level": thinking, "include_thoughts": True}
+                else:
+                    thinking.setdefault("include_thoughts", True)
+                    call_params["thinking"] = thinking
+
+            for key in ("temperature", "max_tokens", "top_p", "top_k", "seed", "stop_sequences"):
                 if key in llm_call_kwargs:
                     call_params[key] = llm_call_kwargs[key]
 
