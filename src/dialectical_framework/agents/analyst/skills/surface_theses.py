@@ -30,24 +30,23 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.enums.di import DI
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.concerns.statement_classification import (
     ClassificationResult, StatementClassification)
 from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
 from dialectical_framework.concerns.thesis_extraction import ThesisExtraction
-from dialectical_framework.graph.nodes.statement import \
-    Statement
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.rationale import Rationale
-from dialectical_framework.graph.repositories.statement_repository import \
-    StatementRepository
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
+from dialectical_framework.graph.repositories.statement_repository import \
+    StatementRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -118,8 +117,9 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
     This is Phase 1 of the polarity-finder algorithm (Steps 1-4).
     """
 
-    def __init__(self, intent: str) -> None:
+    def __init__(self, intent: str, input_hashes: list[str] | None = None) -> None:
         self.intent = intent
+        self.input_hashes = input_hashes
         self._conversation: Optional[ConversationFacilitator] = None
 
     async def resolve(self) -> Optional[Ideas]:
@@ -318,9 +318,7 @@ Determine:
         self, result: ClassificationResult
     ) -> Statement:
         """Create component and rationale from classification result."""
-        component = Statement(
-            text=result.statement, meaning=result.meaning
-        )
+        component = Statement(text=result.statement, meaning=result.meaning)
         component.commit()
 
         classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
@@ -385,8 +383,7 @@ Determine:
                 count=remaining,
                 focus=params.get("focus", ""),
                 domain_hint=params.get("domain_hint", ""),
-                not_like_these=not_like_these
-                + [c.text for c in extracted_components],
+                not_like_these=not_like_these + [c.text for c in extracted_components],
             )
             reports.append(service.report)
 
@@ -452,14 +449,22 @@ Determine:
 
     # --- Helpers ---
 
+    def _get_inputs(self) -> list:
+        """Get inputs: filtered by input_hashes if provided, otherwise all in scope."""
+        if self.input_hashes:
+            from dialectical_framework.graph.nodes.input import Input
+
+            repo = NodeRepository()
+            return repo.find_by_hashes(self.input_hashes, node_type=Input)
+        return InputRepository().get_all()
+
     @inject
     async def _get_input_text(
         self,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
-        """Get concatenated text from all inputs in scope."""
-        repo = InputRepository()
-        inputs = repo.get_all()
+        """Get concatenated text from inputs (filtered by input_hashes if provided)."""
+        inputs = self._get_inputs()
 
         if not inputs:
             return ""
@@ -476,9 +481,8 @@ Determine:
         self,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
-        """Get preview (first 500 chars) of each input in scope."""
-        repo = InputRepository()
-        inputs = repo.get_all()
+        """Get preview (first 500 chars) of each input."""
+        inputs = self._get_inputs()
 
         if not inputs:
             return "No inputs"
@@ -518,9 +522,8 @@ Determine:
         ideas = Ideas(intent=self.intent)
         ideas.save()
 
-        # Connect to inputs in scope
-        input_repo = InputRepository()
-        for input_node in input_repo.get_all():
+        # Connect to inputs (filtered or all)
+        for input_node in self._get_inputs():
             ideas.inputs.connect(input_node)
             self._report.relationship_created(ideas.inputs, ideas, input_node)
 
@@ -549,7 +552,13 @@ Determine:
 
 @llm.tool
 async def surface_theses(
-    intent: str = Field(description="What theses to find — e.g. 'extract 3 theses about trust', 'Love', 'find tensions in the situation'"),
+    intent: str = Field(
+        description="What theses to find — e.g. 'extract 3 theses about trust', 'Love', 'find tensions in the situation'"
+    ),
+    input_hashes: Optional[list[str]] = Field(
+        default=None,
+        description="Optional list of input hashes to process selectively. If None, processes all inputs in scope.",
+    ),
 ) -> str:
     """Surfaces theses for dialectical analysis by fulfilling anchoring intent.
 
@@ -560,6 +569,6 @@ async def surface_theses(
     'find theses from inputs, prefer existing ones if suitable',
     'surface 3 new theses about security, avoid anything about performance'
     """
-    concern = SurfaceTheses(intent=intent)
+    concern = SurfaceTheses(intent=intent, input_hashes=input_hashes)
     await concern.resolve()
     return str(concern.report)

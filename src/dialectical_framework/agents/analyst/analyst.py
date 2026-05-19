@@ -89,9 +89,7 @@ class Analyst:
         return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
-        async for event in self._conversation.submit_stream(
-            ChatResponse, user_message
-        ):
+        async for event in self._conversation.submit_stream(ChatResponse, user_message):
             yield event
 
     @property
@@ -112,6 +110,8 @@ def _build_tool_list(mode: str) -> list:
 def _default_tools() -> list:
     from dialectical_framework.agents.analyst.skills.edit_perspective import \
         edit_perspective
+    from dialectical_framework.agents.analyst.tools.create_dx_input import \
+        create_dx_input
     from dialectical_framework.agents.explorer.tools.create_nexus import \
         create_nexus
     from dialectical_framework.agents.orchestrator.tools.get_schema import \
@@ -127,6 +127,7 @@ def _default_tools() -> list:
     return [
         analyze,
         create_nexus,
+        create_dx_input,
         edit_perspective,
         reject,
         present_analysis,
@@ -147,6 +148,8 @@ def _advanced_tools() -> list:
         introduce_polarity
     from dialectical_framework.agents.analyst.skills.surface_theses import \
         surface_theses
+    from dialectical_framework.agents.analyst.tools.create_dx_input import \
+        create_dx_input
     from dialectical_framework.agents.analyst.tools.place_statement import \
         place_statement
     from dialectical_framework.agents.explorer.tools.create_nexus import \
@@ -170,6 +173,7 @@ def _advanced_tools() -> list:
         introduce_polarity,
         expand_polarities,
         place_statement,
+        create_dx_input,
         edit_perspective,
         reject,
         create_nexus,
@@ -223,10 +227,12 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         text: Optional[str] = None,
         intent: Optional[str] = None,
         thesis_hashes: Optional[list[str]] = None,
+        input_hashes: Optional[list[str]] = None,
     ) -> None:
         self.text = text
         self.intent = intent
         self.thesis_hashes = thesis_hashes or []
+        self.input_hashes = input_hashes
 
     async def resolve(self) -> AnalysisResult:
         from dialectical_framework.agents.analyst.skills.find_polarities import \
@@ -266,7 +272,8 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
 
             try:
                 surface = SurfaceTheses(
-                    intent=self.intent or "extract key theses from the input"
+                    intent=self.intent or "extract key theses from the input",
+                    input_hashes=self.input_hashes,
                 )
                 ideas = await surface.resolve()
                 reports.append(surface.report)
@@ -410,8 +417,14 @@ async def analyze(
         default=None,
         description="Existing thesis hashes to develop further (skips input capture and extraction)",
     ),
+    input_hashes: Optional[list[str]] = Field(
+        default=None,
+        description="Optional list of input hashes to process selectively. If None, processes all inputs in scope.",
+    ),
 ) -> str:
     """Run full dialectical analysis: captures input, extracts theses, finds tensions, and builds complete perspectives with quality-gated expansion. Use when the user describes a new situation or provides material to analyze."""
-    pipeline = AnalysisPipeline(text=text, intent=intent, thesis_hashes=thesis_hashes)
+    pipeline = AnalysisPipeline(
+        text=text, intent=intent, thesis_hashes=thesis_hashes, input_hashes=input_hashes
+    )
     await pipeline.resolve()
     return str(pipeline.report)

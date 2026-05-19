@@ -11,13 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dialectical_framework.exceptions.resolver_errors import (
-    AmbiguousHashPrefixError,
-    MalformedDxUriError,
-    NodeNotFoundError,
-    ScopeMismatchError,
-    UnsupportedNodeTypeError,
-)
-from dialectical_framework.graph.repositories.node_repository import NodeRepository
+    AmbiguousHashPrefixError, MalformedDxUriError, NodeNotFoundError,
+    ScopeMismatchError, UnsupportedNodeTypeError)
+from dialectical_framework.graph.repositories.node_repository import \
+    NodeRepository
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.base_node import BaseNode
@@ -39,6 +36,7 @@ class DialexityInputResolver:
     Supported node types:
         - Rationale: returns `text` field
         - Statement: returns `text` field
+        - Transition: returns `summary` or `instruction` field
 
     All other node types fail. The application is responsible for distilling
     new Ideas or Components from the resolved content.
@@ -65,9 +63,7 @@ class DialexityInputResolver:
             MalformedDxUriError: If URI format is invalid
         """
         if not uri.startswith("dx://"):
-            raise MalformedDxUriError(
-                f"URI must start with 'dx://', got: {uri}"
-            )
+            raise MalformedDxUriError(f"URI must start with 'dx://', got: {uri}")
 
         # Remove scheme
         path = uri[5:]  # Remove "dx://"
@@ -92,9 +88,7 @@ class DialexityInputResolver:
 
         # Validate sid is not empty
         if not sid:
-            raise MalformedDxUriError(
-                f"dx:// URI requires a non-empty sid. Got: {uri}"
-            )
+            raise MalformedDxUriError(f"dx:// URI requires a non-empty sid. Got: {uri}")
 
         # Validate hash length
         if len(hash_or_prefix) < self.MIN_HASH_PREFIX_LENGTH:
@@ -173,6 +167,7 @@ class DialexityInputResolver:
         Supported types:
         - Rationale: returns `text` field
         - Statement: returns `text` field
+        - Transition: returns `summary` or `instruction` field
 
         Args:
             node: The node to extract content from
@@ -186,13 +181,16 @@ class DialexityInputResolver:
         # Import node types here to avoid circular imports at module level
         from dialectical_framework.graph.nodes.rationale import Rationale
         from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.graph.nodes.transition import Transition
 
         if isinstance(node, Rationale):
             return node.text
         elif isinstance(node, Statement):
             return node.text
+        elif isinstance(node, Transition):
+            return node.summary or node.instruction or ""
         else:
             raise UnsupportedNodeTypeError(
                 f"dx:// cannot reference node type: {type(node).__name__}. "
-                f"Supported types: Rationale, Statement"
+                f"Supported types: Rationale, Statement, Transition"
             )
