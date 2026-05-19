@@ -22,17 +22,13 @@ from mirascope import llm
 from mirascope.llm import TextChunk, ThoughtChunk
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
+from dialectical_framework.agents.conversation_facilitator import \
+    ConversationFacilitator
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.agents.analyst.analyst import Analyst
-from dialectical_framework.agents.stream_events import (
-    ResponseComplete,
-    StreamEvent,
-    TextDelta,
-    ThinkingDelta,
-    ToolResult,
-    ToolStart,
-)
+from dialectical_framework.agents.stream_events import (ResponseComplete,
+                                                        StreamEvent, TextDelta,
+                                                        ThinkingDelta,
+                                                        ToolResult, ToolStart)
 
 
 @pytest.fixture(autouse=True)
@@ -73,19 +69,29 @@ class TestStreamEvents:
         assert event.tool_args == {"intent": "trust"}
 
     def test_tool_result_with_report(self):
-        report = ExecutionReport(tool="surface_theses", ok=True, summary="Found 3 theses")
-        event = ToolResult(tool_name="surface_theses", report=report, raw_output='{"tool": "surface_theses"}')
+        report = ExecutionReport(
+            tool="surface_theses", ok=True, summary="Found 3 theses"
+        )
+        event = ToolResult(
+            tool_name="surface_theses",
+            report=report,
+            raw_output='{"tool": "surface_theses"}',
+        )
         assert event.report is not None
         assert event.report.ok is True
         assert event.raw_output.startswith("{")
 
     def test_tool_result_without_report(self):
-        event = ToolResult(tool_name="query_graph", report=None, raw_output="Found 5 nodes")
+        event = ToolResult(
+            tool_name="query_graph", report=None, raw_output="Found 5 nodes"
+        )
         assert event.report is None
         assert event.raw_output == "Found 5 nodes"
 
     def test_response_complete(self):
-        event = ResponseComplete(result=MockResponseModel(message="I found 3 theses about trust."))
+        event = ResponseComplete(
+            result=MockResponseModel(message="I found 3 theses about trust.")
+        )
         assert event.message == "I found 3 theses about trust."
         assert event.result.message == "I found 3 theses about trust."
 
@@ -120,7 +126,11 @@ class TestExecutionReportParsing:
     def test_report_with_effects(self):
         report = ExecutionReport(tool="surface_theses")
         report.node_created(
-            MagicMock(short_hash="abc123", text="Test", __class__=type("Statement", (), {"__name__": "Statement"})),
+            MagicMock(
+                short_hash="abc123",
+                text="Test",
+                __class__=type("Statement", (), {"__name__": "Statement"}),
+            ),
             patch={"text": "Test thesis"},
         )
         json_str = report.model_dump_json()
@@ -198,12 +208,17 @@ class TestSubmitStream:
         """Tools available but LLM doesn't call any — yields TextDelta + ResponseComplete."""
         facilitator = ConversationFacilitator(tools=[lambda: None])
 
-        stream_resp = MockStreamResponse(texts=["I'll just ", "respond directly."], tool_calls=[])
+        stream_resp = MockStreamResponse(
+            texts=["I'll just ", "respond directly."], tool_calls=[]
+        )
         mock_call = MockAsyncCall(stream_resp)
 
         mock_response_model = MockResponseModel(message="I'll just respond directly.")
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
-             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
+        with patch.object(
+            facilitator, "_get_tools_call", return_value=mock_call
+        ), patch.object(
+            facilitator, "_call_with_response_model", return_value=mock_response_model
+        ):
             events = []
             async for event in facilitator.submit_stream(MockResponseModel, "Hi"):
                 events.append(event)
@@ -232,10 +247,15 @@ class TestSubmitStream:
         mock_call = MockAsyncCall(stream_resp)
 
         mock_response_model = MockResponseModel(message="Analysis complete.")
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
-             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
+        with patch.object(
+            facilitator, "_get_tools_call", return_value=mock_call
+        ), patch.object(
+            facilitator, "_call_with_response_model", return_value=mock_response_model
+        ):
             events = []
-            async for event in facilitator.submit_stream(MockResponseModel, "Analyze trust"):
+            async for event in facilitator.submit_stream(
+                MockResponseModel, "Analyze trust"
+            ):
                 events.append(event)
 
         # Check event sequence
@@ -261,7 +281,9 @@ class TestSubmitStream:
         """Tools returning plain text (not ExecutionReport JSON) have report=None."""
         facilitator = ConversationFacilitator(tools=[lambda: None])
 
-        tool_call = MockToolCall(name="query_graph", args={"cypher": "MATCH (n) RETURN n"})
+        tool_call = MockToolCall(
+            name="query_graph", args={"cypher": "MATCH (n) RETURN n"}
+        )
         stream_resp = MockStreamResponse(
             texts=["Querying..."],
             tool_calls=[tool_call],
@@ -270,8 +292,11 @@ class TestSubmitStream:
         mock_call = MockAsyncCall(stream_resp)
 
         mock_response_model = MockResponseModel(message="Query results shown.")
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
-             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
+        with patch.object(
+            facilitator, "_get_tools_call", return_value=mock_call
+        ), patch.object(
+            facilitator, "_call_with_response_model", return_value=mock_response_model
+        ):
             events = []
             async for event in facilitator.submit_stream(MockResponseModel, "Query"):
                 events.append(event)
@@ -293,10 +318,15 @@ class TestSubmitStream:
         mock_call = MockAsyncCall(stream_resp)
 
         mock_response_model = MockResponseModel(message="Answer provided.")
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
-             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
+        with patch.object(
+            facilitator, "_get_tools_call", return_value=mock_call
+        ), patch.object(
+            facilitator, "_call_with_response_model", return_value=mock_response_model
+        ):
             events = []
-            async for event in facilitator.submit_stream(MockResponseModel, "Think about this"):
+            async for event in facilitator.submit_stream(
+                MockResponseModel, "Think about this"
+            ):
                 events.append(event)
 
         thinking_events = [e for e in events if isinstance(e, ThinkingDelta)]
@@ -319,65 +349,17 @@ class TestSubmitStream:
         mock_call = MockAsyncCall(stream_resp)
 
         mock_response_model = MockResponseModel(message="Done.")
-        with patch.object(facilitator, "_get_tools_call", return_value=mock_call), \
-             patch.object(facilitator, "_call_with_response_model", return_value=mock_response_model):
+        with patch.object(
+            facilitator, "_get_tools_call", return_value=mock_call
+        ), patch.object(
+            facilitator, "_call_with_response_model", return_value=mock_response_model
+        ):
             events = []
             async for event in facilitator.submit_stream(MockResponseModel, "Hi"):
                 events.append(event)
 
         thinking_events = [e for e in events if isinstance(e, ThinkingDelta)]
         assert len(thinking_events) == 0
-
-
-# --- Test Analyst.chat_stream ---
-
-
-@pytest.mark.llm
-@pytest.mark.asyncio
-class TestAnalystChatStream:
-    """Test Analyst.chat_stream() delegates to submit_stream."""
-
-    def _make_analyst(self):
-        """Create Analyst (no DB needed for streaming tests)."""
-        return Analyst()
-
-    async def test_chat_stream_yields_events(self):
-        """chat_stream should yield StreamEvent instances from submit_stream."""
-        analyst = self._make_analyst()
-
-        async def mock_submit_stream(response_model, user_content, max_tool_rounds=10):
-            yield TextDelta(text="Working...")
-            yield ToolStart(tool_name="surface_theses", tool_args={"intent": "test"})
-            yield ToolResult(tool_name="surface_theses", report=None, raw_output="done")
-            yield ResponseComplete(result=MockResponseModel(message="Found theses."))
-
-        with patch.object(analyst._conversation, "submit_stream", mock_submit_stream):
-            events = []
-            async for event in analyst.chat_stream("Hello"):
-                events.append(event)
-
-        assert len(events) == 4
-        assert isinstance(events[0], TextDelta)
-        assert isinstance(events[1], ToolStart)
-        assert isinstance(events[2], ToolResult)
-        assert isinstance(events[3], ResponseComplete)
-        assert events[3].message == "Found theses."
-
-    async def test_chat_stream_empty_response(self):
-        """chat_stream handles no-tool path yielding just ResponseComplete."""
-        analyst = self._make_analyst()
-
-        async def mock_submit_stream(response_model, user_content, max_tool_rounds=10):
-            yield ResponseComplete(result=MockResponseModel(message="Simple answer."))
-
-        with patch.object(analyst._conversation, "submit_stream", mock_submit_stream):
-            events = []
-            async for event in analyst.chat_stream("Hi"):
-                events.append(event)
-
-        assert len(events) == 1
-        assert isinstance(events[0], ResponseComplete)
-        assert events[0].message == "Simple answer."
 
 
 # --- Test use_brain raw_call mode ---
@@ -442,7 +424,9 @@ class TestStreamingEndToEnd:
         )
 
         events = []
-        async for event in facilitator.submit_stream(MockResponseModel, "What time is it?"):
+        async for event in facilitator.submit_stream(
+            MockResponseModel, "What time is it?"
+        ):
             events.append(event)
 
         tool_starts = [e for e in events if isinstance(e, ToolStart)]
