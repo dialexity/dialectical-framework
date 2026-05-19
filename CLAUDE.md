@@ -96,14 +96,18 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Relationships | `graph/relationships/*.py` |
 | Relationship API | `graph/relationship_manager.py` |
 | Repositories (data access) | `graph/repositories/` |
+| Graph mixins | `graph/mixins/` |
 | Concerns (standalone services) | `concerns/` |
 | Analyst (conversational, Case-scoped) | `agents/analyst/analyst.py` |
 | Explorer (conversational, Nexus-scoped) | `agents/explorer/explorer.py` |
 | Shared agent tools | `agents/orchestrator/tools/` |
 | Agent skills/tools | `agents/{analyst,explorer}/` |
-| Synthesist (reasoning engines) | `synthesist/` |
+| LLM abstraction | `utils/use_brain.py` |
+| Utilities | `utils/` |
+| Events (domain event bus) | `events/` |
+| Exceptions | `exceptions/` |
+| Protocols (interfaces) | `protocols/` |
 | Configuration | `settings.py` |
-| LLM abstraction | `brain.py` |
 
 All paths relative to `src/dialectical_framework/`.
 
@@ -140,7 +144,7 @@ from dependency_injector.wiring import inject, Provide
 from dialectical_framework.enums.di import DI
 
 @inject
-def my_function(graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]):
+def my_function(graph_db: Memgraph | Neo4j = Provide[DI.graph_db]):
     pass
 ```
 
