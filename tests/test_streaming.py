@@ -4,7 +4,7 @@ Tests for streaming support: stream_events, submit_stream, chat_stream.
 Tests verify:
 1. StreamEvent dataclass construction
 2. ConversationFacilitator.submit_stream() yields correct event sequence
-3. Orchestrator.chat_stream() delegates correctly
+3. Analyst.chat_stream() delegates correctly
 4. use_brain raw_call=True returns AsyncCall-like object
 5. ExecutionReport parsing in ToolResult
 """
@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import ConversationFacilitator
 from dialectical_framework.agents.execution_report import ExecutionReport
-from dialectical_framework.agents.orchestrator.orchestrator import Orchestrator
+from dialectical_framework.agents.analyst.analyst import Analyst
 from dialectical_framework.agents.stream_events import (
     ResponseComplete,
     StreamEvent,
@@ -33,7 +33,6 @@ from dialectical_framework.agents.stream_events import (
     ToolResult,
     ToolStart,
 )
-from dialectical_framework.graph.scope_context import scope
 
 
 @pytest.fixture(autouse=True)
@@ -330,24 +329,21 @@ class TestSubmitStream:
         assert len(thinking_events) == 0
 
 
-# --- Test Orchestrator.chat_stream ---
+# --- Test Analyst.chat_stream ---
 
 
 @pytest.mark.llm
 @pytest.mark.asyncio
-class TestOrchestratorChatStream:
-    """Test Orchestrator.chat_stream() delegates to submit_stream."""
+class TestAnalystChatStream:
+    """Test Analyst.chat_stream() delegates to submit_stream."""
 
-    def _make_orchestrator(self):
-        """Create Orchestrator without hitting the DB."""
-        with patch("dialectical_framework.agents.orchestrator.orchestrator.Case") as mock_case:
-            mock_case.return_value.commit.return_value = None
-            mock_case.return_value.sid = "test-sid"
-            return Orchestrator()
+    def _make_analyst(self):
+        """Create Analyst (no DB needed for streaming tests)."""
+        return Analyst()
 
     async def test_chat_stream_yields_events(self):
         """chat_stream should yield StreamEvent instances from submit_stream."""
-        orchestrator = self._make_orchestrator()
+        analyst = self._make_analyst()
 
         async def mock_submit_stream(response_model, user_content, max_tool_rounds=10):
             yield TextDelta(text="Working...")
@@ -355,9 +351,9 @@ class TestOrchestratorChatStream:
             yield ToolResult(tool_name="surface_theses", report=None, raw_output="done")
             yield ResponseComplete(result=MockResponseModel(message="Found theses."))
 
-        with patch.object(orchestrator._conversation, "submit_stream", mock_submit_stream):
+        with patch.object(analyst._conversation, "submit_stream", mock_submit_stream):
             events = []
-            async for event in orchestrator.chat_stream("Hello"):
+            async for event in analyst.chat_stream("Hello"):
                 events.append(event)
 
         assert len(events) == 4
@@ -369,14 +365,14 @@ class TestOrchestratorChatStream:
 
     async def test_chat_stream_empty_response(self):
         """chat_stream handles no-tool path yielding just ResponseComplete."""
-        orchestrator = self._make_orchestrator()
+        analyst = self._make_analyst()
 
         async def mock_submit_stream(response_model, user_content, max_tool_rounds=10):
             yield ResponseComplete(result=MockResponseModel(message="Simple answer."))
 
-        with patch.object(orchestrator._conversation, "submit_stream", mock_submit_stream):
+        with patch.object(analyst._conversation, "submit_stream", mock_submit_stream):
             events = []
-            async for event in orchestrator.chat_stream("Hi"):
+            async for event in analyst.chat_stream("Hi"):
                 events.append(event)
 
         assert len(events) == 1

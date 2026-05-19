@@ -68,19 +68,18 @@ class ConversationFacilitator(SettingsAware):
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
-        Set the system prompt for this conversation.
+        Set or replace the system prompt for this conversation.
 
-        Must be the first message. If called after other messages exist,
-        inserts at the beginning (if no system prompt yet) or raises error.
+        Replaces any existing system message at position 0, or inserts one.
         """
         system_msg = llm.messages.system(system_prompt)
 
         if not self._messages:
             self._messages.append(system_msg)
         elif hasattr(self._messages[0], "role") and self._messages[0].role == "system":
-            raise ValueError("System prompt already set. Cannot set it twice.")
+            self._messages[0] = system_msg
         elif isinstance(self._messages[0], dict) and self._messages[0].get("role") == "system":
-            raise ValueError("System prompt already set. Cannot set it twice.")
+            self._messages[0] = system_msg
         else:
             self._messages.insert(0, system_msg)
 

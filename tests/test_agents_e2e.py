@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 from langfuse import observe
 
-from dialectical_framework.agents.analyst.analyst import Analyst
-from dialectical_framework.agents.explorer.explorer import Explorer
+from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.perspective import Perspective
@@ -46,7 +46,7 @@ class TestAnalystEndToEnd:
         case.commit()
 
         with scope(case.sid):
-            analyst = Analyst(text=SITUATION_TEXT)
+            analyst = AnalysisPipeline(text=SITUATION_TEXT)
             result = await analyst.resolve()
 
             assert result.thesis_hashes, "Should find at least one thesis"
@@ -63,7 +63,7 @@ class TestAnalystEndToEnd:
         case.commit()
 
         with scope(case.sid):
-            analyst = Analyst(text=SITUATION_TEXT)
+            analyst = AnalysisPipeline(text=SITUATION_TEXT)
             result = await analyst.resolve()
 
             pp_repo = PerspectiveRepository()
@@ -83,7 +83,7 @@ class TestAnalystEndToEnd:
         case.commit()
 
         with scope(case.sid):
-            analyst = Analyst(
+            analyst = AnalysisPipeline(
                 text=SITUATION_TEXT,
                 intent="find tensions about scaling culture",
             )
@@ -118,7 +118,7 @@ class TestAnalystEndToEnd:
         case.commit()
 
         with scope(case.sid):
-            analyst = Analyst(text=SITUATION_TEXT)
+            analyst = AnalysisPipeline(text=SITUATION_TEXT)
             result = await analyst.resolve()
 
             repo = NodeRepository()
@@ -170,7 +170,7 @@ class TestAnalystEndToEnd:
             assert thesis_hashes
 
             # Second run: develop from existing theses (no text needed)
-            analyst = Analyst(thesis_hashes=thesis_hashes)
+            analyst = AnalysisPipeline(thesis_hashes=thesis_hashes)
             result = await analyst.resolve()
 
             assert result.polarity_hashes, "Should find polarities for existing theses"
@@ -184,7 +184,7 @@ class TestAnalystEndToEnd:
         case.commit()
 
         with scope(case.sid):
-            analyst = Analyst(text=SITUATION_TEXT)
+            analyst = AnalysisPipeline(text=SITUATION_TEXT)
             result = await analyst.resolve()
 
             # The number of perspectives should be <= number of polarities
@@ -205,7 +205,7 @@ class TestExplorerEndToEnd:
 
         with scope(case.sid):
             # Build perspectives via Analyst
-            analyst = Analyst(
+            analyst = AnalysisPipeline(
                 text=SITUATION_TEXT,
                 intent="find 2-3 core tensions about scaling company culture",
             )
@@ -217,13 +217,22 @@ class TestExplorerEndToEnd:
                     f"(need 2+) — LLM non-determinism, not an Explorer bug"
                 )
 
-            # Explore with exactly 2 perspectives (minimal, fastest)
-            explorer = Explorer(
-                perspective_hashes=analysis.perspective_hashes[:2],
+            # Create nexus first (Analyst's responsibility in the new arch)
+            from dialectical_framework.agents.explorer.tools.create_nexus import CreateNexus
+
+            create = CreateNexus()
+            nexus_result = await create.resolve(
                 intent="understand how these tensions interact",
+                perspective_hashes=analysis.perspective_hashes[:2],
+            )
+
+            # Explore within the nexus
+            explorer = ExplorationPipeline(
+                nexus_hash=nexus_result.nexus.hash,
+                perspective_hashes=analysis.perspective_hashes[:2],
             )
             result = await explorer.resolve()
 
-            assert result.nexus_hash, "Should create a Nexus"
+            assert result.nexus_hash, "Should reference the Nexus"
             assert result.cycle_hashes, "Should produce at least one Cycle"
             assert result.wheel_hashes, "Should produce at least one Wheel"

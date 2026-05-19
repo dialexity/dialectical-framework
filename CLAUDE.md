@@ -97,7 +97,10 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Relationship API | `graph/relationship_manager.py` |
 | Repositories (data access) | `graph/repositories/` |
 | Concerns (standalone services) | `concerns/` |
-| Agent skills/tools | `agents/{analyst,explorer,orchestrator}/` |
+| Analyst (conversational, Case-scoped) | `agents/analyst/analyst.py` |
+| Explorer (conversational, Nexus-scoped) | `agents/explorer/explorer.py` |
+| Shared agent tools | `agents/orchestrator/tools/` |
+| Agent skills/tools | `agents/{analyst,explorer}/` |
 | Synthesist (reasoning engines) | `synthesist/` |
 | Configuration | `settings.py` |
 | LLM abstraction | `brain.py` |
@@ -118,7 +121,7 @@ Do not remove TODO comments without confirming with the user first. Flag them wh
 
 ### Update GRAPH_SCHEMA When Changing Graph Structure
 
-`GRAPH_SCHEMA` in `agents/orchestrator/orchestrator.py` is the LLM's reference for Cypher queries. Update it when adding/removing/renaming nodes, relationships, or significant properties.
+`GRAPH_SCHEMA` in `agents/orchestrator/tools/get_schema.py` is the LLM's reference for Cypher queries. Update it when adding/removing/renaming nodes, relationships, or significant properties.
 
 ### Query Safety: All Queries in Repositories
 

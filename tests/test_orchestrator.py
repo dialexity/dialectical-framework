@@ -1,25 +1,33 @@
 """
-Tests for Orchestrator.
+Tests for agent tools and session management.
 
-These are integration tests that verify the orchestrator correctly:
-1. Creates sessions on init
-2. Registers and executes tools
-3. Tools are stateless and use DI for context
-4. Queries are automatically scoped by sid for security
+These are integration tests that verify:
+1. Tools are stateless and use DI for context
+2. Queries are automatically scoped by sid for security
+3. Analyst agent initialization and tool registration
 """
 
 from __future__ import annotations
 
 import pytest
 
-from dialectical_framework.agents.orchestrator.orchestrator import Orchestrator
+from dialectical_framework.agents.analyst.analyst import Analyst
 from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
 from dialectical_framework.agents.orchestrator.tools.query_graph import (
     QueryGraph,
     _inject_sid_scoping,
     _has_hardcoded_sid,
 )
+from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.scope_context import scope
+
+
+def _new_sid() -> str:
+    """Create a Case and return its sid."""
+    case = Case()
+    case.commit()
+    assert case.sid is not None
+    return case.sid
 
 
 class TestSidInjection:
@@ -84,9 +92,9 @@ class TestSessionTools:
     @pytest.mark.asyncio
     async def test_add_input(self):
         """Test AddInput adds content to case."""
-        orchestrator = Orchestrator()
+        sid = _new_sid()
 
-        with scope(orchestrator.sid):
+        with scope(sid):
             concern = AddInput()
             input_node = await concern.resolve(content="Remote work increases productivity.")
 
@@ -100,9 +108,9 @@ class TestQueryTools:
     @pytest.mark.asyncio
     async def test_query_graph_blocks_write_operations(self):
         """Test QueryGraph blocks CREATE, MERGE, DELETE etc."""
-        orchestrator = Orchestrator()
+        sid = _new_sid()
 
-        with scope(orchestrator.sid):
+        with scope(sid):
             concern = QueryGraph()
 
             # Test CREATE blocked
@@ -117,9 +125,9 @@ class TestQueryTools:
     @pytest.mark.asyncio
     async def test_query_graph_blocks_hardcoded_sid(self):
         """Test QueryGraph blocks hardcoded sid values."""
-        orchestrator = Orchestrator()
+        sid = _new_sid()
 
-        with scope(orchestrator.sid):
+        with scope(sid):
             concern = QueryGraph()
             result = await concern.resolve(cypher="MATCH (n {sid: 'evil-session'}) RETURN n")
 
@@ -128,9 +136,9 @@ class TestQueryTools:
     @pytest.mark.asyncio
     async def test_query_graph_auto_injects_sid(self):
         """Test QueryGraph auto-injects sid - LLM doesn't need to include it."""
-        orchestrator = Orchestrator()
+        sid = _new_sid()
 
-        with scope(orchestrator.sid):
+        with scope(sid):
             concern = QueryGraph()
             result = await concern.resolve(cypher="MATCH (b:Case) RETURN b")
 
@@ -140,9 +148,9 @@ class TestQueryTools:
     @pytest.mark.asyncio
     async def test_query_graph_no_results(self):
         """Test QueryGraph handles empty results."""
-        orchestrator = Orchestrator()
+        sid = _new_sid()
 
-        with scope(orchestrator.sid):
+        with scope(sid):
             concern = QueryGraph()
             result = await concern.resolve(cypher="MATCH (pp:Perspective) RETURN pp")
 
@@ -151,9 +159,9 @@ class TestQueryTools:
     @pytest.mark.asyncio
     async def test_query_graph_allows_schema_queries(self):
         """Test QueryGraph allows schema introspection."""
-        orchestrator = Orchestrator()
+        sid = _new_sid()
 
-        with scope(orchestrator.sid):
+        with scope(sid):
             concern = QueryGraph()
             result = await concern.resolve(cypher="SHOW SCHEMA INFO")
 
@@ -161,35 +169,17 @@ class TestQueryTools:
             assert "Error" not in result or "Query error" in result  # Query error OK if DB doesn't support
 
 
-class TestOrchestratorInitialization:
-    """Tests for Orchestrator initialization."""
+class TestAnalystInitialization:
+    """Tests for Analyst initialization."""
 
-    def test_orchestrator_creates_session(self):
-        """Test orchestrator creates a session on init."""
-        orchestrator = Orchestrator()
+    def test_default_mode_tools(self):
+        """Test default mode has autonomous pipeline + steering + query tools."""
+        analyst = Analyst()
 
-        assert orchestrator.sid is not None
-        assert len(orchestrator.sid) > 0
-
-    def test_orchestrator_loads_existing_session(self):
-        """Test orchestrator can load existing session."""
-        # Create a session first
-        first = Orchestrator()
-        sid = first.sid
-
-        # Load it in a new orchestrator
-        second = Orchestrator(sid=sid)
-
-        assert second.sid == sid
-
-    def test_default_mode_has_autonomous_tools(self):
-        """Test default mode has autonomous agents + steering + query tools."""
-        orchestrator = Orchestrator()
-
-        tool_names = [t.__name__ for t in orchestrator._tools]
+        tool_names = [t.__name__ for t in analyst._tools]
 
         assert "analyze" in tool_names
-        assert "explore" in tool_names
+        assert "create_nexus" in tool_names
         assert "edit_perspective" in tool_names
         assert "reject" in tool_names
         assert "present_analysis" in tool_names
@@ -202,11 +192,11 @@ class TestOrchestratorInitialization:
         assert "find_polarities" not in tool_names
         assert "build_wheels" not in tool_names
 
-    def test_advanced_mode_has_granular_tools(self):
-        """Test advanced mode has all granular tools + query tools."""
-        orchestrator = Orchestrator(mode="advanced")
+    def test_advanced_mode_tools(self):
+        """Test advanced mode has all granular tools."""
+        analyst = Analyst(mode="advanced")
 
-        tool_names = [t.__name__ for t in orchestrator._tools]
+        tool_names = [t.__name__ for t in analyst._tools]
 
         # Granular analysis tools
         assert "add_input" in tool_names
@@ -217,11 +207,7 @@ class TestOrchestratorInitialization:
         assert "place_statement" in tool_names
         assert "edit_perspective" in tool_names
         assert "reject" in tool_names
-
-        # Granular exploration tools
         assert "create_nexus" in tool_names
-        assert "build_wheels" in tool_names
-        assert "explore_transformations" in tool_names
 
         # Query tools
         assert "present_analysis" in tool_names
@@ -229,20 +215,19 @@ class TestOrchestratorInitialization:
         assert "query_graph" in tool_names
         assert "get_schema" in tool_names
 
-        # Autonomous agents NOT in advanced mode
+        # Autonomous pipeline NOT in advanced mode
         assert "analyze" not in tool_names
-        assert "explore" not in tool_names
 
 
-class TestOrchestratorWorkflow:
-    """Integration tests for orchestrator workflows."""
+class TestAnalystWorkflow:
+    """Integration tests for analyst workflows."""
 
     @pytest.mark.asyncio
     async def test_add_input_workflow(self):
         """Test workflow: add input -> query inputs."""
-        orchestrator = Orchestrator()
+        sid = _new_sid()
 
-        with scope(orchestrator.sid):
+        with scope(sid):
             # Add input
             concern = AddInput()
             input_node = await concern.resolve(content="Remote work increases productivity and flexibility.")
