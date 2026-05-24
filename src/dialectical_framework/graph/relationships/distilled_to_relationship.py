@@ -1,12 +1,12 @@
-"""Relationship model for Ideas → Input provenance link."""
+"""Relationship model for Input → Ideas provenance link."""
 from __future__ import annotations
 
 from gqlalchemy import Relationship
 
 
-class DistilledFromRelationship(Relationship, type="DISTILLED_FROM"):
+class DistilledToRelationship(Relationship, type="DISTILLED_TO"):
     """
-    Ideas -[:DISTILLED_FROM]-> Input: marks which Input(s) an Ideas was derived from.
+    Input -[:DISTILLED_TO]-> Ideas: marks which Ideas were derived from this Input.
 
     Not a BackboneStructure - created after Input is committed to track derivation.
     """

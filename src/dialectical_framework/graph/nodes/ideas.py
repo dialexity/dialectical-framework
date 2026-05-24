@@ -14,10 +14,11 @@ from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
 from dialectical_framework.graph.relationship_manager import (
     RelationshipTo,
+    RelationshipFrom,
     RelationshipManager,
 )
 from dialectical_framework.graph.relationships.distilled_to_relationship import (
-    DistilledFromRelationship,
+    DistilledToRelationship,
 )
 from dialectical_framework.graph.relationships.has_statement_relationship import (
     HasStatementRelationship,
@@ -46,7 +47,7 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
         Case → Input → Ideas → Statement
 
     Relationships:
-    - Ideas comes from one or more Inputs (via DISTILLED_FROM)
+    - Ideas comes from one or more Inputs (via DISTILLED_TO)
     - Ideas can have multiple extracted statements (via HAS_STATEMENT)
 
     Example:
@@ -65,12 +66,12 @@ class Ideas(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Ideas")
     """
 
     # Source Inputs (optional - explicit provenance when needed)
-    # Ideas -[:DISTILLED_FROM]-> Input: provenance link to source Input(s)
+    # Input -[:DISTILLED_TO]-> Ideas: provenance link from source Input(s)
     # When empty: Ideas uses all Inputs available in Case at creation time (inferred via timestamp)
     # When specified: Ideas derived from these specific Inputs (e.g., Rationale-spawned Input)
-    inputs: ClassVar[RelationshipManager[Input]] = RelationshipTo(
+    inputs: ClassVar[RelationshipManager[Input]] = RelationshipFrom(
         "Input",
-        model=DistilledFromRelationship,
+        model=DistilledToRelationship,
         cardinality=(0, None),  # Zero or more source Inputs
     )
 

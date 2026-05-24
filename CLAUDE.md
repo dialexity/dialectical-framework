@@ -68,6 +68,7 @@ See `docs/graph.md` for full data model (positions, transformations, cardinality
 Poetry project (Python 3.11+):
 
 ```
+docker compose -f docker-compose.test.yml up -d  # start Memgraph (required for graph tests)
 poetry run pytest                    # all tests, LLM mocked
 poetry run pytest --real-llm         # only LLM tests with real provider
 poetry run pytest -m llm             # only LLM-path tests (mocked)

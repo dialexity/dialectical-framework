@@ -101,7 +101,7 @@ All nodes share: `hash` (content-addressable ID), `sid` (session scope), `commit
 **Container membership**:
 - `(case:Case)-[:HAS_INPUT]->(i:Input)` — Case owns Inputs
 - `(ideas:Ideas)-[:HAS_STATEMENT]->(s:Statement)` — Ideas contains Statements
-- `(ideas:Ideas)-[:DISTILLED_FROM]->(i:Input)` — Ideas derived from Input
+- `(i:Input)-[:DISTILLED_TO]->(ideas:Ideas)` — Input distilled into Ideas
 
 **Metadata**:
 - `(r:Rationale)-[:EXPLAINS]->(n)` — explanation for any node
