@@ -195,12 +195,17 @@ Only `@llm.tool` functions go into tool lists. `ReasonableConcern` classes are n
 
 ```python
 @llm.tool
-async def surface_theses(intent: str = Field(description="What theses to find")) -> str:
+async def surface_theses(
+    intent: Annotated[str, Field(description="What theses to find")],
+    input_hashes: Annotated[list[str] | None, Field(description="Input hashes to process selectively")] = None,
+) -> str:
     """Surfaces theses for dialectical analysis."""
-    skill = SurfaceTheses(intent=intent)
+    skill = SurfaceTheses(intent=intent, input_hashes=input_hashes)
     await skill.resolve()
     return str(skill.report)
 ```
+
+**Critical:** Never use `param = Field(default=X, ...)` as a Python default — Mirascope leaves the raw `FieldInfo` object as the runtime default. Always use `Annotated[type, Field(...)] = actual_default`. Test coverage: `test_tool_signatures.py`.
 
 ---
 

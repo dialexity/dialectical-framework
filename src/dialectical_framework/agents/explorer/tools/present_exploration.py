@@ -9,6 +9,7 @@ Shows:
 
 from __future__ import annotations
 
+from typing import Annotated
 
 from mirascope import llm
 from pydantic import Field
@@ -194,7 +195,7 @@ class PresentExploration(ReasonableConcern[str]):
 
 @llm.tool
 async def present_exploration(
-    nexus_hash: str = Field(description="Hash of the Nexus to present"),
+    nexus_hash: Annotated[str, Field(description="Hash of the Nexus to present")],
 ) -> str:
     """Show the exploration state within a Nexus: perspectives grouped for exploration, wheels (structural combinations), and transformation summaries highlighting Ac+ and Re+ pathways."""
     concern = PresentExploration(nexus_hash=nexus_hash)

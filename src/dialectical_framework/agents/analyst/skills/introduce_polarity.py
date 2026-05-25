@@ -24,7 +24,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
@@ -249,9 +249,9 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
 
 @llm.tool
 async def introduce_polarity(
-    thesis: str = Field(description="The thesis statement text"),
-    antithesis: str = Field(description="The antithesis statement text"),
-    text: str = Field(default="", description="Additional context for classification"),
+    thesis: Annotated[str, Field(description="The thesis statement text")],
+    antithesis: Annotated[str, Field(description="The antithesis statement text")],
+    text: Annotated[str, Field(description="Additional context for classification")] = "",
 ) -> str:
     """Introduce a known thesis-antithesis tension directly as a Polarity. Classifies both statements, creates the Polarity node (T-A pair), and discovers alternative antitheses. Use when the tension is already clear from conversation rather than needing extraction from source material."""
     concern = IntroducePolarity(thesis=thesis, antithesis=antithesis, text=text)

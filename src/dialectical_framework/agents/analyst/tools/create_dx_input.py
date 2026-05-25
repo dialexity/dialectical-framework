@@ -8,7 +8,7 @@ selectively via surface_theses or analyze.
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -70,9 +70,7 @@ class CreateDxInput(ReasonableConcern[Input]):
 
 @llm.tool
 async def create_dx_input(
-    transition_hash: str = Field(
-        description="Hash (or 7+ char prefix) of the Transition node to reference"
-    ),
+    transition_hash: Annotated[str, Field(description="Hash (or 7+ char prefix) of the Transition node to reference")],
 ) -> str:
     """Create an Input that references a Transition node via dx:// URI. This feeds the transition's insight back into the analyst pipeline as a new input source that can be processed selectively."""
     concern = CreateDxInput()

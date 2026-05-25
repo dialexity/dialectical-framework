@@ -10,7 +10,7 @@ All tools are stateless - session context flows via DI.
 from __future__ import annotations
 
 import re
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -195,8 +195,8 @@ class QueryGraph(ReasonableConcern[str]):
 
 @llm.tool
 async def query_graph(
-    cypher: str = Field(description="Read-only Cypher query. Do not include sid — it's injected automatically."),
-    limit: int = Field(default=50, description="Max rows to return"),
+    cypher: Annotated[str, Field(description="Read-only Cypher query. Do not include sid — it's injected automatically.")],
+    limit: Annotated[int, Field(description="Max rows to return")] = 50,
 ) -> str:
     """Execute a read-only Cypher query on the graph database. Session scoping (sid) is automatically injected. Do not include sid in your query."""
     concern = QueryGraph()

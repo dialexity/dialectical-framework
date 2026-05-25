@@ -12,7 +12,7 @@ replacement). The caller decides what to do with the new PP — add to a Nexus, 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, cast
+from typing import Annotated, Optional, cast
 
 from mirascope import llm
 from pydantic import Field
@@ -643,9 +643,9 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
 
 @llm.tool
 async def edit_perspective(
-    perspective_hash: str = Field(description="Hash of the Perspective to edit"),
-    changes: dict[str, str] = Field(description="Positions to change: {'T': 'new text', 'A+': 'new text', ...}. Valid keys: T, A, T+, T-, A+, A-"),
-    text: str = Field(default="", description="Optional context for validation and regeneration"),
+    perspective_hash: Annotated[str, Field(description="Hash of the Perspective to edit")],
+    changes: Annotated[dict[str, str], Field(description="Positions to change: {'T': 'new text', 'A+': 'new text', ...}. Valid keys: T, A, T+, T-, A+, A-")],
+    text: Annotated[str, Field(description="Optional context for validation and regeneration")] = "",
 ) -> str:
     """Edit any position(s) of a Perspective. Changing T or A regenerates all aspects automatically. Changing only aspects (T+/T-/A+/A-) validates coherence. Creates a new Perspective linked to the original via CHANGED_TO lineage."""
     concern = EditPerspective(perspective_hash=perspective_hash, changes=changes, text=text)

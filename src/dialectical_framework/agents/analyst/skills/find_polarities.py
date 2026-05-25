@@ -28,7 +28,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
@@ -509,7 +509,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
 
 @llm.tool
 async def find_polarities(
-    thesis_hashes: list[str] = Field(description="Hashes of thesis Statements to find antitheses for"),
+    thesis_hashes: Annotated[list[str], Field(description="Hashes of thesis Statements to find antitheses for")],
 ) -> str:
     """Find antitheses for given theses and create Polarity nodes (T-A tensions). Each thesis gets one or more antitheses with heuristic similarity scores. Returns polarity_hash for each pair."""
     concern = FindPolarities(thesis_hashes=thesis_hashes)

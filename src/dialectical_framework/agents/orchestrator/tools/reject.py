@@ -9,7 +9,7 @@ Blocking rules:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -154,8 +154,8 @@ class Reject(ReasonableConcern[RejectResult]):
 
 @llm.tool
 async def reject(
-    hash: str = Field(description="Hash (or prefix) of the Statement or Perspective to reject"),
-    reason: str = Field(default="rejected", description="Why it's being rejected"),
+    hash: Annotated[str, Field(description="Hash (or prefix) of the Statement or Perspective to reject")],
+    reason: Annotated[str, Field(description="Why it's being rejected")] = "rejected",
 ) -> str:
     """Mark a Statement or Perspective as rejected when the user disagrees with it or finds it irrelevant. Uncommitted Perspectives are discarded entirely; committed ones are soft-rejected and filtered from future queries. Will refuse if the target participates in existing Cycles/Wheels — in that case, use edit_perspective to replace it."""
     concern = Reject()

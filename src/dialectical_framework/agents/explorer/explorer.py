@@ -13,7 +13,7 @@ Also contains ExplorationPipeline — the headless pipeline for programmatic use
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, AsyncGenerator, Literal, Optional
+from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Literal, Optional
 
 from mirascope import llm
 from pydantic import BaseModel, Field
@@ -308,11 +308,8 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
 
 @llm.tool
 async def explore(
-    nexus_hash: str = Field(description="Hash of the Nexus to explore within"),
-    perspective_hashes: Optional[list[str]] = Field(
-        default=None,
-        description="Additional perspective hashes to add to Nexus before building",
-    ),
+    nexus_hash: Annotated[str, Field(description="Hash of the Nexus to explore within")],
+    perspective_hashes: Annotated[list[str] | None, Field(description="Additional perspective hashes to add to Nexus before building")] = None,
 ) -> str:
     """Run full exploration pipeline within a Nexus: builds structural combinations (Cycles + Wheels) and generates action-reflection transformations. Use when all perspectives are ready and exploration should proceed."""
     pipeline = ExplorationPipeline(

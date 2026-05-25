@@ -71,7 +71,7 @@ Perspectives (2):
 
 from __future__ import annotations
 
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Annotated, Optional, Union, TYPE_CHECKING
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -301,7 +301,7 @@ class InspectNode(ReasonableConcern[str]):
 
 @llm.tool
 async def inspect_node(
-    node_hash: str = Field(description="Full hash or unique prefix (7+ chars) of the node to inspect"),
+    node_hash: Annotated[str, Field(description="Full hash or unique prefix (7+ chars) of the node to inspect")],
 ) -> str:
     """Inspect any node by hash to see full details. Routes display based on node type: Perspective shows positions with explanations, scores, lineage, and nexus memberships; Statement shows text, meaning, rationale, and which Perspectives use it; Polarity shows T-A pair with HS and referencing Perspectives; Nexus shows member Perspectives."""
     concern = InspectNode()

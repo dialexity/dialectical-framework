@@ -23,7 +23,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+from typing import Annotated, Optional, TYPE_CHECKING
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
@@ -652,8 +652,8 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
 
 @llm.tool
 async def explore_transformations(
-    wheel_hash: str = Field(description="Hash of the Wheel to generate transformations for"),
-    edge_hash: Optional[str] = Field(default=None, description="Specific edge hash to process. If None, processes all edges."),
+    wheel_hash: Annotated[str, Field(description="Hash of the Wheel to generate transformations for")],
+    edge_hash: Annotated[str | None, Field(description="Specific edge hash to process. If None, processes all edges.")] = None,
 ) -> str:
     """Generate Action-Reflection transformations for a Wheel's edges — practical navigation recipes showing how to move between dialectical positions. Each transformation has 6 positions (Ac, Ac+, Ac-, Re, Re+, Re-) describing actions and reflections at different insight levels."""
     concern = ExploreTransformations(wheel_hash=wheel_hash, edge_hash=edge_hash)

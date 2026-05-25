@@ -14,7 +14,7 @@ Also contains AnalysisPipeline — the headless pipeline exposed as @llm.tool an
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, AsyncGenerator, Literal, Optional
+from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Literal, Optional
 
 from mirascope import llm
 from pydantic import BaseModel, Field
@@ -406,21 +406,10 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
 
 @llm.tool
 async def analyze(
-    text: str = Field(
-        description="The user's situation, dilemma, or content to analyze"
-    ),
-    intent: Optional[str] = Field(
-        default=None,
-        description="Optional focus for analysis (e.g., 'focus on the trust dimension')",
-    ),
-    thesis_hashes: Optional[list[str]] = Field(
-        default=None,
-        description="Existing thesis hashes to develop further (skips input capture and extraction)",
-    ),
-    input_hashes: Optional[list[str]] = Field(
-        default=None,
-        description="Optional list of input hashes to process selectively. If None, processes all inputs in scope.",
-    ),
+    text: Annotated[str, Field(description="The user's situation, dilemma, or content to analyze")],
+    intent: Annotated[str | None, Field(description="Optional focus for analysis (e.g., 'focus on the trust dimension')")] = None,
+    thesis_hashes: Annotated[list[str] | None, Field(description="Existing thesis hashes to develop further (skips input capture and extraction)")] = None,
+    input_hashes: Annotated[list[str] | None, Field(description="Optional list of input hashes to process selectively. If None, processes all inputs in scope.")] = None,
 ) -> str:
     """Run full dialectical analysis: captures input, extracts theses, finds tensions, and builds complete perspectives with quality-gated expansion. Use when the user describes a new situation or provides material to analyze."""
     pipeline = AnalysisPipeline(

@@ -28,7 +28,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from mirascope import llm
 from pydantic import BaseModel, Field
@@ -374,8 +374,8 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
 
 @llm.tool
 async def build_wheels(
-    nexus_hash: str = Field(description="Hash of the Nexus to build combinations in"),
-    perspective_hashes: Optional[list[str]] = Field(default=None, description="Perspective hashes to add to Nexus before building"),
+    nexus_hash: Annotated[str, Field(description="Hash of the Nexus to build combinations in")],
+    perspective_hashes: Annotated[list[str] | None, Field(description="Perspective hashes to add to Nexus before building")] = None,
 ) -> str:
     """Generate causal structures from a Nexus: Cycles (ordered sequences of Perspectives forming circular causality chains) and Wheels (concrete thesis-antithesis arrangements implementing those cycles). Estimates each structure's plausibility."""
     concern = BuildWheels(nexus_hash=nexus_hash, perspective_hashes=perspective_hashes or [])

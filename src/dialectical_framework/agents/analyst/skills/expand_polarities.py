@@ -10,7 +10,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
@@ -292,7 +292,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
 
 @llm.tool
 async def expand_polarities(
-    polarity_hashes: list[str] = Field(description="Hashes of Polarities to expand into full Perspectives"),
+    polarity_hashes: Annotated[list[str], Field(description="Hashes of Polarities to expand into full Perspectives")],
 ) -> str:
     """Build complete Perspectives from Polarities by generating evaluative aspects (T+, T-, A+, A-) for each. Runs in parallel. The Polarities must already exist in the graph."""
     import asyncio

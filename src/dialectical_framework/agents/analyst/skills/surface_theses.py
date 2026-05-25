@@ -22,7 +22,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
@@ -552,13 +552,8 @@ Determine:
 
 @llm.tool
 async def surface_theses(
-    intent: str = Field(
-        description="What theses to find — e.g. 'extract 3 theses about trust', 'Love', 'find tensions in the situation'"
-    ),
-    input_hashes: Optional[list[str]] = Field(
-        default=None,
-        description="Optional list of input hashes to process selectively. If None, processes all inputs in scope.",
-    ),
+    intent: Annotated[str, Field(description="What theses to find — e.g. 'extract 3 theses about trust', 'Love', 'find tensions in the situation'")],
+    input_hashes: Annotated[list[str] | None, Field(description="Optional list of input hashes to process selectively. If None, processes all inputs in scope.")] = None,
 ) -> str:
     """Surfaces theses for dialectical analysis by fulfilling anchoring intent.
 

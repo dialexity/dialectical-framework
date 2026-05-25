@@ -5,7 +5,7 @@ CreateNexus: Concern + tool for creating exploration containers.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -77,9 +77,9 @@ class CreateNexus(ReasonableConcern[CreateNexusResult]):
 
 @llm.tool
 async def create_nexus(
-    intent: str = Field(description="Exploration purpose — what to understand or navigate"),
-    perspective_hashes: list[str] = Field(description="Hashes of Perspectives to include"),
-    preset: str = Field(default="preset:auto", description="Estimation strategy: 'preset:auto', 'preset:balanced', 'preset:realistic', 'preset:desirable', 'preset:feasible'"),
+    intent: Annotated[str, Field(description="Exploration purpose — what to understand or navigate")],
+    perspective_hashes: Annotated[list[str], Field(description="Hashes of Perspectives to include")],
+    preset: Annotated[str, Field(description="Estimation strategy: 'preset:auto', 'preset:balanced', 'preset:realistic', 'preset:desirable', 'preset:feasible'")] = "preset:auto",
 ) -> str:
     """Create a Nexus — an exploration container that groups Perspectives for structural combination into Cycles and Wheels. The intent describes what to explore or navigate."""
     concern = CreateNexus()
