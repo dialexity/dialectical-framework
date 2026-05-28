@@ -255,7 +255,11 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                 await add_input.resolve(content=self.text)
                 reports.append(add_input.report)
             except Exception as e:
-                errors.append(StepError(step="add_input", message=str(e)))
+                self._report.ok = False
+                self._report.summary = f"Failed to capture input: {e}"
+                return AnalysisResult(
+                    errors=[StepError(step="add_input", message=str(e))]
+                )
 
         if not thesis_hashes:
             if not self.text and not self.intent:
