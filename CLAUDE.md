@@ -187,9 +187,11 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-facing interface).
 
-- **Concern** = standalone service → lives in `concerns/`
-- **Skill** = orchestrates multiple concerns → lives in `agents/{phase}/skills/`
+**Hierarchy (increasing scope):**
+- **Concern** = standalone service, single responsibility → lives in `concerns/`
 - **Tool** = thin wrapper, single DB op → lives in `agents/{phase}/tools/`
+- **Skill** = orchestrates multiple concerns, has reasoning responsibility → lives in `agents/{phase}/skills/`
+- **Agent** = top-level conversational coordinator, owns a tool set → lives in `agents/{phase}/`
 
 Only `@llm.tool` functions go into tool lists. `ReasonableConcern` classes are never passed to Mirascope directly.
 
