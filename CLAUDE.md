@@ -61,6 +61,10 @@ See `docs/graph.md` for full data model (positions, transformations, cardinality
 - **Structural** (immutable after commit): Merkle-tree backbone. Containers use `save() → add members → commit()`.
 - **Analytical** (mutable anytime): Rationale, Estimation, Critique, Synthesis, ac_re.
 
+### User-Facing Vocabulary is App-Layer
+
+The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing labels (e.g., "Opposites", "Blindspots", "Positions") are application concerns — provided via `app_preamble` in the Analyst/Explorer constructor, not in framework system prompts.
+
 ---
 
 ## Development Commands
