@@ -211,11 +211,14 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                 continue
             for data in result.antithesis_data:
                 pol_hash = polarity_map.get((result.thesis.hash, data["hash"]))
+                antithesis = self._resolve_component(data["hash"])
                 polarity_data.append(
                     {
                         "polarity_hash": pol_hash,
                         "thesis_hash": result.thesis.hash,
+                        "thesis_text": result.thesis.text,
                         "antithesis_hash": data["hash"],
+                        "antithesis_text": antithesis.text if antithesis else None,
                         "heuristic_similarity": data["heuristic_similarity"],
                         "existing": data.get("existing", False),
                         "deduped": data.get("deduped", False),

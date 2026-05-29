@@ -101,6 +101,9 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
             self._report.artifacts["total_count"] = len(complete_pps)
             self._report.artifacts["existing_count"] = len(complete_pps)
             self._report.artifacts["new_count"] = 0
+            self._report.artifacts["perspectives"] = [
+                self._perspective_final_state(pp) for pp in complete_pps
+            ]
             return complete_pps
 
         # Complete all partial PPs
@@ -150,6 +153,9 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         self._report.artifacts["total_count"] = len(all_pps)
         self._report.artifacts["existing_count"] = len(complete_pps)
         self._report.artifacts["new_count"] = len(completed_pps)
+        self._report.artifacts["perspectives"] = [
+            self._perspective_final_state(pp) for pp in all_pps
+        ]
 
         self._report.summary = f"{len(all_pps)} Perspective(s) ({len(complete_pps)} existing, {len(completed_pps)} new)"
 
@@ -207,6 +213,20 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
                 "k_a": aspect.complementarity_a,
             },
         )
+
+    def _perspective_final_state(self, pp: Perspective) -> dict[str, str | None]:
+        """Build a dict with the final post-dedup text at each position."""
+        positions = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
+        state: dict[str, str | None] = {"hash": pp.short_hash}
+        for pos in positions:
+            manager = pp.get_relationship_manager_by_position(pos)
+            pairs = manager.all()
+            if pairs:
+                node, _rel = pairs[0]
+                state[pos] = node.text
+            else:
+                state[pos] = None
+        return state
 
     async def _deduplicate_aspects(
         self, aspects: list[AspectResult], text: str

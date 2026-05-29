@@ -196,6 +196,22 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         self._report.artifacts["thesis_hash"] = thesis_stmt.hash
         self._report.artifacts["antithesis_hash"] = antithesis_stmt.hash
         self._report.artifacts["alternative_count"] = len(alternatives)
+        self._report.artifacts["polarities"] = [
+            {
+                "polarity_hash": all_polarity_hashes[0],
+                "thesis_text": thesis_stmt.text,
+                "antithesis_text": antithesis_stmt.text,
+                "is_primary": True,
+            }
+        ] + [
+            {
+                "polarity_hash": all_polarity_hashes[i + 1] if (i + 1) < len(all_polarity_hashes) else None,
+                "thesis_text": thesis_stmt.text,
+                "antithesis_text": alt.component.text,
+                "is_primary": False,
+            }
+            for i, alt in enumerate(alternatives)
+        ]
         self._report.summary = (
             f"Introduced polarity: {len(all_polarity_hashes)} total "
             f"(1 primary + {len(alternatives)} alternatives)"

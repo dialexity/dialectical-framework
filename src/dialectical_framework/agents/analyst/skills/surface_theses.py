@@ -212,6 +212,9 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
         self._report.artifacts["theses_count_found_in_intent"] = len(direct_components)
         self._report.artifacts["extracted_theses_count"] = len(extracted_components)
         self._report.artifacts["duplicates_found_and_deleted"] = deleted_count
+        self._report.artifacts["theses"] = [
+            {"hash": c.hash, "text": c.text} for c in final_components
+        ]
         self._report.summary = f"Anchored {len(final_components)} thesis(es)"
 
         return ideas
