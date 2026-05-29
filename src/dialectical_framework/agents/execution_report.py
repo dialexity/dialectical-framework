@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.base_node import BaseNode
     from dialectical_framework.graph.relationship_manager import (
         BoundRelationshipManager, RelationshipManager)
+    from dialectical_framework.utils.effect_logger import EffectLogger
 
 # Type alias for relationship type parameter
 RelType = Union[str, "RelationshipManager", "BoundRelationshipManager", type]
@@ -157,6 +158,7 @@ class ExecutionReport(BaseModel):
     """
 
     _event_bus: ClassVar[Optional[GraphEventBus]] = None
+    _effect_logger: ClassVar[Optional[EffectLogger]] = None
 
     tool: str
     ok: bool = True
@@ -165,6 +167,7 @@ class ExecutionReport(BaseModel):
     artifacts: dict[str, Any] = Field(default_factory=dict)
 
     _seq_counter: int = PrivateAttr(default=0)
+    _finalized: bool = PrivateAttr(default=False)
 
     @classmethod
     def set_event_bus(cls, bus: Optional[GraphEventBus]) -> None:
@@ -176,6 +179,16 @@ class ExecutionReport(BaseModel):
         Pass None to disable (tests, teardown).
         """
         cls._event_bus = bus
+
+    @classmethod
+    def set_effect_logger(cls, logger: Optional[EffectLogger]) -> None:
+        """
+        Set the class-level effect logger.
+
+        Called at DI container setup when DIALEXITY_GRAPH_LOG_DIR is configured.
+        Pass None to disable.
+        """
+        cls._effect_logger = logger
 
     def _emit(self, effect: Effect) -> None:
         """
@@ -198,6 +211,35 @@ class ExecutionReport(BaseModel):
         sid = get_current_sid()
         if sid:
             loop.create_task(self._event_bus.publish(sid, effect))
+
+    def _log(self, effect: Effect) -> None:
+        """Write effect to file log. No-op when logger is None or sid is missing."""
+        if self._effect_logger is None:
+            return
+        from dialectical_framework.agents.agent_context import get_current_agent
+        from dialectical_framework.graph.scope_context import get_current_sid
+        sid = get_current_sid()
+        if not sid:
+            return
+        agent = get_current_agent() or "pipeline"
+        self._effect_logger.log_effect(sid, agent, self.tool, effect)
+
+    def finalize(self) -> None:
+        """Log report-complete marker. Idempotent — only logs once."""
+        if self._finalized:
+            return
+        self._finalized = True
+        if self._effect_logger is None:
+            return
+        from dialectical_framework.agents.agent_context import get_current_agent
+        from dialectical_framework.graph.scope_context import get_current_sid
+        sid = get_current_sid()
+        if not sid:
+            return
+        agent = get_current_agent() or "pipeline"
+        self._effect_logger.log_tool_result(
+            sid, agent, self.tool, self.ok, self.summary, len(self.effects)
+        )
 
     def _next_seq(self) -> int:
         seq = self._seq_counter
@@ -225,6 +267,7 @@ class ExecutionReport(BaseModel):
         )
         self.effects.append(effect)
         self._emit(effect)
+        self._log(effect)
 
     def node_updated(
         self,
@@ -244,6 +287,7 @@ class ExecutionReport(BaseModel):
         )
         self.effects.append(effect)
         self._emit(effect)
+        self._log(effect)
 
     def node_deleted(
         self,
@@ -261,6 +305,7 @@ class ExecutionReport(BaseModel):
         )
         self.effects.append(effect)
         self._emit(effect)
+        self._log(effect)
 
     # --- Relationship effects ---
 
@@ -286,6 +331,7 @@ class ExecutionReport(BaseModel):
         )
         self.effects.append(effect)
         self._emit(effect)
+        self._log(effect)
 
     def relationship_updated(
         self,
@@ -311,6 +357,7 @@ class ExecutionReport(BaseModel):
         )
         self.effects.append(effect)
         self._emit(effect)
+        self._log(effect)
 
     def relationship_deleted(
         self,
@@ -334,11 +381,13 @@ class ExecutionReport(BaseModel):
         )
         self.effects.append(effect)
         self._emit(effect)
+        self._log(effect)
 
     # --- Utilities ---
 
     def __str__(self) -> str:
         """JSON representation returned to the LLM as tool output."""
+        self.finalize()
         return self.model_dump_json(indent=2, exclude_none=True)
 
     def merge(self, other: ExecutionReport) -> ExecutionReport:

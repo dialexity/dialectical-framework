@@ -27,6 +27,10 @@ class Settings(BaseModel):
     graph_db_encrypted: bool = Field(default=False, description="Use encrypted connection (SSL/TLS)")
     graph_db_client_name: str = Field(default="dialectical_framework", description="Client name for connection identification")
 
+    # Effect logging: directory for JSONL effect logs. None = disabled.
+    # When set, graph mutations and tool calls are logged to <dir>/<sid>/<agent>.jsonl
+    effect_log_dir: Optional[str] = Field(default=None, description="Directory for effect JSONL logs. None = disabled.")
+
     # Extended thinking: None = disabled, or one of the levels below.
     # Levels map to provider-specific token budgets (% of max_tokens for Anthropic):
     #   "none"    - disable thinking entirely
@@ -89,4 +93,5 @@ class Settings(BaseModel):
             graph_db_encrypted=os.getenv("DIALEXITY_GRAPH_DB_ENCRYPTED", "false").lower() == "true",
             graph_db_client_name=os.getenv("DIALEXITY_GRAPH_DB_CLIENT_NAME", "dialectical_framework"),
             thinking_level=os.getenv("DIALEXITY_THINKING_LEVEL"),
+            effect_log_dir=os.getenv("DIALEXITY_GRAPH_LOG_DIR"),
         )

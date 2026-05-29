@@ -32,6 +32,9 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         container = cls()
         container.settings.override(settings)
         ExecutionReport.set_event_bus(container.event_bus())
+        if settings.effect_log_dir:
+            from dialectical_framework.utils.effect_logger import EffectLogger
+            ExecutionReport.set_effect_logger(EffectLogger(settings.effect_log_dir))
         return container
 
     # It will be the same settings for all services in the container

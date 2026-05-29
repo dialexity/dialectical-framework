@@ -146,6 +146,7 @@ class ConversationFacilitator(SettingsAware):
         for _ in range(max_tool_rounds):
             if not response.tool_calls:
                 break
+            self._log_tool_calls(response.tool_calls)
             tool_outputs = await response.execute_tools()
             response = await response.resume(tool_outputs)
 
@@ -196,6 +197,7 @@ class ConversationFacilitator(SettingsAware):
                     tool_args=json.loads(tc.args) if tc.args else {},
                 )
 
+            self._log_tool_calls(stream.tool_calls)
             tool_outputs = await stream.execute_tools()
 
             for i, output in enumerate(tool_outputs):
@@ -211,6 +213,22 @@ class ConversationFacilitator(SettingsAware):
         yield ResponseComplete(result=result)
 
     # --- Internal helpers ---
+
+    @staticmethod
+    def _log_tool_calls(tool_calls: list) -> None:
+        """Log tool invocations to the effect logger if configured."""
+        logger = ExecutionReport._effect_logger
+        if logger is None:
+            return
+        from dialectical_framework.agents.agent_context import get_current_agent
+        from dialectical_framework.graph.scope_context import get_current_sid
+        sid = get_current_sid()
+        if not sid:
+            return
+        agent = get_current_agent() or "pipeline"
+        for tc in tool_calls:
+            args = json.loads(tc.args) if tc.args else {}
+            logger.log_tool_call(sid, agent, tc.name, args)
 
     async def _open_stream_with_retry(self, max_attempts: int = 3) -> Any:
         """Open a streaming connection with retry on transient failures.

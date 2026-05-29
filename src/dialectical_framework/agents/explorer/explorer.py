@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 from mirascope import llm
 from pydantic import BaseModel, Field
 
+from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.explorer.system_prompts import system_prompt
@@ -57,6 +58,8 @@ class Explorer:
             response = await explorer.chat("Tell me about the Ac+ path")
     """
 
+    AGENT_NAME = "explorer"
+
     def __init__(
         self,
         nexus_hash: str,
@@ -91,14 +94,16 @@ class Explorer:
         return "\n\n".join(parts)
 
     async def chat(self, user_message: str) -> str:
-        result = await self._conversation.submit(ChatResponse, user_message)
-        return result.message
+        with agent_scope(self.AGENT_NAME):
+            result = await self._conversation.submit(ChatResponse, user_message)
+            return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
-        async for event in self._conversation.submit_stream(
-            ChatResponse, user_message
-        ):
-            yield event
+        with agent_scope(self.AGENT_NAME):
+            async for event in self._conversation.submit_stream(
+                ChatResponse, user_message
+            ):
+                yield event
 
     @property
     def messages(self) -> list:
