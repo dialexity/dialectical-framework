@@ -214,6 +214,8 @@ async def surface_theses(
 
 **Critical:** Never use `param = Field(default=X, ...)` as a Python default — Mirascope leaves the raw `FieldInfo` object as the runtime default. Always use `Annotated[type, Field(...)] = actual_default`. Test coverage: `test_tool_signatures.py`.
 
+**Report artifacts must include final-state text.** When a skill uses `StatementDeduplication`, the LLM only sees `node_created` effects (with original text) and `node_deleted` effects (hash-only). It cannot access the replacement node's text from effects alone. Every skill that deduplicates must add an artifact with the authoritative post-dedup text (e.g., `artifacts["theses"]`, `artifacts["polarities"]`, `artifacts["perspectives"]`). See `expand_polarities.py` for the reference pattern.
+
 ---
 
 ## Type Hints
