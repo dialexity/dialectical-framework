@@ -92,8 +92,9 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
     - Polarity nodes: ARelationship.heuristic_similarity
     """
 
-    def __init__(self, thesis_hashes: list[str]) -> None:
+    def __init__(self, thesis_hashes: list[str], count: int = 5) -> None:
         self.thesis_hashes = thesis_hashes
+        self.count = count
 
     async def resolve(self) -> Optional[Ideas]:
         """
@@ -267,6 +268,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             thesis=thesis,
             text=text,
             not_like_these=not_like_these,
+            count=self.count,
         )
         reports.append(service.report)
 
@@ -281,6 +283,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             thesis=thesis,
             text=text,
             not_like_these=[],
+            count=self.count,
         )
         reports.append(service_retry.report)
 
@@ -521,8 +524,9 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
 @llm.tool
 async def find_polarities(
     thesis_hashes: Annotated[list[str], Field(description="Hashes of thesis Statements to find antitheses for")],
+    count: Annotated[int, Field(description="Number of antitheses to find per thesis")] = 5,
 ) -> str:
-    """Find antitheses for given theses and create Polarity nodes (T-A tensions). Each thesis gets one or more antitheses with heuristic similarity scores. Returns polarity_hash for each pair."""
-    concern = FindPolarities(thesis_hashes=thesis_hashes)
+    """Find antitheses for given theses and create Polarity nodes (T-A tensions). Each thesis gets antitheses with heuristic similarity scores, truncated to count with maximum taxonomy branch coverage. Returns polarity_hash for each pair."""
+    concern = FindPolarities(thesis_hashes=thesis_hashes, count=count)
     await concern.resolve()
     return str(concern.report)
