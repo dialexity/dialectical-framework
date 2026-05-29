@@ -63,7 +63,7 @@ See `docs/graph.md` for full data model (positions, transformations, cardinality
 
 ### User-Facing Vocabulary is App-Layer
 
-The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing labels (e.g., "Opposites", "Blindspots", "Positions") are application concerns — provided via `app_preamble` in the Analyst/Explorer constructor, not in framework system prompts.
+The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`DEFAULT_APP`, `ADVANCED_APP`) and injected via `app_preamble` in the Analyst/Explorer constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary.
 
 ---
 
@@ -105,6 +105,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Concerns (standalone services) | `concerns/` |
 | Analyst (conversational, Case-scoped) | `agents/analyst/analyst.py` |
 | Explorer (conversational, Nexus-scoped) | `agents/explorer/explorer.py` |
+| App preambles (vocabulary/framing) | `agents/apps.py` |
 | Shared agent tools | `agents/orchestrator/tools/` |
 | Agent skills/tools | `agents/{analyst,explorer}/` |
 | LLM abstraction | `utils/use_brain.py` |
