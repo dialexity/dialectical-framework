@@ -4,23 +4,18 @@ Analyst: Conversational agent for dialectical analysis.
 Scoped to a Case (sid). Helps users go from raw situations to structured
 perspectives through dialectical reasoning.
 
-Two modes:
-- default: Autonomous pipeline (analyze tool) + steering tools.
-- advanced: Granular step-by-step control over each operation.
-
 Also contains AnalysisPipeline — the headless pipeline exposed as @llm.tool analyze().
 """
 
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Literal, Optional
+from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 
 from mirascope import llm
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.analyst.system_prompts import (
-    ADVANCED_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT)
+from dialectical_framework.agents.analyst.system_prompts import SYSTEM_PROMPT
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
@@ -63,12 +58,10 @@ class Analyst:
 
     def __init__(
         self,
-        mode: Literal["default", "advanced"] = "default",
         app_preamble: Optional[str] = None,
         messages: Optional[list] = None,
     ) -> None:
-        self._mode = mode
-        self._tools = _build_tool_list(mode)
+        self._tools = _build_tools()
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)
@@ -78,10 +71,7 @@ class Analyst:
         parts = []
         if app_preamble:
             parts.append(app_preamble)
-        if self._mode == "advanced":
-            parts.append(ADVANCED_SYSTEM_PROMPT)
-        else:
-            parts.append(DEFAULT_SYSTEM_PROMPT)
+        parts.append(SYSTEM_PROMPT)
         return "\n\n".join(parts)
 
     async def chat(self, user_message: str) -> str:
@@ -96,48 +86,8 @@ class Analyst:
     def messages(self) -> list:
         return self._conversation._messages
 
-    @property
-    def mode(self) -> str:
-        return self._mode
 
-
-def _build_tool_list(mode: str) -> list:
-    if mode == "advanced":
-        return _advanced_tools()
-    return _default_tools()
-
-
-def _default_tools() -> list:
-    from dialectical_framework.agents.analyst.skills.edit_perspective import \
-        edit_perspective
-    from dialectical_framework.agents.analyst.tools.create_dx_input import \
-        create_dx_input
-    from dialectical_framework.agents.explorer.tools.create_nexus import \
-        create_nexus
-    from dialectical_framework.agents.orchestrator.tools.get_schema import \
-        get_schema
-    from dialectical_framework.agents.orchestrator.tools.inspect_node import \
-        inspect_node
-    from dialectical_framework.agents.orchestrator.tools.present_analysis import \
-        present_analysis
-    from dialectical_framework.agents.orchestrator.tools.query_graph import \
-        query_graph
-    from dialectical_framework.agents.orchestrator.tools.reject import reject
-
-    return [
-        analyze,
-        create_nexus,
-        create_dx_input,
-        edit_perspective,
-        reject,
-        present_analysis,
-        inspect_node,
-        query_graph,
-        get_schema,
-    ]
-
-
-def _advanced_tools() -> list:
+def _build_tools() -> list:
     from dialectical_framework.agents.analyst.skills.edit_perspective import \
         edit_perspective
     from dialectical_framework.agents.analyst.skills.expand_polarities import \
@@ -167,6 +117,7 @@ def _advanced_tools() -> list:
     from dialectical_framework.agents.orchestrator.tools.reject import reject
 
     return [
+        analyze,
         add_input,
         surface_theses,
         find_polarities,

@@ -2,7 +2,7 @@
 Tests for the Explorer agent.
 
 These are integration tests that verify:
-1. Explorer initialization and tool registration (default + advanced modes)
+1. Explorer initialization and tool registration
 2. Explorer requires nexus_hash and resolves intent
 3. Explorer chat_stream delegates correctly
 """
@@ -47,31 +47,12 @@ class MockResponseModel(BaseModel):
 class TestExplorerInitialization:
     """Tests for Explorer initialization."""
 
-    def test_default_mode_tools(self):
-        """Test default mode has exploration tools."""
+    def test_tools(self):
+        """Test explorer has full unified tool set."""
         sid = _new_sid()
         with scope(sid):
             nexus_hash = _create_nexus(sid)
             explorer = Explorer(nexus_hash=nexus_hash)
-
-            tool_names = [t.__name__ for t in explorer._tools]
-
-            assert "build_wheels" in tool_names
-            assert "explore_transformations" in tool_names
-            assert "present_exploration" in tool_names
-            assert "inspect_node" in tool_names
-            assert "query_graph" in tool_names
-            assert "get_schema" in tool_names
-
-            # Advanced-only tools NOT in default mode
-            assert "create_nexus" not in tool_names
-
-    def test_advanced_mode_tools(self):
-        """Test advanced mode adds create_nexus."""
-        sid = _new_sid()
-        with scope(sid):
-            nexus_hash = _create_nexus(sid)
-            explorer = Explorer(nexus_hash=nexus_hash, mode="advanced")
 
             tool_names = [t.__name__ for t in explorer._tools]
 
@@ -91,14 +72,6 @@ class TestExplorerInitialization:
             explorer = Explorer(nexus_hash=nexus_hash)
 
             assert explorer.nexus_hash == nexus_hash
-
-    def test_mode_property(self):
-        """Test mode property reflects constructor arg."""
-        sid = _new_sid()
-        with scope(sid):
-            nexus_hash = _create_nexus(sid)
-            assert Explorer(nexus_hash=nexus_hash).mode == "default"
-            assert Explorer(nexus_hash=nexus_hash, mode="advanced").mode == "advanced"
 
     def test_messages_loaded_on_init(self):
         """Test messages are loaded when provided."""

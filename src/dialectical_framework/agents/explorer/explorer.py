@@ -4,24 +4,19 @@ Explorer: Conversational agent for dialectical exploration.
 Scoped to a Case + Nexus (sid + nexus_hash). Helps users navigate
 transformations and understand the synthetic wisdom (Ac+, Re+, S+).
 
-Two modes:
-- default: Navigational guide. Builds wheels, presents pathways practically.
-- advanced: Structural view. Shows raw positions, scores, edges.
-
 Also contains ExplorationPipeline — the headless pipeline for programmatic use.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Literal, Optional
+from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 
 from mirascope import llm
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
-from dialectical_framework.agents.explorer.system_prompts import (
-    advanced_system_prompt, default_system_prompt)
+from dialectical_framework.agents.explorer.system_prompts import system_prompt
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.graph.repositories.nexus_repository import \
@@ -65,13 +60,11 @@ class Explorer:
     def __init__(
         self,
         nexus_hash: str,
-        mode: Literal["default", "advanced"] = "default",
         app_preamble: Optional[str] = None,
         messages: Optional[list] = None,
     ) -> None:
         self._nexus_hash = nexus_hash
-        self._mode = mode
-        self._tools = _build_tool_list(mode)
+        self._tools = _build_tools()
         self._conversation = ConversationFacilitator(tools=self._tools)
 
         if messages:
@@ -94,14 +87,7 @@ class Explorer:
         parts = []
         if app_preamble:
             parts.append(app_preamble)
-        if self._mode == "advanced":
-            parts.append(
-                advanced_system_prompt(nexus_hash=nexus_hash, nexus_intent=nexus_intent)
-            )
-        else:
-            parts.append(
-                default_system_prompt(nexus_hash=nexus_hash, nexus_intent=nexus_intent)
-            )
+        parts.append(system_prompt(nexus_hash=nexus_hash, nexus_intent=nexus_intent))
         return "\n\n".join(parts)
 
     async def chat(self, user_message: str) -> str:
@@ -122,42 +108,8 @@ class Explorer:
     def nexus_hash(self) -> str:
         return self._nexus_hash
 
-    @property
-    def mode(self) -> str:
-        return self._mode
 
-
-def _build_tool_list(mode: str) -> list:
-    if mode == "advanced":
-        return _advanced_tools()
-    return _default_tools()
-
-
-def _default_tools() -> list:
-    from dialectical_framework.agents.explorer.skills.build_wheels import \
-        build_wheels
-    from dialectical_framework.agents.explorer.skills.explore_transformations import \
-        explore_transformations
-    from dialectical_framework.agents.explorer.tools.present_exploration import \
-        present_exploration
-    from dialectical_framework.agents.orchestrator.tools.get_schema import \
-        get_schema
-    from dialectical_framework.agents.orchestrator.tools.inspect_node import \
-        inspect_node
-    from dialectical_framework.agents.orchestrator.tools.query_graph import \
-        query_graph
-
-    return [
-        build_wheels,
-        explore_transformations,
-        present_exploration,
-        inspect_node,
-        query_graph,
-        get_schema,
-    ]
-
-
-def _advanced_tools() -> list:
+def _build_tools() -> list:
     from dialectical_framework.agents.explorer.skills.build_wheels import \
         build_wheels
     from dialectical_framework.agents.explorer.skills.explore_transformations import \

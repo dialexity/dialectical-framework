@@ -220,7 +220,7 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
 
     def _parse_intent_prompt(self, input_preview: str) -> str:
         """Build user prompt for parsing intent."""
-        return f"""Parse this anchoring intent of the user, understand it and extract structured parameters. 
+        return f"""Parse this anchoring intent of the user, understand it and extract structured parameters.
 
 **Intent:** {self.intent}
 
@@ -230,10 +230,17 @@ Determine:
 
 1. **direct_theses** - CRITICAL: Identify if the intent IS, CONTAINS, or implies direct theses.
 
-   The intent might BE the thesis itself:
+   The intent might BE the thesis itself (single word or short phrase):
    - "Sugar" → direct_theses: ["Sugar"]
    - "Love" → direct_theses: ["Love"]
+   - "Remote work" → direct_theses: ["Remote work"]
    - "Trust, Integrity" → direct_theses: ["Trust", "Integrity"]
+
+   The intent might express a TENSION between two concepts:
+   - "Spirituality vs Money" → direct_theses: ["Spirituality", "Money"]
+   - "Stay married or get divorced" → direct_theses: ["Stay married", "Get divorced"]
+   - "Freedom versus Security" → direct_theses: ["Freedom", "Security"]
+   - "torn between X and Y" → direct_theses: ["X", "Y"]
 
    Or it might explicitly name theses to anchor:
    - "anchor thesis 'Trust'" → direct_theses: ["Trust"]
@@ -247,6 +254,9 @@ Determine:
    **IMPORTANT**: If no inputs are available (input_preview says "No inputs"),
    and the intent mentions a topic/concept, extract that topic as a direct thesis.
    The user wants to explore that concept even without source material.
+
+   **IMPORTANT**: Single words and short phrases ARE direct theses. Don't try to
+   "extract from inputs" when the intent itself IS the concept to explore.
 
    Only leave direct_theses empty if:
    - Inputs ARE available, AND

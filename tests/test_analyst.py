@@ -2,7 +2,7 @@
 Tests for the Analyst agent.
 
 These are integration tests that verify:
-1. Analyst initialization and tool registration (default + advanced modes)
+1. Analyst initialization and tool registration
 2. Analyst workflow (add input → query)
 3. Analyst chat_stream delegates correctly
 """
@@ -40,32 +40,14 @@ class MockResponseModel(BaseModel):
 class TestAnalystInitialization:
     """Tests for Analyst initialization."""
 
-    def test_default_mode_tools(self):
-        """Test default mode has autonomous pipeline + steering + query tools."""
+    def test_tools(self):
+        """Test analyst has full unified tool set."""
         analyst = Analyst()
 
         tool_names = [t.__name__ for t in analyst._tools]
 
+        # Pipeline tool
         assert "analyze" in tool_names
-        assert "create_nexus" in tool_names
-        assert "create_dx_input" in tool_names
-        assert "edit_perspective" in tool_names
-        assert "reject" in tool_names
-        assert "present_analysis" in tool_names
-        assert "inspect_node" in tool_names
-        assert "query_graph" in tool_names
-        assert "get_schema" in tool_names
-
-        # Granular tools NOT in default mode
-        assert "surface_theses" not in tool_names
-        assert "find_polarities" not in tool_names
-        assert "build_wheels" not in tool_names
-
-    def test_advanced_mode_tools(self):
-        """Test advanced mode has all granular tools."""
-        analyst = Analyst(mode="advanced")
-
-        tool_names = [t.__name__ for t in analyst._tools]
 
         # Granular analysis tools
         assert "add_input" in tool_names
@@ -74,6 +56,8 @@ class TestAnalystInitialization:
         assert "introduce_polarity" in tool_names
         assert "expand_polarities" in tool_names
         assert "place_statement" in tool_names
+
+        # Steering tools
         assert "create_dx_input" in tool_names
         assert "edit_perspective" in tool_names
         assert "reject" in tool_names
@@ -85,20 +69,12 @@ class TestAnalystInitialization:
         assert "query_graph" in tool_names
         assert "get_schema" in tool_names
 
-        # Autonomous pipeline NOT in advanced mode
-        assert "analyze" not in tool_names
-
     def test_messages_loaded_on_init(self):
         """Test messages are loaded when provided."""
         fake_messages = [{"role": "user", "content": "hello"}]
         analyst = Analyst(messages=fake_messages)
 
         assert len(analyst.messages) >= 1
-
-    def test_mode_property(self):
-        """Test mode property reflects constructor arg."""
-        assert Analyst().mode == "default"
-        assert Analyst(mode="advanced").mode == "advanced"
 
 
 class TestAnalystWorkflow:
