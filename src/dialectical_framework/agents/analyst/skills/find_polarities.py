@@ -451,6 +451,14 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                 self._report.node_created(
                     polarity, meta={"hs": data["heuristic_similarity"]}
                 )
+                self._report.relationship_created(
+                    polarity.t, result.thesis, polarity,
+                    patch={"heuristic_similarity": 1.0, "alias": "T"},
+                )
+                self._report.relationship_created(
+                    polarity.a, antithesis, polarity,
+                    patch={"heuristic_similarity": data["heuristic_similarity"], "alias": "A"},
+                )
 
         self._report.artifacts["created_polarity_count"] = created_count
         return polarity_map

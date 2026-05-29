@@ -125,6 +125,14 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
             )
             primary_polarity.commit()
             self._report.node_created(primary_polarity)
+            self._report.relationship_created(
+                primary_polarity.t, thesis_stmt, primary_polarity,
+                patch={"heuristic_similarity": 1.0, "alias": "T"},
+            )
+            self._report.relationship_created(
+                primary_polarity.a, antithesis_stmt, primary_polarity,
+                patch={"heuristic_similarity": classification.heuristic_similarity, "alias": "A"},
+            )
             self._report.artifacts["primary_polarity_source"] = "created"
 
         all_polarity_hashes = [primary_polarity.hash]
@@ -180,6 +188,14 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
             alt_polarity.set_a(alt_stmt, heuristic_similarity=alt.heuristic_similarity)
             alt_polarity.commit()
             self._report.node_created(alt_polarity)
+            self._report.relationship_created(
+                alt_polarity.t, thesis_stmt, alt_polarity,
+                patch={"heuristic_similarity": 1.0, "alias": "T"},
+            )
+            self._report.relationship_created(
+                alt_polarity.a, alt_stmt, alt_polarity,
+                patch={"heuristic_similarity": alt.heuristic_similarity, "alias": "A"},
+            )
             all_polarity_hashes.append(alt_polarity.hash)
 
         # Build result

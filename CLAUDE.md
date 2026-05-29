@@ -170,6 +170,8 @@ child.rel.connect(container)  # OK before commit
 container.commit()            # Immutable after this
 ```
 
+**Event reporting:** When a node's `commit()` creates relationships internally (e.g., `Polarity.commit()` creates T/A edges), the calling skill must emit `relationship_created` events for each edge — `commit()` itself does not emit SSE events.
+
 ### Relationship Direction
 
 `RelationshipTo` and `RelationshipFrom` define the SAME edge from different perspectives. Convention: Child→Parent edges use `RelationshipTo` on child.
