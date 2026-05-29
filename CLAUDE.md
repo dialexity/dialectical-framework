@@ -255,9 +255,26 @@ Optional:
 
 ---
 
+## Prompt Engineering
+
+The project is infused with LLM prompts at multiple layers. `docs/PROMPTING.md` has general principles.
+
+| Location | What it controls |
+|----------|-----------------|
+| `agents/apps.py` | User-facing vocabulary/framing (DEFAULT_APP, ADVANCED_APP) |
+| `agents/analyst/system_prompts.py` | Analyst tool selection and workflow |
+| `agents/explorer/system_prompts.py` | Explorer tool selection and workflow |
+| `concerns/` | Structured LLM calls within skills (Mirascope) |
+| `agents/orchestrator/tools/query_graph.py` | Cypher generation prompt |
+
+When fixing prompt output bugs: follow the revision methodology in the `apps.py` module docstring (diagnose root cause → apply fix → add regression test to `tests/test_prompt_vocabulary.py`).
+
+---
+
 ## Documentation References
 
 | Doc | Purpose |
 |-----|---------|
 | `docs/graph.md` | Full graph data model (positions, transformations, cardinality, layers, intent) |
 | `docs/graph-portability.md` | Identifiers, scopes, cloning & realms |
+| `docs/PROMPTING.md` | General prompt engineering DOs and DON'Ts |

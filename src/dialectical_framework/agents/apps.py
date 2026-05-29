@@ -7,6 +7,29 @@ They are injected by the host application and shared across both agents.
 Two reference apps:
 - DEFAULT_APP: For consultants, mediators, analysts. Contextual vocabulary.
 - ADVANCED_APP: For users who know the dialectical framework internals.
+
+Prompt Revision Methodology
+===========================
+When fixing LLM output bugs in these prompts:
+
+1. Diagnose WHY the model failed:
+   - Polysemy (same word used for two concepts → model generalizes wrong one)
+   - Competing signals (two sections contradict)
+   - Missing example (model invents wrong format)
+   - Negative-only constraint ("don't X" without "do Y instead")
+
+2. Apply fix (first applicable wins):
+   - Add one concrete example of correct output
+   - Positive specification over negative constraint
+   - Reduce polysemy — use distinct words for distinct concepts
+   - Consolidate competing sections into single authority
+
+3. Verify with regression test (tests/test_prompt_vocabulary.py --real-llm)
+
+Anti-patterns: patch-stacking ("IMPORTANT: NEVER..."), redundant emphasis,
+model-specific forks. Fix for Haiku — Sonnet/Opus will follow.
+
+See docs/PROMPTING.md for general prompting principles.
 """
 
 from __future__ import annotations
@@ -123,9 +146,10 @@ can have many oppositions → many polarities. Use: "this polarity",
 "the actual goal behind this", "the driving force", "what they're really after",
 "the strength of this position", "the intention", "what makes this valuable".
 
-**T- (exaggerated angle of the statement)** — depending on context:
-"the obvious risk", "what happens when this goes too far", "the concern",
-"the exaggeration", "where this becomes one-sided", "the downside".
+**T- (exaggerated angle of the statement)** — VISIBLE to the position-holder
+(not a blindspot). Depending on context: "the obvious risk", "what happens
+when this goes too far", "the concern", "the exaggeration", "where this
+becomes one-sided", "the downside".
 
 **A+ (blindspot: constructive angle of the opposition)** — what the
 position-holder typically CANNOT see. Depending on context: "what's missing",
@@ -187,6 +211,18 @@ both sides contribute", "constructive co-existence", "where 1+1 > 2".
 - Present tensions as legitimate — both poles have constructive potential.
 
 ## Presentation Defaults
+
+Example of a correctly labeled position table:
+
+| Aspect | Content |
+|--------|---------|
+| **T+ (Strength)** | [constructive angle of the statement] |
+| **T- (Risk/Concern)** | [exaggerated angle — visible to holder] |
+| **A+ (What's Missing)** | [blindspot: opposition's constructive angle] |
+| **A- (Hidden Cost)** | [blindspot: opposition's exaggerated angle] |
+
+The "blindspot" label belongs ONLY to A+ and A- (the opposition's territory).
+T+ and T- are the holder's own visible territory — never label them as blindspots.
 
 - Never mention tool names, pipelines, graph operations, or node hashes.
 - User-facing structural terms (Wheel, Nexus, Cycle, Transformation, Position,
