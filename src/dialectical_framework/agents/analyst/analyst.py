@@ -84,7 +84,9 @@ class Analyst:
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         with agent_scope(self.AGENT_NAME):
-            async for event in self._conversation.submit_stream(ChatResponse, user_message):
+            async for event in self._conversation.submit_stream(
+                ChatResponse, user_message
+            ):
                 yield event
 
     @property
@@ -93,6 +95,8 @@ class Analyst:
 
 
 def _build_tools() -> list:
+    from dialectical_framework.agents.analyst.skills.anchor_theses import \
+        anchor_theses
     from dialectical_framework.agents.analyst.skills.edit_perspective import \
         edit_perspective
     from dialectical_framework.agents.analyst.skills.expand_polarities import \
@@ -124,6 +128,7 @@ def _build_tools() -> list:
     return [
         analyze,
         add_input,
+        anchor_theses,
         surface_theses,
         find_polarities,
         introduce_polarity,
@@ -366,10 +371,27 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
 
 @llm.tool
 async def analyze(
-    text: Annotated[str, Field(description="The user's situation, dilemma, or content to analyze")],
-    intent: Annotated[str | None, Field(description="Optional focus for analysis (e.g., 'focus on the trust dimension')")] = None,
-    thesis_hashes: Annotated[list[str] | None, Field(description="Existing thesis hashes to develop further (skips input capture and extraction)")] = None,
-    input_hashes: Annotated[list[str] | None, Field(description="Optional list of input hashes to process selectively. If None, processes all inputs in scope.")] = None,
+    text: Annotated[
+        str, Field(description="The user's situation, dilemma, or content to analyze")
+    ],
+    intent: Annotated[
+        str | None,
+        Field(
+            description="Optional focus for analysis (e.g., 'focus on the trust dimension')"
+        ),
+    ] = None,
+    thesis_hashes: Annotated[
+        list[str] | None,
+        Field(
+            description="Existing thesis hashes to develop further (skips input capture and extraction)"
+        ),
+    ] = None,
+    input_hashes: Annotated[
+        list[str] | None,
+        Field(
+            description="Optional list of input hashes to process selectively. If None, processes all inputs in scope."
+        ),
+    ] = None,
 ) -> str:
     """Run full dialectical analysis: captures input, extracts theses, finds tensions, and builds complete perspectives with quality-gated expansion. Use when the user describes a new situation or provides material to analyze."""
     pipeline = AnalysisPipeline(

@@ -51,6 +51,7 @@ class TestAnalystInitialization:
 
         # Granular analysis tools
         assert "add_input" in tool_names
+        assert "anchor_theses" in tool_names
         assert "surface_theses" in tool_names
         assert "find_polarities" in tool_names
         assert "introduce_polarity" in tool_names

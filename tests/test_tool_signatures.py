@@ -30,6 +30,7 @@ from dialectical_framework.agents.analyst.skills.find_polarities import (
 from dialectical_framework.agents.analyst.skills.introduce_polarity import (
     introduce_polarity,
 )
+from dialectical_framework.agents.analyst.skills.anchor_theses import anchor_theses
 from dialectical_framework.agents.analyst.skills.surface_theses import surface_theses
 from dialectical_framework.agents.analyst.tools.create_dx_input import create_dx_input
 from dialectical_framework.agents.analyst.tools.place_statement import place_statement
@@ -49,6 +50,7 @@ from dialectical_framework.agents.orchestrator.tools.reject import reject
 
 ALL_TOOLS = [
     analyze,
+    anchor_theses,
     surface_theses,
     find_polarities,
     expand_polarities,

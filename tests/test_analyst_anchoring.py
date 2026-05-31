@@ -1,5 +1,5 @@
 """
-Tests for SurfaceTheses - thesis extraction and anchoring.
+Tests for SurfaceTheses (extraction) and AnchorTheses (literal anchoring).
 """
 
 from __future__ import annotations
@@ -9,6 +9,8 @@ import pytest
 pytestmark = pytest.mark.real_llm
 from langfuse import observe
 
+from dialectical_framework.agents.analyst.skills.anchor_theses import \
+    AnchorTheses
 from dialectical_framework.agents.analyst.skills.surface_theses import \
     SurfaceTheses
 from dialectical_framework.graph.nodes.case import Case
@@ -105,17 +107,29 @@ class TestSurfaceTheses:
     @pytest.mark.asyncio
     @observe()
     async def test_anchoring_direct_thesis_without_inputs(self):
-        """SurfaceTheses can anchor direct thesis even without inputs."""
+        """AnchorTheses anchors a direct thesis even without inputs."""
         case_node = Case()
         case_node.commit()
 
         with scope(case_node.sid):
-            skill = SurfaceTheses(
-                intent="anchor direct thesis 'Trust' - create component for concept of Trust"
-            )
+            skill = AnchorTheses(statements=["Trust"])
             result = await skill.resolve()
 
             assert skill.report.ok is True
             vocab = StatementRepository().get_vocabulary()
             trust_components = [c for c in vocab if "trust" in c.text.lower()]
             assert len(trust_components) >= 1
+
+    @pytest.mark.asyncio
+    @observe()
+    async def test_surface_theses_returns_none_without_inputs(self):
+        """SurfaceTheses returns None when no inputs are in scope."""
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            skill = SurfaceTheses(intent="extract theses")
+            result = await skill.resolve()
+
+            assert result is None
+            assert "No inputs" in skill.report.summary
