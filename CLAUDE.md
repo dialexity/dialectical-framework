@@ -51,6 +51,9 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 **Key nodes:** Statement, Perspective (PP), Polarity, Nexus, Cycle, Wheel, Transformation, Transition, Ideas, Input, Case, Synthesis
 
 **Hierarchy:** Perspective → Cycle → Wheel (edges) → Transformation
+
+**Cycle vs Wheel:** Cycle = ordered T-causality sequence (which thesis causes which). Wheel = full circular TA-arrangement with transitions. `generate_compatible_sequences` takes a Cycle's PP ordering as constraint, then places both T and A components respecting diagonal symmetry (T_i opposite A_i). Different Cycles (e.g., [PP1,PP2] vs [PP2,PP1]) produce Wheel arrangements that are rotations of each other — same directed circle, different starting point. Since Wheels are rotation-invariant (`WheelRepository.find_by_component_sequence`), these sibling Cycles share the same Wheel nodes. All scoped by `sid` — no cross-Case or cross-Nexus sharing.
+
 **Case flow:** Case → Input → Ideas → Statements
 **Exploration flow:** Perspectives → Nexus → Cycles → Wheels
 
