@@ -143,6 +143,12 @@ All DB queries must go through `graph/repositories/` classes, scoped by `sid`. N
 
 `__str__` on graph nodes is LLM-visible (used by `present_analysis`, `inspect_node`, format strings). Must show full text — never truncate. `__repr__` is debug-only and may truncate freely. Internal LLM prompts (dedup, query_graph results, report summaries) may truncate since hashes serve as identifiers; agent system prompts instruct the LLM to use `inspect_node` for exact text.
 
+### Tool Parameter Clarity: No Double-Duty Strings
+
+Tool parameters must not serve as both "literal value" AND "instructions for an inner LLM to interpret." If the Analyst agent already decided *what operation* to perform (by choosing the tool), the tool signature should reflect that decision unambiguously. If a tool needs two modes, split it into two tools rather than adding an `intent` string that an inner LLM must re-interpret.
+
+Reference: `anchor_theses` (literal statements) vs `surface_theses` (extraction instructions).
+
 ---
 
 ## Core Patterns
