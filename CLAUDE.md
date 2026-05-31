@@ -139,6 +139,10 @@ All DB queries must go through `graph/repositories/` classes, scoped by `sid`. N
 
 **Allowed exceptions:** `dialectical_reasoning.py` (schema init), `relationship_manager.py`, `estimation_manager.py`, `query_graph.py` (LLM read-only Cypher).
 
+### Truncation Rules for Node Text
+
+`__str__` on graph nodes is LLM-visible (used by `present_analysis`, `inspect_node`, format strings). Must show full text — never truncate. `__repr__` is debug-only and may truncate freely. Internal LLM prompts (dedup, query_graph results, report summaries) may truncate since hashes serve as identifiers; agent system prompts instruct the LLM to use `inspect_node` for exact text.
+
 ---
 
 ## Core Patterns

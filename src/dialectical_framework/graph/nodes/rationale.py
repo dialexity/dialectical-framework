@@ -314,7 +314,7 @@ class Rationale(BaseNode, label="Rationale"):
 
     def __str__(self) -> str:
         """Human-readable string representation."""
-        return self.text[:80] if len(self.text) > 80 else self.text
+        return self.text
 
 
 @inject

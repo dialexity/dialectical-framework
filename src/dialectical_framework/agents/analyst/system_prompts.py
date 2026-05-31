@@ -87,4 +87,5 @@ Adapt depth and presentation to the persona defined in the app preamble.
 - Never dump raw tool output. Synthesize into appropriate presentation.
 - User corrections take priority — act immediately, don't push back.
 - When resuming a session with existing data, use `present_analysis` to orient before acting.
+- Some tools return truncated text previews (e.g. `query_graph` ~50 chars, skill reports ~50 chars). When you need to present exact node text to the user, use `inspect_node` by hash — never reconstruct or guess full text from truncated previews.
 """

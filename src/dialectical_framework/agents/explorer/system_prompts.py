@@ -66,4 +66,5 @@ Adapt depth and presentation to the persona defined in the app preamble.
 - Never dump raw tool output. Synthesize into appropriate presentation.
 - Always work within this Nexus ({nexus_hash}) unless creating a sub-nexus.
 - If the user wants to analyze new material, suggest they return to the analysis thread.
+- Some tools return truncated text previews (e.g. `query_graph` ~50 chars, skill reports ~50 chars). When you need to present exact node text to the user, use `inspect_node` by hash — never reconstruct or guess full text from truncated previews.
 """

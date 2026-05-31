@@ -325,8 +325,8 @@ class Polarity(AssessableEntity, label="Polarity"):
         """Human-readable string representation."""
         t_comp = self.get_t_component()
         a_comp = self.get_a_component()
-        t_str = t_comp.text[:40] if t_comp else "?"
-        a_str = a_comp.text[:40] if a_comp else "?"
+        t_str = (t_comp.display_text or t_comp.text) if t_comp else "?"
+        a_str = (a_comp.display_text or a_comp.text) if a_comp else "?"
         hs = self.heuristic_similarity
         hs_str = f", HS={hs:.2f}" if hs is not None else ""
         return f"T: {t_str} ↔ A: {a_str}{hs_str}"
