@@ -174,15 +174,9 @@ class QueryGraph(ReasonableConcern[str]):
                         f"{key}: [{value.__class__.__name__} {value.short_hash}]"
                     )
                 elif hasattr(value, "text"):
-                    stmt = (
-                        value.text[:50] + "..."
-                        if len(str(value.text)) > 50
-                        else value.text
-                    )
-                    row_parts.append(f"{key}: {stmt}")
+                    row_parts.append(f"{key}: {value.text}")
                 else:
-                    val_str = str(value)[:100]
-                    row_parts.append(f"{key}: {val_str}")
+                    row_parts.append(f"{key}: {value}")
             lines.append(f"{i+1}. {', '.join(row_parts)}")
 
         if len(results) > limit:

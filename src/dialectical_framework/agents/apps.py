@@ -10,26 +10,15 @@ Two reference apps:
 
 Prompt Revision Methodology
 ===========================
-When fixing LLM output bugs in these prompts:
+When fixing LLM output bugs in these prompts, use /df:review-prompts for the
+full diagnosis/fix/verify workflow.
 
-1. Diagnose WHY the model failed:
-   - Polysemy (same word used for two concepts → model generalizes wrong one)
-   - Competing signals (two sections contradict)
-   - Missing example (model invents wrong format)
-   - Negative-only constraint ("don't X" without "do Y instead")
+Quick reference: Diagnose root cause (polysemy | competing signals | missing
+example | negative-only constraint) → Apply first applicable fix (add example |
+positive spec | reduce polysemy | consolidate) → Verify with regression test
+(tests/test_prompt_vocabulary.py --real-llm).
 
-2. Apply fix (first applicable wins):
-   - Add one concrete example of correct output
-   - Positive specification over negative constraint
-   - Reduce polysemy — use distinct words for distinct concepts
-   - Consolidate competing sections into single authority
-
-3. Verify with regression test (tests/test_prompt_vocabulary.py --real-llm)
-
-Anti-patterns: patch-stacking ("IMPORTANT: NEVER..."), redundant emphasis,
-model-specific forks. Fix for Haiku — Sonnet/Opus will follow.
-
-See docs/PROMPTING.md for general prompting principles.
+Anti-patterns: patch-stacking, redundant emphasis, model-specific forks.
 """
 
 from __future__ import annotations

@@ -60,7 +60,8 @@ coverage.xml
 logs/
 
 # Dialexity custom
-.claude/
+.claude/settings.local.json
+.claude/commands/local/
 tests/play.py
 docs/r&d/
 .chainlit/
