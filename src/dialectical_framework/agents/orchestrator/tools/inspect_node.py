@@ -8,7 +8,7 @@ Example outputs (what the LLM receives):
 -----------------------------------------
 
 No status shown for normal committed nodes. Only DRAFT (uncommitted) or
-REJECTED get tagged in the header.
+DISCARDED get tagged in the header.
 
 --- Perspective ---
 
@@ -57,7 +57,7 @@ T: Remote Work ↔ A: Office Work, HS=0.82
 Active Perspectives using this Polarity:
   - [a3f82c1] intent=navigating remote work tensions
   - [b7d91e4]
-  (1 rejected perspective(s) also reference this Polarity)
+  (1 discarded perspective(s) also reference this Polarity)
 
 --- Nexus ---
 
@@ -92,8 +92,8 @@ if TYPE_CHECKING:
 
 def _status_tag(node) -> str:
     """Return status tag only for non-normal states."""
-    if getattr(node, "rejected", None):
-        return " REJECTED"
+    if getattr(node, "discarded", None):
+        return " DISCARDED"
     if not node.is_committed:
         return " DRAFT"
     return ""
@@ -110,8 +110,8 @@ def _inspect_perspective(pp: Perspective) -> str:
 
     # Header
     lines.append(f"## Perspective [{_node_id(pp)}]{_status_tag(pp)}")
-    if pp.rejected:
-        lines.append(f"Rejected: {pp.rejected}")
+    if pp.discarded:
+        lines.append(f"Discarded: {pp.discarded}")
     if pp.intent:
         lines.append(f"Intent: {pp.intent}")
     lines.append("")
@@ -175,8 +175,8 @@ def _inspect_statement(stmt: Statement) -> str:
 
     # Header
     lines.append(f"## Statement [{_node_id(stmt)}]{_status_tag(stmt)}")
-    if stmt.rejected:
-        lines.append(f"Rejected: {stmt.rejected}")
+    if stmt.discarded:
+        lines.append(f"Discarded: {stmt.discarded}")
     lines.append("")
 
     # Full text with rationale (long format)
@@ -194,8 +194,8 @@ def _inspect_statement(stmt: Statement) -> str:
         lines.append("")
         lines.append("Used in Perspectives:")
         for pp, rel_type in usages:
-            rejected_marker = " [REJECTED]" if pp.rejected else ""
-            lines.append(f"  - [{pp.short_hash}] as {rel_type}{rejected_marker}")
+            discarded_marker = " [DISCARDED]" if pp.discarded else ""
+            lines.append(f"  - [{pp.short_hash}] as {rel_type}{discarded_marker}")
 
     return "\n".join(lines)
 
@@ -212,11 +212,11 @@ def _inspect_polarity(pol: Polarity) -> str:
     lines.append(str(pol))
     lines.append("")
 
-    # Perspectives referencing this Polarity (non-rejected only)
+    # Perspectives referencing this Polarity (non-discarded only)
     repo = PerspectiveRepository()
     perspectives = repo.find_by_polarity(pol)
-    active_pps = [pp for pp in perspectives if not pp.rejected]
-    rejected_pps = [pp for pp in perspectives if pp.rejected]
+    active_pps = [pp for pp in perspectives if not pp.discarded]
+    discarded_pps = [pp for pp in perspectives if pp.discarded]
 
     if active_pps:
         lines.append("Active Perspectives using this Polarity:")
@@ -224,10 +224,10 @@ def _inspect_polarity(pol: Polarity) -> str:
             intent_str = f" intent={pp.intent}" if pp.intent else ""
             lines.append(f"  - [{pp.short_hash}]{intent_str}")
 
-    if rejected_pps:
-        lines.append(f"  ({len(rejected_pps)} rejected perspective(s) also reference this Polarity)")
+    if discarded_pps:
+        lines.append(f"  ({len(discarded_pps)} discarded perspective(s) also reference this Polarity)")
 
-    if not active_pps and not rejected_pps:
+    if not active_pps and not discarded_pps:
         lines.append("No Perspectives reference this Polarity.")
 
     return "\n".join(lines)
@@ -247,9 +247,9 @@ def _inspect_nexus(nexus: Nexus) -> str:
     if pp_items:
         lines.append(f"Perspectives ({len(pp_items)}):")
         for pp, _ in pp_items:
-            rejected_marker = " [REJECTED]" if pp.rejected else ""
+            discarded_marker = " [DISCARDED]" if pp.discarded else ""
             intent_str = f" intent={pp.intent}" if pp.intent else ""
-            lines.append(f"  - [{pp.short_hash}]{intent_str}{rejected_marker}")
+            lines.append(f"  - [{pp.short_hash}]{intent_str}{discarded_marker}")
     else:
         lines.append("No Perspectives in this Nexus.")
 

@@ -49,8 +49,8 @@ Always check resonance AFTER presenting results — but never before acting.
 
 - If the user describes a situation: call `analyze` or `introduce_polarity` depending on whether a clear tension is stated
 - If the user gives a single concept: call `anchor_theses` with that concept as a statement.
-- If the user disagrees with a generated aspect: offer `edit_perspective` with their correction, or `reject` if the whole perspective misses the mark.
-- If the user corrects or refines: use `edit_perspective` or `reject` immediately
+- If the user disagrees with a generated aspect: offer `edit_perspective` with their correction, or `discard` if the whole perspective misses the mark.
+- If the user corrects or refines: use `edit_perspective` or `discard` immediately
 - If the user wants to explore interactions: use `create_nexus`
 - If the user asks "what do we have?": use `present_analysis`
 - If the user works step-by-step: follow their lead with granular tools
@@ -76,7 +76,7 @@ When new tensions emerge from conversation:
 **Steering:**
 - `create_dx_input` — Feed exploration insights back as analyst input.
 - `edit_perspective` — Change positions of a Perspective (T, A, T+, T-, A+, A-).
-- `reject` — Discard statements or perspectives the user doesn't want.
+- `discard` — Discard statements or perspectives the user doesn't want.
 
 **Exploration setup:**
 - `create_nexus` — Group perspectives for exploration in a dedicated thread.

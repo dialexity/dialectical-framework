@@ -61,7 +61,7 @@ class TestAnalystInitialization:
         # Steering tools
         assert "create_dx_input" in tool_names
         assert "edit_perspective" in tool_names
-        assert "reject" in tool_names
+        assert "discard" in tool_names
         assert "create_nexus" in tool_names
 
         # Query tools

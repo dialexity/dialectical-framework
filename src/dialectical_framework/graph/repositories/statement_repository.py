@@ -177,14 +177,14 @@ class StatementRepository:
             sid: Case ID (injected from DI context)
 
         Returns:
-            List of unconnected, non-rejected Statements
+            List of unconnected, non-discarded Statements
         """
         if not sid:
             return []
 
         query = """
         MATCH (s:Statement {sid: $sid})
-        WHERE s.rejected IS NULL
+        WHERE s.discarded IS NULL
         AND NOT (s)-[:T]->(:Polarity)
         AND NOT (s)-[:A]->(:Polarity)
         AND NOT (s)-[:T_PLUS]->(:Perspective)
@@ -209,7 +209,7 @@ class StatementRepository:
         Uses best_rationale (highest-rated) for each component.
 
         Returns:
-            List of dicts with: hash, statement, meaning, rejected, rationale
+            List of dicts with: hash, statement, meaning, discarded, rationale
         """
         vocab = self.get_vocabulary()
 
@@ -226,7 +226,7 @@ class StatementRepository:
                 "hash": comp.hash,
                 "statement": comp.text,
                 "meaning": comp.meaning,
-                "rejected": comp.rejected,
+                "discarded": comp.discarded,
                 "rationale": rationale_text,
             })
 

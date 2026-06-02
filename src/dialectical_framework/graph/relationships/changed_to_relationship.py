@@ -13,8 +13,8 @@ class ChangedToRelationship(AnalyticalStructure, type="CHANGED_TO"):
     Direction: old_pp -[CHANGED_TO]-> new_pp
 
     Analytical layer — does not affect hashes. Captures lineage so that:
-    - If old PP is not rejected, lineage is meaningful (evolution chain)
-    - If old PP is rejected, the new PP lives as a first-class citizen
+    - If old PP is not discarded, lineage is meaningful (evolution chain)
+    - If old PP is discarded, the new PP lives as a first-class citizen
 
     Properties:
         changed_positions: Which positions were modified (e.g. ["T+", "A-"])

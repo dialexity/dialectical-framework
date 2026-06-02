@@ -33,17 +33,17 @@ class PerspectiveRepository:
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> list[Perspective]:
         """
-        Find all non-rejected Perspectives in the current scope, ordered by commit time.
+        Find all non-discarded Perspectives in the current scope, ordered by commit time.
 
         Returns:
-            List of active (non-rejected) Perspectives
+            List of active (non-discarded) Perspectives
         """
         if not sid:
             return []
 
         query = """
         MATCH (pp:Perspective {sid: $sid})
-        WHERE pp.rejected IS NULL
+        WHERE pp.discarded IS NULL
         RETURN pp
         ORDER BY pp.committed_at
         """

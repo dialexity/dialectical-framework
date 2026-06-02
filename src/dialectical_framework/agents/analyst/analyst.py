@@ -123,7 +123,7 @@ def _build_tools() -> list:
         present_analysis
     from dialectical_framework.agents.orchestrator.tools.query_graph import \
         query_graph
-    from dialectical_framework.agents.orchestrator.tools.reject import reject
+    from dialectical_framework.agents.orchestrator.tools.discard import discard
 
     return [
         analyze,
@@ -136,7 +136,7 @@ def _build_tools() -> list:
         place_statement,
         create_dx_input,
         edit_perspective,
-        reject,
+        discard,
         create_nexus,
         present_analysis,
         inspect_node,

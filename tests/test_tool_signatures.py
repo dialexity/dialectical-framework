@@ -46,7 +46,7 @@ from dialectical_framework.agents.explorer.tools.present_exploration import (
 from dialectical_framework.agents.orchestrator.tools.add_input import add_input
 from dialectical_framework.agents.orchestrator.tools.inspect_node import inspect_node
 from dialectical_framework.agents.orchestrator.tools.query_graph import query_graph
-from dialectical_framework.agents.orchestrator.tools.reject import reject
+from dialectical_framework.agents.orchestrator.tools.discard import discard
 
 ALL_TOOLS = [
     analyze,
@@ -66,7 +66,7 @@ ALL_TOOLS = [
     add_input,
     inspect_node,
     query_graph,
-    reject,
+    discard,
 ]
 
 

@@ -119,7 +119,7 @@ class StatementPlacement(ReasonableConcern[StatementPlacementResult]):
 
         positions = []
         for pp, rel_type in usages:
-            if pp.rejected:
+            if pp.discarded:
                 continue
             positions.append(StatementPosition(
                 perspective_hash=pp.hash,

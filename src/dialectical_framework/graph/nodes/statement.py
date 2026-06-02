@@ -71,9 +71,9 @@ class Statement(AssessableEntity, label="Statement"):
     This allows the same statement to have different positions in different contexts.
 
     Analysis:
-    - Statements can be marked as rejected during analysis via the `rejected` field
-    - Rejected statements are excluded from suggestions but remain in vocabulary
-    - The rejection reason (if provided) can be used for UX feedback
+    - Statements can be marked as discarded during analysis via the `discarded` field
+    - Discarded statements are excluded from suggestions but remain in vocabulary
+    - The discard reason (if provided) can be used for UX feedback
     """
 
     text: str
@@ -83,11 +83,11 @@ class Statement(AssessableEntity, label="Statement"):
     # When set, UI/reports/prompts render this instead of `text`.
     display_text: Optional[str] = None
 
-    # Optional rejection marker for analyst suggestions
+    # Optional discard marker for analyst suggestions
     # When set, this statement is excluded from future suggestions
-    # The value can be a reason string or just "rejected" to indicate rejection
+    # The value can be a reason string or just "discarded" to indicate discarding
     # Does NOT affect hash computation (analytical metadata)
-    rejected: Optional[str] = None
+    discarded: Optional[str] = None
 
     # Semantic meaning pointer - typically a taxonomy reference (e.g., "systemic:engineering:integrity")
     # Can also be a verbatim meaning, but usually points to an agreed taxonomy.

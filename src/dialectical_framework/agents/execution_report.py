@@ -120,11 +120,11 @@ class Effect(BaseModel):
         relationship: Which edge was affected (set for relationship effects).
         patch: New/current values after mutation.
             - node_created: {"text": "Remote work"} (auto-populated from node.text)
-            - node_updated: {"rejected": "not relevant"} (the changed fields)
+            - node_updated: {"discarded": "not relevant"} (the changed fields)
             - relationship_created: {"heuristic_similarity": 0.82} (rel properties)
         previous: Old values before mutation (enables undo).
             - Only present on _updated and _deleted effects.
-            - E.g., {"rejected": None} before a rejection.
+            - E.g., {"discarded": None} before a discard.
         meta: Contextual info that isn't a property change.
             - E.g., {"position": "T+"} when an aspect is placed in a Perspective.
             - Helps the UI understand structural context without re-querying.
@@ -295,7 +295,7 @@ class ExecutionReport(BaseModel):
         previous: Optional[dict[str, Any]] = None,
         meta: Optional[dict[str, Any]] = None,
     ) -> None:
-        """Record a node deletion or soft-delete (rejection)."""
+        """Record a node deletion or soft-delete (discard)."""
         effect = Effect(
             seq=self._next_seq(),
             effect_type="node_deleted",

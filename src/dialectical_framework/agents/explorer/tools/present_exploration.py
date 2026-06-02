@@ -53,7 +53,7 @@ class PresentExploration(ReasonableConcern[str]):
         sections.append(self._format_nexus_header(nexus))
 
         perspectives = [
-            (pp, rel) for pp, rel in nexus.perspectives.all() if not pp.rejected
+            (pp, rel) for pp, rel in nexus.perspectives.all() if not pp.discarded
         ]
         if perspectives:
             sections.append(self._format_perspectives(perspectives))
@@ -98,7 +98,7 @@ class PresentExploration(ReasonableConcern[str]):
 
     @staticmethod
     def _find_nexus_wheels(nexus: Nexus, wheel_repo: WheelRepository) -> list[Wheel]:
-        perspectives = [pp for pp, _ in nexus.perspectives.all() if not pp.rejected]
+        perspectives = [pp for pp, _ in nexus.perspectives.all() if not pp.discarded]
         if not perspectives:
             return []
 

@@ -21,8 +21,8 @@ This document defines the Merkle-based identifier model used in the dialectical 
    - The same database instance may store many independent explorations.
    - Queries and references must not accidentally cross between explorations.
 
-4. **Create-new, reject-old editing model**
-   - Editing a committed node means creating a new node and rejecting the old one.
+4. **Create-new, discard-old editing model**
+   - Editing a committed node means creating a new node and discarding the old one.
    - No per-node lineage tracking — the Case is the unit of versioning.
 
 5. **Immutable committed state**
@@ -201,7 +201,7 @@ Computed outcomes where each instance is unique. No lineage tracking.
 
 ### Reasoning Foundations
 
-These are the basis of reasoning. Editing means creating a new node and rejecting the old one.
+These are the basis of reasoning. Editing means creating a new node and discarding the old one.
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
@@ -225,7 +225,7 @@ Uses `IncrementalBuildMixin` for staged building (save → add children → comm
 ### Key Observations
 
 - **Atoms are global facts/effects**: Same content = same node.
-- **Reasoning foundations (Perspective, Nexus)** are immutable after commit — editing means creating a new node and rejecting the old.
+- **Reasoning foundations (Perspective, Nexus)** are immutable after commit — editing means creating a new node and discarding the old.
 - **`committed_at`** ensures temporal ordering.
 - **`nonce`** (Transition only) ensures uniqueness for repeated source→target pairs.
 - **Sorting** makes order-independent containers produce consistent hashes.
@@ -236,7 +236,7 @@ Committed nodes are immutable. To "edit" a Perspective or Nexus:
 1. Clone the node (creates an uncommitted copy)
 2. Modify the clone
 3. Commit the clone (gets a new hash)
-4. Reject the old node (`rejected` field)
+4. Discard the old node (`discarded` field)
 
 ```python
 # Edit a Perspective by creating a new one
@@ -246,8 +246,8 @@ new_pp.t_plus.disconnect(old_stmt)
 new_pp.t_plus.connect(new_stmt)
 new_pp.commit()
 
-# Mark old PP as rejected
-original_pp.rejected = "replaced by edit"
+# Mark old PP as discarded
+original_pp.discarded = "replaced by edit"
 original_pp.save()
 ```
 
@@ -316,6 +316,6 @@ The following indexes support efficient lookups:
 ### Key Properties
 
 - **Atoms are global**: Same content = same hash = same node across all of Indranet
-- **Immutable after commit**: Editing = create new + reject old
+- **Immutable after commit**: Editing = create new + discard old
 - **Derived structures flow down**: Create new upstream (Nexus/PP) to explore alternatives
 - **Scoped address**: `sid:hash` for global uniqueness across scopes

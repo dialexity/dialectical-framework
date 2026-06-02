@@ -83,8 +83,8 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
         9. pp.commit()
     """
 
-    # Rejection marker — does not affect hash (metadata-only)
-    rejected: Optional[str] = None
+    # Discard marker — does not affect hash (metadata-only)
+    discarded: Optional[str] = None
 
     def __init__(self, **data: Any):
         super().__init__(**data)

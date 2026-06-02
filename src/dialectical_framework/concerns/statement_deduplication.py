@@ -192,7 +192,7 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
         Args:
             extracted_hashes: Hashes of newly extracted components
             vocabulary: Existing vocabulary as list of dicts with keys:
-                        hash, statement, meaning, rejected, rationale
+                        hash, statement, meaning, discarded, rationale
             text: Source context for contextualized deduplication
 
         Returns:
@@ -275,13 +275,13 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
 
         # Filter vocabulary by meaning prefix
         # None prefix (no meaning) matches everything
-        non_rejected = [v for v in vocabulary if not v.get("rejected")]
+        non_discarded = [v for v in vocabulary if not v.get("discarded")]
         if extracted_prefixes and None not in extracted_prefixes:
             # All extracted have meaning - filter vocab to matching prefixes
             # Include vocab items with no meaning (match everything) or matching prefix
-            non_rejected = [
+            non_discarded = [
                 v
-                for v in non_rejected
+                for v in non_discarded
                 if _extract_meaning_prefix(v.get("meaning"))
                 is None  # No meaning = matches all
                 or _extract_meaning_prefix(v.get("meaning")) in extracted_prefixes
@@ -289,7 +289,7 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
 
         # Build vocabulary descriptions (limit tokens)
         vocab_lines = []
-        for v in non_rejected[:100]:
+        for v in non_discarded[:100]:
             rationale_hint = (
                 f" - {v['rationale'][:80]}..." if v.get("rationale") else ""
             )
@@ -413,7 +413,7 @@ If no match, set db_hash to null."""
         Args:
             idea: The raw idea string to check
             vocabulary: Existing vocabulary as list of dicts with keys:
-                        hash, statement, meaning, rejected, rationale
+                        hash, statement, meaning, discarded, rationale
             text: Source context for contextualized matching
 
         Returns:
@@ -425,9 +425,9 @@ If no match, set db_hash to null."""
         idea = idea.strip()
 
         # Build vocabulary descriptions (no meaning filtering - check ALL)
-        non_rejected = [v for v in vocabulary if not v.get("rejected")]
+        non_discarded = [v for v in vocabulary if not v.get("discarded")]
         vocab_lines = []
-        for v in non_rejected[:100]:  # Limit for token budget
+        for v in non_discarded[:100]:  # Limit for token budget
             meaning_hint = (
                 f" (meaning: {v.get('meaning', 'none')})" if v.get("meaning") else ""
             )

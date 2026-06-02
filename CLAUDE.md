@@ -57,7 +57,7 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 **Case flow:** Case → Input → Ideas → Statements
 **Exploration flow:** Perspectives → Nexus → Cycles → Wheels
 
-See `docs/graph.md` for full data model (positions, transformations, cardinality, layers, intent levels, rejection/editing rules).
+See `docs/graph.md` for full data model (positions, transformations, cardinality, layers, intent levels, discarding/editing rules).
 
 ### Structural vs Analytical Layers
 

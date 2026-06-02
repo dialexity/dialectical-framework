@@ -158,23 +158,23 @@ class PolarityRepository:
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
     ) -> list[Polarity]:
         """
-        Find Polarities not referenced by any active (non-rejected) Perspective.
+        Find Polarities not referenced by any active (non-discarded) Perspective.
 
         These are "orphan" polarities that exist but aren't used in any
         Perspective structure.
 
         Returns:
-            List of unconnected, non-rejected Polarities
+            List of unconnected, non-discarded Polarities
         """
         if not sid:
             return []
 
         query = """
         MATCH (pol:Polarity {sid: $sid})
-        WHERE pol.rejected IS NULL
+        WHERE pol.discarded IS NULL
         AND NOT EXISTS {
             MATCH (pp:Perspective {sid: $sid})-[:HAS_POLARITY]->(pol)
-            WHERE pp.rejected IS NULL
+            WHERE pp.discarded IS NULL
         }
         RETURN pol
         """

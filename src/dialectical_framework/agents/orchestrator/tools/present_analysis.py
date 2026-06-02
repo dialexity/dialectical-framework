@@ -10,8 +10,8 @@ Focuses on the analytical layer:
 Example output (what the LLM receives):
 ---------------------------------------
 
-Only non-rejected items are shown. Committed is the default — only uncommitted
-nodes get a [DRAFT] tag. Rejected items have their own dedicated tool.
+Only non-discarded items are shown. Committed is the default — only uncommitted
+nodes get a [DRAFT] tag. Discarded items have their own dedicated tool.
 
 ## Perspectives
 
@@ -135,7 +135,7 @@ class PresentAnalysis(ReasonableConcern[str]):
     def _format_nexuses(nexuses: list[Nexus]) -> str:
         lines = ["## Nexuses"]
         for n in nexuses:
-            pp_list = [(pp, _) for pp, _ in n.perspectives.all() if not pp.rejected]
+            pp_list = [(pp, _) for pp, _ in n.perspectives.all() if not pp.discarded]
             lines.append(f"\n  [{n.short_hash}] {n.intent or '(no intent)'} ({len(pp_list)} perspectives)")
             lines.append(f"    Preset: {n.preset or 'default'}")
             for pp, _ in pp_list:

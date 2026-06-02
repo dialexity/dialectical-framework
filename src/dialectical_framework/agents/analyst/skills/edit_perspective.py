@@ -87,7 +87,7 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
     - Only aspects changing → validates coherence (diagonal oppositions, control statements)
 
     Creates a new PP and connects old→new via CHANGED_TO (analytical lineage).
-    Does not reject the old PP or modify Nexus memberships — that's up to the caller.
+    Does not discard the old PP or modify Nexus memberships — that's up to the caller.
     """
 
     def __init__(self, perspective_hash: str, changes: dict[str, str], text: str = "") -> None:

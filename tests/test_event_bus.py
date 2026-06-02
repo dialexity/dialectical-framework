@@ -108,7 +108,7 @@ class TestGraphEventBus:
             seq=0,
             effect_type="node_updated",
             node=NodeRef(label="Perspective", hash="def5678"),
-            patch={"rejected": "not relevant"},
+            patch={"discarded": "not relevant"},
         )
 
         received_1 = []
@@ -135,7 +135,7 @@ class TestGraphEventBus:
 
         assert len(received_1) == 1
         assert len(received_2) == 1
-        assert received_1[0].message.effect.patch == {"rejected": "not relevant"}
+        assert received_1[0].message.effect.patch == {"discarded": "not relevant"}
 
 
 class TestExecutionReportEventIntegration:

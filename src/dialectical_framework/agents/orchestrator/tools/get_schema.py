@@ -22,9 +22,9 @@ GRAPH_SCHEMA = """## Graph Schema
 | Case | Root session container | |
 | Input | External content (text, URL) for analysis | `content` |
 | Ideas | Collection of extracted Statements from Inputs | `intent` |
-| Statement | A thesis, position, or claim | `text`, `meaning`, `rejected` |
+| Statement | A thesis, position, or claim | `text`, `meaning`, `discarded` |
 | Polarity | A tension — structural T-A pair (thesis vs antithesis) | |
-| Perspective | Full interpretation: Polarity + evaluative aspects (T+, T-, A+, A-) | `intent`, `rejected` |
+| Perspective | Full interpretation: Polarity + evaluative aspects (T+, T-, A+, A-) | `intent`, `discarded` |
 | Nexus | Exploration container grouping Perspectives for combination | `intent`, `preset` |
 | Cycle | Ordered sequence of Perspectives defining causality | `intent` |
 | Wheel | Concrete T-A arrangement implementing a Cycle | `intent` |
@@ -141,8 +141,8 @@ MATCH (ac_t:Transition)-[:AC_PLUS]->(tr)
 MATCH (re_t:Transition)-[:RE_PLUS]->(tr)
 RETURN tr.hash, ac_t.statement AS action, re_t.statement AS reflection
 
--- Vocabulary (all non-rejected Statements)
-MATCH (s:Statement) WHERE s.rejected IS NULL RETURN s.text, s.hash
+-- Vocabulary (all non-discarded Statements)
+MATCH (s:Statement) WHERE s.discarded IS NULL RETURN s.text, s.hash
 
 -- Aspect relationships with complementarity scores
 MATCH (s:Statement)-[r:T_PLUS]->(pp:Perspective)
