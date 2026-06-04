@@ -538,7 +538,11 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
                         )
 
     async def _validate_tetrad_coherence(self) -> list[str]:
-        """Run diagonal opposition and control statement checks. Returns error list."""
+        """Run diagonal opposition and control statement checks for user-edited tetrads.
+
+        Includes DiagonalContradiction (unlike PerspectiveValidation) because user edits
+        bypass the generation prompt that normally enforces diagonal structure.
+        """
         assert self._working_pp is not None
         pp = self._working_pp
         errors: list[str] = []

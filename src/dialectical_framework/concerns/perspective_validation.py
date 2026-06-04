@@ -9,6 +9,12 @@ A Perspective passes validation if:
 - Both control statement scores >= 0.7 (conceptually coherent)
 - Empirical inequalities are satisfied (synthesis is possible)
 
+Diagonal Contradiction is intentionally NOT included here. It is a heavier check
+(additional LLM call) reserved for user-edited tetrads (see edit_perspective.py)
+where structural constraints aren't enforced by the generation prompt. For
+LLM-generated tetrads, the generation prompt already enforces diagonal structure,
+and CC acts as a sufficient proxy.
+
 Empirical Inequalities:
     1. diff_t ≈ diff_a ≥ 0.1 (balanced differentials, tolerance=0.15)
     2. KS(T+) > 0.4 and KS(A+) > 0.4 (positive aspects above threshold)
