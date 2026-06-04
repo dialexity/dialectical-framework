@@ -455,6 +455,11 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         # === Ac-side (this edge's segments) ===
 
         # Ac (neutral): T → A
+        # Note: tetrad.ac has insight/proactiveness from generation, but we intentionally
+        # don't store them. Neutral positions are category reference points — their
+        # proactiveness is derivable from Ac+'s label, and insight is less meaningful here.
+        # AcRelationship/ReRelationship extend PolarityRelationship (no scoring fields)
+        # to preserve the semantic distinction from scored +/- positions.
         ac_transition = self._create_transition(
             headline=tetrad.ac.headline,
             statement=tetrad.ac.statement,
