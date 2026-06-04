@@ -304,7 +304,7 @@ class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
     The main `value` field stores the average of both scores.
     Individual scores are stored in the named fields.
 
-    Validation threshold: Average of both scores must be >= CONCEPTUAL_COHERENCE_THRESHOLD.
+    Validation threshold: Both individual scores must be >= CONCEPTUAL_COHERENCE_THRESHOLD.
 
     Stored on Perspective as it validates the entire tetrad structure.
     """
@@ -314,8 +314,11 @@ class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
 
     @property
     def is_coherent(self) -> bool:
-        """True if the average of control statement scores passes the threshold."""
-        return self.value >= CONCEPTUAL_COHERENCE_THRESHOLD
+        """True if both control statement scores individually pass the threshold."""
+        return (
+            self.t_plus_without_a_plus_yields_t_minus >= CONCEPTUAL_COHERENCE_THRESHOLD
+            and self.a_plus_without_t_plus_yields_a_minus >= CONCEPTUAL_COHERENCE_THRESHOLD
+        )
 
 
 class DiagonalContradictionEstimation(Estimation, label="DiagonalContradiction"):

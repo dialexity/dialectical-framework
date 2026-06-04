@@ -56,7 +56,7 @@ class AspectRelationship(PolarityRelationship):
     Aspects (T+, T-, A+, A-) complement the thesis and antithesis:
     - complementarity_t: K_T - how well this aspect complements/supports the thesis (0.0-1.0)
     - complementarity_a: K_A - how well this aspect complements/supports the antithesis (0.0-1.0)
-    - complementarity: Average of K_T and K_A (calculated property)
+    - complementarity_s: Ks - complementarity toward synthesis = (K_T + K_A) / 2 (calculated property)
 
     Scale:
     - 0.0 = Actively undermines or contradicts
@@ -107,13 +107,10 @@ class TransitionAspectRelationship(PolarityRelationship):
     Base for Ac/Re transition relationships with insight and proactiveness scores.
 
     Transition aspects represent navigation paths through the dialectical tension:
-    - insight: How much understanding/clarity the transition provides (0.0-1.0)
-    - proactiveness: How actionable/practical the transition is (0.0-1.0)
+    - insight: Depth of transformation (0.0=Reflex → 1.0=Transcendence)
+    - proactiveness: Reflection-to-Action spectrum (Re: 0.0-0.4, Ac: 0.5-1.0)
 
-    Scale:
-    - 0.0 = No insight/proactiveness
-    - 0.5 = Moderate
-    - 1.0 = High insight/proactiveness
+    See concerns/ac_re_taxonomy.py for full scale definitions.
     """
 
     insight: Optional[float]

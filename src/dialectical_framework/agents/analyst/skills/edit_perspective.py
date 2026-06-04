@@ -57,6 +57,9 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.graph.relationships.changed_to_relationship import (
     ChangedToRelationship,
 )
+from dialectical_framework.graph.estimation_manager import EstimationManager
+from dialectical_framework.graph.nodes.estimation import (
+    ArousalEstimation, ModeEstimation)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 
 ALL_POSITIONS = {POSITION_T, POSITION_A, POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS}
@@ -198,7 +201,8 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         self._report.node_created(new_a)
 
         await self._fill_pp_and_regenerate_aspects(
-            thesis=new_t, antithesis=new_a, a_hs=a_validation.heuristic_similarity
+            thesis=new_t, antithesis=new_a, a_hs=a_validation.heuristic_similarity,
+            mode_value=a_validation.mode_value, arousal_value=a_validation.arousal_value,
         )
 
         self._create_edit_rationale(
@@ -318,7 +322,8 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         self._report.node_created(new_a)
 
         await self._fill_pp_and_regenerate_aspects(
-            thesis=current_t, antithesis=new_a, a_hs=a_validation.heuristic_similarity
+            thesis=current_t, antithesis=new_a, a_hs=a_validation.heuristic_similarity,
+            mode_value=a_validation.mode_value, arousal_value=a_validation.arousal_value,
         )
         self._create_edit_rationale(
             new_a, f"Antithesis changed to '{new_a_text}' (HS={a_validation.heuristic_similarity:.2f})"
@@ -332,7 +337,12 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         )
 
     async def _fill_pp_and_regenerate_aspects(
-        self, thesis: Statement, antithesis: Statement, a_hs: float
+        self,
+        thesis: Statement,
+        antithesis: Statement,
+        a_hs: float,
+        mode_value: Optional[float] = None,
+        arousal_value: Optional[float] = None,
     ) -> None:
         """Fill working PP with T, A (via Polarity) and regenerate all aspects."""
         assert self._working_pp is not None
@@ -343,6 +353,21 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         polarity.set_a(antithesis, heuristic_similarity=a_hs)
         polarity.commit()
         self._report.node_created(polarity)
+
+        if mode_value is not None or arousal_value is not None:
+            manager = EstimationManager()
+            if mode_value is not None:
+                mode_est = manager.upsert_estimation(
+                    antithesis, ModeEstimation, mode_value
+                )
+                if mode_est:
+                    self._report.node_updated(mode_est, patch={"value": mode_value})
+            if arousal_value is not None:
+                arousal_est = manager.upsert_estimation(
+                    antithesis, ArousalEstimation, arousal_value
+                )
+                if arousal_est:
+                    self._report.node_updated(arousal_est, patch={"value": arousal_value})
 
         pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
         self._report.relationship_created(pp.polarity, pp, polarity)

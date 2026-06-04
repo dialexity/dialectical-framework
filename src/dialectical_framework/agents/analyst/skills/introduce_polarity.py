@@ -31,6 +31,9 @@ from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
 from dialectical_framework.concerns.statement_classification import \
     StatementClassification
+from dialectical_framework.graph.estimation_manager import EstimationManager
+from dialectical_framework.graph.nodes.estimation import (
+    ArousalEstimation, ModeEstimation)
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.rationale import Rationale
@@ -122,6 +125,19 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
                 patch={"heuristic_similarity": classification.heuristic_similarity, "alias": "A"},
             )
             self._report.artifacts["primary_polarity_source"] = "created"
+
+        # Persist Mode/Arousal estimations on the antithesis
+        manager = EstimationManager()
+        mode_est = manager.upsert_estimation(
+            antithesis_stmt, ModeEstimation, classification.mode_value
+        )
+        arousal_est = manager.upsert_estimation(
+            antithesis_stmt, ArousalEstimation, classification.arousal_value
+        )
+        if mode_est:
+            self._report.node_updated(mode_est, patch={"value": classification.mode_value})
+        if arousal_est:
+            self._report.node_updated(arousal_est, patch={"value": classification.arousal_value})
 
         # Build result
         result = IntroducePolarityResult(
