@@ -23,6 +23,23 @@ Perspective → Cycle → Wheel (edges) → Transformation
 - Cycles and Wheels are built in layers (1-PP, 2-PP, 3-PP combinations)
 - Wheels with the same component set are reused across Cycles
 
+## Base Classes
+
+| Class | Purpose | Used By |
+|-------|---------|---------|
+| **BaseNode** | Hash identity, save/commit lifecycle, `sid` auto-population | All nodes |
+| **AssessableEntity** | Adds `rationales`/`estimations` relationships, `best_rationale` property | Statement, Polarity, Perspective, Cycle, Wheel |
+| **IntentMixin** | Adds `intent: Optional[str]` field (included in hash if set) | Ideas, Cycle, Perspective, Transformation, Wheel, Nexus |
+| **IncrementalBuildMixin** | Staged build: `save()` → add children → `commit()` | Perspective, Ideas, Wheel, Transformation, Synthesis |
+
+**BaseNode interface:**
+- `hash`, `committed_at`, `sid` — identity fields
+- `is_committed` — True when hash is set
+- `short_hash` — first 7 chars of hash
+- `save()` — persist to DB (dedup for content-addressable nodes)
+- `commit()` — set `committed_at`, compute hash, persist (raises if already committed)
+- `clone(destination_sid)` — creates uncommitted copy of a committed node
+
 ## Core Nodes
 
 | Node | Purpose | Key Relationships |
@@ -33,17 +50,17 @@ Perspective → Cycle → Wheel (edges) → Transformation
 | **Nexus** | Exploration container for Perspectives | `perspectives`, `intent`, `preset` |
 | **Cycle** | T-cycle (ordered Perspective sequence) | `perspective_hashes`, `wheels`, `opposite_direction` |
 | **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `opposite_direction`, `synthesis` |
-| **Transition** | Edge between statements | `source`, `target`, `cycle` (→Wheel) |
+| **Transition** | Edge between statements | `source`, `target`, `cycle` (→Cycle or Wheel) |
 | **Transformation** | Action-Reflection per edge | `edge` (→Transition via ACTION_REFLECTION), `nexus`, positions (ac, re, ac+, etc.) |
 | **Synthesis** | Emergent S+/S- pair from Wheel's circular causality | `s_plus`, `s_minus`, `target` (→Wheel) |
 | **Rationale** | Evidence/explanation | `explains`, `critiques`, `provided_estimations` |
-| **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `_provider` (←Rationale via PROVIDES) |
+| **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `provider` (←Rationale via PROVIDES) |
 | **Input** | Content source | `has_statements`, `ideas` |
 | **Ideas** | Distilled concepts from Input | `inputs` (→Input), `statements` |
 | **Case** | Multi-input exploration | `inputs` (→Input) |
 
-**DEPRECATED** (kept for backwards compatibility):
-- **Spiral**: Replaced by Transformations on edges
+**Removed:**
+- **Spiral**: Replaced by Transformations on edges (fully removed from codebase)
 
 ## Intent Levels
 
@@ -55,9 +72,9 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 | **Focus** | What? | What tensions exist? | Cycle | "economic_vs_social", "sustainability" |
 | **Dynamics** | So What? | Why do they matter? | Cycle (intent field) | "preset:balanced", "preset:realistic" |
 | **Path** | Now What? | How to navigate? | Perspective, Transformation, Wheel | "preset:general_concepts", "growth_based" |
-| **Synthesis** | (Outcome) | What emerges? | Synthesis | "practical_compromise" |
+| **Synthesis** | (Outcome) | What emerges? | Synthesis (via Wheel's intent) | "practical_compromise" |
 
-**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Wheel, Nexus
+**Nodes with IntentMixin:** Ideas, Cycle, Perspective, Transformation, Wheel, Nexus (not Synthesis)
 
 **Intent inheritance:** Wheels inherit intent from their parent Cycle. Use `get_effective_intent()` to resolve (checks wheel's own intent first, then cycle's).
 
@@ -176,6 +193,21 @@ with scope(case.sid):
     vocab = repo.get_vocabulary()
 ```
 
+## Nexus → Cycle → Wheel Generation
+
+The `PerspectiveCombination` concern (`concerns/perspective_combination.py`) orchestrates combinatorial generation:
+
+1. Input: committed Nexus + committed Perspectives
+2. Connect PPs to Nexus (idempotent)
+3. Generate layers combinatorially:
+   - **Layer 1:** Single-PP Cycles/Wheels (self-reference)
+   - **Layer 2:** Pair combinations → permutation-based T-cycles → diagonal-symmetric Wheel arrangements
+   - **Layer 3+:** Triplets, quadruplets, etc.
+4. Dedup: reuse existing Cycles/Wheels by hash
+5. Link opposite-direction pairs via `OPPOSITE_DIRECTION`
+
+**Diagonal symmetry constraint:** In a 2n-component Wheel, each thesis T_i sits diametrically opposite its antithesis A_i. This is enforced by `generate_compatible_sequences` (`utils/sequence_generation.py`).
+
 ## Branching and Cardinality Rationale
 
 ### Cycle as Snapshot
@@ -270,7 +302,6 @@ Think of the analytical layer as **pins and sticky notes** attached to the struc
 | Estimation | Any AssessableEntity (P/R values) |
 | Critique | Rationales (audit/challenge) |
 | Synthesis | Wheel (emergent S+/S- from circular causality) |
-| ac_re PP | Transformation (action-reflection context) |
 
 ### Why This Separation?
 
@@ -302,8 +333,12 @@ class IdentityRelationship(ImmutableStructure):
     Blocked if SOURCE is committed"""
 
 class ContainerMembership(ImmutableStructure):
-    """Defines container composition (belongs_to_*, has_*)
+    """Defines container composition (belongs_to_*)
     Blocked if TARGET (container) is committed"""
+
+class OutgoingContainerMembership(ImmutableStructure):
+    """For HAS_* relationships where containers point TO children
+    Blocked if SOURCE (container) is committed"""
 
 # Analytical layer - freely attachable
 class AnalyticalStructure(Relationship):
@@ -316,12 +351,16 @@ class AnalyticalStructure(Relationship):
 |--------------|-------|------------|
 | Polarity (T, A) and Aspects (T+, T-, A+, A-) | Structural | IdentityRelationship |
 | `IS_SOURCE_OF`, `IS_TARGET_OF` | Structural | IdentityRelationship |
-| `BELONGS_TO_CYCLE`, `BELONGS_TO_NEXUS` | Structural | ContainerMembership |
-| `HAS_WHEEL`, `HAS_POLARITY` | Structural | IdentityRelationship |
+| `HAS_POLARITY` | Structural | IdentityRelationship |
+| `BELONGS_TO_CYCLE` | Structural | ContainerMembership |
+| `HAS_STATEMENT` | Structural | OutgoingContainerMembership |
+| `BELONGS_TO_NEXUS` | Analytical | AnalyticalStructure |
+| `HAS_WHEEL` | Analytical | AnalyticalStructure |
 | `EXPLAINS`, `CRITIQUES` | Analytical | AnalyticalStructure |
 | `SYNTHESIS_OF`, `ACTION_REFLECTION` | Analytical | AnalyticalStructure |
 | `ESTIMATES`, `PROVIDES` | Analytical | AnalyticalStructure |
 | `CHANGED_TO` | Analytical | AnalyticalStructure |
+| `OPPOSITE_DIRECTION` | Unclassified | Relationship (bare) |
 
 ### Practical Effect
 
@@ -333,8 +372,8 @@ transformation.commit()
 transition.cycle.connect(transformation)  # BLOCKED - container committed
 
 # Analytical: attach/detach anytime
-transformation.ac_re.connect(new_pp)  # OK even after commit
-transformation.ac_re.disconnect(old_pp)  # OK - just removes annotation
+pp.nexus.connect(nexus)  # OK even after PP is committed
+wheel.synthesis.connect(synth)  # OK - analytical annotation
 rationale.set_explanation_target(any_node)  # OK - pointing into structure
 ```
 
@@ -365,16 +404,16 @@ Rationale ──► (any AssessableEntity)
 
 **Same edge, different views:**
 ```python
-# Child defines outgoing edge
-class Wheel:
-    cycle = RelationshipFrom("Cycle", model=HasWheelRelationship)
-
-# Parent sees incoming edge (same physical edge)
+# Parent defines outgoing edge
 class Cycle:
     wheels = RelationshipTo("Wheel", model=HasWheelRelationship)
+
+# Child sees incoming edge (same physical edge)
+class Wheel:
+    cycle = RelationshipFrom("Cycle", model=HasWheelRelationship)
 ```
 
-**Convention:** Child → Parent edges use `RelationshipFrom` on child when parent "has" children.
+**Convention:** Child → Parent edges use `RelationshipTo` on child. Parent → Child (HAS_*) edges use `RelationshipTo` on parent.
 
 ## Vocabulary
 
@@ -409,6 +448,41 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 ```
 
 The `alias` property on relationships stores contextual names (e.g., "T1", "A2+").
+
+## Polarity → Perspective Creation
+
+Polarity is a shared structural atom (same T+A pair = same node). Perspective builds on top of it:
+
+```python
+from dialectical_framework.graph.nodes.polarity import Polarity
+from dialectical_framework.graph.nodes.perspective import Perspective
+
+# 1. Create and commit statements
+thesis = Statement(text="Democracy"); thesis.commit()
+antithesis = Statement(text="Autocracy"); antithesis.commit()
+
+# 2. Create Polarity (reusable, order-independent hash)
+pol = Polarity()
+pol.set_t(thesis)
+pol.set_a(antithesis, heuristic_similarity=0.72)
+pol.commit()
+
+# 3. Create Perspective with aspects
+pp = Perspective()
+pp.save()
+pp.polarity.connect(pol)
+pp.t_plus.connect(t_plus_stmt)   # T+ aspect
+pp.t_minus.connect(t_minus_stmt) # T- aspect
+pp.a_plus.connect(a_plus_stmt)   # A+ aspect
+pp.a_minus.connect(a_minus_stmt) # A- aspect
+pp.commit()
+
+# Access T/A through Perspective (delegates to Polarity)
+pp.t  # → thesis Statement
+pp.a  # → antithesis Statement
+```
+
+**Key design:** Multiple Perspectives can share the same Polarity (different tetrad interpretations of the same T-A tension).
 
 ## Semantic Relationships
 
@@ -466,6 +540,28 @@ Quality is measured by structural edge properties, not a separate scoring system
 - **insight**, **proactiveness** (0.0-1.0) on transformation aspect edges
 - **Perspective computed properties:** `diff_t`, `diff_a`, `area_normalized`, `rectangularity`
 
+## Scope Context
+
+All graph operations happen within a scope (identified by `sid`). The `scope()` context manager sets the active sid via `contextvars`:
+
+```python
+from dialectical_framework.graph.scope_context import scope
+
+with scope(case.sid):
+    # All nodes created here auto-inherit this sid
+    stmt = Statement(text="...")
+    stmt.commit()  # stmt.sid == case.sid
+
+    # Repository queries are scoped to this sid
+    vocab = repo.get_vocabulary()
+```
+
+**Rules:**
+- The **application layer** calls `scope()` — the framework layer never does
+- `BaseNode.__init__` auto-reads `sid` from the active scope if not passed explicitly
+- Repositories read `sid` via DI (`Provide[DI.sid]` → `get_current_sid()`)
+- Scopes nest: exiting restores the previous scope
+
 ## Key Conventions
 
 - **Cardinality (1,1):** Exactly one statement per polarity position
@@ -485,7 +581,7 @@ stmt.commit()  # save + compute hash in one step
 
 ### Container Nodes (IncrementalBuildMixin)
 
-Container nodes (Transformation, Cycle, Wheel, Ideas) whose hash depends on children use `IncrementalBuildMixin`:
+Container nodes (Perspective, Transformation, Wheel, Ideas, Synthesis) whose hash depends on children use `IncrementalBuildMixin`:
 
 ```python
 # Pattern: save() → add members → commit()
@@ -532,9 +628,9 @@ pp2 = Perspective()
 # ... similar setup
 pp2.commit()
 
-# Create Cycle with ordered PPs
+# Create Cycle with ordered PPs (not IncrementalBuildMixin — uses set_perspectives())
 cycle = Cycle(intent="preset:balanced")
-cycle.set_perspectives([pp1, pp2])
+cycle.set_perspectives([pp1, pp2])  # stores ordered hashes as a field
 cycle.commit()
 
 # Create Wheel with edges
@@ -567,6 +663,32 @@ for tr in wheel.transformations:
     print(f"Transformation: {tr.short_hash}")
 ```
 
+## Critique Architecture
+
+Critique is NOT a separate node — it's a **Rationale→Rationale relationship** (`CRITIQUES`):
+
+```
+Rationale₂ ─[CRITIQUES]─► Rationale₁ ─[EXPLAINS]─► (any AssessableEntity)
+```
+
+- A Rationale can critique at most one other Rationale (`cardinality=(0,1)`)
+- Temporal cycle prevention: can only critique a Rationale committed earlier
+- Access: `rationale.critiques` (incoming), `rationale._critiques_target` (outgoing)
+
+## Repositories
+
+All queries go through `graph/repositories/` classes, always sid-scoped:
+
+| Repository | Key Methods |
+|---|---|
+| **NodeRepository** | `find_by_hash(hash, node_type)` — handles both full and prefix (7+ chars) lookup |
+| **PerspectiveRepository** | `find_all_active()`, `find_by_polarity(pol)`, `find_by_statement(stmt)`, `is_in_use_by_cycle(pp)`, `discard_uncommitted(pp)` |
+| **PolarityRepository** | `find_by_tension(t, a)`, `find_by_component(stmt, position)`, `find_unconnected()` |
+| **CycleRepository** | `find_by_perspectives(pps, exact_order)` (rotation-invariant), `find_by_layer(pps, nexus)` |
+| **WheelRepository** | `find_by_component_sequence(components)` (rotation-invariant), `get_transformations(wheel)` |
+| **StatementRepository** | `get_vocabulary()`, `find_by_perspective(pp)`, `safe_delete(stmt)`, `find_unconnected(limit)` |
+| **TransformationRepository** | `find_by_edge(edge)`, `find_by_nexus(nexus)`, `find_parent_transformations(edge)` |
+
 ## Estimation Architecture
 
 Estimations are separate nodes that point TO their target entity:
@@ -593,6 +715,29 @@ Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
 | `DiagonalContradictionEstimation` | Tetrad validation (diagonal pairs) |
 
 **Content-addressed identity:** Estimations are identified by `(type, value, target)`. Same tuple = same hash = reused node.
+
+## Events
+
+Graph mutations are broadcast via `GraphEventBus` (in-process async, channel = sid):
+
+**Effect types:** `node_created`, `node_updated`, `node_deleted`, `relationship_created`, `relationship_updated`, `relationship_deleted`
+
+**Emitting (tools/concerns):** Call methods on `ExecutionReport` — e.g., `self._report.node_created(node)`. The report auto-publishes to the bus. Fire-and-forget.
+
+**Subscribing (app/UI layer):**
+```python
+async with bus.subscribe(sid) as subscriber:
+    async for event in subscriber:
+        process(event.effect)
+```
+
+## Discarded Nodes
+
+The `discarded: Optional[str]` field exists on **Statement** and **Perspective** only:
+- Soft-marks a committed node as excluded from active queries (node stays in graph)
+- Value is a reason string (e.g., "not relevant") or just "discarded"
+- Repositories filter by `discarded IS NULL` for active queries (`find_all_active()`, etc.)
+- Uncommitted nodes are physically deleted instead (`discard_uncommitted()`)
 
 ## Further Reading
 

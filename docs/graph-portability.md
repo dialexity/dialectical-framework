@@ -116,7 +116,7 @@ assert len(stmt.hash) == 64
 assert stmt._id is not None  # Already in database
 ```
 
-**Container nodes** (Ideas, Cycle, Wheel, Transformation - via IncrementalBuildMixin):
+**Container nodes** (Perspective, Ideas, Wheel, Transformation, Synthesis - via IncrementalBuildMixin):
 
 ```python
 # 1. Create container (draft state)
@@ -136,6 +136,15 @@ wheel.commit()
 assert wheel.is_committed
 assert wheel.hash is not None
 # Cannot add more edges after commit
+```
+
+**Cycle** (stores perspective hashes as a field, not IncrementalBuildMixin):
+
+```python
+# Cycle uses set_perspectives() to store ordered hashes before commit
+cycle = Cycle(intent="preset:balanced")
+cycle.set_perspectives([pp1, pp2, pp3])  # Stores hashes, validates committed
+cycle.commit()  # Single-step: hash from ordered perspective_hashes + intent + committed_at
 ```
 
 **Note:** Nexus commits in a single step (not IncrementalBuildMixin). Perspectives connect to a Nexus after it's committed:
@@ -202,6 +211,7 @@ Computed outcomes where each instance is unique. No lineage tracking.
 ### Reasoning Foundations
 
 These are the basis of reasoning. Editing means creating a new node and discarding the old one.
+Perspective uses `IncrementalBuildMixin` (save → connect statements → commit).
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
@@ -211,14 +221,14 @@ These are the basis of reasoning. Editing means creating a new node and discardi
 ### Derived Structures
 
 Computed from forking points or inputs. No lineage tracking — fork upstream instead.
-Uses `IncrementalBuildMixin` for staged building (save → add children → commit).
+Nodes marked with (*) use `IncrementalBuildMixin` for staged building (save → add children → commit).
 
 | Node | hash = sha256(...) | Role |
 |------|-------------------|------|
-| **Ideas** | sorted(statement_hashes), [intent], committed_at | Extraction (from Inputs) |
-| **Cycle** | ordered(perspective_hashes), [intent], committed_at | Ordering (PP sequence matters) |
-| **Wheel** | cycle.hash, sorted(edge_hashes), [intent], committed_at | Arrangement (from Cycle) |
-| **Transformation** | nexus.hash, ac, re, ac+, ac-, re+, re- (fixed order), [intent], committed_at | Resolution (from Nexus) |
+| **Ideas** (*) | sorted(statement_hashes), [intent], committed_at | Extraction (from Inputs) |
+| **Cycle** | ordered(perspective_hashes), [intent], committed_at | Ordering (PP sequence matters, uses `set_perspectives()`) |
+| **Wheel** (*) | cycle.hash, sorted(edge_hashes), [intent], committed_at | Arrangement (from Cycle) |
+| **Transformation** (*) | nexus.hash, ac, re, ac+, ac-, re+, re- (fixed order), [intent], committed_at | Resolution (from Nexus) |
 
 [brackets] = optional, only included if non-None
 
@@ -268,8 +278,8 @@ repo = NodeRepository()
 # Full hash lookup
 node = repo.find_by_hash("abc123def456...")
 
-# Short prefix lookup
-node = repo.find_by_prefix("abc123d")  # Minimum 7 chars
+# Short prefix lookup (same method, uses STARTS WITH matching)
+node = repo.find_by_hash("abc123d")  # Minimum 7 chars
 ```
 
 ## Scope Access / Realms
