@@ -64,6 +64,12 @@ See `docs/graph.md` for full data model (positions, transformations, cardinality
 - **Structural** (immutable after commit): Merkle-tree backbone. Containers use `save() → add members → commit()`.
 - **Analytical** (mutable anytime): Rationale, Estimation, Critique, Synthesis, ac_re.
 
+### Discarding Nodes
+
+- `discarded: Optional[str]` field on Statement/Perspective — soft-marks as excluded from active queries (node stays in graph).
+- `discard_uncommitted()` on PerspectiveRepository — physically deletes uncommitted nodes.
+- The `discard` tool unifies both: uncommitted → deleted, committed → soft-discarded.
+
 ### User-Facing Vocabulary is App-Layer
 
 The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`DEFAULT_APP`, `ADVANCED_APP`) and injected via `app_preamble` in the Analyst/Explorer constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary.
