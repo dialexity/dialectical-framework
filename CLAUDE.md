@@ -36,6 +36,19 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 
 **Greimas mapping:** Ac (Action) corresponds to Not-A space (everything from T to Ac+); Re (Reflection) corresponds to Not-T space (everything from A to Re+). Ac+/Re+ are generative operations; Ac-/Re- represent transitions' degradation modes.
 
+### Scoring & Metrics (see docs/scoring.md for full reference)
+
+**Ks** (complementarity toward synthesis) = `(K_T + K_A) / 2`. Computed property, never stored — only K_T and K_A are persisted on `AspectRelationship` edges.
+
+**Tetrad quality metrics (on Perspective):**
+- `area` = Ks(T+) + Ks(A+) - Ks(T-) - Ks(A-) — higher = better differentiation
+- `rectangularity` = [Ks(T+)-Ks(A+)]² + [Ks(T-)-Ks(A-)]² — lower = better balance
+- Empirical thresholds: diff ≥ 0.1, Ks(+) > 0.4, Ks(-) < 0.6
+
+**HS (Heuristic Similarity):** T=1.0 (always, defines apex), A=LLM-computed, Aspects=LLM-computed, Ac+/Re+=LLM-computed, Ac/Re/Ac-/Re-=None.
+
+**Validation split:** `PerspectiveValidation` runs CC + empirical inequalities (post-generation). `edit_perspective._validate_tetrad_coherence` adds diagonal contradiction (post-user-edit). This is intentional — diagonal is an extra LLM call only needed when generation-prompt constraints are bypassed.
+
 ### Core Model
 
 **Positions (6 core + 2 synthesis):**
@@ -208,6 +221,10 @@ class Nexus(AssessableEntity):
 ### Scope (sid)
 
 All nodes share `sid` from their Case. Enforced at connect time. Use `with scope(case.sid):` to set context.
+
+### Antithesis Persistence Checklist
+
+When calling `AntithesisClassification`, the caller must persist Mode/Arousal via `EstimationManager.upsert_estimation()`. The concern itself does NOT create DB nodes — it only returns the result. `AntithesisExtraction` handles this internally; `AntithesisClassification` does not.
 
 ---
 
