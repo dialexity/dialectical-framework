@@ -132,10 +132,18 @@ def get_polar_pair(label: str) -> str:
 
 
 def is_reflection_category(label: str) -> bool:
-    """Check if a proactiveness label is in the Reflection (Re) zone."""
+    """Check if a proactiveness label is in the Reflection (Re) zone.
+
+    Not enforced at persistence time — the generation prompts constrain zone
+    assignment and LLMs follow reliably. Adding runtime validation would
+    complicate the generation pipeline for negligible gain.
+    """
     return label.capitalize() in REFLECTION_LABELS
 
 
 def is_action_category(label: str) -> bool:
-    """Check if a proactiveness label is in the Action (Ac) zone."""
+    """Check if a proactiveness label is in the Action (Ac) zone.
+
+    See is_reflection_category for rationale on why this isn't enforced at runtime.
+    """
     return label.capitalize() in ACTION_LABELS
