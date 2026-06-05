@@ -98,6 +98,7 @@ docker compose -f docker-compose.test.yml up -d  # start Memgraph (required for 
 poetry run pytest                    # all tests, LLM mocked
 poetry run pytest --real-llm         # only LLM tests with real provider
 poetry run pytest -m llm             # only LLM-path tests (mocked)
+poetry run pytest tests/path/test_x.py::test_name  # single test
 poetry run black src/ tests/         # format
 poetry run isort src/ tests/         # sort imports
 poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tests/
