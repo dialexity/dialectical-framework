@@ -30,7 +30,6 @@ env.bak/
 venv.bak/
 
 # Poetry
-poetry.lock
 dist/
 .venv/
 
