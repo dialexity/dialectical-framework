@@ -226,6 +226,10 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 When calling `AntithesisClassification`, the caller must persist Mode/Arousal via `EstimationManager.upsert_estimation()`. The concern itself does NOT create DB nodes — it only returns the result. `AntithesisExtraction` handles this internally; `AntithesisClassification` does not.
 
+### Model Provenance is Rationale-Only
+
+Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<model>` format, auto-populated from settings). Other nodes (Statement, Estimation, Perspective, etc.) trace provenance indirectly through their associated Rationale. This is intentional — not an oversight to "fix" by adding `agent` to more node types.
+
 ---
 
 ## Tool Pattern (Mirascope)
