@@ -303,7 +303,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
 async def expand_polarities(
     polarity_hashes: Annotated[list[str], Field(description="Hashes of Polarities to expand into full Perspectives")],
 ) -> str:
-    """Build complete Perspectives from Polarities by generating evaluative aspects (T+, T-, A+, A-) for each. Runs in parallel. The Polarities must already exist in the graph."""
+    """Build complete Perspectives from Polarities by generating evaluative aspects (T+, T-, A+, A-) for each. Each call generates one new Perspective per Polarity — call multiple times for alternative perspectives on the same Polarity (duplicates in a single call are ignored). The Polarities must already exist in the graph."""
     import asyncio
 
     async def _expand_one(h: str) -> str:
@@ -311,5 +311,6 @@ async def expand_polarities(
         await concern.resolve()
         return str(concern.report)
 
-    results = await asyncio.gather(*[_expand_one(h) for h in polarity_hashes])
+    unique_hashes = list(dict.fromkeys(polarity_hashes))
+    results = await asyncio.gather(*[_expand_one(h) for h in unique_hashes])
     return "\n---\n".join(results)

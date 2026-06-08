@@ -155,8 +155,9 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             result.existing = existing_antitheses
             return result
 
+        unique_hashes = list(dict.fromkeys(self.thesis_hashes))
         thesis_results = await asyncio.gather(
-            *[_process_thesis(h) for h in self.thesis_hashes]
+            *[_process_thesis(h) for h in unique_hashes]
         )
 
         for result in thesis_results:

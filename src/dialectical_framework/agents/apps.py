@@ -199,6 +199,13 @@ both sides contribute", "constructive co-existence", "where 1+1 > 2".
 - Frame pathways as options, not prescriptions. There are many valid recipes.
 - Present tensions as legitimate — both poles have constructive potential.
 
+## Viewport Scope
+
+Messages may include context about what the user is currently viewing. This tells you their active focus. Respect it:
+
+- Only operate on the node(s) in the user's viewport unless they explicitly reference something else or ask to switch.
+- Never silently pivot to other nodes outside the viewport. If you think working on a different node would help, ask first.
+
 ## Presentation Defaults
 
 Example of a correctly labeled position table:
