@@ -91,20 +91,9 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         partial_pps = [pp for pp in existing_pps if not pp.is_complete()]
 
         if not partial_pps:
-            self._report.ok = True
-            self._report.summary = (
-                f"{len(complete_pps)} complete Perspective(s), no partial Perspectives to expand"
-            )
-            self._report.artifacts["perspective_hashes"] = [
-                pp.hash for pp in complete_pps if pp.hash
-            ]
-            self._report.artifacts["total_count"] = len(complete_pps)
-            self._report.artifacts["existing_count"] = len(complete_pps)
-            self._report.artifacts["new_count"] = 0
-            self._report.artifacts["perspectives"] = [
-                self._perspective_final_state(pp) for pp in complete_pps
-            ]
-            return complete_pps
+            # All existing perspectives are complete — create a new one
+            pp = self._create_perspective_for_polarity(polarity)
+            partial_pps = [pp]
 
         # Complete all partial PPs
         completed_pps: list[Perspective] = []
