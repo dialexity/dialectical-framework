@@ -119,7 +119,6 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         not_like_these = [c["statement"] for c in vocab]
 
         results: list[ThesisResult] = []
-        all_existing: list[Statement] = []
         newly_extracted: list[Statement] = []
 
         # Phase 1: For each thesis, collect existing oppositions + extract new ones (parallel)
@@ -162,7 +161,6 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
 
         for result in thesis_results:
             results.append(result)
-            all_existing.extend(result.existing)
             newly_extracted.extend(result.extracted)
 
         # Phase 2: Semantic deduplication (only newly extracted, not existing)
@@ -191,6 +189,20 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                     if data["hash"] in dedup_result.replacements:
                         data["hash"] = dedup_result.replacements[data["hash"]].hash
                         data["deduped"] = True
+
+        # Deduplicate antithesis_data entries per thesis — dedup can merge an
+        # extracted antithesis into one already present from existing oppositions,
+        # producing duplicate (thesis, antithesis) pairs in the same result.
+        for result in results:
+            if result.error:
+                continue
+            seen: set[str] = set()
+            unique_data: list[dict] = []
+            for data in result.antithesis_data:
+                if data["hash"] not in seen:
+                    seen.add(data["hash"])
+                    unique_data.append(data)
+            result.antithesis_data = unique_data
 
         # Phase 3: Create Polarity nodes for each T-A pair
         total_antitheses = sum(len(r.antithesis_data) for r in results if not r.error)
@@ -226,9 +238,15 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                     }
                 )
 
-        # Build summary
-        existing_count = len(all_existing)
-        new_count = len(newly_extracted)
+        # Build summary — derive counts from deduplicated antithesis_data
+        existing_count = sum(
+            1 for r in results if not r.error
+            for d in r.antithesis_data if d.get("existing")
+        )
+        new_count = sum(
+            1 for r in results if not r.error
+            for d in r.antithesis_data if not d.get("existing")
+        )
 
         self._report.ok = True
         self._report.artifacts["thesis_count"] = len(self.thesis_hashes)
@@ -429,6 +447,11 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                 if data["hash"] == result.thesis.hash:
                     continue
 
+                # Skip if this T-A pair was already processed (e.g. dedup merged
+                # an extracted antithesis into one already seen via existing oppositions)
+                if (result.thesis.hash, data["hash"]) in polarity_map:
+                    continue
+
                 antithesis = self._resolve_component(data["hash"])
                 if antithesis is None:
                     continue
@@ -486,15 +509,21 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             ideas.inputs.connect(inp)
             self._report.relationship_created(ideas.inputs, ideas, inp)
 
-        # Connect all theses and antitheses
+        # Connect all theses and antitheses (deduplicated across theses)
+        connected_hashes: set[str] = set()
         for result in valid_results:
-            ideas.statements.connect(result.thesis)
-            self._report.relationship_created(
-                ideas.statements, ideas, result.thesis
-            )
+            if result.thesis.hash not in connected_hashes:
+                connected_hashes.add(result.thesis.hash)
+                ideas.statements.connect(result.thesis)
+                self._report.relationship_created(
+                    ideas.statements, ideas, result.thesis
+                )
             for data in result.antithesis_data:
+                if data["hash"] in connected_hashes:
+                    continue
                 comp = self._resolve_component(data["hash"])
                 if comp:
+                    connected_hashes.add(data["hash"])
                     ideas.statements.connect(comp)
                     self._report.relationship_created(
                         ideas.statements, ideas, comp
