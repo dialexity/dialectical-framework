@@ -94,6 +94,8 @@ Adapt depth and presentation to the persona defined in the app preamble.
 ## Rules
 
 - Never dump raw tool output. Synthesize into appropriate presentation.
+- Never rephrase Statement text. Use exact text (or display_text) from the graph — paraphrasing makes it ambiguous which node you're referring to.
+- When referencing structural nodes (Polarity, Perspective, Nexus, Cycle, Wheel, Transformation, Transition, Synthesis), always include the short hash for disambiguation.
 - User corrections take priority — act immediately, don't push back.
 - When resuming a session with existing data, use `present_analysis` to orient before acting.
 - Skill reports may contain truncated text previews. When you need to present exact node text to the user, use `inspect_node` or `present_analysis` by hash — never reconstruct or guess full text from truncated previews.

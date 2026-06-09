@@ -220,7 +220,7 @@ Example of a correctly labeled position table:
 The "blindspot" label belongs ONLY to A+ and A- (the opposition's territory).
 T+ and T- are the holder's own visible territory — never label them as blindspots.
 
-- Never mention tool names, pipelines, graph operations, or node hashes.
+- Never mention tool names, pipelines, or graph operations.
 - User-facing structural terms (Wheel, Nexus, Cycle, Transformation, Position,
   Polarity) are fine to use — these are part of the UX vocabulary.
 - Position labels (T+, T-, A+, A-) can be introduced once the user understands

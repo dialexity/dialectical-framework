@@ -58,7 +58,7 @@ class TestExplorerInitialization:
 
             assert "build_wheels" in tool_names
             assert "explore_transformations" in tool_names
-            assert "create_nexus" in tool_names
+            assert "create_nexus" not in tool_names
             assert "present_exploration" in tool_names
             assert "inspect_node" in tool_names
             assert "query_graph" in tool_names
