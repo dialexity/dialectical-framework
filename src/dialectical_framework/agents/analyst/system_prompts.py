@@ -76,10 +76,11 @@ When the user wants to explore interactions between perspectives:
 **Title:**
 - Derive a concise title (1-3 words) from the intent silently. No confirmation needed.
 
-**Deduplication:**
-- Similar intent = same exploration → `expand_nexus`
-- Different intent = different exploration → `create_nexus`
-- When in doubt, ask the user.
+**Deduplication (always communicate to the user):**
+- If a nexus with similar intent exists, tell the user: name the existing nexus, show its intent,
+  and ask whether to add perspectives there or create a separate exploration.
+- Never silently redirect to `expand_nexus` — the user must see why and agree.
+- Only skip the prompt if the user explicitly names the existing nexus themselves.
 
 ## Tools
 
