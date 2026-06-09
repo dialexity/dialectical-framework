@@ -85,7 +85,7 @@ See `docs/graph.md` for full data model (positions, transformations, cardinality
 
 ### User-Facing Vocabulary is App-Layer
 
-The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`DEFAULT_APP`, `ADVANCED_APP`) and injected via `app_preamble` in the Analyst/Explorer constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary.
+The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`DEFAULT_APP`, `ADVANCED_APP`) and injected via `app_preamble` in the Analyst/Explorer constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary or app-UI behavioral constraints (e.g., viewport scope). Both go in app preambles.
 
 ---
 
