@@ -113,6 +113,8 @@ def _build_tools() -> list:
         place_statement
     from dialectical_framework.agents.explorer.tools.create_nexus import \
         create_nexus
+    from dialectical_framework.agents.explorer.tools.expand_nexus import \
+        expand_nexus
     from dialectical_framework.agents.orchestrator.tools.add_input import \
         add_input
     from dialectical_framework.agents.orchestrator.tools.get_schema import \
@@ -138,6 +140,7 @@ def _build_tools() -> list:
         edit_perspective,
         discard,
         create_nexus,
+        expand_nexus,
         present_analysis,
         inspect_node,
         query_graph,

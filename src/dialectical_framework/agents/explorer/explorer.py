@@ -119,6 +119,8 @@ def _build_tools() -> list:
         build_wheels
     from dialectical_framework.agents.explorer.skills.explore_transformations import \
         explore_transformations
+    from dialectical_framework.agents.explorer.tools.expand_nexus import \
+        expand_nexus
     from dialectical_framework.agents.explorer.tools.present_exploration import \
         present_exploration
     from dialectical_framework.agents.orchestrator.tools.get_schema import \
@@ -131,6 +133,7 @@ def _build_tools() -> list:
     return [
         build_wheels,
         explore_transformations,
+        expand_nexus,
         present_exploration,
         inspect_node,
         query_graph,

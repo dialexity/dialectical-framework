@@ -40,6 +40,7 @@ from dialectical_framework.agents.explorer.skills.explore_transformations import
     explore_transformations,
 )
 from dialectical_framework.agents.explorer.tools.create_nexus import create_nexus
+from dialectical_framework.agents.explorer.tools.expand_nexus import expand_nexus
 from dialectical_framework.agents.explorer.tools.present_exploration import (
     present_exploration,
 )
@@ -62,6 +63,7 @@ ALL_TOOLS = [
     build_wheels,
     explore_transformations,
     create_nexus,
+    expand_nexus,
     present_exploration,
     add_input,
     inspect_node,

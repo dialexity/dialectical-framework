@@ -82,6 +82,8 @@ class PresentExploration(ReasonableConcern[str]):
     @staticmethod
     def _format_nexus_header(nexus: Nexus) -> str:
         lines = [f"## Nexus [{nexus.short_hash}]"]
+        if nexus.title:
+            lines.append(f"Title: {nexus.title}")
         if nexus.intent:
             lines.append(f"Intent: {nexus.intent}")
         if nexus.preset:

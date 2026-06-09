@@ -218,7 +218,7 @@ class TestExplorerEndToEnd:
                 )
 
             # Create nexus first (Analyst's responsibility in the new arch)
-            from dialectical_framework.agents.explorer.tools.create_nexus import CreateNexus
+            from dialectical_framework.concerns.create_nexus import CreateNexus
 
             create = CreateNexus()
             nexus_result = await create.resolve(

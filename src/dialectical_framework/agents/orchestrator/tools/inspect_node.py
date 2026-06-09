@@ -238,7 +238,8 @@ def _inspect_nexus(nexus: Nexus) -> str:
     lines: list[str] = []
 
     # Header
-    lines.append(f"## Nexus [{_node_id(nexus)}]{_status_tag(nexus)}")
+    title_suffix = f" — {nexus.title}" if nexus.title else ""
+    lines.append(f"## Nexus [{_node_id(nexus)}]{title_suffix}{_status_tag(nexus)}")
     lines.append(repr(nexus))
     lines.append("")
 

@@ -136,7 +136,10 @@ class PresentAnalysis(ReasonableConcern[str]):
         lines = ["## Nexuses"]
         for n in nexuses:
             pp_list = [(pp, _) for pp, _ in n.perspectives.all() if not pp.discarded]
-            lines.append(f"\n  [{n.short_hash}] {n.intent or '(no intent)'} ({len(pp_list)} perspectives)")
+            display = n.title or n.intent or "(no intent)"
+            lines.append(f"\n  [{n.short_hash}] {display} ({len(pp_list)} perspectives)")
+            if n.title and n.intent:
+                lines.append(f"    Intent: {n.intent}")
             lines.append(f"    Preset: {n.preset or 'default'}")
             for pp, _ in pp_list:
                 lines.append(f"    - [{pp.short_hash}] {pp:positions:0}")

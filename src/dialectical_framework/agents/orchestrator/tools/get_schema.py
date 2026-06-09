@@ -25,7 +25,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Statement | A thesis, position, or claim | `text`, `meaning`, `discarded` |
 | Polarity | A tension — structural T-A pair (thesis vs antithesis) | |
 | Perspective | Full interpretation: Polarity + evaluative aspects (T+, T-, A+, A-) | `intent`, `discarded` |
-| Nexus | Exploration container grouping Perspectives for combination | `intent`, `preset` |
+| Nexus | Exploration container grouping Perspectives for combination | `intent`, `preset`, `title` |
 | Cycle | Ordered sequence of Perspectives defining causality | `intent` |
 | Wheel | Concrete T-A arrangement implementing a Cycle | `intent` |
 | Transformation | Action-reflection structure (Ac, Re, Ac+, Ac-, Re+, Re-) on a Wheel edge | `intent` |

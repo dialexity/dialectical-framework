@@ -17,7 +17,10 @@ from dialectical_framework.enums.causality_preset import CausalityPreset
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
-from dialectical_framework.graph.relationship_manager import RelationshipFrom, RelationshipManager
+from dialectical_framework.graph.relationship_manager import (
+    RelationshipFrom,
+    RelationshipManager,
+)
 from dialectical_framework.graph.relationships.belongs_to_nexus_relationship import (
     BelongsToNexusRelationship,
 )
@@ -73,12 +76,16 @@ class Nexus(IntentMixin, BaseNode, label="Nexus"):
     # Prompt strategy for causality estimation (preset selector)
     preset: str = CausalityPreset.BALANCED
 
+    # Display title (not part of hash — purely metadata).
+    # NOTE: Cannot use Optional[str] here due to GQLAlchemy metaclass + future annotations.
+    title: str = None
+
     # Perspectives in this exploration
     # PP→Nexus: Perspective belongs to this Nexus
     perspectives: ClassVar[RelationshipManager[Perspective]] = RelationshipFrom(
         "Perspective",
         model=BelongsToNexusRelationship,
-        cardinality=(0, None)  # Zero or more PPs
+        cardinality=(0, None),  # Zero or more PPs
     )
 
     # NOTE: Cycles are derived from PPs, not stored as relationship.
@@ -93,10 +100,7 @@ class Nexus(IntentMixin, BaseNode, label="Nexus"):
         return [self.preset]
 
     @inject
-    def commit(
-        self,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Self:
+    def commit(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]) -> Self:
         """
         Commit this Nexus to the database.
 
@@ -117,12 +121,15 @@ class Nexus(IntentMixin, BaseNode, label="Nexus"):
         """Debug representation of the Nexus."""
         id_str = self.short_hash or "uncommitted"
         pp_count = self.perspectives.count()
-        return f"Nexus({id_str}, pps={pp_count}, preset={self.preset}, intent={self.intent})"
+        title_str = f", title={self.title}" if self.title else ""
+        return f"Nexus({id_str}{title_str}, pps={pp_count}, preset={self.preset}, intent={self.intent})"
 
     def __str__(self) -> str:
         """String representation of the Nexus."""
         id_str = self.short_hash or "uncommitted"
         parts = [f"hash={id_str}", f"preset={self.preset}"]
+        if self.title:
+            parts.append(f"title={self.title}")
         if self.intent:
             parts.append(f"intent={self.intent}")
         return f"Nexus({', '.join(parts)})"
