@@ -23,7 +23,7 @@ async def create_nexus(
     title: Annotated[
         Optional[str],
         Field(
-            description="Short title for UI display (3-6 words, derived from intent)"
+            description="Short title for UI display (1-3 words, derived from intent)"
         ),
     ] = None,
     preset: Annotated[

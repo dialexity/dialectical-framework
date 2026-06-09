@@ -74,7 +74,7 @@ When the user wants to explore interactions between perspectives:
 - Refine vague requests ("explore this") into purposeful intents internally.
 
 **Title:**
-- Derive a concise title (3-6 words) from the intent silently. No confirmation needed.
+- Derive a concise title (1-3 words) from the intent silently. No confirmation needed.
 
 **Deduplication:**
 - Similar intent = same exploration → `expand_nexus`
