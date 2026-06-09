@@ -111,7 +111,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 - **Graph DB**: Memgraph or Neo4j (via GQLAlchemy)
 - **DI**: dependency-injector
 - **Validation**: Pydantic v1
-- **LLM**: Mirascope (OpenAI, Anthropic, LiteLLM)
+- **LLM**: Mirascope (OpenAI, Anthropic, Bedrock via custom provider)
 
 ---
 
@@ -134,6 +134,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Shared agent tools | `agents/orchestrator/tools/` |
 | Agent skills/tools | `agents/{analyst,explorer}/` |
 | LLM abstraction | `utils/use_brain.py` |
+| Bedrock provider | `utils/bedrock_provider.py` |
 | Utilities | `utils/` |
 | Events (domain event bus) | `events/` |
 | Exceptions | `exceptions/` |

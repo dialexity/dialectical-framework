@@ -293,6 +293,12 @@ class ConversationFacilitator(SettingsAware):
         """Call LLM with format for structured output."""
         messages = self._messages
 
+        # Bedrock requires conversations to end with a user message.
+        # After the agentic tool loop, messages end with assistant — inject a
+        # user prompt so the extraction call is valid for all providers.
+        if messages and messages[-1].role == "assistant":
+            messages = [*messages, llm.messages.user("Provide your structured response.")]
+
         @use_brain(format=response_model)
         async def _llm_call():
             return messages
