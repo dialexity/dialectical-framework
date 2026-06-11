@@ -253,6 +253,11 @@ When calling `AntithesisClassification`, the caller must persist Mode/Arousal vi
 
 Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<model>` format, auto-populated from settings). Other nodes (Statement, Estimation, Perspective, etc.) trace provenance indirectly through their associated Rationale. This is intentional — not an oversight to "fix" by adding `agent` to more node types.
 
+### Statement Generation Conventions
+
+- Word limit: always use `self.settings.component_length` via `SettingsAware` mixin — never hardcode.
+- Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents unintended cross-context dedup while `commit()` handles exact-match dedup automatically.
+
 ---
 
 ## Tool Pattern (Mirascope)

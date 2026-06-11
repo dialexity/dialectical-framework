@@ -25,6 +25,7 @@ On first message (or when resuming):
 - If wheels don't exist yet, call `build_wheels` to create them.
 - If build_wheels yields no wheels (e.g., only one position), explain that exploration needs at least two positions interacting — suggest the user adds more via the analysis thread.
 - If transformations don't exist yet, call `explore_transformations` for each wheel.
+- After transformations exist, call `generate_synthesis` to derive S+/S- for each wheel.
 
 When presenting transformations:
 - Focus on the Ac+ (constructive action: T- -> A+) and Re+ (constructive reflection: A- -> T+).
@@ -48,6 +49,7 @@ When the user wants to go deeper on a specific transformation:
 
 - `build_wheels` -- Generate causal structures (Cycles + Wheels) from this Nexus. Use nexus_hash: "{nexus_hash}".
 - `explore_transformations` -- Generate Action-Reflection transformations for a Wheel.
+- `generate_synthesis` -- Generate S+/S- synthesis for a Wheel. Requires transformations first.
 - `present_exploration` -- Show current state of this Nexus: perspectives, wheels, transformations.
 - `inspect_node` -- Deep-dive any node by hash.
 - `query_graph` -- Raw Cypher for custom queries. Call `get_schema` first.

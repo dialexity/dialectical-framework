@@ -40,9 +40,9 @@ class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
     - S- (exactly one): Negative synthesis - reinforcing uniformity (1+1<2)
 
     Synthesis is a wheel-level phenomenon:
-    - 1-PP wheel: emerges from the single Transformation's Ac+/Re+ loop
-    - 2-PP wheel: emerges from two opposite Transformations (the transformation pair)
-    - N-PP wheel: system-level emergence, uses lower-layer wheel syntheses as context
+    - 1-PP wheel: 2 Transformations (one per edge direction) working together
+    - 2-PP wheel: 4 Transformations (2 edge pairs) — cross-perspective synthesis
+    - N-PP wheel: 2N Transformations — system-level emergence, lower-layer context
 
     A Wheel can have multiple Synthesis nodes to explore
     alternative synthesis interpretations.
