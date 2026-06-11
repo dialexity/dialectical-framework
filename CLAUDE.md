@@ -72,6 +72,21 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 
 See `docs/graph.md` for full data model (positions, transformations, cardinality, layers, intent levels, discarding/editing rules).
 
+### Synthesis Architecture (Wheel-Level)
+
+Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
+
+**Circular causality within Transformations:** Each Transformation already encodes both spiral directions — Ac+ (its own edge direction) and Re+ (the opposite edge's direction). A Transformation IS a complete circular causality statement.
+
+**Scaling from 1-PP to N-PP:**
+- 1-PP wheel: 2 edges, 1 edge pair, 2 Transformations (Ac/Re roles swap between them)
+- 2-PP wheel: 4 edges, 2 edge pairs, 4 Transformations — within one wheel, opposite-edge Transformations have Ac+/Re+ role-swapped (E1's Ac+ = E3's Re+, etc.)
+- N-PP wheel: 2N edges, N edge pairs, 2N Transformations
+
+**Discrete spiral:** Wheel edges form a directed circle where each step transforms the minus of one segment into the plus of the next (T1-→A2+→T2-→A1+→...). S+ emerges from ALL Transformations operating simultaneously along the spiral.
+
+**OPPOSITE_DIRECTION wheels** encode different causal wiring (different perspective pairings), not "the other half" of the same synthesis. They produce their own, independent synthesis.
+
 ### Structural vs Analytical Layers
 
 - **Structural** (immutable after commit): Merkle-tree backbone. Containers use `save() → add members → commit()`.

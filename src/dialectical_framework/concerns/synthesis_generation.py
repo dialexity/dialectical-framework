@@ -3,9 +3,12 @@ SynthesisGeneration: DEPRECATED — Synthesis now belongs to Wheel, not Perspect
 
 TODO: Rewrite this concern to generate synthesis at the Wheel level.
 Synthesis is a wheel-level phenomenon emerging from circular causality:
-- 1-PP wheel: emerges from the single Transformation's Ac+/Re+ loop
-- 2-PP wheel: emerges from two opposite Transformations working together
-- N-PP wheel: system-level emergence, uses lower-layer wheel syntheses as context
+- 1-PP wheel: 2 Transformations (one per edge direction) — synthesis emerges from
+  both Ac+/Re+ loops working together as a complete circular causality unit
+- 2-PP wheel: 4 Transformations (2 edge pairs) — cross-perspective synthesis,
+  uses 1-PP wheel syntheses as context
+- N-PP wheel: 2N Transformations — system-level emergence, uses lower-layer
+  wheel syntheses as context
 The Wheel must have Transformations computed before synthesis can be generated.
 
 Synthesis represents emergent properties from thesis-antithesis dialectic:
