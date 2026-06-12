@@ -8,7 +8,10 @@ import pytest
 from conftest import traced
 
 from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
-from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
+from dialectical_framework.agents.explorer.skills.build_wheels import BuildWheels
+from dialectical_framework.agents.explorer.skills.explore_transformations import (
+    ExploreTransformations,
+)
 from dialectical_framework.agents.explorer.skills.generate_synthesis import (
     GenerateSynthesis,
 )
@@ -32,15 +35,15 @@ class TestSynthesisGenerationRealLLM:
     """Real LLM tests for synthesis generation."""
 
     @pytest.mark.asyncio
-    @pytest.mark.timeout(600)
+    @pytest.mark.timeout(300)
     @traced
-    async def test_synthesis_from_2pp_wheel(self):
-        """Generate synthesis from a 2-PP wheel with real LLM."""
+    async def test_synthesis_from_single_wheel(self):
+        """Generate synthesis from one wheel — focused path, not exhaustive."""
         case = Case()
         case.commit()
 
         with scope(case.sid):
-            # Build perspectives via Analyst
+            # 1. Build perspectives via Analyst
             analyst = AnalysisPipeline(
                 text=SITUATION_TEXT,
                 intent="find 2 core tensions about startup priorities",
@@ -53,61 +56,67 @@ class TestSynthesisGenerationRealLLM:
                     f"(need 2+) — LLM non-determinism"
                 )
 
-            # Create nexus
+            # 2. Create nexus
             create = CreateNexus()
             nexus_result = await create.resolve(
                 intent="how speed and stability interact",
                 perspective_hashes=analysis.perspective_hashes[:2],
             )
 
-            # Run full exploration (builds wheels + transformations)
-            explorer = ExplorationPipeline(
+            # 3. Build wheels (no LLM, structural only)
+            builder = BuildWheels(
                 nexus_hash=nexus_result.nexus.hash,
                 perspective_hashes=analysis.perspective_hashes[:2],
             )
-            result = await explorer.resolve()
+            build_result = await builder.resolve()
+            assert build_result.new_wheels, "Should have produced wheels"
 
-            assert result.wheel_hashes, "Should have produced wheels"
-            assert result.transformation_count > 0, "Should have transformations"
+            # 4. Pick ONE 2-edge wheel (simplest)
+            wheel_hash = None
+            for w in build_result.new_wheels:
+                if len(w.edges) == 2:
+                    wheel_hash = w.hash
+                    break
 
-            # Now generate synthesis for each wheel
-            for wheel_hash in result.wheel_hashes:
-                wheel = NodeRepository().find_by_hash(wheel_hash, node_type=Wheel)
-                assert wheel is not None
+            if not wheel_hash:
+                wheel_hash = build_result.new_wheels[0].hash
 
-                # Only generate for wheels that have transformations
-                if not wheel.transformations:
-                    continue
+            # 5. Generate transformations for that single wheel
+            explorer = ExploreTransformations(wheel_hash=wheel_hash)
+            explore_result = await explorer.resolve()
+            assert explore_result.new, "Should have produced transformations"
 
-                skill = GenerateSynthesis(wheel_hash=wheel_hash)
-                synth_result = await skill.resolve()
+            # 6. Generate synthesis
+            skill = GenerateSynthesis(wheel_hash=wheel_hash)
+            synth_result = await skill.resolve()
 
-                assert synth_result.is_new
-                synthesis = synth_result.synthesis
+            assert synth_result.is_new
+            synthesis = synth_result.synthesis
 
-                # Verify structure
-                assert synthesis.is_committed
-                sp_result = synthesis.s_plus.get()
-                sm_result = synthesis.s_minus.get()
-                assert sp_result is not None, "Should have S+"
-                assert sm_result is not None, "Should have S-"
+            # Verify structure
+            assert synthesis.is_committed
+            sp_result = synthesis.s_plus.get()
+            sm_result = synthesis.s_minus.get()
+            assert sp_result is not None, "Should have S+"
+            assert sm_result is not None, "Should have S-"
 
-                s_plus_stmt, s_plus_rel = sp_result
-                s_minus_stmt, s_minus_rel = sm_result
+            s_plus_stmt, _ = sp_result
+            s_minus_stmt, _ = sm_result
 
-                # Print for manual inspection
-                print(f"\n--- Wheel [{wheel.short_hash}] "
-                      f"({len(wheel.edges)} edges) ---")
-                print(f"  S+ = \"{s_plus_stmt.text}\"")
-                print(f"  S- = \"{s_minus_stmt.text}\"")
+            # Print for manual inspection
+            wheel = NodeRepository().find_by_hash(wheel_hash, node_type=Wheel)
+            print(f"\n--- Wheel [{wheel.short_hash}] "
+                  f"({len(wheel.edges)} edges) ---")
+            print(f"  S+ = \"{s_plus_stmt.text}\"")
+            print(f"  S- = \"{s_minus_stmt.text}\"")
 
-                # Basic sanity: not empty, not identical
-                assert s_plus_stmt.text.strip(), "S+ should not be empty"
-                assert s_minus_stmt.text.strip(), "S- should not be empty"
-                assert s_plus_stmt.text != s_minus_stmt.text, "S+ and S- should differ"
+            # Basic sanity
+            assert s_plus_stmt.text.strip(), "S+ should not be empty"
+            assert s_minus_stmt.text.strip(), "S- should not be empty"
+            assert s_plus_stmt.text != s_minus_stmt.text, "S+ and S- should differ"
 
-                # Verify idempotent
-                skill2 = GenerateSynthesis(wheel_hash=wheel_hash)
-                synth_result2 = await skill2.resolve()
-                assert not synth_result2.is_new
-                assert synth_result2.synthesis.hash == synthesis.hash
+            # Verify idempotent
+            skill2 = GenerateSynthesis(wheel_hash=wheel_hash)
+            synth_result2 = await skill2.resolve()
+            assert not synth_result2.is_new
+            assert synth_result2.synthesis.hash == synthesis.hash

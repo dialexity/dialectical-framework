@@ -9,6 +9,7 @@ Also contains ExplorationPipeline — the headless pipeline for programmatic use
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 
 from mirascope import llm
@@ -230,20 +231,26 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
 
         transformation_count = 0
 
-        for wheel_hash in wheel_hashes:
+        async def _explore_wheel(wheel_hash: str) -> tuple[int, Optional[StepError]]:
             try:
                 explore_tr = ExploreTransformations(wheel_hash=wheel_hash)
                 tr_result = await explore_tr.resolve()
                 reports.append(explore_tr.report)
-                transformation_count += len(tr_result.new)
+                return len(tr_result.new), None
             except Exception as e:
-                errors.append(
-                    StepError(
-                        step="explore_transformations",
-                        message=str(e),
-                        hash=wheel_hash,
-                    )
+                return 0, StepError(
+                    step="explore_transformations",
+                    message=str(e),
+                    hash=wheel_hash,
                 )
+
+        wheel_results = await asyncio.gather(*[
+            _explore_wheel(wh) for wh in wheel_hashes
+        ])
+        for count, error in wheel_results:
+            transformation_count += count
+            if error:
+                errors.append(error)
 
         self._report.ok = True
         self._report.summary = (

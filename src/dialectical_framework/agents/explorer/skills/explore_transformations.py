@@ -22,8 +22,9 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
-from typing import Annotated, Optional, TYPE_CHECKING
+from typing import Annotated, Any, Optional, TYPE_CHECKING
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
@@ -116,26 +117,33 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         # 3. Get input text from scope
         input_text = await self._get_input_text()
 
-        # 4. Process each edge pair — both edges get Transformations
+        # 4. Process edge pairs in parallel — both edges get Transformations
+        pair_results = await asyncio.gather(*[
+            self._process_edge_pair(wheel, nexus, edge_a, edge_b, input_text)
+            for edge_a, edge_b in edge_pairs
+        ])
+
         all_existing: list[Transformation] = []
         all_new: list[Transformation] = []
         last_apexes: Optional[ApexDerivationResultDto] = None
 
-        for edge_a, edge_b in edge_pairs:
-            existing, new, apexes = await self._process_edge_pair(
-                wheel, nexus, edge_a, edge_b, input_text
-            )
+        for existing, new, apexes in pair_results:
             all_existing.extend(existing)
             all_new.extend(new)
             if apexes:
                 last_apexes = apexes
 
-        # 5. Audit new transformations for feasibility
+        # 5. Audit new transformations in parallel
         if all_new:
             from dialectical_framework.concerns.transformation_audit import TransformationAudit
-            for tr in all_new:
+
+            async def _audit_one(tr: Transformation) -> TransformationAudit:
                 auditor = TransformationAudit()
                 await auditor.resolve(tr, input_text)
+                return auditor
+
+            auditors = await asyncio.gather(*[_audit_one(tr) for tr in all_new])
+            for auditor in auditors:
                 self._report = self._report.merge(auditor.report)
 
         # Summary
@@ -166,8 +174,8 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         """
         Process a diametrically opposite edge pair.
 
-        Phase 1: Extract Ac+ candidates for both edges independently.
-        Phase 2: Generate tetrads for each edge, passing the opposite Ac+ for Re-side.
+        Phase 1: Extract Ac+ candidates for both edges in parallel.
+        Phase 2: Generate tetrads for all candidates in parallel.
 
         Returns:
             Tuple of (existing, new, apexes)
@@ -176,11 +184,12 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
 
         tr_repo = TransformationRepository()
         all_existing: list[Transformation] = []
-        all_new: list[Transformation] = []
         last_apexes: Optional[ApexDerivationResultDto] = None
 
-        # Phase 1: Extract Ac+ for both edges (check existing first)
+        # Phase 1: Extract Ac+ for both edges in parallel (check existing first)
+        phase1_tasks: list[tuple[Transition, asyncio.Task]] = []
         edge_data: dict[str, _EdgeProcessingData] = {}
+
         for edge in (edge_a, edge_b):
             assert edge.hash is not None
             existing = tr_repo.find_by_edge(edge=edge)
@@ -198,43 +207,40 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                 edge_data[edge.hash] = _EdgeProcessingData(skip=True)
                 continue
 
-            apex_service = ApexDerivation()
-            apexes = await apex_service.resolve(edge, input_text)
-            self._report = self._report.merge(apex_service.report)
-            last_apexes = apexes
-
-            extractor = ActionExtraction()
-            ac_candidates = await extractor.resolve(
-                edge, input_text,
-                not_like_these=wheel.transformations,
-            )
-            self._report = self._report.merge(extractor.report)
-
             edge_data[edge.hash] = _EdgeProcessingData(
-                ac_candidates=ac_candidates or [],
-                apexes=apexes,
                 source_segment=source_segment,
                 target_segment=target_segment,
             )
+            phase1_tasks.append((edge, asyncio.ensure_future(
+                self._phase1_for_edge(edge, wheel, input_text)
+            )))
 
-        # Phase 2: Generate tetrads using opposite Ac+ for Re-side
+        # Await Phase 1 tasks in parallel
+        if phase1_tasks:
+            results = await asyncio.gather(*[t for _, t in phase1_tasks])
+            for (edge, _), (apexes, ac_candidates, report) in zip(phase1_tasks, results):
+                assert edge.hash is not None
+                self._report = self._report.merge(report)
+                if apexes:
+                    last_apexes = apexes
+                data = edge_data[edge.hash]
+                data.apexes = apexes
+                data.ac_candidates = ac_candidates or []
+
+        # Phase 2: Generate tetrads in parallel
+        generation_tasks: list[tuple[Transition, _EdgeProcessingData, ActionCandidateResultDto, asyncio.Task]] = []
+
         for edge, opposite_edge in [(edge_a, edge_b), (edge_b, edge_a)]:
             assert edge.hash is not None
             assert opposite_edge.hash is not None
             data = edge_data.get(edge.hash)
             if not data or data.existing or data.skip:
                 continue
-
             if not data.ac_candidates:
                 continue
-
-            source_segment = data.source_segment
-            target_segment = data.target_segment
-            apexes = data.apexes
-            if not source_segment or not target_segment or not apexes:
+            if not data.source_segment or not data.target_segment or not data.apexes:
                 continue
 
-            # Get opposite edge's Ac+ candidates for Re-side context
             opp_data = edge_data.get(opposite_edge.hash)
             opp_ac_candidates = opp_data.ac_candidates if opp_data else []
 
@@ -245,18 +251,62 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                 if not opposite_ac:
                     continue
 
-                generator = TransformationGeneration()
-                tetrad = await generator.resolve(
-                    edge, ac_plus, opposite_ac, apexes, input_text
+                task = asyncio.ensure_future(
+                    self._generate_tetrad(edge, ac_plus, opposite_ac, data.apexes, input_text)
                 )
-                self._report = self._report.merge(generator.report)
+                generation_tasks.append((edge, data, ac_plus, task))
 
+        # Await all generation tasks and create graph nodes sequentially
+        all_new: list[Transformation] = []
+        if generation_tasks:
+            tetrad_results = await asyncio.gather(*[t for _, _, _, t in generation_tasks])
+            for (edge, data, _, _), (tetrad, report) in zip(generation_tasks, tetrad_results):
+                self._report = self._report.merge(report)
+                assert data.source_segment is not None
+                assert data.target_segment is not None
                 transformation = self._create_transformation(
-                    nexus, edge, source_segment, target_segment, tetrad,
+                    nexus, edge, data.source_segment, data.target_segment, tetrad,
                 )
                 all_new.append(transformation)
 
         return all_existing, all_new, last_apexes
+
+    async def _phase1_for_edge(
+        self,
+        edge: Transition,
+        wheel: Wheel,
+        input_text: str,
+    ) -> tuple[Optional[ApexDerivationResultDto], list[ActionCandidateResultDto], Any]:
+        """Run ApexDerivation + ActionExtraction for a single edge. Returns (apexes, candidates, merged_report)."""
+        from dialectical_framework.agents.execution_report import ExecutionReport
+
+        merged_report = ExecutionReport(tool=self.__class__.__name__)
+
+        apex_service = ApexDerivation()
+        apexes = await apex_service.resolve(edge, input_text)
+        merged_report = merged_report.merge(apex_service.report)
+
+        extractor = ActionExtraction()
+        ac_candidates = await extractor.resolve(
+            edge, input_text,
+            not_like_these=wheel.transformations,
+        )
+        merged_report = merged_report.merge(extractor.report)
+
+        return apexes, ac_candidates or [], merged_report
+
+    async def _generate_tetrad(
+        self,
+        edge: Transition,
+        ac_plus: ActionCandidateResultDto,
+        opposite_ac: ActionCandidateResultDto,
+        apexes: ApexDerivationResultDto,
+        input_text: str,
+    ) -> tuple[TransformationTetradDto, Any]:
+        """Run TransformationGeneration for one candidate. Returns (tetrad, report)."""
+        generator = TransformationGeneration()
+        tetrad = await generator.resolve(edge, ac_plus, opposite_ac, apexes, input_text)
+        return tetrad, generator.report
 
     @staticmethod
     def _find_matching_category(

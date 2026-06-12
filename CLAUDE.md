@@ -266,6 +266,16 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 - Mirascope `BaseResponse`: use `response.messages[:-1]` for input messages — `response.input_messages` does NOT exist.
 - Tests use `@traced` from conftest (not bare `@observe()`) for reliable Langfuse trace naming on class methods.
 
+### Concurrency & Rate Limiting
+
+Optional concurrency semaphore in `utils/concurrency.py` (env `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`, default disabled). Set to a positive integer to cap concurrent LLM calls as runaway protection. Disabled (0 or unset) = no limit, rely purely on rate-limit retry. Applied inside `use_brain` — streaming (`raw_call=True`) excluded.
+
+Rate-limit retry (429/ThrottlingException) also lives in `use_brain`: 30s base backoff, 2× up to 300s, separate from ParseError retry (10s base, 2× up to 120s).
+
+**Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, and audits. `AnalysisPipeline` already parallelizes `expand_polarities` and `find_polarities`. Graph writes stay sequential after gather.
+
+**Pattern:** Always `asyncio.gather` the LLM work, collect results, then write graph nodes sequentially in a loop. Never call `_create_transformation` or similar graph-writing code inside a gathered task — GQLAlchemy is not concurrency-safe.
+
 ---
 
 ## Tool Pattern (Mirascope)

@@ -13,6 +13,7 @@ from mirascope.llm.exceptions import ParseError
 from dialectical_framework.enums.di import DI
 from dialectical_framework.settings import Settings
 from dialectical_framework.utils.bedrock_provider import ensure_bedrock_provider
+from dialectical_framework.utils.concurrency import llm_concurrency_slot
 
 if TYPE_CHECKING:
     from mirascope.llm.calls import AsyncCall
@@ -134,12 +135,14 @@ def use_brain(
                 return _llm_call
 
             attempts = max(1, retry_max)
-            delay = 10.0
-            last_error: Optional[ParseError] = None
+            parse_delay = 10.0
+            rate_delay = 30.0
+            last_error: Exception | None = None
 
             for attempt in range(attempts):
                 try:
-                    response = await _llm_call()
+                    async with llm_concurrency_slot():
+                        response = await _llm_call()
                     _trace_generation(
                         response=response,
                         model=resolved,
@@ -153,8 +156,20 @@ def use_brain(
                 except ParseError as e:
                     last_error = e
                     if attempt < attempts - 1:
-                        await asyncio.sleep(delay)
-                        delay = min(delay * 2.0, 120.0)
+                        await asyncio.sleep(parse_delay)
+                        parse_delay = min(parse_delay * 2.0, 120.0)
+                except Exception as e:
+                    if _is_rate_limit_error(e):
+                        last_error = e
+                        logging.getLogger(__name__).warning(
+                            "Rate limit hit (attempt %d/%d), backing off %.0fs",
+                            attempt + 1, attempts, rate_delay,
+                        )
+                        if attempt < attempts - 1:
+                            await asyncio.sleep(rate_delay)
+                            rate_delay = min(rate_delay * 2.0, 300.0)
+                    else:
+                        raise
 
             raise last_error  # type: ignore[misc]
 
@@ -219,6 +234,18 @@ def _serialize_message(msg: Any) -> dict[str, Any]:
             content = "\n".join(parts)
         return {"role": msg.role, "content": str(content)}
     return {"content": str(msg)}
+
+
+def _is_rate_limit_error(e: Exception) -> bool:
+    """Detect rate-limit / throttling errors from various providers."""
+    if hasattr(e, "status_code") and getattr(e, "status_code", None) == 429:
+        return True
+    msg = str(e)
+    if "ThrottlingException" in msg or "TooManyRequests" in msg:
+        return True
+    if "rate" in msg.lower() and ("limit" in msg.lower() or "exceeded" in msg.lower()):
+        return True
+    return False
 
 
 @inject
