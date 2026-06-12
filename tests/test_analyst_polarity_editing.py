@@ -5,7 +5,7 @@ Tests for EditPerspective skill (unified polarity + tetrad editing).
 from __future__ import annotations
 
 import pytest
-from langfuse import observe
+from conftest import traced
 
 from dialectical_framework.agents.analyst.skills.edit_perspective import (
     HS_WRONG_CATEGORY_THRESHOLD, EditPerspective)
@@ -126,7 +126,7 @@ class TestEditPerspectiveThesis:
     """Tests for editing thesis (T)."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_change_thesis_with_compatible_antithesis(self):
         """Changing T when A is still compatible."""
         case_node = Case()
@@ -153,7 +153,7 @@ class TestEditPerspectiveThesis:
                 assert result.perspective.is_committed
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_change_thesis_with_incompatible_antithesis(self):
         """Changing T to something incompatible with current A."""
         case_node = Case()
@@ -181,7 +181,7 @@ class TestEditPerspectiveAntithesis:
     """Tests for editing antithesis (A)."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_change_antithesis_valid(self):
         """Changing A to a valid antithesis."""
         case_node = Case()
@@ -207,7 +207,7 @@ class TestEditPerspectiveAntithesis:
             assert a_rel.heuristic_similarity > HS_WRONG_CATEGORY_THRESHOLD
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_change_antithesis_to_aspect_suggests_correction(self):
         """Changing A to something that's actually an aspect."""
         case_node = Case()
@@ -233,7 +233,7 @@ class TestEditPerspectiveAspect:
     """Tests for editing aspects (T+, T-, A+, A-)."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_change_aspect_valid(self):
         """Changing an aspect to a valid value."""
         case_node = Case()
@@ -257,7 +257,7 @@ class TestEditPerspectiveAspect:
                 assert a_rel.heuristic_similarity is not None
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_change_aspect_wrong_position_suggests_correct(self):
         """Changing an aspect to something that belongs elsewhere."""
         case_node = Case()
@@ -283,7 +283,7 @@ class TestEditPerspectiveCloning:
     """Tests for cloning behavior (committed vs uncommitted PP)."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_uncommitted_pp_edited_in_place(self):
         """Editing uncommitted PP fills it in place and commits it."""
         case_node = Case()
@@ -299,7 +299,7 @@ class TestEditPerspectiveCloning:
             # This test documents that limitation
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_committed_pp_creates_clone(self):
         """Editing committed PP creates a new PP (clone, not mutation)."""
         case_node = Case()

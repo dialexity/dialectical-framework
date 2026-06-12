@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.llm
-from langfuse import observe
+from conftest import traced
 
 from dialectical_framework.concerns.control_statements_check import \
     ControlStatementsCheck
@@ -116,7 +116,7 @@ class TestControlStatementsCheck:
     """Tests for ControlStatementsCheck capability."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_evaluates_control_statements(self):
         """ControlStatementsCheck evaluates both control statements."""
         case_node = Case()
@@ -148,7 +148,7 @@ class TestControlStatementsCheck:
             assert 0.0 <= result.estimation.a_plus_without_t_plus_yields_a_minus <= 1.0
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_creates_estimation_and_rationale(self):
         """ControlStatementsCheck creates estimation and rationale nodes."""
         case_node = Case()
@@ -182,7 +182,7 @@ class TestPerspectiveValidation:
     """Tests for PerspectiveValidation orchestrator."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_runs_both_validations(self):
         """PerspectiveValidation runs both control statements and empirical checks."""
         case_node = Case()
@@ -202,7 +202,7 @@ class TestPerspectiveValidation:
             assert result.is_empirically_valid is not None
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_valid_perspective(self):
         """PerspectiveValidation passes for valid tetrad."""
         case_node = Case()
@@ -235,7 +235,7 @@ class TestPerspectiveValidation:
                 assert len(result.failure_reasons) > 0
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_fails_empirical_conditions(self):
         """PerspectiveValidation fails when empirical conditions not met."""
         case_node = Case()
@@ -258,7 +258,7 @@ class TestPerspectiveValidation:
             assert any("Positive aspect threshold" in r for r in result.failure_reasons)
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_requires_committed_perspective(self):
         """PerspectiveValidation requires committed Perspective."""
         case_node = Case()
@@ -273,7 +273,7 @@ class TestPerspectiveValidation:
                 await validator.resolve(perspective=pp)
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_requires_complete_perspective(self):
         """Incomplete Perspective cannot be committed (cardinality enforced)."""
         case_node = Case()

@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.llm
-from langfuse import observe
+from conftest import traced
 
 from dialectical_framework.concerns.statement_placement import StatementPlacement
 from dialectical_framework.concerns.aspect_classification import \
@@ -22,7 +22,7 @@ class TestAspectClassification:
     """Tests for AspectClassification capability."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_aspect_classification_valid_t_plus(self):
         """AspectClassification validates a valid T+ aspect."""
         case_node = Case()
@@ -55,7 +55,7 @@ class TestAspectClassification:
             assert result.position == "T+"
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_aspect_classification_valid_a_minus(self):
         """AspectClassification validates a valid A- aspect."""
         case_node = Case()
@@ -88,7 +88,7 @@ class TestAspectClassification:
             assert result.heuristic_similarity >= 0.0
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_aspect_classification_wrong_position(self):
         """AspectClassification detects aspect in wrong position."""
         case_node = Case()
@@ -123,7 +123,7 @@ class TestAspectClassification:
                 assert result.suggested_position in ("T", "A", "T+", "T-", "A+", "A-")
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_aspect_classification_with_context(self):
         """AspectClassification uses context for evaluation."""
         case_node = Case()
@@ -192,7 +192,7 @@ class TestStatementPlacement:
     """Tests for StatementPlacement (search/recognition only)."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_placement_empty_vocabulary(self):
         """StatementPlacement returns not-found when vocabulary is empty."""
         case_node = Case()
@@ -207,7 +207,7 @@ class TestStatementPlacement:
             assert result.statement is None
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_placement_finds_existing(self):
         """StatementPlacement finds a semantic match in the vocabulary."""
         case_node = Case()
@@ -229,7 +229,7 @@ class TestStatementPlacement:
                 assert result.statement.hash == trust.hash
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_placement_not_found_unrelated(self):
         """StatementPlacement returns not-found for unrelated statements."""
         case_node = Case()
@@ -249,7 +249,7 @@ class TestStatementPlacement:
             assert not result.found
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_placement_with_context(self):
         """StatementPlacement uses context for better matching."""
         case_node = Case()

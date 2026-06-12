@@ -8,7 +8,7 @@ meaningful dialectical structures — not just that it runs without error.
 from __future__ import annotations
 
 import pytest
-from langfuse import observe
+from conftest import traced
 
 from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
 from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
@@ -39,7 +39,7 @@ class TestAnalystEndToEnd:
     """Full pipeline tests for the Analyst sub-agent."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_analyst_produces_perspectives(self):
         """Analyst produces at least one complete Perspective from raw text."""
         case = Case()
@@ -56,7 +56,7 @@ class TestAnalystEndToEnd:
             )
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_analyst_perspectives_are_complete(self):
         """Each Perspective has all 6 positions (T, A, T+, T-, A+, A-)."""
         case = Case()
@@ -76,7 +76,7 @@ class TestAnalystEndToEnd:
                 )
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_analyst_theses_are_relevant(self):
         """Extracted theses relate to the input situation (not generic filler)."""
         case = Case()
@@ -111,7 +111,7 @@ class TestAnalystEndToEnd:
             )
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_analyst_polarities_have_genuine_tension(self):
         """Polarities represent real dialectical oppositions, not just word games."""
         case = Case()
@@ -146,7 +146,7 @@ class TestAnalystEndToEnd:
             )
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_analyst_partial_pipeline_from_hashes(self):
         """Analyst can pick up from existing thesis hashes (partial pipeline)."""
         case = Case()
@@ -177,7 +177,7 @@ class TestAnalystEndToEnd:
             assert result.perspective_hashes, "Should produce perspectives"
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_analyst_quality_gate_filters(self):
         """Analyst doesn't expand every polarity — quality gate filters by HS."""
         case = Case()
@@ -197,7 +197,7 @@ class TestExplorerEndToEnd:
 
     @pytest.mark.asyncio
     @pytest.mark.timeout(600)
-    @observe()
+    @traced
     async def test_explorer_produces_wheels(self):
         """Explorer produces wheels from perspectives (2 PPs, minimal case)."""
         case = Case()

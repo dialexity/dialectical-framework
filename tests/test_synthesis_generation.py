@@ -5,7 +5,7 @@ Tests for wheel-level synthesis generation.
 from __future__ import annotations
 
 import pytest
-from langfuse import observe
+from conftest import traced
 
 from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
 from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
@@ -33,7 +33,7 @@ class TestSynthesisGenerationRealLLM:
 
     @pytest.mark.asyncio
     @pytest.mark.timeout(600)
-    @observe()
+    @traced
     async def test_synthesis_from_2pp_wheel(self):
         """Generate synthesis from a 2-PP wheel with real LLM."""
         case = Case()

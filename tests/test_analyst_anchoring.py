@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.real_llm
-from langfuse import observe
+from conftest import traced
 
 from dialectical_framework.agents.analyst.skills.anchor_theses import \
     AnchorTheses
@@ -56,7 +56,7 @@ class TestSurfaceTheses:
     """Tests for SurfaceTheses - thesis extraction and anchoring."""
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_anchoring_requires_inputs_or_direct_thesis(self):
         """SurfaceTheses returns message when no inputs and no direct thesis."""
         case_node = Case()
@@ -69,7 +69,7 @@ class TestSurfaceTheses:
             assert "No inputs" in skill.report.summary
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_anchoring_extract_theses_basic(self):
         """SurfaceTheses extracts theses from input content."""
         case_node = Case()
@@ -88,7 +88,7 @@ class TestSurfaceTheses:
             assert len(vocab) >= 1
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_anchoring_creates_ideas_node(self):
         """SurfaceTheses creates Ideas node with extracted components."""
         case_node = Case()
@@ -105,7 +105,7 @@ class TestSurfaceTheses:
             assert skill.report.artifacts["ideas_hash"] is not None
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_anchoring_direct_thesis_without_inputs(self):
         """AnchorTheses anchors a direct thesis even without inputs."""
         case_node = Case()
@@ -121,7 +121,7 @@ class TestSurfaceTheses:
             assert len(trust_components) >= 1
 
     @pytest.mark.asyncio
-    @observe()
+    @traced
     async def test_surface_theses_returns_none_without_inputs(self):
         """SurfaceTheses returns None when no inputs are in scope."""
         case_node = Case()

@@ -1,13 +1,24 @@
 import asyncio
 import gc
 import os
+from functools import wraps
 
 import pytest
 from gqlalchemy import Memgraph, Neo4j
 from dependency_injector import providers
+from langfuse import observe
 
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.settings import Settings
+
+
+def traced(fn):
+    """@observe with explicit name — works reliably on class methods."""
+    @wraps(fn)
+    @observe(name=fn.__qualname__)
+    async def wrapper(*args, **kwargs):
+        return await fn(*args, **kwargs)
+    return wrapper
 
 
 # ============================================================================
@@ -402,5 +413,6 @@ def cleanup_graph_db(graph_db_available, di_container):
             cleanup_test_data(db)
         except Exception:
             pass  # Ignore cleanup errors
+
 
 

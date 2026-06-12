@@ -10,13 +10,38 @@ All three levels inherit from ReasonableConcern — same interface (resolve + re
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from abc import ABC, abstractmethod
+from functools import wraps
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
+
+from langfuse import get_client, observe
 
 if TYPE_CHECKING:
     from dialectical_framework.agents.execution_report import ExecutionReport
 
 R_co = TypeVar("R_co", covariant=True)
+
+
+def _conditional_observe(name: str, fn: Any) -> Any:
+    """Wrap fn with @observe only when an active Langfuse trace exists."""
+    observed = observe(name=name)(fn)
+
+    if asyncio.iscoroutinefunction(fn):
+        @wraps(fn)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if get_client().get_current_trace_id():
+                return await observed(*args, **kwargs)
+            return await fn(*args, **kwargs)
+    else:
+        @wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if get_client().get_current_trace_id():
+                return observed(*args, **kwargs)
+            return fn(*args, **kwargs)
+
+    return wrapper
 
 
 class ReasonableConcern(ABC, Generic[R_co]):
@@ -33,6 +58,12 @@ class ReasonableConcern(ABC, Generic[R_co]):
     """
 
     _report: ExecutionReport
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if "resolve" in cls.__dict__:
+            original = cls.__dict__["resolve"]
+            cls.resolve = _conditional_observe(cls.__name__, original)  # type: ignore[assignment]
 
     def __getattr__(self, name: str) -> Any:
         if name == "_report":

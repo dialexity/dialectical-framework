@@ -258,6 +258,14 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 - Word limit: always use `self.settings.component_length` via `SettingsAware` mixin — never hardcode.
 - Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents unintended cross-context dedup while `commit()` handles exact-match dedup automatically.
 
+### Observability (Langfuse)
+
+- `ReasonableConcern.__init_subclass__` auto-wraps every concern's `resolve()` with `@observe` — but only creates spans when an active Langfuse trace exists (no orphan traces from non-LLM concerns).
+- `use_brain` decorator creates generation spans named via `method.__qualname__` with `capture_input=False` — input is set by `_trace_generation` via `update_current_generation`.
+- `ConversationFacilitator._strip_unsupported_input_fields()` strips output-only API fields (e.g., `caller`) from raw_message before replaying — workaround for Mirascope passthrough bug.
+- Mirascope `BaseResponse`: use `response.messages[:-1]` for input messages — `response.input_messages` does NOT exist.
+- Tests use `@traced` from conftest (not bare `@observe()`) for reliable Langfuse trace naming on class methods.
+
 ---
 
 ## Tool Pattern (Mirascope)

@@ -152,6 +152,7 @@ class ConversationFacilitator(SettingsAware):
 
         # Sync full conversation history from the response chain
         self._messages = list(response.messages)
+        self._strip_unsupported_input_fields()
 
         # Extract structured response
         return await self._call_with_response_model(response_model)
@@ -209,10 +210,29 @@ class ConversationFacilitator(SettingsAware):
             stream = await stream.resume(tool_outputs)
 
         self._messages = list(stream.messages)
+        self._strip_unsupported_input_fields()
         result = await self._call_with_response_model(response_model)
         yield ResponseComplete(result=result)
 
     # --- Internal helpers ---
+
+    def _strip_unsupported_input_fields(self) -> None:
+        """Strip output-only fields from raw_message before replaying to API.
+
+        Mirascope passes raw_message dicts back verbatim as input. If the API
+        added output-only fields (like 'caller' on tool_use blocks), they cause
+        400 errors on the next call. This strips them.
+        """
+        for msg in self._messages:
+            raw = getattr(msg, "raw_message", None)
+            if not isinstance(raw, dict):
+                continue
+            content = raw.get("content")
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    block.pop("caller", None)
 
     @staticmethod
     def _log_tool_calls(tool_calls: list) -> None:

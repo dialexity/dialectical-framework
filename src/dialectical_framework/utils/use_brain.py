@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Optional, TypeVar, overload
 
@@ -90,7 +91,7 @@ def use_brain(
 
     def decorator(method: F) -> Callable[..., Any]:
         @wraps(method)
-        @observe(as_type="generation")
+        @observe(as_type="generation", name=method.__qualname__, capture_input=False)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             resolved = ai_model
             if resolved is None:
@@ -184,7 +185,7 @@ def _trace_generation(
             if response.usage.cache_write_tokens:
                 usage_details["cache_write"] = response.usage.cache_write_tokens
 
-        input_messages = [_serialize_message(m) for m in response.input_messages]
+        input_messages = [_serialize_message(m) for m in response.messages[:-1]]
         output_text = response.text if response.texts else str(response.tool_calls)
 
         metadata: dict[str, Any] = {"caller": caller, "attempt": attempt}
@@ -198,8 +199,8 @@ def _trace_generation(
             usage_details=usage_details,
             metadata=metadata,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger(__name__).debug("Langfuse trace failed: %s", e)
 
 
 def _serialize_message(msg: Any) -> dict[str, Any]:
