@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Optional, TYPE_CHECKING
 
@@ -118,16 +119,23 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         input_text = await self._get_input_text()
 
         # 4. Process edge pairs in parallel — both edges get Transformations
-        pair_results = await asyncio.gather(*[
-            self._process_edge_pair(wheel, nexus, edge_a, edge_b, input_text)
-            for edge_a, edge_b in edge_pairs
-        ])
+        pair_results = await asyncio.gather(
+            *[
+                self._process_edge_pair(wheel, nexus, edge_a, edge_b, input_text)
+                for edge_a, edge_b in edge_pairs
+            ],
+            return_exceptions=True,
+        )
 
         all_existing: list[Transformation] = []
         all_new: list[Transformation] = []
         last_apexes: Optional[ApexDerivationResultDto] = None
 
-        for existing, new, apexes in pair_results:
+        for result in pair_results:
+            if isinstance(result, Exception):
+                logging.getLogger(__name__).warning("Edge pair failed: %s", result)
+                continue
+            existing, new, apexes = result
             all_existing.extend(existing)
             all_new.extend(new)
             if apexes:
@@ -142,9 +150,15 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                 await auditor.resolve(tr, input_text)
                 return auditor
 
-            auditors = await asyncio.gather(*[_audit_one(tr) for tr in all_new])
-            for auditor in auditors:
-                self._report = self._report.merge(auditor.report)
+            audit_results = await asyncio.gather(
+                *[_audit_one(tr) for tr in all_new],
+                return_exceptions=True,
+            )
+            for result in audit_results:
+                if isinstance(result, Exception):
+                    logging.getLogger(__name__).warning("Audit failed: %s", result)
+                    continue
+                self._report = self._report.merge(result.report)
 
         # Summary
         self._report.artifacts["wheel_hash"] = wheel.short_hash
@@ -217,9 +231,19 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
 
         # Await Phase 1 tasks in parallel
         if phase1_tasks:
-            results = await asyncio.gather(*[t for _, t in phase1_tasks])
-            for (edge, _), (apexes, ac_candidates, report) in zip(phase1_tasks, results):
+            results = await asyncio.gather(
+                *[t for _, t in phase1_tasks],
+                return_exceptions=True,
+            )
+            for (edge, _), result in zip(phase1_tasks, results):
                 assert edge.hash is not None
+                if isinstance(result, Exception):
+                    logging.getLogger(__name__).warning(
+                        "Phase 1 failed for edge %s: %s", edge.short_hash, result
+                    )
+                    edge_data[edge.hash] = _EdgeProcessingData(skip=True)
+                    continue
+                apexes, ac_candidates, report = result
                 self._report = self._report.merge(report)
                 if apexes:
                     last_apexes = apexes
@@ -259,8 +283,17 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         # Await all generation tasks and create graph nodes sequentially
         all_new: list[Transformation] = []
         if generation_tasks:
-            tetrad_results = await asyncio.gather(*[t for _, _, _, t in generation_tasks])
-            for (edge, data, _, _), (tetrad, report) in zip(generation_tasks, tetrad_results):
+            tetrad_results = await asyncio.gather(
+                *[t for _, _, _, t in generation_tasks],
+                return_exceptions=True,
+            )
+            for (edge, data, _, _), result in zip(generation_tasks, tetrad_results):
+                if isinstance(result, Exception):
+                    logging.getLogger(__name__).warning(
+                        "Tetrad generation failed for edge %s: %s", edge.short_hash, result
+                    )
+                    continue
+                tetrad, report = result
                 self._report = self._report.merge(report)
                 assert data.source_segment is not None
                 assert data.target_segment is not None
