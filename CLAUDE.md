@@ -229,6 +229,8 @@ container.commit()            # Immutable after this
 
 **Event reporting:** When a node's `commit()` creates relationships internally (e.g., `Polarity.commit()` creates T/A edges), the calling skill must emit `relationship_created` events for each edge — `commit()` itself does not emit SSE events.
 
+**Container node event lifecycle (save-then-commit):** Container nodes (Perspective, Wheel, Transformation, Synthesis, Ideas) that use `save()` → relationships → `commit()` must emit split events: `report.node_created(node)` after `save()` (db_id set, hash null), then `report.node_committed(node)` after `commit()` (hash now set). Nodes that do atomic `commit()` without prior `save()` emit a single `node_created` with both set.
+
 ### Relationship Direction
 
 `RelationshipTo` and `RelationshipFrom` define the SAME edge from different perspectives. Convention: Child→Parent edges use `RelationshipTo` on child.
@@ -240,6 +242,8 @@ class Perspective(AssessableEntity):
 class Nexus(AssessableEntity):
     perspectives = RelationshipFrom("Perspective", "BELONGS_TO_NEXUS")  # Same edge, reverse view
 ```
+
+**Event direction for `relationship_created`:** `from_node`/`to_node` must match the actual DB edge direction, NOT the owner's perspective. For `RelationshipFrom` (incoming) managers, the DB edge is `(target)-[REL]->(owner)`, so: `report.relationship_created(manager, target, owner)`. Correct example: `relationship_created(polarity.t, thesis_stmt, polarity)` — Statement is from_node because the DB edge is `(Statement)-[T]->(Polarity)`.
 
 ### Scope (sid)
 
@@ -270,7 +274,7 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 
 Optional concurrency semaphore in `utils/concurrency.py` (env `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`, default disabled). Set to a positive integer to cap concurrent LLM calls as runaway protection. Disabled (0 or unset) = no limit, rely purely on rate-limit retry. Applied inside `use_brain` — streaming (`raw_call=True`) excluded.
 
-Rate-limit retry (429/ThrottlingException) also lives in `use_brain`: 30s base backoff, 2× up to 300s, separate from ParseError retry (10s base, 2× up to 120s).
+Rate-limit retry (429/ThrottlingException) also lives in `use_brain`: 10s base backoff, 2× up to 60s cap, max 10 attempts. Log message includes the error string for diagnosis. ParseError retry: 10s base, 2× up to 120s.
 
 **Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, and audits. `AnalysisPipeline` already parallelizes `expand_polarities` and `find_polarities`. Graph writes stay sequential after gather.
 

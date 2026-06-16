@@ -136,7 +136,7 @@ def use_brain(
 
             attempts = max(1, retry_max)
             parse_delay = 10.0
-            rate_delay = 30.0
+            rate_delay = 10.0
             last_error: Exception | None = None
 
             for attempt in range(attempts):
@@ -162,12 +162,12 @@ def use_brain(
                     if _is_rate_limit_error(e):
                         last_error = e
                         logging.getLogger(__name__).warning(
-                            "Rate limit hit (attempt %d/%d), backing off %.0fs",
-                            attempt + 1, attempts, rate_delay,
+                            "Rate limit hit (attempt %d/%d), backing off %.0fs: %s",
+                            attempt + 1, attempts, rate_delay, e,
                         )
                         if attempt < attempts - 1:
                             await asyncio.sleep(rate_delay)
-                            rate_delay = min(rate_delay * 2.0, 300.0)
+                            rate_delay = min(rate_delay * 2.0, 60.0)
                     else:
                         raise
 
