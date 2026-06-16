@@ -85,6 +85,8 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **Discrete spiral:** Wheel edges form a directed circle where each step transforms the minus of one segment into the plus of the next (T1-→A2+→T2-→A1+→...). S+ emerges from ALL Transformations operating simultaneously along the spiral.
 
+**BuildWheels is exhaustive:** Always builds all valid Cycle/Wheel combinations from the Nexus's attached Perspectives. No selective filtering — selectivity belongs at the estimation/transformation exploration layer.
+
 **OPPOSITE_DIRECTION wheels** encode different causal wiring (different perspective pairings), not "the other half" of the same synthesis. They produce their own, independent synthesis.
 
 ### Structural vs Analytical Layers
@@ -130,6 +132,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 ## Technology Stack
 
 - **Graph DB**: Memgraph or Neo4j (via GQLAlchemy)
+  - GQLAlchemy hardcodes `autocommit = True` — no multi-statement transactions available through the ORM. Each `save_node()`/`save_relationship()` is its own committed transaction. Application-level `saved_at` tracking (on `IncrementalBuildMixin`) provides the atomicity signal instead.
 - **DI**: dependency-injector
 - **Validation**: Pydantic v1
 - **LLM**: Mirascope (OpenAI, Anthropic, Bedrock via custom provider)
