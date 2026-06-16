@@ -73,6 +73,7 @@ def _resolve_rel_type(rel_type: RelType) -> str:
 
 EffectType = Literal[
     "node_created",
+    "node_committed",
     "node_updated",
     "node_deleted",
     "relationship_created",
@@ -93,10 +94,15 @@ class NodeRef(BaseModel):
 
     label: str  # Node class name: "Statement", "Perspective", etc.
     hash: Optional[str] = None  # 7-char short hash (None if uncommitted/draft)
+    db_id: Optional[int] = None  # DB internal ID (available after save)
 
     @classmethod
     def from_node(cls, node: BaseNode) -> NodeRef:
-        return cls(label=node.__class__.__name__, hash=node.short_hash)
+        return cls(
+            label=node.__class__.__name__,
+            hash=node.short_hash,
+            db_id=node._id,
+        )
 
 
 class RelationshipRef(BaseModel):
@@ -261,6 +267,27 @@ class ExecutionReport(BaseModel):
         effect = Effect(
             seq=self._next_seq(),
             effect_type="node_created",
+            node=NodeRef.from_node(node),
+            patch=default_patch,
+            meta=meta or {},
+        )
+        self.effects.append(effect)
+        self._emit(effect)
+        self._log(effect)
+
+    def node_committed(
+        self,
+        node: BaseNode,
+        patch: Optional[dict[str, Any]] = None,
+        meta: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Record that a draft node was committed (hash now available)."""
+        default_patch = {"text": getattr(node, "text", None)}
+        if patch:
+            default_patch.update(patch)
+        effect = Effect(
+            seq=self._next_seq(),
+            effect_type="node_committed",
             node=NodeRef.from_node(node),
             patch=default_patch,
             meta=meta or {},

@@ -503,6 +503,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
 
         ideas = Ideas(intent=intent)
         ideas.save()
+        self._report.node_created(ideas)
 
         # Connect to inputs
         input_repo = InputRepository()
@@ -531,7 +532,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                     )
 
         ideas.commit()
-        self._report.node_created(ideas)
+        self._report.node_committed(ideas)
 
         # Add rationale
         total_theses = len(valid_results)

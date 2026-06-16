@@ -109,6 +109,7 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
         # Create Synthesis node and wire up
         synthesis = Synthesis()
         synthesis.save()
+        self._report.node_created(synthesis)
 
         synthesis.s_plus.connect(
             result.s_plus_statement,
@@ -126,7 +127,7 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
         synthesis.commit()
 
         # Report
-        self._report.node_created(synthesis)
+        self._report.node_committed(synthesis)
         self._report.artifacts["wheel"] = wheel.short_hash
         self._report.artifacts["s_plus"] = result.s_plus_statement.text
         self._report.artifacts["s_minus"] = result.s_minus_statement.text

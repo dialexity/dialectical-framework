@@ -129,10 +129,12 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         if self._was_committed:
             working_pp = pp.clone()
             working_pp.save()
+            self._report.node_created(working_pp)
         else:
             working_pp = pp
             if not working_pp._id:
                 working_pp.save()
+                self._report.node_created(working_pp)
         self._working_pp = working_pp
 
         # Route based on what's changing
@@ -401,7 +403,7 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
             )
 
         pp.commit()
-        self._report.node_created(pp)
+        self._report.node_committed(pp)
 
     # ─── Tetrad editing (aspect changes only → validate coherence) ───
 
@@ -469,7 +471,7 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
             )
 
         self._working_pp.commit()
-        self._report.node_created(self._working_pp)
+        self._report.node_committed(self._working_pp)
 
         return EditPerspectiveResult(
             perspective=self._working_pp,

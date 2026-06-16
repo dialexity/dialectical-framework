@@ -11,14 +11,15 @@ from dialectical_framework.agents.execution_report import (
 class MockNode:
     """Minimal mock for testing."""
 
-    def __init__(self, label: str, hash: str, text: str = ""):
+    def __init__(self, label: str, hash: str, text: str = "", _id: int = None):
         self._label = label
         self.hash = hash
         self.text = text
+        self._id = _id
 
     @property
-    def short_hash(self) -> str:
-        return self.hash[:8] if self.hash else ""
+    def short_hash(self):
+        return self.hash[:7] if self.hash else None
 
     def __class__(self):
         pass
@@ -32,7 +33,7 @@ def test_run_report_node_created():
     report = ExecutionReport(tool="test_tool")
 
     # Create a mock node
-    node = MockNode("Statement", "abc123", "Test statement")
+    node = MockNode("Statement", "abc123", "Test statement", _id=42)
     node.__class__ = type("Statement", (), {})
 
     report.node_created(node)
@@ -42,7 +43,63 @@ def test_run_report_node_created():
     assert effect.seq == 0
     assert effect.effect_type == "node_created"
     assert effect.node.hash == "abc123"
+    assert effect.node.db_id == 42
     assert effect.patch["text"] == "Test statement"
+
+
+def test_node_ref_db_id_none_before_save():
+    """NodeRef carries db_id=None for nodes not yet persisted."""
+    report = ExecutionReport(tool="test_tool")
+
+    node = MockNode("Perspective", None, "", _id=None)
+    node.__class__ = type("Perspective", (), {})
+
+    report.node_created(node)
+
+    effect = report.effects[0]
+    assert effect.node.hash is None
+    assert effect.node.db_id is None
+
+
+def test_node_ref_db_id_set_after_save():
+    """NodeRef carries db_id after save (hash still None for draft nodes)."""
+    report = ExecutionReport(tool="test_tool")
+
+    node = MockNode("Perspective", None, "", _id=99)
+    node.__class__ = type("Perspective", (), {})
+
+    report.node_created(node)
+
+    effect = report.effects[0]
+    assert effect.node.label == "Perspective"
+    assert effect.node.hash is None
+    assert effect.node.db_id == 99
+
+
+def test_node_committed():
+    """node_committed records the commit event with both db_id and hash."""
+    report = ExecutionReport(tool="test_tool")
+
+    # Simulate save (db_id set, no hash)
+    node = MockNode("Wheel", None, "", _id=55)
+    node.__class__ = type("Wheel", (), {})
+    report.node_created(node)
+
+    # Simulate commit (hash now set)
+    node.hash = "deadbeef1234"
+    report.node_committed(node)
+
+    assert len(report.effects) == 2
+    created = report.effects[0]
+    committed = report.effects[1]
+
+    assert created.effect_type == "node_created"
+    assert created.node.db_id == 55
+    assert created.node.hash is None
+
+    assert committed.effect_type == "node_committed"
+    assert committed.node.db_id == 55
+    assert committed.node.hash == "deadbee"
 
 
 def test_run_report_sequencing():

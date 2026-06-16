@@ -534,6 +534,7 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         transformation.set_nexus(nexus)
         transformation.set_on_edge(ac_edge)
         transformation.save()
+        self._report.node_created(transformation)
 
         # === Ac-side (this edge's segments) ===
 
@@ -694,7 +695,7 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
 
         # Commit transformation
         transformation.commit()
-        self._report.node_created(transformation)
+        self._report.node_committed(transformation)
 
         return transformation
 

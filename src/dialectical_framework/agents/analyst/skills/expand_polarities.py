@@ -129,7 +129,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
                 continue
 
             pp.commit()
-            self._report.node_created(pp)
+            self._report.node_committed(pp)
             completed_pps.append(pp)
 
         # Return all PPs: existing complete + newly completed

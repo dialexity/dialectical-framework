@@ -387,6 +387,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
             # Create new wheel
             wheel = Wheel(intent=cycle.intent)
             wheel.save()
+            self._report.node_created(wheel)
 
             # Create transitions forming the circular causality sequence
             for i in range(len(components)):
@@ -407,7 +408,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
             cycle.wheels.connect(wheel)
 
             wheel.commit()
-            self._report.node_created(wheel)
+            self._report.node_committed(wheel)
             self._report.relationship_created(cycle.wheels, cycle, wheel)
 
             all_wheels.append(wheel)

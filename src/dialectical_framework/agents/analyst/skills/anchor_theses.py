@@ -135,6 +135,7 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
         intent = ", ".join(self.statements)
         ideas = Ideas(intent=intent)
         ideas.save()
+        self._report.node_created(ideas)
 
         for input_node in self._get_inputs():
             ideas.inputs.connect(input_node)
@@ -145,7 +146,7 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
             self._report.relationship_created(ideas.statements, ideas, comp)
 
         ideas.commit()
-        self._report.node_created(ideas)
+        self._report.node_committed(ideas)
 
         return ideas
 

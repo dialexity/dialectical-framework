@@ -387,6 +387,7 @@ Determine:
 
         ideas = Ideas(intent=self.intent)
         ideas.save()
+        self._report.node_created(ideas)
 
         # Connect to inputs (filtered or all)
         for input_node in self._get_inputs():
@@ -399,7 +400,7 @@ Determine:
             self._report.relationship_created(ideas.statements, ideas, comp)
 
         ideas.commit()
-        self._report.node_created(ideas)
+        self._report.node_committed(ideas)
 
         # Attach rationale explaining how intent was interpreted
         if parsed.reasoning:
