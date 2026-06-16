@@ -171,10 +171,10 @@ class PolarityRepository:
 
         query = """
         MATCH (pol:Polarity {sid: $sid})
-        WHERE pol.discarded IS NULL
+        WHERE pol.discarded IS NULL AND pol.hash IS NOT NULL
         AND NOT EXISTS {
             MATCH (pp:Perspective {sid: $sid})-[:HAS_POLARITY]->(pol)
-            WHERE pp.discarded IS NULL
+            WHERE pp.discarded IS NULL AND pp.hash IS NOT NULL
         }
         RETURN pol
         """

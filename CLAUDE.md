@@ -184,6 +184,8 @@ Do not remove TODO comments without confirming with the user first. Flag them wh
 
 All DB queries must go through `graph/repositories/` classes, scoped by `sid`. Never write raw `graph_db.execute_and_fetch()` in tools/skills/concerns/nodes.
 
+**Committed-only rule:** Repository listing queries (find_all, find_unconnected, get_vocabulary) must include `AND n.hash IS NOT NULL` to exclude uncommitted nodes. `GRAPH_SCHEMA` instructs the LLM to do the same in `query_graph`.
+
 **Allowed exceptions:** `dialectical_reasoning.py` (schema init), `relationship_manager.py`, `estimation_manager.py`, `query_graph.py` (LLM read-only Cypher).
 
 ### Truncation Rules for Node Text
@@ -226,6 +228,8 @@ container.save()
 child.rel.connect(container)  # OK before commit
 container.commit()            # Immutable after this
 ```
+
+**Uncommitted node safety (`saved_at`):** `IncrementalBuildMixin.save()` sets `saved_at` timestamp; `commit()` clears it. A node with `saved_at != NULL` and `hash == NULL` is either actively building or abandoned garbage (if stale). All listing/discovery queries MUST filter `WHERE n.hash IS NOT NULL` to exclude uncommitted nodes from reasoning pipelines. Cleanup: `scripts/cleanup_stale_nodes.py --max-age 86400`.
 
 **Event reporting:** When a node's `commit()` creates relationships internally (e.g., `Polarity.commit()` creates T/A edges), the calling skill must emit `relationship_created` events for each edge — `commit()` itself does not emit SSE events.
 

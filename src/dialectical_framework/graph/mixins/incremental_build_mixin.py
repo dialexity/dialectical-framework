@@ -16,7 +16,7 @@ The pattern follows git's staging area concept:
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Iterator, Union
+from typing import TYPE_CHECKING, Any, Iterator, Self, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -37,9 +37,9 @@ class IncrementalBuildMixin(PersistableMixin):
 
     Lifecycle:
         1. Create node: cycle = Cycle(intent="...")
-        2. Save as HEAD: cycle.save()  # hash=None, committed_at=None, persisted
+        2. Save as HEAD: cycle.save()  # hash=None, saved_at=now, persisted
         3. Add children: cycle.set_perspectives([pp1, pp2])
-        4. Commit: cycle.commit()  # committed_at set, hash computed, immutable
+        4. Commit: cycle.commit()  # committed_at set, hash computed, saved_at cleared
 
     After commit(), the node behaves like any other committed node.
 
@@ -51,6 +51,26 @@ class IncrementalBuildMixin(PersistableMixin):
     hash: str | None
     _id: Any
     committed_at: float | None
+
+    # Tracks when save() persisted this node before commit.
+    # Non-null means the node is being built. Cleared on commit().
+    # Stale values (old timestamps with no commit) indicate abandoned garbage.
+    saved_at: float | None
+
+    @inject
+    def save(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> Self:
+        """
+        Persist this node as HEAD state, recording saved_at timestamp.
+
+        saved_at marks that this node is actively being built. It is cleared
+        on commit(). A stale saved_at with no commit indicates abandoned garbage.
+        """
+        if not self.is_committed:
+            self.saved_at = time.time()
+        return super().save(graph_db=graph_db)
 
     def _get_commit_dependents(self) -> Iterator[BaseNode]:
         """
@@ -111,6 +131,7 @@ class IncrementalBuildMixin(PersistableMixin):
 
         # Set committed_at BEFORE computing hash (it's part of the hash for structural nodes)
         self.committed_at = time.time()
+        self.saved_at = None
         self.hash = self.compute_hash()
 
         # No dedup for container nodes - they have relationships attached by commit time.

@@ -12,6 +12,7 @@ Transformation alternatives at different insight/proactiveness levels.
 from __future__ import annotations
 
 import re
+import time
 from typing import ClassVar, Optional, TYPE_CHECKING, Union, Self
 
 from dependency_injector.wiring import Provide, inject
@@ -344,6 +345,7 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         """
         # Auto-save if not already saved (allows calling commit() directly)
         if self._id is None:
+            self.saved_at = time.time()
             result = graph_db.save_node(self)
             if result is not None and result._id is not None:
                 self._id = result._id

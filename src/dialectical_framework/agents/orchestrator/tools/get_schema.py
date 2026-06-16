@@ -36,6 +36,8 @@ GRAPH_SCHEMA = """## Graph Schema
 
 All nodes share: `hash` (content-addressable ID), `sid` (session scope), `committed_at`.
 
+**Important:** Only query committed nodes. Always add `WHERE n.hash IS NOT NULL` to filter out incomplete (in-progress or abandoned) nodes. Nodes with `hash IS NULL` are not yet finalized and must not be included in results.
+
 ### Relationship Edge Properties
 
 **Polarity positions** (T, A, T_PLUS, T_MINUS, A_PLUS, A_MINUS relationships) carry:

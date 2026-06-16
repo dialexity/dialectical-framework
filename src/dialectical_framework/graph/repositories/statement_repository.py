@@ -88,7 +88,7 @@ class StatementRepository:
 
         query = """
         MATCH (c:Statement)
-        WHERE c.sid = $sid
+        WHERE c.sid = $sid AND c.hash IS NOT NULL
         RETURN c
         """
         results = graph_db.execute_and_fetch(query, {"sid": sid})
@@ -184,7 +184,7 @@ class StatementRepository:
 
         query = """
         MATCH (s:Statement {sid: $sid})
-        WHERE s.discarded IS NULL
+        WHERE s.discarded IS NULL AND s.hash IS NOT NULL
         AND NOT (s)-[:T]->(:Polarity)
         AND NOT (s)-[:A]->(:Polarity)
         AND NOT (s)-[:T_PLUS]->(:Perspective)

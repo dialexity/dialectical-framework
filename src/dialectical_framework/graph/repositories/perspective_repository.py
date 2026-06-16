@@ -43,7 +43,7 @@ class PerspectiveRepository:
 
         query = """
         MATCH (pp:Perspective {sid: $sid})
-        WHERE pp.discarded IS NULL
+        WHERE pp.discarded IS NULL AND pp.hash IS NOT NULL
         RETURN pp
         ORDER BY pp.committed_at
         """
