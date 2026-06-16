@@ -171,7 +171,7 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         self._report.artifacts["cycle_intent"] = cycle_intent
 
         # 3. Resolve Perspectives
-        perspectives = self._resolve_perspectives()
+        perspectives = self._resolve_perspectives(nexus)
 
         if not perspectives:
             self._report.summary = (
@@ -358,18 +358,21 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
 
         return CausalityPreset.BALANCED
 
-    def _resolve_perspectives(self) -> list[Perspective]:
-        """Resolve Perspectives from hashes or prefixes."""
+    def _resolve_perspectives(self, nexus: Nexus) -> list[Perspective]:
+        """Resolve Perspectives from explicit hashes, falling back to Nexus members."""
         from dialectical_framework.graph.nodes.perspective import Perspective
 
-        repo = NodeRepository()
-        perspectives = []
-        for pp_hash in self.perspective_hashes:
-            node = repo.find_by_hash(pp_hash, node_type=Perspective)
-            if node is None:
-                raise ValueError(f"Perspective not found: {pp_hash}")
-            perspectives.append(node)
-        return perspectives
+        if self.perspective_hashes:
+            repo = NodeRepository()
+            perspectives = []
+            for pp_hash in self.perspective_hashes:
+                node = repo.find_by_hash(pp_hash, node_type=Perspective)
+                if node is None:
+                    raise ValueError(f"Perspective not found: {pp_hash}")
+                perspectives.append(node)
+            return perspectives
+
+        return [pp for pp, _ in nexus.perspectives.all() if not pp.discarded]
 
 
 @llm.tool

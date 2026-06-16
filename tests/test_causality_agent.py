@@ -308,8 +308,8 @@ class TestBuildWheels:
                     assert cycle.intent is None
 
     @pytest.mark.asyncio
-    async def test_build_wheels_empty_hashes_does_nothing(self, case_node):
-        """Test BuildWheels with empty PP hashes does nothing."""
+    async def test_build_wheels_empty_hashes_uses_nexus_perspectives(self, case_node):
+        """Test BuildWheels with empty PP hashes falls back to nexus members."""
         with scope(case_node.sid):
             pp = create_complete_perspective(0)
             nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
@@ -320,15 +320,14 @@ class TestBuildWheels:
 
             agent = BuildWheels(
                 nexus_hash=nexus.hash,
-                perspective_hashes=[],  # Empty — does nothing
-
+                perspective_hashes=[],  # Falls back to nexus perspectives
             )
 
             result = await agent.resolve()
 
-            assert result.new_cycles == []
-            assert result.new_wheels == []
-            assert "No Perspectives" in agent.report.summary
+            # With 1 PP in the nexus, should build a 1-PP wheel
+            assert result.new_wheels != []
+            assert result.new_cycles != []
 
     @pytest.mark.asyncio
     async def test_build_wheels_idempotent(self, case_node):
