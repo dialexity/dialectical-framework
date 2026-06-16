@@ -193,8 +193,8 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
 
         self._report.relationship_created(
             manager,
-            pp,
             aspect.component,
+            pp,
             meta={
                 "position": aspect.position,
                 "hs": aspect.heuristic_similarity,

@@ -398,7 +398,7 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
                 ),
             )
             self._report.relationship_created(
-                manager, pp, aspect.component,
+                manager, aspect.component, pp,
                 meta={"position": aspect.position},
             )
 
