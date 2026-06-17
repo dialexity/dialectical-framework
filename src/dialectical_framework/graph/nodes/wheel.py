@@ -193,6 +193,11 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         result: list[Perspective] = []
         pp_repo = PerspectiveRepository()
 
+        cycle_result = self.cycle.get()
+        allowed_hashes: set[str] | None = None
+        if cycle_result:
+            allowed_hashes = set(cycle_result[0].perspective_hashes)
+
         for edge in self.edges:
             source_result = edge.source.get()
             target_result = edge.target.get()
@@ -204,12 +209,14 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
                 components.append(target_result[0])
 
             for component in components:
-                # Find the PP this component belongs to
                 pp_tuples = pp_repo.find_by_statement(component)
                 for pp, _ in pp_tuples:
-                    if pp.hash not in seen_hashes:
-                        seen_hashes.add(pp.hash)
-                        result.append(pp)
+                    if pp.hash in seen_hashes:
+                        continue
+                    if allowed_hashes is not None and pp.hash not in allowed_hashes:
+                        continue
+                    seen_hashes.add(pp.hash)
+                    result.append(pp)
 
         return result
 
