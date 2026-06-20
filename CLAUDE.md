@@ -85,7 +85,7 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **Discrete spiral:** Wheel edges form a directed circle where each step transforms the minus of one segment into the plus of the next (T1-→A2+→T2-→A1+→...). S+ emerges from ALL Transformations operating simultaneously along the spiral.
 
-**BuildWheels is exhaustive:** Always builds all valid Cycle/Wheel combinations from the Nexus's attached Perspectives. No selective filtering — selectivity belongs at the estimation/transformation exploration layer.
+**BuildWheels is purely structural:** Always builds all valid Cycle/Wheel combinations from the Nexus's attached Perspectives and estimates them (layer 2+). Never generates transformations — those are triggered separately via `ExploreTransformations` (user-initiated or headless pipeline), even for layer-1 wheels.
 
 **OPPOSITE_DIRECTION** exists on both Cycle and Wheel (detected via `_is_circular_reverse`). Cycle opposites: reversed causality ordering within the same PP set (only at layer 3+; layer-2 cycles have no distinct reverse). Wheel opposites: reversed circular component sequence — at layer 2 the two wheels within the same cycle are each other's opposite; at layer 3+ wheel opposites live across opposite-direction cycles (1:1 mapping). Each opposite produces its own independent synthesis.
 

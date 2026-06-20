@@ -113,7 +113,7 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
 
     Creates structural combinations (Cycles + Wheels) from Perspectives
     within a Nexus, then estimates them using the appropriate estimator
-    based on the Nexus intent.
+    based on the Nexus intent. Purely structural — no transformations.
 
     Flow:
     1. Resolve Nexus by hash
@@ -213,16 +213,7 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         if causal_cycles or causal_wheels:
             await self._run_estimation(causal_cycles, causal_wheels)
 
-        # 6. Generate Transformations for 1-PP wheels (circular causality base case)
-        #    These are foundational — higher-layer transformations use them as context.
-        layer1_wheels = [
-            w for w in new_wheels
-            if self._safe_polarity_count(w) == 1
-        ]
-        if layer1_wheels:
-            await self._run_layer1_transformations(layer1_wheels)
-
-        # 7. Build summary
+        # 6. Build summary
         if not new_cycles and not new_wheels:
             self._report.summary = (
                 f"All structures already exist for Nexus {nexus.short_hash} "
@@ -264,28 +255,6 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
             estimation = CausalityEstimation()
             await estimation.resolve(wheels)
             self._report = self._report.merge(estimation.report)
-
-    async def _run_layer1_transformations(self, wheels: list[Wheel]) -> None:
-        """
-        Generate Transformations for 1-PP wheels.
-
-        1-PP wheels are the circular causality base case: Ac+ (T- → A+) and
-        Re+ (A- → T+) within a single Perspective. These serve as foundational
-        context for higher-layer transformation generation.
-        """
-        from dialectical_framework.agents.explorer.skills.explore_transformations import (
-            ExploreTransformations,
-        )
-
-        for wheel in wheels:
-            try:
-                concern = ExploreTransformations(wheel_hash=wheel.hash)
-                await concern.resolve()
-                self._report = self._report.merge(concern.report)
-            except (ValueError, Exception) as e:
-                self._report.artifacts.setdefault("transformation_errors", []).append(
-                    f"Wheel {wheel.short_hash}: {e}"
-                )
 
     @staticmethod
     def _safe_polarity_count(wheel: Wheel) -> int:
