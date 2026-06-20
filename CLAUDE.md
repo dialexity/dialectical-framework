@@ -87,7 +87,12 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **BuildWheels is exhaustive:** Always builds all valid Cycle/Wheel combinations from the Nexus's attached Perspectives. No selective filtering — selectivity belongs at the estimation/transformation exploration layer.
 
-**OPPOSITE_DIRECTION wheels** encode different causal wiring (different perspective pairings), not "the other half" of the same synthesis. They produce their own, independent synthesis.
+**OPPOSITE_DIRECTION** exists on both Cycle and Wheel (detected via `_is_circular_reverse`). Cycle opposites: reversed causality ordering within the same PP set (only at layer 3+; layer-2 cycles have no distinct reverse). Wheel opposites: reversed circular component sequence — at layer 2 the two wheels within the same cycle are each other's opposite; at layer 3+ wheel opposites live across opposite-direction cycles (1:1 mapping). Each opposite produces its own independent synthesis.
+
+**Combinatorial growth (layer = PP count in combination):**
+- Layer generation: `C(N, k)` PP combinations × `max(1, (k-1)!)` cycles × `W(k)` wheels per cycle
+- W(1)=1, W(2)=2, W(3)=4, W(4)=8 (arrangements from `generate_compatible_sequences`)
+- Totals: 1PP→1C/1W, 2PP→3C/4W, 3PP→8C/17W, 4PP→24C/96W
 
 ### Structural vs Analytical Layers
 
