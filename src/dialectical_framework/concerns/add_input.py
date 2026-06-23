@@ -28,6 +28,16 @@ class AddInput(ReasonableConcern[Input]):
 
         input_node = Input(content=content)
         input_node.commit()
+
+        already_connected = any(
+            node._id == input_node._id for node, _ in case.inputs.all()
+        )
+        if already_connected:
+            self._report.ok = True
+            self._report.summary = f"Input {input_node.short_hash} already exists"
+            self._report.artifacts["input_hash"] = input_node.short_hash
+            return input_node
+
         case.inputs.connect(input_node)
 
         self._report.node_created(input_node)

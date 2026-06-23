@@ -259,6 +259,8 @@ class Nexus(AssessableEntity):
 
 **Event direction for `relationship_created`:** `from_node`/`to_node` must match the actual DB edge direction, NOT the owner's perspective. For `RelationshipFrom` (incoming) managers, the DB edge is `(target)-[REL]->(owner)`, so: `report.relationship_created(manager, target, owner)`. Correct example: `relationship_created(polarity.t, thesis_stmt, polarity)` — Statement is from_node because the DB edge is `(Statement)-[T]->(Polarity)`.
 
+**Idempotent connect:** `RelationshipManager.connect()` only deduplicates for `direction="any"` (symmetric) relationships. Directed relationships (`RelationshipTo`/`RelationshipFrom`) will silently create duplicate edges on repeated calls. Callers must check `manager.all()` before connecting if re-invocation is possible.
+
 ### Scope (sid)
 
 All nodes share `sid` from their Case. Enforced at connect time. Use `with scope(case.sid):` to set context.
