@@ -194,7 +194,7 @@ class TestCreateDxInput:
     @pytest.mark.asyncio
     async def test_creates_dx_uri_input(self):
         """CreateDxInput creates Input with correct dx:// URI."""
-        from dialectical_framework.agents.analyst.tools.create_dx_input import \
+        from dialectical_framework.concerns.create_dx_input import \
             CreateDxInput
 
         sid = _new_sid()
@@ -221,7 +221,7 @@ class TestCreateDxInput:
     @pytest.mark.asyncio
     async def test_links_to_case(self):
         """CreateDxInput links the new Input to the Case."""
-        from dialectical_framework.agents.analyst.tools.create_dx_input import \
+        from dialectical_framework.concerns.create_dx_input import \
             CreateDxInput
         from dialectical_framework.graph.repositories.input_repository import \
             InputRepository
@@ -251,7 +251,7 @@ class TestCreateDxInput:
     @pytest.mark.asyncio
     async def test_rejects_non_transition(self):
         """CreateDxInput raises TypeError for non-Transition nodes."""
-        from dialectical_framework.agents.analyst.tools.create_dx_input import \
+        from dialectical_framework.concerns.create_dx_input import \
             CreateDxInput
 
         sid = _new_sid()
@@ -266,7 +266,7 @@ class TestCreateDxInput:
     @pytest.mark.asyncio
     async def test_rejects_nonexistent_hash(self):
         """CreateDxInput raises ValueError for missing node."""
-        from dialectical_framework.agents.analyst.tools.create_dx_input import \
+        from dialectical_framework.concerns.create_dx_input import \
             CreateDxInput
 
         sid = _new_sid()

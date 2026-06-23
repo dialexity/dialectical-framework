@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
+from dialectical_framework.concerns.add_input import AddInput
 from dialectical_framework.agents.orchestrator.tools.query_graph import (
     QueryGraph, _has_hardcoded_sid, _inject_sid_scoping)
 from dialectical_framework.graph.nodes.case import Case

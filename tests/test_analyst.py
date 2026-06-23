@@ -15,7 +15,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.analyst.analyst import Analyst
-from dialectical_framework.agents.orchestrator.tools.add_input import AddInput
+from dialectical_framework.concerns.add_input import AddInput
 from dialectical_framework.agents.orchestrator.tools.query_graph import \
     QueryGraph
 from dialectical_framework.agents.stream_events import (ResponseComplete,
