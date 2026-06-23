@@ -46,7 +46,12 @@ class AddInput(ReasonableConcern[Input]):
 
 @llm.tool
 async def add_input(
-    content: Annotated[str, Field(description="Source material: user-provided text, URL, or captured conversation fragment")],
+    content: Annotated[
+        str,
+        Field(
+            description="Source material: user-provided text, URL, or captured conversation fragment"
+        ),
+    ],
 ) -> str:
     """Add source material for analysis — user-provided text, URL, or captured conversation fragment. Use proactively when the user describes their situation. Not for storing your analytical outputs."""
     concern = AddInput()

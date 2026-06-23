@@ -347,7 +347,7 @@ Determine:
         self,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
-        """Get preview (first 500 chars) of each input."""
+        """Get preview of each input (uses digest if available, else first 500 chars)."""
         inputs = self._get_inputs()
 
         if not inputs:
@@ -355,9 +355,12 @@ Determine:
 
         previews = []
         for i, input_node in enumerate(inputs, 1):
-            resolved = await input_resolver.resolve(input_node)
-            preview = resolved[:500] + "..." if len(resolved) > 500 else resolved
-            previews.append(f"[Input {i}]\n{preview}")
+            if input_node.digest:
+                previews.append(f"[Input {i}]\n{input_node.digest}")
+            else:
+                resolved = await input_resolver.resolve(input_node)
+                preview = resolved[:500] + "..." if len(resolved) > 500 else resolved
+                previews.append(f"[Input {i}]\n{preview}")
 
         return "\n\n".join(previews)
 

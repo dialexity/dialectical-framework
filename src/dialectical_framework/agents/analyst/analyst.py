@@ -117,6 +117,8 @@ def _build_tools() -> list:
         expand_nexus
     from dialectical_framework.agents.orchestrator.tools.add_input import \
         add_input
+    from dialectical_framework.agents.orchestrator.tools.digest_input import \
+        digest_input
     from dialectical_framework.agents.orchestrator.tools.get_schema import \
         get_schema
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
@@ -125,11 +127,18 @@ def _build_tools() -> list:
         present_analysis
     from dialectical_framework.agents.orchestrator.tools.query_graph import \
         query_graph
+    from dialectical_framework.agents.orchestrator.tools.read_digest import \
+        read_digest
+    from dialectical_framework.agents.orchestrator.tools.read_input import \
+        read_input
     from dialectical_framework.agents.orchestrator.tools.discard import discard
 
     return [
         analyze,
         add_input,
+        digest_input,
+        read_digest,
+        read_input,
         anchor_theses,
         surface_theses,
         find_polarities,

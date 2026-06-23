@@ -126,12 +126,18 @@ def _build_tools() -> list:
         generate_synthesis
     from dialectical_framework.agents.explorer.tools.present_exploration import \
         present_exploration
+    from dialectical_framework.agents.orchestrator.tools.digest_input import \
+        digest_input
     from dialectical_framework.agents.orchestrator.tools.get_schema import \
         get_schema
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
     from dialectical_framework.agents.orchestrator.tools.query_graph import \
         query_graph
+    from dialectical_framework.agents.orchestrator.tools.read_digest import \
+        read_digest
+    from dialectical_framework.agents.orchestrator.tools.read_input import \
+        read_input
 
     return [
         build_wheels,
@@ -139,6 +145,9 @@ def _build_tools() -> list:
         generate_synthesis,
         expand_nexus,
         present_exploration,
+        digest_input,
+        read_digest,
+        read_input,
         inspect_node,
         query_graph,
         get_schema,

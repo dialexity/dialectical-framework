@@ -46,6 +46,19 @@ Think of a Wheel as a pizza: segments are slices (T, T+, T-), Perspectives are h
 |--------|----------|
 | ![Wheel](https://raw.githubusercontent.com/dialexity/dialectical-framework/main/docs/wheel-scheme.png) | ![Wheel](https://raw.githubusercontent.com/dialexity/dialectical-framework/main/docs/wheel-scheme2.png) |
 
+## Why a Reasoning Graph
+
+Most AI systems treat knowledge as flat context — dump text into the prompt and hope the LLM figures out the structure. The dialectical framework builds a **persistent reasoning graph** where the structure itself encodes how to think about a domain:
+
+- **Oppositions are explicit.** The LLM doesn't need to discover tensions — they're mapped as T/A pairs with typed aspects showing where each side overreaches (T-, A-) and where it constructively balances the other (T+, A+).
+- **Transformations encode causality.** Edges don't just connect — they show how one position's failure becomes another's strength. This is the circular causality that drives synthesis.
+- **Quality is measurable.** Complementarity, modality balance, area metrics tell the LLM which reasoning paths are well-developed and which are thin — no guessing about confidence.
+- **Knowledge compounds.** Each new perspective enters an existing graph of validated reasoning. The LLM builds on prior synthesis rather than re-deriving from scratch.
+
+The result: an LLM with this graph in context doesn't just have facts about a topic — it has the intellectual terrain mapped. What opposes what, where balance was achieved, what assumptions remain untested, and where synthesis is possible.
+
+This is the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern realized as a semantic graph rather than a pile of markdown files — knowledge that is structured, rule-validated, and queryable by reasoning topology.
+
 ## Integration
 
 The framework is designed as a drop-in reasoning engine for AI applications that need dialectical analysis — decision support, systems thinking, mediation, ethical modeling.

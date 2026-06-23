@@ -163,16 +163,10 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
         self,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
+        from dialectical_framework.utils.input_context import input_context
+
         inputs = self._get_inputs()
-        if not inputs:
-            return ""
-
-        texts = []
-        for input_node in inputs:
-            resolved = await input_resolver.resolve(input_node)
-            texts.append(resolved)
-
-        return "\n\n---\n\n".join(texts)
+        return await input_context(inputs, input_resolver)
 
 
 @llm.tool

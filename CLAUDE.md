@@ -299,10 +299,12 @@ Rate-limit retry (429/ThrottlingException) also lives in `use_brain`: 10s base b
 Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-facing interface).
 
 **Hierarchy (increasing scope):**
-- **Concern** = standalone service, single responsibility → lives in `concerns/`
-- **Tool** = thin wrapper importing a concern → lives in `agents/{phase}/tools/` (no business logic inline — always delegate to a concern)
+- **Concern** = standalone service, single responsibility → lives in `concerns/`. Public API — reusable across tools, skills, and pipelines.
+- **Tool** = `@llm.tool` function + optional internal helper class → lives in `agents/{phase}/tools/`. Helper classes in tool files may extend `ReasonableConcern` (for `self._report`), but they are **internal to that tool** — not public API, not importable by other modules.
 - **Skill** = orchestrates multiple concerns, has reasoning responsibility → lives in `agents/{phase}/skills/`
 - **Agent** = top-level conversational coordinator, owns a tool set → lives in `agents/{phase}/`
+
+**Public vs internal:** Location is the signal. `concerns/SourceDigest` is a reusable service anyone can import. `tools/digest_input.DigestInput` is internal wiring for that tool — it exists to get `self._report` and coordinate graph operations, not to be reused elsewhere.
 
 Only `@llm.tool` functions go into tool lists. `ReasonableConcern` classes are never passed to Mirascope directly.
 

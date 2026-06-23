@@ -9,7 +9,7 @@ resolution happens via InputResolver at the application layer.
 from __future__ import annotations
 
 import hashlib
-from typing import ClassVar, Optional, TYPE_CHECKING, Union, Self
+from typing import TYPE_CHECKING, ClassVar, Optional, Self, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
@@ -17,24 +17,18 @@ from gqlalchemy import Memgraph, Neo4j
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.base_node import BaseNode
 from dialectical_framework.graph.relationship_manager import (
-    RelationshipFrom,
-    RelationshipManager,
-    RelationshipTo,
-)
-from dialectical_framework.graph.relationships.has_statement_relationship import (
-    HasStatementRelationship,
-)
-from dialectical_framework.graph.relationships.distilled_to_relationship import (
-    DistilledToRelationship,
-)
-from dialectical_framework.graph.relationships.has_input_relationship import (
-    HasInputRelationship,
-)
+    RelationshipFrom, RelationshipManager, RelationshipTo)
+from dialectical_framework.graph.relationships.distilled_to_relationship import \
+    DistilledToRelationship
+from dialectical_framework.graph.relationships.has_input_relationship import \
+    HasInputRelationship
+from dialectical_framework.graph.relationships.has_statement_relationship import \
+    HasStatementRelationship
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.ideas import Ideas
     from dialectical_framework.graph.nodes.case import Case
+    from dialectical_framework.graph.nodes.ideas import Ideas
+    from dialectical_framework.graph.nodes.statement import Statement
 
 
 class Input(BaseNode, label="Input"):
@@ -58,19 +52,13 @@ class Input(BaseNode, label="Input"):
                  - Multiple pointers: JSON array of URIs
                  - Custom formats: session://..., ipfs://..., etc.
 
-    The `handle` field (inherited) can be used for human-friendly names
-    like "bbc-ukraine-article-2024-01".
-
     Example:
         # Plain text content
         input_node = Input(content="The quick brown fox...")
         input_node.commit()
 
         # URI pointer
-        input_node = Input(
-            content="https://bbc.com/article/123",
-            handle="bbc-ukraine-article"
-        )
+        input_node = Input(content="https://bbc.com/article/123")
         input_node.commit()
 
         # After extracting statements from content:
@@ -80,6 +68,10 @@ class Input(BaseNode, label="Input"):
 
     # Content or content pointer(s) - resolved by InputResolver
     content: Optional[str] = None
+
+    # Living digest: LLM-generated analytical understanding of the content.
+    # Mutable post-commit (NOT part of hash). Populated by SourceDigest concern.
+    digest: Optional[str] = None
 
     # Statements extracted from this input
     statements: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
@@ -130,7 +122,7 @@ class Input(BaseNode, label="Input"):
         """
         parts = self._collect_structure_hash_parts()
         combined = "\n".join(parts)
-        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+        return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
     def _is_uri(self) -> bool:
         """Check if content looks like a URI (not plain text).
@@ -158,6 +150,7 @@ class Input(BaseNode, label="Input"):
         # RFC 3986 scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
         # We only need to know if it *starts* like a URI.
         import re
+
         return re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", s) is not None
 
     def _change_content_to_pointer_if_exists(self) -> bool:
@@ -174,10 +167,12 @@ class Input(BaseNode, label="Input"):
             return False
 
         # Compute what hash would be for this content
-        potential_hash = hashlib.sha256(self.content.encode('utf-8')).hexdigest()
+        potential_hash = hashlib.sha256(self.content.encode("utf-8")).hexdigest()
 
         # Check if a node with this hash exists
-        from dialectical_framework.graph.repositories.node_repository import NodeRepository
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+
         repo = NodeRepository()
         existing = repo.find_by_hash(potential_hash)
 
@@ -202,10 +197,7 @@ class Input(BaseNode, label="Input"):
         return True
 
     @inject
-    def commit(
-        self,
-        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
-    ) -> Self:
+    def commit(self, graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]) -> Self:
         """
         Commit this Input: check for component collision, compute hash, and persist.
 
@@ -231,6 +223,12 @@ class Input(BaseNode, label="Input"):
         return f"Input({hash_str}, content={self.content})"
 
     def __str__(self) -> str:
-        """Human-readable string representation."""
-        content_preview = self.content[:50] + "..." if self.content and len(self.content) > 50 else self.content
+        """Human-readable string representation. Shows digest if available."""
+        if self.digest:
+            return f"Input: {self.digest}"
+        content_preview = (
+            self.content[:50] + "..."
+            if self.content and len(self.content) > 50
+            else self.content
+        )
         return f"Input: {content_preview or 'No content'}"

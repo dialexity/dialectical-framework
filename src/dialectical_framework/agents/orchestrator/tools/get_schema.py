@@ -20,7 +20,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Node | Description | Key Properties |
 |------|-------------|----------------|
 | Case | Root session container | |
-| Input | External content (text, URL) for analysis | `content` |
+| Input | External content (text, URL) for analysis | `content`, `digest` |
 | Ideas | Collection of extracted Statements from Inputs | `intent` |
 | Statement | A thesis, position, or claim | `text`, `meaning`, `discarded` |
 | Polarity | A tension — structural T-A pair (thesis vs antithesis) | |

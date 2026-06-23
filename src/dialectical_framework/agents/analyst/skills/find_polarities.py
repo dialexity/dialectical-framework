@@ -383,19 +383,13 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         self,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
-        """Get concatenated text from all inputs in scope."""
+        """Get input context from digests (falls back to full content if no digest)."""
+        from dialectical_framework.utils.input_context import input_context
+
         repo = InputRepository()
         inputs = repo.get_all()
 
-        if not inputs:
-            return ""
-
-        texts = []
-        for input_node in inputs:
-            resolved = await input_resolver.resolve(input_node)
-            texts.append(resolved)
-
-        return "\n\n---\n\n".join(texts)
+        return await input_context(inputs, input_resolver)
 
     def _reconnect_oppositions(
         self,
