@@ -10,6 +10,13 @@ from __future__ import annotations
 import pytest
 
 from dialectical_framework.graph.nodes.input import Input
+from dialectical_framework.graph.scope_context import scope
+
+
+def _new_sid() -> str:
+    import uuid
+
+    return f"test-{uuid.uuid4().hex[:8]}"
 
 
 class TestInputDigestField:
@@ -58,18 +65,21 @@ class TestSourceDigestConcern:
     @pytest.mark.llm
     @pytest.mark.asyncio
     async def test_initial_digest_generation(self):
-        """SourceDigest generates an initial digest from content."""
+        """SourceDigest generates an initial digest for long content."""
         from dialectical_framework.concerns.source_digest import SourceDigest
 
-        concern = SourceDigest()
-        result = await concern.resolve(
-            content="Remote work increases productivity but reduces team cohesion."
-        )
+        sid = _new_sid()
+        with scope(sid):
+            input_node = Input(content="A" * 2000)
+            input_node.commit()
 
-        assert isinstance(result, str)
-        assert len(result) > 0
-        assert concern.report.ok is True
-        assert "initial" in concern.report.summary.lower()
+            concern = SourceDigest()
+            result = await concern.resolve(input_hash=input_node.hash)
+
+            assert result.digest is not None
+            assert len(result.digest) > 0
+            assert concern.report.ok is True
+            assert "created" in concern.report.summary.lower()
 
     @pytest.mark.llm
     @pytest.mark.asyncio
@@ -77,35 +87,67 @@ class TestSourceDigestConcern:
         """SourceDigest refines an existing digest with context."""
         from dialectical_framework.concerns.source_digest import SourceDigest
 
-        concern = SourceDigest()
-        result = await concern.resolve(
-            content="Remote work increases productivity but reduces team cohesion.",
-            existing_digest="The source discusses remote work trade-offs.",
-            context="Focus on the tension between individual productivity and collective culture.",
-        )
+        sid = _new_sid()
+        with scope(sid):
+            input_node = Input(content="A" * 2000)
+            input_node.commit()
+            input_node.digest = "The source discusses remote work trade-offs."
+            input_node.save()
 
-        assert isinstance(result, str)
-        assert len(result) > 0
-        assert concern.report.ok is True
-        assert "refine" in concern.report.summary.lower()
+            concern = SourceDigest()
+            result = await concern.resolve(
+                input_hash=input_node.hash,
+                context="Focus on the tension between individual productivity and collective culture.",
+            )
+
+            assert result.digest is not None
+            assert len(result.digest) > 0
+            assert concern.report.ok is True
+            assert "refined" in concern.report.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_short_content_skips_llm(self):
+        """Short content is used as its own digest without LLM call."""
+        from dialectical_framework.concerns.source_digest import SourceDigest
+
+        sid = _new_sid()
+        with scope(sid):
+            short_content = "Remote work increases productivity but reduces team cohesion."
+            input_node = Input(content=short_content)
+            input_node.commit()
+
+            concern = SourceDigest()
+            result = await concern.resolve(input_hash=input_node.hash)
+
+            assert result.digest == short_content
+            assert concern.report.ok is True
+            assert "compact" in concern.report.summary.lower()
 
     @pytest.mark.llm
     @pytest.mark.asyncio
-    async def test_digest_with_context_only(self):
-        """SourceDigest incorporates context into initial digest."""
+    async def test_short_content_with_existing_digest_calls_llm(self):
+        """Short content WITH existing digest still calls LLM to refine."""
         from dialectical_framework.concerns.source_digest import SourceDigest
 
-        concern = SourceDigest()
-        result = await concern.resolve(
-            content="AI is transforming healthcare through diagnostics and drug discovery.",
-            context="User says: focus on ethical implications, not technical capabilities.",
-        )
+        sid = _new_sid()
+        with scope(sid):
+            input_node = Input(content="Short content here.")
+            input_node.commit()
+            input_node.digest = "Existing understanding"
+            input_node.save()
 
-        assert isinstance(result, str)
-        assert len(result) > 0
+            concern = SourceDigest()
+            result = await concern.resolve(
+                input_hash=input_node.hash,
+                context="Refine this",
+            )
+
+            assert result.digest is not None
+            assert concern.report.ok is True
+            assert "refined" in concern.report.summary.lower()
 
 
-class TestGetInputDigests:
+class TestInputContext:
     """Tests for the input_context utility."""
 
     @pytest.mark.asyncio
