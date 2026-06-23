@@ -165,6 +165,8 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | LLM abstraction | `utils/use_brain.py` |
 | Bedrock provider | `utils/bedrock_provider.py` |
 | Utilities | `utils/` |
+| Input context (digest→prompt) | `utils/input_context.py` |
+| LLM Wiki mapping docs | `docs/llm-wiki.md` |
 | Events (domain event bus) | `events/` |
 | Exceptions | `exceptions/` |
 | Protocols (interfaces) | `protocols/` |
@@ -261,6 +263,16 @@ class Nexus(AssessableEntity):
 
 All nodes share `sid` from their Case. Enforced at connect time. Use `with scope(case.sid):` to set context.
 
+### Input Digest (Living Understanding)
+
+`Input.digest`: mutable field (excluded from hash) storing LLM-generated understanding of a source. Populated by `SourceDigest` concern. Short content (<1500 chars) skips LLM — used as its own digest.
+
+**Consumption:** Skills use `input_context()` from `utils/input_context.py` — returns digests in `<Input id="{hash}">` tags, falls back to resolved content when digest is None. `surface_theses` is the exception (needs raw content for extraction, uses digest for previews only).
+
+**Tools:** `read_digest` | `read_input` | `digest_input` — available to both Analyst and Explorer.
+
+**Responsibility:** Whoever adds the input, digests it. Framework provides building blocks; the caller (agent or app) sequences them.
+
 ### Antithesis Persistence Checklist
 
 When calling `AntithesisClassification`, the caller must persist Mode/Arousal via `EstimationManager.upsert_estimation()`. The concern itself does NOT create DB nodes — it only returns the result. `AntithesisExtraction` handles this internally; `AntithesisClassification` does not.
@@ -305,6 +317,8 @@ Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-f
 - **Agent** = top-level conversational coordinator, owns a tool set → lives in `agents/{phase}/`
 
 **Public vs internal:** Location is the signal. `concerns/SourceDigest` is a reusable service anyone can import. `tools/digest_input.DigestInput` is internal wiring for that tool — it exists to get `self._report` and coordinate graph operations, not to be reused elsewhere.
+
+**When to promote:** If a tool-file helper class gets imported by tests or other modules directly (programmatic usage), move it to `concerns/`. The litmus test: does anything outside the tool file call `Concern().resolve(...)`? If yes → `concerns/`.
 
 Only `@llm.tool` functions go into tool lists. `ReasonableConcern` classes are never passed to Mirascope directly.
 
