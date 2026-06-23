@@ -316,7 +316,7 @@ Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-f
 - **Skill** = orchestrates multiple concerns, has reasoning responsibility → lives in `agents/{phase}/skills/`
 - **Agent** = top-level conversational coordinator, owns a tool set → lives in `agents/{phase}/`
 
-**Public vs internal:** Location is the signal. `concerns/SourceDigest` is a reusable service anyone can import. `tools/digest_input.DigestInput` is internal wiring for that tool — it exists to get `self._report` and coordinate graph operations, not to be reused elsewhere.
+**Public vs internal:** Location is the signal. `concerns/SourceDigest` is a reusable service anyone can import. `tools/present_analysis.PresentAnalysis` is internal wiring for that tool — it exists to get `self._report` and format output, not to be reused elsewhere.
 
 **When to promote:** If a tool-file helper class gets imported by tests or other modules directly (programmatic usage), move it to `concerns/`. The litmus test: does anything outside the tool file call `Concern().resolve(...)`? If yes → `concerns/`.
 
