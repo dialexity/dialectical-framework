@@ -67,6 +67,75 @@ Nexus(f1234ab, pps=2, preset=balanced, intent=Exploring remote vs office tradeof
 Perspectives (2):
   - [a3f82c1] intent=navigating remote work tensions
   - [b7d91e4]
+
+--- Cycle ---
+
+## Cycle [c9e2f01]
+Intent: preset:balanced
+
+Sequence: T1 → T2 → T1...
+
+Perspectives:
+  T1 = [a3f82c1] — "Remote Work"
+  T2 = [b7d91e4] — "Office Work"
+
+Causality probability: 0.720
+
+Rationale: Remote work flexibility enables office collaboration patterns...
+
+Wheels (2):
+  - [w88a3f2]
+  - [w99b4c1]
+
+--- Wheel ---
+
+## Wheel [w88a3f2]
+
+TA-sequence: T1 → A2 → A1 → T2 → T1...
+Spiral: T1- → A2+, A2+ → A1-, A1- → T2+, T2+ → T1-
+
+Parent Cycle: [c9e2f01] T1 → T2 → T1...
+Causality probability: 0.680
+
+Perspectives (2):
+  T1 = [a3f82c1] — "Remote Work"
+  T2 = [b7d91e4] — "Office Work"
+
+Transformations (2):
+  - [t44bc12] (T1- → A2+)
+  - [t55de34] (A1- → T2+)
+
+Synthesis (1):
+  - [s12ab34]
+
+Rationale: This arrangement places isolation's resolution through collaboration...
+
+--- Transformation ---
+
+## Transformation [t44bc12]
+Edge: T1- → A2+
+
+Ac+ (T1- → A2+): "Give structured choices within safe boundaries"
+  scores: insight=0.45, proactiveness=0.72, HS=0.80, feasibility=0.82
+Re+ (A2- → T1+): "Recognize that safety serves growth"
+  scores: insight=0.52, proactiveness=0.25, HS=0.75, feasibility=0.70
+Ac- (T1+ → A2-): "Impose boundaries without voice"
+  scores: insight=0.20, proactiveness=0.70
+Re- (A2+ → T1-): "Convince yourself that control IS love"
+  scores: insight=0.10, proactiveness=0.15
+
+Rationale: The action pathway transforms over-control into structured autonomy...
+
+--- Synthesis ---
+
+## Synthesis [s12ab34]
+Spiral: T1- → A2+, A2+ → A1-, A1- → T2+, T2+ → T1-
+Parent Wheel: [w88a3f2]
+
+S+: "Graduated autonomy within a holding environment"
+S-: "Oscillation between smothering and sudden withdrawal"
+
+Rationale: The positive synthesis emerges from simultaneous operation...
 """
 
 from __future__ import annotations
@@ -80,14 +149,27 @@ from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.rendering import (
+    build_pp_index,
+    component_alias,
+    format_edge_label,
+    format_spiral,
+    find_nexus_for_cycle,
+    find_nexus_for_wheel,
+    find_nexus_for_transformation,
+)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
 
 if TYPE_CHECKING:
-    from dialectical_framework.graph.nodes.perspective import Perspective
-    from dialectical_framework.graph.nodes.statement import Statement
-    from dialectical_framework.graph.nodes.polarity import Polarity
+    from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.polarity import Polarity
+    from dialectical_framework.graph.nodes.statement import Statement
+    from dialectical_framework.graph.nodes.synthesis import Synthesis
+    from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.wheel import Wheel
 
 
 def _status_tag(node) -> str:
@@ -257,6 +339,266 @@ def _inspect_nexus(nexus: Nexus) -> str:
     return "\n".join(lines)
 
 
+def _inspect_cycle(cycle: Cycle) -> str:
+    """Build detailed inspection output for a Cycle."""
+    lines: list[str] = []
+
+    lines.append(f"## Cycle [{_node_id(cycle)}]{_status_tag(cycle)}")
+    if cycle.intent:
+        lines.append(f"Intent: {cycle.intent}")
+    lines.append("")
+
+    # Resolve nexus for consistent indexing
+    nexus = find_nexus_for_cycle(cycle)
+    pp_index = build_pp_index(nexus) if nexus else None
+
+    # T-causality sequence with nexus indices
+    pps = cycle.perspectives
+    if pps and pp_index:
+        labels = [f"T{pp_index.get(pp._id, 0)}" for pp in pps]
+        sequence = " → ".join(labels) + f" → {labels[0]}..."
+        lines.append(f"Sequence: {sequence}")
+    else:
+        lines.append(f"Sequence: {cycle}")
+    lines.append("")
+
+    # Perspectives with labels
+    if pps:
+        lines.append("Perspectives:")
+        for pp in pps:
+            idx = pp_index.get(pp._id, 0) if pp_index else "?"
+            t_result = pp.t.get() if pp.t else None
+            t_text = f" — \"{t_result[0].text}\"" if t_result else ""
+            lines.append(f"  T{idx} = [{pp.short_hash}]{t_text}")
+    lines.append("")
+
+    # Causality probability
+    from dialectical_framework.graph.nodes.estimation import CausalityProbabilityEstimation
+    for est, _ in cycle.estimations.all():
+        if isinstance(est, CausalityProbabilityEstimation):
+            lines.append(f"Causality probability: {est.value:.3f}")
+            break
+
+    # Rationales
+    rationales = list(cycle.rationales.all())
+    if rationales:
+        lines.append("")
+        for rationale, _ in rationales:
+            if rationale.text:
+                lines.append(f"Rationale: {rationale.text}")
+
+    # Child wheels
+    wheel_items = list(cycle.wheels.all())
+    if wheel_items:
+        lines.append("")
+        lines.append(f"Wheels ({len(wheel_items)}):")
+        for wheel, _ in wheel_items:
+            lines.append(f"  - [{wheel.short_hash}]")
+
+    return "\n".join(lines)
+
+
+def _inspect_wheel(wheel: Wheel) -> str:
+    """Build detailed inspection output for a Wheel."""
+    lines: list[str] = []
+
+    lines.append(f"## Wheel [{_node_id(wheel)}]{_status_tag(wheel)}")
+    lines.append("")
+
+    # Resolve nexus for consistent indexing
+    nexus = find_nexus_for_wheel(wheel)
+    pp_index = build_pp_index(nexus) if nexus else None
+
+    # TA-sequence using nexus indices
+    if pp_index:
+        try:
+            segs = wheel.segments
+            if segs:
+                labels = []
+                for seg in segs:
+                    idx = pp_index.get(seg._perspective._id, 0)
+                    labels.append(f"{seg._side}{idx}")
+                ta_seq = " → ".join(labels) + f" → {labels[0]}..."
+                lines.append(f"TA-sequence: {ta_seq}")
+        except (ValueError, AttributeError):
+            pass
+    else:
+        ta_seq = wheel._format_edges("ta_sequence")
+        if ta_seq:
+            lines.append(f"TA-sequence: {ta_seq}")
+
+    # Spiral (discrete edges with nexus indices)
+    spiral_seq = format_spiral(wheel, pp_index)
+    if spiral_seq:
+        lines.append(f"Spiral: {spiral_seq}")
+    lines.append("")
+
+    # Parent cycle
+    cycle_result = wheel.cycle.get()
+    if cycle_result:
+        cycle_obj, _ = cycle_result
+        if pp_index:
+            pps = cycle_obj.perspectives
+            labels = [f"T{pp_index.get(pp._id, 0)}" for pp in pps]
+            cycle_seq = " → ".join(labels) + f" → {labels[0]}..."
+            lines.append(f"Parent Cycle: [{cycle_obj.short_hash}] {cycle_seq}")
+        else:
+            lines.append(f"Parent Cycle: [{cycle_obj.short_hash}] {cycle_obj}")
+
+    # Causality probability
+    from dialectical_framework.graph.nodes.estimation import CausalityProbabilityEstimation
+    for est, _ in wheel.estimations.all():
+        if isinstance(est, CausalityProbabilityEstimation):
+            lines.append(f"Causality probability: {est.value:.3f}")
+            break
+
+    lines.append("")
+
+    # Perspectives
+    pps = wheel._perspectives
+    if pps:
+        lines.append(f"Perspectives ({len(pps)}):")
+        for pp in pps:
+            idx = pp_index.get(pp._id, 0) if pp_index else "?"
+            t_result = pp.t.get() if pp.t else None
+            t_text = f" — \"{t_result[0].text}\"" if t_result else ""
+            lines.append(f"  T{idx} = [{pp.short_hash}]{t_text}")
+        lines.append("")
+
+    # Transformations
+    transformations = wheel.transformations
+    if transformations:
+        lines.append(f"Transformations ({len(transformations)}):")
+        for tr in transformations:
+            edge_result = tr.edge.get()
+            edge_str = ""
+            if edge_result:
+                label = format_edge_label(edge_result[0], pp_index)
+                if label:
+                    edge_str = f" ({label})"
+            lines.append(f"  - [{tr.short_hash}]{edge_str}")
+        lines.append("")
+
+    # Synthesis
+    synth_items = list(wheel.synthesis.all())
+    if synth_items:
+        lines.append(f"Synthesis ({len(synth_items)}):")
+        for synth, _ in synth_items:
+            lines.append(f"  - [{synth.short_hash}]")
+        lines.append("")
+
+    # Rationales
+    rationales = list(wheel.rationales.all())
+    if rationales:
+        for rationale, _ in rationales:
+            if rationale.text:
+                lines.append(f"Rationale: {rationale.text}")
+
+    return "\n".join(lines)
+
+
+def _inspect_transformation(tr: Transformation) -> str:
+    """Build detailed inspection output for a Transformation."""
+    lines: list[str] = []
+
+    lines.append(f"## Transformation [{_node_id(tr)}]{_status_tag(tr)}")
+
+    # Resolve nexus for consistent indexing
+    nexus = find_nexus_for_transformation(tr)
+    pp_index = build_pp_index(nexus) if nexus else None
+
+    # Edge context: which spiral step this transformation belongs to
+    edge_result = tr.edge.get()
+    if edge_result:
+        edge_label = format_edge_label(edge_result[0], pp_index)
+        if edge_label:
+            lines.append(f"Edge: {edge_label}")
+    lines.append("")
+
+    # Positions with transition labels and scores
+    from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
+
+    for position, manager in [
+        ("Ac+", tr.ac_plus),
+        ("Re+", tr.re_plus),
+        ("Ac-", tr.ac_minus),
+        ("Re-", tr.re_minus),
+    ]:
+        result = manager.get()
+        if result:
+            transition, rel = result
+            text = transition.instruction or transition.summary or ""
+
+            transition_label = format_edge_label(transition, pp_index)
+            pos_display = f"{position} ({transition_label})" if transition_label else position
+            lines.append(f"{pos_display}: \"{text}\"")
+
+            # Scores
+            scores = []
+            if hasattr(rel, "insight") and rel.insight is not None:
+                scores.append(f"insight={rel.insight:.2f}")
+            if hasattr(rel, "proactiveness") and rel.proactiveness is not None:
+                scores.append(f"proactiveness={rel.proactiveness:.2f}")
+            if hasattr(rel, "heuristic_similarity") and rel.heuristic_similarity is not None:
+                scores.append(f"HS={rel.heuristic_similarity:.2f}")
+            for est, _ in transition.estimations.all():
+                if isinstance(est, FeasibilityEstimation):
+                    scores.append(f"feasibility={est.value:.2f}")
+                    break
+            if scores:
+                lines.append(f"  scores: {', '.join(scores)}")
+
+    # Rationales
+    rationales = list(tr.rationales.all())
+    if rationales:
+        lines.append("")
+        for rationale, _ in rationales:
+            if rationale.text:
+                lines.append(f"Rationale: {rationale.text}")
+
+    return "\n".join(lines)
+
+
+def _inspect_synthesis(synth: Synthesis) -> str:
+    """Build detailed inspection output for a Synthesis."""
+    lines: list[str] = []
+
+    lines.append(f"## Synthesis [{_node_id(synth)}]{_status_tag(synth)}")
+
+    # Parent wheel + spiral
+    target_result = synth.target.get()
+    pp_index = None
+    if target_result:
+        wheel, _ = target_result
+        nexus = find_nexus_for_wheel(wheel)
+        pp_index = build_pp_index(nexus) if nexus else None
+        spiral = format_spiral(wheel, pp_index)
+        if spiral:
+            lines.append(f"Spiral: {spiral}")
+        lines.append(f"Parent Wheel: [{wheel.short_hash}]")
+    lines.append("")
+
+    # S+ and S-
+    s_plus = synth.s_plus.get()
+    s_minus = synth.s_minus.get()
+    if s_plus:
+        stmt, _ = s_plus
+        lines.append(f"S+: \"{stmt.text}\"")
+    if s_minus:
+        stmt, _ = s_minus
+        lines.append(f"S-: \"{stmt.text}\"")
+
+    # Rationales
+    rationales = list(synth.rationales.all())
+    if rationales:
+        lines.append("")
+        for rationale, _ in rationales:
+            if rationale.text:
+                lines.append(f"Rationale: {rationale.text}")
+
+    return "\n".join(lines)
+
+
 class InspectNode(ReasonableConcern[str]):
     """Inspects a node by hash and returns detailed formatted output based on type."""
 
@@ -267,10 +609,14 @@ class InspectNode(ReasonableConcern[str]):
         graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
         sid: Optional[str] = Provide[DI.sid],
     ) -> str:
-        from dialectical_framework.graph.nodes.perspective import Perspective
-        from dialectical_framework.graph.nodes.statement import Statement
-        from dialectical_framework.graph.nodes.polarity import Polarity
+        from dialectical_framework.graph.nodes.cycle import Cycle
         from dialectical_framework.graph.nodes.nexus import Nexus
+        from dialectical_framework.graph.nodes.perspective import Perspective
+        from dialectical_framework.graph.nodes.polarity import Polarity
+        from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.graph.nodes.synthesis import Synthesis
+        from dialectical_framework.graph.nodes.transformation import Transformation
+        from dialectical_framework.graph.nodes.wheel import Wheel
 
         repo = NodeRepository()
 
@@ -291,6 +637,14 @@ class InspectNode(ReasonableConcern[str]):
             result = _inspect_polarity(node)
         elif isinstance(node, Nexus):
             result = _inspect_nexus(node)
+        elif isinstance(node, Cycle):
+            result = _inspect_cycle(node)
+        elif isinstance(node, Wheel):
+            result = _inspect_wheel(node)
+        elif isinstance(node, Transformation):
+            result = _inspect_transformation(node)
+        elif isinstance(node, Synthesis):
+            result = _inspect_synthesis(node)
         else:
             # Fallback for other node types
             result = f"## {node.__class__.__name__} [{_node_id(node)}]{_status_tag(node)}\n\n{repr(node)}"
@@ -304,6 +658,6 @@ class InspectNode(ReasonableConcern[str]):
 async def inspect_node(
     node_hash: Annotated[str, Field(description="Full hash or unique prefix (7+ chars) of the node to inspect")],
 ) -> str:
-    """Inspect any node by hash to see full details. Routes display based on node type: Perspective shows positions with explanations, scores, lineage, and nexus memberships; Statement shows text, meaning, rationale, and which Perspectives use it; Polarity shows T-A pair with HS and referencing Perspectives; Nexus shows member Perspectives."""
+    """Inspect any node by hash to see full details. Routes display based on node type: Perspective shows positions with explanations, scores, lineage, and nexus memberships; Statement shows text, meaning, rationale, and which Perspectives use it; Polarity shows T-A pair with HS and referencing Perspectives; Nexus shows member Perspectives; Cycle shows T-causality sequence, perspectives, probability, rationale, and child wheels; Wheel shows TA-sequence, probability, perspectives, transformations, synthesis, and rationale; Transformation shows Ac/Re structure with scores per position and rationale; Synthesis shows S+/S- text, parent wheel, and rationale."""
     concern = InspectNode()
     return await concern.resolve(node_hash=node_hash)

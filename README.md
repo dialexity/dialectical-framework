@@ -124,8 +124,3 @@ poetry run pytest --real-llm   # Hit real LLM provider
 - [Dialectical Wheels Overview](https://dialexity.com/blog/dialectical-wheels-for-systems-optimization/)
 - [Dialectical Ethics](https://dialexity.com/blog/dialectical-ethics/)
 - [Earlier Work](https://dialexity.com/blog/wp-content/uploads/2023/11/Moral-Wisdom-from-Ontology-1.pdf)
-
-## Applications
-
-- [Eye Opener](https://app.dialexity.com/aiapps/eye-opener) — Analyze text, reveal hidden assumptions
-- [Argument Inspector](https://app.dialexity.com/aiapps/argument-inspector/) — Deep-dive into case arguments for analysts and mediators

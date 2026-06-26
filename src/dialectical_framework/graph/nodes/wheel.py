@@ -823,11 +823,21 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Format edges as a chain string.
 
         Args:
-            mode: "aliases" (default), "statements", or "explicit"
+            mode:
+                "aliases" (default) - Continuous chain: "T1- → A2+ → A1- → T2+ → T1-..."
+                "statements" - Continuous chain with statement text
+                "explicit" - "alias (text)" format
+                "ta_sequence" - Polarity-level arrangement: "T1 → A2 → A1 → T2 → T1..."
+                "spiral" - Discrete edge pairs: "T1- → A2+, A2+ → A1-, A1- → T2+, T2+ → T1-"
 
         Returns:
-            Formatted string like "T1- → A2+ → A1- → T2+ → T1-..."
+            Formatted string representing the edge arrangement
         """
+        if mode == "ta_sequence":
+            return self._format_ta_sequence()
+        if mode == "spiral":
+            return self._format_spiral()
+
         components = self.statements
         if not components:
             return ""
@@ -866,6 +876,61 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             return f"{labels[0]} → {labels[0]}..."
 
         return " → ".join(labels) + f" → {labels[0]}..."
+
+    def _format_ta_sequence(self) -> str:
+        """Format polarity-level arrangement: T1 → A2 → A1 → T2 → T1..."""
+        try:
+            segs = self.segments
+        except (ValueError, AttributeError):
+            return ""
+
+        if not segs:
+            return ""
+
+        cycle_result = self.cycle.get()
+        pp_index: dict[int, int] = {}
+        if cycle_result:
+            cycle_obj, _ = cycle_result
+            for i, pp in enumerate(cycle_obj.perspectives):
+                pp_index[pp._id] = i + 1
+
+        labels = []
+        for seg in segs:
+            pp = seg._perspective
+            idx = pp_index.get(pp._id, 0)
+            labels.append(f"{seg._side}{idx}")
+
+        if len(labels) <= 1:
+            return labels[0] if labels else ""
+
+        return " → ".join(labels) + f" → {labels[0]}..."
+
+    def _format_spiral(self) -> str:
+        """Format discrete edge pairs: T1- → A2+, A2+ → A1-, ..."""
+        ordered_edges = self.edges
+        if not ordered_edges:
+            return ""
+
+        pps = self._perspectives
+
+        def _get_alias(comp) -> str:
+            for pp in pps:
+                try:
+                    return comp.get_alias(pp)
+                except ValueError:
+                    continue
+            return "?"
+
+        pairs = []
+        for edge in ordered_edges:
+            source_result = edge.source.get()
+            target_result = edge.target.get()
+            if source_result and target_result:
+                src_alias = _get_alias(source_result[0])
+                tgt_alias = _get_alias(target_result[0])
+                pairs.append(f"{src_alias} → {tgt_alias}")
+
+        return ", ".join(pairs)
 
     @property
     def statements(self) -> list[Statement]:

@@ -51,12 +51,16 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
     Creates Perspectives from a Polarity by generating and connecting aspects
     (T+, T-, A+, A-).
 
+    Each call produces one NEW perspective (alternative tetrad) for the Polarity,
+    using `not_like_these` to ensure diversity from existing ones. Call multiple
+    times on the same Polarity to build a richer space of tetrads.
+
     Flow:
     1. Resolve Polarity by hash
     2. Look up existing Perspectives for this Polarity
     3. If none exist, create a new Perspective
     4. Complete all partial PPs by generating aspects
-    5. Return list of completed Perspectives
+    5. Return list of completed Perspectives (existing + new)
     """
 
     def __init__(self, polarity_hash: str) -> None:

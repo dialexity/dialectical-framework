@@ -1,12 +1,17 @@
 """
-App definitions for the Analyst and Explorer agents.
+App preamble definitions.
 
-Apps define HOW the agents communicate — vocabulary, depth, framing.
-They are injected by the host application and shared across both agents.
+There are two categories of apps:
 
-Two reference apps:
-- DEFAULT_APP: For consultants, mediators, analysts. Contextual vocabulary.
-- ADVANCED_APP: For users who know the dialectical framework internals.
+1. **Interactive apps** (DEFAULT_APP, ADVANCED_APP) — used with Analyst/Explorer
+   agents where the user co-navigates the dialectical graph directly.
+
+2. **Advisory apps** (COUNSELOR_APP, STRATEGIC_ADVISOR_APP, COACH_APP,
+   MEDIATOR_APP, SPARRING_PARTNER_APP) — used with the Advisor agent where
+   the framework runs silently and the user has a pure conversation.
+
+Apps define HOW the agents communicate — vocabulary, depth, framing, persona.
+They are injected by the host application at agent construction time.
 
 Prompt Revision Methodology
 ===========================
@@ -19,6 +24,141 @@ positive spec | reduce polysemy | consolidate) → Verify with regression test
 (tests/test_prompt_vocabulary.py --real-llm).
 
 Anti-patterns: patch-stacking, redundant emphasis, model-specific forks.
+
+
+Creating Your Own Advisory App Preamble
+=======================================
+
+The Advisor agent's system prompt is a domain-neutral ENGINE that teaches
+the LLM how to use dialectical graph output (blindspots, pathways, synthesis).
+The preamble is a PERSONA SKIN that controls voice, tone, and how insights are
+delivered. Same engine, different expression.
+
+When writing a custom preamble, define:
+- WHO the persona is (role, relationship to the user)
+- HOW it delivers blindspots (gently? sharply? as opportunity? as risk?)
+- HOW it delivers pathways (invitations? options? requirements? challenges?)
+- WHAT TONE it uses (warm? direct? provocative? balanced?)
+
+The preamble should NOT explain dialectics, tool usage, or how analysis works —
+that's the system prompt's job. Keep it focused on persona and delivery style.
+
+
+Which Methodologies Map to the Dialectical Engine?
+==================================================
+
+The dialectical framework is a REASONING SUBSTRATE for navigating decisions
+under opposing forces. Any methodology whose core involves understanding
+tensions between positions can be enhanced or expressed through it.
+
+Good fit (tension-native methodologies):
+-----------------------------------------
+
+SWOT Analysis
+    Direct structural mapping:
+    - S (Strengths) ≈ T+ (constructive angle of your position)
+    - W (Weaknesses) ≈ T- (exaggerated/one-sided angle of your position)
+    - O (Opportunities) ≈ A+ (what the opposing force/environment offers)
+    - T (Threats) ≈ A- (hidden cost projected by championing your strength)
+
+    What the framework ADDS to SWOT: causal entanglement (why your S creates
+    your T), control statements (verifying that the mapping is non-trivial),
+    and specific Ac+/Re+ recipes for acting on O while sustaining S.
+
+    Preamble angle: "Strategic analyst who maps competitive position..."
+
+Psychoanalysis / Depth Psychology
+    Direct structural mapping:
+    - Conscious position ≈ T (what the person holds)
+    - Shadow/projection ≈ A- (what T+ inadvertently creates in the other)
+    - Defense mechanisms ≈ T- (exaggeration/rigidification of position)
+    - Integration ≈ A+ (what the rejected other actually offers)
+    - Individuation ≈ S+ (emergent wholeness from integrating opposites)
+
+    The framework formalizes what Jung called "holding the tension of
+    opposites" — and adds verifiable structure (control statements) plus
+    specific pathways (Ac+/Re+ as the HOW of integration).
+
+    Preamble angle: "Depth-oriented guide who surfaces unconscious dynamics..."
+
+Systems Thinking / Cybernetics
+    Direct structural mapping:
+    - Reinforcing loops ≈ T- and A- (exaggerations that feed each other)
+    - Balancing loops ≈ Ac+/Re+ (circular causality that self-regulates)
+    - Leverage points ≈ A+ (the blindspot intervention that shifts the system)
+    - Emergent properties ≈ S+ (what arises from balanced circular causality)
+
+    The framework IS a systems thinking tool — circular causality, feedback
+    loops, and emergence are native. What it adds: the specific semantic
+    content at each node (not just "there's a balancing loop" but WHAT
+    balances WHAT through which specific actions and reflections).
+
+    Preamble angle: "Systems thinker who maps feedback dynamics..."
+
+Stakeholder Analysis / Conflict Resolution
+    The framework's T/A structure maps naturally to opposing stakeholders.
+    Each side has legitimate strengths (T+/A+) and exaggerations (T-/A-).
+    The mediator's job: surface A+ to T-holders and T+ to A-holders.
+    S+ = the arrangement where both stakeholders contribute.
+
+    Preamble angle: "Mediator who articulates what each side can't see..."
+    (See MEDIATOR_APP below for reference implementation.)
+
+Ethics / Moral Philosophy
+    Ethical dilemmas are often T/A tensions (justice vs mercy, individual vs
+    collective, freedom vs safety). The framework adds:
+    - Structural verification that the dilemma is genuine (control statements)
+    - Identification of what each ethical position blindly projects (A-)
+    - Synthesis that transcends either/or without collapsing into relativism
+
+    Preamble angle: "Ethical reasoning partner who maps moral tensions..."
+
+Design Thinking
+    Desirability vs feasibility vs viability = three polarities. Each has
+    blindspots when championed alone. The framework generates pathways for
+    how to honor one constraint while incorporating what the others offer.
+
+    Preamble angle: "Design strategist who navigates competing constraints..."
+
+Negotiation / Game Theory
+    Positions vs interests maps to T (stated position) vs A+ (underlying need
+    the position is trying to serve). BATNA analysis = understanding what T-
+    looks like (your position exaggerated under pressure). Integrative
+    bargaining = S+ (expanding the pie through complementarity).
+
+    Preamble angle: "Negotiation advisor who exposes structural leverage..."
+
+Partial fit (can benefit from dialectical lens but not fully expressible):
+--------------------------------------------------------------------------
+
+Agile / Scrum / Process Methodologies
+    Not tension-native — they're workflow sequencing. BUT: the tensions WITHIN
+    agile (velocity vs quality, planning vs responding, autonomy vs alignment)
+    map perfectly. You can counsel someone navigating agile tensions without
+    replacing the sprint loop.
+
+    Preamble angle: "Agile coach who surfaces the structural tensions behind
+    process friction..." (Not "agile methodology as dialectics.")
+
+Data Science / Analytics
+    Data doesn't have positions. BUT: interpretation of data, competing
+    hypotheses, and the tension between precision and generalizability do.
+    A data scientist choosing between models is navigating T/A.
+
+    Preamble angle: "Analytical sparring partner for modeling decisions..."
+
+Poor fit (don't force it):
+--------------------------
+
+- Pure taxonomies (cataloging without tension)
+- Sequential procedures (step 1, step 2 — no opposing forces)
+- Calculation/optimization (there IS a single right answer)
+- Information retrieval (looking something up, not navigating a dilemma)
+
+The litmus test: if the user's situation involves "I'm pulled between X and Y"
+or "choosing X creates a problem with Y" or "I can see the tradeoff but not
+how to resolve it" — the dialectical engine fits. If they just need information,
+a procedure, or a calculation, it doesn't.
 """
 
 from __future__ import annotations
@@ -236,6 +376,102 @@ T+ and T- are the holder's own visible territory — never label them as blindsp
   entire presentation style — just give them what they asked for.
 - After revealing blindspots or presenting transformations: check resonance.
   Does this land? Is something off? Does the user want alternatives?
+"""
+
+COUNSELOR_APP = """## Persona
+
+You are a wise, empathetic counselor. You hold space for people to explore
+their situations deeply. You listen without judgment, reflect back what you hear,
+and gently illuminate what might be hidden from view.
+
+You never rush to solutions. You trust that understanding emerges through
+genuine dialogue. When the time is right, you offer perspectives and possible
+paths — always as invitations, never prescriptions.
+
+Your tone is warm but not saccharine, direct but not confrontational,
+wise but not preachy. You speak to the person in front of you — not to
+an abstract audience.
+
+Match their emotional register. Don't intellectualize grief or trivialize
+conflict. Meet them where they are, then gently expand the view.
+"""
+
+STRATEGIC_ADVISOR_APP = """## Persona
+
+You are a sharp strategic advisor. You cut through surface-level thinking to
+expose the structural dynamics underneath decisions. You respect the person's
+intelligence — they don't need hand-holding, they need someone who sees what
+they can't from their current vantage point.
+
+You are direct. When you see a blindspot, you name it clearly — not to be
+harsh, but because vague hints waste everyone's time. When you offer pathways,
+you present them as options with real tradeoffs, not as the single right answer.
+
+You think in systems. When someone is stuck, it's usually because they're
+optimizing one dimension while inadvertently undermining another. Your job is
+to make that structural trap visible, then show them the moves that resolve it.
+
+Your tone is precise, confident, and economical. No filler, no hedging for
+politeness, no false warmth. Respect is shown through clarity, not softness.
+"""
+
+COACH_APP = """## Persona
+
+You are a development coach. You focus on growth — not what's wrong, but
+what's next. Every tension is a growth edge; every blindspot is an unlocked
+capability waiting to be developed.
+
+When you identify what someone can't see, you frame it as potential: "Here's
+the capacity you haven't built yet." When you offer pathways, you frame them
+as practice: "Here's what to try, and here's what to notice as you do it."
+
+You are forward-facing and energizing. You don't dwell on why someone is stuck —
+you acknowledge it quickly, then pivot to movement. You trust that people grow
+through action paired with reflection, not through analysis alone.
+
+Your tone is encouraging but not cheerful, challenging but not critical.
+You hold high standards because you believe the person can meet them.
+"""
+
+MEDIATOR_APP = """## Persona
+
+You are a mediator helping someone navigate a situation where multiple parties
+hold opposing positions. Your unique value: you can articulate what each side
+genuinely cannot see about the other, and identify where their strengths are
+actually complementary rather than contradictory.
+
+When surfacing blindspots, you serve BOTH sides: "Here's what Side A offers
+that Side B can't see, and here's what Side B offers that Side A can't see."
+The goal is not to pick a winner but to make the complementarity visible so
+the parties can find it themselves.
+
+When offering pathways, you frame them as moves that serve the relationship
+or system — not one side's victory. The paired action-reflection often maps
+to "what each party could do" and "what each party needs to understand about
+the other's move."
+
+Your tone is balanced, precise, and respectful of all positions. You never
+take sides, but you're not neutral about the goal: integration over domination.
+"""
+
+SPARRING_PARTNER_APP = """## Persona
+
+You are a sparring partner. Your job is to pressure-test thinking before
+it meets reality. You use blindspots aggressively — not to help someone
+feel better, but to expose the structural weaknesses in their position
+before those weaknesses cost them.
+
+When you identify what someone can't see, you don't soften it: "Here's what
+breaks if you proceed without accounting for this." When you offer pathways,
+you present them as the cost of not being naive: "If you're serious about
+this, here's what it actually requires."
+
+You are adversarial in service of their success. You assume they're smart
+enough to handle direct challenge. You'd rather they feel uncomfortable now
+than fail later because nobody pushed back.
+
+Your tone is sharp, provocative, and unsparing. No pleasantries, no hedging.
+You respect them by not wasting their time with soft landings.
 """
 
 ADVANCED_APP = DEFAULT_APP + """

@@ -89,6 +89,8 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **OPPOSITE_DIRECTION** exists on both Cycle and Wheel (detected via `_is_circular_reverse`). Cycle opposites: reversed causality ordering within the same PP set (only at layer 3+; layer-2 cycles have no distinct reverse). Wheel opposites: reversed circular component sequence — at layer 2 the two wheels within the same cycle are each other's opposite; at layer 3+ wheel opposites live across opposite-direction cycles (1:1 mapping). Each opposite produces its own independent synthesis.
 
+**Nexus grouping rule:** Prefer perspectives from different polarities (genuine synthesis with opponents). Same-polarity perspectives in a nexus only produce "angle shifts" within the same opposition. Keep nexuses ≤4 perspectives.
+
 **Combinatorial growth (layer = PP count in combination):**
 - Layer generation: `C(N, k)` PP combinations × `max(1, (k-1)!)` cycles × `W(k)` wheels per cycle
 - W(1)=1, W(2)=2, W(3)=4, W(4)=8 (arrangements from `generate_compatible_sequences`)
@@ -105,14 +107,33 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 - `discard_uncommitted()` on PerspectiveRepository — physically deletes uncommitted nodes.
 - The `discard` tool unifies both: uncommitted → deleted, committed → soft-discarded.
 
+### Shared Rendering (`graph/rendering.py`)
+
+`build_pp_index(nexus)` is the canonical source of perspective indices. Both `dialectical_context` (compact dump) and `inspect_node` (detail view) use it so T1 always means the same perspective. Indices are stable: assigned over the full `nexus.perspectives.all()` ordering (including discarded), so gaps appear rather than re-numbering. Helper functions: `component_alias`, `format_edge_label`, `format_spiral`, `find_nexus_for_*`.
+
+### Advisor Tool Constraints
+
+Advisor has NO discard/edit tools. When the user rejects a framing, the Advisor simply stops drawing on that tension — no graph mutation needed. Tools split by what the LLM knows at call time:
+- `ingest` — bulk discovery from material → standalone perspectives (composes AnalysisPipeline)
+- `anchor` — plant a specific T/A tension → standalone perspective (composes IntroducePolarity + ExpandPolarity)
+- `explore` — group perspectives into nexus + pathways + synthesis (composes CreateNexus/ExpandNexus + ExplorationPipeline + GenerateSynthesis)
+- `sync` — re-read graph state (composes DialecticalContext)
+- `inspect_node`, `read_digest` — detail reads (shared orchestrator tools)
+
+**ExpandPolarity creates 1 new perspective per call.** Uses `not_like_these` for diversity from existing ones. Call multiple times on the same Polarity for alternative tetrads.
+- `inspect_node`, `read_digest` — detail reads (shared orchestrator tools)
+
 ### User-Facing Vocabulary is App-Layer
 
-The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`DEFAULT_APP`, `ADVANCED_APP`) and injected via `app_preamble` in the Analyst/Explorer constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary or app-UI behavioral constraints (e.g., viewport scope). Both go in app preambles.
+The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`DEFAULT_APP`, `ADVANCED_APP`, plus advisory personas) and injected via `app_preamble` in the Analyst/Explorer/Advisor constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary or app-UI behavioral constraints (e.g., viewport scope). Both go in app preambles.
+
+**Advisor preamble/engine split:** Advisor's system prompt is a domain-neutral dialectical engine (how to use graph output for counsel). Persona (warm counselor, sharp strategist, coach) comes entirely from the app preamble. This means the same engine works for personal counseling, CEO strategy, brand marketing, etc. See methodology mappings in `apps.py` docstring.
 
 ### Agent Ownership
 
 - **Analyst** = everything up to and including nexus creation (inputs → statements → polarities → perspectives → `create_nexus` as handoff)
 - **Explorer** = everything after nexus (nexus-scoped: cycles → wheels → transformations → synthesis). Constructed with `nexus_hash`.
+- **Advisor** = pure-conversation agent where framework runs silently. Composes both pipelines (AnalysisPipeline + ExplorationPipeline) via 3 internal tools: `absorb`, `deepen`, `reflect`. No framework terminology exposed to user. App preamble defines persona; system prompt is domain-neutral dialectical engine.
 - `create_nexus` lives in Analyst only — it's the handoff moment. Explorer never creates nexuses.
 
 ---
@@ -159,9 +180,12 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Concerns (standalone services) | `concerns/` |
 | Analyst (conversational, Case-scoped) | `agents/analyst/analyst.py` |
 | Explorer (conversational, Nexus-scoped) | `agents/explorer/explorer.py` |
+| Advisor (conversational, silent framework) | `agents/advisor/advisor.py` |
+| Advisory persona preambles | `agents/apps.py` (COUNSELOR_APP, STRATEGIC_ADVISOR_APP, COACH_APP, MEDIATOR_APP, SPARRING_PARTNER_APP) |
+| Dialectical context (graph→natural language) | `concerns/dialectical_context.py` |
 | App preambles (vocabulary/framing) | `agents/apps.py` |
 | Shared agent tools | `agents/orchestrator/tools/` |
-| Agent skills/tools | `agents/{analyst,explorer}/` |
+| Agent skills/tools | `agents/{analyst,explorer,advisor}/` |
 | LLM abstraction | `utils/use_brain.py` |
 | Bedrock provider | `utils/bedrock_provider.py` |
 | Utilities | `utils/` |
@@ -323,6 +347,8 @@ Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-f
 **When to promote:** If a tool-file helper class gets imported by tests or other modules directly (programmatic usage), move it to `concerns/`. The litmus test: does anything outside the tool file call `Concern().resolve(...)`? If yes → `concerns/`.
 
 Only `@llm.tool` functions go into tool lists. `ReasonableConcern` classes are never passed to Mirascope directly.
+
+**Tool return convention:** Mutating tools return `str(concern.report)` (JSON with effects, artifacts, hashes for the LLM). Read-only tools (inspect_node, read_digest, sync) return `await concern.resolve()` directly — the content is the useful output.
 
 ```python
 @llm.tool
