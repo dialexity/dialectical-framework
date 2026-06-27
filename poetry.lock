@@ -1862,14 +1862,14 @@ test = ["flake8", "nbdime", "nbval", "notebook", "pytest"]
 
 [[package]]
 name = "mirascope"
-version = "2.4.0"
+version = "2.5.0"
 description = "Every frontier LLM. One unified interface."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "mirascope-2.4.0-py3-none-any.whl", hash = "sha256:b927f17fea5365f699eebdc0115c6472777d3db64ea7f072977c84a2f576b241"},
-    {file = "mirascope-2.4.0.tar.gz", hash = "sha256:4cb772262f9924460b6a885df53cdd620deac006f5e0c8f6a692518680860670"},
+    {file = "mirascope-2.5.0-py3-none-any.whl", hash = "sha256:4aee8148ce48254a02bf016b9a494ca0ce701d3cb351baff3c1207e0484962c1"},
+    {file = "mirascope-2.5.0.tar.gz", hash = "sha256:bf4a24838a9717eb03ec4cf1d69b211d30fd7f48a774491f000ee81d0b636968"},
 ]
 
 [package.dependencies]

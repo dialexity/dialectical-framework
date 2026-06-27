@@ -148,6 +148,7 @@ class ConversationFacilitator(SettingsAware):
                 break
             self._log_tool_calls(response.tool_calls)
             tool_outputs = await response.execute_tools()
+            self._strip_caller_from_messages(response.messages)
             response = await response.resume(tool_outputs)
 
         # Sync full conversation history from the response chain
@@ -207,6 +208,7 @@ class ConversationFacilitator(SettingsAware):
                 report = self._try_parse_execution_report(raw_str)
                 yield ToolResult(tool_name=tool_name, report=report, raw_output=raw_str)
 
+            self._strip_caller_from_messages(stream.messages)
             stream = await stream.resume(tool_outputs)
 
         self._messages = list(stream.messages)
@@ -217,13 +219,18 @@ class ConversationFacilitator(SettingsAware):
     # --- Internal helpers ---
 
     def _strip_unsupported_input_fields(self) -> None:
-        """Strip output-only fields from raw_message before replaying to API.
+        """Strip output-only fields from self._messages before the next API call."""
+        self._strip_caller_from_messages(self._messages)
+
+    @staticmethod
+    def _strip_caller_from_messages(messages: list) -> None:
+        """Strip 'caller' field from tool_use blocks in raw_message dicts.
 
         Mirascope passes raw_message dicts back verbatim as input. If the API
         added output-only fields (like 'caller' on tool_use blocks), they cause
-        400 errors on the next call. This strips them.
+        400 errors on the next call. This strips them in-place.
         """
-        for msg in self._messages:
+        for msg in messages:
             raw = getattr(msg, "raw_message", None)
             if not isinstance(raw, dict):
                 continue
