@@ -62,5 +62,5 @@ logs/
 .claude/settings.local.json
 .claude/commands/local/
 tests/play.py
-docs/r&d/
+docs/r-n-d/
 .chainlit/
