@@ -133,7 +133,7 @@ The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+
 
 - **Analyst** = everything up to and including nexus creation (inputs → statements → polarities → perspectives → `create_nexus` as handoff)
 - **Explorer** = everything after nexus (nexus-scoped: cycles → wheels → transformations → synthesis). Constructed with `nexus_hash`.
-- **Advisor** = pure-conversation agent where framework runs silently. Composes both pipelines (AnalysisPipeline + ExplorationPipeline) via 3 internal tools: `absorb`, `deepen`, `reflect`. No framework terminology exposed to user. App preamble defines persona; system prompt is domain-neutral dialectical engine.
+- **Advisor** = pure-conversation agent where framework runs silently. Composes both pipelines (AnalysisPipeline + ExplorationPipeline) via 4 internal tools: `ingest`, `anchor`, `explore`, `sync` (plus shared `inspect_node`, `read_digest`). No framework terminology exposed to user. App preamble defines persona; system prompt is domain-neutral dialectical engine.
 - `create_nexus` lives in Analyst only — it's the handoff moment. Explorer never creates nexuses.
 
 ---
