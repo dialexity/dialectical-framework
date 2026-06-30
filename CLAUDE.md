@@ -411,7 +411,7 @@ Required in `.env`:
 
 Optional:
 - `DIALEXITY_GRAPH_DB_VENDOR` (memgraph/neo4j), `_HOST`, `_PORT`
-- `DIALEXITY_DEFAULT_CYCLE_PRESET`
+- `DIALEXITY_GRAPH_LOG_DIR` — enables file-based effect logging (`<dir>/<sid>/<agent|pipeline>.jsonl`)
 
 ---
 

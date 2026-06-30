@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from typing import Optional
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.enums.causality_preset import CausalityPreset
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
+from dialectical_framework.protocols.has_config import SettingsAware
 
 
 @dataclass
@@ -21,7 +21,7 @@ class CreateNexusResult:
     perspectives: list[Perspective]
 
 
-class CreateNexus(ReasonableConcern[CreateNexusResult]):
+class CreateNexus(SettingsAware, ReasonableConcern[CreateNexusResult]):
     """
     Creates an exploration container (Nexus) and connects Perspectives to it.
 
@@ -38,11 +38,13 @@ class CreateNexus(ReasonableConcern[CreateNexusResult]):
         self,
         intent: str,
         perspective_hashes: list[str],
-        preset: str = CausalityPreset.AUTO,
+        preset: Optional[str] = None,
         title: Optional[str] = None,
     ) -> CreateNexusResult:
         if not perspective_hashes:
             raise ValueError("At least one Perspective hash is required.")
+
+        effective_preset = preset if preset is not None else self.settings.cycle_preset
 
         repo = NodeRepository()
         perspectives: list[Perspective] = []
@@ -52,7 +54,7 @@ class CreateNexus(ReasonableConcern[CreateNexusResult]):
                 raise ValueError(f"Perspective not found: {pp_hash}")
             perspectives.append(node)
 
-        nexus = Nexus(intent=intent, preset=preset)
+        nexus = Nexus(intent=intent, preset=effective_preset)
         nexus.commit()
 
         if title:
@@ -71,6 +73,6 @@ class CreateNexus(ReasonableConcern[CreateNexusResult]):
         )
         self._report.artifacts["nexus_hash"] = nexus.short_hash
         self._report.artifacts["perspective_count"] = len(perspectives)
-        self._report.artifacts["preset"] = preset
+        self._report.artifacts["preset"] = effective_preset
 
         return CreateNexusResult(nexus=nexus, perspectives=perspectives)

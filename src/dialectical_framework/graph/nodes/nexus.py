@@ -65,7 +65,7 @@ class Nexus(IntentMixin, BaseNode, label="Nexus"):
         nexus = Nexus(
             sid=case.sid,
             intent="I want to understand the deep meaning of love",
-            preset=CausalityPreset.BALANCED,
+            preset=CausalityPreset.AUTO,
         )
         nexus.commit()
 
@@ -74,7 +74,7 @@ class Nexus(IntentMixin, BaseNode, label="Nexus"):
     """
 
     # Prompt strategy for causality estimation (preset selector)
-    preset: str = CausalityPreset.BALANCED
+    preset: str = CausalityPreset.AUTO
 
     # Display title (not part of hash — purely metadata).
     # NOTE: Cannot use Optional[str] here due to GQLAlchemy metaclass + future annotations.

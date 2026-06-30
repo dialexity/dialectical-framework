@@ -27,11 +27,11 @@ async def create_nexus(
         ),
     ] = None,
     preset: Annotated[
-        str,
+        Optional[str],
         Field(
-            description="Estimation strategy: 'preset:auto', 'preset:balanced', 'preset:realistic', 'preset:desirable', 'preset:feasible'"
+            description="Estimation strategy: 'preset:auto', 'preset:balanced', 'preset:realistic', 'preset:desirable', 'preset:feasible'. Omit for settings default."
         ),
-    ] = "preset:auto",
+    ] = None,
 ) -> str:
     """Create a Nexus — an exploration container that groups Perspectives for structural combination into Cycles and Wheels. The intent describes what to explore or navigate."""
     concern = CreateNexus()
