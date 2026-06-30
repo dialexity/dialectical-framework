@@ -43,17 +43,18 @@ SYSTEM_PROMPT = """You are a dialectical thesis extractor.
 Your task is to extract assertable content from source text and identify thesis candidates.
 
 Extract content that could be theses:
-- Claims/Assertions: "The system should...", "We use X because..."
+- Systemic claims: "Centralization enables X", "Openness promotes Y"
 - Values/Principles: "Security is paramount", "User experience first"
-- Goals/Objectives: Desired outcomes, success criteria
-- Constraints: "Must not exceed...", "Cannot allow..."
+- Causal dynamics: "X leads to Y", "Without X, Y collapses"
 - Design Decisions: Architecture choices, trade-offs made
-- Assumptions: Implicit or explicit premises
+- Structural tensions: Opposing forces, dilemmas, governance trade-offs
+
+Prefer theses that capture systemic dynamics (how things relate, what enables/prevents what) over isolated factual claims. A thesis about a causal relationship or trade-off is more dialectically productive than a bare assertion of fact.
 
 A valid thesis candidate must be:
 - ASSERTABLE: Can be evaluated as true/false, good/bad, present/absent
 - SUBSTANTIVE: Not trivial or tautological
-- ATOMIC: Single concept, not compound (if compound, decompose)
+- ATOMIC: Single concept or causal relationship (not multiple unrelated claims joined)
 
 Respond with structured output matching the requested format."""
 
@@ -245,9 +246,9 @@ Type: {content_type}
 Check if this is a valid thesis candidate:
 1. Is it ASSERTABLE? (Can be evaluated as true/false, good/bad, present/absent)
 2. Is it SUBSTANTIVE? (Not trivial or tautological)
-3. Is it ATOMIC? (Single concept, not compound)
+3. Is it ATOMIC? (Single concept or causal relationship, not multiple unrelated claims joined)
 
-If compound (multiple concepts joined), decompose into atomic theses.
+If compound (multiple unrelated claims joined), decompose. A single causal relationship ("X enables Y") is atomic — do not split it into "X exists" and "Y exists."
 Each atomic thesis should be 1-{max_words} words.
 
 Return:

@@ -312,6 +312,14 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 - Word limit: always use `self.settings.component_length` via `SettingsAware` mixin — never hardcode.
 - Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents unintended cross-context dedup while `commit()` handles exact-match dedup automatically.
 
+### Classification → HS Chain (Critical Invariant)
+
+`StatementClassification` (SIMPLE vs COMPLEX) determines the entire antithesis path:
+- **SIMPLE** → `AntithesisExtraction._process_simple_thesis()` → mechanical negation, HS hardcoded to 1.0, no taxonomy contextualization
+- **COMPLEX** → `AntithesisExtraction._process_complex_thesis()` → LLM-evaluated antithesis taxonomy, LLM-scored HS (0.0–1.0)
+
+The Polarity HS (displayed in UI, used by `AnalysisPipeline._rank_polarities()` quality gate at `HS_THRESHOLD=0.7`) comes from the A-relationship's `heuristic_similarity`. Misclassifying COMPLEX theses as SIMPLE inflates all polarities to HS=1.0, defeating quality differentiation. The classification prompt's SIMPLE/COMPLEX boundary is the most leverage-dense prompt in the extraction pipeline.
+
 ### Observability (Langfuse)
 
 - `ReasonableConcern.__init_subclass__` auto-wraps every concern's `resolve()` with `@observe` — but only creates spans when an active Langfuse trace exists (no orphan traces from non-LLM concerns).
