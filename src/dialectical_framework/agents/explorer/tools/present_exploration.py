@@ -95,7 +95,7 @@ class PresentExploration(ReasonableConcern[str]):
         lines = [f"## Perspectives ({len(perspectives)})"]
         for i, (pp, _) in enumerate(perspectives, 1):
             intent_str = f" ({pp.intent})" if pp.intent else ""
-            lines.append(f"  PP{i} [{pp.short_hash}]{intent_str}: {pp:positions:0}")
+            lines.append(f"  Perspective {i} [{pp.short_hash}]{intent_str}: {pp:positions:0}")
         return "\n".join(lines)
 
     @staticmethod

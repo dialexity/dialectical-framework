@@ -15,11 +15,11 @@ nodes get a [DRAFT] tag. Discarded items have their own dedicated tool.
 
 ## Perspectives
 
-  PP1 [a3f82c1] (navigating remote work tensions): T- = Isolation, T = Remote Work, T+ = Flexibility, A- = Rigidity, A = Office Work, A+ = Collaboration
+  Perspective 1 [a3f82c1] (navigating remote work tensions): T- = Isolation, T = Remote Work, T+ = Flexibility, A- = Rigidity, A = Office Work, A+ = Collaboration
 
-  PP2 [b7d91e4]: T- = Burnout, T = Productivity, T+ = Achievement, A- = Stagnation, A = Rest, A+ = Recovery
+  Perspective 2 [b7d91e4]: T- = Burnout, T = Productivity, T+ = Achievement, A- = Stagnation, A = Rest, A+ = Recovery
 
-  PP3 [DRAFT] (work-life): T = Balance, A = Imbalance
+  Perspective 3 [DRAFT] (work-life): T = Balance, A = Imbalance
 
 ## Unconnected Polarities (1)
   [c42fe88] T: Trust ↔ A: Distrust, HS=0.87
@@ -112,7 +112,7 @@ class PresentAnalysis(ReasonableConcern[str]):
         for i, pp in enumerate(perspectives, 1):
             tag = PresentAnalysis._node_tag(pp)
             intent_str = f" ({pp.intent})" if pp.intent else ""
-            lines.append(f"\n  PP{i} {tag}{intent_str}: {pp:positions:0}")
+            lines.append(f"\n  Perspective {i} {tag}{intent_str}: {pp:positions:0}")
         return "\n".join(lines)
 
     @staticmethod
