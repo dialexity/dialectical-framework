@@ -193,7 +193,7 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
 
         combination = PerspectiveCombination()
         combination_result = combination.resolve(
-            nexus=nexus, perspectives=perspectives, preset=cycle_intent
+            nexus=nexus, perspectives=perspectives, preset=cycle_intent,
         )
         self._report = self._report.merge(combination.report)
 

@@ -40,6 +40,7 @@ from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.repositories.wheel_repository import WheelRepository
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.sequence_generation import (
     generate_compatible_sequences,
     generate_permutation_sequences,
@@ -72,7 +73,7 @@ class CombinationResult:
     wheels_by_layer: dict[int, list[Wheel]]
 
 
-class PerspectiveCombination(ReasonableConcern[CombinationResult]):
+class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware):
     """
     Concern for combining Perspectives into Cycles and Wheels.
 
@@ -105,7 +106,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         Combine Perspectives into Cycles and Wheels.
 
         Adds WUs to the Nexus (skipping duplicates), then builds all
-        layer-by-layer structural combinations.
+        layer-by-layer structural combinations up to settings.max_wheel_layer.
 
         Args:
             nexus: Required exploration context (must be committed)
@@ -160,7 +161,8 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
         cycles_by_layer: dict[int, list[Cycle]] = {}
         wheels_by_layer: dict[int, list[Wheel]] = {}
 
-        for layer in range(1, total_pps + 1):
+        top_layer = min(total_pps, self.settings.max_wheel_layer)
+        for layer in range(1, top_layer + 1):
             layer_result = self._build_layer(nexus, all_nexus_pps, layer)
 
             if layer_result.new_cycles:
@@ -172,7 +174,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult]):
 
         self._report.artifacts["new_cycles"] = len(new_cycles)
         self._report.artifacts["new_wheels"] = len(new_wheels)
-        self._report.artifacts["layers_built"] = total_pps
+        self._report.artifacts["layers_built"] = top_layer
 
         self._report.summary = (
             f"Combined {total_pps} Perspectives: created {len(new_cycles)} new Cycles "

@@ -89,7 +89,9 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **OPPOSITE_DIRECTION** exists on both Cycle and Wheel (detected via `_is_circular_reverse`). Cycle opposites: reversed causality ordering within the same PP set (only at layer 3+; layer-2 cycles have no distinct reverse). Wheel opposites: reversed circular component sequence — at layer 2 the two wheels within the same cycle are each other's opposite; at layer 3+ wheel opposites live across opposite-direction cycles (1:1 mapping). Each opposite produces its own independent synthesis.
 
-**Nexus grouping rule:** Prefer perspectives from different polarities (genuine synthesis with opponents). Same-polarity perspectives in a nexus only produce "angle shifts" within the same opposition. Keep nexuses ≤4 perspectives.
+**Nexus grouping rule:** Prefer perspectives from different polarities (genuine synthesis with opponents). Same-polarity perspectives in a nexus only produce "angle shifts" within the same opposition.
+
+**Max wheel layer (`settings.max_wheel_layer`, default 4):** `PerspectiveCombination` only builds layers up to this cap regardless of nexus size. A nexus can hold any number of perspectives, but combinatorial explosion is bounded by this setting. Override via `DIALEXITY_MAX_WHEEL_LAYER` env var or DI settings override.
 
 **Combinatorial growth (layer = PP count in combination):**
 - Layer generation: `C(N, k)` PP combinations × `max(1, (k-1)!)` cycles × `W(k)` wheels per cycle
@@ -411,6 +413,7 @@ Required in `.env`:
 
 Optional:
 - `DIALEXITY_GRAPH_DB_VENDOR` (memgraph/neo4j), `_HOST`, `_PORT`
+- `DIALEXITY_MAX_WHEEL_LAYER` — max layer for wheel generation (default 4)
 - `DIALEXITY_GRAPH_LOG_DIR` — enables file-based effect logging (`<dir>/<sid>/<agent|pipeline>.jsonl`)
 
 ---
