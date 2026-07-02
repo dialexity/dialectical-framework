@@ -43,7 +43,6 @@ from dialectical_framework.graph.repositories.wheel_repository import WheelRepos
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.sequence_generation import (
     generate_compatible_sequences,
-    generate_permutation_sequences,
 )
 
 if TYPE_CHECKING:
@@ -265,8 +264,8 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
         """
         Generate T-cycle permutations for a PP combination.
 
-        Uses generate_permutation_sequences to produce all (N-1)! unique
-        T-cycle orderings (first element fixed to eliminate rotational duplicates).
+        Fixes the first perspective and permutes the rest to produce all
+        (N-1)! unique cycle orderings (circular rotation equivalence eliminated).
 
         Returns:
             Tuple of (all_cycles, new_cycles)
@@ -282,26 +281,17 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
                 new_cycles.append(cycle)
             return all_cycles, new_cycles
 
-        # Extract T components and build component→PP lookup
-        t_components: list[Statement] = []
-        comp_hash_to_pp: dict[str, Perspective] = {}
+        # Validate all PPs have T components
         for pp in perspectives:
-            t_result = pp.t.get()
-            if not t_result:
-                continue
-            t_comp = t_result[0]
-            t_components.append(t_comp)
-            comp_hash_to_pp[t_comp.hash] = pp
+            if not pp.t.get():
+                return all_cycles, new_cycles
 
-        if not t_components:
-            return all_cycles, new_cycles
+        # Generate all (N-1)! orderings by fixing first PP, permuting rest
+        from itertools import permutations as itertools_permutations
 
-        # Generate all (N-1)! permutation sequences
-        sequences = generate_permutation_sequences(t_components)
-
-        for sequence in sequences:
-            # Map component sequence back to PP ordering
-            ordered_pps = [comp_hash_to_pp[comp.hash] for comp in sequence]
+        first, rest = perspectives[0], perspectives[1:]
+        for perm in itertools_permutations(rest):
+            ordered_pps = [first, *perm]
 
             cycle, is_new = self._find_or_create_cycle(ordered_pps)
             all_cycles.append(cycle)
