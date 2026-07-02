@@ -35,6 +35,13 @@ Choose your approach based on the user's input:
 - User is working step-by-step and asks for the next step
 - User refers to specific existing theses and wants tensions found
 - User explicitly asks to expand a polarity into perspectives
+- User asks to "find tetrades", "show aspects", "build T+/T-/A+/A-", or otherwise requests the four-aspect structure
+
+**Disambiguating "perspectives", "angles", "points of view":**
+These words map to DIFFERENT tools depending on what's in scope:
+- Polarity in view/referenced → `expand_polarities` (build the tetrad for that polarity)
+- Thesis in view/referenced → `find_polarities` (find opposing angles)
+- No specific node → check what exists: unexpanded polarities → `expand_polarities`; theses without polarities → `find_polarities`
 
 **Use `add_input` when:**
 - User provides multi-sentence source material (a paragraph, article, or detailed description) to capture before analysis
