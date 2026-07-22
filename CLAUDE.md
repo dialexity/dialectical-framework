@@ -122,8 +122,7 @@ Advisor has NO discard/edit tools. When the user rejects a framing, the Advisor 
 - `sync` — re-read graph state (composes DialecticalContext)
 - `inspect_node`, `read_digest` — detail reads (shared orchestrator tools)
 
-**ExpandPolarity creates 1 new perspective per call.** Uses `not_like_these` for diversity from existing ones. Call multiple times on the same Polarity for alternative tetrads.
-- `inspect_node`, `read_digest` — detail reads (shared orchestrator tools)
+**ExpandPolarity creates `count` new perspectives per call (default 1).** Generated sequentially, each using `not_like_these` (existing + already-generated-this-call) for diversity. Pass `count > 1` to build alternative tetrads in one call; a pre-existing partial counts toward `count`.
 
 ### User-Facing Vocabulary is App-Layer
 

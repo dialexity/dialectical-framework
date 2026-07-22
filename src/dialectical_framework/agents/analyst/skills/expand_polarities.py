@@ -18,27 +18,36 @@ from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
-from dialectical_framework.concerns.aspect_generation import (AspectGeneration,
-                                                              AspectResult)
-from dialectical_framework.concerns.statement_deduplication import \
-    StatementDeduplication
+from dialectical_framework.concerns.aspect_generation import (
+    AspectGeneration,
+    AspectResult,
+)
+from dialectical_framework.concerns.statement_deduplication import (
+    StatementDeduplication,
+)
 from dialectical_framework.graph.nodes.polarity import Polarity
-from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
-                                                           POSITION_A_PLUS,
-                                                           POSITION_T_MINUS,
-                                                           POSITION_T_PLUS,
-                                                           Perspective)
+from dialectical_framework.graph.nodes.perspective import (
+    POSITION_A_MINUS,
+    POSITION_A_PLUS,
+    POSITION_T_MINUS,
+    POSITION_T_PLUS,
+    Perspective,
+)
 from dialectical_framework.graph.relationships.polarity_relationship import (
-    AMinusRelationship, APlusRelationship, HasPolarityRelationship,
-    TMinusRelationship, TPlusRelationship)
-from dialectical_framework.graph.repositories.statement_repository import \
-    StatementRepository
-from dialectical_framework.graph.repositories.input_repository import \
-    InputRepository
-from dialectical_framework.graph.repositories.node_repository import \
-    NodeRepository
-from dialectical_framework.graph.repositories.perspective_repository import \
-    PerspectiveRepository
+    AMinusRelationship,
+    APlusRelationship,
+    HasPolarityRelationship,
+    TMinusRelationship,
+    TPlusRelationship,
+)
+from dialectical_framework.graph.repositories.statement_repository import (
+    StatementRepository,
+)
+from dialectical_framework.graph.repositories.input_repository import InputRepository
+from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.graph.repositories.perspective_repository import (
+    PerspectiveRepository,
+)
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -51,20 +60,22 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
     Creates Perspectives from a Polarity by generating and connecting aspects
     (T+, T-, A+, A-).
 
-    Each call produces one NEW perspective (alternative tetrad) for the Polarity,
-    using `not_like_these` to ensure diversity from existing ones. Call multiple
-    times on the same Polarity to build a richer space of tetrads.
+    Each call produces `count` NEW perspectives (alternative tetrads) for the
+    Polarity, generated sequentially so each uses `not_like_these` (existing +
+    already-generated-this-call) to ensure diversity. Any pre-existing partial
+    Perspective counts toward `count`.
 
     Flow:
     1. Resolve Polarity by hash
     2. Look up existing Perspectives for this Polarity
-    3. If none exist, create a new Perspective
-    4. Complete all partial PPs by generating aspects
+    3. Create new partial Perspectives so `count` are generated this call
+    4. Complete all partial PPs sequentially by generating aspects
     5. Return list of completed Perspectives (existing + new)
     """
 
-    def __init__(self, polarity_hash: str) -> None:
+    def __init__(self, polarity_hash: str, count: int = 1) -> None:
         self.polarity_hash = polarity_hash
+        self.count = max(1, count)
 
     async def resolve(self) -> list[Perspective]:
         """
@@ -86,20 +97,17 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         pp_repo = PerspectiveRepository()
         existing_pps = pp_repo.find_by_polarity(polarity)
 
-        if not existing_pps:
-            # No PP exists - create one referencing the Polarity
-            pp = self._create_perspective_for_polarity(polarity)
-            existing_pps = [pp]
-
         complete_pps = [pp for pp in existing_pps if pp.is_complete()]
         partial_pps = [pp for pp in existing_pps if not pp.is_complete()]
 
-        if not partial_pps:
-            # All existing perspectives are complete — create a new one
-            pp = self._create_perspective_for_polarity(polarity)
-            partial_pps = [pp]
+        # Complete any existing partials, then create additional new ones so that
+        # `count` fresh Perspectives are produced this call (a pre-existing partial
+        # counts as one of them).
+        additional_needed = self.count - len(partial_pps)
+        for _ in range(max(0, additional_needed)):
+            partial_pps.append(self._create_perspective_for_polarity(polarity))
 
-        # Complete all partial PPs
+        # Complete all partial PPs sequentially (each sees prior results)
         completed_pps: list[Perspective] = []
 
         for pp in partial_pps:
@@ -209,7 +217,12 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
 
     def _perspective_final_state(self, pp: Perspective) -> dict[str, str | None]:
         """Build a dict with the final post-dedup text at each position."""
-        positions = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
+        positions = [
+            POSITION_T_PLUS,
+            POSITION_T_MINUS,
+            POSITION_A_PLUS,
+            POSITION_A_MINUS,
+        ]
         state: dict[str, str | None] = {"hash": pp.short_hash}
         for pos in positions:
             manager = pp.get_relationship_manager_by_position(pos)
@@ -299,13 +312,22 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
 
 @llm.tool
 async def expand_polarities(
-    polarity_hashes: Annotated[list[str], Field(description="Hashes of Polarities to expand into full Perspectives")],
+    polarity_hashes: Annotated[
+        list[str],
+        Field(description="Hashes of Polarities to expand into full Perspectives"),
+    ],
+    count: Annotated[
+        int,
+        Field(
+            description="Number of new Perspectives to generate per Polarity (each is diverse from prior ones)"
+        ),
+    ] = 1,
 ) -> str:
-    """Build complete Perspectives from Polarities by generating evaluative aspects (T+, T-, A+, A-) for each. Each call generates one new Perspective per Polarity — call multiple times for alternative perspectives on the same Polarity (duplicates in a single call are ignored). The Polarities must already exist in the graph."""
+    """Build complete Perspectives from Polarities by generating evaluative aspects (T+, T-, A+, A-) for each. Generates `count` new Perspectives per Polarity sequentially — each sees prior tetrads to ensure diversity. The Polarities must already exist in the graph."""
     import asyncio
 
     async def _expand_one(h: str) -> str:
-        concern = ExpandPolarity(polarity_hash=h)
+        concern = ExpandPolarity(polarity_hash=h, count=count)
         await concern.resolve()
         return str(concern.report)
 

@@ -100,7 +100,7 @@ When the user wants to explore interactions between perspectives:
 - `surface_theses` — Extract theses from inputs (requires inputs in scope).
 - `find_polarities` — Find antitheses for existing theses.
 - `introduce_polarity` — Directly introduce a known T-A tension (both sides clear).
-- `expand_polarities` — Expand polarities into full Perspectives (T+/T-/A+/A-).
+- `expand_polarities` — Expand polarities into full Perspectives (T+/T-/A+/A-). Pass `count > 1` to generate several diverse tetrads per polarity in one call.
 - `place_statement` — Check if a statement exists in the graph already.
 
 **Steering:**
