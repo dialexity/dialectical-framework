@@ -328,6 +328,7 @@ The Polarity HS (displayed in UI, used by `AnalysisPipeline._rank_polarities()` 
 - `ConversationFacilitator._strip_unsupported_input_fields()` strips output-only API fields (e.g., `caller`) from raw_message before replaying — workaround for Mirascope passthrough bug.
 - Mirascope `BaseResponse`: use `response.messages[:-1]` for input messages — `response.input_messages` does NOT exist.
 - Tests use `@traced` from conftest (not bare `@observe()`) for reliable Langfuse trace naming on class methods.
+- **`@traced` serializes the decorated function's args as span input** — never put it on a test taking `monkeypatch` or other cyclic fixture objects; Langfuse's serializer recurses forever and the test HANGS (not fails). Existing `@traced` tests take only `self`. Diagnose hangs with `pytest -o faulthandler_timeout=25`.
 
 ### Concurrency & Rate Limiting
 
@@ -400,6 +401,9 @@ async def surface_theses(
 Default to `@pytest.mark.llm` for anything touching `use_brain` or `ConversationFacilitator`.
 
 **Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic responses. It does NOT test: streaming, tool registration (`@llm.tool` decorator), tool argument parsing, or provider behavior.
+Mock brain returns **identical** DTOs every call — to test diversity/dedup logic (distinct outputs across calls), `monkeypatch` the concern's `resolve` directly instead.
+
+**One graph-test run at a time.** The autouse `cleanup_graph_db` fixture `DETACH DELETE`s before/after each test, so concurrent pytest processes against the same Memgraph deadlock. If a run is `pkill -9`'d mid-test, the stuck lock persists — clear it with `docker compose -f docker-compose.test.yml restart`.
 
 **DB-free tests:** Override autouse fixtures `cleanup_graph_db` and `cleanup_test_graph_data` with empty yields.
 
