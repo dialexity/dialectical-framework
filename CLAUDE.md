@@ -115,12 +115,12 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 ### Advisor Tool Constraints
 
-Advisor has NO discard/edit tools. When the user rejects a framing, the Advisor simply stops drawing on that tension — no graph mutation needed. Tools split by what the LLM knows at call time:
+Advisor has `discard` (to retract a framing the user rejects) but NO edit tool. When the user rejects a framing, the Advisor silently discards the perspective (uncommitted → deleted, committed → soft-discarded); to drop a claim entirely, discard the perspective first, then its statement (a statement still used by a live perspective won't discard, and discarding a perspective never cascades to its shared statements). If the tension needs re-framing rather than removal, it `anchor`s the new version. It never edits aspects in place. Tools split by what the LLM knows at call time:
 - `ingest` — bulk discovery from material → standalone perspectives (composes AnalysisPipeline)
 - `anchor` — plant a specific T/A tension → standalone perspective (composes IntroducePolarity + ExpandPolarity)
 - `explore` — group perspectives into nexus + pathways + synthesis (composes CreateNexus/ExpandNexus + ExplorationPipeline + GenerateSynthesis)
 - `sync` — re-read graph state (composes DialecticalContext)
-- `inspect_node`, `read_digest` — detail reads (shared orchestrator tools)
+- `discard`, `inspect_node`, `read_digest` — graph curation and detail reads (shared orchestrator tools)
 
 **ExpandPolarity creates `count` new perspectives per call (default 1).** Generated sequentially, each using `not_like_these` (existing + already-generated-this-call) for diversity. Pass `count > 1` to build alternative tetrads in one call; a pre-existing partial counts toward `count`.
 
@@ -161,7 +161,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 - **Graph DB**: Memgraph or Neo4j (via GQLAlchemy)
   - GQLAlchemy hardcodes `autocommit = True` — no multi-statement transactions available through the ORM. Each `save_node()`/`save_relationship()` is its own committed transaction. Application-level `saved_at` tracking (on `IncrementalBuildMixin`) provides the atomicity signal instead.
 - **DI**: dependency-injector
-- **Validation**: Pydantic v1
+- **Validation**: Pydantic v1 *style* (v1-compatible `Field`/validators), but the installed lib is **v2** — for introspection use `Model.model_fields[name].description`, not `__fields__`/`.field_info`.
 - **LLM**: Mirascope (OpenAI, Anthropic, Bedrock via custom provider)
 
 ---
@@ -179,6 +179,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Repositories (data access) | `graph/repositories/` |
 | Graph mixins | `graph/mixins/` |
 | Concerns (standalone services) | `concerns/` |
+| Shared scoring vocabulary (aspect defs, HS/complementarity/insight/proactiveness scales) | `concerns/scoring_scales.py`, `concerns/ac_re_taxonomy.py` (pure constants, no service class) |
 | Analyst (conversational, Case-scoped) | `agents/analyst/analyst.py` |
 | Explorer (conversational, Nexus-scoped) | `agents/explorer/explorer.py` |
 | Advisor (conversational, silent framework) | `agents/advisor/advisor.py` |
@@ -310,7 +311,7 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 
 ### Statement Generation Conventions
 
-- Word limit: always use `self.settings.component_length` via `SettingsAware` mixin — never hardcode.
+- Word limit: always use `self.settings.component_length` (headlines, ~7) or `self.settings.transition_length` (fuller transition statements, ~15) via `SettingsAware` — never hardcode. Pydantic `Field` descriptions can't interpolate `self.settings`, so keep length wording qualitative there and put the numeric limit in the method prompt body.
 - Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents unintended cross-context dedup while `commit()` handles exact-match dedup automatically.
 
 ### Classification → HS Chain (Critical Invariant)
@@ -434,6 +435,10 @@ The project is infused with LLM prompts at multiple layers. Use `/df:review-prom
 | `agents/orchestrator/tools/query_graph.py` | Cypher generation prompt |
 
 When fixing prompt output bugs: follow the revision methodology in `/df:review-prompts` (diagnose root cause → apply fix → verify with regression test).
+
+**Prompt constant conventions:**
+- Aspect definitions and HS/complementarity scales are imported from `concerns/scoring_scales.py` — never re-type them inline (they drift).
+- Many concern `SYSTEM_PROMPT`s are f-strings interpolating those constants (and `self.settings.*`). Keep them f-strings when editing; assert on the module attribute (`module.SYSTEM_PROMPT`), not `inspect.getsource` (which shows the literal `{CONST}` token, not interpolated text).
 
 ---
 

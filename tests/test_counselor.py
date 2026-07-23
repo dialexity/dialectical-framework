@@ -18,7 +18,7 @@ class TestAdvisorInitialization:
     """Tests for Advisor initialization."""
 
     def test_tools(self):
-        """Test advisor has exactly the six internal tools."""
+        """Test advisor has exactly the seven internal tools."""
         advisor = Advisor()
 
         tool_names = [t.__name__ for t in advisor._tools]
@@ -29,7 +29,8 @@ class TestAdvisorInitialization:
         assert "sync" in tool_names
         assert "inspect_node" in tool_names
         assert "read_digest" in tool_names
-        assert len(tool_names) == 6
+        assert "discard" in tool_names
+        assert len(tool_names) == 7
 
     def test_no_analyst_explorer_tools(self):
         """Test advisor does NOT have analyst/explorer tools."""
