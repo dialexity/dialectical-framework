@@ -42,13 +42,19 @@ def cleanup_test_graph_data():
 class TestSharedScoringConstants:
     def test_aspect_definitions_carry_cross_enhancement_and_diagonal(self):
         """S1: the canonical aspect defs name both distinguishing properties."""
-        from dialectical_framework.concerns.scoring_scales import ASPECT_DEFINITIONS
+        from dialectical_framework.concerns.scoring_scales import \
+            ASPECT_DEFINITIONS
 
         # cross-enhancement: a "+" aspect strengthens the OTHER side
         assert "also strengthens what A offers" in ASPECT_DEFINITIONS
         assert "also strengthens what T offers" in ASPECT_DEFINITIONS
         # diagonal contradiction for all four aspects
-        for diag in ("Contradicts A-.", "Contradicts T-.", "Contradicts A+.", "Contradicts T+."):
+        for diag in (
+            "Contradicts A-.",
+            "Contradicts T-.",
+            "Contradicts A+.",
+            "Contradicts T+.",
+        ):
             assert diag in ASPECT_DEFINITIONS, f"missing diagonal: {diag}"
         # the drift phrasing must not creep back
         assert "benefits, strengths" not in ASPECT_DEFINITIONS
@@ -66,10 +72,14 @@ class TestSharedScoringConstants:
 
     def test_complementarity_zero_anchor_is_not_contradiction(self):
         """S3: 0.0 = contributes nothing, NOT "undermines or contradicts"."""
-        from dialectical_framework.concerns.scoring_scales import COMPLEMENTARITY_SCALE
+        from dialectical_framework.concerns.scoring_scales import \
+            COMPLEMENTARITY_SCALE
 
         assert "Actively undermines or contradicts" not in COMPLEMENTARITY_SCALE
-        assert "contributes nothing to its constructive development" in COMPLEMENTARITY_SCALE
+        assert (
+            "contributes nothing to its constructive development"
+            in COMPLEMENTARITY_SCALE
+        )
         # the explicit trap-avoidance line
         assert "not a complementarity defect" in COMPLEMENTARITY_SCALE
 
@@ -99,7 +109,8 @@ class TestSharedScoringConstants:
 class TestTransformationExample:
     def test_example_directions_match_formal_spec(self):
         """H1: the four example directions match docs/graph.md + the prompt's own defs."""
-        from dialectical_framework.concerns.transformation_generation import SYSTEM_PROMPT as P
+        from dialectical_framework.concerns.transformation_generation import \
+            SYSTEM_PROMPT as P
 
         assert "Ac+ (T- → A+, Enmeshment → Autonomy)" in P
         assert "Re+ (A- → T+, Alienation → Bonding)" in P
@@ -108,7 +119,8 @@ class TestTransformationExample:
 
     def test_ac_plus_and_re_plus_do_not_both_target_autonomy(self):
         """H1: the mirror collision (both ending at Autonomy) must not return."""
-        from dialectical_framework.concerns.transformation_generation import SYSTEM_PROMPT as P
+        from dialectical_framework.concerns.transformation_generation import \
+            SYSTEM_PROMPT as P
 
         assert "Alienation → Autonomy" not in P
 
@@ -119,9 +131,8 @@ class TestTransformationExample:
 class TestControlStatementsCoherence:
     def test_status_uses_both_scores_not_average(self):
         """H4: a split verdict (0.9/0.6) is NOT coherent; rationale status agrees."""
-        from dialectical_framework.graph.nodes.estimation import (
-            ConceptualCoherenceEstimation,
-        )
+        from dialectical_framework.graph.nodes.estimation import \
+            ConceptualCoherenceEstimation
 
         split = ConceptualCoherenceEstimation(
             value=0.75,
@@ -139,7 +150,8 @@ class TestControlStatementsCoherence:
 
     def test_no_average_based_gate_in_resolve(self):
         """H4: resolve() derives status from the estimation, not the average."""
-        from dialectical_framework.concerns import control_statements_check as m
+        from dialectical_framework.concerns import \
+            control_statements_check as m
 
         src = inspect.getsource(m.ControlStatementsCheck.resolve)
         assert "is_coherent = avg_score >=" not in src
@@ -152,9 +164,8 @@ class TestControlStatementsCoherence:
 class TestApexSweetSpots:
     def test_field_descriptions_match_computed_bounds(self):
         """H5: Field descriptions render the computed sweet spots, not stale numbers."""
-        from dialectical_framework.concerns.positive_ac_re_apex_derivation import (
-            ApexPairDto,
-        )
+        from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
+            ApexPairDto
 
         re_desc = ApexPairDto.model_fields["re_plus_apex"].description
         ac_desc = ApexPairDto.model_fields["ac_plus_apex"].description
@@ -163,7 +174,8 @@ class TestApexSweetSpots:
 
     def test_no_stale_numbers_in_module(self):
         """H5: the stale 0.2-0.3 / 0.5-0.7 proactiveness ranges are gone."""
-        from dialectical_framework.concerns import positive_ac_re_apex_derivation as m
+        from dialectical_framework.concerns import \
+            positive_ac_re_apex_derivation as m
 
         src = inspect.getsource(m)
         assert "0.2-0.3" not in src
@@ -204,7 +216,8 @@ class TestTransitionLength:
 class TestAgentPrompts:
     def test_explorer_no_dead_tool_and_true_1pp_claim(self):
         """H2 + H3: no present_analysis ref; 1-PP claim matches the code."""
-        from dialectical_framework.agents.explorer.system_prompts import system_prompt
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
 
         p = system_prompt(nexus_hash="abc1234", nexus_intent="t")
         assert "present_analysis" not in p  # H3
@@ -224,21 +237,23 @@ class TestAgentPrompts:
         """S5: override names both sections and supersedes the CRITICAL directive."""
         from dialectical_framework.agents.apps import ADVANCED_APP
 
-        assert "overrides Contextual Vocabulary and Presentation Defaults" in ADVANCED_APP
+        assert (
+            "overrides Contextual Vocabulary and Presentation Defaults" in ADVANCED_APP
+        )
         assert "does not apply here" in ADVANCED_APP
 
     def test_no_tetrades_misspelling(self):
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT
         from dialectical_framework.agents.apps import DEFAULT_APP
-        from dialectical_framework.agents.analyst.system_prompts import SYSTEM_PROMPT
 
         assert "tetrades" not in DEFAULT_APP
         assert "tetrades" not in SYSTEM_PROMPT
 
     def test_causality_alias_example_matches_real_format(self):
         """Task 6: the alias example teaches C{seq}_{comp}, not C1,C2,C3."""
-        from dialectical_framework.concerns.causality import (
-            causality_estimator_balanced as m,
-        )
+        from dialectical_framework.concerns.causality import \
+            causality_estimator_balanced as m
 
         src = inspect.getsource(m)
         assert "C1_1, C1_2, C1_3" in src
@@ -248,7 +263,8 @@ class TestAgentPrompts:
         """9a/9b: discard is wired into the Advisor and its prompt documents it,
         with the single consolidated tool section (no leftover duplicate)."""
         from dialectical_framework.agents.advisor.advisor import _build_tools
-        from dialectical_framework.agents.advisor.system_prompts import SYSTEM_PROMPT
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
 
         names = {getattr(t, "__name__", None) for t in _build_tools()}
         assert "discard" in names
@@ -311,6 +327,90 @@ class TestEmptyIngestFallback:
         assert "not all_candidates and content_items" in src
 
 
+# --- Anchor path: component_length now clamps verbatim T/A statements --------
+
+
+class TestAnchorHeadlineClamp:
+    """The anchor path had no generation step, so agent prose was stored
+    verbatim — bypassing component_length. StatementHeadline closes that gap."""
+
+    def test_prompt_body_is_settings_driven_not_field_description(self):
+        """Per CLAUDE.md: numeric limit goes in the prompt body, never in a
+        Pydantic Field description (which can't interpolate self.settings)."""
+        from dialectical_framework.concerns import statement_headline as m
+
+        # No hardcoded number in the module source (prompt interpolates settings).
+        src = inspect.getsource(m)
+        assert "7 words" not in src
+        assert "15 words" not in src
+        # The word limit must NOT live on the DTO field description.
+        desc = m.HeadlineDto.model_fields["headline"].description
+        assert "word" not in desc.lower()
+        # The prompt builder interpolates the runtime budget.
+        assert "{max_words}" in inspect.getsource(m.StatementHeadline._prompt)
+
+    @pytest.mark.asyncio
+    async def test_short_statement_short_circuits_without_llm(self, monkeypatch):
+        """A statement already within component_length is returned unchanged and
+        never touches the LLM (keeps anchor_theses(['Trust']) free)."""
+        from dialectical_framework.concerns.statement_headline import \
+            StatementHeadline
+
+        headliner = StatementHeadline()
+
+        async def _boom(*args, **kwargs):
+            raise AssertionError("LLM must not be called for a short statement")
+
+        monkeypatch.setattr(headliner._conversation, "submit", _boom)
+
+        result = await headliner.resolve(statement="Trust matters")
+        assert result == "Trust matters"
+        assert "within word budget" in headliner.report.summary
+
+    @pytest.mark.asyncio
+    async def test_long_statement_is_condensed(self, monkeypatch):
+        """A verbose statement is routed through the LLM and replaced by its
+        headline."""
+        from dialectical_framework.concerns import statement_headline as m
+        from dialectical_framework.concerns.statement_headline import \
+            StatementHeadline
+
+        headliner = StatementHeadline()
+
+        async def _fake_submit(response_model, user_content, **kwargs):
+            # the runtime word budget must reach the prompt
+            assert "approximately" in user_content
+            return m.HeadlineDto(
+                headline="Preplanning should be the primary sales mode"
+            )
+
+        monkeypatch.setattr(headliner._conversation, "submit", _fake_submit)
+
+        long = (
+            "Preplanning creates structural stability — denser groups, less "
+            "teacher search stress, packaged courses with committed slots — and "
+            "deserves to be the primary sales mode"
+        )
+        result = await headliner.resolve(statement=long)
+        assert result == "Preplanning should be the primary sales mode"
+
+    def test_both_anchor_legs_condense_the_stored_text(self):
+        """IntroducePolarity (T+A leg) and AnchorTheses (thesis-only leg) both
+        store the headline, not the raw statement."""
+        from dialectical_framework.agents.analyst.skills import \
+            anchor_theses as at
+        from dialectical_framework.agents.analyst.skills import \
+            introduce_polarity as ip
+
+        ip_src = inspect.getsource(ip.IntroducePolarity._resolve_statement)
+        assert "StatementHeadline()" in ip_src
+        assert "Statement(text=headline" in ip_src
+
+        at_src = inspect.getsource(at.AnchorTheses)
+        assert "StatementHeadline()" in at_src
+        assert "Statement(text=headline" in at_src
+
+
 # --- Task 10: Elemental as a full peer taxonomy ------------------------------
 
 
@@ -327,13 +427,11 @@ class TestElementalTaxonomy:
 
     def test_dict_matches_table_s2(self):
         """The ELEMENTAL_TAXONOMY dict transcribes Table S-2 (Fire row + Apex)."""
-        from dialectical_framework.concerns.statement_classification import (
-            ELEMENTAL_TAXONOMY,
-        )
+        from dialectical_framework.concerns.statement_classification import \
+            ELEMENTAL_TAXONOMY
         from dialectical_framework.graph.nodes.perspective import (
             POSITION_A, POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T,
-            POSITION_T_MINUS, POSITION_T_PLUS,
-        )
+            POSITION_T_MINUS, POSITION_T_PLUS)
 
         for element in ("Apex", "Fire", "Earth", "Air", "Water"):
             assert element in ELEMENTAL_TAXONOMY
@@ -347,9 +445,8 @@ class TestElementalTaxonomy:
 
     def test_parse_extracts_elemental_branch_not_none(self):
         """The old trap: an elemental URI parsed to branch=None. Now it doesn't."""
-        from dialectical_framework.concerns.statement_classification import (
-            parse_meaning_uri,
-        )
+        from dialectical_framework.concerns.statement_classification import \
+            parse_meaning_uri
 
         domain, category, branch, leaf = parse_meaning_uri(self._URI)
         assert (domain, category, branch, leaf) == (
@@ -362,20 +459,23 @@ class TestElementalTaxonomy:
     def test_family_and_taxonomy_dispatch(self):
         from dialectical_framework.concerns.statement_classification import (
             ELEMENTAL_TAXONOMY, SYSTEMIC_TAXONOMY, _family_for_meaning,
-            _taxonomy_for_meaning,
-        )
+            _taxonomy_for_meaning)
 
         assert _family_for_meaning(self._URI) == "Elements"
         assert _taxonomy_for_meaning(self._URI) is ELEMENTAL_TAXONOMY
         # default / systemic
         assert _family_for_meaning(None) == "System"
-        assert _taxonomy_for_meaning("dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling") is SYSTEMIC_TAXONOMY
+        assert (
+            _taxonomy_for_meaning(
+                "dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling"
+            )
+            is SYSTEMIC_TAXONOMY
+        )
 
     def test_antithesis_stays_elemental(self):
         """Regression: elemental thesis must NOT fall back to systemic Fidelity."""
-        from dialectical_framework.concerns.statement_classification import (
-            StatementClassification as SC,
-        )
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification as SC
 
         result = SC.lookup_antithesis_meaning(_FakeStatement(self._URI))
         assert result == "dx://taxonomy/Elements(General.v1)/Viability/Fire/Inhibition"
@@ -384,23 +484,28 @@ class TestElementalTaxonomy:
 
     def test_all_aspects_stay_elemental(self):
         """Regression: aspects must NOT collapse to the systemic Apex column."""
-        from dialectical_framework.concerns.statement_classification import (
-            StatementClassification as SC,
-        )
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification as SC
 
         parent = _FakeStatement(self._URI)
-        expected = {"T+": "Motivation", "T-": "Impulsivity", "A+": "Regulation", "A-": "Repression"}
+        expected = {
+            "T+": "Motivation",
+            "T-": "Impulsivity",
+            "A+": "Regulation",
+            "A-": "Repression",
+        }
         for pos, apex in expected.items():
             meaning = SC.lookup_aspect_meaning(parent, pos)
-            assert meaning == f"dx://taxonomy/Elements(General.v1)/Viability/Fire/{apex}"
+            assert (
+                meaning == f"dx://taxonomy/Elements(General.v1)/Viability/Fire/{apex}"
+            )
             # apex concept name drives HS scoring — must be the elemental one,
             # not the systemic Apex fallback (Coherence/Rigid fusion/...)
             assert SC.lookup_aspect_apex(parent, pos) == apex
 
     def test_dedup_prefix_preserves_family(self):
-        from dialectical_framework.concerns.statement_deduplication import (
-            _extract_meaning_prefix,
-        )
+        from dialectical_framework.concerns.statement_deduplication import \
+            _extract_meaning_prefix
 
         assert (
             _extract_meaning_prefix(self._URI)
@@ -409,12 +514,10 @@ class TestElementalTaxonomy:
 
     def test_systemic_path_unchanged(self):
         """Systemic lookups must be untouched by the elemental dispatch."""
-        from dialectical_framework.concerns.statement_classification import (
-            StatementClassification as SC,
-        )
-        from dialectical_framework.concerns.statement_deduplication import (
-            _extract_meaning_prefix,
-        )
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification as SC
+        from dialectical_framework.concerns.statement_deduplication import \
+            _extract_meaning_prefix
 
         uri = "dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Simulation"
         assert SC.lookup_aspect_apex(_FakeStatement(uri), "T+") == "Accuracy"
@@ -426,12 +529,14 @@ class TestElementalTaxonomy:
     def test_build_meaning_uri_emits_uniform_elemental_form(self):
         """_build_meaning_uri emits the family-uniform Elements(General.v1) form."""
         from dialectical_framework.concerns.statement_classification import (
-            StatementClassification, TaxonomyLocationDto,
-        )
+            StatementClassification, TaxonomyLocationDto)
 
         loc = TaxonomyLocationDto(
-            taxonomy_type="elemental", domain="General", branch="Fire",
-            leaf="Activation", reasoning="drive",
+            taxonomy_type="elemental",
+            domain="General",
+            branch="Fire",
+            leaf="Activation",
+            reasoning="drive",
         )
         uri = StatementClassification()._build_meaning_uri(False, loc)
         assert uri == "dx://taxonomy/Elements(General.v1)/Viability/Fire/Activation"
@@ -440,9 +545,8 @@ class TestElementalTaxonomy:
 
     def test_selection_criterion_in_prompt(self):
         """The classifier prompt now gives a real systemic-vs-elemental rule."""
-        from dialectical_framework.concerns.statement_classification import (
-            SYSTEM_PROMPT,
-        )
+        from dialectical_framework.concerns.statement_classification import \
+            SYSTEM_PROMPT
 
         assert "peer taxonomies" in SYSTEM_PROMPT
         assert "drive, energy, motivation" in SYSTEM_PROMPT

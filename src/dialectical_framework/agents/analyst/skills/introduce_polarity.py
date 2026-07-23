@@ -18,6 +18,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -26,17 +27,18 @@ from mirascope import llm
 from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
 from dialectical_framework.concerns.statement_classification import \
     StatementClassification
+from dialectical_framework.concerns.statement_headline import StatementHeadline
+from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.estimation_manager import EstimationManager
-from dialectical_framework.graph.nodes.estimation import (
-    ArousalEstimation, ModeEstimation)
-from dialectical_framework.graph.nodes.statement import Statement
+from dialectical_framework.graph.nodes.estimation import (ArousalEstimation,
+                                                          ModeEstimation)
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.polarity_repository import \
@@ -117,12 +119,19 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
             primary_polarity.commit()
             self._report.node_created(primary_polarity)
             self._report.relationship_created(
-                primary_polarity.t, thesis_stmt, primary_polarity,
+                primary_polarity.t,
+                thesis_stmt,
+                primary_polarity,
                 patch={"heuristic_similarity": 1.0, "alias": "T"},
             )
             self._report.relationship_created(
-                primary_polarity.a, antithesis_stmt, primary_polarity,
-                patch={"heuristic_similarity": classification.heuristic_similarity, "alias": "A"},
+                primary_polarity.a,
+                antithesis_stmt,
+                primary_polarity,
+                patch={
+                    "heuristic_similarity": classification.heuristic_similarity,
+                    "alias": "A",
+                },
             )
             self._report.artifacts["primary_polarity_source"] = "created"
 
@@ -135,9 +144,13 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
             antithesis_stmt, ArousalEstimation, classification.arousal_value
         )
         if mode_est:
-            self._report.node_updated(mode_est, patch={"value": classification.mode_value})
+            self._report.node_updated(
+                mode_est, patch={"value": classification.mode_value}
+            )
         if arousal_est:
-            self._report.node_updated(arousal_est, patch={"value": classification.arousal_value})
+            self._report.node_updated(
+                arousal_est, patch={"value": classification.arousal_value}
+            )
 
         # Build result
         result = IntroducePolarityResult(
@@ -166,12 +179,23 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         return result
 
     async def _resolve_statement(self, text: str, context: str) -> Statement:
-        """Classify and commit a Statement. Commit is an upsert — same text reuses existing node."""
-        classifier = StatementClassification()
-        result = await classifier.resolve(statement=text, text=context)
-        self._report = self._report.merge(classifier.report)
+        """Classify and commit a Statement. Commit is an upsert — same text reuses existing node.
 
-        stmt = Statement(text=result.statement, meaning=result.meaning)
+        The agent may pass verbose prose (the anchor path has no extraction step
+        to clamp length), so condense to a headline in parallel with
+        classification. Classification reads the full text for richer taxonomy
+        anchoring; only the stored ``text`` becomes the headline.
+        """
+        classifier = StatementClassification()
+        headliner = StatementHeadline()
+        result, headline = await asyncio.gather(
+            classifier.resolve(statement=text, text=context),
+            headliner.resolve(statement=text, text=context),
+        )
+        self._report = self._report.merge(classifier.report)
+        self._report = self._report.merge(headliner.report)
+
+        stmt = Statement(text=headline, meaning=result.meaning)
         stmt.commit()
         self._report.node_created(stmt)
 
@@ -207,7 +231,9 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
 async def introduce_polarity(
     thesis: Annotated[str, Field(description="The thesis statement text")],
     antithesis: Annotated[str, Field(description="The antithesis statement text")],
-    text: Annotated[str, Field(description="Additional context for classification")] = "",
+    text: Annotated[
+        str, Field(description="Additional context for classification")
+    ] = "",
 ) -> str:
     """Introduce a known thesis-antithesis tension directly as a Polarity. Classifies both statements, creates the Polarity node (T-A pair) with HS score. Use when the tension is already clear from conversation rather than needing extraction from source material."""
     concern = IntroducePolarity(thesis=thesis, antithesis=antithesis, text=text)

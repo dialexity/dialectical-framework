@@ -21,6 +21,7 @@ from pydantic import Field
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.concerns.statement_classification import (
     ClassificationResult, StatementClassification)
+from dialectical_framework.concerns.statement_headline import StatementHeadline
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.rationale import Rationale
@@ -83,7 +84,11 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
         statements: list[str],
         text: str = "",
     ) -> list[Statement]:
+        # Condense in parallel with classification. The agent may hand this skill
+        # verbose prose (there is no extraction step to clamp length), so the
+        # stored text becomes a headline while classification reads the full text.
         classifiers = [StatementClassification() for _ in statements]
+        headliners = [StatementHeadline() for _ in statements]
         tasks = [
             classifier.resolve(
                 statement=stmt,
@@ -92,25 +97,35 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
             )
             for classifier, stmt in zip(classifiers, statements)
         ]
+        headline_tasks = [
+            headliner.resolve(statement=stmt, text=text)
+            for headliner, stmt in zip(headliners, statements)
+        ]
 
         results: list[ClassificationResult] = await asyncio.gather(*tasks)
+        headlines: list[str] = await asyncio.gather(*headline_tasks)
 
         components: list[Statement] = []
-        for classifier, result in zip(classifiers, results):
-            component = self._create_component(result)
+        for classifier, headliner, result, headline in zip(
+            classifiers, headliners, results, headlines
+        ):
+            component = self._create_component(result, headline)
             components.append(component)
             self._report = self._report.merge(classifier.report)
+            self._report = self._report.merge(headliner.report)
 
         return components
 
-    def _create_component(self, result: ClassificationResult) -> Statement:
-        component = Statement(text=result.statement, meaning=result.meaning)
+    def _create_component(
+        self, result: ClassificationResult, headline: str
+    ) -> Statement:
+        component = Statement(text=headline, meaning=result.meaning)
         component.commit()
 
         classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
         self._report.node_created(
             component,
-            patch={"meaning": result.meaning, "text": result.statement},
+            patch={"meaning": result.meaning, "text": headline},
             meta={"classification": classification_label},
         )
 
