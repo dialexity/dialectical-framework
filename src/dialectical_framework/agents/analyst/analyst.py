@@ -261,7 +261,11 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
 
                 if not thesis_hashes:
                     self._report.ok = True
-                    self._report.summary = "No theses found"
+                    self._report.summary = (
+                        "No tensions extracted from this material. Anchor an "
+                        "explicit position (and its opposition, if visible) "
+                        "instead of ingesting."
+                    )
                     return AnalysisResult(
                         ideas_hash=ideas_hash, errors=errors, reports=reports
                     )

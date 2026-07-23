@@ -261,6 +261,56 @@ class TestAgentPrompts:
         assert "silently `discard` it" in SYSTEM_PROMPT
 
 
+# --- Empty-ingest fallback: extraction miss must route to anchor -------------
+
+
+class TestEmptyIngestFallback:
+    """When ingest surfaces no tensions, the advisor must fall back to anchor
+    rather than reverting to unstructured discussion, and the pipeline must
+    say so actionably instead of reporting a bare success."""
+
+    def test_advisor_prompt_documents_empty_ingest_fallback(self):
+        """The Sequence has an explicit branch for a tool that surfaces no
+        tensions, pointing at `anchor` (not discussion)."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "surfaces no tensions" in SYSTEM_PROMPT
+        # the fallback names anchor as the recovery move
+        idx = SYSTEM_PROMPT.find("surfaces no tensions")
+        window = SYSTEM_PROMPT[idx : idx + 400]
+        assert "`anchor`" in window
+
+    def test_advisor_prompt_disambiguates_ingest_vs_anchor(self):
+        """ingest/anchor selection is no longer an ambiguous overlap: an
+        explicit position/either-or routes to anchor."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        idx = SYSTEM_PROMPT.find("- `ingest`")
+        ingest_section = SYSTEM_PROMPT[idx : idx + 700]
+        assert "prefer `anchor`" in ingest_section
+
+    def test_pipeline_empty_summary_is_actionable(self):
+        """AnalysisPipeline's no-thesis path suggests anchoring instead of the
+        old bare 'No theses found'."""
+        from dialectical_framework.agents.analyst import analyst as m
+
+        src = inspect.getsource(m.AnalysisPipeline.resolve)
+        assert "No theses found" not in src
+        assert "No tensions extracted" in src
+        assert "Anchor an" in src
+
+    def test_thesis_extraction_has_gate_rejection_safety_net(self):
+        """A step-2 gate that rejects every item falls back to raw content
+        items rather than returning zero candidates."""
+        from dialectical_framework.concerns import thesis_extraction as m
+
+        src = inspect.getsource(m.ThesisExtraction.resolve)
+        # fallback keys off content_items surviving when candidates are empty
+        assert "not all_candidates and content_items" in src
+
+
 # --- Task 10: Elemental as a full peer taxonomy ------------------------------
 
 

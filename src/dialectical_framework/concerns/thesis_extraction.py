@@ -157,6 +157,24 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
         # STEP 2: Identify thesis candidates (parallel validation)
         all_candidates = await self._step2_identify_candidates(content_items)
 
+        # Safety net: step 1 found assertable content but the step-2 gate
+        # rejected all of it. This is a gate over-rejection (common with
+        # fragmentary phrasing), not genuinely thesis-free material — fall
+        # back to the raw content items so classification still runs rather
+        # than silently yielding nothing.
+        if not all_candidates and content_items:
+            all_candidates = list(
+                dict.fromkeys(
+                    item.content.strip()
+                    for item in content_items
+                    if item.content and item.content.strip()
+                )
+            )
+            self._report.summary = (
+                "Step-2 gate rejected all items; using extracted content "
+                "directly as candidates"
+            )
+
         if not all_candidates:
             self._report.ok = True
             self._report.summary = "No thesis candidates found in content"
