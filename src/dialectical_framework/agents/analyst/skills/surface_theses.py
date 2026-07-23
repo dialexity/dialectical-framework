@@ -157,6 +157,7 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
                 vocabulary=vocab,
                 text=input_text,
             )
+            self._report = self._report.merge(deduplicator.report)
             deleted_count = dedup_result.deleted_count
             deduped = dedup_result.components
         else:

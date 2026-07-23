@@ -37,7 +37,9 @@ if TYPE_CHECKING:
     from dialectical_framework.events.graph_event_bus import GraphEventBus
     from dialectical_framework.graph.nodes.base_node import BaseNode
     from dialectical_framework.graph.relationship_manager import (
-        BoundRelationshipManager, RelationshipManager)
+        BoundRelationshipManager,
+        RelationshipManager,
+    )
     from dialectical_framework.utils.effect_logger import EffectLogger
 
 # Type alias for relationship type parameter
@@ -209,11 +211,13 @@ class ExecutionReport(BaseModel):
         if self._event_bus is None:
             return
         import asyncio
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
         from dialectical_framework.graph.scope_context import get_current_sid
+
         sid = get_current_sid()
         if sid:
             loop.create_task(self._event_bus.publish(sid, effect))
@@ -224,6 +228,7 @@ class ExecutionReport(BaseModel):
             return
         from dialectical_framework.agents.agent_context import get_current_agent
         from dialectical_framework.graph.scope_context import get_current_sid
+
         sid = get_current_sid()
         if not sid:
             return
@@ -239,6 +244,7 @@ class ExecutionReport(BaseModel):
             return
         from dialectical_framework.agents.agent_context import get_current_agent
         from dialectical_framework.graph.scope_context import get_current_sid
+
         sid = get_current_sid()
         if not sid:
             return
@@ -431,10 +437,16 @@ class ExecutionReport(BaseModel):
 
         merged_artifacts = {**self.artifacts, **other.artifacts}
 
-        return ExecutionReport(
+        merged = ExecutionReport(
             tool=self.tool,
             ok=self.ok and other.ok,
             summary=f"{self.summary}\n{other.summary}".strip(),
             effects=self.effects,
             artifacts=merged_artifacts,
         )
+        # Carry the sequence counter forward so subsequent _next_seq()/merge()
+        # calls continue the timeline. Without this the fresh report resets to
+        # 0, and chained merges (self._report = self._report.merge(...)) emit
+        # duplicate seq values.
+        merged._seq_counter = self._seq_counter
+        return merged

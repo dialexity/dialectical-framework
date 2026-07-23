@@ -161,6 +161,34 @@ def test_run_report_merge():
     assert merged.artifacts["key2"] == "value2"
 
 
+def test_chained_merge_keeps_unique_increasing_seq():
+    """Chained merges must not reset the seq counter (regression).
+
+    merge() returns a fresh report; before the fix its _seq_counter reset to 0,
+    so base.merge(r1).merge(r2) produced duplicate seqs like [0, 1, 2, 0].
+    """
+    base = ExecutionReport(tool="base")
+    r1 = ExecutionReport(tool="r1")
+    r2 = ExecutionReport(tool="r2")
+
+    for report in (base, base, r1, r2):
+        node = MockNode("Statement", None)
+        node.__class__ = type("Statement", (), {})
+        report.node_created(node)  # base gets two effects, r1/r2 one each
+
+    merged = base.merge(r1).merge(r2)
+
+    seqs = [e.seq for e in merged.effects]
+    assert seqs == [0, 1, 2, 3], seqs
+    assert len(seqs) == len(set(seqs)), "duplicate seq values after chained merge"
+
+    # A subsequent effect on the merged report continues the timeline.
+    node = MockNode("Statement", None)
+    node.__class__ = type("Statement", (), {})
+    merged.node_created(node)
+    assert merged.effects[-1].seq == 4
+
+
 def test_run_report_artifacts():
     report = ExecutionReport(tool="extract_antitheses")
 
@@ -180,6 +208,7 @@ def test_resolve_rel_type_string():
 
 def test_resolve_rel_type_relationship_manager():
     """Test with an object that has .relationship_type attribute."""
+
     class MockRelationshipManager:
         relationship_type = "BELONGS_TO"
 
@@ -189,6 +218,7 @@ def test_resolve_rel_type_relationship_manager():
 
 def test_resolve_rel_type_relationship_class():
     """Test with a class that has .type attribute (like GQLAlchemy relationships)."""
+
     class MockRelationshipClass:
         type = "LINKS_TO"
 

@@ -411,6 +411,129 @@ class TestAnchorHeadlineClamp:
         assert "Statement(text=headline" in at_src
 
 
+# --- Orchestrator intelligence: Explorer depth + Analyst grouping -----------
+
+
+class TestExplorerExplorationDepth:
+    """The Explorer is a sandboxed mini-advisor. Its prompt must carry
+    exploration-phase reasoning (score interpretation, S+/S-) and interpolate
+    the shared taxonomy ladders rather than re-typing them."""
+
+    def _render(self) -> str:
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        return system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
+
+    def test_has_causality_and_score_section(self):
+        p = self._render()
+        assert "## Reading Causality & Transformation Scores" in p
+        # P vs normalized % causality reasoning
+        assert "normalized" in p and "%" in p
+        # feasibility bands
+        assert "feasibility" in p
+
+    def test_interpolates_shared_taxonomy_ladders_not_retyped(self):
+        """The insight/proactiveness ladders come from ac_re_taxonomy.py, so
+        both ends of each scale must render from the constants."""
+        from dialectical_framework.agents.explorer import system_prompts as m
+
+        p = self._render()
+        # insight ladder ends
+        assert "0.0 reflex" in p and "1.0 transcendence" in p
+        # proactiveness ladder ends + zone anchors
+        assert "0.0 observation" in p and "1.0 stewardship" in p
+        assert "0.5-1.0" in p and "0.0-0.4" in p
+        # built from the constants, not hand-typed
+        src = inspect.getsource(m)
+        assert "from dialectical_framework.concerns.ac_re_taxonomy import" in src
+        assert "INSIGHT_SCALE" in src and "PROACTIVENESS_SCALE" in src
+
+    def test_synthesis_emergence_vs_trap(self):
+        p = self._render()
+        assert "S+" in p and "S-" in p
+        # emergence framing and the S- trap
+        assert "1+1>2" in p or "emergence" in p
+        assert "trap" in p
+
+    def test_hs_on_transition_disambiguated(self):
+        """HS on Ac+/Re+ (apex fit) is clarified so the Explorer doesn't confuse
+        it with HS-on-antithesis, without renaming the Advisor-only dump."""
+        p = self._render()
+        assert "HS" in p and "apex" in p
+
+    def test_no_leaked_brace_tokens(self):
+        """The f-string must fully interpolate — no stray {CONST} tokens."""
+        p = self._render().replace("T+/T-/A+/A-", "")
+        assert "{" not in p and "}" not in p
+
+
+class TestExplorerInputSupportsExploration:
+    """User text may enrich exploration (add_input) but the Explorer must not
+    be able to build new perspectives — the role boundary is tool-enforced."""
+
+    def test_add_input_is_wired(self):
+        from dialectical_framework.agents.explorer.explorer import _build_tools
+
+        names = {getattr(t, "__name__", None) for t in _build_tools()}
+        assert "add_input" in names
+        # boundary: NO perspective-building tools on the Explorer
+        for forbidden in (
+            "surface_theses",
+            "find_polarities",
+            "expand_polarities",
+            "anchor_theses",
+            "introduce_polarity",
+            "ingest",
+            "anchor",
+        ):
+            assert forbidden not in names, f"Explorer must not expose {forbidden}"
+
+    def test_prompt_documents_add_input_and_boundary(self):
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
+        assert "`add_input`" in p
+        # capture-yes / re-analysis-no boundary
+        assert "does NOT create" in p or "does NOT create new tensions" in p
+        assert "analysis thread" in p
+
+
+class TestAnalystNexusGrouping:
+    """The Analyst owns the grouping judgment at handoff: prefer different
+    polarities, but allow same-polarity when it fits or the user asks."""
+
+    def test_prompt_carries_grouping_principle_with_fallback(self):
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "different polarities" in SYSTEM_PROMPT
+        assert "angle shifts" in SYSTEM_PROMPT
+        # the fallback must not be an absolute prohibition
+        assert "Same-polarity grouping is still valid" in SYSTEM_PROMPT
+
+
+class TestDedupReportsAreMerged:
+    """surface_theses and find_polarities must merge the deduplicator's report
+    so dedup deletions surface as node_deleted effects (not just a count)."""
+
+    def test_surface_theses_merges_dedup_report(self):
+        from dialectical_framework.agents.analyst.skills import \
+            surface_theses as m
+
+        src = inspect.getsource(m.SurfaceTheses.resolve)
+        assert "self._report.merge(deduplicator.report)" in src
+
+    def test_find_polarities_merges_dedup_report(self):
+        from dialectical_framework.agents.analyst.skills import \
+            find_polarities as m
+
+        # _process_thesis is where the dedup runs
+        src = inspect.getsource(m)
+        assert "self._report.merge(deduplicator.report)" in src
+
+
 # --- Task 10: Elemental as a full peer taxonomy ------------------------------
 
 

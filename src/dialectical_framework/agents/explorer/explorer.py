@@ -126,6 +126,8 @@ def _build_tools() -> list:
         generate_synthesis
     from dialectical_framework.agents.explorer.tools.present_exploration import \
         present_exploration
+    from dialectical_framework.agents.orchestrator.tools.add_input import \
+        add_input
     from dialectical_framework.agents.orchestrator.tools.digest_input import \
         digest_input
     from dialectical_framework.agents.orchestrator.tools.get_schema import \
@@ -145,6 +147,7 @@ def _build_tools() -> list:
         generate_synthesis,
         expand_nexus,
         present_exploration,
+        add_input,
         digest_input,
         read_digest,
         read_input,
@@ -253,9 +256,9 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
                     hash=wheel_hash,
                 )
 
-        wheel_results = await asyncio.gather(*[
-            _explore_wheel(wh) for wh in wheel_hashes
-        ])
+        wheel_results = await asyncio.gather(
+            *[_explore_wheel(wh) for wh in wheel_hashes]
+        )
         for count, error in wheel_results:
             transformation_count += count
             if error:
@@ -284,8 +287,15 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
 
 @llm.tool
 async def explore(
-    nexus_hash: Annotated[str, Field(description="Hash of the Nexus to explore within")],
-    perspective_hashes: Annotated[list[str] | None, Field(description="Additional perspective hashes to add to Nexus before building")] = None,
+    nexus_hash: Annotated[
+        str, Field(description="Hash of the Nexus to explore within")
+    ],
+    perspective_hashes: Annotated[
+        list[str] | None,
+        Field(
+            description="Additional perspective hashes to add to Nexus before building"
+        ),
+    ] = None,
 ) -> str:
     """Run full exploration pipeline within a Nexus: builds structural combinations (Cycles + Wheels) and generates action-reflection transformations. Use when all perspectives are ready and exploration should proceed."""
     pipeline = ExplorationPipeline(

@@ -178,6 +178,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                 vocabulary=dedup_vocab,
                 text=input_text,
             )
+            self._report = self._report.merge(deduplicator.report)
 
             # Reconnect OPPOSITE_OF: thesis -> DB version for replacements
             self._reconnect_oppositions(results, dedup_result)

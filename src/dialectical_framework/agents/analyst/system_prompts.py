@@ -77,6 +77,14 @@ When the user wants to explore interactions between perspectives:
    Only create separate if user deliberately wants a different scope.
 3. Confirm the exploration direction with the user before creating.
 
+**Grouping (which perspectives to combine):**
+- Prefer perspectives from different polarities (different T-A oppositions). Transformations
+  between different oppositions are genuine synthesis with opponents — the richest exploration.
+- Same-polarity grouping is still valid when it fits the intent or the user asks for it.
+  It produces "angle shifts" (reframing within one opposition) rather than cross-opposition
+  synthesis — note that tradeoff so the user knows what they'll get. Never refuse or override
+  an explicit same-polarity request.
+
 **Intent (internal quality gate — do not surface to user):**
 - Must be specific: what the user wants to understand or navigate.
 - Refine vague requests ("explore this") into purposeful intents internally.
