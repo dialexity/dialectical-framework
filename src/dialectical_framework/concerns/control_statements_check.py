@@ -12,7 +12,7 @@ Example (T=Love, A=Hate):
 - "Autonomy (A+) without Bonding (T+) yields Alienation (A-)"
 
 Each statement is evaluated for logical coherence (CC score 0.0-1.0).
-A tetrad passes validation if the average CC score >= 0.7.
+A tetrad passes validation if both CC scores >= 0.7.
 
 Creates a ConceptualCoherenceEstimation node attached to the Perspective,
 with optional Rationale explaining the evaluation.
@@ -106,7 +106,7 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
     1. "{T+} without {A+} yields {T-}" - Does lacking A+ cause T to become T-?
     2. "{A+} without {T+} yields {A-}" - Does lacking T+ cause A to become A-?
 
-    Average of both scores must be >= 0.7 for the tetrad to be considered coherent.
+    Both scores must be >= 0.7 for the tetrad to be considered coherent.
 
     Creates:
     - ConceptualCoherenceEstimation node attached to the Perspective
@@ -159,14 +159,13 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
 
         # Create estimation and rationale nodes
         avg_score = (result_1.coherence_score + result_2.coherence_score) / 2
-        is_coherent = avg_score >= CONCEPTUAL_COHERENCE_THRESHOLD
-        status = "COHERENT" if is_coherent else "NOT COHERENT"
 
         estimation = ConceptualCoherenceEstimation(
             value=avg_score,
             t_plus_without_a_plus_yields_t_minus=result_1.coherence_score,
             a_plus_without_t_plus_yields_a_minus=result_2.coherence_score,
         )
+        status = "COHERENT" if estimation.is_coherent else "NOT COHERENT"
 
         rationale_text = (
             f"Conceptual Coherence Evaluation: {status}\n\n"
@@ -176,7 +175,7 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
             f"A+ without T+ yields A- (score={result_2.coherence_score:.2f}):\n"
             f"  {stmt_2}\n"
             f"  Reasoning: {result_2.reasoning}\n\n"
-            f"Average: {avg_score:.2f} (threshold: {CONCEPTUAL_COHERENCE_THRESHOLD})"
+            f"Coherence requires both scores >= {CONCEPTUAL_COHERENCE_THRESHOLD} (average: {avg_score:.2f})"
         )
         rationale = Rationale(text=rationale_text)
 
