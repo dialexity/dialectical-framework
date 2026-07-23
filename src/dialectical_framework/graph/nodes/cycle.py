@@ -14,7 +14,11 @@ from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.intent_mixin import IntentMixin
-from dialectical_framework.graph.relationship_manager import RelationshipTo, RelationshipBoth, RelationshipManager
+from dialectical_framework.graph.relationship_manager import (
+    RelationshipTo,
+    RelationshipBoth,
+    RelationshipManager,
+)
 from dialectical_framework.graph.relationships.has_wheel_relationship import (
     HasWheelRelationship,
 )
@@ -82,7 +86,7 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
     wheels: ClassVar[RelationshipManager[Wheel]] = RelationshipTo(
         "Wheel",
         model=HasWheelRelationship,
-        cardinality=(0, None)  # Zero or more wheels can implement this cycle
+        cardinality=(0, None),  # Zero or more wheels can implement this cycle
     )
 
     # Opposite-direction counterpart (symmetric)
@@ -100,21 +104,30 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         Order determines the T-cycle: T1 → T2 → T3 → T1...
 
         Args:
-            perspectives: Ordered list of committed Perspectives
+            perspectives: Ordered list of committed, distinct Perspectives
 
         Returns:
             Self for chaining
 
         Raises:
-            ValueError: If any PP is not committed
+            ValueError: If any PP is not committed, or if any PP is repeated
         """
         hashes = []
         for pp in perspectives:
             if not pp.is_committed:
-                raise ValueError(
-                    "Perspective must be committed before adding to Cycle"
-                )
+                raise ValueError("Perspective must be committed before adding to Cycle")
             hashes.append(pp.hash)
+
+        # Reject duplicate perspectives. A cycle claiming to be "layer N"
+        # (N = len(perspective_hashes)) must reference N *distinct* PPs.
+        # Duplicates produce degenerate cycles (e.g. combinations() over a
+        # PP list poisoned by a transient duplicate BELONGS_TO_NEXUS edge)
+        # that render as malformed wheels. Fail loud so corruption is never
+        # persisted rather than surfacing later in the consuming app.
+        if len(set(hashes)) != len(hashes):
+            raise ValueError(
+                f"Cycle perspectives must be distinct; got duplicates in {hashes}"
+            )
 
         self.perspective_hashes = hashes
         self._pp_refs = perspectives  # Keep refs for potential use
@@ -133,7 +146,10 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         if not self.perspective_hashes:
             return []
 
-        from dialectical_framework.graph.repositories.node_repository import NodeRepository
+        from dialectical_framework.graph.repositories.node_repository import (
+            NodeRepository,
+        )
+
         repo = NodeRepository()
 
         result = []
@@ -268,4 +284,3 @@ class Cycle(IntentMixin, AssessableEntity, label="Cycle"):
         hash_str = self.short_hash if self.is_committed else "uncommitted"
         pp_count = len(self.perspective_hashes)
         return f"Cycle({hash_str}, pp_count={pp_count}, intent={self.intent})"
-

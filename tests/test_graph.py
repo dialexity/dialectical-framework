@@ -1530,6 +1530,168 @@ def test_cycle_requires_perspectives():
     print("✓ Cycle requires at least one Perspective to commit")
 
 
+def test_cycle_rejects_duplicate_perspectives():
+    """Cycle.set_perspectives must reject a PP repeated in the list.
+
+    Guards against degenerate cycles: a "layer N" cycle whose
+    perspective_hashes repeats a PP references fewer than N distinct
+    perspectives and renders as a malformed wheel downstream. See
+    HANDOFF-degenerate-cycles.md.
+    """
+    pp1, _, _ = create_perspective_with_polarity(
+        t_statement="Thesis 1", a_statement="Antithesis 1",
+        t_plus_statement="T1+", t_minus_statement="T1-",
+        a_plus_statement="A1+", a_minus_statement="A1-",
+        intent=f"dup_pp1_{random.random()}"
+    )
+    pp1.commit()
+
+    pp2, _, _ = create_perspective_with_polarity(
+        t_statement="Thesis 2", a_statement="Antithesis 2",
+        t_plus_statement="T2+", t_minus_statement="T2-",
+        a_plus_statement="A2+", a_minus_statement="A2-",
+        intent=f"dup_pp2_{random.random()}"
+    )
+    pp2.commit()
+
+    cycle = Cycle(intent="preset:balanced")
+
+    # A "layer 3" list that only names 2 distinct PPs (pp1 repeated) must fail.
+    with pytest.raises(ValueError, match="must be distinct"):
+        cycle.set_perspectives([pp1, pp2, pp1])
+
+    # The distinct ordering still works.
+    cycle.set_perspectives([pp1, pp2])
+    cycle.commit()
+    assert cycle.perspective_hashes == [pp1.hash, pp2.hash]
+
+    print("✓ Cycle rejects duplicate perspectives")
+
+
+def test_perspective_combination_dedups_duplicate_nexus_edge():
+    """PerspectiveCombination must not emit degenerate cycles when the Nexus
+    has a duplicate BELONGS_TO_NEXUS edge.
+
+    BELONGS_TO_NEXUS is a directed relationship, so connect() does NOT
+    deduplicate it — a duplicate edge makes nexus.perspectives.all() yield the
+    same PP twice. Before the fix, combinations() over that list produced
+    cycles whose perspective_hashes repeated a PP. See
+    HANDOFF-degenerate-cycles.md.
+    """
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.case import Case
+    from dialectical_framework.graph.scope_context import scope
+    from dialectical_framework.concerns.perspective_combination import (
+        PerspectiveCombination,
+    )
+
+    case_node = Case()
+    case_node.commit()
+
+    with scope(case_node.sid):
+        uid = random.random()
+
+        pp1, _, _ = create_perspective_with_polarity(
+            t_statement="Thesis 1", a_statement="Antithesis 1",
+            t_plus_statement="T1+", t_minus_statement="T1-",
+            a_plus_statement="A1+", a_minus_statement="A1-",
+            intent=f"combo_pp1_{uid}"
+        )
+        pp1.commit()
+
+        pp2, _, _ = create_perspective_with_polarity(
+            t_statement="Thesis 2", a_statement="Antithesis 2",
+            t_plus_statement="T2+", t_minus_statement="T2-",
+            a_plus_statement="A2+", a_minus_statement="A2-",
+            intent=f"combo_pp2_{uid}"
+        )
+        pp2.commit()
+
+        nexus = Nexus(intent=f"combo_nexus_{uid}")
+        nexus.commit()
+
+        # Connect pp1 twice to simulate a duplicate BELONGS_TO_NEXUS edge from
+        # an earlier interrupted/retried build. _connect_internal bypasses the
+        # dedup-on-input guards, forcing the corrupt state directly.
+        pp1.nexus.connect(nexus)
+        pp1.nexus._connect_internal(nexus)
+        pp2.nexus.connect(nexus)
+
+        # Sanity: the Nexus really does yield pp1 twice.
+        raw = [pp.hash for pp, _ in nexus.perspectives.all()]
+        assert raw.count(pp1.hash) == 2, "Test setup should create a duplicate edge"
+
+        # Passing the PPs is just to clear the non-empty guard; the build
+        # reads all PPs from the Nexus (including the duplicate edge) anyway.
+        combination = PerspectiveCombination()
+        result = combination.resolve(nexus=nexus, perspectives=[pp1, pp2])
+
+        # Every produced cycle must reference distinct perspectives.
+        for cycle in result.cycles:
+            hashes = cycle.perspective_hashes
+            assert len(set(hashes)) == len(hashes), (
+                f"Degenerate cycle with repeated PP: {hashes}"
+            )
+
+        # With 2 distinct PPs, the layer-2 cycle must have exactly 2 PPs
+        # (not 2 from a [pp1, pp1] combination).
+        layer2 = [c for c in result.cycles if c.perspective_count == 2]
+        assert layer2, "Expected at least one layer-2 cycle from 2 distinct PPs"
+        for c in layer2:
+            assert set(c.perspective_hashes) == {pp1.hash, pp2.hash}
+
+    print("✓ PerspectiveCombination dedups duplicate nexus edges")
+
+
+async def test_create_nexus_dedups_repeated_hashes():
+    """CreateNexus must not create duplicate BELONGS_TO_NEXUS edges when the
+    same perspective hash appears twice in the input list.
+
+    A repeated hash would otherwise create duplicate edges (BELONGS_TO_NEXUS is
+    directed, so connect() does not dedup), poisoning combination generation.
+    See HANDOFF-degenerate-cycles.md.
+    """
+    from dialectical_framework.graph.nodes.case import Case
+    from dialectical_framework.graph.scope_context import scope
+    from dialectical_framework.concerns.create_nexus import CreateNexus
+
+    case_node = Case()
+    case_node.commit()
+
+    with scope(case_node.sid):
+        uid = random.random()
+
+        pp1, _, _ = create_perspective_with_polarity(
+            t_statement="Thesis 1", a_statement="Antithesis 1",
+            t_plus_statement="T1+", t_minus_statement="T1-",
+            a_plus_statement="A1+", a_minus_statement="A1-",
+            intent=f"cn_pp1_{uid}"
+        )
+        pp1.commit()
+
+        pp2, _, _ = create_perspective_with_polarity(
+            t_statement="Thesis 2", a_statement="Antithesis 2",
+            t_plus_statement="T2+", t_minus_statement="T2-",
+            a_plus_statement="A2+", a_minus_statement="A2-",
+            intent=f"cn_pp2_{uid}"
+        )
+        pp2.commit()
+
+        create = CreateNexus()
+        result = await create.resolve(
+            intent=f"dedup nexus {uid}",
+            # pp1 appears twice — must collapse to a single edge.
+            perspective_hashes=[pp1.hash, pp2.hash, pp1.hash],
+        )
+
+        connected = [pp.hash for pp, _ in result.nexus.perspectives.all()]
+        assert connected.count(pp1.hash) == 1, "pp1 must be connected exactly once"
+        assert connected.count(pp2.hash) == 1, "pp2 must be connected exactly once"
+        assert len(result.perspectives) == 2, "Deduped input should yield 2 PPs"
+
+    print("✓ CreateNexus dedups repeated perspective hashes")
+
+
 def test_transformation_six_positions():
     """Test that Transformation has 6 Transition positions (Ac, Re, Ac+, Ac-, Re+, Re-)."""
     from dialectical_framework.graph.nodes.transformation import (

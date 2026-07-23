@@ -122,26 +122,37 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
             self._report.ok = False
             self._report.summary = "Nexus must be committed before combination"
             return CombinationResult(
-                nexus=nexus, cycles=[], wheels=[],
-                cycles_by_layer={}, wheels_by_layer={},
+                nexus=nexus,
+                cycles=[],
+                wheels=[],
+                cycles_by_layer={},
+                wheels_by_layer={},
             )
 
         if not perspectives:
             self._report.ok = False
             self._report.summary = "No Perspectives provided"
             return CombinationResult(
-                nexus=nexus, cycles=[], wheels=[],
-                cycles_by_layer={}, wheels_by_layer={},
+                nexus=nexus,
+                cycles=[],
+                wheels=[],
+                cycles_by_layer={},
+                wheels_by_layer={},
             )
 
         # Validate all PPs are committed
         for pp in perspectives:
             if not pp.is_committed:
                 self._report.ok = False
-                self._report.summary = "Perspective must be committed before combination"
+                self._report.summary = (
+                    "Perspective must be committed before combination"
+                )
                 return CombinationResult(
-                    nexus=nexus, cycles=[], wheels=[],
-                    cycles_by_layer={}, wheels_by_layer={},
+                    nexus=nexus,
+                    cycles=[],
+                    wheels=[],
+                    cycles_by_layer={},
+                    wheels_by_layer={},
                 )
 
         # Add PPs to Nexus (idempotent — skip already connected)
@@ -150,8 +161,19 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
         self._report.artifacts["nexus_hash"] = nexus.short_hash
         self._report.artifacts["perspective_count"] = len(perspectives)
 
-        # Build from all PPs in Nexus (not just the ones passed in)
-        all_nexus_pps = [pp for pp, _ in nexus.perspectives.all()]
+        # Build from all PPs in Nexus (not just the ones passed in).
+        # Dedup by hash, preserving order: nexus.perspectives.all() can yield
+        # the same Perspective twice if a duplicate BELONGS_TO_NEXUS edge exists
+        # (BELONGS_TO_NEXUS is a directed relationship — connect() does NOT
+        # deduplicate it). combinations() over a list with repeats produces
+        # degenerate cycles whose perspective_hashes repeat a PP, corrupting
+        # all downstream wheel rendering.
+        seen: set[str] = set()
+        all_nexus_pps = [
+            pp
+            for pp, _ in nexus.perspectives.all()
+            if pp.hash not in seen and not seen.add(pp.hash)
+        ]
         total_pps = len(all_nexus_pps)
 
         # Build combinations layer by layer, collect only new structures
@@ -314,13 +336,17 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
         Returns:
             Tuple of (Cycle, is_new)
         """
-        from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
+        from dialectical_framework.graph.repositories.cycle_repository import (
+            CycleRepository,
+        )
 
         # Layer-1 (single PP) Cycles have no causality intent (nothing to order)
         intent = self._preset if len(perspectives) >= 2 else None
 
         cycle_repo = CycleRepository()
-        existing_cycles = cycle_repo.find_by_perspectives(perspectives, exact_order=True)
+        existing_cycles = cycle_repo.find_by_perspectives(
+            perspectives, exact_order=True
+        )
 
         for cycle in existing_cycles:
             if cycle.intent == intent:
@@ -392,9 +418,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
                 transition.commit()
                 transition.cycle.connect(wheel)
                 self._report.node_created(transition)
-                self._report.relationship_created(
-                    transition.cycle, transition, wheel
-                )
+                self._report.relationship_created(transition.cycle, transition, wheel)
 
             # Connect to cycle
             cycle.wheels.connect(wheel)
@@ -422,7 +446,9 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
         Two sequences are opposite-direction if one is a circular reverse of the other.
         Connects pairs via the OPPOSITE_DIRECTION symmetric relationship.
         """
-        from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
+        from dialectical_framework.graph.repositories.cycle_repository import (
+            CycleRepository,
+        )
 
         cycle_repo = CycleRepository()
         wheel_repo = WheelRepository()
@@ -451,7 +477,7 @@ def _connect_opposite_direction_cycles(
 
     for i, cycle_a in enumerate(cycles):
         seq_a = cycle_a.perspective_hashes
-        for cycle_b in cycles[i + 1:]:
+        for cycle_b in cycles[i + 1 :]:
             seq_b = cycle_b.perspective_hashes
             if _is_circular_reverse(seq_a, seq_b):
                 pair_id = tuple(sorted([cycle_a.hash, cycle_b.hash]))
@@ -476,7 +502,7 @@ def _connect_opposite_direction_wheels(
         wheel_sequences.append((wheel, comp_hashes))
 
     for i, (wheel_a, seq_a) in enumerate(wheel_sequences):
-        for wheel_b, seq_b in wheel_sequences[i + 1:]:
+        for wheel_b, seq_b in wheel_sequences[i + 1 :]:
             if _is_circular_reverse(seq_a, seq_b):
                 pair_id = tuple(sorted([wheel_a.hash, wheel_b.hash]))
                 if pair_id not in connected:
@@ -498,7 +524,4 @@ def _is_circular_reverse(seq_a: list[str], seq_b: list[str]) -> bool:
     if len(seq_a) <= 2:
         return False
     reversed_a = list(reversed(seq_a))
-    return any(
-        reversed_a[i:] + reversed_a[:i] == seq_b
-        for i in range(len(reversed_a))
-    )
+    return any(reversed_a[i:] + reversed_a[:i] == seq_b for i in range(len(reversed_a)))

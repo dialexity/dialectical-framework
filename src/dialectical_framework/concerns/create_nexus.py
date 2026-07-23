@@ -10,8 +10,7 @@ from typing import Optional
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.perspective import Perspective
-from dialectical_framework.graph.repositories.node_repository import \
-    NodeRepository
+from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.protocols.has_config import SettingsAware
 
 
@@ -48,7 +47,16 @@ class CreateNexus(SettingsAware, ReasonableConcern[CreateNexusResult]):
 
         repo = NodeRepository()
         perspectives: list[Perspective] = []
+        # Dedup input hashes, preserving order: BELONGS_TO_NEXUS is a directed
+        # relationship, so connect() does NOT deduplicate. A repeated hash here
+        # would create duplicate edges, causing nexus.perspectives.all() to
+        # yield the same PP twice and poisoning combination generation
+        # (degenerate cycles with repeated perspective_hashes).
+        seen_hashes: set[str] = set()
         for pp_hash in perspective_hashes:
+            if pp_hash in seen_hashes:
+                continue
+            seen_hashes.add(pp_hash)
             node = repo.find_by_hash(pp_hash, node_type=Perspective)
             if node is None:
                 raise ValueError(f"Perspective not found: {pp_hash}")
