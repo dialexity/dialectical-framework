@@ -216,7 +216,7 @@ Heuristic: If the statement describes a causal relationship (X causes/enables/pr
 | Air | "How does it flow?" | Exchange |
 | Water | "How does it adapt?" | Reflection |
 
-**IMPORTANT**: Use the provided text to determine the appropriate domain.
+Use the provided text to determine the appropriate domain.
 For example, "Trust" in a software text → Engineering domain.
 "Trust" in a relationship text → Love domain.
 

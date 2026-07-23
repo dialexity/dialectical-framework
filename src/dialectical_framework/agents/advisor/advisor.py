@@ -116,6 +116,8 @@ def _build_tools() -> list:
         inspect_node
     from dialectical_framework.agents.orchestrator.tools.read_digest import \
         read_digest
+    from dialectical_framework.agents.orchestrator.tools.discard import \
+        discard
 
     return [
         ingest,
@@ -124,4 +126,5 @@ def _build_tools() -> list:
         sync,
         inspect_node,
         read_digest,
+        discard,
     ]

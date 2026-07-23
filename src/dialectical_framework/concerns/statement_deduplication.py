@@ -319,7 +319,7 @@ Find semantic duplicates: statements that make the SAME claim or assertion, just
 
 For each extraction, determine if there's a semantically equivalent statement in the existing vocabulary.
 
-IMPORTANT: Two statements are duplicates ONLY if they assert the same thing from the same stance.
+Two statements are duplicates ONLY if they assert the same thing from the same stance.
 Statements that discuss the same topic but take different positions are NOT duplicates.
 For example, "growth requires structure" and "growth dilutes culture" are about the same topic
 but make different claims — they are NOT duplicates.
