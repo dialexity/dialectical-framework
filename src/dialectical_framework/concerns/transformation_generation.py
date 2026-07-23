@@ -32,6 +32,7 @@ from dialectical_framework.graph.repositories.transformation_repository import (
 from dialectical_framework.utils.edge_context import build_edge_context
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
     ApexDerivationResultDto
+from dialectical_framework.concerns.scoring_scales import HS_SCALE
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
@@ -54,8 +55,8 @@ In a 1-PP wheel (e.g., Love/Hate), the same nodes appear on both sides but carry
 ## Transformation Structure
 
 The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
-- "+" aspects target beneficial states
-- "-" aspects target problematic states
+- "+" transitions target beneficial states
+- "-" transitions target problematic states
 
 **Action side** (from Action Perspective):
 - **Ac+**: source.neg → target.pos (escaping your problems toward their benefits)
@@ -156,7 +157,7 @@ APEX
 4. **Re+ must contradict Ac-** (positive reflection opposes drift toward A-)
 5. **Ac+ must contradict Re-** (positive action opposes regression toward T-)
 6. Re- and Ac- typically have lower insight than the "+" aspects
-7. All statements should be 1-15 words, actionable and memorable
+7. Statements are a fuller actionable form, longer than the headline
 
 ## Example (1-PP: T = Love, A = Indifference)
 
@@ -174,19 +175,19 @@ APEX
 **Your Ac+ (T- → A+, Enmeshment → Autonomy):**
 "Establish personal boundaries while staying emotionally available"
 
-**Your Re+ (responding to their Ac+, Alienation → Autonomy):**
-"Their effort to reconnect grounds me — healthy distance requires acknowledging their reach"
-- Responds to THEIR action (reconnection) by grounding YOUR position (autonomy)
-- COMPLEMENTS your Ac+ (boundaries + awareness of their effort = balanced)
-- Does NOT mirror Ac+ — it's about how their action affects you
+**Your Re+ (A- → T+, Alienation → Bonding) — responding to their Ac+:**
+"Let their reaching toward you rekindle the closeness you'd let grow cold"
+- Responds to THEIR action (reconnection) by moving YOU from alienation toward bonding
+- COMPLEMENTS your Ac+: boundaries build autonomy, this rekindles bonding — together you hold both poles (S+)
+- Does NOT mirror Ac+ — Ac+ moves toward autonomy, Re+ moves toward bonding
 
-**Re- (Autonomy → Alienation):** "Ignoring their reconnection effort hardens into cold isolation"
-- Failure: acting (boundaries) without reflecting on their effort → regression
+**Ac- (T+ → A-, Bonding → Alienation):** "Cherishing closeness but never tending it lets it curdle into distance"
+- Failure: reflecting (valuing the bond) without acting → drift toward alienation
 
-**Ac- (Bonding → Enmeshment):** "Bonding valued without action becomes passive fusion"
-- Failure: reflecting without acting → drift toward enmeshment
+**Re- (A+ → T-, Autonomy → Enmeshment):** "Guarding independence while blind to their reaching snaps back into clinging"
+- Failure: acting (boundaries) without reflecting on their effort → regression to enmeshment
 
-Notice: Re+ contradicts Ac- (grounded awareness vs. passive fusion), Ac+ contradicts Re- (boundaries vs. cold isolation).
+Notice: Re+ contradicts Ac- (rekindling closeness vs. letting it curdle), Ac+ contradicts Re- (building boundaries vs. snapping back to clinging).
 """
 
 
@@ -194,7 +195,7 @@ class TransitionDto(BaseModel):
     """A transition with headline, statement, and explanation."""
 
     headline: str = Field(description="Short headline (component length)")
-    statement: str = Field(description="The transition statement (1-15 words)")
+    statement: str = Field(description="The transition statement (fuller than the headline)")
     explanation: str = Field(
         description="Full explanation of why this transition makes sense"
     )
@@ -211,7 +212,7 @@ class AcMinusCompletionDto(BaseModel):
     """LLM response for generating Ac- (action failure mode)."""
 
     ac_minus_headline: str = Field(description="Ac- headline (component length)")
-    ac_minus_statement: str = Field(description="Ac- statement (1-15 words)")
+    ac_minus_statement: str = Field(description="Ac- statement (fuller than the headline)")
     ac_minus_explanation: str = Field(
         description="Why this is the failure mode of ungrounded reflection"
     )
@@ -227,7 +228,7 @@ class ReSideCompletionDto(BaseModel):
 
     # Re+ fields
     re_plus_headline: str = Field(description="Re+ headline (component length)")
-    re_plus_statement: str = Field(description="Re+ statement (1-15 words)")
+    re_plus_statement: str = Field(description="Re+ statement (fuller than the headline)")
     re_plus_explanation: str = Field(description="How Re+ responds to the opposite action")
     re_plus_haiku: str = Field(description="Re+ haiku (3-line poem)")
     re_plus_insight_label: str = Field(description="Insight level for Re+")
@@ -237,7 +238,7 @@ class ReSideCompletionDto(BaseModel):
 
     # Re- fields
     re_minus_headline: str = Field(description="Re- headline (component length)")
-    re_minus_statement: str = Field(description="Re- statement (1-15 words)")
+    re_minus_statement: str = Field(description="Re- statement (fuller than the headline)")
     re_minus_explanation: str = Field(
         description="Why this is the failure mode when the opposite action goes unexamined"
     )
@@ -270,7 +271,7 @@ class CategoryReframingDto(BaseModel):
 
     # Ac (neutral action category: T → A)
     ac_headline: str = Field(description="Ac headline (component length)")
-    ac_statement: str = Field(description="Ac statement (1-15 words)")
+    ac_statement: str = Field(description="Ac statement (fuller than the headline)")
     ac_explanation: str = Field(
         description="Why this reframing captures how the action category manifests"
     )
@@ -280,7 +281,7 @@ class CategoryReframingDto(BaseModel):
 
     # Re (neutral reflection category: A → T)
     re_headline: str = Field(description="Re headline (component length)")
-    re_statement: str = Field(description="Re statement (1-15 words)")
+    re_statement: str = Field(description="Re statement (fuller than the headline)")
     re_explanation: str = Field(
         description="Why this reframing captures how the reflection category manifests"
     )
@@ -593,7 +594,7 @@ What happens when reflection occurs WITHOUT grounding action?
 - Usually lower insight than Ac+
 
 Requirements:
-- Headline ~{self.settings.component_length} words, statement 1-15 words
+- Headline ~{self.settings.component_length} words, statement up to {self.settings.transition_length} words
 - Produce a haiku (3 lines, 5-7-5 syllables)
 - Ac- must be something that Re+ can CONTRADICT (positive reflection opposes this drift)"""
 
@@ -644,7 +645,7 @@ What happens when their action goes unexamined — how does it pull you back?
 - Usually lower insight than Re+
 
 Requirements:
-- Headlines ~{self.settings.component_length} words, statements 1-15 words
+- Headlines ~{self.settings.component_length} words, statements up to {self.settings.transition_length} words
 - For each position, produce a haiku (3 lines, 5-7-5 syllables)
 - Re+ must be in the {expected_re_category} category (polar pair of {own_ac_plus.proactiveness_label})
 - Diagonal contradictions: Re+ vs Ac-, Ac+ vs Re-"""
@@ -671,14 +672,7 @@ Requirements:
 **Re+ transition**: "{re_plus_statement}"
 **Re+ apex**: "{apexes.re_plus_apex.statement}"
 
-## HS (Heuristic Similarity) Scale
-
-HS measures how well a transition captures the essence of its apex statement:
-- 0.0-0.3: Unrelated or tangentially related to the apex
-- 0.3-0.5: Somewhat related but different focus or aspect
-- 0.5-0.7: Related, captures some key aspects of the apex
-- 0.7-0.9: Very similar, captures most aspects of the apex
-- 0.9-1.0: Equivalent or near-equivalent to the apex concept
+{HS_SCALE}
 
 Score each transition by comparing its semantic meaning to the corresponding apex."""
 
@@ -714,7 +708,7 @@ Generate a transition that describes how "{re_category}" specifically manifests 
 
 For each, provide:
 - **headline** (~{self.settings.component_length} words) - short, memorable reframing
-- **statement** (1-15 words) - fuller description of the contextualized category
+- **statement** (up to {self.settings.transition_length} words) - fuller description of the contextualized category
 - **explanation** - why this reframing captures how the category operates here
 - **haiku** (3 lines, 5-7-5 syllables) - poetic capture of the category's essence
 - **insight_label** and **proactiveness_label** - should match the base category"""

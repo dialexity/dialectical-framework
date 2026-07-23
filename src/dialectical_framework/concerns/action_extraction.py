@@ -63,8 +63,8 @@ Your task is to generate Ac+ candidates that represent T- → A+ transition path
 ## What is Ac+?
 
 The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
-- "+" aspects target beneficial states (T+ or A+)
-- "-" aspects target problematic states (T- or A-)
+- "+" transitions target beneficial states (T+ or A+)
+- "-" transitions target problematic states (T- or A-)
 
 Ac+ is an "action targeting A+" - a way of acting/behaving that helps someone escape the problematic aspects of the thesis (T-) and move toward the healthy aspects of the antithesis (A+).
 
@@ -111,7 +111,7 @@ APEX
 2. Must help transition FROM T- (problem) TOWARD A+ (benefit)
 3. Must NOT simply restate A+ - it's the PATH, not the destination
 4. Should be generative: enable discovery rather than prescribe specific outcomes
-5. Length: 1-15 words, actionable and memorable
+5. Length: a fuller actionable form, longer than the headline
 6. Choose the insight level that best matches the nature of the action
 """
 
@@ -120,7 +120,7 @@ class ActionCandidateDto(BaseModel):
     """A candidate Ac+ statement with coordinates."""
 
     headline: str = Field(description="Short headline (component length)")
-    statement: str = Field(description="The Ac+ statement (1-15 words)")
+    statement: str = Field(description="The Ac+ statement (fuller than the headline)")
     insight_label: str = Field(
         description="Insight level: leverage/anticipation/composition/etc"
     )
@@ -270,7 +270,7 @@ The Ac+ must:
 2. Pick the specific insight label from [{levels_str}] that best fits your action
 3. Choose the appropriate action category (Coordination/Intervention/Implementation/Configuration/Governance/Stewardship)
 4. Provide a short headline (~{self.settings.component_length} words) - the essence of the action
-5. Provide a fuller statement/summary (1-15 words) - actionable and memorable
+5. Provide a fuller statement/summary (up to {self.settings.transition_length} words) - actionable and memorable
 6. Provide a haiku (3 lines, 5-7-5 syllables) capturing the action's essence — easy to memorize
 
 Focus on the T- → A+ transition path, not the destination."""

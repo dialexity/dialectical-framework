@@ -706,7 +706,7 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
 
         Args:
             headline: Short headline (~7 words) - stored on Transition.instruction
-            statement: Fuller statement (1-15 words) - stored on Transition.summary
+            statement: Fuller statement (longer than headline) - stored on Transition.summary
             source: The source component (e.g., T-)
             target: The target component (e.g., A+)
             explanation: Full reasoning - stored on Rationale.text (evidence/justification)

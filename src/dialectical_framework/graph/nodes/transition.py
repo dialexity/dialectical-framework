@@ -77,7 +77,7 @@ class Transition(AssessableEntity, label="Transition"):
     # Mutable post-commit (not part of hash).
     instruction: Optional[str] = None
 
-    # Fuller actionable description (1-15 words)
+    # Fuller actionable description (longer than the headline)
     summary: Optional[str] = None
 
     # Poetic 3-line summary (5-7-5 syllables)
