@@ -93,6 +93,56 @@ SYSTEMIC_TAXONOMY = {
     },
 }
 
+# Elemental taxonomy mapping from Table S-2 (four classical elements + Apex).
+# A peer taxonomy to SYSTEMIC_TAXONOMY, NOT a validation lens: it carves a
+# different set of distinctions (notably Fire/Drive — energy/motivation — which
+# has no systemic home). Table S-2 carries no K_T/K_A/HS numbers; systemic
+# remains the only numerically-grounded table. Runtime HS is LLM-computed
+# against the apex concept name, so elemental lookups work without them.
+# The Apex column is identical to the systemic Apex (same Viability apex).
+ELEMENTAL_TAXONOMY = {
+    "Apex": {
+        POSITION_T: "Integration",
+        POSITION_A: "Disintegration",
+        POSITION_T_PLUS: "Coherence",
+        POSITION_T_MINUS: "Rigid fusion",
+        POSITION_A_PLUS: "Differentiation",
+        POSITION_A_MINUS: "Disintegration",
+    },
+    "Fire": {  # Drive: "What energizes it?"
+        POSITION_T: "Activation",
+        POSITION_A: "Inhibition",
+        POSITION_T_PLUS: "Motivation",
+        POSITION_T_MINUS: "Impulsivity",
+        POSITION_A_PLUS: "Regulation",
+        POSITION_A_MINUS: "Repression",
+    },
+    "Earth": {  # Structure: "What holds it together?"
+        POSITION_T: "Cohesion",
+        POSITION_A: "Separation",
+        POSITION_T_PLUS: "Coherence",
+        POSITION_T_MINUS: "Locking-in",
+        POSITION_A_PLUS: "Differentiation",
+        POSITION_A_MINUS: "Rupture",
+    },
+    "Air": {  # Process: "How does it flow?"
+        POSITION_T: "Exchange",
+        POSITION_A: "Consumption",
+        POSITION_T_PLUS: "Exchange",
+        POSITION_T_MINUS: "Dependency",
+        POSITION_A_PLUS: "Constraint",
+        POSITION_A_MINUS: "Depletion",
+    },
+    "Water": {  # Adaptation: "How does it adapt?"
+        POSITION_T: "Reflection",
+        POSITION_A: "Correction",
+        POSITION_T_PLUS: "Plasticity",
+        POSITION_T_MINUS: "Fragility",
+        POSITION_A_PLUS: "Stabilization",
+        POSITION_A_MINUS: "Collapse",
+    },
+}
+
 VALID_DOMAINS = ["General", "Engineering", "Ecology", "Institutions", "Love"]
 VALID_BRANCHES = [
     "Apex",
@@ -103,6 +153,7 @@ VALID_BRANCHES = [
     "Resilience",
 ]
 VALID_ELEMENTS = ["Fire", "Earth", "Air", "Water"]
+VALID_ELEMENTAL_BRANCHES = ["Apex", "Fire", "Earth", "Air", "Water"]  # Apex is a valid elemental branch too
 VALID_ASPECT_POSITIONS = [
     POSITION_T_PLUS,
     POSITION_T_MINUS,
@@ -110,9 +161,37 @@ VALID_ASPECT_POSITIONS = [
     POSITION_A_MINUS,
 ]
 
-# Systemic taxonomy URI prefix for matching
+# Taxonomy URI family tokens. A meaning URI is
+# dx://taxonomy/{Family}({domain}.v1)/Viability/{branch}/{leaf}. The family
+# token selects which taxonomy vocabulary applies; the parsing/lookup algorithm
+# is taxonomy-agnostic. Adding a taxonomy = add its dict + one registry line.
 SYSTEMIC_PREFIX = "dx://taxonomy/System("
+ELEMENTAL_PREFIX = "dx://taxonomy/Elements("
 VIABILITY_CATEGORY = "Viability"
+
+# Registry mapping URI family token -> taxonomy dict.
+TAXONOMY_BY_FAMILY = {
+    "System": SYSTEMIC_TAXONOMY,
+    "Elements": ELEMENTAL_TAXONOMY,
+}
+
+
+def _family_for_meaning(meaning: Optional[str]) -> str:
+    """Resolve the URI family token for a meaning (defaults to 'System')."""
+    if meaning:
+        for family in TAXONOMY_BY_FAMILY:
+            if f"/{family}(" in meaning:
+                return family
+    return "System"
+
+
+def _taxonomy_for_meaning(meaning: Optional[str]) -> dict:
+    """Resolve which taxonomy dict a meaning URI belongs to (defaults to systemic).
+
+    Dispatches on the URI family token (System, Elements, ...). Systemic is the
+    default and the only numerically-grounded table.
+    """
+    return TAXONOMY_BY_FAMILY[_family_for_meaning(meaning)]
 
 
 def parse_meaning_uri(
@@ -121,14 +200,19 @@ def parse_meaning_uri(
     """
     Parse a meaning URI to extract domain, category, branch, and leaf.
 
-    Expected format: dx://taxonomy/System({domain}.v1)/{category}/{branch}/{leaf}
-    Standard:        dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion
+    Format:    dx://taxonomy/{Family}({domain}.v1)/{category}/{branch}/{leaf}
+    Systemic:  dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion
+    Elements:  dx://taxonomy/Elements(General.v1)/Viability/Fire/Activation
 
     Where:
     - domain: General, Engineering, Ecology, Institutions, Love
     - category: Viability (parent of all branches)
-    - branch: Apex, Integrity, Fidelity, Exchange, Flexibility, Resilience
-    - leaf: specific concept (Cohesion, Modeling, etc.)
+    - branch: systemic (Apex, Integrity, Fidelity, Exchange, Flexibility,
+      Resilience) or elemental (Apex, Fire, Earth, Air, Water)
+    - leaf: specific concept (Cohesion, Activation, etc.)
+
+    The algorithm is taxonomy-agnostic; use _taxonomy_for_meaning(meaning) to
+    resolve which taxonomy dict the returned branch belongs to.
 
     Args:
         meaning: The meaning URI to parse
@@ -144,12 +228,12 @@ def parse_meaning_uri(
     branch = None
     leaf = None
 
-    # Extract domain from System({domain}.v1) if present
-    if "System(" in meaning:
-        start = meaning.find("System(") + 7
-        end = meaning.find(".v1)")
-        if end > start:
-            domain = meaning[start:end]
+    # Extract domain from {Family}({domain}.v1) if present — family-agnostic.
+    if ".v1)" in meaning:
+        open_paren = meaning.find("(")
+        dot_v1 = meaning.find(".v1)")
+        if 0 <= open_paren < dot_v1:
+            domain = meaning[open_paren + 1 : dot_v1]
 
     # Split URI into path segments
     # Remove protocol prefix for parsing
@@ -159,12 +243,14 @@ def parse_meaning_uri(
 
     segments = [s for s in path_part.split("/") if s]
 
-    # Find category and branch by looking for Viability followed by valid branch
+    # Find category and branch by looking for Viability followed by a valid
+    # branch from either taxonomy (systemic or elemental).
+    valid_branches = set(VALID_BRANCHES) | set(VALID_ELEMENTAL_BRANCHES)
     for i, segment in enumerate(segments):
         if segment == VIABILITY_CATEGORY:
             category = segment
             # Next segment should be the branch
-            if i + 1 < len(segments) and segments[i + 1] in VALID_BRANCHES:
+            if i + 1 < len(segments) and segments[i + 1] in valid_branches:
                 branch = segments[i + 1]
                 # Leaf is the segment after branch
                 if i + 2 < len(segments):
@@ -187,7 +273,7 @@ Your task is to classify statements and anchor them in taxonomy.
 - No trade-offs, no systemic dynamics, no causal chains
 - Examples: "The sky is blue", "Water boils at 100C", "API is stateless", "The repository has 3 branches"
 
-**COMPLEX/SYSTEMIC** - is_simple = false
+**COMPLEX** - is_simple = false
 - Involves causal dynamics, trade-offs, or systemic relationships
 - Describes how one thing affects another, or how a process shapes outcomes
 - Concerns viability, health, functioning, or governance of systems
@@ -196,6 +282,20 @@ Your task is to classify statements and anchor them in taxonomy.
 Heuristic: If the statement describes a causal relationship (X causes/enables/prevents Y), a trade-off, or a systemic dynamic → Complex. If it is a bare fact verifiable by inspection → Simple.
 
 ## Taxonomy for Complex Statements
+
+Every complex statement is anchored in ONE of two peer taxonomies. Choose the
+taxonomy first, then locate the thesis concept (leaf) within it.
+
+**Choosing the taxonomy:**
+- **systemic** (default) — the thesis is best understood by which viability
+  capacity of a system it serves. Fits engineering, institutional, ecological,
+  informational, and governance concepts. Use this unless the elemental test
+  below clearly fits.
+- **elemental** — the thesis is fundamentally about drive, energy, motivation,
+  or activation (systemic has no home for this — it maps to Fire), OR it is a
+  broad cross-domain, psychological, or natural concept where the functional-
+  capacity question feels forced and the Drive/Structure/Process/Adaptation
+  frame fits better.
 
 ### SYSTEMIC TAXONOMY
 
@@ -207,16 +307,16 @@ Heuristic: If the statement describes a causal relationship (X causes/enables/pr
 | Flexibility | "Can it adapt?" | Exploration | control | plasticity | innovation | Openness |
 | Resilience | "Can it recover?" | Recovery | tolerance | resilience | crisis recovery | Repair |
 
-### ELEMENTAL TAXONOMY (alternative)
+### ELEMENTAL TAXONOMY
 
 | Element | Question | General T |
 |---------|----------|-----------|
-| Fire | "What energizes it?" | Activation |
+| Fire | "What energizes/drives it?" | Activation |
 | Earth | "What holds it together?" | Cohesion |
-| Air | "How does it flow?" | Exchange |
-| Water | "How does it adapt?" | Reflection |
+| Air | "How does it flow/exchange?" | Exchange |
+| Water | "How does it adapt/correct?" | Reflection |
 
-Use the provided text to determine the appropriate domain.
+For systemic, use the provided text to determine the appropriate domain.
 For example, "Trust" in a software text → Engineering domain.
 "Trust" in a relationship text → Love domain.
 
@@ -229,19 +329,23 @@ Respond with structured output matching the requested format."""
 class ClassificationDto(BaseModel):
     """Result of classifying a statement."""
 
-    is_simple: bool = Field(description="True=Simple/Binary, False=Complex/Systemic")
+    is_simple: bool = Field(description="True=Simple/Binary, False=Complex")
     reasoning: str = Field(description="Brief explanation")
 
 
 class TaxonomyLocationDto(BaseModel):
     """Result of locating statement in taxonomy."""
 
-    taxonomy_type: str = Field(description="'systemic' or 'elemental'")
+    taxonomy_type: str = Field(
+        description="'systemic' (default) or 'elemental' (drive/energy/activation, or broad cross-domain/psychological concepts)"
+    )
     domain: str = Field(
         default="General",
         description="For systemic: General, Engineering, Ecology, Institutions, Love",
     )
-    branch: str = Field(description="Branch/Element name")
+    branch: str = Field(
+        description="Systemic branch (Integrity/Fidelity/Exchange/Flexibility/Resilience) or element (Fire/Earth/Air/Water)"
+    )
     leaf: str = Field(description="T concept from taxonomy")
     reasoning: str = Field(description="Brief explanation")
 
@@ -300,14 +404,16 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
         if not thesis_meaning:
             return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
 
-        # Parse thesis meaning URI properly
+        # Parse thesis meaning URI properly, staying within its taxonomy family
+        family = _family_for_meaning(thesis_meaning)
+        taxonomy = TAXONOMY_BY_FAMILY[family]
         domain, category, branch, _ = parse_meaning_uri(thesis_meaning)
 
-        if branch and branch in SYSTEMIC_TAXONOMY:
+        if branch and branch in taxonomy:
             domain = domain or "General"
             category = category or VIABILITY_CATEGORY
-            antithesis_leaf = SYSTEMIC_TAXONOMY[branch][POSITION_A]
-            return f"dx://taxonomy/System({domain}.v1)/{category}/{branch}/{antithesis_leaf}"
+            antithesis_leaf = taxonomy[branch][POSITION_A]
+            return f"dx://taxonomy/{family}({domain}.v1)/{category}/{branch}/{antithesis_leaf}"
 
         # Fallback
         return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
@@ -375,20 +481,22 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
             leaf = SYSTEMIC_TAXONOMY["Apex"][position]
             return f"dx://taxonomy/System(General.v1)/Viability/Apex/{leaf}"
 
-        # Parse parent meaning URI properly
+        # Parse parent meaning URI properly, staying within its taxonomy family
+        family = _family_for_meaning(parent_meaning)
+        taxonomy = TAXONOMY_BY_FAMILY[family]
         domain, category, branch, _ = parse_meaning_uri(parent_meaning)
         domain = domain or "General"
         category = category or VIABILITY_CATEGORY
 
         # Get aspect leaf from taxonomy using position directly as key
-        if branch and branch in SYSTEMIC_TAXONOMY:
-            leaf = SYSTEMIC_TAXONOMY[branch][position]
+        if branch and branch in taxonomy:
+            leaf = taxonomy[branch][position]
         else:
             # Use apex-level aspects
-            leaf = SYSTEMIC_TAXONOMY["Apex"][position]
+            leaf = taxonomy["Apex"][position]
             branch = "Apex"
 
-        return f"dx://taxonomy/System({domain}.v1)/{category}/{branch}/{leaf}"
+        return f"dx://taxonomy/{family}({domain}.v1)/{category}/{branch}/{leaf}"
 
     @staticmethod
     def lookup_aspect_apex(
@@ -418,14 +526,15 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
         parent_meaning = parent.meaning or ""
 
-        # Parse parent meaning URI properly
+        # Parse parent meaning URI properly, staying within its taxonomy family
+        taxonomy = _taxonomy_for_meaning(parent_meaning)
         _, _, branch, _ = parse_meaning_uri(parent_meaning)
 
         # Get aspect apex from taxonomy using position directly as key
-        if branch and branch in SYSTEMIC_TAXONOMY:
-            return SYSTEMIC_TAXONOMY[branch][position]
+        if branch and branch in taxonomy:
+            return taxonomy[branch][position]
         else:
-            return SYSTEMIC_TAXONOMY["Apex"][position]
+            return taxonomy["Apex"][position]
 
     @staticmethod
     def get_contradiction_pair(position: str) -> str:
@@ -535,7 +644,7 @@ Statement: "{self._statement}"
 {text_section}
 Using the classification criteria from the system prompt, classify as:
 - SIMPLE/BINARY (is_simple = true): verifiable by direct observation, no causal dynamics
-- COMPLEX/SYSTEMIC (is_simple = false): describes causal relationships, trade-offs, or systemic dynamics
+- COMPLEX (is_simple = false): describes causal relationships, trade-offs, or systemic dynamics
 
 A statement like "X prevents/enables/eliminates Y" describes a causal dynamic and is COMPLEX, even if one could argue the causal claim is "either true or false." The test is whether the statement embeds a systemic relationship, not whether one can assign it a truth value.
 
@@ -561,9 +670,9 @@ Use this text to determine the appropriate domain.
 Statement: "{self._statement}"
 {text_section}{domain_hint_section}
 Using the taxonomy tables from the system prompt, determine:
-- taxonomy_type: "systemic" or "elemental"
+- taxonomy_type: "systemic" (default) or "elemental". Choose elemental only when the thesis is fundamentally about drive/energy/motivation/activation, or is a broad cross-domain/psychological concept where the systemic capacity question feels forced.
 - domain: For systemic only (General, Engineering, Ecology, Institutions, Love)
-- branch: Branch or Element name
+- branch: Systemic branch (Integrity/Fidelity/Exchange/Flexibility/Resilience) or element (Fire/Earth/Air/Water)
 - leaf: The T concept from the table
 - reasoning: Brief explanation"""
 
@@ -591,7 +700,9 @@ Using the taxonomy tables from the system prompt, determine:
         if taxonomy_type == "elemental":
             if branch not in VALID_ELEMENTS:
                 branch = "Earth"
-            return f"dx://taxonomy/Elemental/Viability/{branch}/{leaf}"
+            # Elemental vocabulary is domain-generic (General); the family token
+            # keeps the URI structurally uniform with systemic for future domains.
+            return f"dx://taxonomy/Elements(General.v1)/Viability/{branch}/{leaf}"
         else:
             if branch not in VALID_BRANCHES:
                 branch = "Fidelity"

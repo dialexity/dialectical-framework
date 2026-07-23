@@ -259,3 +259,142 @@ class TestAgentPrompts:
             assert f"`{name}`" in SYSTEM_PROMPT
         # reject-framing now discards rather than merely "stops drawing on"
         assert "silently `discard` it" in SYSTEM_PROMPT
+
+
+# --- Task 10: Elemental as a full peer taxonomy ------------------------------
+
+
+class _FakeStatement:
+    """Minimal stand-in for the static lookups (touch only .meaning/.is_simple)."""
+
+    def __init__(self, meaning: str) -> None:
+        self.meaning = meaning
+        self.is_simple = False
+
+
+class TestElementalTaxonomy:
+    _URI = "dx://taxonomy/Elements(General.v1)/Viability/Fire/Activation"
+
+    def test_dict_matches_table_s2(self):
+        """The ELEMENTAL_TAXONOMY dict transcribes Table S-2 (Fire row + Apex)."""
+        from dialectical_framework.concerns.statement_classification import (
+            ELEMENTAL_TAXONOMY,
+        )
+        from dialectical_framework.graph.nodes.perspective import (
+            POSITION_A, POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T,
+            POSITION_T_MINUS, POSITION_T_PLUS,
+        )
+
+        for element in ("Apex", "Fire", "Earth", "Air", "Water"):
+            assert element in ELEMENTAL_TAXONOMY
+        fire = ELEMENTAL_TAXONOMY["Fire"]
+        assert fire[POSITION_T] == "Activation"
+        assert fire[POSITION_A] == "Inhibition"
+        assert fire[POSITION_T_PLUS] == "Motivation"
+        assert fire[POSITION_T_MINUS] == "Impulsivity"
+        assert fire[POSITION_A_PLUS] == "Regulation"
+        assert fire[POSITION_A_MINUS] == "Repression"
+
+    def test_parse_extracts_elemental_branch_not_none(self):
+        """The old trap: an elemental URI parsed to branch=None. Now it doesn't."""
+        from dialectical_framework.concerns.statement_classification import (
+            parse_meaning_uri,
+        )
+
+        domain, category, branch, leaf = parse_meaning_uri(self._URI)
+        assert (domain, category, branch, leaf) == (
+            "General",
+            "Viability",
+            "Fire",
+            "Activation",
+        )
+
+    def test_family_and_taxonomy_dispatch(self):
+        from dialectical_framework.concerns.statement_classification import (
+            ELEMENTAL_TAXONOMY, SYSTEMIC_TAXONOMY, _family_for_meaning,
+            _taxonomy_for_meaning,
+        )
+
+        assert _family_for_meaning(self._URI) == "Elements"
+        assert _taxonomy_for_meaning(self._URI) is ELEMENTAL_TAXONOMY
+        # default / systemic
+        assert _family_for_meaning(None) == "System"
+        assert _taxonomy_for_meaning("dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling") is SYSTEMIC_TAXONOMY
+
+    def test_antithesis_stays_elemental(self):
+        """Regression: elemental thesis must NOT fall back to systemic Fidelity."""
+        from dialectical_framework.concerns.statement_classification import (
+            StatementClassification as SC,
+        )
+
+        result = SC.lookup_antithesis_meaning(_FakeStatement(self._URI))
+        assert result == "dx://taxonomy/Elements(General.v1)/Viability/Fire/Inhibition"
+        assert "System(" not in result  # the corruption we fixed
+        assert "Fidelity" not in result
+
+    def test_all_aspects_stay_elemental(self):
+        """Regression: aspects must NOT collapse to the systemic Apex column."""
+        from dialectical_framework.concerns.statement_classification import (
+            StatementClassification as SC,
+        )
+
+        parent = _FakeStatement(self._URI)
+        expected = {"T+": "Motivation", "T-": "Impulsivity", "A+": "Regulation", "A-": "Repression"}
+        for pos, apex in expected.items():
+            meaning = SC.lookup_aspect_meaning(parent, pos)
+            assert meaning == f"dx://taxonomy/Elements(General.v1)/Viability/Fire/{apex}"
+            # apex concept name drives HS scoring — must be the elemental one,
+            # not the systemic Apex fallback (Coherence/Rigid fusion/...)
+            assert SC.lookup_aspect_apex(parent, pos) == apex
+
+    def test_dedup_prefix_preserves_family(self):
+        from dialectical_framework.concerns.statement_deduplication import (
+            _extract_meaning_prefix,
+        )
+
+        assert (
+            _extract_meaning_prefix(self._URI)
+            == "dx://taxonomy/Elements(General.v1)/Viability/Fire"
+        )
+
+    def test_systemic_path_unchanged(self):
+        """Systemic lookups must be untouched by the elemental dispatch."""
+        from dialectical_framework.concerns.statement_classification import (
+            StatementClassification as SC,
+        )
+        from dialectical_framework.concerns.statement_deduplication import (
+            _extract_meaning_prefix,
+        )
+
+        uri = "dx://taxonomy/System(Engineering.v1)/Viability/Fidelity/Simulation"
+        assert SC.lookup_aspect_apex(_FakeStatement(uri), "T+") == "Accuracy"
+        assert (
+            _extract_meaning_prefix(uri)
+            == "dx://taxonomy/System(Engineering.v1)/Viability/Fidelity"
+        )
+
+    def test_build_meaning_uri_emits_uniform_elemental_form(self):
+        """_build_meaning_uri emits the family-uniform Elements(General.v1) form."""
+        from dialectical_framework.concerns.statement_classification import (
+            StatementClassification, TaxonomyLocationDto,
+        )
+
+        loc = TaxonomyLocationDto(
+            taxonomy_type="elemental", domain="General", branch="Fire",
+            leaf="Activation", reasoning="drive",
+        )
+        uri = StatementClassification()._build_meaning_uri(False, loc)
+        assert uri == "dx://taxonomy/Elements(General.v1)/Viability/Fire/Activation"
+        # the old bespoke domain-free form must be gone
+        assert "Elemental/Viability" not in uri
+
+    def test_selection_criterion_in_prompt(self):
+        """The classifier prompt now gives a real systemic-vs-elemental rule."""
+        from dialectical_framework.concerns.statement_classification import (
+            SYSTEM_PROMPT,
+        )
+
+        assert "peer taxonomies" in SYSTEM_PROMPT
+        assert "drive, energy, motivation" in SYSTEM_PROMPT
+        # polysemy fix: the is_simple=false label is no longer "COMPLEX/SYSTEMIC"
+        assert "COMPLEX/SYSTEMIC" not in SYSTEM_PROMPT

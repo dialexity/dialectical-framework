@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 
 from dialectical_framework.concerns.statement_classification import (
-    parse_meaning_uri)
+    _family_for_meaning, parse_meaning_uri)
 
 SIMPLE_MEANING = "dx://taxonomy/Simple"
 
@@ -51,6 +51,9 @@ def _extract_meaning_prefix(meaning: Optional[str]) -> Optional[str]:
         "dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling"
         → "dx://taxonomy/System(General.v1)/Viability/Fidelity"
 
+        "dx://taxonomy/Elements(General.v1)/Viability/Fire/Activation"
+        → "dx://taxonomy/Elements(General.v1)/Viability/Fire"
+
         "dx://taxonomy/Simple"
         → "dx://taxonomy/Simple" (full URI, Simple only matches Simple)
     """
@@ -67,9 +70,11 @@ def _extract_meaning_prefix(meaning: Optional[str]) -> Optional[str]:
     # Use centralized parsing from StatementClassification
     domain, category, branch, _ = parse_meaning_uri(meaning)
 
-    # If we successfully parsed the URI, reconstruct prefix (without leaf)
+    # If we successfully parsed the URI, reconstruct prefix (without leaf),
+    # preserving the taxonomy family token (System, Elements, ...).
     if domain and category and branch:
-        return f"dx://taxonomy/System({domain}.v1)/{category}/{branch}"
+        family = _family_for_meaning(meaning)
+        return f"dx://taxonomy/{family}({domain}.v1)/{category}/{branch}"
 
     # If we have category and branch but no domain, still construct prefix
     if category and branch:
