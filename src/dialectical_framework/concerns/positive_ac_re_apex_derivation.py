@@ -4,9 +4,9 @@ AcReApexDerivation: Concern for deriving Re+ and Ac+ apex statements for a wheel
 The apex statements represent the reference transformation paths for this specific
 edge context, against which other transformations are measured (via HS).
 
-Apexes are generated within fixed coordinate ranges (sweet spots):
-- Re+ apex: X (proactiveness) = 0.2-0.3, Y (insight) = 0.5-0.7
-- Ac+ apex: X (proactiveness) = 0.5-0.7, Y (insight) = 0.5-0.7
+Apexes are generated within sweet-spot coordinate ranges derived from the
+taxonomy apex targets (RE_PLUS_APEX_TARGET / AC_PLUS_APEX_TARGET) ± SWEET_SPOT_MARGIN.
+See RE_PLUS_SWEET_SPOT / AC_PLUS_SWEET_SPOT for the resolved bounds.
 
 Usage:
     service = AcReApexDerivation()
@@ -29,6 +29,7 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, RE_PLUS_APEX_TARGET, insight_label_to_value,
     proactiveness_label_to_value)
+from dialectical_framework.concerns.scoring_scales import ASPECT_DEFINITIONS
 from dialectical_framework.utils.edge_context import build_edge_context
 from dialectical_framework.protocols.has_config import SettingsAware
 
@@ -61,13 +62,13 @@ Your task is to derive apex statements that represent reference transformation p
 
 ## Transformation Structure
 
-A Perspective is built around a Polarity (T, A) and adds four Aspects (T+, T-, A+, A-):
-- T (Thesis): A neutral statement of one side
-- T+: The healthy/productive form of T
-- T-: The problematic/excessive form of T
-- A (Antithesis): The opposing side
-- A+: The healthy/productive form of A
-- A-: The problematic/excessive form of A
+A Perspective is built around a Polarity (T, A) and adds four Aspects (T+, T-, A+, A-).
+
+The two poles:
+- T (Thesis): a neutral statement of one side
+- A (Antithesis): the opposing side
+
+{ASPECT_DEFINITIONS}
 
 Transformations navigate this tension through Action and Reflection:
 - Ac+ (Positive Action): T- → A+ path (escaping T's problems toward A's benefits)
@@ -161,7 +162,7 @@ You MUST generate apexes within these coordinate ranges:
 
 ## Requirements for Apex Statements
 
-1. Each apex should be 1-15 words, actionable and memorable
+1. Each apex should be concise and actionable, longer than a headline
 2. They should be complementary (Re+ and Ac+ work together)
 3. They should NOT simply restate T+/A+ but describe the PATH to them
 4. They should be generative (enabling discovery) not prescriptive
@@ -176,7 +177,7 @@ Ac+/Re+ must: (1) not restate A+/T+, (2) be generative, (3) explain subtlety/non
 class ApexCandidateDto(BaseModel):
     """A candidate apex statement with coordinates."""
 
-    statement: str = Field(description="The apex statement (1-15 words)")
+    statement: str = Field(description="The apex statement (concise, longer than a headline)")
     insight_label: str = Field(
         description="Insight label from taxonomy (e.g., leverage, composition, anticipation)"
     )
@@ -192,10 +193,14 @@ class ApexPairDto(BaseModel):
     """Result of generating both Re+ and Ac+ apex candidates."""
 
     re_plus_apex: ApexCandidateDto = Field(
-        description="Re+ apex: A- → T+ reflection path (proactiveness 0.2-0.3, insight 0.5-0.7)"
+        description=f"Re+ apex: A- → T+ reflection path "
+        f"(proactiveness {RE_PLUS_SWEET_SPOT['proactiveness_min']}-{RE_PLUS_SWEET_SPOT['proactiveness_max']}, "
+        f"insight {RE_PLUS_SWEET_SPOT['insight_min']}-{RE_PLUS_SWEET_SPOT['insight_max']})"
     )
     ac_plus_apex: ApexCandidateDto = Field(
-        description="Ac+ apex: T- → A+ action path (proactiveness 0.5-0.7, insight 0.5-0.7)"
+        description=f"Ac+ apex: T- → A+ action path "
+        f"(proactiveness {AC_PLUS_SWEET_SPOT['proactiveness_min']}-{AC_PLUS_SWEET_SPOT['proactiveness_max']}, "
+        f"insight {AC_PLUS_SWEET_SPOT['insight_min']}-{AC_PLUS_SWEET_SPOT['insight_max']})"
     )
 
 
@@ -312,7 +317,7 @@ Generate apex statements for both transformation paths within the specified swee
    - MUST use insight in range {AC_PLUS_SWEET_SPOT["insight_min"]} - {AC_PLUS_SWEET_SPOT["insight_max"]}
 
 For each apex, provide:
-- A statement (1-15 words)
+- A statement (up to {self.settings.transition_length} words)
 - The exact insight_label and proactiveness_label from the taxonomy
 - An explanation of why this represents the transformation path"""
 

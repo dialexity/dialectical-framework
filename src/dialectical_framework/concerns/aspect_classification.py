@@ -44,6 +44,8 @@ from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                           POSITION_A_PLUS,
                                                           POSITION_T_MINUS,
                                                           POSITION_T_PLUS)
+from dialectical_framework.concerns.scoring_scales import (
+    ASPECT_DEFINITIONS, COMPLEMENTARITY_SCALE, HS_SCALE)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.statement import \
@@ -52,20 +54,18 @@ if TYPE_CHECKING:
 
 # --- System Prompt ---
 
-SYSTEM_PROMPT = """You are a dialectical aspect evaluator.
+SYSTEM_PROMPT = f"""You are a dialectical aspect evaluator.
 
-Your task is to evaluate whether a given statement is a valid aspect (positive or negative elaboration)
+Your task is to evaluate whether a given statement is a valid aspect
 for a thesis-antithesis tension, and measure its quality.
 
-## Aspect Positions
+## Positions
 
-A complete dialectical tetrad has 6 positions:
-- T: Thesis (neutral statement)
-- A: Antithesis (dialectical opposite of T)
-- T+: Positive aspect of thesis (benefits, strengths)
-- T-: Negative aspect of thesis (risks, downsides, shadow)
-- A+: Positive aspect of antithesis (benefits, strengths)
-- A-: Negative aspect of antithesis (risks, downsides, shadow)
+A complete dialectical tetrad has 6 positions. The two poles:
+- T: Thesis — a neutral statement of one side
+- A: Antithesis — the dialectical opposite of T
+
+{ASPECT_DEFINITIONS}
 
 ## Diagonal Contradiction (Structural Constraint)
 
@@ -80,34 +80,9 @@ Example (T=Love, A=Indifference):
 When evaluating an aspect, consider whether it would properly contradict its diagonal counterpart.
 If a proposed T+ doesn't oppose A-, or A+ doesn't oppose T-, it may be misclassified.
 
-## HS (Heuristic Similarity) Scale
+{HS_SCALE}
 
-HS measures how well the aspect represents the apex concept for that position:
-- 0.9-1.0: Perfect or near-perfect match - exemplary representation of the apex
-- 0.7-0.9: Very similar - captures most aspects of the apex concept
-- 0.5-0.7: Related - captures some aspects, moderate fit for position
-- 0.3-0.5: Somewhat related - weak but still the right category
-- 0.1-0.3: Weakly related - likely better suited for a different position
-- 0.0-0.1: Not related - wrong category entirely, definitely belongs elsewhere
-
-**Critical threshold**: HS > 0.1 means valid for this position (quality varies).
-HS ≤ 0.1 means wrong category - suggest the correct position.
-
-## Complementarity Scale
-
-Complementarity measures how well the aspect complements, enhances, or supports T and A.
-
-**K_T (Complementarity to Thesis)**: 0.0 to 1.0
-How well does this aspect complement, enhance, or support the Thesis?
-- 0.0 = Actively undermines or contradicts T
-- 0.5 = Neutral, neither helps nor hurts T
-- 1.0 = Strongly supports and enhances T
-
-**K_A (Complementarity to Antithesis)**: 0.0 to 1.0
-How well does this aspect complement, enhance, or support the Antithesis?
-- 0.0 = Actively undermines or contradicts A
-- 0.5 = Neutral, neither helps nor hurts A
-- 1.0 = Strongly supports and enhances A
+{COMPLEMENTARITY_SCALE}
 
 Respond with structured output matching the requested format."""
 
@@ -137,7 +112,7 @@ class AspectEvaluationDto(BaseModel):
     )
     suggested_position: Optional[str] = Field(
         default=None,
-        description="If HS is very low, which position might fit better? (T/A/T+/T-/A+/A- or null if unrelated)",
+        description="If HS is 0.1 or below (wrong category), which position fits better? (T/A/T+/T-/A+/A- or null if unrelated)",
     )
     reasoning: str = Field(description="Explanation of the evaluation")
 
@@ -278,10 +253,10 @@ class AspectClassification(ReasonableConcern[AspectClassificationResult]):
         )
 
         position_description = {
-            POSITION_T_PLUS: "positive aspect (benefit/strength) of the THESIS",
-            POSITION_T_MINUS: "negative aspect (risk/downside/shadow) of the THESIS",
-            POSITION_A_PLUS: "positive aspect (benefit/strength) of the ANTITHESIS",
-            POSITION_A_MINUS: "negative aspect (risk/downside/shadow) of the ANTITHESIS",
+            POSITION_T_PLUS: "constructive development of the THESIS that also strengthens the antithesis",
+            POSITION_T_MINUS: "exaggerated overdevelopment of the THESIS that underdevelops the antithesis",
+            POSITION_A_PLUS: "constructive development of the ANTITHESIS that also strengthens the thesis",
+            POSITION_A_MINUS: "exaggerated overdevelopment of the ANTITHESIS that underdevelops the thesis",
         }
 
         return f"""{context_section}Evaluate this aspect statement for a dialectical tension.

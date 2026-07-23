@@ -65,6 +65,8 @@ from dialectical_framework.graph.nodes.perspective import (POSITION_A,
                                                           POSITION_T_MINUS,
                                                           POSITION_T_PLUS,
                                                           Perspective)
+from dialectical_framework.concerns.scoring_scales import (
+    ASPECT_DEFINITIONS, COMPLEMENTARITY_SCALE, HS_SCALE)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
@@ -90,33 +92,19 @@ POSITION_TO_PARENT = {
 
 # --- System Prompt ---
 
-SYSTEM_PROMPT = """You are a dialectical aspect generator.
+SYSTEM_PROMPT = f"""You are a dialectical aspect generator.
 
 Your task is to generate aspects (T+, T-, A+, A-) for a thesis-antithesis pair.
 
-## Aspect Definitions
-
-| Aspect | Description |
-|------|-------------|
-| T+ | Constructive/positive development of T - T developed well, balanced |
-| T- | Overdeveloped/exaggerated form of T - T taken too far, imbalanced |
-| A+ | Constructive/positive development of A - A developed well, balanced |
-| A- | Overdeveloped/exaggerated form of A - A taken too far, imbalanced |
-
-## Key Constraints
-
-1. T+ must directly contradict A- (they cannot both be true/good)
-2. A+ must directly contradict T- (they cannot both be true/good)
-3. T+/A+ are constructive, balancing developments that enhance upsides
-4. T-/A- are overdevelopments/exaggerations (downsides)
+{ASPECT_DEFINITIONS}
 
 ## Examples
 
 T = Love, A = Indifference:
-- T+ = Bonding (healthy, balanced love)
-- T- = Enmeshment (love taken too far)
-- A+ = Autonomy (healthy independence)
-- A- = Alienation (independence taken too far)
+- T+ = Bonding (love that also makes room for the other's autonomy)
+- T- = Enmeshment (love overdeveloped, smothering autonomy)
+- A+ = Autonomy (independence that also deepens the bond)
+- A- = Alienation (independence overdeveloped, severing the bond)
 
 T = Courage, A = Fear:
 - T+ = Trust
@@ -549,17 +537,9 @@ Taxonomy apex concepts for reference:
 {existing_section}{avoid_section}
 Generate each aspect (1-{max_words} words) with:
 
-## HS (Heuristic Similarity) Scale
-HS measures how well the aspect captures the essence of its taxonomy apex concept:
-- 0.0-0.3: Unrelated or tangentially related to the apex
-- 0.3-0.5: Somewhat related but different focus or aspect
-- 0.5-0.7: Related, captures some key aspects of the apex
-- 0.7-0.9: Very similar, captures most aspects of the apex
-- 0.9-1.0: Equivalent or near-equivalent to the apex concept
+{HS_SCALE}
 
-## Complementarity (K) Scores
-- K_T: How well this aspect complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this aspect complements, balances, or contributes positively to the antithesis (0.0-1.0)
+{COMPLEMENTARITY_SCALE}
 
 Ensure T+ contradicts A-, and A+ contradicts T-."""
 
@@ -605,17 +585,9 @@ Taxonomy apex concepts for reference:
 {existing_section}{avoid_section}
 Generate each aspect (1-{max_words} words) with:
 
-## HS (Heuristic Similarity) Scale
-HS measures how well the aspect captures the essence of its taxonomy apex concept:
-- 0.0-0.3: Unrelated or tangentially related to the apex
-- 0.3-0.5: Somewhat related but different focus or aspect
-- 0.5-0.7: Related, captures some key aspects of the apex
-- 0.7-0.9: Very similar, captures most aspects of the apex
-- 0.9-1.0: Equivalent or near-equivalent to the apex concept
+{HS_SCALE}
 
-## Complementarity (K) Scores
-- K_T: How well this aspect complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this aspect complements, balances, or contributes positively to the antithesis (0.0-1.0)
+{COMPLEMENTARITY_SCALE}
 
 The positive_aspect is {positive_pos}, the negative_aspect is {negative_pos}.
 They must contradict each other - they cannot both be true/good simultaneously."""
@@ -633,13 +605,13 @@ They must contradict each other - they cannot both be true/good simultaneously."
 
         # Get description based on position
         if position == POSITION_T_PLUS:
-            desc = "constructive/positive development of the thesis"
+            desc = "constructive development of the thesis that also strengthens the antithesis"
         elif position == POSITION_T_MINUS:
-            desc = "overdeveloped/exaggerated form of the thesis"
+            desc = "exaggerated overdevelopment of the thesis that underdevelops the antithesis"
         elif position == POSITION_A_PLUS:
-            desc = "constructive/positive development of the antithesis"
+            desc = "constructive development of the antithesis that also strengthens the thesis"
         else:
-            desc = "overdeveloped/exaggerated form of the antithesis"
+            desc = "exaggerated overdevelopment of the antithesis that underdevelops the thesis"
 
         text_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
         existing_section = f"\n{existing_context}\n" if existing_context else ""
@@ -656,14 +628,6 @@ Taxonomy apex concept: {apex}
 {existing_section}{avoid_section}
 Generate the aspect (1-{max_words} words) with:
 
-## HS (Heuristic Similarity) Scale
-HS measures how well the aspect captures the essence of its taxonomy apex concept:
-- 0.0-0.3: Unrelated or tangentially related to the apex
-- 0.3-0.5: Somewhat related but different focus or aspect
-- 0.5-0.7: Related, captures some key aspects of the apex
-- 0.7-0.9: Very similar, captures most aspects of the apex
-- 0.9-1.0: Equivalent or near-equivalent to the apex concept
+{HS_SCALE}
 
-## Complementarity (K) Scores
-- K_T: How well this aspect complements, balances, or contributes positively to the thesis (0.0-1.0)
-- K_A: How well this aspect complements, balances, or contributes positively to the antithesis (0.0-1.0)"""
+{COMPLEMENTARITY_SCALE}"""
