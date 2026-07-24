@@ -264,6 +264,238 @@ class TestAliasTranslation:
             assert "C1_2" not in text
 
 
+class TestStepCausationMapping:
+    """Step DTOs (alias-identified) resolve to StepCausation (hash/text)."""
+
+    @staticmethod
+    def _fake_statements(n: int):
+        from types import SimpleNamespace
+
+        return [
+            SimpleNamespace(hash=f"hash-{i}", text=f"Statement {i}") for i in range(n)
+        ]
+
+    def test_valid_aliases_resolve(self):
+        from dialectical_framework.concerns.causality.causality_estimator_balanced import (
+            StepCausationDto, _resolve_steps)
+
+        seq = self._fake_statements(2)
+        steps = _resolve_steps(
+            [
+                StepCausationDto(from_alias="C1_1", to_alias="C1_2", causation="a→b"),
+                StepCausationDto(from_alias="C1_2", to_alias="C1_1", causation="b→a"),
+            ],
+            seq, 1, {},
+        )
+        assert [(s.source_hash, s.target_hash) for s in steps] == [
+            ("hash-0", "hash-1"),
+            ("hash-1", "hash-0"),
+        ]
+        assert steps[0].source_text == "Statement 0"
+
+    def test_garbled_aliases_fall_back_positionally(self):
+        from dialectical_framework.concerns.causality.causality_estimator_balanced import (
+            StepCausationDto, _resolve_steps)
+
+        seq = self._fake_statements(2)
+        steps = _resolve_steps(
+            [
+                StepCausationDto(from_alias="??", to_alias="", causation="a→b"),
+                StepCausationDto(from_alias="", to_alias="junk", causation="b→a"),
+            ],
+            seq, 1, {},
+        )
+        # count matches sequence length → positional wrap-around mapping
+        assert [(s.source_hash, s.target_hash) for s in steps] == [
+            ("hash-0", "hash-1"),
+            ("hash-1", "hash-0"),
+        ]
+
+    def test_garbled_aliases_and_count_mismatch_drops_steps(self):
+        from dialectical_framework.concerns.causality.causality_estimator_balanced import (
+            StepCausationDto, _resolve_steps)
+
+        seq = self._fake_statements(3)
+        steps = _resolve_steps(
+            [StepCausationDto(from_alias="??", to_alias="", causation="x")],
+            seq, 1, {},
+        )
+        assert steps == []
+
+    def test_empty_steps_noop(self):
+        from dialectical_framework.concerns.causality.causality_estimator_balanced import \
+            _resolve_steps
+
+        assert _resolve_steps([], self._fake_statements(2), 1, {}) == []
+
+    def test_causation_prose_aliases_translated(self):
+        from dialectical_framework.concerns.causality.causality_estimator_balanced import (
+            StepCausationDto, _resolve_steps)
+
+        seq = self._fake_statements(2)
+        steps = _resolve_steps(
+            [
+                StepCausationDto(
+                    from_alias="C1_1", to_alias="C1_2", causation="C1_1 causes C1_2"
+                ),
+                StepCausationDto(from_alias="C1_2", to_alias="C1_1", causation="back"),
+            ],
+            seq, 1,
+            {"C1_1": "Statement 0", "C1_2": "Statement 1"},
+        )
+        assert steps[0].causation == "Statement 0 causes Statement 1"
+
+
+def _install_fake_estimator(monkeypatch, causation_fmt: str = "{src} enables {tgt}"):
+    """Patch CausalityEstimatorBalanced.estimate to return per-step causations
+    derived from each structure's statements (mock brain returns steps=[])."""
+    from dialectical_framework.concerns.causality.causality_estimator import (
+        EstimationStructured, StepCausation)
+
+    async def fake_estimate(self, structures):
+        structure_list = structures if isinstance(structures, list) else [structures]
+        results = {}
+        for s in structure_list:
+            stmts = s.statements
+            n = len(stmts)
+            steps = [
+                StepCausation(
+                    source_hash=stmts[i].hash,
+                    target_hash=stmts[(i + 1) % n].hash,
+                    source_text=stmts[i].text,
+                    target_text=stmts[(i + 1) % n].text,
+                    causation=causation_fmt.format(
+                        src=stmts[i].text, tgt=stmts[(i + 1) % n].text
+                    ),
+                )
+                for i in range(n)
+            ]
+            results[s.hash] = EstimationStructured(
+                probability=0.6,
+                reasoning="test reasoning",
+                argumentation="test contexts",
+                steps=steps,
+            )
+        return results
+
+    monkeypatch.setattr(CausalityEstimatorBalanced, "estimate", fake_estimate)
+
+
+class TestPersistStepCausations:
+    """Per-step causation rationales: wheel steps target edge Transitions,
+    cycle steps target the Cycle with statement-text headers; re-estimation
+    replaces prior rationales."""
+
+    @staticmethod
+    async def _build(case_node):
+        """Build a 2-PP nexus; return (layer-2 cycle, one of its wheels)."""
+        pp1 = create_complete_perspective(1)
+        pp2 = create_complete_perspective(2)
+        nexus = Nexus(sid=case_node.sid, preset=CausalityPreset.BALANCED)
+        nexus.commit()
+        agent = BuildWheels(
+            nexus_hash=nexus.hash, perspective_hashes=[pp1.hash, pp2.hash]
+        )
+        result = await agent.resolve()
+        cycle = next(c for c in result.new_cycles if c.perspective_count == 2)
+        wheel = next(
+            w
+            for w in result.new_wheels
+            if w.cycle.get() and w.cycle.get()[0].hash == cycle.hash
+        )
+        return cycle, wheel
+
+    @pytest.mark.asyncio
+    async def test_wheel_steps_attach_to_edges(self, case_node, monkeypatch):
+        from dialectical_framework.concerns.causality_estimation import \
+            CausalityEstimation
+
+        with scope(case_node.sid):
+            _, wheel = await self._build(case_node)
+            _install_fake_estimator(monkeypatch)
+
+            concern = CausalityEstimation()
+            await concern.resolve([wheel])
+
+            edges = wheel.edges
+            assert len(edges) == 4  # 2-PP wheel: 4 edges
+            for edge in edges:
+                rationales = [r for r, _ in edge.rationales.all()]
+                assert len(rationales) == 1
+                src = edge.source.get()[0]
+                tgt = edge.target.get()[0]
+                assert rationales[0].text == f"{src.text} enables {tgt.text}"
+                # verbose transition rendering surfaces the causation
+                assert rationales[0].text in f"{edge:verbose}"
+
+            # holistic rationale on the wheel itself (no step headers there)
+            wheel_rationales = [r for r, _ in wheel.rationales.all()]
+            assert len(wheel_rationales) == 1
+            assert "test reasoning" in wheel_rationales[0].text
+            assert "**Applicable contexts:** test contexts" in wheel_rationales[0].text
+
+    @pytest.mark.asyncio
+    async def test_cycle_steps_attach_to_cycle_with_headers(
+        self, case_node, monkeypatch
+    ):
+        from dialectical_framework.concerns.causality_estimation import \
+            CausalityEstimation
+
+        with scope(case_node.sid):
+            cycle, _ = await self._build(case_node)
+            _install_fake_estimator(monkeypatch)
+
+            concern = CausalityEstimation()
+            await concern.resolve([cycle])
+
+            rationales = [r for r, _ in cycle.rationales.all()]
+            # 1 holistic + 2 per-step (2-PP cycle)
+            assert len(rationales) == 3
+            step_rationales = [r for r in rationales if r.text.startswith("**")]
+            assert len(step_rationales) == 2
+            stmts = cycle.statements
+            for i, stmt in enumerate(stmts):
+                nxt = stmts[(i + 1) % len(stmts)]
+                expected = f"**{stmt.text} → {nxt.text}**\n{stmt.text} enables {nxt.text}"
+                assert any(r.text == expected for r in step_rationales)
+            # verbose cycle rendering surfaces them
+            verbose = f"{cycle:verbose}"
+            for r in step_rationales:
+                assert r.text in verbose
+
+    @pytest.mark.asyncio
+    async def test_reestimation_replaces_rationales(self, case_node, monkeypatch):
+        from dialectical_framework.concerns.causality_estimation import \
+            CausalityEstimation
+
+        with scope(case_node.sid):
+            _, wheel = await self._build(case_node)
+
+            _install_fake_estimator(monkeypatch, "{src} enables {tgt}")
+            await CausalityEstimation().resolve([wheel])
+
+            _install_fake_estimator(monkeypatch, "{src} reinforces {tgt}")
+            concern = CausalityEstimation()
+            await concern.resolve([wheel])
+
+            for edge in wheel.edges:
+                rationales = [r for r, _ in edge.rationales.all()]
+                assert len(rationales) == 1  # replaced, not accumulated
+                assert "reinforces" in rationales[0].text
+            wheel_rationales = [r for r, _ in wheel.rationales.all()]
+            assert len(wheel_rationales) == 1
+
+            deleted = [
+                e for e in concern.report.effects if e.effect_type == "node_deleted"
+            ]
+            created = [
+                e for e in concern.report.effects if e.effect_type == "node_created"
+            ]
+            # round 1 left 1 holistic + 4 step rationales to delete
+            assert len(deleted) == 5
+            assert len(created) == 5
+
+
 class TestNexusPresetIntentSeparation:
     """Tests for Nexus intent/preset separation."""
 

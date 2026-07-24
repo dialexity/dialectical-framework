@@ -17,6 +17,7 @@ from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.concerns.causality.causality_estimator import (
     CausalityEstimator,
     EstimationStructured,
+    StepCausation,
 )
 from dialectical_framework.protocols.input_resolver import InputResolver
 
@@ -24,7 +25,34 @@ from dialectical_framework.utils.dc_replace import dc_replace
 from dialectical_framework.utils.use_brain import use_brain
 
 
+class StepCausationDto(BaseModel):
+    from_alias: str = Field(
+        default="",
+        description="Technical alias of the step's source, exactly as given in the sequence (e.g. C1_1).",
+    )
+    to_alias: str = Field(
+        default="",
+        description="Technical alias of the step's target, exactly as given in the sequence (e.g. C1_2).",
+    )
+    causation: str = Field(
+        default="",
+        description=(
+            "One sentence: the causal mechanism why the source naturally leads to "
+            "the target. Use the actual statement wording, never aliases."
+        ),
+    )
+
+
 class CausalCycleAssessmentDto(BaseModel):
+    # steps comes FIRST: justifying each step before scoring is deliberate
+    # chain-of-thought — the holistic probability must be informed by them
+    steps: list[StepCausationDto] = Field(
+        default_factory=list,
+        description=(
+            "One entry per consecutive step of the sequence, in order, "
+            "including the final wrap-around step back to the first element."
+        ),
+    )
     probability: float = Field(
         default=0,
         description="The probability 0 to 1 of the arranged cycle to exist in reality.",
@@ -43,6 +71,61 @@ class CausalCycleDto(CausalCycleAssessmentDto):
         ...,
         description="Aliases arranged in the circular causality sequence where the last element points to the first",
     )
+
+
+def _resolve_steps(
+    step_dtos: list[StepCausationDto],
+    sequence: list[Statement],
+    seq_idx: int,
+    alias_translations: dict[str, str],
+) -> list[StepCausation]:
+    """
+    Resolve step DTOs (alias-identified) to StepCausation (hash/text-identified).
+
+    Primary path: parse C{seq}_{comp} aliases against the sequence.
+    Fallback: if aliases are garbled but the step count matches the sequence
+    length, map positionally (step i = statements[i] → statements[i+1 mod n]).
+    Otherwise drop the steps — per-step causation is best-effort enrichment.
+    """
+    n = len(sequence)
+    if not step_dtos or n == 0:
+        return []
+
+    def parse(alias: str) -> Optional[Statement]:
+        parts = alias.strip().split("_")
+        if len(parts) != 2 or not parts[0].startswith("C"):
+            return None
+        try:
+            s, c = int(parts[0][1:]), int(parts[1])
+        except ValueError:
+            return None
+        if s != seq_idx or not (1 <= c <= n):
+            return None
+        return sequence[c - 1]
+
+    resolved: list[StepCausation] = []
+    for i, dto in enumerate(step_dtos):
+        source = parse(dto.from_alias)
+        target = parse(dto.to_alias)
+        if source is None or target is None:
+            if len(step_dtos) != n:
+                return []  # aliases garbled and counts don't line up — drop all
+            source = sequence[i]
+            target = sequence[(i + 1) % n]
+        causation = dto.causation
+        for technical_alias, text in alias_translations.items():
+            causation = dc_replace(causation, technical_alias, text)
+        assert source.hash is not None and target.hash is not None
+        resolved.append(
+            StepCausation(
+                source_hash=source.hash,
+                target_hash=target.hash,
+                source_text=source.text,
+                target_text=target.text,
+                causation=causation,
+            )
+        )
+    return resolved
 
 
 class CausalCyclesDeckDto(BaseModel):
@@ -144,12 +227,14 @@ class CausalityEstimatorBalanced(CausalityEstimator):
             f"(given that the final step cycles back to the first step):\n"
             f"{sequence}\n\n"
             f"<instructions>\n"
-            f"1) Estimate the numeric probability (0 to 1) {self._probability_instruction()}\n"
-            f"2) Explain why this sequence might occur (or already occurs) in reality\n"
-            f"3) Describe circumstances or contexts where this sequence would be most applicable or useful\n\n"
+            f"1) For each consecutive step of the sequence (including the final wrap-around step back to the first element), state in one sentence the causal mechanism: why does the source naturally lead to the target?\n"
+            f"2) Only then, informed by the step-by-step causation, estimate the numeric probability (0 to 1) {self._probability_instruction()}\n"
+            f"3) Explain why this sequence might occur (or already occurs) in reality\n"
+            f"4) Describe circumstances or contexts where this sequence would be most applicable or useful\n\n"
             f"- Only use the sequence **exactly as provided**, do not shorten, skip, collapse, or reorder steps.\n"
             f"</instructions>\n\n"
             f"<formatting>\n"
+            f"- In each step, identify source and target by their technical aliases exactly as given in the sequence; write the causation sentence itself using the actual statement wording, never aliases.\n"
             f"- In the explanations and argumentation, for fluency, try to use explicit wording instead of technical aliases.\n"
             f"- Probability is a float between 0 and 1.\n"
             f"</formatting>"
@@ -283,6 +368,7 @@ class CausalityEstimatorBalanced(CausalityEstimator):
             assessment: CausalCycleAssessmentDto = await _estimate_single_call()
             return CausalCycleDto(
                 aliases=aliases,
+                steps=assessment.steps,
                 probability=assessment.probability,
                 reasoning_explanation=assessment.reasoning_explanation,
                 argumentation=assessment.argumentation,
@@ -392,18 +478,22 @@ class CausalityEstimatorBalanced(CausalityEstimator):
             # Translate aliases in text
             reasoning_text = causal_cycle.reasoning_explanation
             argumentation_text = causal_cycle.argumentation
-            for technical_alias, original_alias in alias_translations.items():
-                reasoning_text = dc_replace(
-                    reasoning_text, technical_alias, original_alias
-                )
+            for technical_alias, text in alias_translations.items():
+                reasoning_text = dc_replace(reasoning_text, technical_alias, text)
                 argumentation_text = dc_replace(
-                    argumentation_text, technical_alias, original_alias
+                    argumentation_text, technical_alias, text
                 )
 
             results[matched_structure.hash] = EstimationStructured(
                 probability=causal_cycle.probability,
                 reasoning=reasoning_text,
                 argumentation=argumentation_text,
+                steps=_resolve_steps(
+                    causal_cycle.steps,
+                    sequences[seq_idx],
+                    seq_idx + 1,
+                    alias_translations,
+                ),
             )
 
         return results

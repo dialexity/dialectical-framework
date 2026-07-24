@@ -248,7 +248,11 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
         """
         Persist raw estimations to the database.
 
-        Creates Rationale + CausalityProbabilityEstimation for each structure.
+        Per structure: replaces prior causality rationales (holistic and
+        per-step), then creates Rationale + CausalityProbabilityEstimation
+        plus one per-step causation Rationale per sequence step (wheel steps
+        target their edge Transition; cycle steps target the Cycle itself,
+        self-identified by statement-text headers).
         """
         estimation_manager = EstimationManager()
 
@@ -257,6 +261,10 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
                 continue
 
             est = raw_estimations[structure.hash]
+
+            # Replace: re-estimation supersedes prior explanations, on the
+            # structure itself and (for wheels) on its edge Transitions
+            self._delete_prior_rationales(structure)
 
             # Create Rationale (argumentation folded into text — it used to be
             # stored as an undeclared, write-only `summary` field)
@@ -268,8 +276,68 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
             rationale = Rationale(text=rationale_text)
             rationale.set_explanation_target(structure)
             rationale.commit()
+            self._report.node_created(rationale)
 
             # Store raw AI score as CausalityProbabilityEstimation
             estimation_manager.upsert_estimation(
                 structure, CausalityProbabilityEstimation, est.probability, provider=rationale
             )
+
+            self._persist_step_causations(structure, est)
+
+    def _delete_prior_rationales(self, structure: Union[Cycle, Wheel]) -> None:
+        """Delete rationales explaining the structure (and its wheel edges)."""
+        from dialectical_framework.graph.repositories.node_repository import (
+            NodeRepository,
+        )
+
+        node_repo = NodeRepository()
+        targets: list = [structure]
+        if isinstance(structure, Wheel):
+            targets.extend(structure.edges)
+
+        for target in targets:
+            for old_rationale, _ in target.rationales.all():
+                self._report.node_deleted(old_rationale)
+            node_repo.delete_explanation_rationales(target)
+
+    def _persist_step_causations(
+        self, structure: Union[Cycle, Wheel], est: EstimationStructured
+    ) -> None:
+        """
+        Persist per-step causation rationales.
+
+        Wheel: each step attaches to the edge Transition matched by
+        (source hash, target hash) — never by index, since edge ordering
+        starts at an arbitrary edge. Cycle has no edge nodes, so steps
+        attach to the Cycle itself with a statement-text header; the same
+        header fallback applies to wheel steps that match no edge.
+        """
+        if not est.steps:
+            return
+
+        edge_by_hashes: dict[tuple[str, str], object] = {}
+        if isinstance(structure, Wheel):
+            for edge in structure.edges:
+                source_result = edge.source.get()
+                target_result = edge.target.get()
+                if source_result and target_result:
+                    key = (source_result[0].hash, target_result[0].hash)
+                    edge_by_hashes[key] = edge
+
+        for step in est.steps:
+            if not step.causation:
+                continue
+            edge = edge_by_hashes.get((step.source_hash, step.target_hash))
+            if edge is not None:
+                # The edge Transition itself identifies source/target
+                rationale = Rationale(text=step.causation)
+                rationale.set_explanation_target(edge)
+            else:
+                # No anchor node — the header makes the step self-describing
+                rationale = Rationale(
+                    text=f"**{step.source_text} → {step.target_text}**\n{step.causation}"
+                )
+                rationale.set_explanation_target(structure)
+            rationale.commit()
+            self._report.node_created(rationale)

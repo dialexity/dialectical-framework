@@ -431,6 +431,17 @@ def _inspect_wheel(wheel: Wheel) -> str:
     spiral_seq = format_spiral(wheel, pp_index)
     if spiral_seq:
         lines.append(f"Spiral: {spiral_seq}")
+
+    # Per-edge causation (rationales attached to edge Transitions)
+    edge_causations = []
+    for edge in wheel.edges:
+        for rationale, _ in edge.rationales.all():
+            if rationale.text:
+                label = format_edge_label(edge, pp_index)
+                edge_causations.append(f"  {label}: {rationale.text}")
+    if edge_causations:
+        lines.append("Step causation:")
+        lines.extend(edge_causations)
     lines.append("")
 
     # Parent cycle

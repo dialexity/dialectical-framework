@@ -11,12 +11,23 @@ The CausalityEstimation concern handles normalization and database persistence.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.wheel import Wheel
+
+
+@dataclass
+class StepCausation:
+    """Per-step causal justification within a sequence (aliases resolved)."""
+
+    source_hash: str
+    target_hash: str
+    source_text: str
+    target_text: str
+    causation: str  # Why source naturally leads to target
 
 
 @dataclass
@@ -26,6 +37,7 @@ class EstimationStructured:
     probability: float  # Raw AI probability (0-1), NOT normalized
     reasoning: str  # Why this sequence might occur
     argumentation: str  # Circumstances where applicable
+    steps: list[StepCausation] = field(default_factory=list)  # Per-step causation
 
 
 class CausalityEstimator(ABC):

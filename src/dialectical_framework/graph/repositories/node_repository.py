@@ -134,3 +134,44 @@ class NodeRepository:
         if node_type is not None and not isinstance(node, node_type):
             raise TypeError(f"Expected {node_type.__name__}, got {type(node).__name__}")
         return node
+
+    @inject
+    def delete_explanation_rationales(
+        self,
+        node: BaseNode,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> list[str]:
+        """
+        Delete all Rationales that EXPLAIN the given node (with their critiques).
+
+        Used to replace prior analytical explanations before persisting fresh
+        ones (e.g. re-estimation of causality). Critique rationales attached
+        to the deleted rationales are removed as well.
+
+        Args:
+            node: The explained node (must be saved and in current scope)
+            sid: Case ID (injected from DI context)
+
+        Returns:
+            Hashes of the deleted Rationale nodes (for event emission)
+        """
+        if node._id is None:
+            return []
+
+        # Validate node belongs to current scope
+        if sid and node.sid != sid:
+            return []
+
+        query = """
+        MATCH (rat:Rationale)-[:EXPLAINS]->(n)
+        WHERE id(n) = $node_id
+        OPTIONAL MATCH (crit:Rationale)-[:CRITIQUES]->(rat)
+        WITH collect(DISTINCT rat) + collect(DISTINCT crit) AS to_delete
+        UNWIND to_delete AS r
+        WITH DISTINCT r, r.hash AS rat_hash
+        DETACH DELETE r
+        RETURN rat_hash
+        """
+        results = list(graph_db.execute_and_fetch(query, {"node_id": node._id}))
+        return [r["rat_hash"] for r in results if r["rat_hash"] is not None]
