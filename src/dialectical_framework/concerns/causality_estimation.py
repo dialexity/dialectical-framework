@@ -3,8 +3,7 @@ CausalityEstimation: Concern for estimating causality on Cycles and Wheels.
 
 This is the "smart" orchestrator that:
 - Groups structures by type and size for parallel estimation
-- Decides what to estimate: if the requested group matches what's in the DB,
-  re-estimates everything; if DB has more, only estimates what was requested
+- (Re-)estimates exactly the structures requested
 - Normalizes probabilities across ALL structures of same type+size in the DB
 
 Usage:
@@ -61,9 +60,8 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
       of same type+size in the DB
 
     Estimation logic per group:
-    - If the requested group IS the full set in the DB → re-estimate all
-    - If the DB has more structures → only estimate the ones requested
-    - Either way, normalization covers everything in the DB
+    - (Re-)estimates exactly the structures requested
+    - Normalization covers everything of same type+size in the DB
     """
 
     def __init__(self) -> None:
@@ -164,25 +162,17 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
         Estimate a group of same-type, same-size structures.
 
         Logic:
-        - Find all structures of same type+size in DB
-        - If requested set IS the full DB set → estimate all (forced re-estimation)
-        - If DB has more → only estimate the requested ones
-        - Normalize probabilities across all DB structures
+        - (Re-)estimate exactly the requested structures
+        - Normalize probabilities across all structures of same type+size in DB
 
         Returns list of structures that were estimated.
         """
         # Find all structures of same type+size in DB
         all_in_db = self._find_all_in_layer(requested)
-        requested_hashes = {s.hash for s in requested}
-        db_hashes = {s.hash for s in all_in_db}
 
-        # Determine what to estimate
-        if requested_hashes == db_hashes:
-            # Requested set IS the full DB set → estimate all
-            to_estimate = requested
-        else:
-            # DB has more → only estimate what was requested
-            to_estimate = requested
+        # Always (re-)estimate exactly what was requested; normalization
+        # below covers everything in the DB layer.
+        to_estimate = requested
 
         # Run AI estimation (returns raw, non-normalized results)
         raw_estimations = await estimator.estimate(to_estimate)

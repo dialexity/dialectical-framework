@@ -24,14 +24,15 @@ def dc_replace(text: str, alias: str, replace_to: str) -> str:
     - `(?<!\\w)`: Not preceded by word character (prevents "AT-" matching)
     - `(["'([{]?)`: Optional opening bracket/quote (captured)
     - `<alias>`: The literal alias (escaped)
-    - `(\\s|[]'"}).,!?:]|$)`: Followed by space, punctuation, or end (captured)
+    - `(\\s|[]'"});,.!?:/—-]|$)`: Followed by space, punctuation, or end (captured)
     """
     return re.sub(
         r'(?<!\w)(["\'\(\[\{]?)'
         rf"{re.escape(alias)}"
-        r"(\s|[\]\'\"\)\},.!?:]|$)",
-        # Replacement pattern (preserves surrounding characters and spaces)
-        r"\1" rf"{replace_to}" r"\2",
+        r"(\s|[\]\'\"\)\};,.!?:/—-]|$)",
+        # Function replacement: replace_to is arbitrary prose and must not be
+        # interpreted as a regex replacement template (backslashes, \1, etc.)
+        lambda m: m.group(1) + replace_to + m.group(2),
         text,
         flags=re.VERBOSE,
     )

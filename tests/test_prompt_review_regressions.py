@@ -251,13 +251,26 @@ class TestAgentPrompts:
         assert "tetrades" not in SYSTEM_PROMPT
 
     def test_causality_alias_example_matches_real_format(self):
-        """Task 6: the alias example teaches C{seq}_{comp}, not C1,C2,C3."""
-        from dialectical_framework.concerns.causality import \
-            causality_estimator_balanced as m
+        """Task 6: technical aliases follow C{seq}_{comp}; no stale C1,C2,C3
+        examples survive in any estimator prompt."""
+        from dialectical_framework.concerns.causality import (
+            causality_estimator_balanced,
+            causality_estimator_criteria,
+            causality_estimator_desirable,
+            causality_estimator_feasible,
+            causality_estimator_realistic,
+        )
 
-        src = inspect.getsource(m)
-        assert "C1_1, C1_2, C1_3" in src
-        assert "e.g. C1, C2, C3" not in src
+        src = inspect.getsource(causality_estimator_balanced)
+        assert 'f"C{seq_idx}_{comp_idx}"' in src
+        for m in (
+            causality_estimator_balanced,
+            causality_estimator_criteria,
+            causality_estimator_desirable,
+            causality_estimator_feasible,
+            causality_estimator_realistic,
+        ):
+            assert "e.g. C1, C2, C3" not in inspect.getsource(m)
 
     def test_advisor_has_discard_and_prompt_documents_it(self):
         """9a/9b: discard is wired into the Advisor and its prompt documents it,
