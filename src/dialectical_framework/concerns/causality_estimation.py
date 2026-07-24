@@ -258,11 +258,14 @@ class CausalityEstimation(ReasonableConcern[EstimationResult], SettingsAware):
 
             est = raw_estimations[structure.hash]
 
-            # Create Rationale
-            rationale = Rationale(
-                text=est.reasoning,
-                summary=est.argumentation,
-            )
+            # Create Rationale (argumentation folded into text — it used to be
+            # stored as an undeclared, write-only `summary` field)
+            rationale_text = est.reasoning
+            if est.argumentation:
+                rationale_text = (
+                    f"{est.reasoning}\n\n**Applicable contexts:** {est.argumentation}"
+                )
+            rationale = Rationale(text=rationale_text)
             rationale.set_explanation_target(structure)
             rationale.commit()
 

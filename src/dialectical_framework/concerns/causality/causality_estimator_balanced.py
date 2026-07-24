@@ -358,33 +358,14 @@ class CausalityEstimatorBalanced(CausalityEstimator):
             i: structure for i, structure in enumerate(structures)
         }
 
-        # Build component-alias translations for text replacement
-        components_with_aliases: list[tuple[Statement, str]] = []
-        for sequence in sequences:
-            for comp in sequence:
-                assert comp.hash is not None
-                alias = None
-                for existing_comp, existing_alias in components_with_aliases:
-                    if existing_comp.hash == comp.hash:
-                        alias = existing_alias
-                        break
-                if alias is None:
-                    alias = f"C{len(components_with_aliases) + 1}"
-                    components_with_aliases.append((comp, alias))
-
-        # Build alias translation map
-        id_to_original_alias: dict[str, str] = {}
-        for comp, original_alias in components_with_aliases:
-            assert comp.hash is not None
-            id_to_original_alias[comp.hash] = original_alias
+        # Translate technical aliases to statement text. Aliases are
+        # batch-relative and must never survive into persisted rationale
+        # prose — statement text is the only durable identifier.
         alias_translations: dict[str, str] = {}
         for seq_idx, sequence in enumerate(sequences, 1):
             for comp_idx, component in enumerate(sequence, 1):
                 technical_alias = f"C{seq_idx}_{comp_idx}"
-                assert component.hash is not None
-                original_alias = id_to_original_alias.get(component.hash)
-                if original_alias:
-                    alias_translations[technical_alias] = original_alias
+                alias_translations[technical_alias] = component.text
 
         # Map results
         results: dict[str, EstimationStructured] = {}

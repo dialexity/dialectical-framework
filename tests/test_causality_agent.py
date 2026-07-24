@@ -227,6 +227,43 @@ class TestEstimatorPromptVariants:
             assert "explicit wording instead of technical aliases" in text
 
 
+class TestAliasTranslation:
+    """Technical aliases (batch-relative) must never survive into
+    EstimationStructured text — they are translated to statement text."""
+
+    def test_reasoning_aliases_become_statement_text(self):
+        from types import SimpleNamespace
+
+        from dialectical_framework.concerns.causality.causality_estimator_balanced import (
+            CausalCycleDto, CausalCyclesDeckDto)
+
+        s1 = Statement(text="Economic growth accelerates")
+        s2 = Statement(text="Education access widens")
+        structure = SimpleNamespace(hash="struct-hash-1")
+        deck = CausalCyclesDeckDto(
+            causal_cycles=[
+                CausalCycleDto(
+                    aliases=["C1_1", "C1_2"],
+                    probability=0.7,
+                    reasoning_explanation="C1_1 drives C1_2; C1_1-led systems persist.",
+                    argumentation="Works when C1_2 is underfunded.",
+                )
+            ]
+        )
+
+        results = CausalityEstimatorBalanced._map_results_to_structures(
+            [structure], deck, [[s1, s2]]
+        )
+
+        est = results["struct-hash-1"]
+        assert "Economic growth accelerates" in est.reasoning
+        assert "Education access widens" in est.reasoning
+        assert "Education access widens" in est.argumentation
+        for text in (est.reasoning, est.argumentation):
+            assert "C1_1" not in text
+            assert "C1_2" not in text
+
+
 class TestNexusPresetIntentSeparation:
     """Tests for Nexus intent/preset separation."""
 
