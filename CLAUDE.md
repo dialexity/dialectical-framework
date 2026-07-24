@@ -154,6 +154,8 @@ poetry run isort src/ tests/         # sort imports
 poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tests/
 ```
 
+**black/isort are NOT enforced** (no pre-commit/CI) and most of the tree is non-conforming. Running `black <file>` after a small edit reformats the WHOLE file (import-wrapping, line-wraps), bloating the diff with unrelated churn. For a targeted change, hand-format only your own lines; don't run black on the file.
+
 ---
 
 ## Technology Stack
@@ -406,6 +408,8 @@ Default to `@pytest.mark.llm` for anything touching `use_brain` or `Conversation
 Mock brain returns **identical** DTOs every call — to test diversity/dedup logic (distinct outputs across calls), `monkeypatch` the concern's `resolve` directly instead.
 
 **One graph-test run at a time.** The autouse `cleanup_graph_db` fixture `DETACH DELETE`s before/after each test, so concurrent pytest processes against the same Memgraph deadlock. If a run is `pkill -9`'d mid-test, the stuck lock persists — clear it with `docker compose -f docker-compose.test.yml restart`.
+
+**Test Memgraph has a persistent volume (`mg_lib`).** `restart` clears a stuck lock but NOT the data. Stale nodes cause spurious failures in unrelated tests (e.g. `find_by_hash("abc")` matching a leftover `Transition`). To confirm a failure is pre-existing vs. caused by your change, `git stash` and re-run; to truly wipe, `docker compose -f docker-compose.test.yml down -v`.
 
 **DB-free tests:** Override autouse fixtures `cleanup_graph_db` and `cleanup_test_graph_data` with empty yields.
 
