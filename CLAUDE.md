@@ -409,6 +409,8 @@ Mock brain returns **identical** DTOs every call — to test diversity/dedup log
 
 **DB-free tests:** Override autouse fixtures `cleanup_graph_db` and `cleanup_test_graph_data` with empty yields.
 
+**Ad-hoc verification scripts must live under `tests/`.** DI wiring (dependency-injector `Provide` resolution) and the mock-brain autouse fixtures come from `tests/conftest.py`, which pytest only applies to files in the tests tree. A pytest file run from `/tmp` fails with `'Provide' object has no attribute 'save_node'` (unresolved `Provide` sentinel). Drop the file in `tests/` to get full wiring.
+
 ---
 
 ## Environment Configuration
