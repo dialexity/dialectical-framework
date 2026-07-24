@@ -51,5 +51,5 @@ class GraphEventBus:
         await self._broadcast.publish(channel=sid, message=event)
 
     def subscribe(self, sid: str):
-        """Subscribe to graph events for a session. Use as async context manager."""
+        """Subscribe to graph events for a given `sid` (scope). Use as async context manager."""
         return self._broadcast.subscribe(channel=sid)

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class GraphEvent:
-    """A graph mutation event scoped to a session, ready for fan-out."""
+    """A graph mutation event scoped by `sid`, ready for fan-out."""
 
     sid: str
     effect: Effect

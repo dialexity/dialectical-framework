@@ -19,7 +19,7 @@ GRAPH_SCHEMA = """## Graph Schema
 
 | Node | Description | Key Properties |
 |------|-------------|----------------|
-| Case | Root session container | |
+| Case | Root scope container | |
 | Input | External content (text, URL) for analysis | `content`, `digest` |
 | Ideas | Collection of extracted Statements from Inputs | `intent` |
 | Statement | A thesis, position, or claim | `text`, `meaning`, `discarded` |
@@ -34,7 +34,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Rationale | Explanation attached to any node | `text` |
 | Estimation | Numeric assessment (probability, relevance, feasibility) | `value` |
 
-All nodes share: `hash` (content-addressable ID), `sid` (session scope), `committed_at`.
+All nodes share: `hash` (content-addressable ID), `sid` (scope ID), `committed_at`.
 
 **Important:** Only query committed nodes. Always add `WHERE n.hash IS NOT NULL` to filter out incomplete (in-progress or abandoned) nodes. Nodes with `hash IS NULL` are not yet finalized and must not be included in results.
 

@@ -28,7 +28,7 @@ Perspective → Cycle → Wheel (edges) → Transformation
 | Class | Purpose | Used By |
 |-------|---------|---------|
 | **BaseNode** | Hash identity, save/commit lifecycle, `sid` auto-population | All nodes |
-| **AssessableEntity** | Adds `rationales`/`estimations` relationships, `best_rationale` property | Statement, Polarity, Perspective, Cycle, Wheel |
+| **AssessableEntity** | Adds `rationales`/`estimations` relationships, `best_rationale` property | Statement, Polarity, Perspective, Cycle, Wheel, Transition, Transformation, Ideas, Synthesis |
 | **IntentMixin** | Adds `intent: Optional[str]` field (included in hash if set) | Ideas, Cycle, Perspective, Transformation, Wheel, Nexus |
 | **IncrementalBuildMixin** | Staged build: `save()` → add children → `commit()` | Perspective, Ideas, Wheel, Transformation, Synthesis |
 
@@ -47,7 +47,7 @@ Perspective → Cycle → Wheel (edges) → Transformation
 | **Statement** | Atomic statement | `oppositions`, `positive_side_of`, `negative_side_of`, `source_of`, `target_of` |
 | **Polarity** | T-A tension (thesis-antithesis pair) | `t`, `a`, `perspectives` |
 | **Perspective** | Full polar interpretation | `polarity`, `t_plus`, `t_minus`, `a_plus`, `a_minus`, `nexus`, `changed_to` |
-| **Nexus** | Exploration container for Perspectives | `perspectives`, `intent`, `preset` |
+| **Nexus** | Exploration container for Perspectives | `perspectives` (`intent`, `preset` are scalar fields, not edges) |
 | **Cycle** | T-cycle (ordered Perspective sequence) | `perspective_hashes`, `wheels`, `opposite_direction` |
 | **Wheel** | TA-cycle implementation | `cycle`, `_edges`, `opposite_direction`, `synthesis` |
 | **Transition** | Edge between statements | `source`, `target`, `cycle` (→Cycle or Wheel) |
@@ -55,12 +55,12 @@ Perspective → Cycle → Wheel (edges) → Transformation
 | **Synthesis** | Emergent S+/S- pair from Wheel's circular causality | `s_plus`, `s_minus`, `target` (→Wheel) |
 | **Rationale** | Evidence/explanation | `explains`, `critiques`, `provided_estimations` |
 | **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `provider` (←Rationale via PROVIDES) |
-| **Input** | Content source | `has_statements`, `ideas` |
+| **Input** | Content source | `statements`, `ideas` |
 | **Ideas** | Distilled concepts from Input | `inputs` (→Input), `statements` |
 | **Case** | Multi-input exploration | `inputs` (→Input) |
 
 **Removed:**
-- **Spiral**: Replaced by Transformations on edges (fully removed from codebase)
+- **Spiral**: Replaced by Transformations on edges (removed as a node; "spiral" survives only as a rendering/format concept in `graph/rendering.py`)
 
 ## Intent Levels
 
@@ -141,10 +141,10 @@ The Case layer provides multi-input exploration before Perspective construction:
 ```
 Case (multi-input exploration)
 ├── HAS_INPUT → Input₁
-│              ◄── DISTILLED_FROM ── Ideas₁ (intent: "thesis_extraction")
-│                                      └── HAS_STATEMENT → Statements...
+│              ── DISTILLED_TO ──► Ideas₁ (intent: "thesis_extraction")
+│                                    └── HAS_STATEMENT → Statements...
 ├── HAS_INPUT → Input₂
-│              ◄── DISTILLED_FROM ── Ideas₂ (intent: "antithesis_extraction")
+│              ── DISTILLED_TO ──► Ideas₂ (intent: "antithesis_extraction")
 └── get_vocabulary() → All statements in scope (uses DI scope)
 ```
 
@@ -153,7 +153,7 @@ Case (multi-input exploration)
 | Node | Purpose | Cardinality |
 |------|---------|-------------|
 | **Case** | Multi-input exploration with shared vocabulary | HAS_INPUT (1, ∞) to Input |
-| **Ideas** | Distilled concepts from a single Input | DISTILLED_FROM (0, ∞) to Input |
+| **Ideas** | Distilled concepts from a single Input | DISTILLED_TO (0, ∞) from Input |
 
 **Ideas as filtered lens:** Each Ideas node represents a specific distillation of an Input (e.g., "thesis concepts", "ethical implications"). Multiple Ideas nodes can point to the same Input with different intents.
 
@@ -720,7 +720,7 @@ Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
 
 Graph mutations are broadcast via `GraphEventBus` (in-process async, channel = sid):
 
-**Effect types:** `node_created`, `node_updated`, `node_deleted`, `relationship_created`, `relationship_updated`, `relationship_deleted`
+**Effect types** (the `EffectType` literal lives in `agents/execution_report.py`): `node_created`, `node_committed`, `node_updated`, `node_deleted`, `relationship_created`, `relationship_updated`, `relationship_deleted`
 
 **Emitting (tools/concerns):** Call methods on `ExecutionReport` — e.g., `self._report.node_created(node)`. The report auto-publishes to the bus. Fire-and-forget.
 
@@ -741,5 +741,4 @@ The `discarded: Optional[str]` field exists on **Statement** and **Perspective**
 
 ## Further Reading
 
-- **Portability & identifiers:** `docs/graph-portability.md` (uid, sid, nid, scopes, cloning, realms)
 - **Project conventions:** `CLAUDE.md`

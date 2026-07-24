@@ -110,7 +110,8 @@ Each aspect has three complementarity scores plus HS:
 | T- | Low | Mid | Low | Undermines T, doesn't help A |
 | A- | Mid | Low | Low | Undermines A, doesn't help T |
 
-The theory constraint: K_T + K_A ≈ 1.0 for each aspect (in ideal systems).
+(A theory heuristic sometimes cited is K_T + K_A ≈ 1.0 per aspect in ideal systems, but
+nothing in code computes or enforces this — K_T and K_A are scored independently.)
 
 ---
 
@@ -122,8 +123,8 @@ Computed from the four aspects' Ks values:
 |--------|---------|-------|------|-----|
 | **diff_t** | Ks(T+) − Ks(T−) | −1 to 1 | ≥ 0.1 | < 0.1 |
 | **diff_a** | Ks(A+) − Ks(A−) | −1 to 1 | ≥ 0.1 | < 0.1 |
-| **area** | diff_t + diff_a | 0 to 2 | ≥ 0.7 | < 0.3 |
-| **area_normalized** | area / 2 | 0 to 1 | ~0.5 | ~0.15 |
+| **area** | diff_t + diff_a | −2 to 2 (well-formed tetrads ~0 to 2) | ≥ 0.7 | < 0.3 |
+| **area_normalized** | area / 2 | −1 to 1 (well-formed tetrads ~0 to 1) | ~0.5 | ~0.15 |
 | **rectangularity** | [Ks(T+)−Ks(A+)]² + [Ks(T−)−Ks(A−)]² | 0+ | < 0.01 | > 0.09 |
 
 **Empirical inequalities (pass/fail):**
@@ -137,19 +138,31 @@ Computed from the four aspects' Ks values:
 
 | Check | Threshold | What it tests |
 |-------|-----------|---------------|
-| Conceptual Coherence (CC) | avg ≥ 0.7 | "T+ without A+ yields T−" and "A+ without T+ yields A−" |
+| Conceptual Coherence (CC) | **both** control scores ≥ 0.7 | "T+ without A+ yields T−" and "A+ without T+ yields A−" |
 | Diagonal Contradiction | both ≥ 0.7 | T+ vs A− and A+ vs T− are genuine contradictions |
 
-**Quality tiers:**
+CC stores the *average* of the two control scores as its `value`, but the pass/fail
+criterion is that **each** score clears 0.7 (`ConceptualCoherenceEstimation.is_coherent`)
+— 0.5 + 0.9 does not pass. Diagonal Contradiction is **not** part of the standard
+`PerspectiveValidation` run; it is an extra LLM call that only fires on user-edited
+tetrads (`edit_perspective`). Generated tetrads are never gated on it.
+
+**Quality tiers** (suggested UI grouping — not a built-in framework ranking; see note below):
 
 | Tier | Criteria |
 |------|----------|
-| **Invalid** | Fails CC or Diagonal Contradiction |
+| **Invalid** | Fails CC (Diagonal Contradiction, too, but only on user-edited tetrads) |
 | **Bad** | Fails any empirical inequality |
 | **Good** | Passes all checks |
 | **Best** | Passes all + highest area_normalized + lowest rectangularity |
 
-**Single ranking metric:** For ordering valid tetrads, use `area_normalized` (0–1, higher = better), gated by the validity checks. Rectangularity is a structural balance indicator — use it as a tiebreaker or disqualifier.
+**Ranking, in practice:** these tiers and an `area_normalized` ordering are guidance for
+a UI — the framework does **not** implement them. The only ranking in code is
+`AnalysisPipeline._rank_polarities`, which orders polarities by their antithesis
+`heuristic_similarity` against a soft `HS_THRESHOLD = 0.7` (if nothing clears it, the top
+few are expanded anyway). If a UI wants to order valid tetrads, `area_normalized` (0–1,
+higher = better) gated by the validity checks is a reasonable choice, with rectangularity
+as a tiebreaker.
 
 ---
 
@@ -212,7 +225,11 @@ Computed from the four aspects' Ks values:
 |--------|-------|------------------|
 | **Causality Probability** | 0.0–1.0 | Plausibility of this causal ordering vs alternatives |
 
-Normalized across all structures in the same layer — probabilities sum to 1.0.
+The value **stored on a Cycle or Wheel is the raw LLM plausibility score** (0.0–1.0), not
+a normalized one. Normalization to a layer-relative share (siblings sum to 1.0) is applied
+only to Wheel **Transitions** (nth-root decomposed) and is otherwise computed on the fly
+for display (raw `P` vs normalized `%`). A UI reading the estimation directly off a
+Cycle/Wheel gets the raw score.
 
 ---
 
@@ -352,4 +369,4 @@ The paper (Generative Rules for Dialectical Synthesis) establishes:
 | Aspect | Ks | T+/A+ > 0.4, T−/A− < 0.6 | HS, K_T, K_A |
 | Perspective | area_normalized | ~0.5 excellent, ~0.35 good | rectangularity, CC, diagonals |
 | Transition | Feasibility | > 0.7 feasible | Insight, Proactiveness, HS |
-| Cycle/Wheel | Causality Probability | Relative (sum = 1.0) | — |
+| Cycle/Wheel | Causality Probability | Raw on the node; layer-relative `%` (sum = 1.0) computed for display | — |

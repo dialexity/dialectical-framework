@@ -2,9 +2,9 @@
 Query tools for the Orchestrator.
 
 Provides flexible read-only access to the graph database with automatic
-session scoping to prevent cross-tenant data leakage.
+scoping by `sid` (the scope identifier) to prevent cross-tenant data leakage.
 
-All tools are stateless - session context flows via DI.
+All tools are stateless - the current `sid` flows via DI.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _inject_sid_scoping(query: str) -> str:
     """
     Inject sid: $sid into all node patterns in the query.
 
-    This ensures all data queries are automatically scoped to the current session,
+    This ensures all data queries are automatically scoped to the current `sid`,
     regardless of what the LLM generates. The LLM doesn't need to worry about sid.
 
     Transforms:
@@ -192,6 +192,6 @@ async def query_graph(
     cypher: Annotated[str, Field(description="Read-only Cypher query. Do not include sid — it's injected automatically.")],
     limit: Annotated[int, Field(description="Max rows to return")] = 50,
 ) -> str:
-    """Execute a read-only Cypher query on the graph database. Session scoping (sid) is automatically injected. Do not include sid in your query."""
+    """Execute a read-only Cypher query on the graph database. Scoping by sid is automatically injected. Do not include sid in your query."""
     concern = QueryGraph()
     return await concern.resolve(cypher=cypher, limit=limit)

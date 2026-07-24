@@ -419,13 +419,13 @@ Mock brain returns **identical** DTOs every call — to test diversity/dedup log
 
 ## Environment Configuration
 
-Required in `.env`:
-- `DIALEXITY_DEFAULT_MODEL` / `DIALEXITY_DEFAULT_MODEL_PROVIDER`
+`.env.example` is the source of truth for all env vars (copy to `.env`). Every var is
+read in `settings.py` (`Settings.from_env`) except `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`
+(`utils/concurrency.py`) and `DIALEXITY_TEST_CLEANUP` (`tests/conftest.py`).
 
-Optional:
-- `DIALEXITY_GRAPH_DB_VENDOR` (memgraph/neo4j), `_HOST`, `_PORT`
-- `DIALEXITY_MAX_WHEEL_LAYER` — max layer for wheel generation (default 4)
-- `DIALEXITY_GRAPH_LOG_DIR` — enables file-based effect logging (`<dir>/<sid>/<agent|pipeline>.jsonl`)
+Only required: `DIALEXITY_DEFAULT_MODEL` — single combined `provider/model` string
+(e.g. `bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0`) — plus credentials for
+the named provider (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or AWS creds for `bedrock/`).
 
 ---
 
@@ -454,4 +454,3 @@ When fixing prompt output bugs: follow the revision methodology in `/df:review-p
 | Doc | Purpose |
 |-----|---------|
 | `docs/graph.md` | Full graph data model (positions, transformations, cardinality, layers, intent) |
-| `docs/graph-portability.md` | Identifiers, scopes, cloning & realms |

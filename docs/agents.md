@@ -35,7 +35,8 @@ agent.messages -> list                                      # for persistence / 
 ```
 
 Stream events: `ThinkingDelta`, `TextDelta`, `ToolStart`, `ToolResult` (carries the
-parsed `ExecutionReport`), `ResponseComplete`.
+parsed `ExecutionReport` for graph-mutating tools; `report` is `None` for read-only
+tools like `query_graph`), `ResponseComplete`.
 
 Construction is uniform except for what each is bound to:
 
@@ -141,7 +142,8 @@ is **required** and hard-bound at construction; a missing nexus raises immediate
 **The boundary (tool-enforced, not just prompt):** the Explorer has **no** `add_input`,
 `surface_theses`, `find_polarities`, `expand_polarities`, `anchor_theses`,
 `introduce_polarity`. It literally cannot analyze material into tensions. This is
-intentional and locked by a regression test.
+intentional; a regression test (`tests/test_explorer.py`) locks the `create_nexus`
+exclusion specifically.
 
 **Reads scores to prioritize** (its prompt interprets the shared taxonomy ladders):
 - **Causality** `P` (raw plausibility) vs `%` (normalized across siblings) — lead with
@@ -229,7 +231,8 @@ call an Explorer tool — it deep-links into the Analyst thread (same `sid`), wh
 `surface_theses` / `analyze` on it. This keeps the invariant that **only the Analyst
 writes Case Inputs**; the Explorer stays a pure consumer of its nexus. (`create_dx_input`
 is the mirror of `create_nexus`: both are Case-level writes at a phase boundary, so both
-live on the Analyst.)
+are registered **only on the Analyst** — even though the `create_nexus`/`expand_nexus`
+tool modules physically live under `agents/explorer/tools/` and are imported from there.)
 
 **Advisor:** no handoff UX at all — it is one thread, one chat window.
 
