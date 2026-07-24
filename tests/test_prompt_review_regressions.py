@@ -468,17 +468,16 @@ class TestExplorerExplorationDepth:
         assert "{" not in p and "}" not in p
 
 
-class TestExplorerInputSupportsExploration:
-    """User text may enrich exploration (add_input) but the Explorer must not
-    be able to build new perspectives — the role boundary is tool-enforced."""
+class TestExplorerIsBoundedConsumer:
+    """The Explorer is a pure consumer within one nexus: no material-capture
+    and no perspective-building tools. New analysis routes to the Analyst."""
 
-    def test_add_input_is_wired(self):
+    def test_no_capture_or_perspective_building_tools(self):
         from dialectical_framework.agents.explorer.explorer import _build_tools
 
         names = {getattr(t, "__name__", None) for t in _build_tools()}
-        assert "add_input" in names
-        # boundary: NO perspective-building tools on the Explorer
         for forbidden in (
+            "add_input",
             "surface_theses",
             "find_polarities",
             "expand_polarities",
@@ -489,14 +488,11 @@ class TestExplorerInputSupportsExploration:
         ):
             assert forbidden not in names, f"Explorer must not expose {forbidden}"
 
-    def test_prompt_documents_add_input_and_boundary(self):
+    def test_prompt_routes_new_material_to_analysis_thread(self):
         from dialectical_framework.agents.explorer.system_prompts import \
             system_prompt
 
         p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
-        assert "`add_input`" in p
-        # capture-yes / re-analysis-no boundary
-        assert "does NOT create" in p or "does NOT create new tensions" in p
         assert "analysis thread" in p
 
 

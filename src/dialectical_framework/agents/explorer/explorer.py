@@ -126,8 +126,6 @@ def _build_tools() -> list:
         generate_synthesis
     from dialectical_framework.agents.explorer.tools.present_exploration import \
         present_exploration
-    from dialectical_framework.agents.orchestrator.tools.add_input import \
-        add_input
     from dialectical_framework.agents.orchestrator.tools.digest_input import \
         digest_input
     from dialectical_framework.agents.orchestrator.tools.get_schema import \
@@ -147,7 +145,6 @@ def _build_tools() -> list:
         generate_synthesis,
         expand_nexus,
         present_exploration,
-        add_input,
         digest_input,
         read_digest,
         read_input,
