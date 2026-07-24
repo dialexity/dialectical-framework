@@ -121,13 +121,30 @@ class CausalityEstimatorBalanced(CausalityEstimator):
     def input_resolver(self) -> InputResolver:
         return self._input_resolver
 
+    def _lens_phrase(self) -> str:
+        """Assessment lens inserted after 'Assess the following circular causality sequence'."""
+        return "considering realism, desirability, and feasibility"
+
+    def _probability_instruction(self) -> str:
+        """Qualifier inserted after 'Estimate the numeric probability (0 to 1)'."""
+        return (
+            "considering realistic existence, optimal outcomes, and (implementation) "
+            "feasibility — weigh these together holistically into a single plausibility score"
+        )
+
     def prompt_assess_single_sequence(self, *, sequence: str) -> list:
+        """
+        Single prompt template shared by all estimator variants.
+
+        Subclasses customize only _lens_phrase() and _probability_instruction();
+        the sequence handling, instructions, and formatting rules stay identical.
+        """
         return [llm.messages.user(
-            f"Assess the following circular causality sequence considering realism, desirability, and feasibility "
+            f"Assess the following circular causality sequence {self._lens_phrase()}\n"
             f"(given that the final step cycles back to the first step):\n"
             f"{sequence}\n\n"
             f"<instructions>\n"
-            f"1) Estimate the numeric probability (0 to 1) considering realistic existence, optimal outcomes, and (implementation) feasibility — weigh these together holistically into a single plausibility score\n"
+            f"1) Estimate the numeric probability (0 to 1) {self._probability_instruction()}\n"
             f"2) Explain why this sequence might occur (or already occurs) in reality\n"
             f"3) Describe circumstances or contexts where this sequence would be most applicable or useful\n\n"
             f"- Only use the sequence **exactly as provided**, do not shorten, skip, collapse, or reorder steps.\n"

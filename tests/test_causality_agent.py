@@ -173,6 +173,60 @@ class TestResolveEstimator:
         assert isinstance(est, CausalityEstimatorCriteria)
 
 
+class TestEstimatorPromptVariants:
+    """The single-sequence prompt is one template; variants differ only in
+    the lens phrase and probability instruction."""
+
+    VARIANTS = [
+        (
+            CausalityEstimatorBalanced(),
+            "considering realism, desirability, and feasibility",
+            "weigh these together holistically into a single plausibility score",
+        ),
+        (
+            CausalityEstimatorRealistic(),
+            "for realism, i.e. what typically happens in natural systems",
+            "regarding its realistic existence in natural/existing systems",
+        ),
+        (
+            CausalityEstimatorDesirable(),
+            "considering desirability, i.e. producing optimal outcomes and maximum results",
+            "regarding how beneficial/optimal this sequence would be if implemented",
+        ),
+        (
+            CausalityEstimatorFeasible(),
+            "considering feasibility, i.e. best achievable with minimum resistance",
+            "regarding how easily this sequence could be implemented given current constraints",
+        ),
+        (
+            CausalityEstimatorCriteria(criteria="my custom criteria"),
+            "with focus on the following assessment criteria: my custom criteria",
+            "with emphasis on the assessment criteria above",
+        ),
+    ]
+
+    @staticmethod
+    def _render(estimator) -> str:
+        messages = estimator.prompt_assess_single_sequence(sequence="X → Y → X...")
+        assert len(messages) == 1
+        return "".join(part.text for part in messages[0].content)
+
+    def test_lens_and_probability_instruction_per_variant(self):
+        for estimator, lens, instruction in self.VARIANTS:
+            text = self._render(estimator)
+            assert lens in text, f"{type(estimator).__name__} lens missing"
+            assert instruction in text, f"{type(estimator).__name__} instruction missing"
+
+    def test_shared_template_invariants(self):
+        for estimator, _, _ in self.VARIANTS:
+            text = self._render(estimator)
+            assert text.count("X → Y → X...") == 1
+            assert text.count("**exactly as provided**") == 1
+            assert text.count("<instructions>") == 1
+            assert text.count("<formatting>") == 1
+            assert "explicit wording instead of technical aliases" in text
+
+
 class TestNexusPresetIntentSeparation:
     """Tests for Nexus intent/preset separation."""
 
