@@ -261,17 +261,21 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
         source_label = "?"
         target_label = "?"
 
+        # Alias + statement text: aliases alone are wheel-relative and would be
+        # the LLM's only grounding — self-describing labels prevent alias leaks
         if source_segment:
             core = source_segment.t.get()
             if core:
                 stmt, rel = core
-                source_label = rel.alias if hasattr(rel, "alias") else stmt.text
+                alias = getattr(rel, "alias", None)
+                source_label = f"{alias} ({stmt.text})" if alias else stmt.text
 
         if target_segment:
             core = target_segment.t.get()
             if core:
                 stmt, rel = core
-                target_label = rel.alias if hasattr(rel, "alias") else stmt.text
+                alias = getattr(rel, "alias", None)
+                target_label = f"{alias} ({stmt.text})" if alias else stmt.text
 
         return f"### Step {index}: {source_label} → {target_label}"
 

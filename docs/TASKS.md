@@ -4,7 +4,13 @@
 
 [] Get rid of "reasoning mode", this seems to be connected to brain, which is a pluggable service. Old: DialecticalReasoningMode should be parametrized in config
 
-[] Linear actions (cycle transitions)
+[~] Linear actions (cycle transitions) — PARTIALLY DONE. Causation justification
+("why does A naturally lead to B", per step) is implemented inside causality
+estimation as chain-of-thought: `CausalityEstimation` persists per-step Rationales
+(wheel steps → edge Transitions, cycle steps → Cycle with statement-text headers).
+Still open: on-demand critical analysis (strengths/vulnerabilities) and real-world
+validation as a separate concern — probability and transformation guidance already
+exist (`CausalityEstimation`, `ExploreTransformations`).
 ```aiignore
 We should add a separate prompt for critical analysis/justification of sequences:
 <!--

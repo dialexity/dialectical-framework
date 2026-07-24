@@ -158,6 +158,7 @@ APEX
 5. **Ac+ must contradict Re-** (positive action opposes regression toward T-)
 6. Re- and Ac- typically have lower insight than the "+" aspects
 7. Statements are a fuller actionable form, longer than the headline
+8. In headline/statement/explanation prose, refer to concepts by their actual statement wording — never by T/A/T+/A-/Ac+/Re- notation. The notation is context-relative and meaningless to anyone reading the stored text later.
 
 ## Example (1-PP: T = Love, A = Indifference)
 
