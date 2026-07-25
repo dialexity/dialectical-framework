@@ -39,8 +39,13 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.antithesis_extraction import \
     AntithesisExtraction
+from dialectical_framework.concerns.antithetical_thesis_detection import \
+    AntitheticalThesisDetection
 from dialectical_framework.concerns.statement_deduplication import (
     DedupResult, StatementDeduplication)
+from dialectical_framework.graph.estimation_manager import EstimationManager
+from dialectical_framework.graph.nodes.estimation import (ArousalEstimation,
+                                                          ModeEstimation)
 from dialectical_framework.graph.nodes.statement import \
     Statement
 from dialectical_framework.graph.nodes.ideas import Ideas
@@ -121,6 +126,15 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         results: list[ThesisResult] = []
         newly_extracted: list[Statement] = []
 
+        # Phase 0: Consolidate theses that are antitheses of each other. Strongly
+        # opposed pairs (HS >= 0.7) are merged into a single Polarity here and
+        # removed from extraction; weaker pairs are surfaced as suggestions for
+        # the agent to confirm (leaving both theses to proceed independently).
+        unique_hashes = list(dict.fromkeys(self.thesis_hashes))
+        unique_hashes, consolidated_data = await self._consolidate_antithetical(
+            unique_hashes, input_text
+        )
+
         # Phase 1: For each thesis, collect existing oppositions + extract new ones (parallel)
         import asyncio
 
@@ -155,7 +169,6 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             result.existing = existing_antitheses
             return result
 
-        unique_hashes = list(dict.fromkeys(self.thesis_hashes))
         thesis_results = await asyncio.gather(
             *[_process_thesis(h) for h in unique_hashes]
         )
@@ -209,18 +222,20 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         # Phase 3: Create Polarity nodes for each T-A pair
         total_antitheses = sum(len(r.antithesis_data) for r in results if not r.error)
 
-        if total_antitheses == 0:
+        if total_antitheses == 0 and not consolidated_data:
             self._report.ok = True
             self._report.summary = "No polarities found"
             self._report.artifacts["polarity_data"] = []
             return None
 
-        # Phase 4: Create Polarities and Ideas with all T-A pairs
-        ideas = self._create_ideas(results)
+        # Phase 4: Create Polarities and Ideas with all T-A pairs (consolidated
+        # pairs already have their Polarities created in Phase 0).
+        ideas = self._create_ideas(results, consolidated_data)
         polarity_map = self._create_polarities(results)
 
-        # Build polarity_data for report (includes HS for each T-A pair)
-        polarity_data = []
+        # Build polarity_data for report (includes HS for each T-A pair). Start
+        # with the consolidated pairs, then the extracted ones.
+        polarity_data = list(consolidated_data)
         for result in results:
             if result.error:
                 continue
@@ -258,11 +273,26 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         self._report.artifacts["polarity_data"] = polarity_data
         pol_created = self._report.artifacts.get("created_polarity_count", 0)
         pol_existing = self._report.artifacts.get("existing_polarity_count", 0)
-        self._report.summary = (
+        consolidated_count = len(consolidated_data)
+        suggestion_count = len(
+            self._report.artifacts.get("consolidation_suggestions", [])
+        )
+        summary = (
             f"Found {existing_count} existing + {new_count} new antithesis(es) "
             f"for {len(self.thesis_hashes)} thesis(es). "
             f"Polarities: {pol_created} created, {pol_existing} existing."
         )
+        if consolidated_count:
+            summary += (
+                f" Consolidated {consolidated_count} antithetical thesis pair(s) "
+                f"into single tension(s)."
+            )
+        if suggestion_count:
+            summary += (
+                f" {suggestion_count} weaker pair(s) suggested for consolidation "
+                f"(acting on one merges 2 theses into 1 tension)."
+            )
+        self._report.summary = summary
 
         return ideas
 
@@ -424,6 +454,115 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             pass
         return None
 
+    async def _consolidate_antithetical(
+        self, unique_hashes: list[str], input_text: str
+    ) -> tuple[list[str], list[dict]]:
+        """Detect and merge theses that are antitheses of each other.
+
+        Strongly-opposed pairs (HS >= 0.7) are merged into a single Polarity and
+        their two hashes removed from the returned list (so they are NOT sent to
+        antithesis extraction). Weaker pairs (0.1 < HS < 0.7) are recorded as
+        suggestions but left in the list to proceed as independent theses.
+
+        Returns:
+            (reduced_hashes, consolidated_polarity_data) where each dict has the
+            same shape FindPolarities uses in ``polarity_data``.
+        """
+        if len(unique_hashes) < 2:
+            return unique_hashes, []
+
+        detector = AntitheticalThesisDetection()
+        detection = await detector.resolve(
+            thesis_hashes=unique_hashes, text=input_text
+        )
+        self._report = self._report.merge(detector.report)
+
+        # Surface weak pairs for the agent to confirm (non-destructive).
+        self._report.artifacts["consolidation_suggestions"] = [
+            p.as_dict() for p in detection.suggest_pairs
+        ]
+
+        if not detection.merge_pairs:
+            return unique_hashes, []
+
+        pol_repo = PolarityRepository()
+        est_manager = EstimationManager()
+        consolidated_data: list[dict] = []
+        merged_hashes: set[str] = set()
+        merged_count = 0
+
+        for pair in detection.merge_pairs:
+            thesis = self._resolve_component(pair.thesis_hash)
+            antithesis = self._resolve_component(pair.antithesis_hash)
+            if thesis is None or antithesis is None:
+                continue
+
+            # Record the dialectical opposition (symmetric, idempotent).
+            thesis.oppositions.connect(antithesis)
+            self._report.relationship_created(
+                thesis.oppositions, thesis, antithesis
+            )
+
+            existing_pols = pol_repo.find_by_tension(thesis, antithesis)
+            if existing_pols:
+                polarity = existing_pols[0]
+                self._report.artifacts.setdefault("existing_polarity_count", 0)
+                self._report.artifacts["existing_polarity_count"] += 1
+            else:
+                polarity = self._build_polarity(
+                    thesis, antithesis, pair.heuristic_similarity
+                )
+                merged_count += 1
+
+            # Persist antithesis Mode/Arousal (Antithesis Persistence Checklist).
+            self._persist_mode_arousal(
+                est_manager, antithesis, pair.mode_value, pair.arousal_value
+            )
+
+            consolidated_data.append(
+                {
+                    "polarity_hash": polarity.hash,
+                    "thesis_hash": thesis.hash,
+                    "thesis_text": thesis.text,
+                    "antithesis_hash": antithesis.hash,
+                    "antithesis_text": antithesis.text,
+                    "heuristic_similarity": pair.heuristic_similarity,
+                    "existing": False,
+                    "deduped": False,
+                    "consolidated": True,
+                }
+            )
+            merged_hashes.add(thesis.hash)
+            merged_hashes.add(antithesis.hash)
+
+        self._report.artifacts["consolidated_pairs"] = len(consolidated_data)
+        if merged_count:
+            self._report.artifacts["created_polarity_count"] = (
+                self._report.artifacts.get("created_polarity_count", 0) + merged_count
+            )
+
+        reduced = [h for h in unique_hashes if h not in merged_hashes]
+        return reduced, consolidated_data
+
+    def _persist_mode_arousal(
+        self,
+        est_manager: EstimationManager,
+        antithesis: Statement,
+        mode_value: float,
+        arousal_value: float,
+    ) -> None:
+        """Persist Mode/Arousal estimations on the antithesis (mirrors IntroducePolarity)."""
+        mode_est = est_manager.upsert_estimation(
+            antithesis, ModeEstimation, mode_value
+        )
+        arousal_est = est_manager.upsert_estimation(
+            antithesis, ArousalEstimation, arousal_value
+        )
+        if mode_est:
+            self._report.node_updated(mode_est, patch={"value": mode_value})
+        if arousal_est:
+            self._report.node_updated(arousal_est, patch={"value": arousal_value})
+
     def _create_polarities(self, results: list[ThesisResult]) -> dict[tuple[str, str], str]:
         """Create Polarity nodes (T-A pairs) for each T-A pair.
 
@@ -461,37 +600,63 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                     continue
 
                 # Create new Polarity (atomic creation)
-                polarity = Polarity()
-                polarity.set_t(result.thesis, heuristic_similarity=1.0)
-                polarity.set_a(
-                    antithesis, heuristic_similarity=data["heuristic_similarity"]
+                polarity = self._build_polarity(
+                    result.thesis, antithesis, data["heuristic_similarity"]
                 )
-                polarity.commit()
-
                 polarity_map[(result.thesis.hash, data["hash"])] = polarity.hash
                 created_count += 1
-                self._report.node_created(
-                    polarity, meta={"hs": data["heuristic_similarity"]}
-                )
-                self._report.relationship_created(
-                    polarity.t, result.thesis, polarity,
-                    patch={"heuristic_similarity": 1.0, "alias": "T"},
-                )
-                self._report.relationship_created(
-                    polarity.a, antithesis, polarity,
-                    patch={"heuristic_similarity": data["heuristic_similarity"], "alias": "A"},
-                )
 
-        self._report.artifacts["created_polarity_count"] = created_count
+        # Accumulate — Phase 0 consolidation may already have created polarities.
+        self._report.artifacts["created_polarity_count"] = (
+            self._report.artifacts.get("created_polarity_count", 0) + created_count
+        )
         return polarity_map
 
-    def _create_ideas(self, results: list[ThesisResult]) -> Optional[Ideas]:
-        """Create Ideas node with all theses and their antitheses."""
+    def _build_polarity(
+        self,
+        thesis: Statement,
+        antithesis: Statement,
+        heuristic_similarity: float,
+    ) -> Polarity:
+        """Create and commit a Polarity from two committed Statements, recording effects.
+
+        Shared by regular polarity creation and antithetical-thesis consolidation.
+        T defines the apex (HS=1.0); the meaningful HS lives on A.
+        """
+        polarity = Polarity()
+        polarity.set_t(thesis, heuristic_similarity=1.0)
+        polarity.set_a(antithesis, heuristic_similarity=heuristic_similarity)
+        polarity.commit()
+
+        self._report.node_created(polarity, meta={"hs": heuristic_similarity})
+        self._report.relationship_created(
+            polarity.t, thesis, polarity,
+            patch={"heuristic_similarity": 1.0, "alias": "T"},
+        )
+        self._report.relationship_created(
+            polarity.a, antithesis, polarity,
+            patch={"heuristic_similarity": heuristic_similarity, "alias": "A"},
+        )
+        return polarity
+
+    def _create_ideas(
+        self,
+        results: list[ThesisResult],
+        consolidated_data: Optional[list[dict]] = None,
+    ) -> Optional[Ideas]:
+        """Create Ideas node with all theses and their antitheses.
+
+        Includes both the extracted T-A pairs (from ``results``) and the
+        consolidated antithetical pairs (from ``consolidated_data``), whose
+        theses were removed from the extraction set in Phase 0.
+        """
+        consolidated_data = consolidated_data or []
         valid_results = [r for r in results if not r.error and r.antithesis_data]
-        if not valid_results:
+        if not valid_results and not consolidated_data:
             return None
 
         thesis_statements = [r.thesis.text for r in valid_results]
+        thesis_statements += [d["thesis_text"] for d in consolidated_data]
         intent = f"Tensions for: {', '.join(thesis_statements[:3])}"
         if len(thesis_statements) > 3:
             intent += f" (+{len(thesis_statements) - 3} more)"
@@ -508,33 +673,38 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
 
         # Connect all theses and antitheses (deduplicated across theses)
         connected_hashes: set[str] = set()
+
+        def _connect(hash: str) -> None:
+            if hash in connected_hashes:
+                return
+            comp = self._resolve_component(hash)
+            if comp:
+                connected_hashes.add(hash)
+                ideas.statements.connect(comp)
+                self._report.relationship_created(ideas.statements, ideas, comp)
+
         for result in valid_results:
-            if result.thesis.hash not in connected_hashes:
-                connected_hashes.add(result.thesis.hash)
-                ideas.statements.connect(result.thesis)
-                self._report.relationship_created(
-                    ideas.statements, ideas, result.thesis
-                )
+            _connect(result.thesis.hash)
             for data in result.antithesis_data:
-                if data["hash"] in connected_hashes:
-                    continue
-                comp = self._resolve_component(data["hash"])
-                if comp:
-                    connected_hashes.add(data["hash"])
-                    ideas.statements.connect(comp)
-                    self._report.relationship_created(
-                        ideas.statements, ideas, comp
-                    )
+                _connect(data["hash"])
+
+        # Consolidated pairs: both sides are theses the user supplied.
+        for data in consolidated_data:
+            _connect(data["thesis_hash"])
+            _connect(data["antithesis_hash"])
 
         ideas.commit()
         self._report.node_committed(ideas)
 
         # Add rationale
-        total_theses = len(valid_results)
-        total_antitheses = sum(len(r.antithesis_data) for r in valid_results)
+        total_theses = len(valid_results) + len(consolidated_data)
+        total_antitheses = sum(len(r.antithesis_data) for r in valid_results) + len(
+            consolidated_data
+        )
         all_hs = [
             d["heuristic_similarity"] for r in valid_results for d in r.antithesis_data
         ]
+        all_hs += [d["heuristic_similarity"] for d in consolidated_data]
         max_hs = max(all_hs) if all_hs else 0.0
 
         rationale = Rationale(

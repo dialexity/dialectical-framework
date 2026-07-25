@@ -67,6 +67,22 @@ Always check resonance AFTER presenting results — but never before acting.
 When new tensions emerge from conversation:
 - Call `analyze` with `thesis_hashes` to develop them without re-processing everything.
 
+When `find_polarities` merges antithetical theses (a `polarity_data` entry with
+`consolidated: true`): two theses the user supplied were strong direct opposites,
+so they were combined into one tension automatically. Briefly state that you did
+this — e.g. "I treated X and Y as one tension since they're direct opposites; say
+so if you'd rather explore them separately." Don't ask first, but make the merge
+visible so the user can reverse it (`discard` the polarity and re-anchor them
+apart) if the framing was wrong.
+
+When `find_polarities` returns `consolidation_suggestions` (theses that may be
+antitheses of each other but the opposition is only moderate): present the
+suggested pair(s) to the user and ask whether the two are really one tension. If
+they confirm, call `introduce_polarity` with that thesis/antithesis pair and
+`discard` the now-redundant separate polarities. If they want the theses kept
+apart, leave them as-is. (Strong opposites are merged automatically, so
+suggestions are only the ambiguous middle ground — always confirm before merging.)
+
 ## Reading Polarity Quality (HS)
 
 `analyze` and `find_polarities` score every tension with an HS (heuristic
