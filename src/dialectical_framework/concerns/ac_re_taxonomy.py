@@ -3,8 +3,6 @@ Ac-Re Taxonomy constants for Transformation generation.
 
 This module contains the scales, polar pairs, and apex target coordinates
 for the Action-Reflection dialectical structure.
-
-See docs/r&d/ac_re-taxonomy.md for full specification.
 """
 
 from __future__ import annotations

@@ -15,7 +15,7 @@ They are injected by the host application at agent construction time.
 
 Prompt Revision Methodology
 ===========================
-When fixing LLM output bugs in these prompts, use /df:review-prompts for the
+When fixing LLM output bugs in these prompts, use /df-review-reasoning-layer for the
 full diagnosis/fix/verify workflow.
 
 Quick reference: Diagnose root cause (polysemy | competing signals | missing

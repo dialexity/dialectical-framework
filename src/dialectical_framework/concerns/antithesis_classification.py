@@ -169,7 +169,7 @@ def arousal_label_to_value(label: str) -> float:
 class ContextualizedTaxonomyDto(BaseModel):
     """Contextualized universal taxonomy for a thesis.
 
-     Structure (from docs/r&d/taxonomy-universal.md):
+     Structure:
                              APEX: [T]-lessness
                                     │
                  ┌──────────────────┴──────────────────┐
