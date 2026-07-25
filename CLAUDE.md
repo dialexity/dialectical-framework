@@ -173,7 +173,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Purpose | Location |
 |---------|----------|
 | DI Container (START HERE) | `dialectical_reasoning.py` |
-| Shared Claude commands | `.claude/commands/df/` (committed) |
+| Shared Claude skills (df-*) | `.claude/skills/df-<name>/SKILL.md` (committed) — convention: `disable-model-invocation: true` + scoped `allowed-tools`; mirror an existing sibling. DB lifecycle lives in `/df-memgraph` (start/stop/restart/status/logs/clear/wipe) |
 | Personal Claude commands | `.claude/commands/local/` (gitignored) |
 | Graph nodes | `graph/nodes/*.py` |
 | Relationships | `graph/relationships/*.py` |
@@ -435,17 +435,28 @@ the named provider (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or AWS creds for `bed
 
 ## Prompt Engineering
 
-The project is infused with LLM prompts at multiple layers. Use `/df:review-prompts` when writing or editing prompts — it contains the full methodology, checklist, and anti-pattern reference.
+The project is infused with LLM prompts at multiple layers. Use `/df-review-reasoning-layer` when writing or editing prompts — it reviews at three altitudes (isolated prompt → assembled context → whole reasoning chain) and carries the full methodology, checklist, drift-hotspot catalog, and cross-agent parity map (`.claude/skills/df-review-reasoning-layer/reference/systemic-map.md`).
+
+**`df-review-reasoning-layer` is a LIVING skill — keep it in lockstep with the framework.** It only stays powerful if it mirrors the current system. Whenever you change something it maps, update the skill AND its reference map in the same change:
+- New/moved/renamed prompt site → update the location table (below) and the skill's Altitude-2 assembly maps + Altitude-3 inventory.
+- New or changed shared constant/scale (`scoring_scales.py`, `ac_re_taxonomy.py`, `SYSTEMIC_TAXONOMY`) → update the theory-ownership table and drift-hotspot catalog; if you *de-duplicate* a drift site (make prose derive from the constant), remove it from the catalog.
+- Enriched/changed generative rule (the 8 in "Theoretical Foundation") → reconcile the rule↔prompt ownership entry; if a previously prompt-absent rule (R3 modality balance, R7 apex coherence) gets wired, flip its entry from "absent" to its encoding site.
+- New pipeline stage, output→input seam, or score-gate (e.g. a new `HS_THRESHOLD`) → add it to the chain-coherence section.
+- New agent or handoff → add a row to the cross-agent parity matrix.
+- New prompt regression test → point the skill's Verify section at it.
+
+Treat this as part of "done" for any prompt/theory/pipeline change, the same way `GRAPH_SCHEMA` must be updated when graph structure changes.
 
 | Location | What it controls |
 |----------|-----------------|
-| `agents/apps.py` | User-facing vocabulary/framing (DEFAULT_APP, ADVANCED_APP) |
+| `agents/apps.py` | User-facing vocabulary/framing (DEFAULT_APP, ADVANCED_APP, advisory personas) |
 | `agents/analyst/system_prompts.py` | Analyst tool selection and workflow |
-| `agents/explorer/system_prompts.py` | Explorer tool selection and workflow |
-| `concerns/` | Structured LLM calls within skills (Mirascope) |
-| `agents/orchestrator/tools/query_graph.py` | Cypher generation prompt |
+| `agents/explorer/system_prompts.py` | Explorer tool selection and workflow (function; interpolates insight/proactiveness ladders) |
+| `agents/advisor/system_prompts.py` | Advisor domain-neutral dialectical engine + `{dialectical_context}` slot |
+| `concerns/` | Structured LLM calls within skills (Mirascope): `SYSTEM_PROMPT` + `_*_prompt()` + DTO `Field` descriptions |
+| `agents/orchestrator/tools/get_schema.py` | `GRAPH_SCHEMA` — Cypher generation guidance for `query_graph` |
 
-When fixing prompt output bugs: follow the revision methodology in `/df:review-prompts` (diagnose root cause → apply fix → verify with regression test).
+When fixing prompt output bugs: follow the revision methodology in `/df-review-reasoning-layer` (diagnose root cause → apply fix → verify with regression test).
 
 **Prompt constant conventions:**
 - Aspect definitions and HS/complementarity scales are imported from `concerns/scoring_scales.py` — never re-type them inline (they drift).

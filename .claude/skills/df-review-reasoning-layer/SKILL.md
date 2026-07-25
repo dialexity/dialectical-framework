@@ -1,0 +1,166 @@
+---
+name: df-review-reasoning-layer
+description: Review the layered prompt system that assembles the framework's dialectical reasoning — across apps, agents, concerns, and shared theory. Reviews at three altitudes — the isolated prompt, the assembled context it lands in, and the whole reasoning chain it steers. Use proactively when writing or modifying LLM prompts in agents/, concerns/, or orchestrator/tools/.
+paths: src/dialectical_framework/agents/**, src/dialectical_framework/concerns/**, src/dialectical_framework/agents/orchestrator/tools/**
+---
+
+You are reviewing or writing LLM prompts in the dialectical-framework.
+
+Context from user: $ARGUMENTS
+
+## Core principle: prompts are not isolated
+
+The prompts are scattered across many files, and the reasoning framework **assembles** them at
+runtime to steer reasoning according to the dialectical theory. A single LLM call's context is
+composed from layers authored in different files: an app preamble + an agent system prompt, or a
+concern's SYSTEM_PROMPT + a per-call `_*_prompt()` + DTO field descriptions + interpolated theory
+constants. And each call is one step in a chain — its output becomes the next call's input, or feeds
+a score-gate.
+
+So a prompt can be **internally flawless and still be wrong**: it can contradict the app preamble it
+fuses with, restate a theory constant that has since drifted, shift a score distribution that changes
+what passes a downstream gate, or diverge from a sibling agent's wording across a handoff.
+
+Review at **three altitudes**, in order. Escalate to the next only when the edit's blast radius warrants
+it — but a change to shared theory, a score, a taxonomy, or agent-handoff vocabulary **always** reaches
+Altitude 3.
+
+**Fixes are not always text.** When the same theory lives as prose in N prompts, the right fix is
+usually **structural** — make the prose derive from the single-source constant (as
+`explorer/system_prompts.py` `_ladder(INSIGHT_SCALE)` already does), not re-sync copies by hand. Flag
+these; a text patch that re-syncs by hand just resets the drift clock.
+
+---
+
+## Altitude 1 — The isolated prompt
+
+Craft/quality of the prompt in front of you. (Original checklist — still necessary, no longer sufficient.)
+
+### Writing principles
+1. **Positive specification over negative constraint.** "Format as X" beats "Don't format as Y".
+2. **One concept, one word.** Never use the same word for two concepts. If "statement" means both a
+   thesis node and a user utterance, rename one.
+3. **Concise and dense.** Every sentence carries information. Shorter prompts perform better.
+4. **No conflicting instructions.** Don't combine contradictory directives; consolidate into one authority.
+5. **Concrete examples over abstract rules** where format/style could be misread.
+6. **Explicit output format** (Pydantic schema, table, bulleted list) — don't hope the model infers it.
+7. **Context / Instructions / Format separation.** Don't mix "who you are" with "what to output."
+
+### Anti-patterns to reject
+- **Patch-stacking** ("IMPORTANT: NEVER…", "CRITICAL: ALWAYS…") on top of existing instructions. Diagnose WHY it failed; don't add emphasis.
+- **Redundant emphasis** — same instruction in multiple forms. Consolidate.
+- **Model-specific forks.** Fix for Haiku (weakest model); Sonnet/Opus follow.
+- **Negative-only constraints** — "don't use jargon" without saying what vocabulary TO use.
+- **Unbounded generation** — no length/format constraint. Use `self.settings.component_length` / `transition_length`, never hardcode.
+
+### Diagnose → fix (for a prompt producing wrong output)
+| Failure pattern | Root cause | Signal |
+|----------------|-----------|--------|
+| Wrong term/format | **Polysemy** | Same word, two concepts |
+| Oscillates between behaviors | **Competing signals** | Two sections contradict |
+| Invents wrong structure | **Missing example** | No concrete output example |
+| Does the opposite | **Negative-only constraint** | "don't X" without "do Y instead" |
+
+Fix, first applicable wins: (1) add one concrete example; (2) positive specification; (3) reduce polysemy; (4) consolidate competing sections.
+
+---
+
+## Altitude 2 — The assembled context
+
+What ELSE lands in the model's context window on this call? Load
+[reference/systemic-map.md](reference/systemic-map.md) §1 for the two assembly stacks and the
+co-occurrence hotspots. Then:
+
+- [ ] **Identify the assembly stack.** Agent prompt (Stack A: `app_preamble` + `SYSTEM_PROMPT` fused into
+      one system message)? Or concern (Stack B: `SYSTEM_PROMPT` + `_*_prompt()` + DTO `Field` descriptions)?
+- [ ] **Read the co-occurring layers, not just the file you're editing.**
+    - Agent prompt → open the app preambles it fuses with. For Analyst that means **both `DEFAULT_APP` and
+      `ADVANCED_APP`** (`ADVANCED_APP = DEFAULT_APP + override`); for Advisor, all five personas. Check the edit
+      doesn't contradict the preamble's vocabulary / score-presentation rules (esp. the "communicate as MEANING
+      not numbers" default vs. `ADVANCED_APP`'s "show numeric scores").
+    - Concern → check the SYSTEM_PROMPT, the `_*_prompt()` user content, AND the DTO field descriptions
+      (Mirascope sends them). Inline examples must not contradict interpolated constants or field text.
+- [ ] **DTO `Field(description=...)` is prompt surface** — review it too.
+- [ ] **Runtime splices.** Explorer embeds `nexus_hash`/`nexus_intent`; Advisor embeds the whole
+      `{dialectical_context}` dump. Your edit must tolerate an empty/"fresh conversation" block and untrusted
+      interpolated text.
+- [ ] **Assert on the interpolated module attribute, not `inspect.getsource`** — f-string prompts show the
+      literal `{CONST}` token in source, not the resolved text.
+
+---
+
+## Altitude 3 — The systemic review (theory + chain + cross-agent)
+
+The edit touches shared theory, a score, a taxonomy, or vocabulary that crosses an agent handoff. Load
+[reference/systemic-map.md](reference/systemic-map.md) fully — it carries the theory-ownership table, the
+drift-hotspot catalog, the pipeline seams, the gates, and the cross-agent parity matrix, each with grep-able
+anchors.
+
+### Theory fidelity (the 8 generative rules)
+- [ ] **Single-source-of-truth for scales.** Any prompt stating HS / complementarity / area / Ks / insight /
+      proactiveness / mode / arousal bands must **interpolate the constant** (`HS_SCALE`, `COMPLEMENTARITY_SCALE`,
+      `ASPECT_DEFINITIONS` from `scoring_scales.py`; `INSIGHT_SCALE`, `PROACTIVENESS_SCALE`, `POLAR_PAIRS` from
+      `ac_re_taxonomy.py`) — never hand-type bands. If semantics change, edit the constant. See §3 for the
+      current hand-typed offenders; prefer the structural fix (derive prose from the constant).
+- [ ] **Taxonomy dict/table lockstep (R8, top hotspot).** Editing `SYSTEMIC_TAXONOMY`/`ELEMENTAL_TAXONOMY` OR
+      the hand-typed taxonomy table in `statement_classification.py`'s SYSTEM_PROMPT requires updating BOTH — the
+      LLM classifies against the table while `lookup_aspect_apex` scores HS against the dict. Divergence = silent HS corruption.
+- [ ] **Circular-causality directionality (R2).** Keep `Ac+ = T-→A+`, `Re+ = A-→T+`, and "Ac+ without Re+
+      regresses to Re-, Re+ without Ac+ drifts to Ac-". Restated across 4+ prompts with no owner — verify all agree.
+- [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
+      An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
+- [ ] **Do NOT invent enforcement of prompt-absent rules.** Modality balance (R3, zero-sum) and apex coherence
+      (R7, convex hull) live only in theory/TODOs — no prompt enforces them. Reject edits that *claim* to
+      enforce them without wiring the check (`synthesis_generation.py` TODOs).
+
+### Chain coherence (output → input)
+- [ ] **Guard the SIMPLE/COMPLEX boundary.** Any edit to a thesis-generation/anchor prompt OR to
+      `StatementClassification` can flip theses to SIMPLE → mechanical negation with HS forced to 1.0 →
+      inflates every polarity past `HS_THRESHOLD=0.7` → Analyst tells the user a weak framing is strong.
+      Regression-test classification stability.
+- [ ] **A prompt that sets a score is a gate input.** `AntithesisExtraction` / `AntithesisClassification` /
+      `TransformationGeneration._score_hs` feed `_rank_polarities` (0.7) and consolidation bands (0.7/0.1). A
+      wording change that shifts the distribution changes what passes — review the gate, not just the call.
+- [ ] **Honor the downstream consumer's contract.** Aspect/transition text is quoted verbatim into edge context
+      and synthesis; `insight_label`/`proactiveness_label` must stay in the known scales (else matching falls back
+      to defaults); only Ac+/Re+ **headlines** reach synthesis.
+- [ ] **Preserve "refer to concepts by actual statement wording, never T/A notation"** in transition/synthesis edits — stored text is re-read later without wheel-relative aliases.
+- [ ] **Diversity chains.** `not_like_these` (ExpandPolarity, SurfaceTheses retries) — don't weaken "generate
+      something different," or alternatives collapse into near-dupes that dedup silently removes.
+
+### Cross-agent parity (see the §5 matrix)
+- [ ] **Grep the other two agents when editing a shared concept.** HS disambiguation, HS bands, nexus grouping
+      rule, Ac+/Re+ direction, S+/S- framing must stay consistent across Analyst/Explorer/Advisor.
+- [ ] **App/engine boundary.** Engine system prompts must not hardcode persona voice; app preambles must not
+      redefine tool selection; advisory personas must carry zero framework terminology; presentation defaults
+      belong in the preamble.
+- [ ] **`ADVANCED_APP` override completeness.** New section in `DEFAULT_APP`? Re-check the override list, or
+      expert users inherit non-expert framing.
+- [ ] **Internal-only strings** (`nexus_intent` is "do not surface to user") must keep that classification when interpolated into another agent's prompt.
+- [ ] **Structural/direction conventions match `docs/graph.md` and `GRAPH_SCHEMA`** — update `GRAPH_SCHEMA` in lockstep (per CLAUDE.md).
+
+---
+
+## Verify
+
+- **Structural regressions (default suite, no LLM):** `poetry run pytest tests/test_prompt_review_regressions.py`
+  — ~45 assertions over prompt constants (imports, worked-example directions, override wording, grouping phrase, …).
+  **This is the primary net; add a case here when your edit touches a shared constant, a gate, a taxonomy, or cross-agent wording.**
+- **Behavioral vocabulary (real provider):** `poetry run pytest tests/test_prompt_vocabulary.py --real-llm`
+  — thin (one Analyst "blindspot" check); extend it when reviewing user-facing vocabulary.
+- **Known coverage gaps** (see reference §6): no cross-agent consistency test, agent-prompt hand-typed scales
+  untested for agreement, taxonomy dict-vs-table lockstep untested, no app/engine boundary test, personas
+  untested. If your edit lands in one of these, add the missing regression rather than relying on manual review.
+
+---
+
+## How to use
+
+- **Manual:** `/df-review-reasoning-layer [what you're working on]`
+  - `…rewriting the antithesis extraction prompt to reduce hallucinated format`
+  - `…review the analyst system prompt for competing signals with the app preamble`
+- **Proactive:** when editing any prompt under the `paths:` above, apply Altitude 1 automatically, escalate to
+  2/3 by blast radius. Read the actual file(s) first — including co-occurring layers — then report:
+  1. Issues found, with root cause (Altitude 1 table) and, for 2/3, the specific co-occurring/theory/chain interaction.
+  2. Fix recommendation — and say explicitly when the right fix is **structural** (derive from a constant / add a test) rather than a text edit.
+  3. Whether a regression test exists or needs to be added, and where.

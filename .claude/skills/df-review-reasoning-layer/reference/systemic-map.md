@@ -1,0 +1,232 @@
+# Systemic Prompt Map — dialectical-framework
+
+Reference catalog for **Altitude 2 (assembled)** and **Altitude 3 (systemic)** prompt review.
+Load this when a prompt edit could interact with text assembled elsewhere, with the encoded
+theory, or with the pipeline chain the prompt sits in.
+
+**Line numbers are snapshot hints (as of 2026-07), not contracts.** Every entry leads with a
+grep-able symbol or phrase — verify location before relying on a number. Paths are relative to
+`src/dialectical_framework/`.
+
+---
+
+## 1. Assembly maps — what co-occurs in one context window
+
+A single LLM call's context is *assembled* from separately-authored layers. Editing one layer
+changes the meaning of the others it lands beside. Two assembly shapes exist.
+
+### Stack A — Conversational agent (Analyst / Explorer / Advisor)
+
+The system message is built at **agent construction time** as `"\n\n".join([app_preamble, SYSTEM_PROMPT])`,
+installed via `ConversationFacilitator.set_system_prompt` (`agents/conversation_facilitator.py`, `set_system_prompt`).
+The model sees **one fused system block** — it cannot tell where the preamble ends and the workflow prompt begins.
+
+```
+[ app_preamble ]              agents/apps.py  (DEFAULT_APP / ADVANCED_APP / COUNSELOR_APP / ...)
+   + "\n\n" +
+[ agent SYSTEM_PROMPT ]       agents/{analyst,explorer,advisor}/system_prompts.py
+   ↓ set_system_prompt → _messages[0]
+[ system ][ history... ][ user turn ]
+   ↓ use_brain(tools=, thinking=)   utils/use_brain.py
+   → provider
+```
+
+- Analyst: `analyst/analyst.py` `_build_system_prompt` — `DEFAULT_APP`/`ADVANCED_APP` + `SYSTEM_PROMPT` constant.
+- Explorer: `explorer/explorer.py` — system prompt is a **function** `system_prompt(nexus_hash, nexus_intent)`
+  (`explorer/system_prompts.py`) that f-string-injects the live nexus hash/intent (DB read at construction)
+  **and** renders `INSIGHT_SCALE`/`PROACTIVENESS_SCALE` via `_ladder()`.
+- Advisor: `advisor/advisor.py` — preamble + `SYSTEM_PROMPT` with `{dialectical_context}` **string-replaced**
+  by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
+- `ADVANCED_APP = DEFAULT_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
+  Any edit to `DEFAULT_APP` also ships inside `ADVANCED_APP`.
+
+### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
+
+Each concern owns a tool-less `ConversationFacilitator`. Prompt surface is split across **three** places
+that co-occur in one call:
+
+```
+[ module SYSTEM_PROMPT ]      often an f-string interpolating shared constants + self.settings.*
+   ↓ set_system_prompt → _messages[0]
+[ per-call _*_prompt() ]      user message; may re-interpolate the SAME constants again
+   ↓ submit(response_model=Dto, user_content=prompt)
+[ DTO Field(description=...) ] Mirascope serializes response_model field descriptions INTO the request
+   ↓ use_brain(format=Dto)   utils/use_brain.py  (+ ParseError / rate-limit retry)
+   → provider → response.parse() → Pydantic Dto
+```
+
+**DTO field descriptions are prompt surface.** Review them alongside the SYSTEM_PROMPT and `_*_prompt()`
+(e.g. `AspectDto.heuristic_similarity` description in `aspect_generation.py`;
+`TaxonomyLocationDto.taxonomy_type` in `statement_classification.py`).
+
+### Co-occurrence hotspots (edit one → silently affects the other)
+
+1. **`DEFAULT_APP` "communicate as MEANING not numbers" sits directly above Analyst's numeric HS bands**
+   (`analyst/system_prompts.py` "Reading Polarity Quality", `≥0.7 / 0.5–0.7 / <0.5`). They reconcile only via
+   the preamble's "unless asked" clause. `ADVANCED_APP` flips it to "Show numeric scores" — so the *same*
+   Analyst prompt co-occurs with two opposite presentation rules depending on which preamble the host injects.
+2. **Advisor's "What You Must Never Do" (bans framework terms + score numbers) co-occurs with its own
+   score-reading section** dense in `T+/A-/Ac+/Re+`, `HS`, insight/proactiveness numbers. Reconciliation is
+   "internal reasoning only, never output." Any edit blurring that internal/external fence breaks the
+   silent-framework contract.
+3. **A concern's SYSTEM_PROMPT inline examples co-occur with interpolated shared constants + DTO field text.**
+   In `aspect_generation.py`, the hand-written Love/Indifference example sits with interpolated `ASPECT_DEFINITIONS`
+   / `HS_SCALE` / `COMPLEMENTARITY_SCALE` + live taxonomy apexes. Changing the constant reaches every consumer;
+   changing the inline example reaches only this file.
+
+---
+
+## 2. Theory → prompt ownership (the 8 generative rules)
+
+Where each rule is encoded, and whether it is single-sourced (robust) or duplicated prose (fragile).
+
+| Rule | Encoded in | Sourcing |
+|------|-----------|----------|
+| **R1 Tetrad structure** (T+/T-/A+/A- defs) | `ASPECT_DEFINITIONS` in `concerns/scoring_scales.py`, imported by `aspect_generation`, `aspect_classification`, `positive_ac_re_apex_derivation` | Def block **single-source (good)**. But the "T+ contradicts A-" diagonal rule is ALSO re-stated in prose in `aspect_generation`, `aspect_classification`, and coded in `statement_classification.get_contradiction_pair()` — **duplicated**. |
+| **R2 Circular causality** (Ac+ = T-→A+, Re+ = A-→T+) | `transformation_generation` SYSTEM_PROMPT; `positive_ac_re_apex_derivation`; `action_extraction`; `synthesis_generation`; comments in `ac_re_taxonomy.py` | **Duplicated prose across 4+ prompts, no single owner.** Directionality is theory-critical. |
+| **R3 Modality balance** (M(T+)+M(A-)+M(T-)+M(A+)=0) | *Nowhere in a generation/scoring prompt.* Only surfaced in `ADVANCED_APP` ("modality alignment"). Mode scale in `antithesis_classification`. | **Prompt-absent.** No prompt enforces or checks the zero-sum. Reject edits that *claim* to. |
+| **R4 Complementarity K** (Ks = (K_T+K_A)/2) | `COMPLEMENTARITY_SCALE` in `scoring_scales.py`, consumed by aspect concerns; thresholds in `concerns/perspective_validation.py` | **Single-source (good).** |
+| **R5 Equal-sign synthesis** (S+ between T+/A+) | `synthesis_generation` SYSTEM_PROMPT (framed via Ac+/Re+ transitions, not literally "like-signed") | **Weakly encoded** — one indirection from the rule. |
+| **R6 Control statements** ("T+ without A+ yields T-") | `concerns/control_statements_check.py` (aspect level) AND `transformation_generation` (transition level, `Ac+ without Re+`) | **Duplicated form**, independent wording. |
+| **R7 Apex coherence** (S+/- within convex hull of sub-syntheses) | *Not implemented* — TODO stubs in `synthesis_generation.py`. | **Prompt-absent.** Any claim that synthesis is apex-validated is currently false. |
+| **R8 Systemic taxonomy** (Table S-1, 5 branches) | `SYSTEMIC_TAXONOMY` dict in `statement_classification.py` (~L45) **AND** a hand-typed markdown table in the same file's SYSTEM_PROMPT (~L300). `ELEMENTAL_TAXONOMY` is the peer dict. | **DUPLICATED WITHIN ONE FILE — the top hotspot** (see §3.1). |
+
+### Scoring-vocabulary single sources of truth
+- `concerns/scoring_scales.py`: `ASPECT_DEFINITIONS`, `HS_SCALE`, `COMPLEMENTARITY_SCALE`.
+- `concerns/ac_re_taxonomy.py`: `INSIGHT_SCALE`, `PROACTIVENESS_SCALE`, `POLAR_PAIRS`, `AC_PLUS_APEX_TARGET`, `RE_PLUS_APEX_TARGET`.
+- `statement_classification.py`: `SYSTEMIC_TAXONOMY`, `ELEMENTAL_TAXONOMY` (consumed programmatically via `lookup_aspect_apex` etc.).
+
+**Rule of thumb:** if your edit changes scale *semantics*, edit the constant — not an inline prompt copy.
+
+---
+
+## 3. Drift hotspot catalog (same theory re-stated in multiple places)
+
+Ranked by blast radius. Each is a place where an edit to one copy silently diverges from the others.
+**The correct fix is usually structural: make the prose derive from the constant** (see how
+`explorer/system_prompts.py` `_ladder(INSIGHT_SCALE)` renders the ladder from the dict), not re-sync by hand.
+
+1. **Systemic taxonomy: dict vs. prompt table** — `statement_classification.py`. The `SYSTEMIC_TAXONOMY`/
+   `ELEMENTAL_TAXONOMY` dicts drive URI lookup + HS apex names; the hand-typed markdown table in the
+   SYSTEM_PROMPT is what the LLM reads to pick a branch. Maintained separately. Divergence → LLM classifies
+   against one vocabulary while `lookup_aspect_apex` scores HS against another → **silent HS corruption.**
+   *Grep:* `SYSTEMIC_TAXONOMY = {` and the `| Integrity |` table row.
+2. **Insight/Proactiveness ladders re-typed 3–4×** — hand-typed prose in `transformation_generation.py`,
+   `positive_ac_re_apex_derivation.py`, `action_extraction.py` (all three *import* `INSIGHT_SCALE`/
+   `PROACTIVENESS_SCALE` but use them only numerically, while pasting the ladder as prose), plus
+   `advisor/system_prompts.py`. Only `explorer/system_prompts.py` renders from the constant. Labels round-trip
+   through `insight_label_to_value` / `proactiveness_label_to_value` — a drifted table means the LLM's stated
+   label and the persisted number diverge. *Grep:* `reflex`, `stewardship`, `transcendence`.
+3. **HS band scale stated 3×** — canonical `HS_SCALE` (imported by aspect concerns) vs. an independently-worded
+   copy in `antithesis_classification.py` (antithesis path does NOT import `HS_SCALE`) vs. `docs/scoring.md`.
+   Bands agree today but phrasing differs ("Perfect antithesis" vs "Exemplary").
+4. **Mode & Arousal scales stated 2× in one file** — `antithesis_classification.py` numeric dicts
+   (`MODE_FIELDS`, `AROUSAL_VALUES`) + their markdown-table restatements in the same file's SYSTEM_PROMPT.
+5. **Circular-causality direction (Ac+ = T-→A+) re-stated 4+×** — `transformation_generation`,
+   `positive_ac_re_apex_derivation`, `action_extraction`, `synthesis_generation`, `ac_re_taxonomy` comments.
+6. **Diagonal-contradiction rule re-stated ~5×** — `COMPLEMENTARITY_SCALE` (last line), `aspect_generation`,
+   `aspect_classification`, `transformation_generation`, `concerns/diagonal_oppositions_check.py`, and the code
+   map `get_contradiction_pair`. Wording varies ("contradicts" / "mutually exclusive" / "cannot both be true").
+   Any edit must not imply *lowering K* (contradicts `scoring_scales.py`).
+7. **CC control-statement wording stated 2×** — `control_statements_check.py` (aspect) vs.
+   `transformation_generation` (transition), independent phrasing + thresholds.
+
+### Agent-prompt hand-typed scales (also drift-prone, currently untested for agreement)
+- Analyst HS bands (`analyst/system_prompts.py` "Reading Polarity Quality", 3 bands).
+- Advisor score-reading section (`advisor/system_prompts.py`, 4 HS bands + insight/proactiveness ladders).
+- Neither imports `HS_SCALE` (6 bands) — three granularities for the same `HS_THRESHOLD=0.7` gate.
+
+---
+
+## 4. Reasoning pipeline as a call-chain (output→input seams)
+
+A prompt is a step in a chain; its output is the next step's input. Both pipeline classes live *inside*
+the agent files: `AnalysisPipeline` in `analyst/analyst.py`, `ExplorationPipeline` in `explorer/explorer.py`.
+
+### Analysis chain (`AnalysisPipeline.resolve`)
+`AddInput` → **SurfaceTheses** (parse-intent → `ThesisExtraction` 3-hop → `StatementDeduplication`) →
+**FindPolarities** (Phase-0 `AntitheticalThesisDetection` consolidation → Phase-1 `AntithesisExtraction`
+per thesis → Phase-2 dedup) → **`_rank_polarities` gate** → **ExpandPolarity ×N** (`AspectGeneration` →
+aspect dedup). `create_nexus` is the Analyst-only handoff.
+
+### Exploration chain (`ExplorationPipeline.resolve`)
+**BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **ExploreTransformations ×wheels**
+(Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
+`_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
+annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-).
+
+### Critical output→input seams (upstream wording ripples downstream)
+1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
+   verdict on the *generated wording* routes the entire antithesis path. Wording that reads as a bare fact flips
+   COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**.
+2. **Thesis `meaning` URI → all taxonomy lookups.** `StatementClassification` writes the taxonomy branch into
+   `meaning`; `lookup_aspect_apex` etc. derive the apex names that AspectGeneration/AntithesisExtraction score
+   HS *against*. Wrong branch → HS scored against the wrong reference.
+3. **Aspect statement text → wheel segments → transition context.** `build_edge_context` feeds exact
+   T/T+/T-/A+/A- wording into Ac+/Re+ generation. Prompts require prose to "refer to concepts by their actual
+   statement wording, never by T/A notation" — upstream phrasing is quoted verbatim.
+4. **ApexDerivation apex text → `TransformationGeneration._score_hs`.** Apex-prompt wording sets the HS
+   reference frame for Ac+/Re+.
+5. **Label vocabulary is a hard contract.** `insight_label` / `proactiveness_label` outside the known scales
+   → matching silently falls back to `candidates[0]` / midpoint defaults (`get_polar_pair`, `explore_transformations`).
+6. **Only Ac+/Re+ headlines reach SynthesisGeneration.** If a transformation prompt stops producing crisp
+   headlines, synthesis degrades with no other signal.
+
+### Gates (score-based filters — the prompt that feeds each *is* a gate input)
+- **`_rank_polarities`** (`analyst/analyst.py`, `HS_THRESHOLD=0.7`, `MAX_POLARITIES_TO_EXPAND=5`): keeps
+  polarities with antithesis HS ≥ 0.7. Fed by `AntithesisExtraction` / `AntithesisClassification` HS. The
+  SIMPLE=1.0 shortcut can inflate everything past it → gate stops differentiating.
+- **`AntitheticalThesisDetection`** (`MERGE_THRESHOLD=0.7`, `SUGGEST_THRESHOLD=0.1`): HS≥0.7 auto-merges two
+  theses into one Polarity; 0.1–0.7 suggests; ≤0.1 drops.
+- **ThesisExtraction Step-2 candidate gate** (`is_assertable & is_substantive`, with all-rejected safety net).
+- **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
+  `PerspectiveValidation` is unwired (tests only); the one live post-hoc check is
+  `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
+
+---
+
+## 5. Cross-agent parity matrix (Analyst ↔ Explorer ↔ Advisor)
+
+Independently-authored prompts that share a concept which MUST stay identical or a handoff misleads model/user.
+
+| Shared concept | Analyst | Explorer | Advisor | Ground truth |
+|----------------|---------|----------|---------|--------------|
+| HS-on-A vs HS-on-Ac+/Re+ disambiguation | uses only HS-on-A | disambiguates both | disambiguates both | — (must agree) |
+| HS threshold bands | 3 bands | — | 4 bands | `HS_SCALE` (6 bands) — none import it |
+| Nexus grouping rule ("different polarities → synthesis; same → angle shift") | prose | — | prose | duplicated, hand-written twice |
+| S+/S- emergence-vs-trap, "1+1>2" | `DEFAULT_APP` | prose | prose | `synthesis_generation` concern |
+| Ac+ = T-→A+, Re+ = A-→T+ direction | `DEFAULT_APP` | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` |
+| `nexus_intent` surface classification | "internal, do not surface" | interpolated raw into header | — | leak risk |
+
+### App/engine vocabulary boundary
+- **Engine** (`agents/{analyst,explorer,advisor}/system_prompts.py`) = domain-neutral; may name graph nodes
+  (Statement, Polarity, T+/A-) because those are the model. Must NOT hardcode persona voice/tone.
+- **App** (`agents/apps.py`) = persona + presentation vocabulary. `DEFAULT_APP` forbids a fixed translation
+  table; advisory personas (`COUNSELOR/STRATEGIC_ADVISOR/COACH/MEDIATOR/SPARRING_PARTNER`) carry ONLY voice.
+- **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not
+  numbers") that *reference* the app preamble — a two-way dependency the split says should be one-way.
+  `DEFAULT_APP` also hardcodes "Wheel, Nexus, Cycle are fine to use."
+
+---
+
+## 6. Test coverage — what exists vs. the gap
+
+- **`tests/test_prompt_review_regressions.py`** (~45 tests, no LLM) — the real coverage. Mechanical
+  string/logic assertions: shared scoring constants exist and are imported by `aspect_generation`/
+  `aspect_classification`; transformation worked-example directions; CC both-scores rule; apex sweet-spots;
+  settings-driven transition length; Explorer dead-tool + 1-PP claims; `ADVANCED_APP` override wording;
+  causality alias format; Advisor discard wiring + empty-ingest fallback; anchor headline clamp; Analyst
+  nexus grouping phrase; dedup report merge; elemental taxonomy.
+- **`tests/test_prompt_vocabulary.py`** (1 test, `--real-llm`) — behavioral: a live Analyst response never
+  labels T-/T+ as "blindspot." DEFAULT_APP + Analyst only. Skipped in the default suite.
+
+### Coverage gaps a systemic review should close (add a regression when you touch these)
+- **No cross-agent consistency test** — nothing asserts Analyst/Explorer/Advisor share the same HS bands,
+  grouping rule, or Ac+/Re+ direction.
+- **Agent-prompt hand-typed scales untested for agreement** with `scoring_scales.py` / `ac_re_taxonomy.py`
+  (Analyst HS bands, Advisor score section). The enforced-shared parametrize covers only the two aspect concerns.
+- **The taxonomy dict-vs-table lockstep is untested** (hotspot §3.1).
+- **No app/engine boundary test** — nothing asserts engine prompts avoid persona vocab, or personas avoid
+  framework terms.
+- **No test that `concerns/dialectical_context.py` score labels match the Advisor's score-reading section.**
+- **Advisory personas are entirely untested.**
