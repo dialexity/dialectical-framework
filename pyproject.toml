@@ -35,6 +35,7 @@ classifiers = [
     "Environment :: Console",
     "Natural Language :: English"
 ]
+include = [{ path = "PATENTS", format = ["sdist"] }]
 
 [[tool.poetry.packages]]
 include = "dialectical_framework"

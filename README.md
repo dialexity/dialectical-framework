@@ -135,3 +135,12 @@ poetry run pytest --real-llm   # Hit real LLM provider
 - [Mirascope](https://mirascope.com/) — LLM abstraction
 - [GQLAlchemy](https://memgraph.com/docs/gqlalchemy) — Graph ORM
 - [dependency-injector](https://python-dependency-injector.ets-labs.org/) — DI container
+
+## License & Patents
+
+The source code is licensed under the [MIT License](https://github.com/dialexity/dialectical-framework/blob/main/LICENSE) (copyright only).
+
+The methods for applying dialectical reasoning with AI are patented. The MIT
+License does not grant patent rights beyond a limited grant for use of this
+software as distributed — see [PATENTS](https://github.com/dialexity/dialectical-framework/blob/main/PATENTS) for the patent terms and
+[dialexity.com/patents](https://dialexity.com/patents) for the patent listing.

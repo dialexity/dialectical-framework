@@ -1,0 +1,79 @@
+Dialectical Framework
+Copyright (c) 2025 Dialexity
+
+================================================================================
+COPYRIGHT LICENSE
+================================================================================
+
+The source code in this repository is licensed under the MIT License. See the
+LICENSE file for the full terms. The MIT License governs COPYRIGHT ONLY: your
+rights to use, copy, modify, merge, publish, distribute, sublicense, and sell
+copies of the software.
+
+================================================================================
+PATENT NOTICE
+================================================================================
+
+Independently of the copyright license above, Dialexity holds patent rights
+covering methods for applying dialectical reasoning with artificial
+intelligence and machine learning systems.
+
+  Patent(s) / application(s): see https://dialexity.com/patents
+
+The MIT License does not, by itself, grant any patent rights. This file sets
+out the patent terms that apply to this software.
+
+--------------------------------------------------------------------------------
+1. Limited patent grant for use of this software as distributed
+--------------------------------------------------------------------------------
+
+Dialexity grants you a worldwide, royalty-free, non-exclusive license under the
+patent(s) identified above, limited strictly to making, using, selling,
+offering for sale, importing, and distributing THIS software as distributed in
+this repository (and modifications of it), to the extent such acts would
+otherwise infringe those patent(s).
+
+This grant is coextensive with your use of this software. It extends ONLY to
+the patented methods as embodied in this software and does NOT extend to any
+other implementation of the patented methods.
+
+--------------------------------------------------------------------------------
+2. Reservation of all other patent rights
+--------------------------------------------------------------------------------
+
+All patent rights not expressly granted in Section 1 are reserved. In
+particular, and without limiting the foregoing, NO patent license is granted
+for:
+
+  (a) implementations of the patented methods that are developed independently
+      of, or do not incorporate, this software; or
+
+  (b) products, services, or systems that practice the patented methods without
+      using this software as distributed.
+
+Practicing the patented methods in any manner outside the limited grant in
+Section 1 requires a separate patent license from Dialexity.
+
+--------------------------------------------------------------------------------
+3. Defensive termination
+--------------------------------------------------------------------------------
+
+The patent grant in Section 1 terminates automatically as to any party that
+initiates or joins a patent infringement claim (including a cross-claim or
+counterclaim) alleging that this software, or any contribution to it,
+constitutes patent infringement.
+
+--------------------------------------------------------------------------------
+4. Commercial and patent licensing
+--------------------------------------------------------------------------------
+
+For patent licenses beyond the limited grant in Section 1 — including use of
+the patented methods in independent implementations — see the patent listing
+and contact details at:
+
+  https://dialexity.com/patents
+
+================================================================================
+This file must be included in all copies or substantial portions of the
+software, together with the LICENSE file.
+================================================================================
