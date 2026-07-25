@@ -47,7 +47,7 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 
 **HS (Heuristic Similarity):** T=1.0 (always, defines apex), A=LLM-computed, Aspects=LLM-computed, Ac+/Re+=LLM-computed, Ac/Re/Ac-/Re-=None.
 
-**Validation split:** `PerspectiveValidation` runs CC + empirical inequalities (post-generation). `edit_perspective._validate_tetrad_coherence` adds diagonal contradiction (post-user-edit). This is intentional — diagonal is an extra LLM call only needed when generation-prompt constraints are bypassed.
+**Validation, in practice:** Generated tetrads are NOT gated on a validation pass — the generation prompt enforces tetrad structure and the live `AnalysisPipeline` gates only on HS (`_rank_polarities`, `HS_THRESHOLD=0.7`). `PerspectiveValidation` (CC + empirical inequalities) is a fully implemented but currently unwired building block — invoked only from tests, not from any `src/` pipeline. The one live post-hoc check is `edit_perspective._validate_tetrad_coherence`, which runs CC + diagonal contradiction directly (via `ControlStatementsCheck` + `DiagonalOppositionsCheck`, not `PerspectiveValidation`) on user-edited tetrads — the extra diagonal LLM call is only needed when generation-prompt constraints are bypassed.
 
 ### Core Model
 
@@ -379,6 +379,8 @@ async def surface_theses(
 **Critical:** Never use `param = Field(default=X, ...)` as a Python default — Mirascope leaves the raw `FieldInfo` object as the runtime default. Always use `Annotated[type, Field(...)] = actual_default`. Test coverage: `test_tool_signatures.py`.
 
 **Report artifacts must include final-state text.** When a skill uses `StatementDeduplication`, the LLM only sees `node_created` effects (with original text) and `node_deleted` effects (hash-only). It cannot access the replacement node's text from effects alone. Every skill that deduplicates must add an artifact with the authoritative post-dedup text (e.g., `artifacts["theses"]`, `artifacts["polarities"]`, `artifacts["perspectives"]`). See `expand_polarities.py` for the reference pattern.
+
+**`AnalysisPipeline` does NOT merge sub-skill reports.** `analyze` (and the Advisor's `ingest`) return `str(pipeline.report)`, but the pipeline never `.merge()`s its `find_polarities`/`expand_polarities` sub-reports — those live on the discarded `AnalysisResult.reports`. Anything the agent must see (e.g. HS scores, quality signals) has to be placed on the pipeline's OWN `self._report.artifacts` (see `polarity_quality`). Report artifacts reach only the LLM (via `__str__`), never the frontend — the event bus publishes `Effect`s only.
 
 ---
 

@@ -67,6 +67,27 @@ Always check resonance AFTER presenting results — but never before acting.
 When new tensions emerge from conversation:
 - Call `analyze` with `thesis_hashes` to develop them without re-processing everything.
 
+## Reading Polarity Quality (HS)
+
+`analyze` and `find_polarities` score every tension with an HS (heuristic
+similarity) on its antithesis — how *genuine* the opposition is, not how good the
+idea is. Use it to decide what to lead with; this is the reasoning that separates
+you from a generic list of pros and cons.
+
+- **≥0.7** — a strong, real opposition. Lead with these.
+- **0.5-0.7** — a moderate or partial tension. Worth presenting, but frame it as secondary.
+- **<0.5** — weak or tangential; the two sides barely oppose. Don't present it as a core tension.
+
+`analyze` expands only the strongest tensions into full perspectives and sets the
+rest aside — the report's `polarity_quality` artifact lists every tension with its
+`hs` and an `expanded` flag, and the summary notes how many were set aside. When
+tensions were set aside, briefly say stronger framings were prioritized and that
+you can develop a weaker one on request (via `find_polarities`/`expand_polarities`
+on that specific tension) — don't silently drop them.
+
+Communicate quality as meaning ("a strong tension", "a weaker, more tangential
+pull"), not raw numbers, unless the app preamble or the user asks for the figures.
+
 ## Exploration Setup (Nexus)
 
 When the user wants to explore interactions between perspectives:

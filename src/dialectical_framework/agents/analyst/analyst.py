@@ -318,6 +318,14 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                 seen.add(h)
                 hashes_to_expand.append(h)
 
+        # Surface the HS-based gate to the agent. _rank_polarities silently
+        # drops tensions below HS_THRESHOLD (and beyond the top few); without
+        # this the agent only sees a bare perspective count and cannot explain
+        # WHY these framings are the strong ones or that weaker tensions were
+        # set aside.
+        polarity_quality = self._build_polarity_quality(polarity_data, hashes_to_expand)
+        set_aside_count = sum(1 for q in polarity_quality if not q["expanded"])
+
         expand_results = await asyncio.gather(
             *[self._expand_one(h) for h in hashes_to_expand],
             return_exceptions=True,
@@ -338,14 +346,21 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                 reports.append(report)
 
         self._report.ok = True
+        set_aside_note = (
+            f", {set_aside_count} weaker tension(s) set aside"
+            if set_aside_count
+            else ""
+        )
         self._report.summary = (
             f"Analysis complete: {len(thesis_hashes)} theses, "
             f"{len(polarity_hashes)} polarities, "
             f"{len(perspective_hashes)} perspectives"
+            f"{set_aside_note}"
         )
         self._report.artifacts["thesis_hashes"] = thesis_hashes
         self._report.artifacts["polarity_hashes"] = polarity_hashes
         self._report.artifacts["perspective_hashes"] = perspective_hashes
+        self._report.artifacts["polarity_quality"] = polarity_quality
 
         return AnalysisResult(
             ideas_hash=ideas_hash,
@@ -374,6 +389,39 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             return above_threshold[:MAX_POLARITIES_TO_EXPAND]
 
         return ranked[:MAX_POLARITIES_TO_EXPAND]
+
+    @staticmethod
+    def _build_polarity_quality(
+        polarity_data: list[dict], hashes_to_expand: list[str]
+    ) -> list[dict]:
+        """Per-tension HS + gate outcome, HS-descending, for the agent to read.
+
+        Makes the otherwise-silent HS gate visible: each entry flags whether the
+        tension was `expanded` into a full perspective or set aside. HS on the
+        antithesis measures how genuine the opposition is (see "Reading Polarity
+        Quality" in the system prompt), not the quality of the idea itself.
+        """
+        expanded_set = set(hashes_to_expand)
+        quality: list[dict] = []
+        seen: set[str] = set()
+        for p in polarity_data:
+            h = p.get("polarity_hash")
+            if not h or h in seen or p.get("deduped", False):
+                continue
+            seen.add(h)
+            quality.append(
+                {
+                    "polarity_hash": h,
+                    "thesis": p.get("thesis_text"),
+                    "antithesis": p.get("antithesis_text"),
+                    "hs": p.get("heuristic_similarity"),
+                    "expanded": h in expanded_set,
+                }
+            )
+        quality.sort(
+            key=lambda q: q["hs"] if q["hs"] is not None else 0.0, reverse=True
+        )
+        return quality
 
     async def _expand_one(self, polarity_hash: str) -> tuple[list[str], object]:
         from dialectical_framework.agents.analyst.skills.expand_polarities import \
