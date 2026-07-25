@@ -340,6 +340,8 @@ Optional concurrency semaphore in `utils/concurrency.py` (env `DIALEXITY_MAX_CON
 
 Rate-limit retry (429/ThrottlingException) also lives in `use_brain`: 10s base backoff, 2× up to 60s cap, max 10 attempts. Log message includes the error string for diagnosis. ParseError retry: 10s base, 2× up to 120s.
 
+**The `use_brain` retry loop is hand-rolled by design — do NOT replace it with Mirascope's native `llm.retry`/`RetryConfig`.** It intentionally does what native retry can't express as one config: separate backoff curves for ParseError (120s cap) vs rate limits (60s cap), per-attempt `llm_concurrency_slot()` re-acquisition, per-attempt Langfuse `_trace_generation`, and string-based Bedrock throttle detection (`"ThrottlingException"`) beyond the SDK's 429→`RateLimitError` mapping. Native retry (added 2.2.0) would have to nest inside the wrapper, not replace it.
+
 **Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, and audits. `AnalysisPipeline` already parallelizes `expand_polarities` and `find_polarities`. Graph writes stay sequential after gather.
 
 **Pattern:** Always `asyncio.gather` the LLM work, collect results, then write graph nodes sequentially in a loop. Never call `_create_transformation` or similar graph-writing code inside a gathered task — GQLAlchemy is not concurrency-safe.
