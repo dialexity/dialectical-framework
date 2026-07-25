@@ -61,6 +61,7 @@ logs/
 # Dialexity custom
 .claude/settings.local.json
 .claude/commands/local/
+.claude/skills/local-*/
 tests/play.py
 docs/r-n-d/
 .chainlit/

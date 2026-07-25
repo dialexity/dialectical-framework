@@ -10,7 +10,7 @@ A semantic graph system for dialectical reasoning — modeling thesis-antithesis
 
 ### Theoretical Foundation (Generative Rules)
 
-The framework is fully rule-constrained. These rules govern what constitutes valid dialectical synthesis:
+The framework implements **Structured Dialectics** (theory papers in `docs/r-n-d/`, gitignored). The full claim-by-claim theory→code mapping with statuses lives in `docs/theory/` (maintained by `/df-sync-theory`) — consult it before implementing anything theory-adjacent. The rules below are the promoted essentials:
 
 **1. Tetrad structure.** Every thesis T generates exactly one antithesis A. The T–A interaction yields four components bound by three constraints:
 - **T+** / **A+**: Constructive developments that enhance the upsides of opposition (not merely "positive" — they actively balance the other side)
@@ -41,9 +41,10 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 **Ks** (complementarity toward synthesis) = `(K_T + K_A) / 2`. Computed property, never stored — only K_T and K_A are persisted on `AspectRelationship` edges.
 
 **Tetrad quality metrics (on Perspective):**
-- `area` = Ks(T+) + Ks(A+) - Ks(T-) - Ks(A-) — higher = better differentiation
-- `rectangularity` = [Ks(T+)-Ks(A+)]² + [Ks(T-)-Ks(A-)]² — lower = better balance
+- `area` = Ks(T+) + Ks(A+) - Ks(T-) - Ks(A-) — higher = better differentiation. The theory's canonical name is **SP (Synthesis Potential)** — same formula; treat SP ≡ area when reading the papers.
+- `rectangularity` = [Ks(T+)-Ks(A+)]² + [Ks(T-)-Ks(A-)]² — lower = better balance. Deliberately diverges from the paper's (rejected) linear form — see `docs/theory/scoring.md` before "fixing" either way.
 - Empirical thresholds: diff ≥ 0.1, Ks(+) > 0.4, Ks(-) < 0.6
+- Theory metrics NOT implemented (don't let prompts claim them): DV, MMI, PSI, PC — see `docs/theory/scoring.md`.
 
 **HS (Heuristic Similarity):** T=1.0 (always, defines apex), A=LLM-computed, Aspects=LLM-computed, Ac+/Re+=LLM-computed, Ac/Re/Ac-/Re-=None.
 
@@ -174,7 +175,9 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 |---------|----------|
 | DI Container (START HERE) | `dialectical_reasoning.py` |
 | Shared Claude skills (df-*) | `.claude/skills/df-<name>/SKILL.md` (committed) — convention: `disable-model-invocation: true` + scoped `allowed-tools`; mirror an existing sibling. DB lifecycle lives in `/df-memgraph` (start/stop/restart/status/logs/clear/wipe) |
-| Personal Claude commands | `.claude/commands/local/` (gitignored) |
+| Personal Claude skills (local-*) | `.claude/skills/local-*/` (gitignored) |
+
+**After renaming/moving a skill directory:** re-run `/reload-skills` — the session's skill list doesn't auto-refresh, so a stale name/description can persist for the rest of the conversation.
 | Graph nodes | `graph/nodes/*.py` |
 | Relationships | `graph/relationships/*.py` |
 | Relationship API | `graph/relationship_manager.py` |
@@ -469,3 +472,4 @@ When fixing prompt output bugs: follow the revision methodology in `/df-review-r
 | Doc | Purpose |
 |-----|---------|
 | `docs/graph.md` | Full graph data model (positions, transformations, cardinality, layers, intent) |
+| `docs/theory/` | Theory→implementation wiki: every Structured Dialectics claim mapped to its encoding site with status (implemented/partial/absent/diverges). Gaps may carry `**Tracked:** #NN` linking a GitHub issue (orthogonal to status — see `index.md`). Maintained by `/df-sync-theory` — consult it instead of the theory PDFs; keep it synced when implementing theory-encoding code. Start at `index.md` (status ledger + standing cautions). |
