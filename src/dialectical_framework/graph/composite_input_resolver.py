@@ -17,6 +17,8 @@ from dialectical_framework.graph.verbatim_input_resolver import VerbatimInputRes
 from dialectical_framework.protocols.input_resolver import InputResolver
 
 if TYPE_CHECKING:
+    from mirascope.llm import UserContent
+
     from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
 
@@ -87,6 +89,30 @@ class CompositeInputResolver(InputResolver):
 
         # VerbatimInputResolver handles plain text and data: URIs
         return await self._verbatim.resolve(input_node)
+
+    async def resolve_native(self, input_node: Input) -> UserContent:
+        """
+        Resolve an Input to native model content, preserving image/PDF modality.
+
+        Delegates data: and plain-text content to the VerbatimInputResolver's
+        native path (which emits Image/Document parts for supported media). dx://
+        references resolve to graph-node text, so they stay text.
+
+        Args:
+            input_node: Input node with content to resolve.
+
+        Returns:
+            `UserContent` — a media part for supported binary data: URIs,
+            otherwise the resolved text `str`.
+        """
+        content = input_node.content
+        if not content:
+            return ""
+
+        if content.startswith("dx://"):
+            return await self._dialexity.resolve(content)
+
+        return await self._verbatim.resolve_native(input_node)
 
     async def resolve_all(self, source: Union[Case, list[Input]]) -> str:
         """

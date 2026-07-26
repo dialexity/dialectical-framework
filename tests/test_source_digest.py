@@ -125,6 +125,45 @@ class TestSourceDigestConcern:
 
     @pytest.mark.llm
     @pytest.mark.asyncio
+    async def test_image_input_builds_multimodal_prompt(self):
+        """An image Input is sent to the model as a native multimodal prompt."""
+        import base64
+        from unittest.mock import AsyncMock
+
+        from mirascope.llm import Image
+
+        from dialectical_framework.concerns.source_digest import (DigestDto,
+                                                                  SourceDigest)
+
+        sid = _new_sid()
+        with scope(sid):
+            data = base64.b64encode(b"\x89PNG fake image bytes").decode()
+            input_node = Input(content=f"data:image/png;base64,{data}")
+            input_node.commit()
+
+            concern = SourceDigest()
+            spy = AsyncMock(
+                return_value=DigestDto(digest="An image of X", reasoning="r")
+            )
+            concern._conversation.submit = spy
+
+            result = await concern.resolve(input_hash=input_node.hash)
+
+            assert result.digest == "An image of X"
+            assert concern.report.ok is True
+            # Image content must never be used verbatim as its own digest.
+            assert "compact" not in concern.report.summary.lower()
+
+            # The prompt passed to the model is a multimodal list containing the
+            # text instructions plus the native Image part.
+            _, kwargs = spy.call_args
+            user_content = kwargs["user_content"]
+            assert isinstance(user_content, list)
+            assert any(isinstance(p, Image) for p in user_content)
+            assert any(isinstance(p, str) for p in user_content)
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
     async def test_short_content_with_existing_digest_calls_llm(self):
         """Short content WITH existing digest still calls LLM to refine."""
         from dialectical_framework.concerns.source_digest import SourceDigest

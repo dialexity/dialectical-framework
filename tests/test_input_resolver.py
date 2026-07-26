@@ -111,6 +111,103 @@ class TestVerbatimInputResolver:
             await resolver.resolve(input_node)
 
 
+class TestVerbatimInputResolverResolveNative:
+    """Tests for VerbatimInputResolver.resolve_native() (multimodal path)."""
+
+    @pytest.fixture
+    def resolver(self) -> VerbatimInputResolver:
+        return VerbatimInputResolver()
+
+    @pytest.mark.asyncio
+    async def test_image_data_uri_returns_image_part(
+        self, resolver: VerbatimInputResolver
+    ):
+        """A base64 image data: URI resolves to a Mirascope Image part."""
+        from mirascope.llm import Image
+
+        data = base64.b64encode(b"\x89PNG fake bytes").decode()
+        input_node = Input(content=f"data:image/png;base64,{data}")
+        input_node.commit()
+
+        part = await resolver.resolve_native(input_node)
+
+        assert isinstance(part, Image)
+        assert part.source.mime_type == "image/png"
+        assert part.source.data == data
+
+    @pytest.mark.asyncio
+    async def test_pdf_data_uri_returns_document_part(
+        self, resolver: VerbatimInputResolver
+    ):
+        """A base64 PDF data: URI resolves to a Mirascope Document part."""
+        from mirascope.llm import Document
+
+        data = base64.b64encode(b"%PDF-1.4 fake").decode()
+        input_node = Input(content=f"data:application/pdf;base64,{data}")
+        input_node.commit()
+
+        part = await resolver.resolve_native(input_node)
+
+        assert isinstance(part, Document)
+        assert part.source.media_type == "application/pdf"
+        assert part.source.data == data
+
+    @pytest.mark.asyncio
+    async def test_jpeg_mime_recognized(self, resolver: VerbatimInputResolver):
+        """image/jpeg is among the supported native image types."""
+        from mirascope.llm import Image
+
+        data = base64.b64encode(b"jpeg fake").decode()
+        input_node = Input(content=f"data:image/jpeg;base64,{data}")
+        input_node.commit()
+
+        part = await resolver.resolve_native(input_node)
+        assert isinstance(part, Image)
+        assert part.source.mime_type == "image/jpeg"
+
+    @pytest.mark.asyncio
+    async def test_plain_text_returns_str(self, resolver: VerbatimInputResolver):
+        """Plain text resolves to a str, not a multimodal part."""
+        input_node = Input(content="Just some text")
+        input_node.commit()
+
+        result = await resolver.resolve_native(input_node)
+        assert result == "Just some text"
+
+    @pytest.mark.asyncio
+    async def test_text_data_uri_returns_str(self, resolver: VerbatimInputResolver):
+        """A text data: URI is decoded to str (never a media part)."""
+        data = base64.b64encode(b"decoded text").decode()
+        input_node = Input(content=f"data:text/plain;base64,{data}")
+        input_node.commit()
+
+        result = await resolver.resolve_native(input_node)
+        assert result == "decoded text"
+
+    @pytest.mark.asyncio
+    async def test_unsupported_binary_mime_falls_back_to_text(
+        self, resolver: VerbatimInputResolver
+    ):
+        """An unsupported mime type falls back to text resolution."""
+        data = base64.b64encode(b"abc").decode()
+        input_node = Input(content=f"data:image/tiff;base64,{data}")
+        input_node.commit()
+
+        result = await resolver.resolve_native(input_node)
+        assert result == "abc"
+
+    @pytest.mark.asyncio
+    async def test_non_base64_image_mime_falls_back_to_text(
+        self, resolver: VerbatimInputResolver
+    ):
+        """A non-base64 (URL-encoded) data: URI is treated as text."""
+        input_node = Input(content="data:image/png,not%20base64")
+        input_node.commit()
+
+        result = await resolver.resolve_native(input_node)
+        assert result == "not base64"
+
+
 class TestVerbatimInputResolverResolveAll:
     """Tests for VerbatimInputResolver.resolve_all()."""
 

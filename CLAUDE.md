@@ -306,6 +306,8 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 **Responsibility:** Whoever adds the input, digests it. Framework provides building blocks; the caller (agent or app) sequences them.
 
+**Multimodal seam (Option A of #35):** `InputResolver` has two methods — `resolve() -> str` (text-only; safe to f-string interpolate — used by `input_context`/`resolve_all`/`surface_theses`/`read_input`) and `resolve_native() -> UserContent` (opt-in, defaults to delegating `resolve()`). `SourceDigest` is the *sole* `resolve_native` consumer: it's the one multimodal step, running a vision pass over native `Image`/`Document` parts (base64 image/PDF `data:` URIs) and emitting a text digest, so everything downstream stays text. Never widen `resolve()` to return media — text callers would silently stringify it. `ConversationFacilitator.submit`/`submit_stream` accept `UserContent` (superset of `str`).
+
 ### Antithesis Persistence Checklist
 
 When calling `AntithesisClassification`, the caller must persist Mode/Arousal via `EstimationManager.upsert_estimation()`. The concern itself does NOT create DB nodes — it only returns the result. `AntithesisExtraction` handles this internally; `AntithesisClassification` does not.

@@ -8,6 +8,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mirascope.llm import UserContent
+
     from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
 
@@ -50,6 +52,32 @@ class InputResolver(ABC):
             ValueError: If content format is unsupported (implementation-dependent)
         """
         ...
+
+    async def resolve_native(self, input_node: Input) -> UserContent:
+        """
+        Resolve a single Input to native model content, preserving modality.
+
+        Unlike `resolve()`, which always flattens to text, this returns Mirascope
+        `UserContent` — either a plain `str` for text sources, or multimodal parts
+        (`Image`, `Document`, or a list mixing text and such parts) for images/PDFs.
+        Callers that pass content straight to the model (e.g. the `SourceDigest`
+        concern's vision pass) use this to let the model read the source natively
+        rather than a lossy transcription.
+
+        The default implementation delegates to `resolve()`, so text-only resolvers
+        need not override it. Resolvers that back image/PDF sources should override
+        this to emit the corresponding `Image`/`Document` parts.
+
+        Args:
+            input_node: Input node with content to resolve.
+
+        Returns:
+            `UserContent` — a `str`, a single multimodal part, or a list of parts.
+
+        Raises:
+            ValueError: If content format is unsupported (implementation-dependent).
+        """
+        return await self.resolve(input_node)
 
     @abstractmethod
     async def resolve_all(self, source: Case | list[Input]) -> str:

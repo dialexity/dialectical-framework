@@ -14,8 +14,17 @@ from urllib.parse import unquote
 from dialectical_framework.protocols.input_resolver import InputResolver
 
 if TYPE_CHECKING:
+    from mirascope.llm import UserContent
+
     from dialectical_framework.graph.nodes.case import Case
     from dialectical_framework.graph.nodes.input import Input
+
+# Mime types Mirascope accepts as native image/document parts. Anything else
+# (text, unknown binary) falls back to text resolution.
+_IMAGE_MIME_TYPES = frozenset(
+    {"image/png", "image/jpeg", "image/webp", "image/gif", "image/heic", "image/heif"}
+)
+_DOCUMENT_MIME_TYPES = frozenset({"application/pdf"})
 
 
 class VerbatimInputResolver(InputResolver):
@@ -68,6 +77,31 @@ class VerbatimInputResolver(InputResolver):
         # Otherwise, treat as plain text
         return content
 
+    async def resolve_native(self, input_node: Input) -> UserContent:
+        """
+        Resolve content to native model content, preserving image/PDF modality.
+
+        For a `data:` URI whose mime type is a supported image or PDF format,
+        returns a Mirascope `Image` / `Document` part carrying the base64 bytes,
+        so the model reads the source natively instead of a transcription. All
+        other content (text, `data:text/*`, non-base64, unsupported binary)
+        falls back to `resolve()` text.
+
+        Args:
+            input_node: Input node with content (plain text or data: URI).
+
+        Returns:
+            A multimodal part (`Image`/`Document`) for supported binary media,
+            otherwise the resolved text `str`.
+        """
+        content = input_node.content
+        if content and content.startswith("data:"):
+            part = self._decode_data_uri_native(content)
+            if part is not None:
+                return part
+
+        return await self.resolve(input_node)
+
     async def resolve_all(self, source: Union[Case, list[Input]]) -> str:
         """
         Resolve multiple inputs to combined text content.
@@ -105,6 +139,47 @@ class VerbatimInputResolver(InputResolver):
             parts.append(f'<Input id="{input_node.hash}">\n{resolved_text}\n</Input>')
 
         return "\n\n".join(parts)
+
+    @staticmethod
+    def _decode_data_uri_native(uri: str) -> UserContent | None:
+        """
+        Build a native image/document part from a data: URI, if it is one.
+
+        Returns an `Image`/`Document` for a base64 data: URI whose mime type is a
+        supported image or PDF format. Returns None for anything that should be
+        handled as text (text mime types, non-base64 payloads, unsupported types),
+        letting the caller fall back to text resolution.
+        """
+        # data:<mime>[;base64],<data>
+        content_part = uri[5:]
+        if "," not in content_part:
+            return None
+
+        metadata, data = content_part.split(",", 1)
+        if ";base64" not in metadata.lower():
+            # Text data: URIs (or non-base64 binary) are handled as text.
+            return None
+
+        mime_type = metadata.split(";", 1)[0].strip().lower()
+
+        from mirascope.llm import (Base64DocumentSource, Base64ImageSource,
+                                   Document, Image)
+
+        if mime_type in _IMAGE_MIME_TYPES:
+            return Image(
+                source=Base64ImageSource(
+                    type="base64_image_source", data=data, mime_type=mime_type
+                )
+            )
+
+        if mime_type in _DOCUMENT_MIME_TYPES:
+            return Document(
+                source=Base64DocumentSource(
+                    type="base64_document_source", data=data, media_type=mime_type
+                )
+            )
+
+        return None
 
     @staticmethod
     def _decode_data_uri(uri: str) -> str:

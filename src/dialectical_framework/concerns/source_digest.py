@@ -19,11 +19,14 @@ Programmatic usage:
 
 from __future__ import annotations
 
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from mirascope.llm import UserContent
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
@@ -96,11 +99,20 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
         if not input_node:
             raise ValueError(f"Input not found: {input_hash}")
 
-        resolved_content = await input_resolver.resolve(input_node)
+        resolved_content = await input_resolver.resolve_native(input_node)
         if not resolved_content:
             raise ValueError(f"Input {input_hash} has no resolvable content")
 
-        if len(resolved_content) <= DIGEST_THRESHOLD and not input_node.digest:
+        is_text = isinstance(resolved_content, str)
+
+        # Only text can be used verbatim as its own digest. Native media
+        # (image/PDF parts) must always go through the model's vision pass —
+        # there is no meaningful "raw content" to store as a digest.
+        if (
+            is_text
+            and len(resolved_content) <= DIGEST_THRESHOLD
+            and not input_node.digest
+        ):
             new_digest = resolved_content
             self._report.summary = f"Content compact enough to use as digest for input {input_node.short_hash}"
         else:
@@ -122,7 +134,7 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
 
     async def _generate_digest(
         self,
-        content: str,
+        content: UserContent,
         existing_digest: str | None = None,
         context: str = "",
     ) -> str:
@@ -140,17 +152,23 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
 
     def _build_prompt(
         self,
-        content: str,
+        content: UserContent,
         existing_digest: str | None,
         context: str,
-    ) -> str:
+    ) -> UserContent:
+        # Text sources are interpolated inline; native media (image/PDF parts)
+        # are appended as a separate content part with a text placeholder in the
+        # <source> slot so the model knows where the attached source belongs.
+        is_text = isinstance(content, str)
+        source_text = content if is_text else "(see the attached source below)"
+
         sections = []
 
         if existing_digest:
             sections.append(f"<existing_digest>\n{existing_digest}\n</existing_digest>")
             if context:
                 sections.append(f"<context>\n{context}\n</context>")
-            sections.append(f"<source>\n{content}\n</source>")
+            sections.append(f"<source>\n{source_text}\n</source>")
             sections.append(
                 "Refine the existing digest incorporating the context provided. "
                 "Sharpen focus, add relevant details, remove irrelevant parts."
@@ -158,9 +176,20 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
         else:
             if context:
                 sections.append(f"<context>\n{context}\n</context>")
-            sections.append(f"<source>\n{content}\n</source>")
+            sections.append(f"<source>\n{source_text}\n</source>")
             sections.append(
                 "Generate an initial analytical digest of this source."
             )
 
-        return "\n\n".join(sections)
+        prompt_text = "\n\n".join(sections)
+
+        if is_text:
+            return prompt_text
+
+        # Multimodal: text instructions followed by the native source part(s).
+        parts: list = [prompt_text]
+        if isinstance(content, (list, tuple)):
+            parts.extend(content)
+        else:
+            parts.append(content)
+        return parts

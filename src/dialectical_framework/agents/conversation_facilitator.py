@@ -33,6 +33,7 @@ from dialectical_framework.utils.use_brain import use_brain
 from mirascope.llm import TextChunk, ThoughtChunk
 
 if TYPE_CHECKING:
+    from mirascope.llm import UserContent
     from mirascope.llm.calls import AsyncCall
     from mirascope.llm.responses import AsyncResponse
 
@@ -116,7 +117,7 @@ class ConversationFacilitator(SettingsAware):
     async def submit(
         self,
         response_model: type[T],
-        user_content: str,
+        user_content: UserContent,
         max_tool_rounds: int = 10,
     ) -> T:
         """
@@ -162,7 +163,7 @@ class ConversationFacilitator(SettingsAware):
     async def submit_stream(
         self,
         response_model: type[T],
-        user_content: str,
+        user_content: UserContent,
         max_tool_rounds: int = 10,
     ) -> AsyncGenerator[StreamEvent, None]:
         """
