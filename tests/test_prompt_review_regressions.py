@@ -522,6 +522,23 @@ class TestAnalystNexusGrouping:
         # the fallback must not be an absolute prohibition
         assert "Same-polarity grouping is still valid" in SYSTEM_PROMPT
 
+    def test_prompt_does_not_mandate_confirming_exploration_direction(self):
+        """Intent is an internal quality gate (do not surface). Nexus creation
+        must NOT block on asking the user to state an exploration intent when the
+        perspectives to group are already clear — that contradicts the
+        infer-silently design and produced a generic "what is your intent?"
+        stall. See eo-debug conv 140."""
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT
+
+        # the old unconditional gate must be gone
+        assert "Confirm the exploration direction with the user before creating" \
+            not in SYSTEM_PROMPT
+        # intent stays internal, and creation happens when perspectives are clear
+        assert "do not surface to user" in SYSTEM_PROMPT
+        assert "Create immediately when the perspectives to group are clear" \
+            in SYSTEM_PROMPT
+
 
 class TestNexusExplorationVocabulary:
     """"Nexus" is internal-only; the user-facing term is "Exploration". The app

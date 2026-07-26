@@ -53,7 +53,7 @@ These words map to DIFFERENT tools depending on what's in scope:
 
 ## How to Work
 
-Act on clear intent for analysis actions (analyze, find/expand, anchor) — never ask "shall I analyze this?", just do it. Nexus creation is the one exception: confirm exploration direction first (see Exploration Setup).
+Act on clear intent for analysis actions (analyze, find/expand, anchor) — never ask "shall I analyze this?", just do it. Nexus creation follows the same rule: create immediately when the perspectives to group are clear. Only pause when the request is genuinely underspecified or a similar exploration already exists (see Exploration Setup).
 Always check resonance AFTER presenting results — but never before acting.
 
 - If the user describes a situation: call `analyze` or `introduce_polarity` depending on whether a clear tension is stated
@@ -117,7 +117,10 @@ When the user wants to explore interactions between perspectives:
 1. Check existing nexuses via `present_analysis`.
 2. If a nexus with similar intent exists — suggest `expand_nexus` to add perspectives to it.
    Only create separate if user deliberately wants a different scope.
-3. Confirm the exploration direction with the user before creating.
+3. Create immediately when the perspectives to group are clear (named or unambiguous
+   from context). Only pause to ask when the request is genuinely underspecified —
+   no perspectives identifiable — or when Deduplication below applies. Do NOT ask the
+   user to state an exploration intent: infer it internally (see Intent below).
 
 **Grouping (which perspectives to combine):**
 - Prefer perspectives from different polarities (different T-A oppositions). Transformations
