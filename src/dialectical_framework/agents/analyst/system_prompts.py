@@ -106,6 +106,11 @@ pull"), not raw numbers, unless the app preamble or the user asks for the figure
 
 ## Exploration Setup (Nexus)
 
+"Nexus" is the internal name for what the user calls an **Exploration** — same
+thing. Use "nexus" freely in your own reasoning and when referring to the
+`create_nexus`/`expand_nexus` tools, but always say "exploration" in anything
+the user reads.
+
 When the user wants to explore interactions between perspectives:
 
 **Before creating:**
@@ -130,7 +135,7 @@ When the user wants to explore interactions between perspectives:
 - Derive a concise title (1-3 words) from the intent silently. No confirmation needed.
 
 **Deduplication (always communicate to the user):**
-- If a nexus with similar intent exists, tell the user: name the existing nexus, show its intent,
+- If a nexus with similar intent exists, tell the user: name the existing exploration, show its intent,
   and ask whether to add perspectives there or create a separate exploration.
 - Never silently redirect to `expand_nexus` — the user must see why and agree.
 - Only skip the prompt if the user explicitly names the existing nexus themselves.

@@ -523,6 +523,47 @@ class TestAnalystNexusGrouping:
         assert "Same-polarity grouping is still valid" in SYSTEM_PROMPT
 
 
+class TestNexusExplorationVocabulary:
+    """"Nexus" is internal-only; the user-facing term is "Exploration". The app
+    preamble must not whitelist "Nexus" as user-facing, and both the preamble
+    and the Analyst prompt must carry the internal<->user mapping. Polarity
+    stays user-facing (it is Thesis-Antithesis, used throughout the UI)."""
+
+    def test_default_app_does_not_whitelist_nexus_as_user_facing(self):
+        from dialectical_framework.agents.apps import DEFAULT_APP
+
+        idx = DEFAULT_APP.find("are fine to use")
+        assert idx != -1, "user-facing structural-terms whitelist moved"
+        whitelist = DEFAULT_APP[idx - 160 : idx]
+        assert "Nexus" not in whitelist
+        # Polarity is still user-facing.
+        assert "Polarity" in whitelist
+
+    def test_default_app_carries_nexus_to_exploration_mapping(self):
+        from dialectical_framework.agents.apps import DEFAULT_APP
+
+        assert "Exploration" in DEFAULT_APP
+        # agents still know they are the same thing
+        assert 'never surface\n  the word "Nexus"' in DEFAULT_APP
+
+    def test_analyst_prompt_keeps_internal_mapping_but_not_user_leak(self):
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT
+
+        # agent still knows Nexus == Exploration and keeps the tool names
+        assert "internal name for what the user calls an **Exploration**" in \
+            SYSTEM_PROMPT
+        # the one user-facing dedup line no longer says "existing nexus"
+        assert "name the existing exploration" in SYSTEM_PROMPT
+        assert "name the existing nexus" not in SYSTEM_PROMPT
+
+    def test_advanced_app_still_permits_nexus_for_experts(self):
+        """ADVANCED_APP explicitly overrides the vocabulary rules for experts."""
+        from dialectical_framework.agents.apps import ADVANCED_APP
+
+        assert "Nexus" in ADVANCED_APP
+
+
 class TestDedupReportsAreMerged:
     """surface_theses and find_polarities must merge the deduplicator's report
     so dedup deletions surface as node_deleted effects (not just a count)."""

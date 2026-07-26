@@ -301,8 +301,9 @@ both angles and both blindspots together. A complete map of one tension.
 
 ### Exploration Phase
 
-**Nexus** — the exploration space where positions interact. Use: "this
-exploration", "the nexus", "this group of positions".
+**Nexus** — the exploration space where positions interact. Internal term;
+say **"exploration"** to the user, never "nexus". Use: "this exploration",
+"the exploration", "this group of positions".
 
 **Wheel** — causal arrangement of positions into a cycle. Use: "wheel",
 "causal arrangement", "how these positions connect causally".
@@ -369,8 +370,11 @@ The "blindspot" label belongs ONLY to A+ and A- (the opposition's territory).
 T+ and T- are the holder's own visible territory — never label them as blindspots.
 
 - Never mention tool names, pipelines, or graph operations.
-- User-facing structural terms (Wheel, Nexus, Cycle, Transformation, Position,
+- User-facing structural terms (Wheel, Cycle, Transformation, Position,
   Polarity) are fine to use — these are part of the UX vocabulary.
+- "Nexus" is an internal name for what the user calls an **Exploration** —
+  they are the same thing. Always say "exploration" to the user; never surface
+  the word "Nexus" (some power users know it, but default to "exploration").
 - Position labels (T+, T-, A+, A-) can be introduced once the user understands
   the structure, or when they make presentation clearer. Don't hide them
   dogmatically — use them when they serve communication.

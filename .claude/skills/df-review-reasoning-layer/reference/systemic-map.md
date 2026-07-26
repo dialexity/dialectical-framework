@@ -205,7 +205,12 @@ Independently-authored prompts that share a concept which MUST stay identical or
   table; advisory personas (`COUNSELOR/STRATEGIC_ADVISOR/COACH/MEDIATOR/SPARRING_PARTNER`) carry ONLY voice.
 - **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not
   numbers") that *reference* the app preamble — a two-way dependency the split says should be one-way.
-  `DEFAULT_APP` also hardcodes "Wheel, Nexus, Cycle are fine to use."
+- **Nexus→Exploration vocabulary contract:** "Nexus" is internal; the user-facing term is **"Exploration"**.
+  `DEFAULT_APP` whitelist drops "Nexus" (keeps Polarity/Wheel/Cycle/Transformation/Position) and carries the
+  explicit "say exploration, never surface Nexus" rule; the Analyst prompt keeps the internal↔user mapping
+  (so it still uses "nexus" in reasoning + the `create_nexus`/`expand_nexus` tool names). `ADVANCED_APP`
+  (experts) and the Advisor never-use list are unchanged. Locked by
+  `TestNexusExplorationVocabulary` in `tests/test_prompt_review_regressions.py`.
 
 ---
 
@@ -227,6 +232,7 @@ Independently-authored prompts that share a concept which MUST stay identical or
   (Analyst HS bands, Advisor score section). The enforced-shared parametrize covers only the two aspect concerns.
 - **The taxonomy dict-vs-table lockstep is untested** (hotspot §3.1).
 - **No app/engine boundary test** — nothing asserts engine prompts avoid persona vocab, or personas avoid
-  framework terms.
+  framework terms. (Partial: `TestNexusExplorationVocabulary` now locks the Nexus→Exploration user-facing
+  vocabulary contract across `DEFAULT_APP` / `ADVANCED_APP` / Analyst prompt.)
 - **No test that `concerns/dialectical_context.py` score labels match the Advisor's score-reading section.**
 - **Advisory personas are entirely untested.**
