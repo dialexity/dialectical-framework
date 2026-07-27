@@ -65,10 +65,12 @@ that co-occur in one call:
    (`analyst/system_prompts.py` "Reading Polarity Quality", `≥0.7 / 0.5–0.7 / <0.5`). They reconcile only via
    the preamble's "unless asked" clause. `ADVANCED_APP` flips it to "Show numeric scores" — so the *same*
    Analyst prompt co-occurs with two opposite presentation rules depending on which preamble the host injects.
-2. **Advisor's "What You Must Never Do" (bans framework terms + score numbers) co-occurs with its own
+2. **Advisor's "How You Speak" (keeps framework terms + machinery internal) co-occurs with its own
    score-reading section** dense in `T+/A-/Ac+/Re+`, `HS`, insight/proactiveness numbers. Reconciliation is
    "internal reasoning only, never output." Any edit blurring that internal/external fence breaks the
-   silent-framework contract.
+   silent-framework contract. NOTE: the terminology fence is now **preamble-overridable** ("unless the app
+   preamble explicitly grants terminology disclosure") — same override mechanism as `ADVANCED_APP` flipping
+   `DEFAULT_APP`'s presentation rules. A preamble granting disclosure is a legitimate configuration, not a leak.
 3. **A concern's SYSTEM_PROMPT inline examples co-occur with interpolated shared constants + DTO field text.**
    In `aspect_generation.py`, the hand-written Love/Indifference example sits with interpolated `ASPECT_DEFINITIONS`
    / `HS_SCALE` / `COMPLEMENTARITY_SCALE` + live taxonomy apexes. Changing the constant reaches every consumer;
@@ -215,19 +217,24 @@ Independently-authored prompts that share a concept which MUST stay identical or
   `DEFAULT_APP` whitelist drops "Nexus" (keeps Polarity/Wheel/Cycle/Transformation/Position) and carries the
   explicit "say exploration, never surface Nexus" rule; the Analyst prompt keeps the internal↔user mapping
   (so it still uses "nexus" in reasoning + the `create_nexus`/`expand_nexus` tool names). `ADVANCED_APP`
-  (experts) and the Advisor never-use list are unchanged. Locked by
+  (experts) is unchanged; the Advisor's terminology fence (in "How You Speak") still bans "nexus" by default
+  but is preamble-overridable. Locked by
   `TestNexusExplorationVocabulary` in `tests/test_prompt_review_regressions.py`.
 
 ---
 
 ## 6. Test coverage — what exists vs. the gap
 
-- **`tests/test_prompt_review_regressions.py`** (~45 tests, no LLM) — the real coverage. Mechanical
+- **`tests/test_prompt_review_regressions.py`** (~68 tests, no LLM) — the real coverage. Mechanical
   string/logic assertions: shared scoring constants exist and are imported by `aspect_generation`/
   `aspect_classification`; transformation worked-example directions; CC both-scores rule; apex sweet-spots;
   settings-driven transition length; Explorer dead-tool + 1-PP claims; `ADVANCED_APP` override wording;
   causality alias format; Advisor discard wiring + empty-ingest fallback; anchor headline clamp; Analyst
-  nexus grouping phrase; dedup report merge; elemental taxonomy.
+  nexus grouping phrase; dedup report merge; elemental taxonomy; **`TestAdvisorFloorGuarantee`** — the
+  Advisor floor contract (full-native-capability guarantee, eager-thinking/ungated-speech section, no
+  speech-gating or fabricate-a-tension language, Default Arc not Sequence, no unwired "structural guarantee"
+  claim, preamble-overridable terminology fence, Analyst no-tension-valid-conclusion, Explorer
+  intent-driven build_wheels).
 - **`tests/test_prompt_vocabulary.py`** (1 test, `--real-llm`) — behavioral: a live Analyst response never
   labels T-/T+ as "blindspot." DEFAULT_APP + Analyst only. Skipped in the default suite.
 

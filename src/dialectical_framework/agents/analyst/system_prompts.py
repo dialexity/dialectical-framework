@@ -104,6 +104,9 @@ on that specific tension) — don't silently drop them.
 Communicate quality as meaning ("a strong tension", "a weaker, more tangential
 pull"), not raw numbers, unless the app preamble or the user asks for the figures.
 
+Finding no genuine tension in the material is a valid analytical conclusion —
+report it as such rather than forcing a weak opposition into a polarity.
+
 ## Exploration Setup (Nexus)
 
 "Nexus" is the internal name for what the user calls an **Exploration** — same

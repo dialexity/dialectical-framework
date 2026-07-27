@@ -344,13 +344,14 @@ class TestAgentPrompts:
 
 
 class TestEmptyIngestFallback:
-    """When ingest surfaces no tensions, the advisor must fall back to anchor
-    rather than reverting to unstructured discussion, and the pipeline must
-    say so actionably instead of reporting a bare success."""
+    """When ingest surfaces no tensions, the advisor should look for a genuine
+    opposition itself and anchor it if present — while treating 'not
+    tension-shaped' as a valid finding (never fabricating a tension). The
+    pipeline must say so actionably instead of reporting a bare success."""
 
     def test_advisor_prompt_documents_empty_ingest_fallback(self):
-        """The Sequence has an explicit branch for a tool that surfaces no
-        tensions, pointing at `anchor` (not discussion)."""
+        """The arc has an explicit branch for a tool that surfaces no
+        tensions, pointing at `anchor` when opposition is genuinely there."""
         from dialectical_framework.agents.advisor.system_prompts import \
             SYSTEM_PROMPT
 
@@ -379,6 +380,123 @@ class TestEmptyIngestFallback:
         assert "No theses found" not in src
         assert "No tensions extracted" in src
         assert "Anchor an" in src
+
+
+# --- Floor guarantee: framework must never lower the model's floor -----------
+
+
+class TestAdvisorFloorGuarantee:
+    """The Advisor prompt must steer eagerly toward analysis without ever
+    gating speech on tool calls or forcing fabricated tensions. Principle:
+    prompts are for judgment, code is for invariants — the framework raises
+    the ceiling, never lowers the floor."""
+
+    def test_floor_guarantee_present(self):
+        """Full native capability is guaranteed explicitly; analysis deepens
+        counsel but never gates speech."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "full native capability" in SYSTEM_PROMPT
+        assert "never gates your speech" in SYSTEM_PROMPT
+
+    def test_eager_thinking_ungated_speech_section(self):
+        """Tool use is framed as default identity for counsel-shaped turns,
+        with named opt-outs — and speech never waits on the machinery."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "## Thinking Eagerly, Speaking Freely" in SYSTEM_PROMPT
+        assert "never waits on the machinery" in SYSTEM_PROMPT
+
+    def test_no_speech_gating_language(self):
+        """The coercive anchor-before-responding override is gone, along with
+        the grudging own-judgment escape."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "anchor that tension before responding" not in SYSTEM_PROMPT
+        assert (
+            "Only proceed on your own judgement if you genuinely"
+            not in SYSTEM_PROMPT
+        )
+
+    def test_anchor_override_inverted(self):
+        """'Not tension-shaped' is documented as a valid finding near the
+        empty-ingest branch — fabricating a tension is not an option."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        idx = SYSTEM_PROMPT.find("surfaces no tensions")
+        window = SYSTEM_PROMPT[idx : idx + 700]
+        assert "valid finding" in window
+        assert "tension-shaped" in window
+
+    def test_sequence_is_default_arc_not_script(self):
+        """The rigid Sequence is reframed as a default arc with explicit
+        permission to depart."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "## Sequence" not in SYSTEM_PROMPT
+        assert "## Default Arc" in SYSTEM_PROMPT
+        assert "not a script" in SYSTEM_PROMPT
+
+    def test_no_structural_guarantee_claim(self):
+        """Verification (PerspectiveValidation) is unwired — the prompt must
+        not claim a structural guarantee the system doesn't perform. Control
+        statements are the model's own internal test instead."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "structural guarantee" not in SYSTEM_PROMPT
+        assert "internal test" in SYSTEM_PROMPT
+
+    def test_terminology_ban_has_preamble_escape_hatch(self):
+        """Terminology hiding is preamble-overridable (vocabulary dial),
+        following the ADVANCED_APP override precedent."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        idx = SYSTEM_PROMPT.find("framework terminology")
+        window = " ".join(SYSTEM_PROMPT[idx : idx + 500].split())
+        assert "unless the app preamble" in window
+
+    def test_prohibition_wall_replaced_with_positive_rules(self):
+        """'What You Must Never Do' is gone; 'How You Speak' carries the same
+        constraints as positive rules."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "## What You Must Never Do" not in SYSTEM_PROMPT
+        assert "## How You Speak" in SYSTEM_PROMPT
+        # counsel-specificity survives as a positive rule
+        assert "as specific as your understanding" in SYSTEM_PROMPT
+
+    def test_statement_text_rephrasable_in_counsel(self):
+        """Graph statement text is raw material for counsel prose — the
+        Advisor rephrases freely (unlike Analyst/Explorer node referencing)."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "rephrase it freely" in SYSTEM_PROMPT
+
+    def test_analyst_no_tension_is_valid_conclusion(self):
+        """Analyst: reporting no genuine tension is a valid conclusion, not a
+        failure to force a weak opposition."""
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT as ANALYST_PROMPT
+
+        assert "valid analytical conclusion" in ANALYST_PROMPT
+
+    def test_explorer_build_wheels_intent_driven(self):
+        """Explorer: build_wheels is driven by user intent, not a reflex on
+        every first message."""
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        rendered = system_prompt(nexus_hash="abc1234", nexus_intent="test")
+        assert "not a reflex" in rendered
 
     def test_thesis_extraction_has_gate_rejection_safety_net(self):
         """A step-2 gate that rejects every item falls back to raw content
