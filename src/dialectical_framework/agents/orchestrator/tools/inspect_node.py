@@ -221,7 +221,7 @@ def _inspect_perspective(pp: Perspective) -> str:
     if diff_a is not None:
         metrics.append(f"diff_a={diff_a:.3f}")
     if area is not None:
-        metrics.append(f"area={area:.3f}")
+        metrics.append(f"area_normalized={area:.3f}")
     if rect is not None:
         metrics.append(f"rect={rect:.4f}")
     if metrics:

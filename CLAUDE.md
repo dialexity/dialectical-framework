@@ -43,7 +43,7 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 **Tetrad quality metrics (on Perspective):**
 - `area` = Ks(T+) + Ks(A+) - Ks(T-) - Ks(A-) — higher = better differentiation. The theory's canonical name is **SP (Synthesis Potential)** — same formula; treat SP ≡ area when reading the papers.
 - `rectangularity` = [Ks(T+)-Ks(A+)]² + [Ks(T-)-Ks(A-)]² — lower = better balance. Deliberately diverges from the paper's (rejected) linear form — see `docs/theory/scoring.md` before "fixing" either way.
-- Empirical thresholds: diff ≥ 0.1, Ks(+) > 0.4, Ks(-) < 0.6
+- Empirical thresholds: diff ≥ 0.1, |diff_t − diff_a| ≤ 0.15 (side balance), Ks(+) > 0.4, Ks(-) < 0.6
 - Theory metrics NOT implemented (don't let prompts claim them): DV, MMI, PSI, PC — see `docs/theory/scoring.md`.
 
 **HS (Heuristic Similarity):** T=1.0 (always, defines apex), A=LLM-computed, Aspects=LLM-computed, Ac+/Re+=LLM-computed, Ac/Re/Ac-/Re-=None.
@@ -415,6 +415,8 @@ Default to `@pytest.mark.llm` for anything touching `use_brain` or `Conversation
 
 **Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic responses. It does NOT test: streaming, tool registration (`@llm.tool` decorator), tool argument parsing, or provider behavior.
 Mock brain returns **identical** DTOs every call — to test diversity/dedup logic (distinct outputs across calls), `monkeypatch` the concern's `resolve` directly instead.
+
+**Mock brain auto-fills every field, so response-model *shape* changes are invisible to the mocked suite.** Restructuring a Mirascope `response_model` (nesting DTOs, adding required fields) can pass all mocked tests while the real LLM drops a branch → `ParseError`. Verify any DTO-shape change with `--real-llm`. Deep nesting is the usual culprit; prefer flatter schemas.
 
 **One graph-test run at a time.** The autouse `cleanup_graph_db` fixture `DETACH DELETE`s before/after each test, so concurrent pytest processes against the same Memgraph deadlock. If a run is `pkill -9`'d mid-test, the stuck lock persists — clear it with `docker compose -f docker-compose.test.yml restart`.
 

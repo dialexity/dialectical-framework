@@ -164,6 +164,12 @@ few are expanded anyway). If a UI wants to order valid tetrads, `area_normalized
 higher = better) gated by the validity checks is a reasonable choice, with rectangularity
 as a tiebreaker.
 
+> **`area_normalized` is a comparative hint, not an absolute grade.** The `~0.5`/`~0.15`
+> figures above are rough visual anchors for ordering tetrads *against each other*, not
+> pass/fail cutoffs. The theory (SP / Synthesis Potential) defines **no universal cutoff** —
+> see `docs/theory/scoring.md`. Do not treat a single `area_normalized` value as "good" or
+> "bad" in isolation.
+
 ---
 
 ### Transitions (Ac+, Ac−, Re+, Re−)

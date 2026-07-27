@@ -532,21 +532,22 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
     @property
     def area_normalized(self) -> Optional[float]:
         """
-        Area normalized to approximately 0-1 range.
+        Area (SP) rescaled to a ~0-1 range for a readable quality hint.
 
         Formula:
             area_normalized = area / 2
 
-        The maximum theoretical area is 2.0 (when positive aspects = 1.0 and negative aspects = 0.0),
-        so dividing by 2 normalizes to a 0-1 range.
+        Area spans -2..2; the max of 2.0 occurs when positive aspects = 1.0 and
+        negative aspects = 0.0, so dividing by 2 maps well-formed tetrads to ~0-1.
 
-        Interpretation:
-            ~0.5 → Excellent differentiation
-            ~0.35 → Good differentiation
-            ~0.15 → Poor differentiation
+        Interpretation is COMPARATIVE, not an absolute grade. Higher = better
+        differentiated; use it to rank tetrads against each other. The theory
+        (SP / Synthesis Potential) defines no universal cutoff — do not read a
+        fixed value as "good" or "bad" in isolation.
 
         Returns:
-            The normalized area score (0-1, higher is better), or None if data is missing.
+            The rescaled area (higher = better differentiated), or None if data
+            is missing.
         """
         area = self.area
         if area is None:
