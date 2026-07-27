@@ -37,6 +37,11 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   **and** renders `INSIGHT_SCALE`/`PROACTIVENESS_SCALE` via `_ladder()`.
 - Advisor: `advisor/advisor.py` — preamble + `SYSTEM_PROMPT` with `{dialectical_context}` **string-replaced**
   by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
+  The dump is **refreshed between turns** when the graph changed (dirty-flag in `_refresh_context`) — no longer
+  construction-time-only. The Advisor also runs a **background `AnalysisPipeline` hook** after counsel-shaped
+  turns where the model called no graph-building tool (`_maybe_start_background_analysis`; drained at next turn):
+  graph-building is a code invariant, not a prompt-compliance hope. The Analysis chain (§4) is therefore also
+  triggered turn-wise by the Advisor, outside any tool call.
 - `ADVANCED_APP = DEFAULT_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `DEFAULT_APP` also ships inside `ADVANCED_APP`.
 

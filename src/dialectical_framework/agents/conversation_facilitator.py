@@ -66,6 +66,10 @@ class ConversationFacilitator(SettingsAware):
     def __init__(self, tools: Optional[list[Any]] = None) -> None:
         self._messages: list = []
         self._tools = tools or []
+        # Tool names invoked during the most recent submit()/submit_stream()
+        # turn. Lets callers (e.g. the Advisor's background-analysis hook)
+        # observe what the model chose to do this turn.
+        self.last_tool_calls: list[str] = []
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -138,6 +142,7 @@ class ConversationFacilitator(SettingsAware):
             Structured response matching response_model
         """
         self._messages.append(llm.messages.user(user_content))
+        self.last_tool_calls = []
 
         if not self._tools:
             return await self._call_with_response_model(response_model)
@@ -147,6 +152,7 @@ class ConversationFacilitator(SettingsAware):
         for _ in range(max_tool_rounds):
             if not response.tool_calls:
                 break
+            self.last_tool_calls.extend(tc.name for tc in response.tool_calls)
             self._log_tool_calls(response.tool_calls)
             tool_outputs = await response.execute_tools()
             self._strip_caller_from_messages(response.messages)
@@ -176,6 +182,7 @@ class ConversationFacilitator(SettingsAware):
             ResponseComplete: final structured message
         """
         self._messages.append(llm.messages.user(user_content))
+        self.last_tool_calls = []
 
         if not self._tools:
             result = await self._call_with_response_model(response_model)
@@ -200,6 +207,7 @@ class ConversationFacilitator(SettingsAware):
                     tool_args=json.loads(tc.args) if tc.args else {},
                 )
 
+            self.last_tool_calls.extend(tc.name for tc in stream.tool_calls)
             self._log_tool_calls(stream.tool_calls)
             tool_outputs = await stream.execute_tools()
 
