@@ -72,7 +72,9 @@ that co-occur in one call:
 3. **A concern's SYSTEM_PROMPT inline examples co-occur with interpolated shared constants + DTO field text.**
    In `aspect_generation.py`, the hand-written Love/Indifference example sits with interpolated `ASPECT_DEFINITIONS`
    / `HS_SCALE` / `COMPLEMENTARITY_SCALE` + live taxonomy apexes. Changing the constant reaches every consumer;
-   changing the inline example reaches only this file.
+   changing the inline example reaches only this file. The example is **axis-framed** (each diagonal pair leads with
+   the dimension it opposes along) to match `TetradDto`'s nested `ContradictionPairDto(axis, positive, negative)`
+   shape — if you revert the example to four flat aspects, it contradicts the DTO the model must fill.
 
 ---
 
@@ -127,7 +129,11 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
 6. **Diagonal-contradiction rule re-stated ~5×** — `COMPLEMENTARITY_SCALE` (last line), `aspect_generation`,
    `aspect_classification`, `transformation_generation`, `concerns/diagonal_oppositions_check.py`, and the code
    map `get_contradiction_pair`. Wording varies ("contradicts" / "mutually exclusive" / "cannot both be true").
-   Any edit must not imply *lowering K* (contradicts `scoring_scales.py`).
+   Any edit must not imply *lowering K* (contradicts `scoring_scales.py`). **On the generation side the rule is now
+   partly structural, not just prose:** `TetradDto` nests two `ContradictionPairDto`s each carrying an `axis`
+   field (the dimension the pair opposes along), so `aspect_generation` enforces diagonal contradiction through the
+   output schema + an axis-first procedure rather than a trailing "Ensure T+ contradicts A-" line. Locked by
+   `TestTetradDiagonalStructure` in `tests/test_prompt_review_regressions.py`.
 7. **CC control-statement wording stated 2×** — `control_statements_check.py` (aspect) vs.
    `transformation_generation` (transition), independent phrasing + thresholds.
 

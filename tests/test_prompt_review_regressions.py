@@ -103,6 +103,56 @@ class TestSharedScoringConstants:
         assert "benefits, strengths" not in src
 
 
+class TestTetradDiagonalStructure:
+    """S1: diagonal contradiction is enforced by the output structure, not a
+    trailing 'Ensure T+ contradicts A-' sentence.
+
+    Guards the fix for closed issue #25 (Tree/Mother produced non-opposed
+    aspects): the generator must (a) nest the tetrad into its two diagonal
+    contradiction pairs and (b) make each pair name the axis of opposition.
+    """
+
+    def test_tetrad_dto_groups_four_aspects_by_two_axes(self):
+        from dialectical_framework.concerns.aspect_generation import (
+            AspectDto, TetradDto)
+
+        fields = TetradDto.model_fields
+        # four top-level aspects (deep nesting made the model drop a branch) ...
+        for aspect in ("t_plus", "t_minus", "a_plus", "a_minus"):
+            assert fields[aspect].annotation is AspectDto
+        # ... plus one explicit axis field per diagonal pair
+        assert fields["t_plus_vs_a_minus_axis"].annotation is str
+        assert fields["a_plus_vs_t_minus_axis"].annotation is str
+
+    def test_tetrad_axis_carries_no_opposition_escape(self):
+        from dialectical_framework.concerns.aspect_generation import TetradDto
+
+        # the axis field must let the model say "no genuine opposition exists"
+        desc = TetradDto.model_fields["t_plus_vs_a_minus_axis"].description
+        assert "not a genuine contradiction" in desc
+
+    def test_contradiction_pair_requires_an_axis(self):
+        from dialectical_framework.concerns.aspect_generation import \
+            ContradictionPairDto
+
+        fields = ContradictionPairDto.model_fields
+        assert "axis" in fields
+        assert fields["axis"].annotation is str
+        # the axis field must carry the "no genuine opposition → say so" escape
+        assert "no such shared dimension" in fields["axis"].description
+
+    def test_tetrad_prompt_leads_with_axis_procedure_not_trailing_ensure(self):
+        import inspect
+
+        from dialectical_framework.concerns import aspect_generation
+
+        src = inspect.getsource(aspect_generation.AspectGeneration._tetrad_prompt)
+        # positive procedure: name the axis first
+        assert "name the **axis**" in src
+        # the old weak trailing constraint must not creep back
+        assert "Ensure T+ contradicts A-" not in src
+
+
 # --- H1: transformation worked example ---------------------------------------
 
 

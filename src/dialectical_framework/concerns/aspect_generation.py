@@ -100,17 +100,17 @@ Your task is to generate aspects (T+, T-, A+, A-) for a thesis-antithesis pair.
 
 ## Examples
 
+Each tetrad resolves into two diagonal contradiction pairs. A pair shares one
+**axis** — a single dimension on which its two aspects sit at opposite ends, so
+they cannot both hold at once. Name the axis first, then place each pole on it.
+
 T = Love, A = Indifference:
-- T+ = Bonding (love that also makes room for the other's autonomy)
-- T- = Enmeshment (love overdeveloped, smothering autonomy)
-- A+ = Autonomy (independence that also deepens the bond)
-- A- = Alienation (independence overdeveloped, severing the bond)
+- Axis "closeness": T+ = Bonding (love that makes room for autonomy) ⟷ A- = Alienation (independence severing the bond)
+- Axis "self-standing": A+ = Autonomy (independence that deepens the bond) ⟷ T- = Enmeshment (love smothering autonomy)
 
 T = Courage, A = Fear:
-- T+ = Trust
-- T- = Foolhardiness
-- A+ = Prudence
-- A- = Paranoia
+- Axis "risk-taking": T+ = Trust ⟷ A- = Paranoia
+- Axis "caution": A+ = Prudence ⟷ T- = Foolhardiness
 
 Generate aspect statements that fit the semantic structure."""
 
@@ -139,19 +139,56 @@ class AspectDto(BaseModel):
 
 
 class ContradictionPairDto(BaseModel):
-    """Two aspects that form a contradiction pair."""
+    """Two aspects that form a diagonal contradiction pair.
 
+    The pair is defined by its `axis`: a single dimension on which the two
+    aspects sit at opposite ends, so they cannot both hold at once. The model
+    must name the axis first, which forces a genuine opposition rather than two
+    independently-plausible aspects.
+    """
+
+    axis: str = Field(
+        description=(
+            "The single dimension on which the two aspects are opposite ends "
+            "(e.g. 'closeness', 'risk-taking'). If no such shared dimension "
+            "exists, the pair is not a genuine contradiction — say so here."
+        )
+    )
     positive_aspect: AspectDto = Field(description="The positive aspect (T+ or A+)")
     negative_aspect: AspectDto = Field(description="The negative aspect (A- or T-)")
 
 
 class TetradDto(BaseModel):
-    """Full tetrad of four aspects."""
+    """Full tetrad: four aspects grouped by the two axes they oppose along.
 
-    t_plus: AspectDto = Field(description="T+ - constructive thesis")
-    t_minus: AspectDto = Field(description="T- - exaggerated thesis")
-    a_plus: AspectDto = Field(description="A+ - constructive antithesis")
-    a_minus: AspectDto = Field(description="A- - exaggerated antithesis")
+    The four aspects stay as top-level fields (deep nesting made the model drop
+    a whole diagonal branch), but each diagonal pair leads with an explicit
+    `axis` field — the shared dimension its two poles sit at opposite ends of.
+    Naming the axis forces genuine diagonal contradiction into the output
+    instead of leaving it to a trailing constraint.
+    """
+
+    # --- Pair 1: T+ vs A- (thesis-constructive axis) ---
+    t_plus_vs_a_minus_axis: str = Field(
+        description=(
+            "The single dimension on which T+ and A- are opposite ends "
+            "(e.g. 'closeness'). If T and A share no such dimension, the pair "
+            "is not a genuine contradiction — say so here."
+        )
+    )
+    t_plus: AspectDto = Field(description="T+ - constructive thesis (positive end of the axis)")
+    a_minus: AspectDto = Field(description="A- - exaggerated antithesis (negative end of the axis)")
+
+    # --- Pair 2: A+ vs T- (antithesis-constructive axis) ---
+    a_plus_vs_t_minus_axis: str = Field(
+        description=(
+            "The single dimension on which A+ and T- are opposite ends. If A "
+            "and T share no such dimension, say so here rather than inventing "
+            "two unrelated aspects."
+        )
+    )
+    a_plus: AspectDto = Field(description="A+ - constructive antithesis (positive end of the axis)")
+    t_minus: AspectDto = Field(description="T- - exaggerated thesis (negative end of the axis)")
 
 
 # --- Result ---
@@ -178,6 +215,17 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
     Generates aspects with HS calculated against taxonomy apex and K values.
     Contradiction pairs are generated together to ensure coherence.
+
+    Design decision — diagonal contradiction is enforced by the PROMPT here, not
+    by a post-hoc scorer. `TetradDto` makes each diagonal pair name the `axis`
+    it opposes along, which forces genuine contradiction into the output. We do
+    NOT run `DiagonalOppositionsCheck` on this path: generation is latency- and
+    cost-sensitive (it fans out across polarities × aspects), and the scorer
+    would add 2 LLM calls per perspective. `DiagonalOppositionsCheck` exists as
+    a safety net only where the prompt is bypassed — user edits in
+    `edit_perspective._validate_tetrad_coherence`. If a T/A pair is genuinely
+    not an opposition, that is caught upstream at polarity formation
+    (AntitheticalThesisDetection / the HS gate), not here.
     """
 
     def __init__(self) -> None:
@@ -325,9 +373,9 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         results = []
         position_to_dto = {
             POSITION_T_PLUS: result.t_plus,
-            POSITION_T_MINUS: result.t_minus,
-            POSITION_A_PLUS: result.a_plus,
             POSITION_A_MINUS: result.a_minus,
+            POSITION_A_PLUS: result.a_plus,
+            POSITION_T_MINUS: result.t_minus,
         }
 
         for pos in positions:
@@ -535,13 +583,17 @@ Taxonomy apex concepts for reference:
 - A+ apex: {a_plus_apex}
 - A- apex: {a_minus_apex}
 {existing_section}{avoid_section}
+Build the tetrad as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
+For each pair:
+1. First name the **axis** — the single dimension on which the two aspects are opposite ends, so they cannot both hold at once.
+2. Then place each aspect at an opposite end of that axis.
+If T and A do not admit a genuine shared axis of opposition, say so in the pair's `axis` field rather than inventing two unrelated aspects.
+
 Generate each aspect (1-{max_words} words) with:
 
 {HS_SCALE}
 
-{COMPLEMENTARITY_SCALE}
-
-Ensure T+ contradicts A-, and A+ contradicts T-."""
+{COMPLEMENTARITY_SCALE}"""
 
     def _contradiction_pair_prompt(
         self,
@@ -590,7 +642,7 @@ Generate each aspect (1-{max_words} words) with:
 {COMPLEMENTARITY_SCALE}
 
 The positive_aspect is {positive_pos}, the negative_aspect is {negative_pos}.
-They must contradict each other - they cannot both be true/good simultaneously."""
+First name the **axis** — the single dimension on which they are opposite ends — then place each at an opposite end of it. They cannot both hold at once. If no such shared axis exists, say so in the `axis` field rather than inventing two unrelated aspects."""
 
     def _single_aspect_prompt(self, position: str, existing_context: str) -> str:
         """Build prompt for single aspect generation."""
