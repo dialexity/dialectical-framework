@@ -212,3 +212,71 @@ class TestDialecticalContextWithPerspectives:
             await concern.resolve()
 
             assert "1 perspectives" in concern.report.summary
+
+
+class TestDialecticalContextScoped:
+    """Nexus-scoped rendering: one nexus + outside-count line only."""
+
+    @staticmethod
+    def _seed_nexus_and_outside(sid: str) -> str:
+        """One perspective in a nexus, one standalone. Returns nexus hash."""
+        in_nexus = _create_perspective_with_aspects(
+            thesis_text="Control", antithesis_text="Freedom"
+        )
+        _create_perspective_with_aspects(
+            thesis_text="Speed", antithesis_text="Thoroughness"
+        )
+        nexus = Nexus(intent="scoped test exploration")
+        nexus.save()
+        nexus.commit()
+        in_nexus.nexus.connect(nexus)
+        return nexus.hash
+
+    async def test_scoped_dump_contains_only_nexus_perspectives(self):
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = self._seed_nexus_and_outside(sid)
+
+            dump = await DialecticalContext(nexus_hash=nexus_hash[:7]).resolve()
+
+            assert "Control" in dump
+            assert "Freedom" in dump
+            # the standalone perspective must NOT be rendered
+            assert "Speed" not in dump
+            assert "Thoroughness" not in dump
+
+    async def test_scoped_dump_has_outside_count_line(self):
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = self._seed_nexus_and_outside(sid)
+
+            dump = await DialecticalContext(nexus_hash=nexus_hash[:7]).resolve()
+
+            assert "1 other tension(s) exist outside this exploration" in dump
+
+    async def test_scoped_dump_no_unexplored_section(self):
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = self._seed_nexus_and_outside(sid)
+
+            dump = await DialecticalContext(nexus_hash=nexus_hash[:7]).resolve()
+
+            assert "# Unexplored Tensions" not in dump
+
+    async def test_scoped_raises_on_missing_nexus(self):
+        sid = _new_sid()
+        with scope(sid):
+            with pytest.raises(ValueError, match="Nexus not found"):
+                await DialecticalContext(nexus_hash="deadbeef").resolve()
+
+    async def test_unscoped_unchanged(self):
+        """Default construction still renders everything."""
+        sid = _new_sid()
+        with scope(sid):
+            self._seed_nexus_and_outside(sid)
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Control" in dump
+            assert "Speed" in dump
+            assert "# Unexplored Tensions" in dump

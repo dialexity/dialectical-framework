@@ -44,9 +44,20 @@ class DialecticalContext(ReasonableConcern[str]):
     Programmatic usage:
         context = DialecticalContext()
         dump = await context.resolve()
+
+    Nexus-scoped usage (renders only one nexus + inputs; perspectives outside
+    the nexus appear only as a one-line count):
+        context = DialecticalContext(nexus_hash="abc1234")
+        dump = await context.resolve()
     """
 
+    def __init__(self, nexus_hash: str | None = None) -> None:
+        self._nexus_hash = nexus_hash
+
     async def resolve(self) -> str:
+        if self._nexus_hash:
+            return await self._resolve_scoped()
+
         pp_repo = PerspectiveRepository()
         nexus_repo = NexusRepository()
 
@@ -83,6 +94,41 @@ class DialecticalContext(ReasonableConcern[str]):
 
         self._report.ok = True
         self._report.summary = f"{len(perspectives)} perspectives, {len(nexuses)} nexuses"
+        return "\n\n".join(sections)
+
+    async def _resolve_scoped(self) -> str:
+        """Render one nexus only; outside tensions appear as a count line."""
+        nexus_repo = NexusRepository()
+        nexus = nexus_repo.find_by_hash_prefix(self._nexus_hash)
+        if nexus is None:
+            raise ValueError(f"Nexus not found: {self._nexus_hash}")
+
+        sections: list[str] = []
+
+        inputs_dump = self._dump_inputs()
+        if inputs_dump:
+            sections.append(inputs_dump)
+
+        nexus_dump = self._dump_nexus(nexus)
+        if nexus_dump:
+            sections.append(nexus_dump)
+
+        member_ids = {
+            pp._id for pp, _ in nexus.perspectives.all() if not pp.discarded
+        }
+        all_active = PerspectiveRepository().find_all_active()
+        outside_count = sum(1 for pp in all_active if pp._id not in member_ids)
+        if outside_count:
+            sections.append(
+                f"{outside_count} other tension(s) exist outside this "
+                f"exploration (not shown)."
+            )
+
+        self._report.ok = True
+        self._report.summary = (
+            f"Nexus [[{nexus.short_hash}]]: {len(member_ids)} perspectives, "
+            f"{outside_count} outside"
+        )
         return "\n\n".join(sections)
 
     @staticmethod

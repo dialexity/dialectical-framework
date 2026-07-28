@@ -82,3 +82,92 @@ class TestAdvisorInitialization:
     def test_agent_name(self):
         """Test AGENT_NAME is 'advisor'."""
         assert Advisor.AGENT_NAME == "advisor"
+
+    def test_backcompat_constant_matches_default_render(self):
+        """SYSTEM_PROMPT constant == system_prompt() default render."""
+        from dialectical_framework.agents.advisor.system_prompts import (
+            SYSTEM_PROMPT, system_prompt)
+
+        assert SYSTEM_PROMPT == system_prompt()
+
+
+class TestScopedAdvisor:
+    """Nexus-scoped Advisor: scope enforced in code, not prompt."""
+
+    @staticmethod
+    def _new_scope_with_nexus():
+        """Create a Case + committed Nexus; returns (sid, nexus_hash)."""
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.nodes.nexus import Nexus
+
+        case = Case()
+        case.commit()
+        from dialectical_framework.graph.scope_context import scope
+
+        with scope(case.sid):
+            nexus = Nexus(intent="test exploration")
+            nexus.save()
+            nexus.commit()
+            return case.sid, nexus.hash
+
+    def test_raises_on_missing_nexus(self):
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            with pytest.raises(ValueError, match="Nexus not found"):
+                Advisor(nexus_hash="deadbeef")
+
+    def test_scoped_read_mostly_toolset(self):
+        from dialectical_framework.graph.scope_context import scope
+
+        sid, nexus_hash = self._new_scope_with_nexus()
+        with scope(sid):
+            advisor = Advisor(nexus_hash=nexus_hash[:7])
+
+        tool_names = [t.__name__ for t in advisor._tools]
+        assert set(tool_names) == {"sync", "inspect_node", "read_digest", "discard"}
+        assert "ingest" not in tool_names
+        assert "anchor" not in tool_names
+        assert "explore" not in tool_names
+
+    def test_enrichment_toolset(self):
+        from dialectical_framework.graph.scope_context import scope
+
+        sid, nexus_hash = self._new_scope_with_nexus()
+        with scope(sid):
+            advisor = Advisor(nexus_hash=nexus_hash[:7], enrichment=True)
+
+        tool_names = [t.__name__ for t in advisor._tools]
+        assert set(tool_names) == {
+            "anchor", "sync", "inspect_node", "read_digest", "discard", "explore",
+        }
+        assert "ingest" not in tool_names
+
+    def test_scoped_prompt_documents_only_wired_tools(self):
+        from dialectical_framework.graph.scope_context import scope
+
+        sid, nexus_hash = self._new_scope_with_nexus()
+        with scope(sid):
+            advisor = Advisor(nexus_hash=nexus_hash[:7])
+
+        content = advisor._conversation._messages[0].content.text
+        assert "`ingest`" not in content
+        for name in ("sync", "inspect_node", "read_digest", "discard"):
+            assert f"`{name}`" in content
+        # scoped prompt carries the Scope section with the pinned hash
+        assert "## Scope" in content
+        assert nexus_hash[:7] in content
+
+    def test_scoped_background_analysis_disabled_without_enrichment(self):
+        from dialectical_framework.graph.scope_context import scope
+
+        sid, nexus_hash = self._new_scope_with_nexus()
+        with scope(sid):
+            read_mostly = Advisor(nexus_hash=nexus_hash[:7])
+            enriching = Advisor(nexus_hash=nexus_hash[:7], enrichment=True)
+
+        assert read_mostly._background_analysis is False
+        assert enriching._background_analysis is True

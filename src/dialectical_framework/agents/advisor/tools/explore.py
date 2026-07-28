@@ -3,6 +3,10 @@ explore tool: Group perspectives into nexus + build pathways + synthesis.
 
 Handles the full exploration lifecycle: nexus creation/expansion,
 wheel building, transformation generation, and synthesis.
+
+The shared body lives in `run_exploration` so the nexus-scoped advisor
+variant (tools/scoped.py) can pin the nexus hash in code and reuse the
+exact same pipeline without drift.
 """
 
 from __future__ import annotations
@@ -13,24 +17,15 @@ from mirascope import llm
 from pydantic import Field
 
 
-@llm.tool
-async def explore(
-    perspective_hashes: Annotated[
-        list[str],
-        Field(description="Hashes of perspectives to explore together"),
-    ],
-    intent: Annotated[
-        str,
-        Field(
-            description="What this exploration is about — the theme connecting these tensions"
-        ),
-    ],
-    nexus_hash: Annotated[
-        str | None,
-        Field(description="Existing nexus to enrich; omit to create a new one"),
-    ] = None,
+async def run_exploration(
+    perspective_hashes: list[str],
+    intent: str,
+    nexus_hash: str | None,
 ) -> str:
-    """Group tensions and generate pathways. Creates or expands a nexus, builds causal arrangements, generates action-reflection pathways and synthesis. Call when you have perspective hashes ready for exploration."""
+    """
+    Shared explore body: expand (or create) a nexus, build wheels and
+    transformations, generate synthesis per wheel. Returns str(report).
+    """
     from dialectical_framework.agents.explorer.explorer import \
         ExplorationPipeline
     from dialectical_framework.agents.explorer.skills.generate_synthesis import \
@@ -40,7 +35,7 @@ async def explore(
 
     if nexus_hash:
         expand = ExpandNexus()
-        expand_result = await expand.resolve(
+        await expand.resolve(
             nexus_hash=nexus_hash,
             perspective_hashes=perspective_hashes,
         )
@@ -72,3 +67,24 @@ async def explore(
     combined_report.artifacts["synthesis_generated"] = synthesis_count
 
     return str(combined_report)
+
+
+@llm.tool
+async def explore(
+    perspective_hashes: Annotated[
+        list[str],
+        Field(description="Hashes of perspectives to explore together"),
+    ],
+    intent: Annotated[
+        str,
+        Field(
+            description="What this exploration is about — the theme connecting these tensions"
+        ),
+    ],
+    nexus_hash: Annotated[
+        str | None,
+        Field(description="Existing nexus to enrich; omit to create a new one"),
+    ] = None,
+) -> str:
+    """Group tensions and generate pathways. Creates or expands a nexus, builds causal arrangements, generates action-reflection pathways and synthesis. Call when you have perspective hashes ready for exploration."""
+    return await run_exploration(perspective_hashes, intent, nexus_hash)

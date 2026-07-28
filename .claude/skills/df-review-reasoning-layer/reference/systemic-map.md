@@ -35,8 +35,13 @@ The model sees **one fused system block** — it cannot tell where the preamble 
 - Explorer: `explorer/explorer.py` — system prompt is a **function** `system_prompt(nexus_hash, nexus_intent)`
   (`explorer/system_prompts.py`) that f-string-injects the live nexus hash/intent (DB read at construction)
   **and** renders `INSIGHT_SCALE`/`PROACTIVENESS_SCALE` via `_ladder()`.
-- Advisor: `advisor/advisor.py` — preamble + `SYSTEM_PROMPT` with `{dialectical_context}` **string-replaced**
+- Advisor: `advisor/advisor.py` — preamble + engine prompt with `{dialectical_context}` **string-replaced**
   by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
+  The engine is now a **function** `system_prompt(tool_names, scoped_nexus_hash, enrichment)`
+  (`advisor/system_prompts.py`) assembled from section constants — tool docs render only for wired tools;
+  the module-level `SYSTEM_PROMPT` constant is the default unscoped render (back-compat + regression tests).
+  Nexus-scoped mode (`Advisor(nexus_hash=...)`) adds a `## Scope` section and swaps eager-building guidance
+  for counsel-from-existing-structure guidance.
   The dump is **refreshed between turns** when the graph changed (dirty-flag in `_refresh_context`) — no longer
   construction-time-only. The Advisor also runs a **background `AnalysisPipeline` hook** after counsel-shaped
   turns where the model called no graph-building tool (`_maybe_start_background_analysis`; drained at next turn):
@@ -211,11 +216,29 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Ac+ = T-→A+, Re+ = A-→T+ direction | `DEFAULT_APP` | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` |
 | `nexus_intent` surface classification | "internal, do not surface" | interpolated raw into header | — | leak risk |
 
+### Agent-mode authority matrix (who may touch the graph, enforced in code)
+
+| Mode | Create nexus | Expand nexus | Anchor/ingest | Discard | Context scope |
+|------|:---:|:---:|:---:|:---:|---|
+| Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ✅ sid-wide | full case |
+| Explorer(nexus_hash) | ❌ | ✅ (prompt-steered hash) | ❌ | — | full case dump via tools |
+| Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ + background hook | ✅ sid-wide | full case, turn-refreshed |
+| Advisor(nexus_hash) read-mostly | ❌ unreachable | ❌ | ❌ (background hook off) | ✅ nexus-members only (code guard) | one nexus + outside count |
+| Advisor(nexus_hash, enrichment) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor + background hook | ✅ nexus-members only | one nexus + outside count |
+
+The scoped Advisor's prompt is `system_prompt(tool_names, scoped_nexus_hash, enrichment)`
+(`advisor/system_prompts.py`) — the tool-docs section renders only wired tools; scope is enforced by
+closures in `advisor/tools/scoped.py` (`build_scoped_tools`), never by prompt admonition. Explorer, by
+contrast, steers its nexus_hash via prompt text only — a known weaker enforcement.
+
 ### App/engine vocabulary boundary
 - **Engine** (`agents/{analyst,explorer,advisor}/system_prompts.py`) = domain-neutral; may name graph nodes
   (Statement, Polarity, T+/A-) because those are the model. Must NOT hardcode persona voice/tone.
 - **App** (`agents/apps.py`) = persona + presentation vocabulary. `DEFAULT_APP` forbids a fixed translation
   table; advisory personas (`COUNSELOR/STRATEGIC_ADVISOR/COACH/MEDIATOR/SPARRING_PARTNER`) carry ONLY voice.
+  `NAVIGATOR_FOLLOWUP_APP` is the advisory-side terminology-disclosure override (joins `ADVANCED_APP` in the
+  override list): persona for counseling on a Navigator-built exploration + a "Terminology Disclosure" section
+  that the engine's "How You Speak" escape hatch honors.
 - **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not
   numbers") that *reference* the app preamble — a two-way dependency the split says should be one-way.
 - **Nexus→Exploration vocabulary contract:** "Nexus" is internal; the user-facing term is **"Exploration"**.

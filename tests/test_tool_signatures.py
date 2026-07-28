@@ -71,6 +71,18 @@ ALL_TOOLS = [
     discard,
 ]
 
+# Nexus-scoped Advisor tools are produced per-instance by a factory (the
+# nexus hash is closed over in code). The factory itself is DB-free —
+# validation happens in Advisor.__init__ — so we can build a sample set here.
+from dialectical_framework.agents.advisor.tools.scoped import \
+    build_scoped_tools
+
+ALL_TOOLS.extend(
+    t for t in build_scoped_tools("deadbeef", enrichment=True)
+    # inspect_node/read_digest are reused as-is; only test the closures once
+    if t.__name__ in {"sync", "discard", "explore", "anchor"}
+)
+
 
 class TestToolDefaultsAreNotFieldInfo:
     """No @llm.tool parameter should have FieldInfo as its Python default."""

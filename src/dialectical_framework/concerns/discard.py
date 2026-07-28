@@ -55,14 +55,12 @@ class Discard(ReasonableConcern[DiscardResult]):
     ) -> DiscardResult:
         repo = NodeRepository()
 
-        # Try Statement first
-        node = repo.find_by_hash(hash, node_type=Statement)
-        if node is not None:
+        # find_by_hash(node_type=...) raises TypeError on a type mismatch
+        # (it does not return None), so resolve untyped and dispatch here.
+        node = repo.find_by_hash(hash)
+        if isinstance(node, Statement):
             return self._discard_statement(node, reason)
-
-        # Try Perspective
-        node = repo.find_by_hash(hash, node_type=Perspective)
-        if node is not None:
+        if isinstance(node, Perspective):
             return self._discard_perspective(node, reason)
 
         raise ValueError(f"No Statement or Perspective found with hash: {hash}")

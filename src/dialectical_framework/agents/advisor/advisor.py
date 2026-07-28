@@ -18,7 +18,8 @@ from typing import AsyncGenerator, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.advisor.system_prompts import SYSTEM_PROMPT
+from dialectical_framework.agents.advisor.system_prompts import (
+    SYSTEM_PROMPT, system_prompt)
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
@@ -83,6 +84,19 @@ class Advisor:
         with scope(case.sid):
             advisor = Advisor(app_preamble=COUNSELOR_APP, messages=saved_messages)
             response = await advisor.chat("What about the other angle?")
+
+    Usage (nexus-scoped: counsel on ONE exploration built by Analyst+Explorer):
+        with scope(case.sid):
+            advisor = Advisor(app_preamble=COUNSELOR_APP, nexus_hash="abc1234")
+            response = await advisor.chat("So what does this all mean for me?")
+
+        Scope is enforced in code: the tools close over nexus_hash — the model
+        cannot create sibling nexuses or reach outside the exploration.
+        Read-mostly by default (sync/inspect_node/read_digest/discard);
+        pass enrichment=True to also allow anchor + explore pinned to this
+        nexus. Background analysis is disabled unless enrichment=True (a
+        read-mostly advisor must not grow the graph). Requires an active
+        scope(sid) at construction (nexus is validated against the DB).
     """
 
     AGENT_NAME = "advisor"
@@ -93,18 +107,38 @@ class Advisor:
         dialectical_context: Optional[str] = None,
         messages: Optional[list] = None,
         background_analysis: bool = True,
+        nexus_hash: Optional[str] = None,
+        enrichment: bool = False,
     ) -> None:
-        self._tools = _build_tools()
+        self._nexus_hash = nexus_hash
+        self._enrichment = enrichment
+        if nexus_hash:
+            self._validate_nexus(nexus_hash)
+            self._tools = _build_scoped_tools(nexus_hash, enrichment)
+            # A read-mostly advisor must not grow the graph silently.
+            self._background_analysis = background_analysis and enrichment
+        else:
+            self._tools = _build_tools()
+            self._background_analysis = background_analysis
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)
         self._app_preamble = app_preamble
-        self._background_analysis = background_analysis
         self._background_task: asyncio.Task | None = None
-        self._context_dirty = False
+        # Scoped mode without a precomputed context: mark dirty so turn 1
+        # renders the scoped dump (init is sync; resolve() is async).
+        self._context_dirty = bool(nexus_hash and not dialectical_context)
         self._conversation.set_system_prompt(
             self._build_system_prompt(app_preamble, dialectical_context)
         )
+
+    @staticmethod
+    def _validate_nexus(nexus_hash: str) -> None:
+        from dialectical_framework.graph.repositories.nexus_repository import \
+            NexusRepository
+
+        if NexusRepository().find_by_hash_prefix(nexus_hash) is None:
+            raise ValueError(f"Nexus not found: {nexus_hash}")
 
     def _build_system_prompt(
         self,
@@ -119,8 +153,15 @@ class Advisor:
             dialectical_context
             or "No prior understanding — this is a fresh conversation."
         )
-        system = SYSTEM_PROMPT.replace("{dialectical_context}", context_text)
-        parts.append(system)
+        if self._nexus_hash:
+            engine = system_prompt(
+                tool_names=[t.__name__ for t in self._tools],
+                scoped_nexus_hash=self._nexus_hash,
+                enrichment=self._enrichment,
+            )
+        else:
+            engine = SYSTEM_PROMPT
+        parts.append(engine.replace("{dialectical_context}", context_text))
 
         return "\n\n".join(parts)
 
@@ -206,7 +247,9 @@ class Advisor:
             from dialectical_framework.concerns.dialectical_context import \
                 DialecticalContext
 
-            context = await DialecticalContext().resolve()
+            context = await DialecticalContext(
+                nexus_hash=self._nexus_hash
+            ).resolve()
             self._conversation.set_system_prompt(
                 self._build_system_prompt(self._app_preamble, context)
             )
@@ -242,3 +285,10 @@ def _build_tools() -> list:
         read_digest,
         discard,
     ]
+
+
+def _build_scoped_tools(nexus_hash: str, enrichment: bool = False) -> list:
+    from dialectical_framework.agents.advisor.tools.scoped import \
+        build_scoped_tools
+
+    return build_scoped_tools(nexus_hash, enrichment)
