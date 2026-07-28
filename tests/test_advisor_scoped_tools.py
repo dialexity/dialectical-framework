@@ -77,7 +77,7 @@ class TestScopedExplore:
             nexus = _create_nexus()
             pp = _create_perspective_with_aspects()
 
-            tools = build_scoped_tools(nexus.hash[:7], enrichment=True)
+            tools = build_scoped_tools(nexus.hash[:7])
             explore = _tool_by_name(tools, "explore")
             await explore(perspective_hashes=[pp.hash])
 
@@ -90,7 +90,7 @@ class TestScopedExplore:
         """The LLM-facing signature must not accept a nexus_hash."""
         import inspect
 
-        tools = build_scoped_tools("abc1234", enrichment=True)
+        tools = build_scoped_tools("abc1234")
         explore = _tool_by_name(tools, "explore")
         params = inspect.signature(explore).parameters
         assert "nexus_hash" not in params
@@ -139,14 +139,11 @@ class TestScopedDiscard:
             assert "outside this exploration" not in result
 
 
-class TestScopedToolsets:
-    def test_read_mostly_default(self):
+class TestScopedToolset:
+    def test_full_analytical_power_no_ingest(self):
+        """Scoped Advisor always carries anchor + pinned explore (it IS
+        Analyst+Explorer behind one voice); only ingest is excluded."""
         tools = build_scoped_tools("abc1234")
-        names = {t.__name__ for t in tools}
-        assert names == {"sync", "inspect_node", "read_digest", "discard"}
-
-    def test_enrichment_adds_anchor_and_explore(self):
-        tools = build_scoped_tools("abc1234", enrichment=True)
         names = {t.__name__ for t in tools}
         assert names == {
             "anchor", "sync", "inspect_node", "read_digest", "discard", "explore",

@@ -254,12 +254,6 @@ statement if they reject just one claim. Don't announce it. If their correction
 reveals a genuinely different tension, `anchor` the new framing. The graph
 should reflect what resonates — retract what doesn't."""
 
-_REJECTION_HANDLING_READONLY = """**When the person rejects a framing:** If they say "that's not what I mean"
-or "that doesn't apply" — silently `discard` it so it stops shaping your
-counsel. Don't announce it. If their correction points at a genuinely
-different tension, acknowledge it in conversation and note that the
-exploration may need revisiting — you cannot restructure it from here."""
-
 _DEFAULT_ARC = """## Default Arc
 
 Most conversations follow this arc — depart from it whenever the conversation
@@ -428,23 +422,18 @@ _CONTEXT_SLOT = """## Current Understanding
 {dialectical_context}"""
 
 
-def _scope_section(nexus_hash: str, enrichment: bool) -> str:
-    base = f"""## Scope
+def _scope_section(nexus_hash: str) -> str:
+    return f"""## Scope
 
 You counsel within ONE exploration (internal reference [[{nexus_hash}]]) —
 the structural understanding below is that exploration, built deliberately
 before this conversation. Tensions outside it appear only as a count; they
-are not yours to work with here."""
-    if enrichment:
-        return base + """
+are not yours to work with here.
 
-When a genuinely new tension emerges in conversation, you may `anchor` it and
-weave it in with `explore` — everything lands in this exploration."""
-    return base + """
-
-You cannot add or restructure tensions from here. If the conversation
-genuinely outgrows this exploration, say what you see and suggest revisiting
-the analysis — don't force new material into the existing frame."""
+Your analytical power stays fully on: when a genuinely new tension emerges
+in conversation, `anchor` it and weave it in with `explore` — everything
+lands in this exploration. Anchored tensions you choose not to weave in
+remain valid candidates outside it."""
 
 
 DEFAULT_TOOL_NAMES = [
@@ -461,7 +450,6 @@ DEFAULT_TOOL_NAMES = [
 def system_prompt(
     tool_names: list[str] | None = None,
     scoped_nexus_hash: str | None = None,
-    enrichment: bool = False,
 ) -> str:
     """
     Assemble the Advisor engine prompt for the given tool set.
@@ -480,17 +468,15 @@ def system_prompt(
         if key in _TOOL_DOCS:
             tool_docs.append(_TOOL_DOCS[key])
 
-    can_build = bool({"ingest", "anchor", "explore"} & set(names))
-
     sections = [
         _ROLE,
-        _scope_section(scoped_nexus_hash, enrichment) if scoped else None,
+        _scope_section(scoped_nexus_hash) if scoped else None,
         _EAGER_SCOPED if scoped else _EAGER,
         _INTERNAL_MODEL,
         _CONVERSATION_USE,
         _TOOLS_INTRO,
         "\n\n".join(tool_docs),
-        _REJECTION_HANDLING if can_build else _REJECTION_HANDLING_READONLY,
+        _REJECTION_HANDLING,
         None if scoped else _DEFAULT_ARC,
         _HOW_YOU_SPEAK,
         _SCORE_READING,

@@ -120,25 +120,14 @@ class TestScopedAdvisor:
             with pytest.raises(ValueError, match="Nexus not found"):
                 Advisor(nexus_hash="deadbeef")
 
-    def test_scoped_read_mostly_toolset(self):
+    def test_scoped_toolset(self):
+        """Scoped Advisor keeps full analytical power (anchor + pinned
+        explore) — only ingest is excluded (bulk extraction stays unscoped)."""
         from dialectical_framework.graph.scope_context import scope
 
         sid, nexus_hash = self._new_scope_with_nexus()
         with scope(sid):
             advisor = Advisor(nexus_hash=nexus_hash[:7])
-
-        tool_names = [t.__name__ for t in advisor._tools]
-        assert set(tool_names) == {"sync", "inspect_node", "read_digest", "discard"}
-        assert "ingest" not in tool_names
-        assert "anchor" not in tool_names
-        assert "explore" not in tool_names
-
-    def test_enrichment_toolset(self):
-        from dialectical_framework.graph.scope_context import scope
-
-        sid, nexus_hash = self._new_scope_with_nexus()
-        with scope(sid):
-            advisor = Advisor(nexus_hash=nexus_hash[:7], enrichment=True)
 
         tool_names = [t.__name__ for t in advisor._tools]
         assert set(tool_names) == {
@@ -155,7 +144,9 @@ class TestScopedAdvisor:
 
         content = advisor._conversation._messages[0].content.text
         assert "`ingest`" not in content
-        for name in ("sync", "inspect_node", "read_digest", "discard"):
+        for name in (
+            "anchor", "sync", "inspect_node", "read_digest", "discard", "explore",
+        ):
             assert f"`{name}`" in content
         # scoped prompt carries the Scope section with the pinned hash
         assert "## Scope" in content

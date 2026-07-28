@@ -6,9 +6,11 @@ by the tool functions — never an LLM-supplied parameter. This makes sibling
 nexus creation unreachable and keeps sync/discard pinned to the exploration,
 regardless of what the model decides to pass.
 
-Read-mostly default: sync (scoped), inspect_node, read_digest, discard
-(with a nexus-membership guard). `enrichment=True` adds anchor (new tensions
-land standalone) and a scoped explore that always expands the pinned nexus.
+The scoped Advisor keeps its full analytical power (it IS Analyst+Explorer
+behind one voice): anchor plants new tensions (standalone), the scoped
+explore weaves them into the pinned nexus, sync/inspect_node/read_digest
+read, discard retracts (nexus members only). Only `ingest` is excluded —
+bulk extraction belongs to the unscoped flow.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from mirascope import llm
 from pydantic import Field
 
 
-def build_scoped_tools(nexus_hash: str, enrichment: bool = False) -> list:
+def build_scoped_tools(nexus_hash: str) -> list:
     """
     Build the tool set for a nexus-scoped Advisor.
 
@@ -61,30 +63,23 @@ def build_scoped_tools(nexus_hash: str, enrichment: bool = False) -> list:
         await concern.resolve(hash=hash, reason=reason)
         return str(concern.report)
 
-    tools = [sync, inspect_node, read_digest, discard]
+    @llm.tool
+    async def explore(
+        perspective_hashes: Annotated[
+            list[str],
+            Field(description="Hashes of perspectives to weave into this exploration"),
+        ],
+    ) -> str:
+        """Enrich this exploration with new perspectives: builds causal arrangements, action-reflection pathways, and synthesis for what's new. Call when a newly anchored tension should join the exploration."""
+        from dialectical_framework.agents.advisor.tools.explore import \
+            run_exploration
 
-    if enrichment:
+        # intent is irrelevant on the expand path (nexus already exists)
+        return await run_exploration(
+            perspective_hashes, intent="", nexus_hash=pinned_hash
+        )
 
-        @llm.tool
-        async def explore(
-            perspective_hashes: Annotated[
-                list[str],
-                Field(description="Hashes of perspectives to weave into this exploration"),
-            ],
-        ) -> str:
-            """Enrich this exploration with new perspectives: builds causal arrangements, action-reflection pathways, and synthesis for what's new. Call when a newly anchored tension should join the exploration."""
-            from dialectical_framework.agents.advisor.tools.explore import \
-                run_exploration
-
-            # intent is irrelevant on the expand path (nexus already exists)
-            return await run_exploration(
-                perspective_hashes, intent="", nexus_hash=pinned_hash
-            )
-
-        tools.insert(0, anchor)
-        tools.append(explore)
-
-    return tools
+    return [anchor, sync, inspect_node, read_digest, discard, explore]
 
 
 def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:

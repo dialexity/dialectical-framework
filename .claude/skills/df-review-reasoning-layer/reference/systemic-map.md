@@ -37,18 +37,20 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   **and** renders `INSIGHT_SCALE`/`PROACTIVENESS_SCALE` via `_ladder()`.
 - Advisor: `advisor/advisor.py` — preamble + engine prompt with `{dialectical_context}` **string-replaced**
   by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
-  The engine is now a **function** `system_prompt(tool_names, scoped_nexus_hash, enrichment)`
+  The engine is now a **function** `system_prompt(tool_names, scoped_nexus_hash)`
   (`advisor/system_prompts.py`) assembled from section constants — tool docs render only for wired tools;
   the module-level `SYSTEM_PROMPT` constant is the default unscoped render (back-compat + regression tests).
   Nexus-scoped mode (`Advisor(nexus_hash=...)`) adds a `## Scope` section and swaps eager-building guidance
   for counsel-from-existing-structure guidance.
-  The dump is **refreshed between turns** when the previous turn's tool calls mutated the graph
-  (`last_tool_calls` seam on `ConversationFacilitator` → dirty-flag → `_refresh_context`) — no longer
-  construction-time-only. Graph-building itself is **model-initiated only** (prompt-steered tools); a
-  background-analysis hook was tried and removed (2026-07-28, too naive: per-turn full-pipeline cost,
-  context-blind single-message input, drain-latency wall). The `--real-llm` e2e test
-  (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation produces no graph
-  (issue #57 A2→A1 collapse) — treat failure as prompt-steering signal, not flake.
+  The system prompt is **static after its first render** — fresh graph state flows through the
+  conversation (tool results + model-invoked `sync`), never by rewriting the system prompt (a per-turn
+  refresh was tried and removed 2026-07-28: it busted prompt caching to re-present information already in
+  history). One exception: scoped construction without a precomputed context renders the scoped dump
+  lazily on turn 1 (`_render_pending_context`, one-shot). Graph-building itself is **model-initiated
+  only** (prompt-steered tools); a background-analysis hook was also tried and removed (same day, too
+  naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
+  `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
+  produces no graph (issue #57 A2→A1 collapse) — treat failure as prompt-steering signal, not flake.
 - `ADVANCED_APP = DEFAULT_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `DEFAULT_APP` also ships inside `ADVANCED_APP`.
 
@@ -224,11 +226,10 @@ Independently-authored prompts that share a concept which MUST stay identical or
 |------|:---:|:---:|:---:|:---:|---|
 | Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ✅ sid-wide | full case |
 | Explorer(nexus_hash) | ❌ | ✅ (prompt-steered hash) | ❌ | — | full case dump via tools |
-| Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ sid-wide | full case, turn-refreshed |
-| Advisor(nexus_hash) read-mostly | ❌ unreachable | ❌ | ❌ | ✅ nexus-members only (code guard) | one nexus + outside count |
-| Advisor(nexus_hash, enrichment) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor | ✅ nexus-members only | one nexus + outside count |
+| Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ sid-wide | full case (render at construction) |
+| Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ nexus-members only (code guard) | one nexus + outside count |
 
-The scoped Advisor's prompt is `system_prompt(tool_names, scoped_nexus_hash, enrichment)`
+The scoped Advisor's prompt is `system_prompt(tool_names, scoped_nexus_hash)`
 (`advisor/system_prompts.py`) — the tool-docs section renders only wired tools; scope is enforced by
 closures in `advisor/tools/scoped.py` (`build_scoped_tools`), never by prompt admonition. Explorer, by
 contrast, steers its nexus_hash via prompt text only — a known weaker enforcement.

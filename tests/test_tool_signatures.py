@@ -78,7 +78,7 @@ from dialectical_framework.agents.advisor.tools.scoped import \
     build_scoped_tools
 
 ALL_TOOLS.extend(
-    t for t in build_scoped_tools("deadbeef", enrichment=True)
+    t for t in build_scoped_tools("deadbeef")
     # inspect_node/read_digest are reused as-is; only test the closures once
     if t.__name__ in {"sync", "discard", "explore", "anchor"}
 )

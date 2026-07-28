@@ -26,11 +26,6 @@ from dialectical_framework.agents.stream_events import StreamEvent
 
 logger = logging.getLogger(__name__)
 
-# Tools that mutate the graph: after a turn where the model called one of
-# these, the system prompt's Current Understanding is stale and gets
-# re-rendered at the start of the next turn.
-_GRAPH_MUTATING_TOOLS = {"ingest", "anchor", "explore", "discard"}
-
 
 class ChatResponse(BaseModel):
     """Response from the advisor chat."""
@@ -48,9 +43,13 @@ class Advisor:
     - Wrapping chat() calls in `with scope(sid):`
     - Optionally pre-computing dialectical_context via DialecticalContext
 
-    The system prompt's Current Understanding section is refreshed at the
-    start of a turn whenever the previous turn's tool calls changed the
-    graph (observed via ConversationFacilitator.last_tool_calls).
+    The system prompt is static after its first render: the Current
+    Understanding dump reflects the graph at construction time. Fresh graph
+    state flows through the conversation itself — tool results carry each
+    change, and the model calls `sync` when it wants a full re-dump. (One
+    exception: a nexus-scoped Advisor constructed without a precomputed
+    dialectical_context renders its scoped dump lazily on the first turn,
+    because __init__ is sync and DialecticalContext.resolve() is async.)
 
     Usage (fresh start):
         with scope(case.sid):
@@ -73,12 +72,12 @@ class Advisor:
             advisor = Advisor(app_preamble=COUNSELOR_APP, nexus_hash="abc1234")
             response = await advisor.chat("So what does this all mean for me?")
 
-        Scope is enforced in code: the tools close over nexus_hash — the model
-        cannot create sibling nexuses or reach outside the exploration.
-        Read-mostly by default (sync/inspect_node/read_digest/discard);
-        pass enrichment=True to also allow anchor + explore pinned to this
-        nexus. Requires an active scope(sid) at construction (nexus is
-        validated against the DB).
+        The scoped Advisor keeps its full analytical power (it IS
+        Analyst+Explorer behind one voice): it anchors new tensions from the
+        conversation and weaves them in. Scope is enforced in code: the tools
+        close over nexus_hash — the model cannot create sibling nexuses or
+        reach outside the exploration. Requires an active scope(sid) at
+        construction (nexus is validated against the DB).
     """
 
     AGENT_NAME = "advisor"
@@ -89,22 +88,21 @@ class Advisor:
         dialectical_context: Optional[str] = None,
         messages: Optional[list] = None,
         nexus_hash: Optional[str] = None,
-        enrichment: bool = False,
     ) -> None:
         self._nexus_hash = nexus_hash
-        self._enrichment = enrichment
         if nexus_hash:
             self._validate_nexus(nexus_hash)
-            self._tools = _build_scoped_tools(nexus_hash, enrichment)
+            self._tools = _build_scoped_tools(nexus_hash)
         else:
             self._tools = _build_tools()
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)
         self._app_preamble = app_preamble
-        # Scoped mode without a precomputed context: mark dirty so turn 1
-        # renders the scoped dump (init is sync; resolve() is async).
-        self._context_dirty = bool(nexus_hash and not dialectical_context)
+        # Scoped mode without a precomputed context: render the scoped dump
+        # lazily on turn 1 (init is sync; resolve() is async). One-shot —
+        # the system prompt is static after its first render.
+        self._pending_context_render = bool(nexus_hash and not dialectical_context)
         self._conversation.set_system_prompt(
             self._build_system_prompt(app_preamble, dialectical_context)
         )
@@ -134,7 +132,6 @@ class Advisor:
             engine = system_prompt(
                 tool_names=[t.__name__ for t in self._tools],
                 scoped_nexus_hash=self._nexus_hash,
-                enrichment=self._enrichment,
             )
         else:
             engine = SYSTEM_PROMPT
@@ -144,30 +141,24 @@ class Advisor:
 
     async def chat(self, user_message: str) -> str:
         with agent_scope(self.AGENT_NAME):
-            await self._refresh_context()
+            await self._render_pending_context()
             result = await self._conversation.submit(ChatResponse, user_message)
-            self._mark_dirty_if_graph_changed()
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         with agent_scope(self.AGENT_NAME):
-            await self._refresh_context()
+            await self._render_pending_context()
             async for event in self._conversation.submit_stream(
                 ChatResponse, user_message
             ):
                 yield event
-            self._mark_dirty_if_graph_changed()
 
-    def _mark_dirty_if_graph_changed(self) -> None:
-        """If this turn's tool calls mutated the graph, the rendered Current
-        Understanding is stale — re-render at the start of the next turn."""
-        if _GRAPH_MUTATING_TOOLS & set(self._conversation.last_tool_calls):
-            self._context_dirty = True
-
-    async def _refresh_context(self) -> None:
-        """Re-render Current Understanding into the system prompt if stale."""
-        if not self._context_dirty:
+    async def _render_pending_context(self) -> None:
+        """One-shot deferred render of the scoped Current Understanding dump
+        (scoped construction without a precomputed dialectical_context)."""
+        if not self._pending_context_render:
             return
+        self._pending_context_render = False
         try:
             from dialectical_framework.concerns.dialectical_context import \
                 DialecticalContext
@@ -178,11 +169,9 @@ class Advisor:
             self._conversation.set_system_prompt(
                 self._build_system_prompt(self._app_preamble, context)
             )
-            self._context_dirty = False
         except Exception:
-            # Fail-soft: a failed refresh must not block the turn; the model
-            # still sees fresh state through tool results / sync.
-            logger.exception("Dialectical context refresh failed")
+            # Fail-soft: the model still reaches graph state through sync.
+            logger.exception("Deferred dialectical context render failed")
 
     @property
     def messages(self) -> list:
@@ -212,8 +201,8 @@ def _build_tools() -> list:
     ]
 
 
-def _build_scoped_tools(nexus_hash: str, enrichment: bool = False) -> list:
+def _build_scoped_tools(nexus_hash: str) -> list:
     from dialectical_framework.agents.advisor.tools.scoped import \
         build_scoped_tools
 
-    return build_scoped_tools(nexus_hash, enrichment)
+    return build_scoped_tools(nexus_hash)
