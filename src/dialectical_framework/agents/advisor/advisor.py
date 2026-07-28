@@ -12,7 +12,6 @@ Two use cases:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import AsyncGenerator, Optional
 
@@ -27,14 +26,10 @@ from dialectical_framework.agents.stream_events import StreamEvent
 
 logger = logging.getLogger(__name__)
 
-# Tools that mutate the graph: when the model already called one of these
-# during a turn, the background-analysis guarantee is satisfied by the model
-# itself and the hook stays quiet.
-_GRAPH_BUILDING_TOOLS = {"ingest", "anchor", "explore"}
-
-# Messages shorter than this (in words) are treated as not counsel-shaped
-# (greetings, logistics, quick acknowledgements) and skip background analysis.
-_MIN_ANALYSIS_WORDS = 8
+# Tools that mutate the graph: after a turn where the model called one of
+# these, the system prompt's Current Understanding is stale and gets
+# re-rendered at the start of the next turn.
+_GRAPH_MUTATING_TOOLS = {"ingest", "anchor", "explore", "discard"}
 
 
 class ChatResponse(BaseModel):
@@ -53,21 +48,9 @@ class Advisor:
     - Wrapping chat() calls in `with scope(sid):`
     - Optionally pre-computing dialectical_context via DialecticalContext
 
-    Background analysis (default on): graph-building is guaranteed in code,
-    not just via the model's tool choices. After each counsel-shaped turn
-    where the model did NOT call a graph-building tool, chat() fires an
-    AnalysisPipeline run over the user's message as a background task. The
-    task is awaited (drained) at the start of the next turn, so graph writes
-    never overlap the next turn's tool calls. Call `flush_analysis()` before
-    persisting messages or tearing down, so the last turn's analysis lands.
-    Caveat: the background task may write to the graph after the host's
-    `with scope(sid):` block exits (the sid is captured via contextvars) —
-    the host must not tear down the DB connection between turns. Pass
-    `background_analysis=False` for manual control.
-
     The system prompt's Current Understanding section is refreshed at the
-    start of a turn whenever the graph changed since it was last rendered
-    (via background analysis or the model's own graph tools).
+    start of a turn whenever the previous turn's tool calls changed the
+    graph (observed via ConversationFacilitator.last_tool_calls).
 
     Usage (fresh start):
         with scope(case.sid):
@@ -94,9 +77,8 @@ class Advisor:
         cannot create sibling nexuses or reach outside the exploration.
         Read-mostly by default (sync/inspect_node/read_digest/discard);
         pass enrichment=True to also allow anchor + explore pinned to this
-        nexus. Background analysis is disabled unless enrichment=True (a
-        read-mostly advisor must not grow the graph). Requires an active
-        scope(sid) at construction (nexus is validated against the DB).
+        nexus. Requires an active scope(sid) at construction (nexus is
+        validated against the DB).
     """
 
     AGENT_NAME = "advisor"
@@ -106,7 +88,6 @@ class Advisor:
         app_preamble: Optional[str] = None,
         dialectical_context: Optional[str] = None,
         messages: Optional[list] = None,
-        background_analysis: bool = True,
         nexus_hash: Optional[str] = None,
         enrichment: bool = False,
     ) -> None:
@@ -115,16 +96,12 @@ class Advisor:
         if nexus_hash:
             self._validate_nexus(nexus_hash)
             self._tools = _build_scoped_tools(nexus_hash, enrichment)
-            # A read-mostly advisor must not grow the graph silently.
-            self._background_analysis = background_analysis and enrichment
         else:
             self._tools = _build_tools()
-            self._background_analysis = background_analysis
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)
         self._app_preamble = app_preamble
-        self._background_task: asyncio.Task | None = None
         # Scoped mode without a precomputed context: mark dirty so turn 1
         # renders the scoped dump (init is sync; resolve() is async).
         self._context_dirty = bool(nexus_hash and not dialectical_context)
@@ -167,77 +144,25 @@ class Advisor:
 
     async def chat(self, user_message: str) -> str:
         with agent_scope(self.AGENT_NAME):
-            await self._drain_background()
             await self._refresh_context()
             result = await self._conversation.submit(ChatResponse, user_message)
-            self._maybe_start_background_analysis(user_message)
+            self._mark_dirty_if_graph_changed()
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         with agent_scope(self.AGENT_NAME):
-            await self._drain_background()
             await self._refresh_context()
             async for event in self._conversation.submit_stream(
                 ChatResponse, user_message
             ):
                 yield event
-            # Note: if the host abandons the stream mid-way, this never runs
-            # and the hook simply skips this turn (fail-soft).
-            self._maybe_start_background_analysis(user_message)
+            self._mark_dirty_if_graph_changed()
 
-    async def flush_analysis(self) -> None:
-        """
-        Await any in-flight background analysis and refresh the system prompt.
-
-        Hosts should call this before persisting messages or ending the
-        session, so the last turn's analysis lands in the graph.
-        """
-        await self._drain_background()
-        await self._refresh_context()
-
-    def _maybe_start_background_analysis(self, user_message: str) -> None:
-        """
-        Guarantee graph-building in code: if this turn was counsel-shaped and
-        the model didn't build graph structure itself, run AnalysisPipeline
-        over the user's message as a background task.
-
-        The task inherits scope(sid)/agent_scope via contextvars (captured at
-        create_task time). It is drained at the start of the next turn, so
-        graph writes stay serialized (GQLAlchemy is not concurrency-safe).
-        """
-        if not self._background_analysis:
-            return
-        if len(user_message.split()) < _MIN_ANALYSIS_WORDS:
-            return
-        if _GRAPH_BUILDING_TOOLS & set(self._conversation.last_tool_calls):
-            # Model built structure itself this turn; refresh context next turn.
+    def _mark_dirty_if_graph_changed(self) -> None:
+        """If this turn's tool calls mutated the graph, the rendered Current
+        Understanding is stale — re-render at the start of the next turn."""
+        if _GRAPH_MUTATING_TOOLS & set(self._conversation.last_tool_calls):
             self._context_dirty = True
-            return
-        self._background_task = asyncio.create_task(
-            self._run_background_analysis(user_message)
-        )
-
-    async def _run_background_analysis(self, user_message: str) -> None:
-        from dialectical_framework.agents.analyst.analyst import \
-            AnalysisPipeline
-
-        try:
-            pipeline = AnalysisPipeline(text=user_message)
-            result = await pipeline.resolve()
-            if result and result.perspective_hashes:
-                self._context_dirty = True
-        except Exception:
-            # Fail-soft: background analysis must never break the chat path.
-            logger.exception("Background analysis failed")
-
-    async def _drain_background(self) -> None:
-        if self._background_task is None:
-            return
-        task, self._background_task = self._background_task, None
-        try:
-            await task
-        except Exception:
-            logger.exception("Background analysis task raised on drain")
 
     async def _refresh_context(self) -> None:
         """Re-render Current Understanding into the system prompt if stale."""

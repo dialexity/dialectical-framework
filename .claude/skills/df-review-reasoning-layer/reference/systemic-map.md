@@ -42,11 +42,13 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   the module-level `SYSTEM_PROMPT` constant is the default unscoped render (back-compat + regression tests).
   Nexus-scoped mode (`Advisor(nexus_hash=...)`) adds a `## Scope` section and swaps eager-building guidance
   for counsel-from-existing-structure guidance.
-  The dump is **refreshed between turns** when the graph changed (dirty-flag in `_refresh_context`) — no longer
-  construction-time-only. The Advisor also runs a **background `AnalysisPipeline` hook** after counsel-shaped
-  turns where the model called no graph-building tool (`_maybe_start_background_analysis`; drained at next turn):
-  graph-building is a code invariant, not a prompt-compliance hope. The Analysis chain (§4) is therefore also
-  triggered turn-wise by the Advisor, outside any tool call.
+  The dump is **refreshed between turns** when the previous turn's tool calls mutated the graph
+  (`last_tool_calls` seam on `ConversationFacilitator` → dirty-flag → `_refresh_context`) — no longer
+  construction-time-only. Graph-building itself is **model-initiated only** (prompt-steered tools); a
+  background-analysis hook was tried and removed (2026-07-28, too naive: per-turn full-pipeline cost,
+  context-blind single-message input, drain-latency wall). The `--real-llm` e2e test
+  (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation produces no graph
+  (issue #57 A2→A1 collapse) — treat failure as prompt-steering signal, not flake.
 - `ADVANCED_APP = DEFAULT_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `DEFAULT_APP` also ships inside `ADVANCED_APP`.
 
@@ -222,9 +224,9 @@ Independently-authored prompts that share a concept which MUST stay identical or
 |------|:---:|:---:|:---:|:---:|---|
 | Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ✅ sid-wide | full case |
 | Explorer(nexus_hash) | ❌ | ✅ (prompt-steered hash) | ❌ | — | full case dump via tools |
-| Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ + background hook | ✅ sid-wide | full case, turn-refreshed |
-| Advisor(nexus_hash) read-mostly | ❌ unreachable | ❌ | ❌ (background hook off) | ✅ nexus-members only (code guard) | one nexus + outside count |
-| Advisor(nexus_hash, enrichment) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor + background hook | ✅ nexus-members only | one nexus + outside count |
+| Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ sid-wide | full case, turn-refreshed |
+| Advisor(nexus_hash) read-mostly | ❌ unreachable | ❌ | ❌ | ✅ nexus-members only (code guard) | one nexus + outside count |
+| Advisor(nexus_hash, enrichment) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor | ✅ nexus-members only | one nexus + outside count |
 
 The scoped Advisor's prompt is `system_prompt(tool_names, scoped_nexus_hash, enrichment)`
 (`advisor/system_prompts.py`) — the tool-docs section renders only wired tools; scope is enforced by

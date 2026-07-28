@@ -67,7 +67,7 @@ class ConversationFacilitator(SettingsAware):
         self._messages: list = []
         self._tools = tools or []
         # Tool names invoked during the most recent submit()/submit_stream()
-        # turn. Lets callers (e.g. the Advisor's background-analysis hook)
+        # turn. Lets callers (e.g. the Advisor's context-staleness tracking)
         # observe what the model chose to do this turn.
         self.last_tool_calls: list[str] = []
 

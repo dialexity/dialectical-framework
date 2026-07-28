@@ -1,14 +1,14 @@
 """
-End-to-end smoke test for the Advisor's guaranteed graph-building.
+End-to-end smoke test for the Advisor's framework hand-off.
 
-The code-level invariant under test: after a multi-turn counsel-shaped
-conversation, a committed graph EXISTS — regardless of whether the model
-chose to call graph-building tools (model-initiated path) or the background
-analysis hook fired (guaranteed path).
+Graph-building is model-initiated (via the ingest/anchor/explore tools, as
+steered by the system prompt). This test is the A2 != A1 instrumentation
+from issue #57: after a multi-turn counsel-shaped conversation, a committed
+graph must exist — an Advisor whose graph is empty after a rich conversation
+has silently degraded to a bare persona-prompted model.
 
-This doubles as the A2 != A1 instrumentation required by issue #57: an
-Advisor arm whose graph is empty after a rich conversation would silently
-degrade to a bare persona-prompted model.
+If this test fails, that is SIGNAL, not flake: the prompt is under-steering
+tool use on the current model and needs attention.
 """
 
 from __future__ import annotations
@@ -42,11 +42,11 @@ TURNS = [
 ]
 
 
-class TestAdvisorGuaranteedGraphBuilding:
+class TestAdvisorFrameworkHandoff:
     @pytest.mark.asyncio
     @pytest.mark.timeout(600)
     @traced
-    async def test_advisor_multiturn_builds_graph_regardless_of_tools(self):
+    async def test_advisor_multiturn_hands_off_to_framework(self):
         case = Case()
         case.commit()
 
@@ -60,18 +60,17 @@ class TestAdvisorGuaranteedGraphBuilding:
                 tool_calls_per_turn.append(
                     list(advisor._conversation.last_tool_calls)
                 )
-                # Drain so this turn's analysis lands before the next turn
-                # (and before assertions).
-                await advisor.flush_analysis()
 
             perspectives = PerspectiveRepository().find_all_active()
 
-            # Instrumentation for issue #57: record which path built the graph.
+            # Instrumentation for issue #57: which tools carried the hand-off.
             print(f"\nTool calls per turn: {tool_calls_per_turn}")
             print(f"Committed active perspectives: {len(perspectives)}")
 
             assert perspectives, (
-                "After a multi-turn counsel-shaped conversation, a committed "
-                "graph must exist — via model tool calls or the background "
-                f"hook. Tool calls per turn were: {tool_calls_per_turn}"
+                "After a multi-turn counsel-shaped conversation the model "
+                "called no graph-building tools (or they produced nothing) — "
+                "the Advisor degraded to a bare persona-prompted model "
+                "(issue #57 A2->A1 collapse). Tool calls per turn: "
+                f"{tool_calls_per_turn}"
             )

@@ -161,13 +161,3 @@ class TestScopedAdvisor:
         assert "## Scope" in content
         assert nexus_hash[:7] in content
 
-    def test_scoped_background_analysis_disabled_without_enrichment(self):
-        from dialectical_framework.graph.scope_context import scope
-
-        sid, nexus_hash = self._new_scope_with_nexus()
-        with scope(sid):
-            read_mostly = Advisor(nexus_hash=nexus_hash[:7])
-            enriching = Advisor(nexus_hash=nexus_hash[:7], enrichment=True)
-
-        assert read_mostly._background_analysis is False
-        assert enriching._background_analysis is True
