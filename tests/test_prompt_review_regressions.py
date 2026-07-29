@@ -749,6 +749,46 @@ class TestNexusExplorationVocabulary:
         assert "Nexus" in ADVANCED_APP
 
 
+class TestExplorationAdvisorApp:
+    """EXPLORATION_ADVISOR_APP is the counsel-mode preamble of the
+    Explorer<->Advisor toggle. It MUST be composed on DEFAULT_APP (Navigator
+    territory: same vocabulary contract, perspective detection, score
+    presentation) — not written from scratch — and it must mandate
+    transparent, consented mutation of the user-built exploration."""
+
+    def test_composed_on_default_app(self):
+        from dialectical_framework.agents.apps import (DEFAULT_APP,
+                                                       EXPLORATION_ADVISOR_APP)
+
+        assert EXPLORATION_ADVISOR_APP.startswith(DEFAULT_APP)
+        assert "## Advisory Register" in EXPLORATION_ADVISOR_APP
+
+    def test_grants_terminology_disclosure_for_engine_hatch(self):
+        """The engine's terminology escape hatch keys on the preamble
+        granting disclosure — the section must exist."""
+        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+
+        assert "## Terminology Disclosure" in EXPLORATION_ADVISOR_APP
+
+    def test_disclosure_defers_to_default_app_nexus_rule(self):
+        """Disclosure does NOT unlock 'Nexus' — DEFAULT_APP's exploration
+        vocabulary still governs (unlike ADVANCED_APP, which unlocks it)."""
+        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+
+        idx = EXPLORATION_ADVISOR_APP.find("## Terminology Disclosure")
+        disclosure = EXPLORATION_ADVISOR_APP[idx:]
+        assert '"Nexus" stays internal' in disclosure
+
+    def test_mandates_transparent_mutation(self):
+        """Counsel mode must never grow or prune the user-built exploration
+        silently — ask first, announce after."""
+        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+
+        assert "Never grow or prune their exploration silently" in (
+            EXPLORATION_ADVISOR_APP
+        )
+
+
 class TestDedupReportsAreMerged:
     """surface_theses and find_polarities must merge the deduplicator's report
     so dedup deletions surface as node_deleted effects (not just a count)."""

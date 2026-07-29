@@ -248,7 +248,7 @@ handover of the SAME conversation between two heads, driven by the host:
 ```python
 # user in Explorer asks "so what should I actually do?" → toggle to counsel mode
 advisor = Advisor(
-    app_preamble=NAVIGATOR_FOLLOWUP_APP,   # terminology disclosed — they've seen the machinery
+    app_preamble=EXPLORATION_ADVISOR_APP,  # DEFAULT_APP + advisory register — same user contract, counsel voice
     nexus_hash=explorer.nexus_hash,
     messages=explorer.messages,
 )
@@ -263,10 +263,23 @@ explorer = Explorer(
 
 Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Constructing
 either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history.
-The Advisor head keeps full analytical power (anchor + explore pinned to the nexus — it IS
-Analyst+Explorer behind one voice), but the nexus pin is enforced in code
-(`advisor/tools/scoped.py`): it cannot create sibling nexuses or reach outside the
-exploration. Only `ingest` is excluded (bulk extraction belongs to the Analyst thread).
+
+**Both preambles sit on `DEFAULT_APP`** — that's what keeps both registers in Navigator
+territory: same vocabulary contract (say "exploration", never "Nexus"), same
+first-person/third-party perspective detection, same score presentation
+(meaning-first). The toggle changes the engine (tool-driving vs counseling) and the
+register — never the user contract.
+
+The Advisor head keeps full analytical power (anchor + explore pinned to the nexus — it
+IS Analyst+Explorer behind one voice), but with two constraints:
+
+- **Nexus pin in code** (`advisor/tools/scoped.py`): it cannot create sibling nexuses or
+  reach outside the exploration. Only `ingest` is excluded (bulk extraction belongs to
+  the Analyst thread).
+- **Transparent mutation** (`EXPLORATION_ADVISOR_APP`): unlike the unscoped Advisor's
+  silent graph-building, the counsel head asks before adding a new tension to the
+  user-built exploration and announces the change afterwards. The deliverable never
+  changes behind the user's back.
 
 ---
 

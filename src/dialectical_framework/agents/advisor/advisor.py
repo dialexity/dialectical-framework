@@ -74,7 +74,7 @@ class Advisor:
         # exploration:
         with scope(case.sid):
             advisor = Advisor(
-                app_preamble=NAVIGATOR_FOLLOWUP_APP,
+                app_preamble=EXPLORATION_ADVISOR_APP,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )

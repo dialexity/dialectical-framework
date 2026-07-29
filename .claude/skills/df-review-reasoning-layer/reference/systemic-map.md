@@ -237,17 +237,21 @@ different register; the host app drives the toggle (no automatic agent-switching
 only wired tools; the nexus pin is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),
 never by prompt admonition. Explorer, by contrast, steers its nexus_hash via prompt text only — a known
 weaker enforcement. Preamble pairing for the toggle: `ADVANCED_APP` (Explorer side) ↔
-`NAVIGATOR_FOLLOWUP_APP` (Advisor side, terminology disclosed — the user has seen the machinery by
-construction).
+`EXPLORATION_ADVISOR_APP` (Advisor side). BOTH are `DEFAULT_APP + override` — that composition is what
+keeps both registers in Navigator territory (same vocabulary contract, third-party detection, score
+presentation); the toggle changes engine + register, never the user contract. The advisory override also
+mandates **transparent mutation**: anchor/explore/discard on the user-built exploration are consent-first
+and announced (vs the unscoped Advisor's silent graph-building).
 
 ### App/engine vocabulary boundary
 - **Engine** (`agents/{analyst,explorer,advisor}/system_prompts.py`) = domain-neutral; may name graph nodes
   (Statement, Polarity, T+/A-) because those are the model. Must NOT hardcode persona voice/tone.
 - **App** (`agents/apps.py`) = persona + presentation vocabulary. `DEFAULT_APP` forbids a fixed translation
   table; advisory personas (`COUNSELOR/STRATEGIC_ADVISOR/COACH/MEDIATOR/SPARRING_PARTNER`) carry ONLY voice.
-  `NAVIGATOR_FOLLOWUP_APP` is the advisory-side terminology-disclosure override (joins `ADVANCED_APP` in the
-  override list): persona for counseling on a Navigator-built exploration + a "Terminology Disclosure" section
-  that the engine's "How You Speak" escape hatch honors.
+  `EXPLORATION_ADVISOR_APP = DEFAULT_APP + "## Advisory Register ..."` (same construction as `ADVANCED_APP`)
+  is the advisory-side override: counsel register for a Navigator-built exploration, transparent-mutation
+  rule, and a "Terminology Disclosure" section that the engine's "How You Speak" escape hatch honors —
+  deferring to `DEFAULT_APP`'s vocabulary rules (so "Nexus" stays internal even with disclosure granted).
 - **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not
   numbers") that *reference* the app preamble — a two-way dependency the split says should be one-way.
 - **Nexus→Exploration vocabulary contract:** "Nexus" is internal; the user-facing term is **"Exploration"**.
