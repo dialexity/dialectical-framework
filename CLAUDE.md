@@ -127,7 +127,7 @@ Advisor has `discard` (to retract a framing the user rejects) but NO edit tool. 
 
 ### User-Facing Vocabulary is App-Layer
 
-The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`DEFAULT_APP`, `ADVANCED_APP`, plus advisory personas) and injected via `app_preamble` in the Analyst/Explorer/Advisor constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary or app-UI behavioral constraints (e.g., viewport scope). Both go in app preambles.
+The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`NAVIGATOR_APP`, `NAVIGATOR_ADVANCED_MODE_APP`, plus advisory personas) and injected via `app_preamble` in the Analyst/Explorer/Advisor constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary or app-UI behavioral constraints (e.g., viewport scope). Both go in app preambles.
 
 **Advisor preamble/engine split:** Advisor's system prompt is a domain-neutral dialectical engine (how to use graph output for counsel). Persona (warm counselor, sharp strategist, coach) comes entirely from the app preamble. This means the same engine works for personal counseling, CEO strategy, brand marketing, etc. See methodology mappings in `apps.py` docstring.
 
@@ -456,7 +456,7 @@ Treat this as part of "done" for any prompt/theory/pipeline change, the same way
 
 | Location | What it controls |
 |----------|-----------------|
-| `agents/apps.py` | User-facing vocabulary/framing (DEFAULT_APP, ADVANCED_APP, advisory personas) |
+| `agents/apps.py` | User-facing vocabulary/framing (NAVIGATOR_APP, NAVIGATOR_ADVANCED_MODE_APP, advisory personas) |
 | `agents/analyst/system_prompts.py` | Analyst tool selection and workflow |
 | `agents/explorer/system_prompts.py` | Explorer tool selection and workflow (function; interpolates insight/proactiveness ladders) |
 | `agents/advisor/system_prompts.py` | Advisor domain-neutral dialectical engine + `{dialectical_context}` slot |

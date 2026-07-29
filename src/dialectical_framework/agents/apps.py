@@ -1,14 +1,20 @@
 """
 App preamble definitions.
 
-There are two categories of apps:
+There are two territories:
 
-1. **Interactive apps** (DEFAULT_APP, ADVANCED_APP) — used with Analyst/Explorer
-   agents where the user co-navigates the dialectical graph directly.
+1. **Navigator apps** (NAVIGATOR_APP, NAVIGATOR_ADVANCED_MODE_APP,
+   EXPLORATION_ADVISOR_APP) — used with Analyst/Explorer agents (and the
+   exploration-pinned Advisor, which is the counsel mode of an Explorer
+   session) where the user co-navigates the dialectical graph directly.
+   All of them are composed on NAVIGATOR_APP — that composition IS the
+   Navigator's user contract (vocabulary, perspective detection, framing,
+   score presentation) surviving every mode toggle.
 
 2. **Advisory apps** (COUNSELOR_APP, STRATEGIC_ADVISOR_APP, COACH_APP,
-   MEDIATOR_APP, SPARRING_PARTNER_APP) — used with the Advisor agent where
-   the framework runs silently and the user has a pure conversation.
+   MEDIATOR_APP, SPARRING_PARTNER_APP) — used with the standalone Advisor
+   agent where the framework runs silently and the user has a pure
+   conversation.
 
 Apps define HOW the agents communicate — vocabulary, depth, framing, persona.
 They are injected by the host application at agent construction time.
@@ -163,7 +169,7 @@ a procedure, or a calculation, it doesn't.
 
 from __future__ import annotations
 
-DEFAULT_APP = """## Persona
+NAVIGATOR_APP = """## Persona
 
 You are a professional reasoning partner. You help people see the structural
 tensions in their situations and find integrative paths — the specific actions
@@ -486,7 +492,7 @@ Your tone is sharp, provocative, and unsparing. No pleasantries, no hedging.
 You respect them by not wasting their time with soft landings.
 """
 
-EXPLORATION_ADVISOR_APP = DEFAULT_APP + """
+EXPLORATION_ADVISOR_APP = NAVIGATOR_APP + """
 ## Advisory Register (overrides Persona above; for the counsel mode of an exploration session)
 
 The person you're talking with built this exploration themselves — they
@@ -530,7 +536,7 @@ use the vocabulary the way colleagues do, always in service of what it means
 for their situation.
 """
 
-ADVANCED_APP = DEFAULT_APP + """
+NAVIGATOR_ADVANCED_MODE_APP = NAVIGATOR_APP + """
 ## Advanced Interaction (overrides Contextual Vocabulary and Presentation Defaults above)
 
 The user understands the dialectical framework, graph model, and generative
@@ -547,3 +553,9 @@ directly. Adjust interaction accordingly:
 - Show control statements, modality alignment, diagonal contradictions.
 - Suggest exploration-phase next steps (nexus, wheels) rather than auto-executing — the user drives structural expansion. Analysis tools (expand, find) still follow "act on clear intent."
 """
+
+# --- Backward-compatibility aliases (deprecated) -----------------------------
+# Old names, kept so existing hosts (e.g. dialexity-eye-opener) keep working.
+# Prefer NAVIGATOR_APP / NAVIGATOR_ADVANCED_MODE_APP in new code.
+DEFAULT_APP = NAVIGATOR_APP
+ADVANCED_APP = NAVIGATOR_ADVANCED_MODE_APP

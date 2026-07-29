@@ -16,7 +16,7 @@ import re
 import pytest
 
 from dialectical_framework.agents.analyst.analyst import Analyst
-from dialectical_framework.agents.apps import DEFAULT_APP
+from dialectical_framework.agents.apps import NAVIGATOR_APP
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.scope_context import scope
 
@@ -40,7 +40,7 @@ class TestVocabularyRegression:
         case.commit()
 
         with scope(case.sid):
-            analyst = Analyst(app_preamble=DEFAULT_APP)
+            analyst = Analyst(app_preamble=NAVIGATOR_APP)
             response = await analyst.chat("Spirituality vs Love")
 
         response_lower = response.lower()

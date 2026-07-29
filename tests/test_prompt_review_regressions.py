@@ -276,28 +276,28 @@ class TestAgentPrompts:
 
     def test_apps_wheel_definition_uses_spiral_not_blindspot(self):
         """H6: Wheel def routes exaggeration -> constructive strength, no blindspot."""
-        from dialectical_framework.agents.apps import DEFAULT_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP
 
-        idx = DEFAULT_APP.find("Within a Nexus, Wheels")
-        snippet = DEFAULT_APP[idx : idx + 260]
+        idx = NAVIGATOR_APP.find("Within a Nexus, Wheels")
+        snippet = NAVIGATOR_APP[idx : idx + 260]
         assert "blindspot" not in snippet
         assert "constructive strength" in snippet
 
     def test_advanced_app_override_resolves_translation_table_conflict(self):
         """S5: override names both sections and supersedes the CRITICAL directive."""
-        from dialectical_framework.agents.apps import ADVANCED_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_ADVANCED_MODE_APP
 
         assert (
-            "overrides Contextual Vocabulary and Presentation Defaults" in ADVANCED_APP
+            "overrides Contextual Vocabulary and Presentation Defaults" in NAVIGATOR_ADVANCED_MODE_APP
         )
-        assert "does not apply here" in ADVANCED_APP
+        assert "does not apply here" in NAVIGATOR_ADVANCED_MODE_APP
 
     def test_no_tetrades_misspelling(self):
         from dialectical_framework.agents.analyst.system_prompts import \
             SYSTEM_PROMPT
-        from dialectical_framework.agents.apps import DEFAULT_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP
 
-        assert "tetrades" not in DEFAULT_APP
+        assert "tetrades" not in NAVIGATOR_APP
         assert "tetrades" not in SYSTEM_PROMPT
 
     def test_causality_alias_example_matches_real_format(self):
@@ -454,7 +454,7 @@ class TestAdvisorFloorGuarantee:
 
     def test_terminology_ban_has_preamble_escape_hatch(self):
         """Terminology hiding is preamble-overridable (vocabulary dial),
-        following the ADVANCED_APP override precedent."""
+        following the NAVIGATOR_ADVANCED_MODE_APP override precedent."""
         from dialectical_framework.agents.advisor.system_prompts import \
             SYSTEM_PROMPT
 
@@ -715,21 +715,21 @@ class TestNexusExplorationVocabulary:
     stays user-facing (it is Thesis-Antithesis, used throughout the UI)."""
 
     def test_default_app_does_not_whitelist_nexus_as_user_facing(self):
-        from dialectical_framework.agents.apps import DEFAULT_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP
 
-        idx = DEFAULT_APP.find("are fine to use")
+        idx = NAVIGATOR_APP.find("are fine to use")
         assert idx != -1, "user-facing structural-terms whitelist moved"
-        whitelist = DEFAULT_APP[idx - 160 : idx]
+        whitelist = NAVIGATOR_APP[idx - 160 : idx]
         assert "Nexus" not in whitelist
         # Polarity is still user-facing.
         assert "Polarity" in whitelist
 
     def test_default_app_carries_nexus_to_exploration_mapping(self):
-        from dialectical_framework.agents.apps import DEFAULT_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP
 
-        assert "Exploration" in DEFAULT_APP
+        assert "Exploration" in NAVIGATOR_APP
         # agents still know they are the same thing
-        assert 'never surface\n  the word "Nexus"' in DEFAULT_APP
+        assert 'never surface\n  the word "Nexus"' in NAVIGATOR_APP
 
     def test_analyst_prompt_keeps_internal_mapping_but_not_user_leak(self):
         from dialectical_framework.agents.analyst.system_prompts import \
@@ -743,24 +743,24 @@ class TestNexusExplorationVocabulary:
         assert "name the existing nexus" not in SYSTEM_PROMPT
 
     def test_advanced_app_still_permits_nexus_for_experts(self):
-        """ADVANCED_APP explicitly overrides the vocabulary rules for experts."""
-        from dialectical_framework.agents.apps import ADVANCED_APP
+        """NAVIGATOR_ADVANCED_MODE_APP explicitly overrides the vocabulary rules for experts."""
+        from dialectical_framework.agents.apps import NAVIGATOR_ADVANCED_MODE_APP
 
-        assert "Nexus" in ADVANCED_APP
+        assert "Nexus" in NAVIGATOR_ADVANCED_MODE_APP
 
 
 class TestExplorationAdvisorApp:
     """EXPLORATION_ADVISOR_APP is the counsel-mode preamble of the
-    Explorer<->Advisor toggle. It MUST be composed on DEFAULT_APP (Navigator
+    Explorer<->Advisor toggle. It MUST be composed on NAVIGATOR_APP (Navigator
     territory: same vocabulary contract, perspective detection, score
     presentation) — not written from scratch — and it must mandate
     transparent, consented mutation of the user-built exploration."""
 
     def test_composed_on_default_app(self):
-        from dialectical_framework.agents.apps import (DEFAULT_APP,
+        from dialectical_framework.agents.apps import (NAVIGATOR_APP,
                                                        EXPLORATION_ADVISOR_APP)
 
-        assert EXPLORATION_ADVISOR_APP.startswith(DEFAULT_APP)
+        assert EXPLORATION_ADVISOR_APP.startswith(NAVIGATOR_APP)
         assert "## Advisory Register" in EXPLORATION_ADVISOR_APP
 
     def test_grants_terminology_disclosure_for_engine_hatch(self):
@@ -771,8 +771,8 @@ class TestExplorationAdvisorApp:
         assert "## Terminology Disclosure" in EXPLORATION_ADVISOR_APP
 
     def test_disclosure_defers_to_default_app_nexus_rule(self):
-        """Disclosure does NOT unlock 'Nexus' — DEFAULT_APP's exploration
-        vocabulary still governs (unlike ADVANCED_APP, which unlocks it)."""
+        """Disclosure does NOT unlock 'Nexus' — NAVIGATOR_APP's exploration
+        vocabulary still governs (unlike NAVIGATOR_ADVANCED_MODE_APP, which unlocks it)."""
         from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
 
         idx = EXPLORATION_ADVISOR_APP.find("## Terminology Disclosure")

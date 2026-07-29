@@ -22,7 +22,7 @@ installed via `ConversationFacilitator.set_system_prompt` (`agents/conversation_
 The model sees **one fused system block** — it cannot tell where the preamble ends and the workflow prompt begins.
 
 ```
-[ app_preamble ]              agents/apps.py  (DEFAULT_APP / ADVANCED_APP / COUNSELOR_APP / ...)
+[ app_preamble ]              agents/apps.py  (NAVIGATOR_APP / NAVIGATOR_ADVANCED_MODE_APP / COUNSELOR_APP / ...)
    + "\n\n" +
 [ agent SYSTEM_PROMPT ]       agents/{analyst,explorer,advisor}/system_prompts.py
    ↓ set_system_prompt → _messages[0]
@@ -31,7 +31,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
    → provider
 ```
 
-- Analyst: `analyst/analyst.py` `_build_system_prompt` — `DEFAULT_APP`/`ADVANCED_APP` + `SYSTEM_PROMPT` constant.
+- Analyst: `analyst/analyst.py` `_build_system_prompt` — `NAVIGATOR_APP`/`NAVIGATOR_ADVANCED_MODE_APP` + `SYSTEM_PROMPT` constant.
 - Explorer: `explorer/explorer.py` — system prompt is a **function** `system_prompt(nexus_hash, nexus_intent)`
   (`explorer/system_prompts.py`) that f-string-injects the live nexus hash/intent (DB read at construction)
   **and** renders `INSIGHT_SCALE`/`PROACTIVENESS_SCALE` via `_ladder()`.
@@ -51,8 +51,8 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
   `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
   produces no graph (issue #57 A2→A1 collapse) — treat failure as prompt-steering signal, not flake.
-- `ADVANCED_APP = DEFAULT_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
-  Any edit to `DEFAULT_APP` also ships inside `ADVANCED_APP`.
+- `NAVIGATOR_ADVANCED_MODE_APP = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
+  Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_ADVANCED_MODE_APP`.
 
 ### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
 
@@ -75,16 +75,16 @@ that co-occur in one call:
 
 ### Co-occurrence hotspots (edit one → silently affects the other)
 
-1. **`DEFAULT_APP` "communicate as MEANING not numbers" sits directly above Analyst's numeric HS bands**
+1. **`NAVIGATOR_APP` "communicate as MEANING not numbers" sits directly above Analyst's numeric HS bands**
    (`analyst/system_prompts.py` "Reading Polarity Quality", `≥0.7 / 0.5–0.7 / <0.5`). They reconcile only via
-   the preamble's "unless asked" clause. `ADVANCED_APP` flips it to "Show numeric scores" — so the *same*
+   the preamble's "unless asked" clause. `NAVIGATOR_ADVANCED_MODE_APP` flips it to "Show numeric scores" — so the *same*
    Analyst prompt co-occurs with two opposite presentation rules depending on which preamble the host injects.
 2. **Advisor's "How You Speak" (keeps framework terms + machinery internal) co-occurs with its own
    score-reading section** dense in `T+/A-/Ac+/Re+`, `HS`, insight/proactiveness numbers. Reconciliation is
    "internal reasoning only, never output." Any edit blurring that internal/external fence breaks the
    silent-framework contract. NOTE: the terminology fence is now **preamble-overridable** ("unless the app
-   preamble explicitly grants terminology disclosure") — same override mechanism as `ADVANCED_APP` flipping
-   `DEFAULT_APP`'s presentation rules. A preamble granting disclosure is a legitimate configuration, not a leak.
+   preamble explicitly grants terminology disclosure") — same override mechanism as `NAVIGATOR_ADVANCED_MODE_APP` flipping
+   `NAVIGATOR_APP`'s presentation rules. A preamble granting disclosure is a legitimate configuration, not a leak.
 3. **A concern's SYSTEM_PROMPT inline examples co-occur with interpolated shared constants + DTO field text.**
    In `aspect_generation.py`, the hand-written Love/Indifference example sits with interpolated `ASPECT_DEFINITIONS`
    / `HS_SCALE` / `COMPLEMENTARITY_SCALE` + live taxonomy apexes. Changing the constant reaches every consumer;
@@ -102,7 +102,7 @@ Where each rule is encoded, and whether it is single-sourced (robust) or duplica
 |------|-----------|----------|
 | **R1 Tetrad structure** (T+/T-/A+/A- defs) | `ASPECT_DEFINITIONS` in `concerns/scoring_scales.py`, imported by `aspect_generation`, `aspect_classification`, `positive_ac_re_apex_derivation` | Def block **single-source (good)**. But the "T+ contradicts A-" diagonal rule is ALSO re-stated in prose in `aspect_generation`, `aspect_classification`, and coded in `statement_classification.get_contradiction_pair()` — **duplicated**. |
 | **R2 Circular causality** (Ac+ = T-→A+, Re+ = A-→T+) | `transformation_generation` SYSTEM_PROMPT; `positive_ac_re_apex_derivation`; `action_extraction`; `synthesis_generation`; comments in `ac_re_taxonomy.py` | **Duplicated prose across 4+ prompts, no single owner.** Directionality is theory-critical. |
-| **R3 Modality balance** (M(T+)+M(A-)+M(T-)+M(A+)=0) | *Nowhere in a generation/scoring prompt.* Only surfaced in `ADVANCED_APP` ("modality alignment"). Mode scale in `antithesis_classification`. | **Prompt-absent.** No prompt enforces or checks the zero-sum. Reject edits that *claim* to. |
+| **R3 Modality balance** (M(T+)+M(A-)+M(T-)+M(A+)=0) | *Nowhere in a generation/scoring prompt.* Only surfaced in `NAVIGATOR_ADVANCED_MODE_APP` ("modality alignment"). Mode scale in `antithesis_classification`. | **Prompt-absent.** No prompt enforces or checks the zero-sum. Reject edits that *claim* to. |
 | **R4 Complementarity K** (Ks = (K_T+K_A)/2) | `COMPLEMENTARITY_SCALE` in `scoring_scales.py`, consumed by aspect concerns; thresholds in `concerns/perspective_validation.py` | **Single-source (good).** |
 | **R5 Equal-sign synthesis** (S+ between T+/A+) | `synthesis_generation` SYSTEM_PROMPT (framed via Ac+/Re+ transitions, not literally "like-signed") | **Weakly encoded** — one indirection from the rule. |
 | **R6 Control statements** ("T+ without A+ yields T-") | `concerns/control_statements_check.py` (aspect level) AND `transformation_generation` (transition level, `Ac+ without Re+`) | **Duplicated form**, independent wording. |
@@ -216,8 +216,8 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | HS-on-A vs HS-on-Ac+/Re+ disambiguation | uses only HS-on-A | disambiguates both | disambiguates both | — (must agree) |
 | HS threshold bands | 3 bands | — | 4 bands | `HS_SCALE` (6 bands) — none import it |
 | Nexus grouping rule ("different polarities → synthesis; same → angle shift") | prose | — | prose | duplicated, hand-written twice |
-| S+/S- emergence-vs-trap, "1+1>2" | `DEFAULT_APP` | prose | prose | `synthesis_generation` concern |
-| Ac+ = T-→A+, Re+ = A-→T+ direction | `DEFAULT_APP` | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` |
+| S+/S- emergence-vs-trap, "1+1>2" | `NAVIGATOR_APP` | prose | prose | `synthesis_generation` concern |
+| Ac+ = T-→A+, Re+ = A-→T+ direction | `NAVIGATOR_APP` | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` |
 | `nexus_intent` surface classification | "internal, do not surface" | interpolated raw into header | — | leak risk |
 
 ### Agent-mode authority matrix (who may touch the graph, enforced in code)
@@ -236,8 +236,8 @@ different register; the host app drives the toggle (no automatic agent-switching
 `system_prompt(tool_names, scoped_nexus_hash)` (`advisor/system_prompts.py`) — the tool-docs section renders
 only wired tools; the nexus pin is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),
 never by prompt admonition. Explorer, by contrast, steers its nexus_hash via prompt text only — a known
-weaker enforcement. Preamble pairing for the toggle: `ADVANCED_APP` (Explorer side) ↔
-`EXPLORATION_ADVISOR_APP` (Advisor side). BOTH are `DEFAULT_APP + override` — that composition is what
+weaker enforcement. Preamble pairing for the toggle: `NAVIGATOR_ADVANCED_MODE_APP` (Explorer side) ↔
+`EXPLORATION_ADVISOR_APP` (Advisor side). BOTH are `NAVIGATOR_APP + override` — that composition is what
 keeps both registers in Navigator territory (same vocabulary contract, third-party detection, score
 presentation); the toggle changes engine + register, never the user contract. The advisory override also
 mandates **transparent mutation**: anchor/explore/discard on the user-built exploration are consent-first
@@ -246,18 +246,18 @@ and announced (vs the unscoped Advisor's silent graph-building).
 ### App/engine vocabulary boundary
 - **Engine** (`agents/{analyst,explorer,advisor}/system_prompts.py`) = domain-neutral; may name graph nodes
   (Statement, Polarity, T+/A-) because those are the model. Must NOT hardcode persona voice/tone.
-- **App** (`agents/apps.py`) = persona + presentation vocabulary. `DEFAULT_APP` forbids a fixed translation
+- **App** (`agents/apps.py`) = persona + presentation vocabulary. `NAVIGATOR_APP` forbids a fixed translation
   table; advisory personas (`COUNSELOR/STRATEGIC_ADVISOR/COACH/MEDIATOR/SPARRING_PARTNER`) carry ONLY voice.
-  `EXPLORATION_ADVISOR_APP = DEFAULT_APP + "## Advisory Register ..."` (same construction as `ADVANCED_APP`)
+  `EXPLORATION_ADVISOR_APP = NAVIGATOR_APP + "## Advisory Register ..."` (same construction as `NAVIGATOR_ADVANCED_MODE_APP`)
   is the advisory-side override: counsel register for a Navigator-built exploration, transparent-mutation
   rule, and a "Terminology Disclosure" section that the engine's "How You Speak" escape hatch honors —
-  deferring to `DEFAULT_APP`'s vocabulary rules (so "Nexus" stays internal even with disclosure granted).
+  deferring to `NAVIGATOR_APP`'s vocabulary rules (so "Nexus" stays internal even with disclosure granted).
 - **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not
   numbers") that *reference* the app preamble — a two-way dependency the split says should be one-way.
 - **Nexus→Exploration vocabulary contract:** "Nexus" is internal; the user-facing term is **"Exploration"**.
-  `DEFAULT_APP` whitelist drops "Nexus" (keeps Polarity/Wheel/Cycle/Transformation/Position) and carries the
+  `NAVIGATOR_APP` whitelist drops "Nexus" (keeps Polarity/Wheel/Cycle/Transformation/Position) and carries the
   explicit "say exploration, never surface Nexus" rule; the Analyst prompt keeps the internal↔user mapping
-  (so it still uses "nexus" in reasoning + the `create_nexus`/`expand_nexus` tool names). `ADVANCED_APP`
+  (so it still uses "nexus" in reasoning + the `create_nexus`/`expand_nexus` tool names). `NAVIGATOR_ADVANCED_MODE_APP`
   (experts) is unchanged; the Advisor's terminology fence (in "How You Speak") still bans "nexus" by default
   but is preamble-overridable. Locked by
   `TestNexusExplorationVocabulary` in `tests/test_prompt_review_regressions.py`.
@@ -269,7 +269,7 @@ and announced (vs the unscoped Advisor's silent graph-building).
 - **`tests/test_prompt_review_regressions.py`** (~68 tests, no LLM) — the real coverage. Mechanical
   string/logic assertions: shared scoring constants exist and are imported by `aspect_generation`/
   `aspect_classification`; transformation worked-example directions; CC both-scores rule; apex sweet-spots;
-  settings-driven transition length; Explorer dead-tool + 1-PP claims; `ADVANCED_APP` override wording;
+  settings-driven transition length; Explorer dead-tool + 1-PP claims; `NAVIGATOR_ADVANCED_MODE_APP` override wording;
   causality alias format; Advisor discard wiring + empty-ingest fallback; anchor headline clamp; Analyst
   nexus grouping phrase; dedup report merge; elemental taxonomy; **`TestAdvisorFloorGuarantee`** — the
   Advisor floor contract (full-native-capability guarantee, eager-thinking/ungated-speech section, no
@@ -277,7 +277,7 @@ and announced (vs the unscoped Advisor's silent graph-building).
   claim, preamble-overridable terminology fence, Analyst no-tension-valid-conclusion, Explorer
   intent-driven build_wheels).
 - **`tests/test_prompt_vocabulary.py`** (1 test, `--real-llm`) — behavioral: a live Analyst response never
-  labels T-/T+ as "blindspot." DEFAULT_APP + Analyst only. Skipped in the default suite.
+  labels T-/T+ as "blindspot." NAVIGATOR_APP + Analyst only. Skipped in the default suite.
 
 ### Coverage gaps a systemic review should close (add a regression when you touch these)
 - **No cross-agent consistency test** — nothing asserts Analyst/Explorer/Advisor share the same HS bands,
@@ -287,6 +287,6 @@ and announced (vs the unscoped Advisor's silent graph-building).
 - **The taxonomy dict-vs-table lockstep is untested** (hotspot §3.1).
 - **No app/engine boundary test** — nothing asserts engine prompts avoid persona vocab, or personas avoid
   framework terms. (Partial: `TestNexusExplorationVocabulary` now locks the Nexus→Exploration user-facing
-  vocabulary contract across `DEFAULT_APP` / `ADVANCED_APP` / Analyst prompt.)
+  vocabulary contract across `NAVIGATOR_APP` / `NAVIGATOR_ADVANCED_MODE_APP` / Analyst prompt.)
 - **No test that `concerns/dialectical_context.py` score labels match the Advisor's score-reading section.**
 - **Advisory personas are entirely untested.**

@@ -66,7 +66,7 @@ DialecticalReasoning.setup(Settings.from_env())   # once
 
 case = Case(); case.commit()                       # a Case owns the sid
 with scope(case.sid):
-    analyst = Analyst(app_preamble=DEFAULT_APP)
+    analyst = Analyst(app_preamble=NAVIGATOR_APP)
     reply = await analyst.chat("We're torn between preplanning courses and generating them on demand.")
 ```
 
@@ -221,7 +221,7 @@ transition by watching tool reports and constructing the next agent.
 │ polarities → tetrads       │                                │ build_wheels →      │
 │ → GROUP                    │  ◀── "new tension" (UX route)  │ transformations →   │
 └────────────────────────────┘                                │ synthesis           │
-        both share DEFAULT_APP voice                           └─────────────────────┘
+        both share NAVIGATOR_APP voice                           └─────────────────────┘
 ```
 
 **Forward (Analyst → Explorer):** Analyst's `create_nexus` report carries
@@ -248,7 +248,7 @@ handover of the SAME conversation between two heads, driven by the host:
 ```python
 # user in Explorer asks "so what should I actually do?" → toggle to counsel mode
 advisor = Advisor(
-    app_preamble=EXPLORATION_ADVISOR_APP,  # DEFAULT_APP + advisory register — same user contract, counsel voice
+    app_preamble=EXPLORATION_ADVISOR_APP,  # NAVIGATOR_APP + advisory register — same user contract, counsel voice
     nexus_hash=explorer.nexus_hash,
     messages=explorer.messages,
 )
@@ -256,7 +256,7 @@ advisor = Advisor(
 # later: "let's compare the other wheels again" → toggle back
 explorer = Explorer(
     nexus_hash=advisor_nexus_hash,
-    app_preamble=ADVANCED_APP,
+    app_preamble=NAVIGATOR_ADVANCED_MODE_APP,
     messages=advisor.messages,
 )
 ```
@@ -264,7 +264,7 @@ explorer = Explorer(
 Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Constructing
 either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history.
 
-**Both preambles sit on `DEFAULT_APP`** — that's what keeps both registers in Navigator
+**Both preambles sit on `NAVIGATOR_APP`** — that's what keeps both registers in Navigator
 territory: same vocabulary contract (say "exploration", never "Nexus"), same
 first-person/third-party perspective detection, same score presentation
 (meaning-first). The toggle changes the engine (tool-driving vs counseling) and the
