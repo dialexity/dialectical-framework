@@ -47,7 +47,7 @@ class Advisor:
     Understanding dump reflects the graph at construction time. Fresh graph
     state flows through the conversation itself — tool results carry each
     change, and the model calls `sync` when it wants a full re-dump. (One
-    exception: a nexus-scoped Advisor constructed without a precomputed
+    exception: an exploration-pinned Advisor constructed without a precomputed
     dialectical_context renders its scoped dump lazily on the first turn,
     because __init__ is sync and DialecticalContext.resolve() is async.)
 
@@ -67,17 +67,31 @@ class Advisor:
             advisor = Advisor(app_preamble=COUNSELOR_APP, messages=saved_messages)
             response = await advisor.chat("What about the other angle?")
 
-    Usage (nexus-scoped: counsel on ONE exploration built by Analyst+Explorer):
+    Usage (Advisor mode of an exploration session — Explorer handover):
+        # User was chatting in Explorer (operator mode) and asks "what does
+        # this all mean for me?" — the host toggles to counsel mode by
+        # handing the SAME conversation to an Advisor pinned to the SAME
+        # exploration:
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_APP, nexus_hash="abc1234")
+            advisor = Advisor(
+                app_preamble=NAVIGATOR_FOLLOWUP_APP,
+                nexus_hash=explorer.nexus_hash,
+                messages=explorer.messages,
+            )
             response = await advisor.chat("So what does this all mean for me?")
 
-        The scoped Advisor keeps its full analytical power (it IS
-        Analyst+Explorer behind one voice): it anchors new tensions from the
-        conversation and weaves them in. Scope is enforced in code: the tools
-        close over nexus_hash — the model cannot create sibling nexuses or
-        reach outside the exploration. Requires an active scope(sid) at
-        construction (nexus is validated against the DB).
+        # Toggling back to operator mode is the reverse handover:
+        #   Explorer(nexus_hash=nx, messages=advisor.messages, ...)
+
+        This is a register toggle, not a different scope: same conversation,
+        same exploration, different head. The Advisor keeps its full
+        analytical power (it IS Analyst+Explorer behind one voice): it
+        anchors new tensions from the conversation and weaves them in. The
+        nexus pin is enforced in code: the tools close over nexus_hash — the
+        model cannot create sibling nexuses or reach outside the exploration.
+        Requires an active scope(sid) at construction (nexus is validated
+        against the DB). The host app drives the toggle — there is no
+        automatic agent-switching.
     """
 
     AGENT_NAME = "advisor"

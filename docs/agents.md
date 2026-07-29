@@ -177,10 +177,12 @@ experiences only progressively wiser responses. Its system prompt is a domain-ne
 dialectical engine; the **persona** comes entirely from the app preamble (counselor,
 strategist, coach, mediator, sparring partner — see `agents/apps.py`).
 
-**Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None)`.
-`dialectical_context` is an optional pre-rendered graph snapshot (from
-`DialecticalContext().resolve()`) injected into the system prompt — use it when a rich
-graph already exists at conversation start.
+**Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
+nexus_hash=None)`. `dialectical_context` is an optional pre-rendered graph snapshot
+(from `DialecticalContext().resolve()`) injected into the system prompt — use it when a
+rich graph already exists at conversation start. `nexus_hash` pins the Advisor to one
+exploration — this is the **counsel mode of an Explorer session**, not a standalone
+deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
 
 **Tools (7)** — coarse, composed super-tools that hide the machinery:
 
@@ -202,7 +204,9 @@ exposed.
 - Optionally a **persona picker** (which `app_preamble`).
 - The graph exists and grows silently; an optional "show me the structure" power view is
   possible but the default is just the conversation.
-- This is a **standalone app**, not a mode of the navigator.
+- The **unscoped** Advisor is a standalone app, not a mode of the navigator. The
+  **exploration-pinned** Advisor (`nexus_hash=...`) is the opposite: a mode of the
+  Explorer session, reached by handover, never started cold.
 
 ---
 
@@ -234,7 +238,35 @@ is the mirror of `create_nexus`: both are Case-level writes at a phase boundary,
 are registered **only on the Analyst** — even though the `create_nexus`/`expand_nexus`
 tool modules physically live under `agents/explorer/tools/` and are imported from there.)
 
-**Advisor:** no handoff UX at all — it is one thread, one chat window.
+**Advisor (unscoped):** no handoff UX at all — it is one thread, one chat window.
+
+**Explorer ↔ Advisor (the mode toggle):** an exploration session has two registers —
+**operator mode** (Explorer: technical tools, wheels, scores) and **counsel mode**
+(Advisor pinned to the same nexus: "what does this mean for me?"). The toggle is a
+handover of the SAME conversation between two heads, driven by the host:
+
+```python
+# user in Explorer asks "so what should I actually do?" → toggle to counsel mode
+advisor = Advisor(
+    app_preamble=NAVIGATOR_FOLLOWUP_APP,   # terminology disclosed — they've seen the machinery
+    nexus_hash=explorer.nexus_hash,
+    messages=explorer.messages,
+)
+
+# later: "let's compare the other wheels again" → toggle back
+explorer = Explorer(
+    nexus_hash=advisor_nexus_hash,
+    app_preamble=ADVANCED_APP,
+    messages=advisor.messages,
+)
+```
+
+Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Constructing
+either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history.
+The Advisor head keeps full analytical power (anchor + explore pinned to the nexus — it IS
+Analyst+Explorer behind one voice), but the nexus pin is enforced in code
+(`advisor/tools/scoped.py`): it cannot create sibling nexuses or reach outside the
+exploration. Only `ingest` is excluded (bulk extraction belongs to the Analyst thread).
 
 ---
 

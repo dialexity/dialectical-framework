@@ -229,10 +229,16 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ sid-wide | full case (render at construction) |
 | Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ nexus-members only (code guard) | one nexus + outside count |
 
-The scoped Advisor's prompt is `system_prompt(tool_names, scoped_nexus_hash)`
-(`advisor/system_prompts.py`) — the tool-docs section renders only wired tools; scope is enforced by
-closures in `advisor/tools/scoped.py` (`build_scoped_tools`), never by prompt admonition. Explorer, by
-contrast, steers its nexus_hash via prompt text only — a known weaker enforcement.
+`Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **counsel mode of an Explorer↔Advisor
+session toggle**: the host hands the Explorer conversation (messages + nexus_hash) to an Advisor head
+("what does this mean for me?") and can hand back for technical work. Same conversation, same exploration,
+different register; the host app drives the toggle (no automatic agent-switching). Its prompt is
+`system_prompt(tool_names, scoped_nexus_hash)` (`advisor/system_prompts.py`) — the tool-docs section renders
+only wired tools; the nexus pin is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),
+never by prompt admonition. Explorer, by contrast, steers its nexus_hash via prompt text only — a known
+weaker enforcement. Preamble pairing for the toggle: `ADVANCED_APP` (Explorer side) ↔
+`NAVIGATOR_FOLLOWUP_APP` (Advisor side, terminology disclosed — the user has seen the machinery by
+construction).
 
 ### App/engine vocabulary boundary
 - **Engine** (`agents/{analyst,explorer,advisor}/system_prompts.py`) = domain-neutral; may name graph nodes

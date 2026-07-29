@@ -1,16 +1,22 @@
 """
-Scoped tool factory for the nexus-scoped Advisor variant.
+Tool factory for the Advisor mode of an exploration session.
 
-Scope is enforced IN CODE, not prompt: the pinned nexus hash is closed over
-by the tool functions — never an LLM-supplied parameter. This makes sibling
+This is the "counsel mode" head of an Explorer↔Advisor toggle: the host
+hands the Explorer conversation (messages + nexus_hash) to an Advisor so
+the user can discuss what the exploration MEANS, then may hand back to
+Explorer for technical work. Same conversation, same exploration,
+different head.
+
+The nexus pin is enforced IN CODE, not prompt: the hash is closed over by
+the tool functions — never an LLM-supplied parameter. This makes sibling
 nexus creation unreachable and keeps sync/discard pinned to the exploration,
 regardless of what the model decides to pass.
 
-The scoped Advisor keeps its full analytical power (it IS Analyst+Explorer
-behind one voice): anchor plants new tensions (standalone), the scoped
-explore weaves them into the pinned nexus, sync/inspect_node/read_digest
-read, discard retracts (nexus members only). Only `ingest` is excluded —
-bulk extraction belongs to the unscoped flow.
+The Advisor keeps its full analytical power in this mode (it IS
+Analyst+Explorer behind one voice): anchor plants new tensions (standalone),
+the pinned explore weaves them into the exploration,
+sync/inspect_node/read_digest read, discard retracts (nexus members only).
+Only `ingest` is excluded — bulk extraction belongs to the unscoped flow.
 """
 
 from __future__ import annotations
@@ -23,7 +29,7 @@ from pydantic import Field
 
 def build_scoped_tools(nexus_hash: str) -> list:
     """
-    Build the tool set for a nexus-scoped Advisor.
+    Build the tool set for an exploration-pinned Advisor (counsel mode).
 
     The nexus_hash is captured by closure — the LLM cannot redirect any of
     these tools to another nexus or create a new one. Validation that the

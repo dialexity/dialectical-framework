@@ -7,7 +7,9 @@ sharp strategist, etc.) comes from the app preamble.
 
 The prompt is assembled by `system_prompt(tool_names, scoped_nexus_hash)`
 from section constants, so the tool-docs section always matches the tools
-actually wired (the nexus-scoped variant carries a reduced set). The
+actually wired. The exploration-pinned render is the "counsel mode" head
+of an Explorer↔Advisor session toggle (same conversation, same exploration,
+different register) and carries a slightly different tool set. The
 module-level `SYSTEM_PROMPT` constant is the default (unscoped) render,
 kept for backward compatibility and regression tests.
 """
