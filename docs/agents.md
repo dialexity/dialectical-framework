@@ -243,6 +243,13 @@ recognizes `dx://` inputs as exploration feedback to be developed and offered ba
 (The Explorer still cannot *analyze*: `create_dx_input` only captures. `create_nexus`
 remains Analyst-only — it is the forward phase boundary.)
 
+The loop is closable end-to-end: `create_dx_input` stamps provenance into the
+Input's digest ("Origin: insight from exploration [[hash]]…, pathway [[hash]]"),
+`present_analysis` lists pending inputs under Sources (dx ones flagged "from
+exploration" with their origin line), and `inspect_node` renders Transitions with
+full lineage (position/edge → parent Transformation or Wheel → owning Nexus) — so
+the Analyst always knows *which* exploration to weave back into without raw Cypher.
+
 **Advisor (unscoped):** no handoff UX at all — it is one thread, one chat window.
 
 **Explorer ↔ Advisor (the mode toggle):** an exploration session has two registers —

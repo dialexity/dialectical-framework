@@ -276,6 +276,189 @@ class TestCreateDxInput:
                 await concern.resolve(transition_hash="nonexistent" * 8)
 
 
+def _build_transformation_with_nexus(uid: str):
+    """Build the minimal committed structure a real Ac+ Transition sits in:
+    PP → Nexus, Cycle, Wheel with 2 edges, Transformation with Ac+/Re+.
+
+    Returns (nexus, transformation, ac_plus_transition).
+    """
+    import test_graph as tg
+    from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.relationships.polarity_relationship import (
+        AcPlusRelationship, RePlusRelationship)
+
+    components = []
+    for stmt in ["T", "T+", "T-", "A", "A+", "A-"]:
+        c = Statement(text=f"RT {stmt} {uid}", meaning=f"meaning:{stmt}")
+        c.commit()
+        components.append(c)
+
+    pp, _ = tg.create_pp_from_components(
+        t=components[0],
+        a=components[3],
+        t_plus=components[1],
+        t_minus=components[2],
+        a_plus=components[4],
+        a_minus=components[5],
+        intent=f"pp_{uid}",
+    )
+    pp.commit()
+
+    nexus = Nexus(intent=f"scaling culture {uid}")
+    nexus.commit()
+    pp.nexus.connect(nexus)
+
+    cycle = Cycle(intent="preset:balanced")
+    cycle.set_perspectives([pp])
+    cycle.commit()
+
+    wheel = Wheel(intent=f"wheel_{uid}")
+    wheel.save()
+    edge1 = Transition()
+    edge1.set_source(components[0]).set_target(components[3])
+    edge1.commit()
+    edge1.cycle.connect(wheel)
+    edge2 = Transition()
+    edge2.set_source(components[3]).set_target(components[0])
+    edge2.commit()
+    edge2.cycle.connect(wheel)
+    cycle.wheels.connect(wheel)
+    wheel.commit()
+
+    transformation = Transformation(intent=f"tr_{uid}")
+    transformation.set_nexus(nexus)
+    transformation.set_on_edge(edge1)
+    transformation.save()
+
+    ac_plus = Transition()
+    ac_plus.set_source(components[2]).set_target(components[4])
+    ac_plus.summary = "Turn rigidity into shared autonomy"
+    ac_plus.commit()
+    transformation.ac_plus.connect(
+        ac_plus, relationship=AcPlusRelationship(alias="Ac+")
+    )
+    re_plus = Transition()
+    re_plus.set_source(components[5]).set_target(components[1])
+    re_plus.commit()
+    transformation.re_plus.connect(
+        re_plus, relationship=RePlusRelationship(alias="Re+")
+    )
+    transformation.commit()
+
+    return nexus, transformation, ac_plus
+
+
+class TestRoundTripProvenance:
+    """The dx:// round-trip must be closable: the created Input carries its
+    origin (source exploration) in the digest, the Transition is inspectable
+    with lineage, and pending inputs are discoverable in both orientation
+    surfaces (present_analysis for the Analyst, dialectical_context for the
+    Advisor)."""
+
+    @pytest.mark.asyncio
+    async def test_dx_input_digest_carries_origin_nexus(self):
+        from dialectical_framework.concerns.create_dx_input import \
+            CreateDxInput
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus, _, ac_plus = _build_transformation_with_nexus("prov1")
+
+            concern = CreateDxInput()
+            input_node = await concern.resolve(transition_hash=ac_plus.hash)
+
+            assert input_node.digest is not None
+            assert "Turn rigidity into shared autonomy" in input_node.digest
+            assert f"[[{nexus.short_hash}]]" in input_node.digest
+            assert "scaling culture" in input_node.digest
+            assert concern.report.artifacts["source_nexus_hash"] == nexus.hash
+
+    @pytest.mark.asyncio
+    async def test_dx_input_without_container_still_has_pathway_origin(self):
+        """A bare Transition (no Transformation/Wheel) degrades gracefully."""
+        from dialectical_framework.concerns.create_dx_input import \
+            CreateDxInput
+
+        sid = _new_sid()
+        with scope(sid):
+            s1 = Statement(text="Source", meaning="test")
+            s1.commit()
+            s2 = Statement(text="Target", meaning="test")
+            s2.commit()
+            t = Transition(nonce="bare")
+            t.summary = "Standalone insight"
+            t.save()
+            t.source.connect(s1)
+            t.target.connect(s2)
+            t.commit()
+
+            concern = CreateDxInput()
+            input_node = await concern.resolve(transition_hash=t.hash)
+
+            assert input_node.digest is not None
+            assert "Standalone insight" in input_node.digest
+            assert f"[[{t.short_hash}]]" in input_node.digest
+            assert "source_nexus_hash" not in concern.report.artifacts
+
+    @pytest.mark.asyncio
+    async def test_inspect_node_renders_transition_with_lineage(self):
+        from dialectical_framework.agents.orchestrator.tools.inspect_node import \
+            InspectNode
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus, transformation, ac_plus = _build_transformation_with_nexus(
+                "insp1"
+            )
+
+            result = await InspectNode().resolve(node_hash=ac_plus.hash)
+
+            assert "## Transition" in result
+            assert "Turn rigidity into shared autonomy" in result
+            assert "Ac+" in result
+            assert transformation.short_hash in result
+            assert nexus.short_hash in result
+            # never the repr fallback
+            assert "Transition(" not in result
+
+    @pytest.mark.asyncio
+    async def test_present_analysis_lists_pending_dx_input(self):
+        from dialectical_framework.agents.orchestrator.tools.present_analysis import \
+            PresentAnalysis
+        from dialectical_framework.concerns.create_dx_input import \
+            CreateDxInput
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus, _, ac_plus = _build_transformation_with_nexus("pres1")
+            await CreateDxInput().resolve(transition_hash=ac_plus.hash)
+
+            summary = await PresentAnalysis().resolve()
+
+            assert "## Sources" in summary
+            assert "pending" in summary
+            assert "(from exploration)" in summary
+            assert f"[[{nexus.short_hash}]]" in summary  # origin line surfaced
+
+    @pytest.mark.asyncio
+    async def test_dialectical_context_lists_pending_inputs(self):
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+
+        sid = _new_sid()
+        with scope(sid):
+            inp = Input(content="Some captured but unprocessed material")
+            inp.commit()
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Pending" in dump
+            assert inp.short_hash in dump
+
+
 class TestSelectiveInputProcessing:
     """Tests for SurfaceTheses with input_hashes."""
 

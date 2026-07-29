@@ -570,6 +570,77 @@ def _inspect_transformation(tr: Transformation) -> str:
     return "\n".join(lines)
 
 
+def _inspect_transition(t) -> str:
+    """Build detailed inspection output for a Transition.
+
+    Covers both kinds: wheel edges (container via `cycle`) and transformation
+    positions (Ac+/Re+/... — attached to their Transformation via typed
+    relationships). Shows full text and the lineage up to the owning Nexus,
+    so a Transition reached from a dx:// input can be traced back to its
+    exploration.
+    """
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.repositories.transformation_repository import (
+        TransformationRepository,
+    )
+
+    lines: list[str] = []
+    lines.append(f"## Transition [{_node_id(t)}]{_status_tag(t)}")
+
+    # Lineage: position Transition → Transformation → Nexus
+    parents = TransformationRepository().find_by_position_transition(t)
+    nexus = None
+    if parents:
+        tr, rel_type = parents[0]
+        position = {
+            "AC": "Ac", "RE": "Re",
+            "AC_PLUS": "Ac+", "AC_MINUS": "Ac-",
+            "RE_PLUS": "Re+", "RE_MINUS": "Re-",
+        }.get(rel_type, rel_type)
+        nexus = find_nexus_for_transformation(tr)
+        lines.append(f"Position: {position} of Transformation [{tr.short_hash}]")
+
+    # Lineage: wheel-edge Transition → Wheel/Cycle → Nexus
+    container_result = t.cycle.get()
+    if container_result:
+        container, _ = container_result
+        lines.append(
+            f"Edge of {container.__class__.__name__} [{container.short_hash}]"
+        )
+        if nexus is None:
+            if isinstance(container, Wheel):
+                nexus = find_nexus_for_wheel(container)
+            else:
+                nexus = find_nexus_for_cycle(container)
+
+    if nexus is not None:
+        nexus_intent = f' "{nexus.intent}"' if nexus.intent else ""
+        lines.append(f"Nexus: [{nexus.short_hash}]{nexus_intent}")
+
+    pp_index = build_pp_index(nexus) if nexus else None
+    edge_label = format_edge_label(t, pp_index)
+    if edge_label:
+        lines.append(f"Direction: {edge_label}")
+    lines.append("")
+
+    if t.instruction:
+        lines.append(f"Instruction: \"{t.instruction}\"")
+    if t.summary:
+        lines.append(f"Summary: \"{t.summary}\"")
+    if t.haiku:
+        lines.append(f"Haiku: {t.haiku}")
+
+    # Rationales
+    rationales = list(t.rationales.all())
+    if rationales:
+        lines.append("")
+        for rationale, _ in rationales:
+            if rationale.text:
+                lines.append(f"Rationale: {rationale.text}")
+
+    return "\n".join(lines)
+
+
 def _inspect_synthesis(synth: Synthesis) -> str:
     """Build detailed inspection output for a Synthesis."""
     lines: list[str] = []
@@ -627,6 +698,7 @@ class InspectNode(ReasonableConcern[str]):
         from dialectical_framework.graph.nodes.statement import Statement
         from dialectical_framework.graph.nodes.synthesis import Synthesis
         from dialectical_framework.graph.nodes.transformation import Transformation
+        from dialectical_framework.graph.nodes.transition import Transition
         from dialectical_framework.graph.nodes.wheel import Wheel
 
         repo = NodeRepository()
@@ -654,6 +726,8 @@ class InspectNode(ReasonableConcern[str]):
             result = _inspect_wheel(node)
         elif isinstance(node, Transformation):
             result = _inspect_transformation(node)
+        elif isinstance(node, Transition):
+            result = _inspect_transition(node)
         elif isinstance(node, Synthesis):
             result = _inspect_synthesis(node)
         else:
@@ -669,6 +743,6 @@ class InspectNode(ReasonableConcern[str]):
 async def inspect_node(
     node_hash: Annotated[str, Field(description="Full hash or unique prefix (7+ chars) of the node to inspect")],
 ) -> str:
-    """Inspect any node by hash to see full details. Routes display based on node type: Perspective shows positions with explanations, scores, lineage, and nexus memberships; Statement shows text, meaning, rationale, and which Perspectives use it; Polarity shows T-A pair with HS and referencing Perspectives; Nexus shows member Perspectives; Cycle shows T-causality sequence, perspectives, probability, rationale, and child wheels; Wheel shows TA-sequence, probability, perspectives, transformations, synthesis, and rationale; Transformation shows Ac/Re structure with scores per position and rationale; Synthesis shows S+/S- text, parent wheel, and rationale."""
+    """Inspect any node by hash to see full details. Routes display based on node type: Perspective shows positions with explanations, scores, lineage, and nexus memberships; Statement shows text, meaning, rationale, and which Perspectives use it; Polarity shows T-A pair with HS and referencing Perspectives; Nexus shows member Perspectives; Cycle shows T-causality sequence, perspectives, probability, rationale, and child wheels; Wheel shows TA-sequence, probability, perspectives, transformations, synthesis, and rationale; Transformation shows Ac/Re structure with scores per position and rationale; Transition shows its full text plus lineage (position/edge, parent Transformation or Wheel, owning Nexus); Synthesis shows S+/S- text, parent wheel, and rationale."""
     concern = InspectNode()
     return await concern.resolve(node_hash=node_hash)

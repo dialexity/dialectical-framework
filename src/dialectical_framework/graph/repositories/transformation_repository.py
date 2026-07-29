@@ -118,6 +118,50 @@ class TransformationRepository:
         ]
 
     @inject
+    def find_by_position_transition(
+        self,
+        transition: Transition,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        sid: Optional[str] = Provide[DI.sid],
+    ) -> list[tuple[Transformation, str]]:
+        """
+        Find the Transformation(s) a position Transition belongs to.
+
+        Ac+/Re+ (and the other position) Transitions attach to their
+        Transformation via typed relationships (AC_PLUS, RE_PLUS, ...) rather
+        than a container edge — this resolves that reverse hop, returning
+        (transformation, position relationship type) pairs.
+
+        Args:
+            transition: The position Transition to find the parent for
+            graph_db: Graph database (injected)
+            sid: Case ID (injected from DI context)
+
+        Returns:
+            List of (Transformation, rel_type) tuples, e.g. [(tr, "AC_PLUS")]
+        """
+        from dialectical_framework.graph.nodes.transformation import Transformation as TransformationNode
+
+        if transition._id is None:
+            return []
+
+        query = """
+        MATCH (t:Transition)-[r:AC|RE|AC_PLUS|AC_MINUS|RE_PLUS|RE_MINUS]->(tr:Transformation)
+        WHERE id(t) = $tid AND tr.sid = $sid AND tr.hash IS NOT NULL
+        RETURN tr, type(r) AS rel_type
+        ORDER BY id(tr)
+        """
+        results = list(graph_db.execute_and_fetch(query, {
+            "tid": transition._id,
+            "sid": sid,
+        }))
+
+        return [
+            (row["tr"], row["rel_type"]) for row in results
+            if isinstance(row.get("tr"), TransformationNode)
+        ]
+
+    @inject
     def find_parent_transformations(
         self,
         edge: Transition,

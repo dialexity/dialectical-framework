@@ -722,6 +722,10 @@ class TestNavigatorRoundTrip:
         assert "dx://" in joined
         # dx inputs are exploration feedback, developed then offered back
         assert "expand_nexus` to weave them back" in joined
+        # the "weave back to the SOURCE" instruction must be executable —
+        # the prompt points at the origin channels (digest / inspect_node)
+        assert "Origin: insight from" in joined
+        assert "inspect_node" in joined
 
 
 class TestExplorerAdvisorToggleNarration:

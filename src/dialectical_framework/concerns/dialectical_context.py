@@ -62,8 +62,19 @@ class DialecticalContext(ReasonableConcern[str]):
         nexus_repo = NexusRepository()
 
         perspectives = pp_repo.find_all_active()
+        inputs_dump = self._dump_inputs()
 
         if not perspectives:
+            if inputs_dump:
+                # No structure yet, but captured material exists — surface it
+                # so the model can pick it up instead of assuming a blank slate.
+                self._report.ok = True
+                self._report.summary = "No perspectives yet, inputs pending"
+                return (
+                    f"{inputs_dump}\n\n"
+                    f"No tensions identified yet — sources above are captured "
+                    f"but not yet analyzed."
+                )
             self._report.ok = True
             self._report.summary = "Empty graph"
             return "No prior understanding — this is a fresh conversation."
@@ -80,7 +91,6 @@ class DialecticalContext(ReasonableConcern[str]):
 
         sections: list[str] = []
 
-        inputs_dump = self._dump_inputs()
         if inputs_dump:
             sections.append(inputs_dump)
 
@@ -133,18 +143,31 @@ class DialecticalContext(ReasonableConcern[str]):
 
     @staticmethod
     def _dump_inputs() -> Optional[str]:
-        """List used input hashes (those with extracted statements)."""
+        """List input hashes — processed ones plus pending (not yet analyzed).
+
+        Pending inputs matter: without them the model cannot see material
+        that was captured but never processed (e.g. a fresh dx:// insight),
+        so it could never pick it up.
+        """
         input_repo = InputRepository()
         inputs = input_repo.get_all()
         if not inputs:
             return None
 
         used = [inp for inp in inputs if list(inp.statements.all())]
-        if not used:
-            return None
+        pending = [inp for inp in inputs if not list(inp.statements.all())]
 
-        hashes = ", ".join(f"[[{inp.short_hash}]]" for inp in used)
-        return f"# Sources\nInputs: {hashes}"
+        lines = ["# Sources"]
+        if used:
+            hashes = ", ".join(f"[[{inp.short_hash}]]" for inp in used)
+            lines.append(f"Inputs: {hashes}")
+        if pending:
+            hashes = ", ".join(f"[[{inp.short_hash}]]" for inp in pending)
+            lines.append(
+                f"Pending (captured, not yet analyzed): {hashes} — "
+                f"use read_digest for content."
+            )
+        return "\n".join(lines)
 
     def _dump_standalone_perspectives(self, perspectives: list[Perspective]) -> str:
         lines = ["# Unexplored Tensions"]

@@ -62,6 +62,9 @@ class PresentAnalysis(ReasonableConcern[str]):
     """
 
     async def resolve(self) -> str:
+        from dialectical_framework.graph.repositories.input_repository import \
+            InputRepository
+
         sections: list[str] = []
 
         pp_repo = PerspectiveRepository()
@@ -73,11 +76,20 @@ class PresentAnalysis(ReasonableConcern[str]):
         unconnected_statements = stmt_repo.find_unconnected()
         unconnected_polarities = pol_repo.find_unconnected()
         nexuses = nexus_repo.find_all()
+        inputs = InputRepository().get_all()
 
-        if not perspectives and not unconnected_statements and not unconnected_polarities:
+        if (
+            not perspectives
+            and not unconnected_statements
+            and not unconnected_polarities
+            and not inputs
+        ):
             self._report.ok = True
             self._report.summary = "Empty scope"
             return "Empty scope — no data has been built yet."
+
+        if inputs:
+            sections.append(self._format_inputs(inputs))
 
         if perspectives:
             sections.append(self._format_perspectives(perspectives))
@@ -105,6 +117,33 @@ class PresentAnalysis(ReasonableConcern[str]):
         if node.is_committed:
             return f"[{node.short_hash}]"
         return "[DRAFT]"
+
+    @staticmethod
+    def _format_inputs(inputs: list) -> str:
+        """Sources overview: pending inputs are the actionable ones.
+
+        dx:// inputs (exploration feedback) surface their origin from the
+        digest so the round-trip stays traceable. Previews may truncate —
+        hashes are the identifiers (read_input/read_digest for full text).
+        """
+        pending = [i for i in inputs if not list(i.statements.all())]
+        processed_count = len(inputs) - len(pending)
+
+        lines = [f"## Sources ({len(inputs)} total, {len(pending)} pending)"]
+        for inp in pending:
+            preview = (inp.digest or inp.content or "").split("\n")[0][:120]
+            kind = " (from exploration)" if inp.content.startswith("dx://") else ""
+            lines.append(f"  [{inp.short_hash}]{kind} pending: {preview}")
+            if inp.content.startswith("dx://") and inp.digest:
+                origin = next(
+                    (l for l in inp.digest.split("\n") if l.startswith("Origin:")),
+                    None,
+                )
+                if origin:
+                    lines.append(f"    {origin}")
+        if processed_count:
+            lines.append(f"  ({processed_count} already processed into statements)")
+        return "\n".join(lines)
 
     @staticmethod
     def _format_perspectives(perspectives: list[Perspective]) -> str:
@@ -148,7 +187,7 @@ class PresentAnalysis(ReasonableConcern[str]):
 
 @llm.tool
 async def present_analysis() -> str:
-    """Show the current state of the dialectical graph: Perspectives (with T/A/aspects), unconnected Statements and Polarities not yet in use, and Nexus exploration groups."""
+    """Show the current state of the dialectical graph: Sources (inputs, flagging pending ones incl. dx:// exploration feedback with their origin), Perspectives (with T/A/aspects), unconnected Statements and Polarities not yet in use, and Nexus exploration groups."""
     concern = PresentAnalysis()
     summary = await concern.resolve()
     return summary

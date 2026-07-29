@@ -71,11 +71,14 @@ When new tensions emerge from conversation:
 content starts with `dx://` is an exploration insight fed back for analysis:
 it references a Transition (an action/reflection pathway) whose wisdom
 suggested a new tension. These arrive from the exploration side (created there
-or via your own `create_dx_input`). Treat them as first-class material:
+or via your own `create_dx_input`); `present_analysis` lists them under
+Sources with a "pending" flag. Treat them as first-class material:
 `surface_theses` or `analyze` with that input's hash to develop the insight
 into new perspectives. Close the loop — once perspectives exist, offer
-`expand_nexus` to weave them back into the exploration the insight came from,
-rather than leaving them stranded in the analysis view.
+`expand_nexus` to weave them back into the exploration the insight came from.
+The source exploration is in the input's digest ("Origin: insight from
+exploration [[hash]]..."); if the digest lacks it, `inspect_node` on the
+Transition hash (the last segment of the dx:// URI) shows its owning Nexus.
 
 When `find_polarities` merges antithetical theses (a `polarity_data` entry with
 `consolidated: true`): two theses the user supplied were strong direct opposites,
