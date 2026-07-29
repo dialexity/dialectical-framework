@@ -59,6 +59,7 @@ class TestExplorerInitialization:
             assert "build_wheels" in tool_names
             assert "explore_transformations" in tool_names
             assert "create_nexus" not in tool_names
+            assert "create_dx_input" in tool_names  # the round-trip move
             assert "present_exploration" in tool_names
             assert "inspect_node" in tool_names
             assert "query_graph" in tool_names
@@ -89,6 +90,49 @@ class TestExplorerInitialization:
         with scope(sid):
             with pytest.raises(ValueError, match="Nexus not found"):
                 Explorer(nexus_hash="nonexistent_hash")
+
+
+class TestExplorerRoundTrip:
+    """The Navigator round-trip: the Explorer captures a Transition's insight
+    as a dx:// Case Input via its own create_dx_input tool (the analysis of
+    that input still belongs to the Analyst thread)."""
+
+    @pytest.mark.asyncio
+    async def test_explorer_tool_creates_dx_input(self):
+        from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.graph.nodes.transition import Transition
+        from dialectical_framework.graph.repositories.input_repository import \
+            InputRepository
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = _create_nexus(sid)
+            explorer = Explorer(nexus_hash=nexus_hash)
+
+            s1 = Statement(text="Source statement", meaning="test")
+            s1.commit()
+            s2 = Statement(text="Target statement", meaning="test")
+            s2.commit()
+            t = Transition(nonce="round-trip")
+            t.summary = "Insight worth feeding back"
+            t.save()
+            t.source.connect(s1)
+            t.target.connect(s2)
+            t.commit()
+
+            tool = next(
+                x for x in explorer._tools if x.__name__ == "create_dx_input"
+            )
+            result = await tool(transition_hash=t.hash)
+            assert "dx" in result
+
+            dx_inputs = [
+                i
+                for i in InputRepository().get_all()
+                if i.content.startswith("dx://")
+            ]
+            assert len(dx_inputs) == 1
+            assert dx_inputs[0].content == f"dx://{sid}/{t.hash}"
 
 
 @pytest.mark.llm

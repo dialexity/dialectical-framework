@@ -107,8 +107,6 @@ def _build_tools() -> list:
         introduce_polarity
     from dialectical_framework.agents.analyst.skills.surface_theses import \
         surface_theses
-    from dialectical_framework.agents.analyst.tools.create_dx_input import \
-        create_dx_input
     from dialectical_framework.agents.analyst.tools.place_statement import \
         place_statement
     from dialectical_framework.agents.explorer.tools.create_nexus import \
@@ -117,6 +115,8 @@ def _build_tools() -> list:
         expand_nexus
     from dialectical_framework.agents.orchestrator.tools.add_input import \
         add_input
+    from dialectical_framework.agents.orchestrator.tools.create_dx_input import \
+        create_dx_input
     from dialectical_framework.agents.orchestrator.tools.digest_input import \
         digest_input
     from dialectical_framework.agents.orchestrator.tools.get_schema import \

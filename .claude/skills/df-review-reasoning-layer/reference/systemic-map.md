@@ -219,13 +219,14 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | S+/S- emergence-vs-trap, "1+1>2" | `NAVIGATOR_APP` | prose | prose | `synthesis_generation` concern |
 | Ac+ = T-→A+, Re+ = A-→T+ direction | `NAVIGATOR_APP` | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` |
 | `nexus_intent` surface classification | "internal, do not surface" | interpolated raw into header | — | leak risk |
+| Round-trip narration (dx:// loop: capture → develop → weave back) | "Inputs from exploration" section (recognize `dx://`, develop, offer `expand_nexus` back) | "Feeding Insights Back" section (`create_dx_input` at resonance moments, loop framed as growth not exit) | — (unscoped Advisor has no dx tools) | `orchestrator/tools/create_dx_input.py` — both narrations must describe the SAME loop |
 
 ### Agent-mode authority matrix (who may touch the graph, enforced in code)
 
 | Mode | Create nexus | Expand nexus | Anchor/ingest | Discard | Context scope |
 |------|:---:|:---:|:---:|:---:|---|
 | Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ✅ sid-wide | full case |
-| Explorer(nexus_hash) | ❌ | ✅ (prompt-steered hash) | ❌ | — | full case dump via tools |
+| Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | — | full case dump via tools |
 | Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ sid-wide | full case (render at construction) |
 | Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ nexus-members only (code guard) | one nexus + outside count |
 
@@ -242,6 +243,14 @@ keeps both registers in Navigator territory (same vocabulary contract, third-par
 presentation); the toggle changes engine + register, never the user contract. The advisory override also
 mandates **transparent mutation**: anchor/explore/discard on the user-built exploration are consent-first
 and announced (vs the unscoped Advisor's silent graph-building).
+
+**Toggle narration lives on both heads** (each surfaces the handover signal, neither auto-switches):
+the Explorer prompt's "When the User Shifts from Structure to Meaning" section suggests counsel mode only
+if the host offers one (graceful floor: otherwise keep counseling from pathways); the counsel side's
+`EXPLORATION_ADVISOR_APP` narrates switching back to the exploration view for technical work. Handover
+mechanics (messages + nexus_hash, system prompt replaced on construction, history survives verbatim
+including foreign tool-use blocks) are locked by `tests/test_agent_handover.py` — mocked structure tests
+plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in the current head's set.
 
 ### App/engine vocabulary boundary
 - **Engine** (`agents/{analyst,explorer,advisor}/system_prompts.py`) = domain-neutral; may name graph nodes
@@ -275,7 +284,9 @@ and announced (vs the unscoped Advisor's silent graph-building).
   Advisor floor contract (full-native-capability guarantee, eager-thinking/ungated-speech section, no
   speech-gating or fabricate-a-tension language, Default Arc not Sequence, no unwired "structural guarantee"
   claim, preamble-overridable terminology fence, Analyst no-tension-valid-conclusion, Explorer
-  intent-driven build_wheels).
+  intent-driven build_wheels); **`TestNavigatorRoundTrip`** — both prompts narrate the dx:// loop, the
+  Explorer carries `create_dx_input`, the dead off-ramp phrasing is gone; **`TestExplorerAdvisorToggleNarration`** —
+  both heads surface the handover signal without auto-switching.
 - **`tests/test_prompt_vocabulary.py`** (1 test, `--real-llm`) — behavioral: a live Analyst response never
   labels T-/T+ as "blindspot." NAVIGATOR_APP + Analyst only. Skipped in the default suite.
 

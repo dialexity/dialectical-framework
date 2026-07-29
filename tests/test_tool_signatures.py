@@ -32,7 +32,7 @@ from dialectical_framework.agents.analyst.skills.introduce_polarity import (
 )
 from dialectical_framework.agents.analyst.skills.anchor_theses import anchor_theses
 from dialectical_framework.agents.analyst.skills.surface_theses import surface_theses
-from dialectical_framework.agents.analyst.tools.create_dx_input import create_dx_input
+from dialectical_framework.agents.orchestrator.tools.create_dx_input import create_dx_input
 from dialectical_framework.agents.analyst.tools.place_statement import place_statement
 from dialectical_framework.agents.explorer.explorer import explore
 from dialectical_framework.agents.explorer.skills.build_wheels import build_wheels

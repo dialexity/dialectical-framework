@@ -129,7 +129,7 @@ back to the Analyst thread.
 **Construct:** `Explorer(nexus_hash, app_preamble=None, messages=None)` — `nexus_hash`
 is **required** and hard-bound at construction; a missing nexus raises immediately.
 
-**Tools (11):**
+**Tools (12):**
 
 | Group | Tools | Purpose |
 |-------|-------|---------|
@@ -137,13 +137,15 @@ is **required** and hard-bound at construction; a missing nexus raises immediate
 | Deepen | `explore_transformations` | a chosen Wheel → Ac+/Re+ pathways (6 positions per edge) |
 | Synthesize | `generate_synthesis` | a Wheel with transformations → S+/S- |
 | Grow | `expand_nexus` | attach *existing* perspectives to this nexus |
+| Round-trip | `create_dx_input` | capture a Transition's insight as a Case Input for the Analyst (see [Handoffs](#handoffs-the-ux-glue)) |
 | Read | `present_exploration`, `inspect_node`, `read_input`, `read_digest`, `digest_input`, `query_graph`, `get_schema` | state / detail |
 
 **The boundary (tool-enforced, not just prompt):** the Explorer has **no** `add_input`,
 `surface_theses`, `find_polarities`, `expand_polarities`, `anchor_theses`,
-`introduce_polarity`. It literally cannot analyze material into tensions. This is
-intentional; a regression test (`tests/test_explorer.py`) locks the `create_nexus`
-exclusion specifically.
+`introduce_polarity`. It literally cannot analyze material into tensions —
+`create_dx_input` only *captures* an insight; developing it still happens in the
+Analyst thread. This is intentional; a regression test (`tests/test_explorer.py`)
+locks the `create_nexus` exclusion specifically.
 
 **Reads scores to prioritize** (its prompt interprets the shared taxonomy ladders):
 - **Causality** `P` (raw plausibility) vs `%` (normalized across siblings) — lead with
@@ -228,15 +230,18 @@ transition by watching tool reports and constructing the next agent.
 `artifacts["nexus_hash"]`. The UX offers "Open in Explorer" → the app constructs
 `Explorer(nexus_hash=...)` as a new thread.
 
-**Backward (Explorer → Analyst):** the reverse-handoff loop. When viewing a Transition in
-the Explorer, the UX offers **"analyze this pathway further"**. That gesture does **not**
-call an Explorer tool — it deep-links into the Analyst thread (same `sid`), which calls
-`create_dx_input(transition_hash)` to wrap the transition as a `dx://` Input, then
-`surface_theses` / `analyze` on it. This keeps the invariant that **only the Analyst
-writes Case Inputs**; the Explorer stays a pure consumer of its nexus. (`create_dx_input`
-is the mirror of `create_nexus`: both are Case-level writes at a phase boundary, so both
-are registered **only on the Analyst** — even though the `create_nexus`/`expand_nexus`
-tool modules physically live under `agents/explorer/tools/` and are imported from there.)
+**Backward (Explorer → Analyst):** the reverse-handoff loop. When a Transition's
+insight suggests a genuinely new tension, the **Explorer itself** calls
+`create_dx_input(transition_hash)` — a shared orchestrator tool — wrapping the
+transition as a `dx://` Case Input right where the insight appeared. Developing it
+still happens in the Analyst thread (same `sid`): `surface_theses` / `analyze` on that
+input produce new perspectives, then `expand_nexus` weaves them back into the
+exploration. The loop is: *insight captured in Explorer → developed by Analyst →
+returned via `expand_nexus`*. Both prompts narrate this — the Explorer offers the
+capture at the resonance moment instead of off-ramping the user, and the Analyst
+recognizes `dx://` inputs as exploration feedback to be developed and offered back.
+(The Explorer still cannot *analyze*: `create_dx_input` only captures. `create_nexus`
+remains Analyst-only — it is the forward phase boundary.)
 
 **Advisor (unscoped):** no handoff UX at all — it is one thread, one chat window.
 
@@ -262,7 +267,14 @@ explorer = Explorer(
 ```
 
 Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Constructing
-either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history.
+either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history
+— including tool-use blocks from tools the new head doesn't carry (provider-accepted;
+locked by `tests/test_agent_handover.py`, structure mocked + one `--real-llm` replay test).
+
+Both heads narrate the toggle moment without switching themselves: the Explorer suggests
+counsel mode when the conversation pulls from structure to meaning (only if the host offers
+one — otherwise it keeps counseling from pathways), and the counsel head points back to the
+exploration view for technical work. The host performs every switch.
 
 **Both preambles sit on `NAVIGATOR_APP`** — that's what keeps both registers in Navigator
 territory: same vocabulary contract (say "exploration", never "Nexus"), same

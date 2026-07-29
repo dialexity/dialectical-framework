@@ -677,6 +677,79 @@ class TestExplorerIsBoundedConsumer:
         assert "analysis thread" in p
 
 
+class TestNavigatorRoundTrip:
+    """The round-trip (exploration insight -> dx:// input -> Analyst -> new
+    perspectives -> expand_nexus) must be narrated on BOTH sides, and the
+    Explorer must carry the capture tool so the loop starts where the insight
+    appears — no courier job, no dead off-ramp."""
+
+    def test_explorer_carries_create_dx_input(self):
+        from dialectical_framework.agents.explorer.explorer import _build_tools
+
+        names = {getattr(t, "__name__", None) for t in _build_tools()}
+        assert "create_dx_input" in names
+
+    def test_explorer_prompt_narrates_the_round_trip(self):
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
+        assert "create_dx_input" in p
+        # the loop closes back into the exploration, not just exits
+        assert "expand_nexus" in p
+        # offered at resonance moments, not as a reflex
+        assert "not\n  as a reflex" in p or "not as a reflex" in " ".join(p.split())
+        # the capture is the Explorer's ONLY analysis-side move — the
+        # boundary (no thesis extraction / perspective building) survives
+        assert "cannot extract" in p
+
+    def test_explorer_prompt_frames_analyst_trip_as_growth_not_exit(self):
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
+        joined = " ".join(p.split())
+        # the old dead off-ramp ("suggest they return...") must be gone
+        assert "suggest the user returns to the analysis thread" not in joined
+        assert "suggest they return to the analysis thread" not in joined
+        assert "not as an exit" in joined
+
+    def test_analyst_prompt_recognizes_dx_inputs_and_closes_loop(self):
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT
+
+        joined = " ".join(SYSTEM_PROMPT.split())
+        assert "dx://" in joined
+        # dx inputs are exploration feedback, developed then offered back
+        assert "expand_nexus` to weave them back" in joined
+
+
+class TestExplorerAdvisorToggleNarration:
+    """The Explorer<->Advisor toggle is host-driven; each head must surface the
+    handover signal for its opposite register without auto-switching."""
+
+    def test_explorer_signals_counsel_mode(self):
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
+        joined = " ".join(p.split())
+        assert "counsel" in joined
+        # host drives the switch, never the agent
+        assert "never switch modes yourself" in joined
+        # graceful floor: absent a counsel mode, keep counseling
+        assert "keep counseling" in joined
+
+    def test_scoped_advisor_signals_exploration_view(self):
+        """The counsel-mode preamble already narrates switching back to the
+        technical exploration view — lock that phrase."""
+        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+
+        joined = " ".join(EXPLORATION_ADVISOR_APP.split())
+        assert "switch back" in joined
+        assert "exploration view" in joined
+
+
 class TestAnalystNexusGrouping:
     """The Analyst owns the grouping judgment at handoff: prefer different
     polarities, but allow same-polarity when it fits or the user asks."""
