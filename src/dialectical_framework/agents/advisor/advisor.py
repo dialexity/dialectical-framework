@@ -49,7 +49,9 @@ class Advisor:
     change, and the model calls `sync` when it wants a full re-dump. (One
     exception: an exploration-pinned Advisor constructed without a precomputed
     dialectical_context renders its scoped dump lazily on the first turn,
-    because __init__ is sync and DialecticalContext.resolve() is async.)
+    because __init__ is sync and DialecticalContext.resolve() is async. A
+    transient render failure retries on the next turn; only success — or a
+    vanished nexus — consumes the one shot.)
 
     Usage (fresh start):
         with scope(case.sid):
@@ -169,10 +171,14 @@ class Advisor:
 
     async def _render_pending_context(self) -> None:
         """One-shot deferred render of the scoped Current Understanding dump
-        (scoped construction without a precomputed dialectical_context)."""
+        (scoped construction without a precomputed dialectical_context).
+
+        One-shot on SUCCESS — a transient failure (DB blip) keeps the flag
+        set so the next turn retries, instead of leaving the whole session
+        with a prompt that claims rich understanding over an empty slot.
+        """
         if not self._pending_context_render:
             return
-        self._pending_context_render = False
         try:
             from dialectical_framework.concerns.dialectical_context import \
                 DialecticalContext
@@ -183,8 +189,14 @@ class Advisor:
             self._conversation.set_system_prompt(
                 self._build_system_prompt(self._app_preamble, context)
             )
+            self._pending_context_render = False
+        except ValueError:
+            # Nexus disappeared — not transient, don't retry forever.
+            self._pending_context_render = False
+            logger.exception("Deferred dialectical context render failed")
         except Exception:
-            # Fail-soft: the model still reaches graph state through sync.
+            # Fail-soft this turn; retry next turn. The model still reaches
+            # graph state through sync meanwhile.
             logger.exception("Deferred dialectical context render failed")
 
     @property

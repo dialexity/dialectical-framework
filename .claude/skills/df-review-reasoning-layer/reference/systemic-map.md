@@ -228,7 +228,7 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ✅ sid-wide | full case |
 | Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | — | full case dump via tools |
 | Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ sid-wide | full case (render at construction) |
-| Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ nexus-members only (code guard) | one nexus + outside count |
+| Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ pinned members + standalone PPs; ❌ other explorations' members (code guard) | one nexus + outside count |
 
 `Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **counsel mode of an Explorer↔Advisor
 session toggle**: the host hands the Explorer conversation (messages + nexus_hash) to an Advisor head
@@ -242,7 +242,13 @@ weaker enforcement. Preamble pairing for the toggle: `NAVIGATOR_ADVANCED_MODE_AP
 keeps both registers in Navigator territory (same vocabulary contract, third-party detection, score
 presentation); the toggle changes engine + register, never the user contract. The advisory override also
 mandates **transparent mutation**: anchor/explore/discard on the user-built exploration are consent-first
-and announced (vs the unscoped Advisor's silent graph-building).
+and announced (vs the unscoped Advisor's silent graph-building). The ENGINE enforces this too — the scoped
+render swaps `_REJECTION_HANDLING` for `_REJECTION_HANDLING_SCOPED` (confirm-then-discard for exploration
+members; fresh own anchors need no ceremony), `_scope_section` defers consent to the preamble ("when the
+person agrees to add it"), and the `_CONVERSATION_USE` "After ingest or anchor" heading drops `ingest`
+when unwired. Never reintroduce silent-mutation wording into the scoped render — locked by
+`TestScopedAdvisorConsentContract`. Scoped `discard`'s code guard matches: pinned-nexus members and
+standalone perspectives (own rejected anchors) allowed, members of OTHER explorations refused.
 
 **Toggle narration lives on both heads** (each surfaces the handover signal, neither auto-switches):
 the Explorer prompt's "When the User Shifts from Structure to Meaning" section suggests counsel mode only

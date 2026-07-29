@@ -98,7 +98,8 @@ class TestScopedExplore:
 
 
 class TestScopedDiscard:
-    async def test_refuses_perspective_outside_nexus(self):
+    async def test_refuses_perspective_of_another_exploration(self):
+        """Members of OTHER explorations are someone's deliverable — refused."""
         sid = _new_sid()
         with scope(sid):
             nexus = _create_nexus()
@@ -106,14 +107,17 @@ class TestScopedDiscard:
                 thesis_text="Control", antithesis_text="Freedom"
             )
             member.nexus.connect(nexus)
+
+            other_nexus = _create_nexus(intent="another exploration")
             outsider = _create_perspective_with_aspects(
                 thesis_text="Speed", antithesis_text="Thoroughness"
             )
+            outsider.nexus.connect(other_nexus)
 
             discard = _tool_by_name(build_scoped_tools(nexus.hash[:7]), "discard")
             result = await discard(hash=outsider.hash)
 
-            assert "outside this exploration" in result
+            assert "another" in result and "exploration" in result
             # node untouched
             from dialectical_framework.graph.nodes.perspective import \
                 Perspective
@@ -125,6 +129,27 @@ class TestScopedDiscard:
             )
             assert node is not None
             assert node.discarded is None
+
+    async def test_allows_standalone_perspective(self):
+        """A perspective in NO exploration (e.g. this head's own rejected
+        anchor) must be retractable — the pin protects explorations, not
+        standalone garbage. Regression: previously refused, stranding
+        rejected framings permanently."""
+        sid = _new_sid()
+        with scope(sid):
+            nexus = _create_nexus()
+            member = _create_perspective_with_aspects(
+                thesis_text="Control", antithesis_text="Freedom"
+            )
+            member.nexus.connect(nexus)
+            standalone = _create_perspective_with_aspects(
+                thesis_text="Speed", antithesis_text="Thoroughness"
+            )
+
+            discard = _tool_by_name(build_scoped_tools(nexus.hash[:7]), "discard")
+            result = await discard(hash=standalone.hash)
+
+            assert "Refused" not in result
 
     async def test_allows_perspective_inside_nexus(self):
         sid = _new_sid()

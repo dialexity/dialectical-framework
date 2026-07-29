@@ -15,8 +15,10 @@ regardless of what the model decides to pass.
 The Advisor keeps its full analytical power in this mode (it IS
 Analyst+Explorer behind one voice): anchor plants new tensions (standalone),
 the pinned explore weaves them into the exploration,
-sync/inspect_node/read_digest read, discard retracts (nexus members only).
-Only `ingest` is excluded — bulk extraction belongs to the unscoped flow.
+sync/inspect_node/read_digest read, discard retracts (members of the pinned
+nexus and standalone perspectives — e.g. its own rejected anchors — but
+never members of OTHER explorations). Only `ingest` is excluded — bulk
+extraction belongs to the unscoped flow.
 """
 
 from __future__ import annotations
@@ -58,7 +60,7 @@ def build_scoped_tools(nexus_hash: str) -> list:
         hash: Annotated[str, Field(description="Hash (or prefix) of the Statement or Perspective to discard")],
         reason: Annotated[str, Field(description="Why it's being discarded")] = "discarded",
     ) -> str:
-        """Mark a Statement or Perspective as discarded when the user disagrees with it or finds it irrelevant. Only nodes within this exploration can be discarded. Will refuse if the target participates in existing Cycles/Wheels."""
+        """Mark a Statement or Perspective as discarded when the user disagrees with it or finds it irrelevant. Works on members of this exploration and on standalone perspectives (e.g. a freshly anchored framing the user rejected); refuses members of other explorations. Will refuse if the target participates in existing Cycles/Wheels."""
         from dialectical_framework.concerns.discard import Discard
 
         refusal = _outside_scope_refusal(pinned_hash, hash)
@@ -90,8 +92,14 @@ def build_scoped_tools(nexus_hash: str) -> list:
 
 def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
     """
-    Return a refusal message if the target is a Perspective outside the
-    pinned nexus; None if the discard may proceed.
+    Return a refusal message if the target is a Perspective belonging to a
+    DIFFERENT exploration; None if the discard may proceed.
+
+    The pin protects explorations (deliverables), not standalone garbage:
+    - member of the pinned nexus → allowed (consent handled by the preamble)
+    - member of another nexus → refused (someone else's deliverable)
+    - member of no nexus → allowed (e.g. a framing this head anchored during
+      the conversation and the user rejected — must be retractable)
 
     Statements are delegated to Discard's own statement-in-use blocking (a
     statement used by any live perspective won't discard anyway).
@@ -115,10 +123,16 @@ def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
             f"Cannot discard: pinned exploration {nexus_hash} not found."
         )
 
-    member_ids = {member._id for member, _ in nexus.perspectives.all()}
-    if pp._id not in member_ids:
+    membership_ids = {n._id for n, _ in pp.nexus.all()}
+    if not membership_ids:
+        # Standalone perspective (no exploration) — retractable.
+        return None
+
+    if membership_ids - {nexus._id}:
+        # Lives in another exploration (possibly in addition to the pinned
+        # one) — discarding is global and would prune that deliverable too.
         return (
-            f"Refused: perspective [[{target_hash}]] is outside this "
-            f"exploration's scope and cannot be discarded from here."
+            f"Refused: perspective [[{target_hash}]] belongs to another "
+            f"exploration and cannot be discarded from here."
         )
     return None

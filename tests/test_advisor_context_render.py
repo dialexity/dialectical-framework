@@ -140,8 +140,13 @@ class TestScopedDeferredRender:
             await advisor._render_pending_context()
             assert "a different dump" not in _system_prompt_text(advisor)
 
-    async def test_deferred_render_failure_is_soft(self, monkeypatch):
-        """A crashing DialecticalContext must never break the chat path."""
+    async def test_deferred_render_transient_failure_retries_next_turn(
+        self, monkeypatch
+    ):
+        """A crashing DialecticalContext must never break the chat path —
+        and a TRANSIENT failure keeps the render pending so the next turn
+        retries (a turn-1 DB blip must not leave the whole session with a
+        prompt claiming rich understanding over an empty slot)."""
         from dialectical_framework.concerns.dialectical_context import \
             DialecticalContext
         from dialectical_framework.graph.nodes.case import Case
@@ -164,5 +169,42 @@ class TestScopedDeferredRender:
             reply = await advisor.chat(SUBSTANTIVE_MESSAGE)
 
             assert isinstance(reply, str)
-            # consumed, not retried forever
+            # transient failure → still pending, retried next turn
+            assert advisor._pending_context_render is True
+
+            # recovery: the next render succeeds and consumes the flag
+            # (asserted via direct render — the mocked submit path rewrites
+            # message history, making _messages[0] unreliable after chat)
+            recovered = "# Nexus [[recovered]] scoped dump"
+            _install_fake_context(monkeypatch, recovered)
+            await advisor._render_pending_context()
+            assert advisor._pending_context_render is False
+            assert recovered in _system_prompt_text(advisor)
+
+    async def test_deferred_render_missing_nexus_does_not_retry(
+        self, monkeypatch
+    ):
+        """ValueError (nexus gone) is not transient — consumed, no retry."""
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.nodes.nexus import Nexus
+        from dialectical_framework.graph.scope_context import scope
+
+        async def gone(self):
+            raise ValueError("Nexus not found: whatever")
+
+        monkeypatch.setattr(DialecticalContext, "resolve", gone)
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            nexus = Nexus(intent="gone nexus test")
+            nexus.save()
+            nexus.commit()
+
+            advisor = Advisor(nexus_hash=nexus.hash[:7])
+            reply = await advisor.chat(SUBSTANTIVE_MESSAGE)
+
+            assert isinstance(reply, str)
             assert advisor._pending_context_render is False

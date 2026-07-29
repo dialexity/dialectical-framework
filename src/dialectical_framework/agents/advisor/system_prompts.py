@@ -256,6 +256,16 @@ statement if they reject just one claim. Don't announce it. If their correction
 reveals a genuinely different tension, `anchor` the new framing. The graph
 should reflect what resonates — retract what doesn't."""
 
+_REJECTION_HANDLING_SCOPED = """**When the person rejects a framing:** The exploration is THEIR deliverable —
+retractions are consented, not silent. If they reject a tension that is part
+of the exploration, confirm before discarding it ("should I remove that from
+the exploration?") and say plainly when it's done. A framing you anchored
+during THIS conversation that they reject on the spot needs no ceremony —
+`discard` it and note briefly that you've dropped it. If their correction
+reveals a genuinely different tension, offer to `anchor` the new framing in
+its place. The exploration should reflect what they stand behind — nothing
+appears or disappears from it without them knowing."""
+
 _DEFAULT_ARC = """## Default Arc
 
 Most conversations follow this arc — depart from it whenever the conversation
@@ -432,10 +442,12 @@ the structural understanding below is that exploration, built deliberately
 before this conversation. Tensions outside it appear only as a count; they
 are not yours to work with here.
 
-Your analytical power stays fully on: when a genuinely new tension emerges
-in conversation, `anchor` it and weave it in with `explore` — everything
-lands in this exploration. Anchored tensions you choose not to weave in
-remain valid candidates outside it."""
+Your analytical power stays fully on. When a genuinely new tension emerges
+in conversation and the person agrees to add it (the app preamble above
+governs how that consent works), `anchor` plants it and `explore` weaves it
+in — everything you weave lands in this exploration, there is nowhere else.
+Anchored tensions the person chooses not to weave in remain valid candidates
+outside it."""
 
 
 DEFAULT_TOOL_NAMES = [
@@ -470,15 +482,23 @@ def system_prompt(
         if key in _TOOL_DOCS:
             tool_docs.append(_TOOL_DOCS[key])
 
+    conversation_use = _CONVERSATION_USE
+    if scoped and "ingest" not in names:
+        # Don't reference a tool that isn't wired in this mode.
+        conversation_use = conversation_use.replace(
+            "**After ingest or anchor (tensions identified):**",
+            "**After anchor (tensions identified):**",
+        )
+
     sections = [
         _ROLE,
         _scope_section(scoped_nexus_hash) if scoped else None,
         _EAGER_SCOPED if scoped else _EAGER,
         _INTERNAL_MODEL,
-        _CONVERSATION_USE,
+        conversation_use,
         _TOOLS_INTRO,
         "\n\n".join(tool_docs),
-        _REJECTION_HANDLING,
+        _REJECTION_HANDLING_SCOPED if scoped else _REJECTION_HANDLING,
         None if scoped else _DEFAULT_ARC,
         _HOW_YOU_SPEAK,
         _SCORE_READING,

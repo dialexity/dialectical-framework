@@ -754,6 +754,65 @@ class TestExplorerAdvisorToggleNarration:
         assert "exploration view" in joined
 
 
+class TestScopedAdvisorConsentContract:
+    """The scoped (counsel-mode) render must not contradict the preamble's
+    transparency contract: no silent mutation instructions may survive into
+    the assembled scoped prompt. The unscoped render keeps silent-discard
+    (that's its design)."""
+
+    def _scoped(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        return system_prompt(
+            tool_names=[
+                "anchor", "sync", "inspect_node",
+                "read_digest", "discard", "explore",
+            ],
+            scoped_nexus_hash="abc1234",
+        )
+
+    def test_scoped_render_has_no_silent_discard(self):
+        p = self._scoped()
+        joined = " ".join(p.split())
+        assert "silently `discard` it" not in joined
+        assert "Don't announce it" not in joined
+        # consented retraction instead
+        assert "confirm before discarding" in joined
+        assert "nothing appears or disappears from it without them knowing" \
+            in joined
+
+    def test_unscoped_render_keeps_silent_discard(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "silently `discard` it" in SYSTEM_PROMPT
+
+    def test_scope_section_defers_consent_to_preamble(self):
+        """The scope section describes routing (where things land), not an
+        unconditional command to mutate — consent belongs to the preamble."""
+        p = self._scoped()
+        joined = " ".join(p.split())
+        assert "the person agrees to add it" in joined
+        assert "app preamble above governs how that consent works" in joined
+
+    def test_scoped_render_does_not_reference_ingest(self):
+        """ingest is not wired in scoped mode — the prompt must not name it
+        as an available move."""
+        p = self._scoped()
+        assert "`ingest`" not in p
+        assert "After ingest" not in p
+        # anchor guidance survives the rewrite
+        assert "**After anchor (tensions identified):**" in p
+
+    def test_own_rejected_anchor_is_retractable_in_prompt(self):
+        """The scoped rejection section covers the fresh-anchor case (no
+        ceremony) separately from exploration members (confirm first)."""
+        p = self._scoped()
+        joined = " ".join(p.split())
+        assert "anchored during THIS conversation" in joined
+
+
 class TestAnalystNexusGrouping:
     """The Analyst owns the grouping judgment at handoff: prefer different
     polarities, but allow same-polarity when it fits or the user asks."""
