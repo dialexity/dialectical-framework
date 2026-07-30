@@ -750,7 +750,7 @@ class TestExplorerAdvisorToggleNarration:
         from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
 
         joined = " ".join(EXPLORATION_ADVISOR_APP.split())
-        assert "switch back" in joined
+        assert "they can switch anytime" in joined
         assert "exploration view" in joined
 
 
@@ -811,6 +811,88 @@ class TestScopedAdvisorConsentContract:
         p = self._scoped()
         joined = " ".join(p.split())
         assert "anchored during THIS conversation" in joined
+
+    def test_scoped_speech_rule_quotes_exact_text_when_citing_hashes(self):
+        """The scoped render sits in Navigator territory with hash disclosure:
+        it must NOT carry the unscoped 'machinery stays invisible / rephrase
+        freely' rules — a paraphrase next to a hash citation is exactly the
+        ambiguity the Navigator's never-rephrase rule prevents."""
+        p = self._scoped()
+        joined = " ".join(p.split())
+        assert "The machinery stays invisible" not in joined
+        assert "rephrase it freely" not in joined
+        assert "quote its exact statement text" in joined
+        # the unscoped render keeps its rules
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "The machinery stays invisible" in SYSTEM_PROMPT
+        assert "rephrase it freely" in SYSTEM_PROMPT
+
+
+class TestAdvisorScoreLaddersDerived:
+    """The Advisor's insight/proactiveness ladders must be derived from
+    ac_re_taxonomy.py (like the Explorer's), not hand-typed — hand-typed
+    copies drift when the taxonomy changes."""
+
+    def test_ladders_interpolated_from_constants(self):
+        import inspect as _inspect
+
+        from dialectical_framework.agents.advisor import system_prompts as m
+
+        src = _inspect.getsource(m)
+        idx = src.find("_SCORE_READING")
+        section_src = src[idx : idx + 6000]
+        assert "_ladder_lines(INSIGHT_SCALE" in section_src
+        assert "_ladder_lines(PROACTIVENESS_SCALE" in section_src
+
+    def test_rendered_values_match_taxonomy(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+        from dialectical_framework.concerns.ac_re_taxonomy import (
+            INSIGHT_SCALE, PROACTIVENESS_SCALE)
+
+        for label, value in {**INSIGHT_SCALE, **PROACTIVENESS_SCALE}.items():
+            assert f"{value:.1f} = {label.lower()}" in SYSTEM_PROMPT
+
+
+class TestUnscopedAdvisorNexusDedup:
+    """The unscoped Advisor's explore doc must carry reuse-before-create
+    guidance — without it the model silently spawns sibling nexuses for the
+    same theme (the Analyst has the equivalent rule; parity)."""
+
+    def test_explore_doc_carries_dedup_guidance(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        joined = " ".join(SYSTEM_PROMPT.split())
+        assert "Reuse before creating" in joined
+        assert "sibling nexuses" in joined
+
+
+class TestExplorationAdvisorColdStart:
+    """EXPLORATION_ADVISOR_APP must not presuppose shared history or that the
+    user built the exploration — the constructor explicitly supports
+    messages=None on an existing (possibly ingest-built or shared) nexus."""
+
+    def test_history_is_ground_truth_not_assumed(self):
+        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+
+        joined = " ".join(EXPLORATION_ADVISOR_APP.split())
+        assert "take the history you actually see as the ground truth" in joined
+        assert "never assume shared memories" in joined
+        # authorship is not presupposed either
+        assert "built this exploration themselves — they worked through" \
+            not in joined
+        assert "don't address them as its author" in joined
+
+    def test_switch_back_hedged_on_host_affordance(self):
+        """Mirror of the Explorer's 'if the application offers' hedge — the
+        counsel head must not promise a UI affordance the host may not have."""
+        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+
+        joined = " ".join(EXPLORATION_ADVISOR_APP.split())
+        assert "if the application offers a way back" in joined
 
 
 class TestAnalystNexusGrouping:

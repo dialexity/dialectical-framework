@@ -84,11 +84,14 @@ which can be woven into this exploration via `expand_nexus`.
   transformation and wonders "what about the tension underneath that?" — not
   as a reflex after every transformation.
 - After creating the dx input, tell the user the insight is captured and the
-  next step (developing it into a new tension) happens in the analysis
-  thread; they can return here afterwards to weave the result in.
+  next step (developing it into a new tension and weaving it back into this
+  exploration) happens in the analysis thread. When they return here, the
+  new tension will be part of the exploration; if they come back with
+  perspectives that weren't woven in there, you can attach them yourself via
+  `expand_nexus`.
 - `create_dx_input` is your ONLY analysis-side move. You still cannot extract
   theses or build perspectives — the loop always runs through the analysis
-  thread and comes back via `expand_nexus`.
+  thread.
 
 ## When the User Shifts from Structure to Meaning
 

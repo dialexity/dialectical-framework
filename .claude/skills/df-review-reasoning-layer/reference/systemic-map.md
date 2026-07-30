@@ -129,10 +129,11 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    SYSTEM_PROMPT is what the LLM reads to pick a branch. Maintained separately. Divergence → LLM classifies
    against one vocabulary while `lookup_aspect_apex` scores HS against another → **silent HS corruption.**
    *Grep:* `SYSTEMIC_TAXONOMY = {` and the `| Integrity |` table row.
-2. **Insight/Proactiveness ladders re-typed 3–4×** — hand-typed prose in `transformation_generation.py`,
+2. **Insight/Proactiveness ladders re-typed 3×** — hand-typed prose in `transformation_generation.py`,
    `positive_ac_re_apex_derivation.py`, `action_extraction.py` (all three *import* `INSIGHT_SCALE`/
-   `PROACTIVENESS_SCALE` but use them only numerically, while pasting the ladder as prose), plus
-   `advisor/system_prompts.py`. Only `explorer/system_prompts.py` renders from the constant. Labels round-trip
+   `PROACTIVENESS_SCALE` but use them only numerically, while pasting the ladder as prose).
+   `explorer/system_prompts.py` AND `advisor/system_prompts.py` now both render from the constant
+   (`_ladder` / `_ladder_lines`). Labels round-trip
    through `insight_label_to_value` / `proactiveness_label_to_value` — a drifted table means the LLM's stated
    label and the persisted number diverge. *Grep:* `reflex`, `stewardship`, `transcendence`.
 3. **HS band scale stated 3×** — canonical `HS_SCALE` (imported by aspect concerns) vs. an independently-worded
@@ -154,8 +155,13 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    `transformation_generation` (transition), independent phrasing + thresholds.
 
 ### Agent-prompt hand-typed scales (also drift-prone, currently untested for agreement)
+
+**De-duplicated (removed from this catalog):** the Advisor's insight/proactiveness ladders in
+`_SCORE_READING` are now derived from `ac_re_taxonomy.py` via `_ladder_lines()` (same pattern as the
+Explorer's `_ladder()`); locked by `TestAdvisorScoreLaddersDerived`. `_SCORE_READING` is an f-string —
+keep it one, and assert on the module attribute, not `inspect.getsource`.
 - Analyst HS bands (`analyst/system_prompts.py` "Reading Polarity Quality", 3 bands).
-- Advisor score-reading section (`advisor/system_prompts.py`, 4 HS bands + insight/proactiveness ladders).
+- Advisor score-reading section (`advisor/system_prompts.py`, 4 HS bands — ladders now derived, HS bands still hand-typed).
 - Neither imports `HS_SCALE` (6 bands) — three granularities for the same `HS_THRESHOLD=0.7` gate.
 
 ---
@@ -253,7 +259,11 @@ standalone perspectives (own rejected anchors) allowed, members of OTHER explora
 **Toggle narration lives on both heads** (each surfaces the handover signal, neither auto-switches):
 the Explorer prompt's "When the User Shifts from Structure to Meaning" section suggests counsel mode only
 if the host offers one (graceful floor: otherwise keep counseling from pathways); the counsel side's
-`EXPLORATION_ADVISOR_APP` narrates switching back to the exploration view for technical work. Handover
+`EXPLORATION_ADVISOR_APP` narrates switching back to the exploration view — hedged the same way ("if the
+application offers a way back"). The preamble also treats history as ground truth (cold start with
+messages=None on an ingest-built or shared nexus must not fabricate shared memories or authorship);
+the scoped engine's `_HOW_YOU_SPEAK_SCOPED` replaces machinery-invisible/rephrase-freely with the
+Navigator-territory precision rule (exact statement text when citing by hash). Handover
 mechanics (messages + nexus_hash, system prompt replaced on construction, history survives verbatim
 including foreign tool-use blocks) are locked by `tests/test_agent_handover.py` — mocked structure tests
 plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in the current head's set.

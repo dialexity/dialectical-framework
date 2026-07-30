@@ -16,6 +16,24 @@ kept for backward compatibility and regression tests.
 
 from __future__ import annotations
 
+from dialectical_framework.concerns.ac_re_taxonomy import (INSIGHT_SCALE,
+                                                           PROACTIVENESS_SCALE)
+
+
+def _ladder_lines(scale: dict[str, float], annotations: dict[float, str]) -> str:
+    """Render a taxonomy scale as indented 'value = label' lines.
+
+    Built from the shared constants in ac_re_taxonomy.py so this prompt never
+    drifts from the numeric taxonomy (same pattern as the Explorer's _ladder).
+    """
+    ordered = sorted(scale.items(), key=lambda kv: kv[1])
+    lines = []
+    for label, value in ordered:
+        suffix = f" ({annotations[value]})" if value in annotations else ""
+        lines.append(f"  {value:.1f} = {label.lower()}{suffix}")
+    return "\n".join(lines)
+
+
 _ROLE = """## Role
 
 You are in conversation with someone navigating a decision, tension, or
@@ -205,6 +223,12 @@ _TOOL_DOCS: dict[str, str] = {
   enrich as new tensions emerge; each call builds only what's new, keeping
   existing wheels/transformations.
 
+  Reuse before creating: when a nexus on the same theme already exists (check
+  the Current Understanding dump, or `sync` if the conversation has moved on),
+  pass its `nexus_hash` to enrich it — omitting the hash creates a NEW nexus,
+  and sibling nexuses on one theme fragment the pathways. Create separate
+  nexuses only for genuinely distinct themes.
+
   How a nexus evolves:
   - 1 perspective: a single self-referential wheel. Already generates
     transformations and synthesis — useful even alone.
@@ -313,7 +337,26 @@ answer.
 If asked "how do you know that?" — respond naturally about seeing patterns
 and structural dynamics. Adapt to the persona defined above."""
 
-_SCORE_READING = """## Reading Your Understanding (Quality Prioritization)
+_HOW_YOU_SPEAK_SCOPED = """## How You Speak
+
+The app preamble above governs vocabulary and presentation — this
+conversation sits in territory where the person knows the structural terms,
+so the preamble's disclosure rules apply, not a blanket machinery ban.
+
+One precision rule follows from showing hashes: when you cite a node by its
+hash, quote its exact statement text — a paraphrase next to a hash citation
+makes it ambiguous which node you mean. Interpret and connect freely AROUND
+the quoted text; that interpretation is your value. When you're not citing a
+node, speak plainly in their language.
+
+Your counsel is as specific as your understanding: not "find balance" or
+"consider both sides", but the particular complementarity you actually see.
+Pair every suggested action with the shift in understanding that sustains it —
+action without reflection reverts, reflection without action never lands.
+Illuminate the structure so THEY decide; don't prescribe the single right
+answer."""
+
+_SCORE_READING = f"""## Reading Your Understanding (Quality Prioritization)
 
 Your understanding comes as a structured dump of the dialectical graph with
 scores inline. Identifiers like `[[abc1234]]` are short hashes — unique node
@@ -393,17 +436,11 @@ Use these scores to prioritize what you draw on:
 **Transformation quality:**
 - `HS` on Ac+/Re+: Structural fit to taxonomy apex. Higher = better anchored.
 - `insight`: Depth of transformation — NOT quality, it's characterization.
-  0.0 = reflex (automatic response)
-  0.1 = procedure, 0.2 = tuning, 0.3 = variation, 0.4 = reformulation
-  0.5 = composition, 0.6 = leverage, 0.7 = anticipation
-  0.8 = inversion, 0.9 = redirection, 1.0 = transcendence (paradigm shift)
+{_ladder_lines(INSIGHT_SCALE, {0.0: "automatic response", 1.0: "paradigm shift"})}
   Match to user's readiness: early conversation → low insight (tuning,
   variation). Deep engagement → high insight (inversion, transcendence).
 - `proactiveness`: Position on the action-reflection spectrum.
-  0.0 = observation, 0.1 = detection, 0.2 = interpretation (Re apex zone)
-  0.3 = framing, 0.4 = evaluation (midpoint)
-  0.5 = coordination, 0.6 = intervention (Ac apex zone)
-  0.7 = implementation, 0.8 = configuration, 0.9 = governance, 1.0 = stewardship
+{_ladder_lines(PROACTIVENESS_SCALE, {0.2: "Re apex zone", 0.4: "midpoint", 0.6: "Ac apex zone"})}
   Ac+ should be 0.5–1.0 (action zone). Re+ should be 0.0–0.4 (reflection zone).
 - `feasibility`: Practical achievability.
   ≥0.7 = readily actionable. 0.5–0.7 = challenging but doable.
@@ -500,7 +537,7 @@ def system_prompt(
         "\n\n".join(tool_docs),
         _REJECTION_HANDLING_SCOPED if scoped else _REJECTION_HANDLING,
         None if scoped else _DEFAULT_ARC,
-        _HOW_YOU_SPEAK,
+        _HOW_YOU_SPEAK_SCOPED if scoped else _HOW_YOU_SPEAK,
         _SCORE_READING,
         _CONTEXT_SLOT,
     ]
