@@ -4,7 +4,7 @@ Tests for the silent-explore depth budget (task #8).
 "Rich vs simple" exploration is a runtime budget, not a schema concept:
 explore always deepens exactly the top-plausibility wheel (fixed policy,
 EXPLORE_DEEP_WHEELS = 1; the deepen tool develops any other on demand),
-advisor_explore_perspectives caps perspectives woven per call (excess is
+advisor_max_perspectives_per_exploration caps perspectives woven per call (excess is
 deferred, reported, never dropped), advisor_explore_synthesis toggles S+/S-.
 The Explorer agent path is user-driven and ignores all of these.
 """
@@ -70,7 +70,7 @@ class TestExploreBudget:
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration
 
-        with _settings(di_container, advisor_explore_perspectives=2):
+        with _settings(di_container, advisor_max_perspectives_per_exploration=2):
             report = await run_exploration(
                 ["pp1", "pp2", "pp3", "pp4"], intent="", nexus_hash="deadbee"
             )
@@ -86,7 +86,7 @@ class TestExploreBudget:
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration
 
-        with _settings(di_container, advisor_explore_perspectives=2):
+        with _settings(di_container, advisor_max_perspectives_per_exploration=2):
             report = await run_exploration(
                 ["pp1", "pp2"], intent="", nexus_hash="deadbee"
             )
@@ -98,7 +98,7 @@ class TestExploreBudget:
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration
 
-        with _settings(di_container, advisor_explore_perspectives=0):
+        with _settings(di_container, advisor_max_perspectives_per_exploration=0):
             report = await run_exploration(
                 ["pp1", "pp2", "pp3"], intent="", nexus_hash="deadbee"
             )

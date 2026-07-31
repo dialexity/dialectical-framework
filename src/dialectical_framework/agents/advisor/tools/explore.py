@@ -23,7 +23,7 @@ from dialectical_framework.protocols.has_config import SettingsAware
 # expensive stages are capped — transformations + synthesis go only to the
 # single top-plausibility wheel (fixed policy: lead with the best; the
 # `deepen` tool develops any other arrangement on demand), at most
-# advisor_explore_perspectives (default 2) are woven per call (excess is
+# advisor_max_perspectives_per_exploration (default 2) are woven per call (excess is
 # reported as deferred, never dropped), and synthesis can be switched off
 # (advisor_explore_synthesis). "Rich vs simple" exploration is this runtime
 # budget, not a schema concept. The Explorer agent path is untouched — there
@@ -45,7 +45,7 @@ class _ExploreBudget(SettingsAware):
 
     @property
     def max_perspectives(self) -> int:
-        return self.settings.advisor_explore_perspectives
+        return self.settings.advisor_max_perspectives_per_exploration
 
     @property
     def synthesis(self) -> bool:

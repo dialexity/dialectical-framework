@@ -217,7 +217,7 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   The Advisor's `run_exploration` feeds it from the **silent-explore depth budget**
   (top-1 eager deepening is FIXED policy — `EXPLORE_DEEP_WHEELS = 1` in `advisor/tools/explore.py`,
   deliberately not a setting: 0 strands the conversation arc, N>1 pre-pays for unpicked arrangements /
-  `advisor_explore_perspectives`=2, excess reported as
+  `advisor_max_perspectives_per_exploration`=2, excess reported as
   `deferred_perspective_hashes`, never dropped / `advisor_explore_synthesis`; env
   `DIALEXITY_ADVISOR_*`) — "rich vs simple" exploration is this runtime budget, not a schema concept.
   Explorer agent path passes None (user selects wheels). The Advisor explore tool docs narrate
