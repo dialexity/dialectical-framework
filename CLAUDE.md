@@ -116,10 +116,11 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 ### Advisor Tool Constraints
 
-Advisor has `discard` (to retract a framing the user rejects) but NO edit tool. When the user rejects a framing, the Advisor silently discards the perspective (uncommitted → deleted, committed → soft-discarded); to drop a claim entirely, discard the perspective first, then its statement (a statement still used by a live perspective won't discard, and discarding a perspective never cascades to its shared statements). If the tension needs re-framing rather than removal, it `anchor`s the new version. It never edits aspects in place. Tools split by what the LLM knows at call time:
+Advisor has `discard` (to retract a framing the user rejects) but NO edit tool. When the user rejects a framing, the unscoped Advisor silently discards the perspective; the counsel-mode (nexus-pinned) head confirms first for exploration members (consent contract) — fresh own anchors need no ceremony. Uncommitted → deleted, committed → soft-discarded; to drop a claim entirely, discard the perspective first, then its statement (a statement still used by a live perspective won't discard, and discarding a perspective never cascades to its shared statements). If the tension needs re-framing rather than removal, it `anchor`s the new version. It never edits aspects in place. Tools split by what the LLM knows at call time:
 - `ingest` — bulk discovery from material → standalone perspectives (composes AnalysisPipeline)
 - `anchor` — plant a specific T/A tension → standalone perspective (composes IntroducePolarity + ExpandPolarity)
-- `explore` — group perspectives into nexus + pathways + synthesis (composes CreateNexus/ExpandNexus + ExplorationPipeline + GenerateSynthesis)
+- `explore` — group perspectives into nexus + pathways + synthesis (composes CreateNexus/ExpandNexus + ExplorationPipeline + GenerateSynthesis). LAZY: builds+ranks ALL wheels, deep-generates only the top-plausibility one (`EXPLORE_DEEP_WHEELS = 1`, fixed policy); rest reported as `shallow_wheel_hashes`. Weaves at most `settings.advisor_max_perspectives_per_exploration` per call (excess deferred, reported, never dropped).
+- `deepen` — develop a shallow wheel on demand (composes ExploreTransformations + GenerateSynthesis, synthesis always). The escape from explore's budget: called when the user's lived reality picks a non-top arrangement. Scoped variant guards wheel-membership in code.
 - `sync` — re-read graph state (composes DialecticalContext)
 - `discard`, `inspect_node`, `read_digest` — graph curation and detail reads (shared orchestrator tools)
 
@@ -134,9 +135,16 @@ The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+
 ### Agent Ownership
 
 - **Analyst** = everything up to and including nexus creation (inputs → statements → polarities → perspectives → `create_nexus` as handoff)
-- **Explorer** = everything after nexus (nexus-scoped: cycles → wheels → transformations → synthesis). Constructed with `nexus_hash`.
-- **Advisor** = pure-conversation agent where framework runs silently. Composes both pipelines (AnalysisPipeline + ExplorationPipeline) via 4 internal tools: `ingest`, `anchor`, `explore`, `sync` (plus shared `inspect_node`, `read_digest`). No framework terminology exposed to user. App preamble defines persona; system prompt is domain-neutral dialectical engine.
+- **Explorer** = everything after nexus (nexus-scoped: cycles → wheels → transformations → synthesis). Constructed with `nexus_hash`. Carries `create_dx_input` (shared orchestrator tool) to START the round-trip: capture a Transition insight as a dx:// Case Input → Analyst develops it → `expand_nexus` weaves back.
+- **Advisor** = pure-conversation agent where framework runs silently. Composes both pipelines via internal tools: `ingest`, `anchor`, `explore`, `deepen`, `sync` (plus shared `inspect_node`, `read_digest`, `discard`). No framework terminology exposed to user. App preamble defines persona; system prompt is domain-neutral dialectical engine (a FUNCTION `system_prompt(tool_names, scoped_nexus_hash)` — tool docs render only for wired tools).
+- **Advisor(nexus_hash=...)** = counsel mode of an Explorer↔Advisor session toggle (NOT a standalone variant): host hands `messages` + `nexus_hash` between heads; preamble pairing `NAVIGATOR_ADVANCED_MODE_APP` ↔ `EXPLORATION_ADVISOR_APP` (both composed on `NAVIGATOR_APP`). Nexus pin enforced by tool closures (`advisor/tools/scoped.py`), not prompt. See `docs/agents.md` Handoffs.
 - `create_nexus` lives in Analyst only — it's the handoff moment. Explorer never creates nexuses.
+
+### Advisor Runtime Budgets (settings, Advisor-only)
+
+Four knobs bound the silent Advisor (`settings.advisor_*`, env `DIALEXITY_ADVISOR_*`; Navigator agents ignore all): `advisor_polarity_quality_min_hs` (0.5) / `advisor_perspective_quality_min_area` (0.3) — standalone perspectives below the floor (or failed validation) are SUPPRESSED from the context dump with a count line (nexus members exempt; unscored never suppressed); `advisor_wheel_quality_top_plausible` (3) — wheels per cycle in the unscoped dump (counsel-mode dumps exempt — user-built explorations render in full); `advisor_max_perspectives_per_exploration` (2) — per-explore-call weave cap (excess deferred+reported; bounds turn latency, orthogonal to `max_wheel_layer` which bounds structure size). The Advisor's prioritization prompt says "pre-pruned, rank within it" — changing floors requires reconciling it (`TestContextDumpPrePruned`).
+
+**Policy is not config.** Two knobs were deleted after review (eager-deepen flag, synthesis toggle): if no deployment would ever set a value, encode it as a module constant with the rationale in a comment (`EXPLORE_DEEP_WHEELS = 1` in `advisor/tools/explore.py`). Audit test for new settings: "who sets this, ever, to what?"
 
 ---
 
@@ -438,6 +446,9 @@ read in `settings.py` (`Settings.from_env`) except `DIALEXITY_MAX_CONCURRENT_LLM
 value shown IS the code default (uncommenting unchanged is a no-op). When you change a
 default in `settings.py`/`concurrency.py`, update the commented value in `.env.example`
 in the same change — the file must never show a stale default.
+
+`Settings.from_partial` merges with `exclude_unset` — only explicitly-set fields override
+env values; a field at its Pydantic default never stomps an env-configured one.
 
 Only required: `DIALEXITY_DEFAULT_MODEL` — single combined `provider/model` string
 (e.g. `bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0`) — plus credentials for
