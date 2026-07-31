@@ -2,8 +2,14 @@
 DialecticalContext: Reads graph state and produces a structured dump.
 
 Designed for injection into the Advisor agent's system prompt.
-Dumps the full graph as structured text with scores inline.
-The LLM interprets and prioritizes based on quality signals.
+Dumps the graph as structured text with scores inline — pre-pruned:
+perspectives below the quality floors (settings.context_min_hs /
+context_min_area, mirroring the prompt's own scales) and failed-validation
+perspectives are suppressed with a count line, and wheels are capped to the
+top-% few per cycle (settings.context_max_wheels). Pre-computed pruning
+beats prioritization rules the model must self-apply; a weak tetrad
+delivered with full counsel choreography is confident bad advice.
+inspect_node still reaches everything suppressed.
 """
 
 from __future__ import annotations
@@ -11,6 +17,7 @@ from __future__ import annotations
 from typing import Optional
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.perspective import Perspective
@@ -30,7 +37,7 @@ from dialectical_framework.graph.repositories.perspective_repository import (
 from dialectical_framework.graph.repositories.wheel_repository import WheelRepository
 
 
-class DialecticalContext(ReasonableConcern[str]):
+class DialecticalContext(ReasonableConcern[str], SettingsAware):
     """
     Reads the full graph state for the current Case (sid) and produces a
     structured dump suitable for injection into an advisor's context.
@@ -94,8 +101,19 @@ class DialecticalContext(ReasonableConcern[str]):
         if inputs_dump:
             sections.append(inputs_dump)
 
+        # Quality floor applies to standalone (unexplored) perspectives only —
+        # nexus members are load-bearing (wheels reference their indices) and
+        # stay visible with their scores/Validation line.
+        standalone, suppressed_count = self._apply_quality_floor(standalone)
+
         if standalone:
             sections.append(self._dump_standalone_perspectives(standalone))
+        if suppressed_count:
+            sections.append(
+                f"{suppressed_count} unexplored tension(s) suppressed for low "
+                f"quality (weak opposition, blurred structure, or failed "
+                f"validation) — reachable via inspect_node if needed."
+            )
 
         for nexus in nexuses:
             nexus_dump = self._dump_nexus(nexus)
@@ -282,16 +300,35 @@ class DialecticalContext(ReasonableConcern[str]):
                 prob_str += f", {normalized * 100:.1f}%"
             lines.append(f"Causality: {prob_str}")
 
-        # Wheels under this cycle
+        # Wheels under this cycle — capped to the top-% few. The % denominator
+        # stays the FULL sibling set (ranking is over all alternatives, not
+        # just the rendered ones).
         wheels = self._get_cycle_wheels(cycle, wheel_repo)
         if wheels:
             wheel_probs = self._collect_raw_probabilities(wheels)
             total_wheel_prob = sum(p for p in wheel_probs.values() if p is not None)
 
-            for wheel in wheels:
+            max_wheels = self.settings.context_max_wheels
+            rendered = sorted(
+                wheels,
+                key=lambda w: wheel_probs.get(w._id) or -1.0,
+                reverse=True,
+            )
+            hidden = 0
+            if max_wheels > 0 and len(rendered) > max_wheels:
+                hidden = len(rendered) - max_wheels
+                rendered = rendered[:max_wheels]
+
+            for wheel in rendered:
                 wheel_dump = self._dump_wheel(wheel, wheel_probs, total_wheel_prob, pp_index)
                 if wheel_dump:
                     lines.append(wheel_dump)
+
+            if hidden:
+                lines.append(
+                    f"({hidden} lower-probability wheel(s) not shown — "
+                    f"reachable via inspect_node on the cycle)"
+                )
 
         return "\n".join(lines) if len(lines) > 1 else None
 
@@ -423,6 +460,43 @@ class DialecticalContext(ReasonableConcern[str]):
             return labels[0] if labels else ""
 
         return " → ".join(labels) + f" → {labels[0]}..."
+
+    def _apply_quality_floor(
+        self, perspectives: list[Perspective]
+    ) -> tuple[list[Perspective], int]:
+        """
+        Split perspectives into (kept, suppressed_count) by the quality floor:
+        antithesis HS < context_min_hs, area < context_min_area, or a failed
+        validation verdict. Missing scores never suppress (unscored ≠ bad).
+        Floors of 0 disable the respective check.
+        """
+        min_hs = self.settings.context_min_hs
+        min_area = self.settings.context_min_area
+
+        kept: list[Perspective] = []
+        suppressed = 0
+        for pp in perspectives:
+            if pp.validation and pp.validation.startswith("failed"):
+                suppressed += 1
+                continue
+            hs = self._get_antithesis_hs(pp)
+            if min_hs > 0 and hs is not None and hs < min_hs:
+                suppressed += 1
+                continue
+            area = pp.area
+            if min_area > 0 and area is not None and area < min_area:
+                suppressed += 1
+                continue
+            kept.append(pp)
+        return kept, suppressed
+
+    def _get_antithesis_hs(self, pp: Perspective) -> Optional[float]:
+        """HS on the A relationship (how genuine the opposition is)."""
+        a_result = self._safe_get(pp.a)
+        if not a_result:
+            return None
+        _, rel = a_result
+        return rel.heuristic_similarity
 
     def _collect_raw_probabilities(self, entities: list) -> dict:
         """Collect raw CausalityProbabilityEstimation values keyed by _id."""

@@ -779,6 +779,36 @@ class TestValidationVerdictNarration:
         assert "edit_perspective" in p
 
 
+class TestContextDumpPrePruned:
+    """The dump is pre-pruned (task #5): code suppresses below-floor tensions
+    and low-% wheels, so the Advisor prompt must say 'rank within what you
+    see' rather than carry re-filtering instructions the dump already
+    enforces."""
+
+    def _advisor(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        return " ".join(SYSTEM_PROMPT.split())
+
+    def test_prompt_declares_the_dump_pre_pruned(self):
+        p = self._advisor()
+        assert "pre-pruned" in p
+        assert "you rank within it, you don't re-filter" in p
+
+    def test_old_poor_scores_rule_reconciled(self):
+        """Rule 4 ('if a perspective has poor scores...') described material
+        the pruning now removes — the surviving wording must speak of the
+        softer-but-above-floor band, not of ignoring poor scores."""
+        p = self._advisor()
+        assert "If a perspective has poor scores" not in p
+        assert "Softer" in p and "still visible by design" in p
+
+    def test_unexplored_tensions_notes_the_filter(self):
+        p = self._advisor()
+        assert "quality-filtered" in p
+
+
 class TestArrangementContrast:
     """The wheel enumeration's payoff (task #3): when top arrangements are
     close AND encode different causal readings, both prompts must instruct

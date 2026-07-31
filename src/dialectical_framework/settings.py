@@ -20,6 +20,14 @@ class Settings(BaseModel):
     max_wheel_layer: int = Field(default=4, description="Maximum wheel layer (PP count per wheel) to build. Layers above this are skipped regardless of nexus size.")
     cycle_preset: str = Field(default=CausalityPreset.AUTO, description="Default preset for causality estimation (e.g., preset:auto, preset:realistic, preset:desirable, preset:feasible, preset:balanced).")
 
+    # Context-dump quality filter (DialecticalContext). Perspectives below
+    # these floors are suppressed from the dump (a count line notes them;
+    # inspect_node still reaches them). Thresholds mirror the prompt scales:
+    # HS < 0.5 = "weak or tangential", area < 0.3 = "aspects blur together".
+    context_min_hs: float = Field(default=0.5, description="Suppress perspectives whose antithesis HS is below this from the context dump (0 disables).")
+    context_min_area: float = Field(default=0.3, description="Suppress perspectives whose tetrad area is below this from the context dump (0 disables).")
+    context_max_wheels: int = Field(default=3, description="Max wheels rendered per cycle in the context dump, top-normalized-%. 0 = unlimited.")
+
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
     graph_db_host: str = Field(default="127.0.0.1", description="Graph database host")
@@ -89,6 +97,9 @@ class Settings(BaseModel):
             transition_length=int(os.getenv("DIALEXITY_DEFAULT_TRANSITION_LENGTH", 15)),
             max_wheel_layer=int(os.getenv("DIALEXITY_MAX_WHEEL_LAYER", 4)),
             cycle_preset=CausalityPreset.AUTO,
+            context_min_hs=float(os.getenv("DIALEXITY_CONTEXT_MIN_HS", 0.5)),
+            context_min_area=float(os.getenv("DIALEXITY_CONTEXT_MIN_AREA", 0.3)),
+            context_max_wheels=int(os.getenv("DIALEXITY_CONTEXT_MAX_WHEELS", 3)),
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

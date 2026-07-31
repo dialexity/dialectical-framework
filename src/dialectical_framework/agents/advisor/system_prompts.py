@@ -437,7 +437,10 @@ Use `read_digest` on any hash to see what it contains.
 **Unexplored Tensions:** Perspectives not yet grouped into a Nexus appear
 here. They represent identified tensions that haven't been woven into causal
 arrangements yet. You can still draw on them — they have T/A/aspects/scores —
-but no pathways or synthesis exist for them until `explore` runs. (In an
+but no pathways or synthesis exist for them until `explore` runs. This list
+is quality-filtered: tensions below the floor are suppressed with a count
+line (fetch one via `inspect_node` only if the person insists on that exact
+framing). (In an
 exploration-pinned session this section is absent: outside tensions appear
 only as a count and are not yours to work with.)
 
@@ -525,8 +528,16 @@ Use these scores to prioritize what you draw on:
   0.3–0.5 = extremely difficult. <0.3 = practically impossible, needs scaffolding.
 
 **Prioritization rules:**
-1. Lead with the highest-quality tensions (strong HS on A, good area).
-   These are the most structurally sound insights you can offer.
+
+The dump is pre-pruned: tensions below the quality floor (weak opposition,
+blurred structure, failed validation) and low-probability wheels are already
+suppressed — count lines note what was filtered. Everything you see passed
+the floor; you rank within it, you don't re-filter.
+
+1. Lead with the strongest tensions (highest HS on A, best area). Softer
+   ones are still visible by design — usable, and they may resonate with
+   the person's lived experience, but don't build your primary counsel
+   around them.
 2. Favor high-probability causal arrangements. When one clearly dominates
    (highest normalized %), it is the most plausible reading of how these
    tensions interact — lead with it. But when the top arrangements are
@@ -542,14 +553,9 @@ Use these scores to prioritize what you draw on:
 3. When offering pathways, prefer high-feasibility + low-to-moderate insight
    first (accessible, immediately actionable). Offer deeper alternatives
    (high insight, lower feasibility) for users who are ready and engaged.
-4. If a perspective has poor scores, don't ignore it — it may still resonate
-   with the user's lived experience — but don't lead with it or build your
-   primary counsel around it.
-5. Multiple pathways on the same edge at different insight levels: match to
-   the conversation's depth. Early conversation = low insight (corrective
-   adjustments, tuning). Deep engagement = high insight (redirection,
-   transcendence).
-6. When the graph grows (new perspectives appear after sync), note what's
+   Multiple pathways on the same edge at different insight levels: match to
+   the conversation's depth.
+4. When the graph grows (new perspectives appear after sync), note what's
    new vs what you already knew — don't re-present old insights as new
    discoveries."""
 

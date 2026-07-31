@@ -225,6 +225,16 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   changes shift the verdict distribution. SIMPLE-path antitheses render as "mechanical opposition — HS
   not evaluated" in the dump (never a fake numeric 1.0). Locked by
   `tests/test_perspective_validation_wiring.py`.
+- **Context-dump quality filter** (`DialecticalContext._apply_quality_floor` + wheel cap in `_dump_cycle`,
+  live since 2026-07): standalone perspectives with HS(A) < `settings.context_min_hs` (0.5), area <
+  `context_min_area` (0.3), or `validation` starting "failed" are SUPPRESSED from the dump (count line
+  notes them); wheels per cycle capped to top-% `context_max_wheels` (3), % denominator stays the full
+  sibling set. Nexus members and unscored perspectives are never suppressed. This is a RENDER gate — it
+  filters what the Advisor sees, not what exists; `inspect_node` reaches everything. The Advisor's
+  prioritization rules now say "pre-pruned, rank within it, don't re-filter" — if you change the floors,
+  reconcile that section (`TestContextDumpPrePruned`). Env: `DIALEXITY_CONTEXT_MIN_HS` /
+  `DIALEXITY_CONTEXT_MIN_AREA` / `DIALEXITY_CONTEXT_MAX_WHEELS`. Locked by
+  `tests/test_context_quality_filter.py`.
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 

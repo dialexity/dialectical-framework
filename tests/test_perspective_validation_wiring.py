@@ -189,7 +189,27 @@ class TestValidationRendering:
         return pp
 
     @pytest.mark.asyncio
-    async def test_dialectical_context_renders_verdict(self):
+    async def test_dialectical_context_renders_verdict_for_nexus_members(self):
+        """A failed STANDALONE perspective is suppressed outright by the
+        quality filter (task #5); nexus members are load-bearing and stay
+        visible WITH their verdict line — that's where the flag renders."""
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+        from dialectical_framework.graph.nodes.nexus import Nexus
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = self._flagged_perspective("failed: Differential minimum: ...")
+            nexus = Nexus(intent="verdict rendering")
+            nexus.save()
+            nexus.commit()
+            pp.nexus.connect(nexus)
+
+            dump = await DialecticalContext().resolve()
+            assert "Validation: failed" in dump
+
+    @pytest.mark.asyncio
+    async def test_dialectical_context_suppresses_failed_standalone(self):
         from dialectical_framework.concerns.dialectical_context import \
             DialecticalContext
 
@@ -197,7 +217,8 @@ class TestValidationRendering:
         with scope(sid):
             self._flagged_perspective("failed: Differential minimum: ...")
             dump = await DialecticalContext().resolve()
-            assert "Validation: failed" in dump
+            assert "Validation: failed" not in dump
+            assert "suppressed" in dump
 
     @pytest.mark.asyncio
     async def test_present_analysis_renders_verdict(self):
