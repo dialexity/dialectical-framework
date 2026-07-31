@@ -3,28 +3,16 @@ Tests for the Advisor's deepen tool (on-demand wheel development).
 
 `explore` deepens only the top-plausibility wheel (budget); `deepen` is the
 follow-up when the person's lived reality picks a reading whose pathways
-don't exist yet. One composed call: transformations then synthesis (per
-settings.advisor_explore_synthesis), sequencing absorbed in code.
+don't exist yet. One composed call: transformations then synthesis (always —
+a deepened wheel without S+/S- is structurally unfinished), sequencing
+absorbed in code.
 """
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-
 import pytest
 
 pytestmark = pytest.mark.llm
-
-
-@contextmanager
-def _settings(di_container, **overrides):
-    current = di_container.settings()
-    di_container.settings.override(current.model_copy(update=overrides))
-    try:
-        yield
-    finally:
-        di_container.settings.reset_override()
-        di_container.settings.override(current)
 
 
 @pytest.fixture
@@ -65,16 +53,6 @@ class TestRunDeepen:
         assert stubs["transformations"] == ["wheel444"]
         assert stubs["synthesis"] == ["wheel444"]
         assert "wheel444" in report
-
-    async def test_synthesis_toggle_off(self, di_container, stubs):
-        from dialectical_framework.agents.advisor.tools.deepen import \
-            run_deepen
-
-        with _settings(di_container, advisor_explore_synthesis=False):
-            await run_deepen("wheel444")
-
-        assert stubs["transformations"] == ["wheel444"]
-        assert stubs["synthesis"] == []
 
     async def test_synthesis_failure_is_soft_and_reported(
         self, monkeypatch, stubs

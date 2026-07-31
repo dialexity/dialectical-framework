@@ -18,16 +18,15 @@ from pydantic import Field
 
 from dialectical_framework.protocols.has_config import SettingsAware
 
-# The Advisor's explore is LAZY and budgeted (settings.advisor_explore_*):
-# every valid wheel is built and estimated (structural, cheap), but the
-# expensive stages are capped — transformations + synthesis go only to the
-# single top-plausibility wheel (fixed policy: lead with the best; the
-# `deepen` tool develops any other arrangement on demand), at most
-# advisor_max_perspectives_per_exploration (default 2) are woven per call (excess is
-# reported as deferred, never dropped), and synthesis can be switched off
-# (advisor_explore_synthesis). "Rich vs simple" exploration is this runtime
-# budget, not a schema concept. The Explorer agent path is untouched — there
-# the USER selects which wheels to deepen.
+# The Advisor's explore is LAZY and budgeted: every valid wheel is built and
+# estimated (structural, cheap), but the expensive stage — transformations +
+# synthesis — goes only to the single top-plausibility wheel (fixed policy:
+# lead with the best; the `deepen` tool develops any other arrangement on
+# demand). At most advisor_max_perspectives_per_exploration (default 2) are
+# woven per call (excess is reported as deferred, never dropped — bounds
+# turn latency, not total work). "Rich vs simple" exploration is this
+# runtime budget, not a schema concept. The Explorer agent path is untouched
+# — there the USER selects which wheels to deepen.
 
 # One wheel deepened eagerly per explore call. Not a setting: 0 would strand
 # the conversation arc ("after explore, offer pathways") behind an extra
@@ -47,10 +46,6 @@ class _ExploreBudget(SettingsAware):
     def max_perspectives(self) -> int:
         return self.settings.advisor_max_perspectives_per_exploration
 
-    @property
-    def synthesis(self) -> bool:
-        return self.settings.advisor_explore_synthesis
-
 
 async def run_exploration(
     perspective_hashes: list[str],
@@ -59,8 +54,8 @@ async def run_exploration(
 ) -> str:
     """
     Shared explore body: expand (or create) a nexus, build wheels, deepen
-    the top-plausibility wheel(s) with transformations (+ synthesis), all
-    within the silent-explore depth budget. Returns str(report).
+    the top-plausibility wheel with transformations + synthesis, all within
+    the silent-explore depth budget. Returns str(report).
     """
     from dialectical_framework.agents.explorer.explorer import \
         ExplorationPipeline
@@ -104,16 +99,17 @@ async def run_exploration(
     )
     exp_result = await exploration.resolve()
 
-    # Synthesis only where transformations exist (the deepened wheels).
+    # Synthesis only where transformations exist (the deepened wheels) —
+    # always generated: a deepened wheel without S+/S- is structurally
+    # unfinished.
     synthesis_count = 0
-    if budget.synthesis:
-        for wh in exp_result.deepened_wheel_hashes:
-            try:
-                synth = GenerateSynthesis(wheel_hash=wh)
-                await synth.resolve()
-                synthesis_count += 1
-            except (ValueError, RuntimeError):
-                pass
+    for wh in exp_result.deepened_wheel_hashes:
+        try:
+            synth = GenerateSynthesis(wheel_hash=wh)
+            await synth.resolve()
+            synthesis_count += 1
+        except (ValueError, RuntimeError):
+            pass
 
     combined_report = nexus_report.merge(exploration.report)
     combined_report.artifacts["nexus_hash"] = effective_nexus_hash

@@ -34,9 +34,8 @@ class Settings(BaseModel):
     # "Rich vs simple" exploration is a runtime budget, not a schema concept:
     # all wheels are always built + estimated (structural, cheap); the budget
     # caps the expensive stages. The Navigator/Explorer path is user-driven
-    # and ignores these.
+    # and ignores this.
     advisor_max_perspectives_per_exploration: int = Field(default=2, description="Max perspectives woven per silent Advisor explore call; excess is reported as deferred (weave in a follow-up call), never silently dropped. 0 = unlimited.")
-    advisor_explore_synthesis: bool = Field(default=True, description="Generate S+/S- when deepening a wheel on the silent Advisor path (explore and the deepen tool).")
 
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
@@ -121,7 +120,6 @@ class Settings(BaseModel):
             advisor_perspective_quality_min_area=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA", 0.3)),
             advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),
             advisor_max_perspectives_per_exploration=int(os.getenv("DIALEXITY_ADVISOR_MAX_PERSPECTIVES_PER_EXPLORATION", 2)),
-            advisor_explore_synthesis=os.getenv("DIALEXITY_ADVISOR_EXPLORE_SYNTHESIS", "true").lower() == "true",
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

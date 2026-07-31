@@ -3,10 +3,10 @@ Tests for the silent-explore depth budget (task #8).
 
 "Rich vs simple" exploration is a runtime budget, not a schema concept:
 explore always deepens exactly the top-plausibility wheel (fixed policy,
-EXPLORE_DEEP_WHEELS = 1; the deepen tool develops any other on demand),
-advisor_max_perspectives_per_exploration caps perspectives woven per call (excess is
-deferred, reported, never dropped), advisor_explore_synthesis toggles S+/S-.
-The Explorer agent path is user-driven and ignores all of these.
+EXPLORE_DEEP_WHEELS = 1; the deepen tool develops any other on demand) and
+always finishes it with synthesis; advisor_max_perspectives_per_exploration
+caps perspectives woven per call (excess is deferred, reported, never
+dropped). The Explorer agent path is user-driven and ignores all of these.
 """
 
 from __future__ import annotations
@@ -116,26 +116,13 @@ class TestExploreBudget:
 
         assert stubs["pipeline"] == [1]
 
-    async def test_synthesis_toggle_off(self, di_container, stubs):
+    async def test_synthesis_always_follows_deepened_only(self, stubs):
+        """Synthesis is unconditional for deepened wheels (a deepened wheel
+        without S+/S- is structurally unfinished) — and only for them."""
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration
 
-        with _settings(di_container, advisor_explore_synthesis=False):
-            report = await run_exploration(
-                ["pp1"], intent="", nexus_hash="deadbee"
-            )
-
-        assert stubs["synthesis"] == []
-        assert '"synthesis_generated": 0' in report
-
-    async def test_synthesis_on_follows_deepened_only(
-        self, di_container, stubs
-    ):
-        from dialectical_framework.agents.advisor.tools.explore import \
-            run_exploration
-
-        with _settings(di_container, advisor_explore_synthesis=True):
-            await run_exploration(["pp1"], intent="", nexus_hash="deadbee")
+        await run_exploration(["pp1"], intent="", nexus_hash="deadbee")
 
         assert stubs["synthesis"] == ["top4444"]
 

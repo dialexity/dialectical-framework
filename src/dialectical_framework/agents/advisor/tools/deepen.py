@@ -6,14 +6,16 @@ arrangement (fixed policy) and leaves the rest shallow
 (built + ranked, listed as `shallow_wheel_hashes`). `deepen` is the follow-up
 move: when the person's lived reality points at an ALTERNATIVE arrangement —
 the 20% reading over the 80% one — this generates its action-reflection
-pathways (and synthesis, per settings.advisor_explore_synthesis) so counsel
-can follow the person off the argmax path.
+pathways and synthesis so counsel can follow the person off the argmax path.
 
 One composed tool, not two: transformations and synthesis are generated
 together (the Advisor reveals them progressively per its conversation arc);
 the sequencing constraint (synthesis requires transformations) is absorbed
-here instead of being a prompt rule. Pure glue over the Explorer's existing
-skills — no new pipeline capability.
+here instead of being a prompt rule. Synthesis is always generated — a
+deepened wheel without S+/S- is structurally unfinished (synthesis is the
+wheel-level phenomenon the circular causality exists to produce, and the
+S- trap-naming is the Advisor's most distinctive counsel move). Pure glue
+over the Explorer's existing skills — no new pipeline capability.
 """
 
 from __future__ import annotations
@@ -23,19 +25,11 @@ from typing import Annotated
 from mirascope import llm
 from pydantic import Field
 
-from dialectical_framework.protocols.has_config import SettingsAware
-
-
-class _DeepenBudget(SettingsAware):
-    @property
-    def synthesis(self) -> bool:
-        return self.settings.advisor_explore_synthesis
-
 
 async def run_deepen(wheel_hash: str) -> str:
     """
     Shared deepen body: generate transformations for the wheel, then
-    synthesis (if enabled). Idempotent — both skills reuse existing nodes.
+    synthesis. Idempotent — both skills reuse existing nodes.
     Returns str(report).
     """
     from dialectical_framework.agents.explorer.skills.explore_transformations import \
@@ -47,13 +41,12 @@ async def run_deepen(wheel_hash: str) -> str:
     await explore_tr.resolve()
     combined_report = explore_tr.report
 
-    if _DeepenBudget().synthesis:
-        try:
-            synth = GenerateSynthesis(wheel_hash=wheel_hash)
-            await synth.resolve()
-            combined_report = combined_report.merge(synth.report)
-        except (ValueError, RuntimeError) as e:
-            combined_report.artifacts["synthesis_skipped"] = str(e)
+    try:
+        synth = GenerateSynthesis(wheel_hash=wheel_hash)
+        await synth.resolve()
+        combined_report = combined_report.merge(synth.report)
+    except (ValueError, RuntimeError) as e:
+        combined_report.artifacts["synthesis_skipped"] = str(e)
 
     combined_report.artifacts["wheel_hash"] = wheel_hash
     return str(combined_report)

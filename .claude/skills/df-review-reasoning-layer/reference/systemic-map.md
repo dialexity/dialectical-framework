@@ -218,12 +218,13 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   (top-1 eager deepening is FIXED policy — `EXPLORE_DEEP_WHEELS = 1` in `advisor/tools/explore.py`,
   deliberately not a setting: 0 strands the conversation arc, N>1 pre-pays for unpicked arrangements /
   `advisor_max_perspectives_per_exploration`=2, excess reported as
-  `deferred_perspective_hashes`, never dropped / `advisor_explore_synthesis`; env
-  `DIALEXITY_ADVISOR_*`) — "rich vs simple" exploration is this runtime budget, not a schema concept.
+  `deferred_perspective_hashes`, never dropped; env
+  `DIALEXITY_ADVISOR_*`; synthesis is UNCONDITIONAL for deepened wheels — a deepened wheel without
+  S+/S- is structurally unfinished, the toggle was removed 2026-07-31) — "rich vs simple" exploration is this runtime budget, not a schema concept.
   Explorer agent path passes None (user selects wheels). The Advisor explore tool docs narrate
   `shallow_wheel_hashes` + `deferred_perspective_hashes` semantics — keep in lockstep with the budget.
   The escape from the budget is the Advisor's **`deepen` tool** (`advisor/tools/deepen.py`,
-  `run_deepen` = ExploreTransformations + GenerateSynthesis, honoring `advisor_explore_synthesis`):
+  `run_deepen` = ExploreTransformations + GenerateSynthesis, synthesis always, fail-soft):
   when the person's lived reality picks a shallow reading, the model deepens that wheel — the
   decision point is in prioritization rule 2 ("the person's reality outranks the plausibility
   score"). Scoped variant guards nexus membership in code (`_wheel_outside_scope_refusal`); its
