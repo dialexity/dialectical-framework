@@ -2,7 +2,7 @@
 Tests for the context-dump quality filter (task #5).
 
 DialecticalContext pre-prunes instead of instructing: standalone perspectives
-below the quality floor (HS < advisor_context_min_hs, area < advisor_context_min_area, or
+below the quality floor (HS < advisor_polarity_quality_min_hs, area < advisor_perspective_quality_min_area, or
 failed validation) are suppressed with a count line; wheels are capped to the
 top-% advisor_context_max_wheels per cycle with a count line. Nexus members are
 load-bearing and never suppressed. Missing scores never suppress.
@@ -122,7 +122,7 @@ class TestPerspectiveQualityFloor:
         sid = _new_sid()
         with scope(sid):
             _perspective_with_hs(0.2, "weak")
-            with _settings(di_container, advisor_context_min_hs=0.0):
+            with _settings(di_container, advisor_polarity_quality_min_hs=0.0):
                 dump = await DialecticalContext().resolve()
             assert "Thesis weak" in dump
 
