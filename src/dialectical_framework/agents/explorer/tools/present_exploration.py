@@ -120,6 +120,47 @@ class PresentExploration(ReasonableConcern[str]):
         return all_wheels
 
     @staticmethod
+    def _causality_label(wheel: Wheel, probs: dict, totals: dict) -> str:
+        """Render 'P=0.72, 61.5%' — % normalized across the wheel's siblings
+        within its parent Cycle (same denominator convention as the
+        dialectical_context dump: competing arrangements of one cycle)."""
+        raw = probs.get(wheel._id)
+        if raw is None:
+            return ""
+        label = f"P={raw:.2f}"
+        total = totals.get(PresentExploration._cycle_key(wheel), 0.0)
+        if total > 0:
+            label += f", {raw / total * 100:.1f}%"
+        return label
+
+    @staticmethod
+    def _cycle_key(wheel: Wheel):
+        """Parent-cycle id for normalization grouping (None if unresolvable)."""
+        try:
+            cycle_result = wheel.cycle.get()
+        except (ValueError, AttributeError):
+            return None
+        if not cycle_result:
+            return None
+        cycle, _ = cycle_result
+        return cycle._id
+
+    @staticmethod
+    def _collect_wheel_probabilities(wheels: list[Wheel]) -> dict:
+        from dialectical_framework.graph.nodes.estimation import \
+            CausalityProbabilityEstimation
+
+        probs: dict = {}
+        for wheel in wheels:
+            value = None
+            for est, _ in wheel.estimations.all():
+                if isinstance(est, CausalityProbabilityEstimation):
+                    value = est.value
+                    break
+            probs[wheel._id] = value
+        return probs
+
+    @staticmethod
     def _format_wheels(
         wheels: list[Wheel], transformations: list[Transformation]
     ) -> str:
@@ -139,9 +180,31 @@ class PresentExploration(ReasonableConcern[str]):
                 tr_by_wheel[wheel_node._id] = []
             tr_by_wheel[wheel_node._id].append(tr)
 
+        # Causality scores: raw P per wheel, % normalized across the wheel's
+        # siblings within its parent Cycle (the competing arrangements) —
+        # same convention as the dialectical_context dump.
+        probs = PresentExploration._collect_wheel_probabilities(wheels)
+        totals: dict = {}
+        for wheel in wheels:
+            p = probs.get(wheel._id)
+            if p is not None:
+                key = PresentExploration._cycle_key(wheel)
+                totals[key] = totals.get(key, 0.0) + p
+
+        # Most plausible first: layer (deepest), then raw P.
+        wheels = sorted(
+            wheels,
+            key=lambda w: (w.polarity_count, probs.get(w._id) or -1.0),
+            reverse=True,
+        )
+
         for wheel in wheels:
             layer = wheel.polarity_count
-            lines.append(f"\n  Wheel [{wheel.short_hash}] (layer {layer})")
+            causality = PresentExploration._causality_label(wheel, probs, totals)
+            causality_str = f", causality {causality}" if causality else ""
+            lines.append(
+                f"\n  Wheel [{wheel.short_hash}] (layer {layer}{causality_str})"
+            )
 
             edges = wheel.edges
             if edges:

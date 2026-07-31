@@ -746,6 +746,55 @@ class TestNavigatorRoundTrip:
         assert "the last segment of the dx:// URI" in joined
 
 
+class TestArrangementContrast:
+    """The wheel enumeration's payoff (task #3): when top arrangements are
+    close AND encode different causal readings, both prompts must instruct
+    contrast-and-ask ("which matches your lived reality?") instead of pure
+    argmax — this is the reasoning move a bare model can't cheaply
+    self-generate. Argmax stays the rule when one arrangement dominates."""
+
+    def _explorer(self) -> str:
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        return " ".join(
+            system_prompt(nexus_hash="abc1234", nexus_intent="test").split()
+        )
+
+    def _advisor(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        return " ".join(SYSTEM_PROMPT.split())
+
+    def test_explorer_carries_contrast_guidance(self):
+        p = self._explorer()
+        assert "competing readings" in p
+        assert "lived reality" in p
+        # argmax preserved for the dominant case
+        assert "clearly dominates" in p
+        # the old unconditional argmax phrasing must be gone
+        assert "Lead with the highest-`%` arrangement" not in p
+
+    def test_advisor_carries_contrast_guidance(self):
+        p = self._advisor()
+        assert "lived reality" in p
+        assert "clearly dominates" in p
+        # diagnostic framing: the user's answer selects the reading
+        assert "diagnostic" in p
+
+    def test_advisor_contrast_acknowledges_selective_depth(self):
+        """Lazy explore (task #2) means pathways may exist for one wheel only —
+        the contrast rule must say the causal contrast needs no pathways."""
+        p = self._advisor()
+        assert "depth is selective" in p.lower()
+
+    def test_both_share_the_closeness_heuristic(self):
+        """The ~15-point closeness band must not drift apart between agents."""
+        assert "~15 percentage points" in self._explorer()
+        assert "~15 percentage points" in self._advisor()
+
+
 class TestExplorerAdvisorToggleNarration:
     """The Explorer<->Advisor toggle is host-driven; each head must surface the
     handover signal for its opposite register without auto-switching."""

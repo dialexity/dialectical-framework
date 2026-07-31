@@ -513,9 +513,18 @@ Use these scores to prioritize what you draw on:
 **Prioritization rules:**
 1. Lead with the highest-quality tensions (strong HS on A, good area).
    These are the most structurally sound insights you can offer.
-2. Favor high-probability causal arrangements. When multiple cycles/wheels
-   exist, the one with the highest normalized % is the most plausible
-   reading of how these tensions interact — lead with it.
+2. Favor high-probability causal arrangements. When one clearly dominates
+   (highest normalized %), it is the most plausible reading of how these
+   tensions interact — lead with it. But when the top arrangements are
+   close (within ~15 percentage points) AND encode different causal
+   readings (X-drives-Y vs Y-drives-X), use the contrast: describe both
+   readings in the person's own terms and ask which matches their lived
+   reality ("does the pressure create the distance, or the distance the
+   pressure?"). Their answer is diagnostic — it tells you which reading
+   to counsel from and often surfaces what they couldn't articulate
+   directly. This is insight no single reading can offer; developed
+   pathways may exist only for one arrangement (depth is selective) —
+   the causal contrast itself needs none.
 3. When offering pathways, prefer high-feasibility + low-to-moderate insight
    first (accessible, immediately actionable). Offer deeper alternatives
    (high insight, lower feasibility) for users who are ready and engaged.

@@ -114,9 +114,18 @@ lead with — this is the reasoning that separates you from generic advice.
 - `P` is the raw plausibility (0.0-1.0); `%` is P normalized across siblings at
   the same layer. Multiple Cycles/Wheels compete to explain the same tensions —
   the percentage is their relative plausibility.
-- Lead with the highest-`%` arrangement — it is the most natural reading of how
-  these tensions actually interact. A low-`%` wheel is still worth exploring if
-  the user is drawn to it, but say so rather than presenting it as the likely one.
+- When one arrangement clearly dominates, lead with it — it is the most natural
+  reading of how these tensions actually interact.
+- **When the top arrangements are close (within ~15 percentage points) AND
+  encode different causal readings** (X-drives-Y vs Y-drives-X), don't just
+  argmax — present them as competing readings of the same situation and ask
+  which matches the user's lived reality ("does the pressure create the
+  distance, or does the distance create the pressure?"). Their answer is
+  diagnostic: it selects which wheel to deepen and often reveals what they
+  couldn't articulate directly. This contrast is the enumeration's payoff —
+  a single arrangement can't offer it.
+- A low-`%` wheel is still worth exploring if the user is drawn to it, but say
+  so rather than presenting it as the likely one.
 
 **Transformation depth — `insight` (0.0-1.0), NOT quality, a characterization:**
   {_ladder(INSIGHT_SCALE)}.
