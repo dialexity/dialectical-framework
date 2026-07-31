@@ -178,13 +178,11 @@ class TestPipelineHonorsCap:
 
 @pytest.mark.llm
 class TestAdvisorExploreIsLazy:
-    """run_exploration pins the cap and syntheses ONLY the deepened wheels."""
+    """run_exploration applies the depth budget and syntheses ONLY the
+    deepened wheels."""
 
-    def test_advisor_cap_is_one(self):
-        from dialectical_framework.agents.advisor.tools.explore import \
-            MAX_DEEP_WHEELS
-
-        assert MAX_DEEP_WHEELS == 1
+    def test_advisor_default_budget_deepens_one(self, di_container):
+        assert di_container.settings().advisor_deep_wheels == 1
 
     async def test_synthesis_follows_deepened_only(self, monkeypatch):
         from dialectical_framework.agents.advisor.tools.explore import \

@@ -214,8 +214,13 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
 - **ThesisExtraction Step-2 candidate gate** (`is_assertable & is_substantive`, with all-rejected safety net).
 - **`_select_deep_wheels`** (`explorer/explorer.py`, `max_deep_wheels`): caps which wheels get
   transformations+synthesis — layer desc, then raw `CausalityProbabilityEstimation` desc (unestimated last).
-  Advisor explore pins cap=1 (`MAX_DEEP_WHEELS`); Explorer agent path passes None (user selects wheels).
-  Locked by `tests/test_exploration_lazy_depth.py`.
+  The Advisor's `run_exploration` feeds it from the **silent-explore depth budget**
+  (`settings.advisor_deep_wheels`=1 / `advisor_explore_perspectives`=2, excess reported as
+  `deferred_perspective_hashes`, never dropped / `advisor_explore_synthesis`; env
+  `DIALEXITY_ADVISOR_*`) — "rich vs simple" exploration is this runtime budget, not a schema concept.
+  Explorer agent path passes None (user selects wheels). The Advisor explore tool docs narrate
+  `shallow_wheel_hashes` + `deferred_perspective_hashes` semantics — keep in lockstep with the budget.
+  Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py`.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +
   empirical inequalities run post-commit on every generated tetrad; verdict persisted on
   `Perspective.validation` ("passed" / "failed: reasons" / None). NOT a blocking gate — prompts

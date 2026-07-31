@@ -16,15 +16,33 @@ from typing import Annotated
 from mirascope import llm
 from pydantic import Field
 
-# The Advisor's explore is LAZY: every valid wheel is built and estimated
-# (structural, cheap), but transformations + synthesis — the expensive LLM
-# work — go only to the top-plausibility wheel(s). At 3-4 perspectives this
-# is the difference between deepening 1 wheel and deepening 17-96. The
-# Advisor leads with the most plausible arrangement anyway; the rest stay
-# ranked-but-shallow, available for deepening on demand (arrangement
-# contrast, task #3). The Explorer agent path is untouched — there the USER
-# selects which wheels to deepen.
-MAX_DEEP_WHEELS = 1
+from dialectical_framework.protocols.has_config import SettingsAware
+
+# The Advisor's explore is LAZY and budgeted (settings.advisor_*): every
+# valid wheel is built and estimated (structural, cheap), but the expensive
+# stages are capped — transformations + synthesis go only to the
+# top-plausibility wheel(s) (advisor_deep_wheels, default 1), at most
+# advisor_explore_perspectives (default 2) are woven per call (excess is
+# reported as deferred, never dropped), and synthesis can be switched off
+# (advisor_explore_synthesis). "Rich vs simple" exploration is this runtime
+# budget, not a schema concept. The Explorer agent path is untouched — there
+# the USER selects which wheels to deepen.
+
+
+class _ExploreBudget(SettingsAware):
+    """Accessor for the silent-explore depth budget (DI settings)."""
+
+    @property
+    def deep_wheels(self) -> int:
+        return self.settings.advisor_deep_wheels
+
+    @property
+    def max_perspectives(self) -> int:
+        return self.settings.advisor_explore_perspectives
+
+    @property
+    def synthesis(self) -> bool:
+        return self.settings.advisor_explore_synthesis
 
 
 async def run_exploration(
@@ -34,8 +52,8 @@ async def run_exploration(
 ) -> str:
     """
     Shared explore body: expand (or create) a nexus, build wheels, deepen
-    the top-plausibility wheel(s) with transformations + synthesis.
-    Returns str(report).
+    the top-plausibility wheel(s) with transformations (+ synthesis), all
+    within the silent-explore depth budget. Returns str(report).
     """
     from dialectical_framework.agents.explorer.explorer import \
         ExplorationPipeline
@@ -43,6 +61,18 @@ async def run_exploration(
         GenerateSynthesis
     from dialectical_framework.concerns.create_nexus import CreateNexus
     from dialectical_framework.concerns.expand_nexus import ExpandNexus
+
+    budget = _ExploreBudget()
+
+    # Perspective cap: weave the first N now, report the rest as deferred so
+    # the model weaves them in a follow-up call — never silently dropped.
+    deferred_hashes: list[str] = []
+    if (
+        budget.max_perspectives > 0
+        and len(perspective_hashes) > budget.max_perspectives
+    ):
+        deferred_hashes = perspective_hashes[budget.max_perspectives :]
+        perspective_hashes = perspective_hashes[: budget.max_perspectives]
 
     if nexus_hash:
         expand = ExpandNexus()
@@ -63,19 +93,20 @@ async def run_exploration(
 
     exploration = ExplorationPipeline(
         nexus_hash=effective_nexus_hash,
-        max_deep_wheels=MAX_DEEP_WHEELS,
+        max_deep_wheels=budget.deep_wheels,
     )
     exp_result = await exploration.resolve()
 
     # Synthesis only where transformations exist (the deepened wheels).
     synthesis_count = 0
-    for wh in exp_result.deepened_wheel_hashes:
-        try:
-            synth = GenerateSynthesis(wheel_hash=wh)
-            await synth.resolve()
-            synthesis_count += 1
-        except (ValueError, RuntimeError):
-            pass
+    if budget.synthesis:
+        for wh in exp_result.deepened_wheel_hashes:
+            try:
+                synth = GenerateSynthesis(wheel_hash=wh)
+                await synth.resolve()
+                synthesis_count += 1
+            except (ValueError, RuntimeError):
+                pass
 
     combined_report = nexus_report.merge(exploration.report)
     combined_report.artifacts["nexus_hash"] = effective_nexus_hash
@@ -87,6 +118,14 @@ async def run_exploration(
     ]
     if shallow:
         combined_report.artifacts["shallow_wheel_hashes"] = shallow
+    if deferred_hashes:
+        combined_report.artifacts["deferred_perspective_hashes"] = deferred_hashes
+        combined_report.summary = (
+            (combined_report.summary or "")
+            + f" | {len(deferred_hashes)} perspective(s) deferred (budget: "
+            f"{budget.max_perspectives} per call) — call explore again with "
+            f"the deferred hashes to weave them in."
+        ).strip(" |")
 
     return str(combined_report)
 

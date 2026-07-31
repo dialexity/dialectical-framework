@@ -266,7 +266,10 @@ _TOOL_DOCS: dict[str, str] = {
   plausibility, but pathways + synthesis are generated only for the most
   plausible one — counsel from that. The result lists the other arrangements
   (`shallow_wheel_hashes`): ranked alternatives whose pathways don't exist
-  yet. Don't present them as developed insight.
+  yet. Don't present them as developed insight. Each call also weaves at
+  most a couple of perspectives — extras come back as
+  `deferred_perspective_hashes`; weave them with a follow-up explore call
+  when the conversation warrants, they are never lost.
 
   Reuse before creating: when a nexus on the same theme already exists (check
   the Current Understanding dump, or `sync` if the conversation has moved on),
@@ -293,7 +296,9 @@ _TOOL_DOCS: dict[str, str] = {
   weave in. Everything lands in this exploration — there is nowhere else.
   Depth is selective: all new arrangements are built and ranked, but pathways
   + synthesis go only to the most plausible one; the rest are listed as
-  `shallow_wheel_hashes` (ranked, not yet developed).""",
+  `shallow_wheel_hashes` (ranked, not yet developed). Extras beyond the
+  per-call weave budget come back as `deferred_perspective_hashes` — weave
+  them with a follow-up call, they are never lost.""",
     "sync": """- `sync` — Re-reads the full graph state. Use when you need a fresh full
   picture — e.g., after multiple ingest/anchor calls, to see all perspectives
   with scores before deciding what to group for explore. NOT needed after every

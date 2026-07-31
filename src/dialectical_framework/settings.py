@@ -28,6 +28,15 @@ class Settings(BaseModel):
     context_min_area: float = Field(default=0.3, description="Suppress perspectives whose tetrad area is below this from the context dump (0 disables).")
     context_max_wheels: int = Field(default=3, description="Max wheels rendered per cycle in the context dump, top-normalized-%. 0 = unlimited.")
 
+    # Depth budget for the Advisor's SILENT exploration (its `explore` tool).
+    # "Rich vs simple" exploration is a runtime budget, not a schema concept:
+    # all wheels are always built + estimated (structural, cheap); the budget
+    # caps the expensive stages. The Navigator/Explorer path is user-driven
+    # and ignores these.
+    advisor_deep_wheels: int = Field(default=1, description="Wheels deep-generated (transformations + synthesis) per silent Advisor explore call, top-plausibility first. 0 = none (build + rank only).")
+    advisor_explore_perspectives: int = Field(default=2, description="Max perspectives woven per silent Advisor explore call; excess is reported as deferred (weave in a follow-up call), never silently dropped. 0 = unlimited.")
+    advisor_explore_synthesis: bool = Field(default=True, description="Generate S+/S- for deepened wheels on the silent Advisor explore path.")
+
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
     graph_db_host: str = Field(default="127.0.0.1", description="Graph database host")
@@ -100,6 +109,9 @@ class Settings(BaseModel):
             context_min_hs=float(os.getenv("DIALEXITY_CONTEXT_MIN_HS", 0.5)),
             context_min_area=float(os.getenv("DIALEXITY_CONTEXT_MIN_AREA", 0.3)),
             context_max_wheels=int(os.getenv("DIALEXITY_CONTEXT_MAX_WHEELS", 3)),
+            advisor_deep_wheels=int(os.getenv("DIALEXITY_ADVISOR_DEEP_WHEELS", 1)),
+            advisor_explore_perspectives=int(os.getenv("DIALEXITY_ADVISOR_EXPLORE_PERSPECTIVES", 2)),
+            advisor_explore_synthesis=os.getenv("DIALEXITY_ADVISOR_EXPLORE_SYNTHESIS", "true").lower() == "true",
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),
