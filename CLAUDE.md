@@ -130,6 +130,8 @@ Advisor has `discard` (to retract a framing the user rejects) but NO edit tool. 
 
 The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-). User-facing vocabulary is contextual — not a fixed translation table — and depends on who the user is. Defined in `agents/apps.py` (`NAVIGATOR_APP`, `NAVIGATOR_ADVANCED_MODE_APP`, plus advisory personas) and injected via `app_preamble` in the Analyst/Explorer/Advisor constructor. System prompts handle tool selection/workflow only; they never dictate presentation vocabulary or app-UI behavioral constraints (e.g., viewport scope). Both go in app preambles.
 
+**Surface names are fixed across all agent prompts:** "analysis view" (Analyst), "exploration view" (Explorer), "counsel mode" (exploration-pinned Advisor). Never "thread" or ad-hoc variants — the toggle/round-trip UX depends on every head naming the two surfaces identically.
+
 **Advisor preamble/engine split:** Advisor's system prompt is a domain-neutral dialectical engine (how to use graph output for counsel). Persona (warm counselor, sharp strategist, coach) comes entirely from the app preamble. This means the same engine works for personal counseling, CEO strategy, brand marketing, etc. See methodology mappings in `apps.py` docstring.
 
 ### Agent Design Principles
@@ -352,6 +354,7 @@ The Polarity HS (displayed in UI, used by `AnalysisPipeline._rank_polarities()` 
 - `use_brain` decorator creates generation spans named via `method.__qualname__` with `capture_input=False` — input is set by `_trace_generation` via `update_current_generation`.
 - `ConversationFacilitator._strip_unsupported_input_fields()` strips output-only API fields (e.g., `caller`) from raw_message before replaying — workaround for Mirascope passthrough bug.
 - Mirascope `BaseResponse`: use `response.messages[:-1]` for input messages — `response.input_messages` does NOT exist.
+- Structured results enter conversation history via `ConversationFacilitator._assistant_history_text` — DTOs with a `message` field store the plain text, never the Pydantic repr (history is replayed every turn and across agent handovers; repr syntax wastes tokens and invites imitation). `mock_brain` delegates to the same helper.
 - Tests use `@traced` from conftest (not bare `@observe()`) for reliable Langfuse trace naming on class methods.
 - **`@traced` serializes the decorated function's args as span input** — never put it on a test taking `monkeypatch` or other cyclic fixture objects; Langfuse's serializer recurses forever and the test HANGS (not fails). Existing `@traced` tests take only `self`. Diagnose hangs with `pytest -o faulthandler_timeout=25`.
 
