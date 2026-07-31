@@ -130,6 +130,38 @@ class TestScopedDiscard:
             assert node is not None
             assert node.discarded is None
 
+    async def test_refuses_multi_membership_perspective(self):
+        """A perspective in the pinned nexus AND another exploration is
+        refused — Discard is global soft-discard and would prune the other
+        deliverable too. (Kill the set-difference in _outside_scope_refusal
+        and this fails.)"""
+        sid = _new_sid()
+        with scope(sid):
+            nexus = _create_nexus()
+            other_nexus = _create_nexus(intent="second exploration")
+            shared = _create_perspective_with_aspects(
+                thesis_text="Control", antithesis_text="Freedom"
+            )
+            shared.nexus.connect(nexus)
+            shared.nexus.connect(other_nexus)
+
+            discard = _tool_by_name(build_scoped_tools(nexus.hash[:7]), "discard")
+            result = await discard(hash=shared.hash)
+
+            assert "Refused" in result
+            assert "also belongs to another" in result
+
+            from dialectical_framework.graph.nodes.perspective import \
+                Perspective
+            from dialectical_framework.graph.repositories.node_repository import \
+                NodeRepository
+
+            node = NodeRepository().find_by_hash(
+                shared.hash, node_type=Perspective
+            )
+            assert node is not None
+            assert node.discarded is None
+
     async def test_allows_standalone_perspective(self):
         """A perspective in NO exploration (e.g. this head's own rejected
         anchor) must be retractable — the pin protects explorations, not

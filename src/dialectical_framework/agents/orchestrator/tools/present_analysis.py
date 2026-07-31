@@ -132,9 +132,10 @@ class PresentAnalysis(ReasonableConcern[str]):
         lines = [f"## Sources ({len(inputs)} total, {len(pending)} pending)"]
         for inp in pending:
             preview = (inp.digest or inp.content or "").split("\n")[0][:120]
-            kind = " (from exploration)" if inp.content.startswith("dx://") else ""
+            is_dx = (inp.content or "").startswith("dx://")
+            kind = " (from exploration)" if is_dx else ""
             lines.append(f"  [{inp.short_hash}]{kind} pending: {preview}")
-            if inp.content.startswith("dx://") and inp.digest:
+            if is_dx and inp.digest:
                 origin = next(
                     (l for l in inp.digest.split("\n") if l.startswith("Origin:")),
                     None,

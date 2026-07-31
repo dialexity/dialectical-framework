@@ -225,7 +225,7 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | S+/S- emergence-vs-trap, "1+1>2" | `NAVIGATOR_APP` | prose | prose | `synthesis_generation` concern |
 | Ac+ = T-→A+, Re+ = A-→T+ direction | `NAVIGATOR_APP` | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` |
 | `nexus_intent` surface classification | "internal, do not surface" | interpolated raw into header | — | leak risk |
-| Round-trip narration (dx:// loop: capture → develop → weave back) | "Inputs from exploration" section (recognize `dx://`, develop, offer `expand_nexus` back to the origin named in the input's digest) | "Feeding Insights Back" section (`create_dx_input` at resonance moments, loop framed as growth not exit) | — (unscoped Advisor has no dx tools) | `orchestrator/tools/create_dx_input.py` — both narrations must describe the SAME loop. Provenance channel: `CreateDxInput` stamps "Origin: insight from exploration [[hash]]" into the Input digest; `present_analysis` Sources section + `inspect_node`'s Transition renderer surface it. If the digest format changes, the Analyst prompt's "Origin: insight from" pointer must change with it. |
+| Round-trip narration (dx:// loop: capture → develop → weave back) | "Inputs from exploration" section (recognize `dx://`, develop, offer `expand_nexus` back to the origin named in the input's digest) | "Feeding Insights Back" section (`create_dx_input` at resonance moments, loop framed as growth not exit) | — (unscoped Advisor has no dx tools) | `orchestrator/tools/create_dx_input.py` — both narrations must describe the SAME loop. Provenance channel: `CreateDxInput` stamps "Origin: insight from exploration [[hash]]" into the Input digest; `present_analysis` Sources section + `inspect_node`'s Transition renderer surface it. If the digest format changes, the Analyst prompt's "Origin: insight from" pointer must change with it. `CreateDxInput` is idempotent: repeat capture of the same transition reuses the existing Input (content-addressable hash) without clobbering a refined digest or duplicating the HAS_INPUT edge. `InputRepository.get_all` carries the committed-only filter (its two new LLM-facing consumers — `present_analysis` Sources + `DialecticalContext` pending list — would otherwise surface uncommitted garbage). |
 
 ### Agent-mode authority matrix (who may touch the graph, enforced in code)
 
@@ -249,12 +249,19 @@ keeps both registers in Navigator territory (same vocabulary contract, third-par
 presentation); the toggle changes engine + register, never the user contract. The advisory override also
 mandates **transparent mutation**: anchor/explore/discard on the user-built exploration are consent-first
 and announced (vs the unscoped Advisor's silent graph-building). The ENGINE enforces this too — the scoped
-render swaps `_REJECTION_HANDLING` for `_REJECTION_HANDLING_SCOPED` (confirm-then-discard for exploration
-members; fresh own anchors need no ceremony), `_scope_section` defers consent to the preamble ("when the
-person agrees to add it"), and the `_CONVERSATION_USE` "After ingest or anchor" heading drops `ingest`
-when unwired. Never reintroduce silent-mutation wording into the scoped render — locked by
-`TestScopedAdvisorConsentContract`. Scoped `discard`'s code guard matches: pinned-nexus members and
-standalone perspectives (own rejected anchors) allowed, members of OTHER explorations refused.
+render swaps SIX sections for `_SCOPED` variants: `_ROLE_SCOPED` (analysis is shared work, not hidden
+machinery), `_EAGER_SCOPED`, `_scope_section` (defers consent to the preamble — "when the person agrees
+to add it"), `_TOOLS_INTRO_SCOPED` (never name tools, but announce their EFFECTS), `_REJECTION_HANDLING_SCOPED`
+(fresh own anchors → no ceremony; unwoven members → confirm-then-discard; woven-in members → can't remove,
+offer re-anchor instead — reconciles with `Discard`'s cycle-member refusal), `_HOW_YOU_SPEAK_SCOPED`, plus
+`_TOOL_DOCS` `_scoped` variants for `anchor`/`sync`/`explore`/`discard`, and the `_CONVERSATION_USE`
+"After ingest or anchor" heading drops `ingest` when unwired. **The whole assembled scoped render carries
+NO silent-mutation or machinery-hiding wording** (checked by a full-prompt sweep, not per-section — the
+first fix missed the `discard` tool doc's "Silently retracts", `_TOOLS_INTRO`'s "eagerly and silently",
+and `_ROLE`'s "never see the machinery" because it only checked the rejection section's phrases). Locked
+by `TestScopedAdvisorConsentContract` (whole-prompt sweep + woven-in dead-end + ingest bare-word). Scoped
+`discard`'s code guard matches: pinned-nexus members and standalone perspectives (own rejected anchors)
+allowed, members of OTHER explorations refused (multi-membership counts as another's).
 
 **Toggle narration lives on both heads** (each surfaces the handover signal, neither auto-switches):
 the Explorer prompt's "When the User Shifts from Structure to Meaning" section suggests counsel mode only

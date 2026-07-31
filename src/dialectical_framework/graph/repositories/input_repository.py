@@ -45,7 +45,7 @@ class InputRepository:
 
         query = """
         MATCH (i:Input)
-        WHERE i.sid = $sid
+        WHERE i.sid = $sid AND i.hash IS NOT NULL
         RETURN i
         """
         results = graph_db.execute_and_fetch(query, {"sid": sid})

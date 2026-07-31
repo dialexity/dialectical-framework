@@ -131,8 +131,10 @@ def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
     if membership_ids - {nexus._id}:
         # Lives in another exploration (possibly in addition to the pinned
         # one) — discarding is global and would prune that deliverable too.
+        also = "also " if nexus._id in membership_ids else ""
         return (
-            f"Refused: perspective [[{target_hash}]] belongs to another "
-            f"exploration and cannot be discarded from here."
+            f"Refused: perspective [[{target_hash}]] {also}belongs to another "
+            f"exploration — discarding is global and would remove it there "
+            f"too, so it cannot be discarded from here."
         )
     return None

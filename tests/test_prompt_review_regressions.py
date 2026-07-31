@@ -703,6 +703,22 @@ class TestNavigatorRoundTrip:
         # boundary (no thesis extraction / perspective building) survives
         assert "cannot extract" in p
 
+    def test_explorer_narrates_analyst_as_weave_owner(self):
+        """Weave-step ownership: the Analyst weaves back after developing;
+        the Explorer's expand_nexus is the FALLBACK for perspectives that
+        weren't woven in there — not the primary path (previously both
+        prompts claimed the step)."""
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
+        joined = " ".join(p.split())
+        assert "weaving it back into this exploration) happens in the " \
+            "analysis thread" in joined
+        assert "attach them yourself via `expand_nexus`" in joined
+        # the old double-claim is gone
+        assert "return here afterwards to weave the result in" not in joined
+
     def test_explorer_prompt_frames_analyst_trip_as_growth_not_exit(self):
         from dialectical_framework.agents.explorer.system_prompts import \
             system_prompt
@@ -723,9 +739,11 @@ class TestNavigatorRoundTrip:
         # dx inputs are exploration feedback, developed then offered back
         assert "expand_nexus` to weave them back" in joined
         # the "weave back to the SOURCE" instruction must be executable —
-        # the prompt points at the origin channels (digest / inspect_node)
+        # the prompt points at the origin channels (digest / inspect_node
+        # on the URI's transition hash — dx-specific, not the generic
+        # inspect_node mentions elsewhere in the prompt)
         assert "Origin: insight from" in joined
-        assert "inspect_node" in joined
+        assert "the last segment of the dx:// URI" in joined
 
 
 class TestExplorerAdvisorToggleNarration:
@@ -778,9 +796,41 @@ class TestScopedAdvisorConsentContract:
         assert "silently `discard` it" not in joined
         assert "Don't announce it" not in joined
         # consented retraction instead
-        assert "confirm before discarding" in joined
+        assert "retractions are consented, not silent" in joined
         assert "nothing appears or disappears from it without them knowing" \
             in joined
+
+    def test_scoped_render_whole_prompt_silence_sweep(self):
+        """Sweep the ENTIRE assembled scoped prompt for silent-mutation and
+        machinery-hiding phrasing — not just the rejection section. Catches
+        remnants in shared sections (_ROLE, _TOOLS_INTRO, tool docs) that
+        section-specific asserts miss (found by review: the discard tool doc
+        still said 'Silently retracts')."""
+        p = self._scoped()
+        joined = " ".join(p.split())
+        for phrase in (
+            "Silently retracts",
+            "silently `discard`",
+            "never see the machinery",
+            "never mention them",
+            "Don't announce",
+        ):
+            assert phrase not in joined, f"silent-mutation remnant: {phrase!r}"
+        # effects are announced, tool names still hidden
+        assert "announce additions and removals" in joined
+        assert "Never name the tools themselves" in joined \
+            or "never name the tools" in joined.lower()
+
+    def test_scoped_rejection_covers_woven_in_dead_end(self):
+        """A woven-in perspective can't be discarded (Discard refuses cycle
+        members) — the consent script must not promise a removal the tool
+        will refuse. The prompt must carry the re-anchor fallback."""
+        p = self._scoped()
+        joined = " ".join(p.split())
+        assert "cannot be removed" in joined
+        assert "don't offer a removal you can't deliver" in joined.lower() \
+            or "don't offer a removal" in joined.lower()
+        assert "the old one stays visible" in joined
 
     def test_unscoped_render_keeps_silent_discard(self):
         from dialectical_framework.agents.advisor.system_prompts import \
@@ -797,11 +847,11 @@ class TestScopedAdvisorConsentContract:
         assert "app preamble above governs how that consent works" in joined
 
     def test_scoped_render_does_not_reference_ingest(self):
-        """ingest is not wired in scoped mode — the prompt must not name it
-        as an available move."""
+        """ingest is not wired in scoped mode — the prompt must not mention
+        it at all (bare-word sweep; review found 'More precise than ingest'
+        and 'anchor/ingest result' surviving a backtick-only check)."""
         p = self._scoped()
-        assert "`ingest`" not in p
-        assert "After ingest" not in p
+        assert "ingest" not in p.lower()
         # anchor guidance survives the rewrite
         assert "**After anchor (tensions identified):**" in p
 
@@ -836,15 +886,25 @@ class TestAdvisorScoreLaddersDerived:
     copies drift when the taxonomy changes."""
 
     def test_ladders_interpolated_from_constants(self):
-        import inspect as _inspect
+        """The rendered helper output must appear verbatim in the prompt —
+        proves the ladders come THROUGH _ladder_lines, not a hand-typed copy
+        that happens to match (a copy passes the value test until the
+        taxonomy changes)."""
+        from dialectical_framework.agents.advisor.system_prompts import (
+            SYSTEM_PROMPT, _ladder_lines)
+        from dialectical_framework.concerns.ac_re_taxonomy import (
+            INSIGHT_SCALE, PROACTIVENESS_SCALE)
 
-        from dialectical_framework.agents.advisor import system_prompts as m
-
-        src = _inspect.getsource(m)
-        idx = src.find("_SCORE_READING")
-        section_src = src[idx : idx + 6000]
-        assert "_ladder_lines(INSIGHT_SCALE" in section_src
-        assert "_ladder_lines(PROACTIVENESS_SCALE" in section_src
+        insight_render = _ladder_lines(
+            INSIGHT_SCALE,
+            {0.0: "automatic response", 1.0: "paradigm shift"},
+        )
+        proactiveness_render = _ladder_lines(
+            PROACTIVENESS_SCALE,
+            {0.2: "Re apex zone", 0.4: "midpoint", 0.6: "Ac apex zone"},
+        )
+        assert insight_render in SYSTEM_PROMPT
+        assert proactiveness_render in SYSTEM_PROMPT
 
     def test_rendered_values_match_taxonomy(self):
         from dialectical_framework.agents.advisor.system_prompts import \

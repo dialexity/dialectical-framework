@@ -50,31 +50,55 @@ class CreateDxInput(ReasonableConcern[Input]):
             raise ValueError("Case not found for current scope")
 
         uri = f"dx://{sid}/{node.hash}"
-        input_node = Input(content=uri)
-        input_node.commit()
-        case.inputs.connect(input_node)
+        nexus = self._find_source_nexus(node)
 
-        # Stamp provenance into the digest (mutable, hash-excluded) so the
-        # round-trip stays closable: whoever processes this input can see
-        # which exploration the insight came from without raw Cypher.
-        provenance = self._build_provenance_digest(node)
-        if provenance:
-            input_node.digest = provenance
-            input_node.save()
+        # Idempotent capture: Input is content-addressable (same URI = same
+        # hash), so a repeat capture of the same transition must reuse the
+        # existing node — WITHOUT clobbering its digest (SourceDigest may
+        # have refined it) and WITHOUT duplicating the HAS_INPUT edge
+        # (directed connect() is not idempotent).
+        existing = self._find_existing(uri)
+        if existing is not None:
+            input_node = existing
+            self._report.ok = True
+            self._report.summary = (
+                f"Input for Transition {node.short_hash} already exists — reused"
+            )
+        else:
+            input_node = Input(content=uri)
+            input_node.commit()
+            case.inputs.connect(input_node)
 
-        self._report.node_created(input_node)
-        self._report.relationship_created(case.inputs, case, input_node)
-        self._report.ok = True
-        self._report.summary = (
-            f"Created dx:// input referencing Transition {node.short_hash}"
-        )
+            # Stamp provenance into the digest (mutable, hash-excluded) so
+            # the round-trip stays closable: whoever processes this input can
+            # see which exploration the insight came from without raw Cypher.
+            provenance = self._build_provenance_digest(node, nexus)
+            if provenance:
+                input_node.digest = provenance
+                input_node.save()
+
+            self._report.node_created(input_node)
+            self._report.relationship_created(case.inputs, case, input_node)
+            self._report.ok = True
+            self._report.summary = (
+                f"Created dx:// input referencing Transition {node.short_hash}"
+            )
+
         self._report.artifacts["input_hash"] = input_node.hash
         self._report.artifacts["transition_hash"] = node.hash
-        nexus = self._find_source_nexus(node)
         if nexus is not None:
             self._report.artifacts["source_nexus_hash"] = nexus.hash
 
         return input_node
+
+    @staticmethod
+    def _find_existing(uri: str) -> Optional[Input]:
+        """Find a committed Input with this exact content (dedup by URI)."""
+        import hashlib
+
+        potential_hash = hashlib.sha256(uri.encode("utf-8")).hexdigest()
+        existing = NodeRepository().find_by_hash(potential_hash)
+        return existing if isinstance(existing, Input) else None
 
     @staticmethod
     def _find_source_nexus(transition: Transition):
@@ -100,14 +124,15 @@ class CreateDxInput(ReasonableConcern[Input]):
             return find_nexus_for_cycle(container)
         return None
 
-    def _build_provenance_digest(self, transition: Transition) -> Optional[str]:
+    def _build_provenance_digest(
+        self, transition: Transition, nexus
+    ) -> Optional[str]:
         """Compose the insight text + origin lineage as the input's digest."""
         text = transition.summary or transition.instruction
         if not text:
             return None
 
         lines = [text, ""]
-        nexus = self._find_source_nexus(transition)
         if nexus is not None:
             intent = f' "{nexus.intent}"' if nexus.intent else ""
             lines.append(

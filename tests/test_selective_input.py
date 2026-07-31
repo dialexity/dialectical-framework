@@ -445,6 +445,8 @@ class TestRoundTripProvenance:
 
     @pytest.mark.asyncio
     async def test_dialectical_context_lists_pending_inputs(self):
+        """Empty-graph branch: no perspectives, but a pending input exists —
+        the dump must surface it instead of claiming a blank slate."""
         from dialectical_framework.concerns.dialectical_context import \
             DialecticalContext
 
@@ -457,6 +459,81 @@ class TestRoundTripProvenance:
 
             assert "Pending" in dump
             assert inp.short_hash in dump
+            assert "No tensions identified yet" in dump
+            assert "No prior understanding" not in dump
+
+    @pytest.mark.asyncio
+    async def test_dialectical_context_pending_inputs_with_perspectives(self):
+        """Populated-graph branch: pending inputs are listed alongside
+        existing tensions (the other half of the _dump_inputs change)."""
+        import test_dialectical_context as tdc
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+
+        sid = _new_sid()
+        with scope(sid):
+            tdc._create_perspective_with_aspects()
+            inp = Input(content="Captured mid-conversation, not yet analyzed")
+            inp.commit()
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Pending" in dump
+            assert inp.short_hash in dump
+            assert "Control" in dump  # the perspective still renders
+
+    @pytest.mark.asyncio
+    async def test_repeat_capture_is_idempotent(self):
+        """Capturing the same transition twice must reuse the existing Input:
+        no digest clobber (SourceDigest may have refined it), no duplicate
+        HAS_INPUT edge, no second node_created effect."""
+        from dialectical_framework.concerns.create_dx_input import \
+            CreateDxInput
+        from dialectical_framework.graph.repositories.input_repository import \
+            InputRepository
+
+        sid = _new_sid()
+        with scope(sid):
+            _, _, ac_plus = _build_transformation_with_nexus("idem1")
+
+            first = CreateDxInput()
+            input_node = await first.resolve(transition_hash=ac_plus.hash)
+
+            # Simulate a later digest refinement by the Analyst side.
+            input_node.digest = "REFINED understanding of the insight"
+            input_node.save()
+
+            second = CreateDxInput()
+            reused = await second.resolve(transition_hash=ac_plus.hash)
+
+            assert reused.hash == input_node.hash
+            assert "reused" in second.report.summary
+            # refined digest survives
+            assert reused.digest == "REFINED understanding of the insight"
+            # artifacts still delivered on the reuse path
+            assert second.report.artifacts["input_hash"] == input_node.hash
+            assert "source_nexus_hash" in second.report.artifacts
+            # no second node_created effect
+            created_effects = [
+                e for e in second.report.effects
+                if e.effect_type == "node_created"
+            ]
+            assert not created_effects
+            # exactly one Input node, one HAS_INPUT edge
+            dx_inputs = [
+                i for i in InputRepository().get_all()
+                if i.content.startswith("dx://")
+            ]
+            assert len(dx_inputs) == 1
+            from dialectical_framework.graph.repositories.case_repository import \
+                CaseRepository
+
+            case = CaseRepository().find_by_sid()
+            edges = [
+                (n, r) for n, r in case.inputs.all()
+                if n.hash == input_node.hash
+            ]
+            assert len(edges) == 1
 
 
 class TestSelectiveInputProcessing:
