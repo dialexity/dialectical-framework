@@ -135,7 +135,13 @@ def install_mock_brain(monkeypatch: Any) -> None:
 
     async def _mock_call_with_response_model(self: Any, response_model: type) -> Any:
         result = build_mock_response(response_model)
-        self._messages.append(llm.messages.assistant(str(result), model_id=None, provider_id=None))
+        self._messages.append(
+            llm.messages.assistant(
+                cf_mod.ConversationFacilitator._assistant_history_text(result),
+                model_id=None,
+                provider_id=None,
+            )
+        )
         return result
 
     monkeypatch.setattr(

@@ -105,7 +105,8 @@ you from a generic list of pros and cons.
 
 - **≥0.7** — a strong, real opposition. Lead with these.
 - **0.5-0.7** — a moderate or partial tension. Worth presenting, but frame it as secondary.
-- **<0.5** — weak or tangential; the two sides barely oppose. Don't present it as a core tension.
+- **0.3-0.5** — weak or tangential; don't present it as a core tension, but it stays workable if the user is drawn to it.
+- **<0.3** — barely an opposition at all; suggest re-framing (`edit_perspective` or discard-and-re-anchor) rather than developing it.
 
 `analyze` expands only the strongest tensions into full perspectives and sets the
 rest aside — the report's `polarity_quality` artifact lists every tension with its

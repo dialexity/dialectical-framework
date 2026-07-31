@@ -340,5 +340,23 @@ class ConversationFacilitator(SettingsAware):
             return messages
 
         result = await _llm_call()
-        self._messages.append(llm.messages.assistant(str(result), model_id=None, provider_id=None))
+        self._messages.append(
+            llm.messages.assistant(
+                self._assistant_history_text(result),
+                model_id=None,
+                provider_id=None,
+            )
+        )
         return result
+
+    @staticmethod
+    def _assistant_history_text(result: Any) -> str:
+        """History form of a structured result: natural text, not a Pydantic
+        repr. This history is replayed to the provider every turn (and across
+        agent-toggle handovers) — `message='...'` repr syntax wastes tokens
+        and invites the model to imitate it. DTOs without a `message` field
+        fall back to str()."""
+        message = getattr(result, "message", None)
+        if isinstance(message, str) and message:
+            return message
+        return str(result)

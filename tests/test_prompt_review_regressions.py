@@ -674,7 +674,7 @@ class TestExplorerIsBoundedConsumer:
             system_prompt
 
         p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
-        assert "analysis thread" in p
+        assert "analysis view" in p
 
 
 class TestNavigatorRoundTrip:
@@ -714,7 +714,7 @@ class TestNavigatorRoundTrip:
         p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
         joined = " ".join(p.split())
         assert "weaving it back into this exploration) happens in the " \
-            "analysis thread" in joined
+            "analysis view" in joined
         assert "attach them yourself via `expand_nexus`" in joined
         # the old double-claim is gone
         assert "return here afterwards to weave the result in" not in joined
@@ -807,6 +807,46 @@ class TestContextDumpPrePruned:
     def test_unexplored_tensions_notes_the_filter(self):
         p = self._advisor()
         assert "quality-filtered" in p
+
+
+class TestCrossAgentHsBandParity:
+    """Analyst and Advisor hand-type HS-on-A reading bands. They must carry
+    the SAME band boundaries (0.7 / 0.5 / 0.3) so a borderline tension gets
+    consistent treatment across the toggle — a user shouldn't see a 0.42
+    tension demoted in the analysis view and promoted in counsel. Boundaries
+    come from the shared HS_SCALE constant (0.9/0.7/0.5/0.3/0.1)."""
+
+    def _bands(self, text: str) -> list[str]:
+        import re
+
+        # normalize unicode dash and whitespace, then extract band tokens
+        t = " ".join(text.replace("–", "-").split())
+        return re.findall(r"(?:≥|>=|<)?0\.\d(?:-0\.\d)?", t)
+
+    def test_analyst_and_advisor_share_band_boundaries(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT as ADVISOR
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT as ANALYST
+
+        # Analyst: locate its HS reading section
+        a_idx = ANALYST.find("Reading Polarity Quality")
+        analyst_section = " ".join(
+            ANALYST[a_idx : a_idx + 900].replace("–", "-").split()
+        )
+        # Advisor: locate the HS-on-A entry in score reading
+        d_idx = ADVISOR.find("`HS` on A (antithesis)")
+        advisor_section = " ".join(
+            ADVISOR[d_idx : d_idx + 500].replace("–", "-").split()
+        )
+
+        for band in ("0.7", "0.5-0.7", "0.3-0.5", "<0.3"):
+            assert band in analyst_section, f"Analyst missing band {band}"
+            assert band in advisor_section, f"Advisor missing band {band}"
+        # the old coarse Analyst floor must not return
+        assert "<0.5 — weak or tangential; the two sides barely oppose" not in (
+            analyst_section
+        )
 
 
 class TestArrangementContrast:

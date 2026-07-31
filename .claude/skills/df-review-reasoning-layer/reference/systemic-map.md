@@ -266,7 +266,7 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Shared concept | Analyst | Explorer | Advisor | Ground truth |
 |----------------|---------|----------|---------|--------------|
 | HS-on-A vs HS-on-Ac+/Re+ disambiguation | uses only HS-on-A | disambiguates both | disambiguates both | — (must agree) |
-| HS threshold bands | 3 bands | — | 4 bands | `HS_SCALE` (6 bands) — none import it |
+| HS threshold bands | 4 bands (0.7/0.5/0.3) | — | 4 bands (same boundaries) | `HS_SCALE` (6 bands) — neither imports it, but boundaries now agree; locked by `TestCrossAgentHsBandParity` |
 | Nexus grouping rule ("different polarities → synthesis; same → angle shift") | prose | — | prose | duplicated, hand-written twice |
 | S+/S- emergence-vs-trap, "1+1>2" | `NAVIGATOR_APP` | prose | prose | `synthesis_generation` concern |
 | Ac+ = T-→A+, Re+ = A-→T+ direction | `NAVIGATOR_APP` | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` |
@@ -361,8 +361,8 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   labels T-/T+ as "blindspot." NAVIGATOR_APP + Analyst only. Skipped in the default suite.
 
 ### Coverage gaps a systemic review should close (add a regression when you touch these)
-- **No cross-agent consistency test** — nothing asserts Analyst/Explorer/Advisor share the same HS bands,
-  grouping rule, or Ac+/Re+ direction.
+- **Cross-agent HS-band parity now tested** (`TestCrossAgentHsBandParity`: Analyst/Advisor HS-on-A
+  boundaries agree). Still untested cross-agent: the nexus grouping rule wording and Ac+/Re+ direction.
 - **Agent-prompt hand-typed scales untested for agreement** with `scoring_scales.py` / `ac_re_taxonomy.py`
   (Analyst HS bands, Advisor score section). The enforced-shared parametrize covers only the two aspect concerns.
 - **The taxonomy dict-vs-table lockstep is untested** (hotspot §3.1).
