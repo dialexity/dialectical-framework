@@ -434,6 +434,11 @@ Mock brain returns **identical** DTOs every call — to test diversity/dedup log
 read in `settings.py` (`Settings.from_env`) except `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`
 (`utils/concurrency.py`) and `DIALEXITY_TEST_CLEANUP` (`tests/conftest.py`).
 
+**File convention:** uncommented vars are REQUIRED; commented vars are optional and the
+value shown IS the code default (uncommenting unchanged is a no-op). When you change a
+default in `settings.py`/`concurrency.py`, update the commented value in `.env.example`
+in the same change — the file must never show a stale default.
+
 Only required: `DIALEXITY_DEFAULT_MODEL` — single combined `provider/model` string
 (e.g. `bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0`) — plus credentials for
 the named provider (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or AWS creds for `bedrock/`).
