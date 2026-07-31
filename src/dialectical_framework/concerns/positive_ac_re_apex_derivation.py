@@ -170,7 +170,7 @@ You MUST generate apexes within these coordinate ranges:
 
 ## Validation
 
-Ac+/Re+ must: (1) not restate A+/T+, (2) be generative, (3) explain subtlety/non-force, (4) generalize beyond T/A.
+Ac+/Re+ must: (1) not restate A+/T+, (2) be generative, (3) be valid BEFORE A+/T+ are affordable — the operation must work while the constructive aspects are still out of reach, since it is the path that makes them affordable, (4) explain subtlety/non-force, (5) generalize beyond T/A.
 """
 
 

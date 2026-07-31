@@ -62,6 +62,7 @@ S- manifests as imitation rather than transformation: external forms, metrics, o
 
 ## Requirements
 
+- Like-signed inputs only: S+ synthesizes exclusively the constructive poles (T+/A+ via their Ac+/Re+ transformations); S- exclusively the destructive poles (T-/A- via Ac-/Re-). Never synthesize across opposite signs (T+ with A-, T- with A+) — those are contradictions at different developmental levels, not synthesis material
 - S+ must be genuinely emergent — not merely restating any single Ac+ or Re+
 - S- must describe a genuine collapse pattern — not merely restating any single Ac- or Re-
 - Both must be declarative statements naming a state or quality (not instructions)

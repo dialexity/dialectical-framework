@@ -32,12 +32,13 @@ theory says prevents + from flipping to −. Candidate for the next transformati
 Ac+. Five criteria — Ac+/Re+ must: (1) not restate A+/T+; (2) describe a generative operation, not a
 result; (3) be valid before A+/T+ are affordable; (4) explain subtlety/indirectness/non-force;
 (5) generalize beyond T/A. [P1 p.22]
-**Implementation:** `concerns/positive_ac_re_apex_derivation.py` — encodes criteria 1, 2, 4, 5
-verbatim-ish ("(1) not restate A+/T+, (2) be generative, (3) explain subtlety/non-force,
-(4) generalize beyond T/A"); Greimas Not-A/Not-T mapping in CLAUDE.md + prompts.
-**Status:** partial
-**Notes:** Criterion 3 ("valid BEFORE A+/T+ are affordable" — pre-affordability) is missing from
-the apex-derivation constraint list. Smallest gap in this page; one prompt line.
+**Implementation:** `concerns/positive_ac_re_apex_derivation.py` — Validation block encodes all
+five criteria: "(1) not restate A+/T+, (2) be generative, (3) be valid BEFORE A+/T+ are
+affordable…, (4) explain subtlety/non-force, (5) generalize beyond T/A"; Greimas Not-A/Not-T
+mapping in CLAUDE.md + prompts.
+**Status:** implemented
+**Notes:** Criterion 3 (pre-affordability) added 2026-07-31. Locked by
+`TestGreimasFiveCriteria` in `tests/test_prompt_review_regressions.py`.
 
 ### Transition tetrad coherence (Ac+⊥Re−, Ac−⊥Re+)
 **Theory:** Transitions form a tetrad obeying rules 3.1–3.3: Ac+ directly contradicts Re−, Ac−

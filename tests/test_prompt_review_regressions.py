@@ -232,6 +232,53 @@ class TestApexSweetSpots:
         assert "(proactiveness 0.5-0.7" not in src
 
 
+class TestGreimasFiveCriteria:
+    """Theory Greimas criteria (P1 p.22): all FIVE must be in the apex-derivation
+    Validation block. Criterion 3 (pre-affordability — valid BEFORE A+/T+ are
+    affordable) was the missing one (docs/theory/transformations-synthesis.md)."""
+
+    def test_validation_block_carries_all_five(self):
+        from dialectical_framework.concerns import \
+            positive_ac_re_apex_derivation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "not restate A+/T+" in p
+        assert "be generative" in p
+        # criterion 3: pre-affordability
+        assert "valid BEFORE A+/T+ are affordable" in p
+        assert "subtlety/non-force" in p
+        assert "generalize beyond T/A" in p
+        # five numbered items, not four
+        assert "(5)" in p
+
+
+class TestEqualSignSynthesisConstraint:
+    """R5 (equal-sign synthesis): the like-signed rule must be an EXPLICIT prompt
+    constraint, not only correct-by-construction input routing
+    (docs/theory/generative-rules.md Rule 4.1-4.2)."""
+
+    def test_like_signed_constraint_is_explicit(self):
+        from dialectical_framework.concerns import synthesis_generation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "Like-signed inputs only" in p
+        assert "Never synthesize across opposite signs" in p
+
+
+class TestBackfireConstraint:
+    """R6 backfire corollary (P0 p.30): strengthening T+ head-on strengthens A-
+    and flips T+ into T-. Transformation generation must forbid direct
+    '+'-reinforcement (docs/theory/generative-rules.md Rule 3.3)."""
+
+    def test_no_direct_reinforcement_rule_present(self):
+        from dialectical_framework.concerns import transformation_generation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "Never propose direct reinforcement" in p
+        # the mechanism, so the constraint explains itself
+        assert "flips T+ into T-" in p
+
+
 # --- S4: transition length is settings-driven --------------------------------
 
 

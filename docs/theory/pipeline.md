@@ -32,7 +32,7 @@ ordering.
 |------|----------------------|------------------|------------------|
 | 3.1 tetrad/diagonal | prompt constraints (`aspect_generation`) | `edit_perspective` only (`DiagonalOppositionsCheck`) | — |
 | 3.2 modality balance | — | — | CLAUDE.md/theory only |
-| 3.3 control statements | — | `edit_perspective` only (`ControlStatementsCheck`); `PerspectiveValidation` unwired | prompts mention |
+| 3.3 control statements | backfire constraint (`transformation_generation`) | `edit_perspective` (blocking) + `expand_polarities._validate_and_flag` via `PerspectiveValidation` (non-blocking flag) | — |
 | 3.4 ontology profiling | — | — | absent everywhere |
 | 4.x synthesis rules | input selection (`synthesis_generation`) | — | prompt framing |
 | 5.x circular causality | prompt constraints (`transformation_generation`) | audits annotate, don't gate | — |
@@ -41,9 +41,10 @@ ordering.
 
 **The only live hard gates:** HS ≥ 0.7 (`_rank_polarities`) + consolidation bands 0.7/0.1
 (`antithetical_thesis_detection`) + wheel geometry (structural, can't be violated). Everything else
-is prompt-constrained generation with annotation-only auditing. This is a deliberate architecture
-(generation prompts enforce; validation is post-hoc and mostly unwired) — see CLAUDE.md
-"Validation, in practice".
+is prompt-constrained generation with annotation-only auditing — including the generation-path
+`PerspectiveValidation` run, which flags `Perspective.validation` without blocking. This is a
+deliberate architecture (generation prompts enforce; validation is post-hoc and non-blocking) —
+see CLAUDE.md "Validation, in practice".
 
 ## Paper's module architecture vs agent architecture
 

@@ -43,12 +43,20 @@ if ever needed. Do not let prompts claim modality balance is enforced (see df-re
 Variant at neutral-T level: "T without A+ yields T−"; truth criterion "T is true iff it fosters A+"
 [P0 p.29]. Caution: strengthening T+ directly strengthens A−, flipping T+ into T− [P0 p.30].
 **Implementation:** `concerns/control_statements_check.py:ControlStatementsCheck` (aspect level,
-CC-scored); invoked live only from `skills/edit_perspective.py:_validate_tetrad_coherence`;
-`concerns/perspective_validation.py:PerspectiveValidation` exists but is unwired (tests only).
+CC-scored); invoked live from `skills/edit_perspective.py:_validate_tetrad_coherence` (user edits,
+blocking) AND from `skills/expand_polarities.py:_validate_and_flag` via `PerspectiveValidation`
+(generation path, non-blocking flag on `Perspective.validation`). The backfire dynamic
+("strengthening T+ directly strengthens A−, flipping T+ into T−") is encoded as a prompt
+constraint in `concerns/transformation_generation.py` ("Never propose direct reinforcement of a
+'+' aspect").
 **Status:** partial
-**Notes:** Aspect-level CC check exists but gates only user edits, not generation. The neutral-T
-variant and the "strengthening T+ directly backfires" dynamic are not encoded anywhere — the
-latter is prompt-relevant for transformation generation (avoid direct-reinforcement suggestions).
+**Notes:** Aspect-level check now runs on both paths (edits gate; generation flags — deliberate:
+CC is the paper's less-reliable coherence metric, so it deprioritizes rather than drops).
+Backfire constraint added 2026-07-31 (locked by `TestBackfireConstraint` in
+`tests/test_prompt_review_regressions.py`). Still unencoded: the neutral-T variant ("T without A+
+yields T−" / "T is true iff it fosters A+") — no generation step operates at neutral-T level, so
+it has no natural prompt site; and the transition-level "S+ without lower-layer support yields
+S−" (TODO in `synthesis_generation.py`, blocked on sub-synthesis substrate — see Rule 7).
 
 ### Rule 3.4: Ontology profiling (MMI-driven tetrad selection)
 **Theory:** S± outcomes depend on worldview assumptions estimable via empirical indices; the same
@@ -63,11 +71,12 @@ by MMI. [P0 pp.5,12-13]
 nor T+/T−, A+/A− (levels of same phenomenon); positive–negative interactions are developmental
 transitions, not synthesis. [P0 p.5]
 **Implementation:** `concerns/synthesis_generation.py:SynthesisGeneration` — S+ derived from Ac+/Re+
-spiral, S− from Ac−/Re− (one indirection from the like-signed rule, correct by construction).
-**Status:** partial
-**Notes:** Correct via which inputs feed the prompt, but the like-signed principle is never stated
-as a constraint the LLM must honor. Fine while the pipeline controls inputs; brittle if synthesis
-is ever generated from broader context.
+spiral, S− from Ac−/Re−, AND the like-signed principle is stated as an explicit prompt constraint
+("Like-signed inputs only… Never synthesize across opposite signs").
+**Status:** implemented
+**Notes:** Was correct-by-construction only (input routing); the explicit constraint was added
+2026-07-31 so the rule holds even if synthesis inputs ever broaden. Locked by
+`TestEqualSignSynthesisConstraint` in `tests/test_prompt_review_regressions.py`.
 
 ### Rule 4.3-4.4: S+ / S− definitions
 **Theory:** S+ iff dimensionality increases while preserving stability, distinction, normative
