@@ -24,9 +24,9 @@ class Settings(BaseModel):
     # these floors are suppressed from the dump (a count line notes them;
     # inspect_node still reaches them). Thresholds mirror the prompt scales:
     # HS < 0.5 = "weak or tangential", area < 0.3 = "aspects blur together".
-    context_min_hs: float = Field(default=0.5, description="Suppress perspectives whose antithesis HS is below this from the context dump (0 disables).")
-    context_min_area: float = Field(default=0.3, description="Suppress perspectives whose tetrad area is below this from the context dump (0 disables).")
-    context_max_wheels: int = Field(default=3, description="Max wheels rendered per cycle in the context dump, top-normalized-%. 0 = unlimited.")
+    advisor_context_min_hs: float = Field(default=0.5, description="Suppress perspectives whose antithesis HS is below this from the context dump (0 disables).")
+    advisor_context_min_area: float = Field(default=0.3, description="Suppress perspectives whose tetrad area is below this from the context dump (0 disables).")
+    advisor_context_max_wheels: int = Field(default=3, description="Max wheels rendered per cycle in the context dump, top-normalized-%. 0 = unlimited.")
 
     # Depth budget for the Advisor's SILENT exploration (its `explore` tool).
     # "Rich vs simple" exploration is a runtime budget, not a schema concept:
@@ -64,8 +64,14 @@ class Settings(BaseModel):
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
         """
-        Create GenerationSettings by merging partial settings with environment defaults.
-        Missing fields in partial_settings are filled from Settings.from_env().
+        Create Settings by merging partial settings with environment defaults.
+        Fields not explicitly set on partial_settings are filled from
+        Settings.from_env().
+
+        Only EXPLICITLY SET fields override (exclude_unset) — a field left at
+        its Pydantic default does not stomp an env-configured value. Fields
+        explicitly set to None are also dropped (None never means "unset the
+        env value" for any Settings field).
         """
         if partial_settings is None:
             return cls.from_env()
@@ -73,13 +79,17 @@ class Settings(BaseModel):
         # Get full defaults from environment
         env_defaults = cls.from_env()
 
-        # Convert partial_settings to dict, excluding None values
-        partial_dict = partial_settings.model_dump(exclude_none=True) if partial_settings else {}
+        # Only fields the caller explicitly set, and not to None
+        partial_dict = {
+            k: v
+            for k, v in partial_settings.model_dump(exclude_unset=True).items()
+            if v is not None
+        }
 
         # Convert env_defaults to dict
         env_dict = env_defaults.model_dump()
 
-        # Merge: partial_settings override env_defaults
+        # Merge: explicitly-set partial fields override env defaults
         merged_dict = {**env_dict, **partial_dict}
 
         # Create new instance from merged data
@@ -106,9 +116,9 @@ class Settings(BaseModel):
             transition_length=int(os.getenv("DIALEXITY_DEFAULT_TRANSITION_LENGTH", 15)),
             max_wheel_layer=int(os.getenv("DIALEXITY_MAX_WHEEL_LAYER", 4)),
             cycle_preset=CausalityPreset.AUTO,
-            context_min_hs=float(os.getenv("DIALEXITY_CONTEXT_MIN_HS", 0.5)),
-            context_min_area=float(os.getenv("DIALEXITY_CONTEXT_MIN_AREA", 0.3)),
-            context_max_wheels=int(os.getenv("DIALEXITY_CONTEXT_MAX_WHEELS", 3)),
+            advisor_context_min_hs=float(os.getenv("DIALEXITY_ADVISOR_CONTEXT_MIN_HS", 0.5)),
+            advisor_context_min_area=float(os.getenv("DIALEXITY_ADVISOR_CONTEXT_MIN_AREA", 0.3)),
+            advisor_context_max_wheels=int(os.getenv("DIALEXITY_ADVISOR_CONTEXT_MAX_WHEELS", 3)),
             advisor_deep_wheels=int(os.getenv("DIALEXITY_ADVISOR_DEEP_WHEELS", 1)),
             advisor_explore_perspectives=int(os.getenv("DIALEXITY_ADVISOR_EXPLORE_PERSPECTIVES", 2)),
             advisor_explore_synthesis=os.getenv("DIALEXITY_ADVISOR_EXPLORE_SYNTHESIS", "true").lower() == "true",

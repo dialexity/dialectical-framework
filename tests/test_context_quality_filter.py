@@ -2,9 +2,9 @@
 Tests for the context-dump quality filter (task #5).
 
 DialecticalContext pre-prunes instead of instructing: standalone perspectives
-below the quality floor (HS < context_min_hs, area < context_min_area, or
+below the quality floor (HS < advisor_context_min_hs, area < advisor_context_min_area, or
 failed validation) are suppressed with a count line; wheels are capped to the
-top-% context_max_wheels per cycle with a count line. Nexus members are
+top-% advisor_context_max_wheels per cycle with a count line. Nexus members are
 load-bearing and never suppressed. Missing scores never suppress.
 """
 
@@ -122,7 +122,7 @@ class TestPerspectiveQualityFloor:
         sid = _new_sid()
         with scope(sid):
             _perspective_with_hs(0.2, "weak")
-            with _settings(di_container, context_min_hs=0.0):
+            with _settings(di_container, advisor_context_min_hs=0.0):
                 dump = await DialecticalContext().resolve()
             assert "Thesis weak" in dump
 
@@ -205,7 +205,7 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             wheels = self._seed_cycle_with_wheels([0.6, 0.3, 0.1])
-            with _settings(di_container, context_max_wheels=1):
+            with _settings(di_container, advisor_context_max_wheels=1):
                 dump = await DialecticalContext().resolve()
 
             top, mid, low = wheels
@@ -223,7 +223,7 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             self._seed_cycle_with_wheels([0.6, 0.3, 0.1])
-            with _settings(di_container, context_max_wheels=1):
+            with _settings(di_container, advisor_context_max_wheels=1):
                 dump = await DialecticalContext().resolve()
             assert "P=0.60, 60.0%" in dump
 
@@ -232,7 +232,7 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             wheels = self._seed_cycle_with_wheels([0.6, 0.3])
-            with _settings(di_container, context_max_wheels=3):
+            with _settings(di_container, advisor_context_max_wheels=3):
                 dump = await DialecticalContext().resolve()
             for w in wheels:
                 assert w.short_hash in dump
@@ -243,7 +243,29 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             wheels = self._seed_cycle_with_wheels([0.5, 0.3, 0.2])
-            with _settings(di_container, context_max_wheels=0):
+            with _settings(di_container, advisor_context_max_wheels=0):
                 dump = await DialecticalContext().resolve()
             for w in wheels:
                 assert w.short_hash in dump
+
+    @pytest.mark.asyncio
+    async def test_scoped_dump_exempt_from_wheel_cap(self, di_container):
+        """The counsel-mode (nexus-pinned) render shows the user-built
+        exploration in FULL — the wheel cap is unscoped-dump policy only
+        (same load-bearing exemption as nexus members in the quality floor)."""
+        from dialectical_framework.graph.repositories.nexus_repository import \
+            NexusRepository
+
+        sid = _new_sid()
+        with scope(sid):
+            wheels = self._seed_cycle_with_wheels([0.6, 0.3, 0.1])
+            nexus = NexusRepository().find_all()[0]
+
+            with _settings(di_container, advisor_context_max_wheels=1):
+                dump = await DialecticalContext(
+                    nexus_hash=nexus.hash[:7]
+                ).resolve()
+
+            for w in wheels:
+                assert w.short_hash in dump
+            assert "not shown" not in dump

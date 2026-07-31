@@ -3,10 +3,10 @@ DialecticalContext: Reads graph state and produces a structured dump.
 
 Designed for injection into the Advisor agent's system prompt.
 Dumps the graph as structured text with scores inline — pre-pruned:
-perspectives below the quality floors (settings.context_min_hs /
-context_min_area, mirroring the prompt's own scales) and failed-validation
+perspectives below the quality floors (settings.advisor_context_min_hs /
+advisor_context_min_area, mirroring the prompt's own scales) and failed-validation
 perspectives are suppressed with a count line, and wheels are capped to the
-top-% few per cycle (settings.context_max_wheels). Pre-computed pruning
+top-% few per cycle (settings.advisor_context_max_wheels). Pre-computed pruning
 beats prioritization rules the model must self-apply; a weak tetrad
 delivered with full counsel choreography is confident bad advice.
 inspect_node still reaches everything suppressed.
@@ -302,13 +302,17 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         # Wheels under this cycle — capped to the top-% few. The % denominator
         # stays the FULL sibling set (ranking is over all alternatives, not
-        # just the rendered ones).
+        # just the rendered ones). The cap applies to the UNSCOPED dump only:
+        # a scoped (counsel-mode) render shows the user-built exploration in
+        # full — same load-bearing exemption as nexus members in the quality
+        # floor; the counsel head must not be blind to parts of the
+        # deliverable the user assembled deliberately.
         wheels = self._get_cycle_wheels(cycle, wheel_repo)
         if wheels:
             wheel_probs = self._collect_raw_probabilities(wheels)
             total_wheel_prob = sum(p for p in wheel_probs.values() if p is not None)
 
-            max_wheels = self.settings.context_max_wheels
+            max_wheels = 0 if self._nexus_hash else self.settings.advisor_context_max_wheels
             rendered = sorted(
                 wheels,
                 key=lambda w: wheel_probs.get(w._id) or -1.0,
@@ -466,12 +470,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
     ) -> tuple[list[Perspective], int]:
         """
         Split perspectives into (kept, suppressed_count) by the quality floor:
-        antithesis HS < context_min_hs, area < context_min_area, or a failed
+        antithesis HS < advisor_context_min_hs, area < advisor_context_min_area, or a failed
         validation verdict. Missing scores never suppress (unscored ≠ bad).
         Floors of 0 disable the respective check.
         """
-        min_hs = self.settings.context_min_hs
-        min_area = self.settings.context_min_area
+        min_hs = self.settings.advisor_context_min_hs
+        min_area = self.settings.advisor_context_min_area
 
         kept: list[Perspective] = []
         suppressed = 0
