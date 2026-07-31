@@ -258,6 +258,12 @@ _TOOL_DOCS: dict[str, str] = {
   enrich as new tensions emerge; each call builds only what's new, keeping
   existing wheels/transformations.
 
+  Depth is selective: ALL causal arrangements are built and ranked by
+  plausibility, but pathways + synthesis are generated only for the most
+  plausible one — counsel from that. The result lists the other arrangements
+  (`shallow_wheel_hashes`): ranked alternatives whose pathways don't exist
+  yet. Don't present them as developed insight.
+
   Reuse before creating: when a nexus on the same theme already exists (check
   the Current Understanding dump, or `sync` if the conversation has moved on),
   pass its `nexus_hash` to enrich it — omitting the hash creates a NEW nexus,
@@ -280,7 +286,10 @@ _TOOL_DOCS: dict[str, str] = {
     "explore_scoped": """- `explore` — Enriches this exploration with newly anchored perspectives:
   builds causal arrangements, action-reflection pathways, and synthesis for
   what's new, keeping existing structures. Pass the perspective hashes to
-  weave in. Everything lands in this exploration — there is nowhere else.""",
+  weave in. Everything lands in this exploration — there is nowhere else.
+  Depth is selective: all new arrangements are built and ranked, but pathways
+  + synthesis go only to the most plausible one; the rest are listed as
+  `shallow_wheel_hashes` (ranked, not yet developed).""",
     "sync": """- `sync` — Re-reads the full graph state. Use when you need a fresh full
   picture — e.g., after multiple ingest/anchor calls, to see all perspectives
   with scores before deciding what to group for explore. NOT needed after every

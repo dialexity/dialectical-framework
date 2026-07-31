@@ -178,10 +178,15 @@ per thesis → Phase-2 dedup) → **`_rank_polarities` gate** → **ExpandPolari
 aspect dedup). `create_nexus` is the Analyst-only handoff.
 
 ### Exploration chain (`ExplorationPipeline.resolve`)
-**BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **ExploreTransformations ×wheels**
+**BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **depth gate
+`_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all —
+the Explorer agent path; the Advisor's `run_exploration` pins `MAX_DEEP_WHEELS = 1` in
+`advisor/tools/explore.py`) → **ExploreTransformations ×deepened-wheels**
 (Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
 `_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
-annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-).
+annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advisor path syntheses only
+`deepened_wheel_hashes`, and its explore tool docs must keep telling the model that
+`shallow_wheel_hashes` are ranked-but-undeveloped — not presentable as insight).
 
 ### Critical output→input seams (upstream wording ripples downstream)
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
@@ -207,6 +212,10 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-).
 - **`AntitheticalThesisDetection`** (`MERGE_THRESHOLD=0.7`, `SUGGEST_THRESHOLD=0.1`): HS≥0.7 auto-merges two
   theses into one Polarity; 0.1–0.7 suggests; ≤0.1 drops.
 - **ThesisExtraction Step-2 candidate gate** (`is_assertable & is_substantive`, with all-rejected safety net).
+- **`_select_deep_wheels`** (`explorer/explorer.py`, `max_deep_wheels`): caps which wheels get
+  transformations+synthesis — layer desc, then raw `CausalityProbabilityEstimation` desc (unestimated last).
+  Advisor explore pins cap=1 (`MAX_DEEP_WHEELS`); Explorer agent path passes None (user selects wheels).
+  Locked by `tests/test_exploration_lazy_depth.py`.
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   `PerspectiveValidation` is unwired (tests only); the one live post-hoc check is
   `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.

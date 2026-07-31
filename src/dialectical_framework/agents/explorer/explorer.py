@@ -172,6 +172,9 @@ class ExplorationResult(BaseModel):
     nexus_hash: str
     cycle_hashes: list[str] = []
     wheel_hashes: list[str] = []
+    # Wheels that got transformations this run (== wheel_hashes unless the
+    # pipeline was capped via max_deep_wheels). Synthesis should follow these.
+    deepened_wheel_hashes: list[str] = []
     transformation_count: int = 0
     errors: list[StepError] = []
     reports: list = []
@@ -187,6 +190,13 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
     1. Build structural combinations (Cycles + Wheels)
     2. Generate Action-Reflection transformations for each Wheel
 
+    `max_deep_wheels` caps step 2: ALL wheels are still built and estimated
+    (structural, cheap), but only the top-plausibility wheels — deepest layer
+    first, then highest causality P — get transformations. The rest stay
+    shallow, available for deepening on demand. None (default) deepens every
+    wheel (the Explorer agent's path, where the user selects wheels, is
+    already lazy and never sets this).
+
     Does not create nexuses — that's the Analyst's job.
     Does not interact with the user — curates the graph and returns results.
     """
@@ -195,9 +205,11 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         self,
         nexus_hash: str,
         perspective_hashes: Optional[list[str]] = None,
+        max_deep_wheels: Optional[int] = None,
     ) -> None:
         self.nexus_hash = nexus_hash
         self.perspective_hashes = perspective_hashes or []
+        self.max_deep_wheels = max_deep_wheels
 
     async def resolve(self) -> ExplorationResult:
         from dialectical_framework.agents.explorer.skills.build_wheels import \
@@ -241,6 +253,8 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
                 reports=reports,
             )
 
+        deep_wheel_hashes = self._select_deep_wheels(build_result.new_wheels)
+
         transformation_count = 0
 
         async def _explore_wheel(wheel_hash: str) -> tuple[int, Optional[StepError]]:
@@ -257,32 +271,79 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
                 )
 
         wheel_results = await asyncio.gather(
-            *[_explore_wheel(wh) for wh in wheel_hashes]
+            *[_explore_wheel(wh) for wh in deep_wheel_hashes]
         )
         for count, error in wheel_results:
             transformation_count += count
             if error:
                 errors.append(error)
 
+        shallow_count = len(wheel_hashes) - len(deep_wheel_hashes)
         self._report.ok = True
         self._report.summary = (
             f"Exploration complete: {len(cycle_hashes)} cycles, "
             f"{len(wheel_hashes)} wheels, "
             f"{transformation_count} transformations"
+            + (
+                f" (deepened top {len(deep_wheel_hashes)} wheel(s) by "
+                f"plausibility; {shallow_count} built but not deepened)"
+                if shallow_count
+                else ""
+            )
         )
         self._report.artifacts["nexus_hash"] = self.nexus_hash
         self._report.artifacts["cycle_hashes"] = cycle_hashes
         self._report.artifacts["wheel_hashes"] = wheel_hashes
+        self._report.artifacts["deepened_wheel_hashes"] = deep_wheel_hashes
         self._report.artifacts["transformation_count"] = transformation_count
 
         return ExplorationResult(
             nexus_hash=self.nexus_hash,
             cycle_hashes=cycle_hashes,
             wheel_hashes=wheel_hashes,
+            deepened_wheel_hashes=deep_wheel_hashes,
             transformation_count=transformation_count,
             errors=errors,
             reports=reports,
         )
+
+    def _select_deep_wheels(self, wheels: list) -> list[str]:
+        """
+        Pick which wheels get transformations this run.
+
+        No cap → all of them. With a cap: rank by layer (perspective count,
+        deepest first — richer causal chains) then by raw causality P within
+        the layer (raw is comparable among siblings; normalization shares the
+        denominator). Wheels without an estimation (e.g. 1-PP) rank last
+        within their layer.
+        """
+        hashes = [w.hash for w in wheels if w.hash]
+        if self.max_deep_wheels is None or self.max_deep_wheels >= len(hashes):
+            return hashes
+        if self.max_deep_wheels <= 0:
+            return []
+
+        from dialectical_framework.graph.nodes.estimation import \
+            CausalityProbabilityEstimation
+
+        def _probability(wheel) -> float:
+            for est, _ in wheel.estimations.all():
+                if isinstance(est, CausalityProbabilityEstimation):
+                    return est.value if est.value is not None else -1.0
+            return -1.0
+
+        def _layer(wheel) -> int:
+            try:
+                return wheel.polarity_count
+            except ValueError:
+                return 0
+
+        ranked = sorted(
+            (w for w in wheels if w.hash),
+            key=lambda w: (_layer(w), _probability(w)),
+            reverse=True,
+        )
+        return [w.hash for w in ranked[: self.max_deep_wheels]]
 
 
 @llm.tool

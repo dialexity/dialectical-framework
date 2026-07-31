@@ -16,6 +16,16 @@ from typing import Annotated
 from mirascope import llm
 from pydantic import Field
 
+# The Advisor's explore is LAZY: every valid wheel is built and estimated
+# (structural, cheap), but transformations + synthesis — the expensive LLM
+# work — go only to the top-plausibility wheel(s). At 3-4 perspectives this
+# is the difference between deepening 1 wheel and deepening 17-96. The
+# Advisor leads with the most plausible arrangement anyway; the rest stay
+# ranked-but-shallow, available for deepening on demand (arrangement
+# contrast, task #3). The Explorer agent path is untouched — there the USER
+# selects which wheels to deepen.
+MAX_DEEP_WHEELS = 1
+
 
 async def run_exploration(
     perspective_hashes: list[str],
@@ -23,8 +33,9 @@ async def run_exploration(
     nexus_hash: str | None,
 ) -> str:
     """
-    Shared explore body: expand (or create) a nexus, build wheels and
-    transformations, generate synthesis per wheel. Returns str(report).
+    Shared explore body: expand (or create) a nexus, build wheels, deepen
+    the top-plausibility wheel(s) with transformations + synthesis.
+    Returns str(report).
     """
     from dialectical_framework.agents.explorer.explorer import \
         ExplorationPipeline
@@ -50,11 +61,15 @@ async def run_exploration(
         nexus_report = create.report
         effective_nexus_hash = create_result.nexus.short_hash
 
-    exploration = ExplorationPipeline(nexus_hash=effective_nexus_hash)
+    exploration = ExplorationPipeline(
+        nexus_hash=effective_nexus_hash,
+        max_deep_wheels=MAX_DEEP_WHEELS,
+    )
     exp_result = await exploration.resolve()
 
+    # Synthesis only where transformations exist (the deepened wheels).
     synthesis_count = 0
-    for wh in exp_result.wheel_hashes:
+    for wh in exp_result.deepened_wheel_hashes:
         try:
             synth = GenerateSynthesis(wheel_hash=wh)
             await synth.resolve()
@@ -65,6 +80,13 @@ async def run_exploration(
     combined_report = nexus_report.merge(exploration.report)
     combined_report.artifacts["nexus_hash"] = effective_nexus_hash
     combined_report.artifacts["synthesis_generated"] = synthesis_count
+    shallow = [
+        wh
+        for wh in exp_result.wheel_hashes
+        if wh not in exp_result.deepened_wheel_hashes
+    ]
+    if shallow:
+        combined_report.artifacts["shallow_wheel_hashes"] = shallow
 
     return str(combined_report)
 
