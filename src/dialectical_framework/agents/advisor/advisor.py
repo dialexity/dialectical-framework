@@ -206,6 +206,7 @@ class Advisor:
 
 def _build_tools() -> list:
     from dialectical_framework.agents.advisor.tools.anchor import anchor
+    from dialectical_framework.agents.advisor.tools.deepen import deepen
     from dialectical_framework.agents.advisor.tools.explore import explore
     from dialectical_framework.agents.advisor.tools.ingest import ingest
     from dialectical_framework.agents.advisor.tools.sync import sync
@@ -220,6 +221,7 @@ def _build_tools() -> list:
         ingest,
         anchor,
         explore,
+        deepen,
         sync,
         inspect_node,
         read_digest,

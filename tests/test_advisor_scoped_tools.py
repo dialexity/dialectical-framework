@@ -198,11 +198,133 @@ class TestScopedDiscard:
 
 class TestScopedToolset:
     def test_full_analytical_power_no_ingest(self):
-        """Scoped Advisor always carries anchor + pinned explore (it IS
-        Analyst+Explorer behind one voice); only ingest is excluded."""
+        """Scoped Advisor always carries anchor + pinned explore + deepen
+        (it IS Analyst+Explorer behind one voice); only ingest is excluded."""
         tools = build_scoped_tools("abc1234")
         names = {t.__name__ for t in tools}
         assert names == {
-            "anchor", "sync", "inspect_node", "read_digest", "discard", "explore",
+            "anchor", "sync", "inspect_node", "read_digest", "discard",
+            "explore", "deepen",
         }
         assert "ingest" not in names
+
+
+class TestScopedDeepen:
+    async def test_refuses_wheel_outside_nexus(self):
+        """A wheel whose perspectives belong to a DIFFERENT exploration
+        cannot be deepened from this counsel head."""
+        from dialectical_framework.graph.nodes.cycle import Cycle
+        from dialectical_framework.graph.nodes.transition import Transition
+        from dialectical_framework.graph.nodes.wheel import Wheel
+
+        sid = _new_sid()
+        with scope(sid):
+            pinned = _create_nexus("pinned exploration")
+            other = _create_nexus("other exploration")
+
+            outsider_pp = _create_perspective_with_aspects(
+                thesis_text="Speed", antithesis_text="Thoroughness"
+            )
+            outsider_pp.nexus.connect(other)
+
+            cycle = Cycle(intent="preset:balanced")
+            cycle.set_perspectives([outsider_pp])
+            cycle.commit()
+
+            polarity, _ = outsider_pp.polarity.get()
+            t_stmt, _ = polarity.t.all()[0]
+            a_stmt, _ = polarity.a.all()[0]
+            wheel = Wheel(intent="outsider wheel")
+            wheel.save()
+            tr1 = Transition(nonce="deepen_guard_1")
+            tr1.set_source(t_stmt).set_target(a_stmt)
+            tr1.commit()
+            tr1.cycle.connect(wheel)
+            tr2 = Transition(nonce="deepen_guard_2")
+            tr2.set_source(a_stmt).set_target(t_stmt)
+            tr2.commit()
+            tr2.cycle.connect(wheel)
+            cycle.wheels.connect(wheel)
+            wheel.commit()
+
+            deepen = _tool_by_name(
+                build_scoped_tools(pinned.hash[:7]), "deepen"
+            )
+            result = await deepen(wheel_hash=wheel.hash)
+            assert "outside this exploration" in result
+
+    async def test_refuses_non_wheel_hash(self):
+        sid = _new_sid()
+        with scope(sid):
+            nexus = _create_nexus()
+            pp = _create_perspective_with_aspects()
+            pp.nexus.connect(nexus)
+
+            deepen = _tool_by_name(
+                build_scoped_tools(nexus.hash[:7]), "deepen"
+            )
+            result = await deepen(wheel_hash=pp.hash)
+            assert "is not a wheel" in result
+
+    async def test_deepens_wheel_inside_nexus(self, monkeypatch):
+        """A wheel of the pinned exploration passes the guard and reaches
+        run_deepen."""
+        from dialectical_framework.agents.explorer.skills import \
+            explore_transformations as et_mod
+        from dialectical_framework.agents.explorer.skills import \
+            generate_synthesis as gs_mod
+        from dialectical_framework.graph.nodes.cycle import Cycle
+        from dialectical_framework.graph.nodes.transition import Transition
+        from dialectical_framework.graph.nodes.wheel import Wheel
+
+        deepened: list[str] = []
+
+        async def stub_transformations(self):
+            deepened.append(self.wheel_hash)
+
+            class _R:
+                new: list = []
+
+            return _R()
+
+        async def stub_synthesis(self):
+            return None
+
+        monkeypatch.setattr(
+            et_mod.ExploreTransformations, "resolve", stub_transformations
+        )
+        monkeypatch.setattr(gs_mod.GenerateSynthesis, "resolve", stub_synthesis)
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus = _create_nexus()
+            member = _create_perspective_with_aspects()
+            member.nexus.connect(nexus)
+
+            cycle = Cycle(intent="preset:balanced")
+            cycle.set_perspectives([member])
+            cycle.commit()
+
+            polarity, _ = member.polarity.get()
+            t_stmt, _ = polarity.t.all()[0]
+            a_stmt, _ = polarity.a.all()[0]
+            wheel = Wheel(intent="member wheel")
+            wheel.save()
+            tr1 = Transition(nonce="deepen_ok_1")
+            tr1.set_source(t_stmt).set_target(a_stmt)
+            tr1.commit()
+            tr1.cycle.connect(wheel)
+            tr2 = Transition(nonce="deepen_ok_2")
+            tr2.set_source(a_stmt).set_target(t_stmt)
+            tr2.commit()
+            tr2.cycle.connect(wheel)
+            cycle.wheels.connect(wheel)
+            wheel.commit()
+
+            deepen = _tool_by_name(
+                build_scoped_tools(nexus.hash[:7]), "deepen"
+            )
+            result = await deepen(wheel_hash=wheel.hash)
+
+            assert deepened == [wheel.hash]
+            assert "outside this exploration" not in result

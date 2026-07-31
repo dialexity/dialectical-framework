@@ -6,7 +6,7 @@ Dumps the graph as structured text with scores inline — pre-pruned:
 perspectives below the quality floors (settings.advisor_polarity_quality_min_hs /
 advisor_perspective_quality_min_area, mirroring the prompt's own scales) and failed-validation
 perspectives are suppressed with a count line, and wheels are capped to the
-top-% few per cycle (settings.advisor_context_max_wheels). Pre-computed pruning
+top-% few per cycle (settings.advisor_wheel_quality_top_plausible). Pre-computed pruning
 beats prioritization rules the model must self-apply; a weak tetrad
 delivered with full counsel choreography is confident bad advice.
 inspect_node still reaches everything suppressed.
@@ -312,7 +312,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             wheel_probs = self._collect_raw_probabilities(wheels)
             total_wheel_prob = sum(p for p in wheel_probs.values() if p is not None)
 
-            max_wheels = 0 if self._nexus_hash else self.settings.advisor_context_max_wheels
+            max_wheels = 0 if self._nexus_hash else self.settings.advisor_wheel_quality_top_plausible
             rendered = sorted(
                 wheels,
                 key=lambda w: wheel_probs.get(w._id) or -1.0,

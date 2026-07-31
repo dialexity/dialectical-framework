@@ -186,19 +186,23 @@ rich graph already exists at conversation start. `nexus_hash` pins the Advisor t
 exploration — this is the **counsel mode of an Explorer session**, not a standalone
 deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
 
-**Tools (7)** — coarse, composed super-tools that hide the machinery:
+**Tools (8)** — coarse, composed super-tools that hide the machinery:
 
 | Tool | Composes | Purpose |
 |------|----------|---------|
 | `ingest` | AnalysisPipeline | raw material → perspectives (bulk discovery) |
 | `anchor` | IntroducePolarity + ExpandPolarity | plant a specific T/A tension |
-| `explore` | CreateNexus + ExplorationPipeline + GenerateSynthesis | group → pathways → synthesis in one shot |
+| `explore` | CreateNexus + ExplorationPipeline + GenerateSynthesis | group → pathways → synthesis in one shot (budgeted: deepens only the top-plausibility arrangement) |
+| `deepen` | ExploreTransformations + GenerateSynthesis | develop an alternative arrangement when the person's lived reality picks a shallow reading |
 | `sync` | DialecticalContext | re-read full graph state |
 | `discard`, `inspect_node`, `read_digest` | shared | curate / detail |
 
 `ingest` and `explore` each collapse an entire Analyst-or-Explorer workflow into one
 call; the Advisor decides internally when to analyze vs. explore — no phase split is
-exposed.
+exposed. `deepen` is the follow-up to `explore`'s depth budget: all arrangements are
+built and ranked, one is developed; when conversation gravitates to another reading,
+`deepen` develops it on demand (the Explorer needs no equivalent — its
+`explore_transformations`/`generate_synthesis` are already per-wheel, user-driven).
 
 **UX to build around it:**
 - **A chat window — essentially that.** No graph canvas, no scores, no hashes, no phase
@@ -289,16 +293,17 @@ first-person/third-party perspective detection, same score presentation
 (meaning-first). The toggle changes the engine (tool-driving vs counseling) and the
 register — never the user contract.
 
-The Advisor head keeps full analytical power (anchor + explore pinned to the nexus — it
-IS Analyst+Explorer behind one voice), but with two constraints:
+The Advisor head keeps full analytical power (anchor + explore + deepen pinned to the
+nexus — it IS Analyst+Explorer behind one voice), but with two constraints:
 
 - **Nexus pin in code** (`advisor/tools/scoped.py`): it cannot create sibling nexuses or
-  reach outside the exploration. Only `ingest` is excluded (bulk extraction belongs to
-  the Analyst thread).
+  reach outside the exploration (deepen refuses wheels of other explorations). Only
+  `ingest` is excluded (bulk extraction belongs to the Analyst thread).
 - **Transparent mutation** (`EXPLORATION_ADVISOR_APP`): unlike the unscoped Advisor's
   silent graph-building, the counsel head asks before adding a new tension to the
   user-built exploration and announces the change afterwards. The deliverable never
-  changes behind the user's back.
+  changes behind the user's back. (`deepen` needs no consent ceremony — it only adds
+  analytical depth to existing structure, never changes what the exploration contains.)
 
 ---
 

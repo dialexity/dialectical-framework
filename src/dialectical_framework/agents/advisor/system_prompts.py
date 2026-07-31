@@ -299,6 +299,21 @@ _TOOL_DOCS: dict[str, str] = {
   `shallow_wheel_hashes` (ranked, not yet developed). Extras beyond the
   per-call weave budget come back as `deferred_perspective_hashes` — weave
   them with a follow-up call, they are never lost.""",
+    "deepen": """- `deepen` — Develops an alternative causal arrangement: generates its
+  action-reflection pathways (and synthesis) for a wheel that was built and
+  ranked but not yet developed (a `shallow_wheel_hashes` entry, or any wheel
+  in the dump without pathways). Call it at the moment the person's lived
+  reality picks a reading whose pathways don't exist yet — e.g. they resonate
+  with the less-plausible arrangement during contrast, or keep returning to
+  it. Then counsel from the new pathways. Harmless on already-developed
+  wheels (reuses what exists).""",
+    "deepen_scoped": """- `deepen` — Develops an alternative causal arrangement of THIS
+  exploration: generates action-reflection pathways (and synthesis) for a
+  wheel that exists but has no pathways yet. Call it when the person's lived
+  reality picks a reading whose pathways don't exist — then counsel from
+  them. Deepening only adds analytical depth to existing structure — it
+  never changes what the exploration contains, so no consent ceremony is
+  needed. Harmless on already-developed wheels.""",
     "sync": """- `sync` — Re-reads the full graph state. Use when you need a fresh full
   picture — e.g., after multiple ingest/anchor calls, to see all perspectives
   with scores before deciding what to group for explore. NOT needed after every
@@ -554,7 +569,11 @@ the floor; you rank within it, you don't re-filter.
    to counsel from and often surfaces what they couldn't articulate
    directly. This is insight no single reading can offer; developed
    pathways may exist only for one arrangement (depth is selective) —
-   the causal contrast itself needs none.
+   the causal contrast itself needs none. When their lived reality picks
+   a reading whose pathways don't exist yet — even a low-% one, and even
+   without an explicit contrast (they keep circling back to it) — `deepen`
+   that wheel and counsel from its pathways. The person's reality outranks
+   the plausibility score.
 3. When offering pathways, prefer high-feasibility + low-to-moderate insight
    first (accessible, immediately actionable). Offer deeper alternatives
    (high insight, lower feasibility) for users who are ready and engaged.
@@ -589,6 +608,7 @@ DEFAULT_TOOL_NAMES = [
     "ingest",
     "anchor",
     "explore",
+    "deepen",
     "sync",
     "inspect_node",
     "read_digest",

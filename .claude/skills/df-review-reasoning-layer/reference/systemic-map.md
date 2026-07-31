@@ -220,7 +220,16 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   `DIALEXITY_ADVISOR_*`) — "rich vs simple" exploration is this runtime budget, not a schema concept.
   Explorer agent path passes None (user selects wheels). The Advisor explore tool docs narrate
   `shallow_wheel_hashes` + `deferred_perspective_hashes` semantics — keep in lockstep with the budget.
-  Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py`.
+  The escape from the budget is the Advisor's **`deepen` tool** (`advisor/tools/deepen.py`,
+  `run_deepen` = ExploreTransformations + GenerateSynthesis, honoring `advisor_explore_synthesis`):
+  when the person's lived reality picks a shallow reading, the model deepens that wheel — the
+  decision point is in prioritization rule 2 ("the person's reality outranks the plausibility
+  score"). Scoped variant guards nexus membership in code (`_wheel_outside_scope_refusal`); its
+  doc states deepening never changes exploration CONTENTS, so no consent ceremony (unlike
+  anchor/explore/discard). Explorer needs no equivalent — `explore_transformations` +
+  `generate_synthesis` are already per-wheel user-driven tools there.
+  Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
+  `tests/test_advisor_deepen.py`.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +
   empirical inequalities run post-commit on every generated tetrad; verdict persisted on
   `Perspective.validation` ("passed" / "failed: reasons" / None). NOT a blocking gate — prompts
@@ -233,14 +242,14 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
 - **Context-dump quality filter** (`DialecticalContext._apply_quality_floor` + wheel cap in `_dump_cycle`,
   live since 2026-07): standalone perspectives with HS(A) < `settings.advisor_polarity_quality_min_hs` (0.5), area <
   `advisor_perspective_quality_min_area` (0.3), or `validation` starting "failed" are SUPPRESSED from the dump (count line
-  notes them); wheels per cycle capped to top-% `advisor_context_max_wheels` (3), % denominator stays the full
+  notes them); wheels per cycle capped to top-% `advisor_wheel_quality_top_plausible` (3), % denominator stays the full
   sibling set. Nexus members and unscored perspectives are never suppressed, and the wheel cap applies to
   the UNSCOPED dump only — the counsel-mode (nexus-pinned) render shows the user-built exploration in full
   (same load-bearing exemption). This is a RENDER gate — it
   filters what the Advisor sees, not what exists; `inspect_node` reaches everything. The Advisor's
   prioritization rules now say "pre-pruned, rank within it, don't re-filter" — if you change the floors,
   reconcile that section (`TestContextDumpPrePruned`). Env: `DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS` /
-  `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA` / `DIALEXITY_ADVISOR_CONTEXT_MAX_WHEELS`. Locked by
+  `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA` / `DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE`. Locked by
   `tests/test_context_quality_filter.py`.
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.

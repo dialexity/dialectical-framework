@@ -4,7 +4,7 @@ Tests for the context-dump quality filter (task #5).
 DialecticalContext pre-prunes instead of instructing: standalone perspectives
 below the quality floor (HS < advisor_polarity_quality_min_hs, area < advisor_perspective_quality_min_area, or
 failed validation) are suppressed with a count line; wheels are capped to the
-top-% advisor_context_max_wheels per cycle with a count line. Nexus members are
+top-% advisor_wheel_quality_top_plausible per cycle with a count line. Nexus members are
 load-bearing and never suppressed. Missing scores never suppress.
 """
 
@@ -205,7 +205,7 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             wheels = self._seed_cycle_with_wheels([0.6, 0.3, 0.1])
-            with _settings(di_container, advisor_context_max_wheels=1):
+            with _settings(di_container, advisor_wheel_quality_top_plausible=1):
                 dump = await DialecticalContext().resolve()
 
             top, mid, low = wheels
@@ -223,7 +223,7 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             self._seed_cycle_with_wheels([0.6, 0.3, 0.1])
-            with _settings(di_container, advisor_context_max_wheels=1):
+            with _settings(di_container, advisor_wheel_quality_top_plausible=1):
                 dump = await DialecticalContext().resolve()
             assert "P=0.60, 60.0%" in dump
 
@@ -232,7 +232,7 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             wheels = self._seed_cycle_with_wheels([0.6, 0.3])
-            with _settings(di_container, advisor_context_max_wheels=3):
+            with _settings(di_container, advisor_wheel_quality_top_plausible=3):
                 dump = await DialecticalContext().resolve()
             for w in wheels:
                 assert w.short_hash in dump
@@ -243,7 +243,7 @@ class TestWheelCap:
         sid = _new_sid()
         with scope(sid):
             wheels = self._seed_cycle_with_wheels([0.5, 0.3, 0.2])
-            with _settings(di_container, advisor_context_max_wheels=0):
+            with _settings(di_container, advisor_wheel_quality_top_plausible=0):
                 dump = await DialecticalContext().resolve()
             for w in wheels:
                 assert w.short_hash in dump
@@ -261,7 +261,7 @@ class TestWheelCap:
             wheels = self._seed_cycle_with_wheels([0.6, 0.3, 0.1])
             nexus = NexusRepository().find_all()[0]
 
-            with _settings(di_container, advisor_context_max_wheels=1):
+            with _settings(di_container, advisor_wheel_quality_top_plausible=1):
                 dump = await DialecticalContext(
                     nexus_hash=nexus.hash[:7]
                 ).resolve()

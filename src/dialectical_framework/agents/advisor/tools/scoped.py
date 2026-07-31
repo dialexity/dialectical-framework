@@ -14,11 +14,12 @@ regardless of what the model decides to pass.
 
 The Advisor keeps its full analytical power in this mode (it IS
 Analyst+Explorer behind one voice): anchor plants new tensions (standalone),
-the pinned explore weaves them into the exploration,
-sync/inspect_node/read_digest read, discard retracts (members of the pinned
-nexus and standalone perspectives — e.g. its own rejected anchors — but
-never members of OTHER explorations). Only `ingest` is excluded — bulk
-extraction belongs to the unscoped flow.
+the pinned explore weaves them into the exploration, deepen develops an
+alternative arrangement of the pinned exploration on demand (guarded by
+wheel-membership), sync/inspect_node/read_digest read, discard retracts
+(members of the pinned nexus and standalone perspectives — e.g. its own
+rejected anchors — but never members of OTHER explorations). Only `ingest`
+is excluded — bulk extraction belongs to the unscoped flow.
 """
 
 from __future__ import annotations
@@ -87,7 +88,26 @@ def build_scoped_tools(nexus_hash: str) -> list:
             perspective_hashes, intent="", nexus_hash=pinned_hash
         )
 
-    return [anchor, sync, inspect_node, read_digest, discard, explore]
+    @llm.tool
+    async def deepen(
+        wheel_hash: Annotated[
+            str,
+            Field(
+                description="Hash of the shallow wheel (causal arrangement) within this exploration to develop"
+            ),
+        ],
+    ) -> str:
+        """Develop an alternative causal arrangement of THIS exploration: generates its action-reflection pathways and synthesis. Use when the person's lived reality points at an arrangement whose pathways don't exist yet. Idempotent on already-deepened wheels."""
+        from dialectical_framework.agents.advisor.tools.deepen import \
+            run_deepen
+
+        refusal = _wheel_outside_scope_refusal(pinned_hash, wheel_hash)
+        if refusal:
+            return refusal
+
+        return await run_deepen(wheel_hash)
+
+    return [anchor, sync, inspect_node, read_digest, discard, explore, deepen]
 
 
 def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
@@ -136,5 +156,38 @@ def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
             f"Refused: perspective [[{target_hash}]] {also}belongs to another "
             f"exploration — discarding is global and would remove it there "
             f"too, so it cannot be discarded from here."
+        )
+    return None
+
+
+def _wheel_outside_scope_refusal(nexus_hash: str, wheel_hash: str) -> str | None:
+    """
+    Return a refusal message if the wheel does not belong to the pinned
+    exploration; None if deepening may proceed.
+
+    A wheel's exploration is derived through its perspectives (same traversal
+    ExploreTransformations uses): every wheel perspective must be a member of
+    the pinned nexus.
+    """
+    from dialectical_framework.graph.nodes.wheel import Wheel
+    from dialectical_framework.graph.repositories.nexus_repository import \
+        NexusRepository
+    from dialectical_framework.graph.repositories.node_repository import \
+        NodeRepository
+
+    node = NodeRepository().find_by_hash(wheel_hash)
+    if not isinstance(node, Wheel):
+        return f"Cannot deepen: [[{wheel_hash}]] is not a wheel."
+
+    nexus = NexusRepository().find_by_hash_prefix(nexus_hash)
+    if nexus is None:
+        return f"Cannot deepen: pinned exploration {nexus_hash} not found."
+
+    member_ids = {pp._id for pp, _ in nexus.perspectives.all()}
+    wheel_pps = node._perspectives
+    if not wheel_pps or any(pp._id not in member_ids for pp in wheel_pps):
+        return (
+            f"Refused: wheel [[{wheel_hash}]] is outside this exploration's "
+            f"scope and cannot be deepened from here."
         )
     return None

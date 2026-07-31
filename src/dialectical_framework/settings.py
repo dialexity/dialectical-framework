@@ -28,7 +28,7 @@ class Settings(BaseModel):
     # <0.3 aspects blur together.
     advisor_polarity_quality_min_hs: float = Field(default=0.5, description="Polarity quality floor: suppress perspectives whose antithesis HS (how genuine the T-A opposition is, 0.0-1.0) is below this. 0 disables.")
     advisor_perspective_quality_min_area: float = Field(default=0.3, description="Perspective quality floor: suppress perspectives whose tetrad area (differentiation of constructive over destructive aspects, ~0-2) is below this. 0 disables.")
-    advisor_context_max_wheels: int = Field(default=3, description="Max wheels rendered per cycle in the unscoped context dump, top-normalized-%. Counsel-mode (nexus-pinned) dumps are exempt. 0 = unlimited.")
+    advisor_wheel_quality_top_plausible: int = Field(default=3, description="Max wheels rendered per cycle in the unscoped context dump, top-normalized-%. Counsel-mode (nexus-pinned) dumps are exempt. 0 = unlimited.")
 
     # Depth budget for the Advisor's SILENT exploration (its `explore` tool).
     # "Rich vs simple" exploration is a runtime budget, not a schema concept:
@@ -120,7 +120,7 @@ class Settings(BaseModel):
             cycle_preset=CausalityPreset.AUTO,
             advisor_polarity_quality_min_hs=float(os.getenv("DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS", 0.5)),
             advisor_perspective_quality_min_area=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA", 0.3)),
-            advisor_context_max_wheels=int(os.getenv("DIALEXITY_ADVISOR_CONTEXT_MAX_WHEELS", 3)),
+            advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),
             advisor_deep_wheels=int(os.getenv("DIALEXITY_ADVISOR_DEEP_WHEELS", 1)),
             advisor_explore_perspectives=int(os.getenv("DIALEXITY_ADVISOR_EXPLORE_PERSPECTIVES", 2)),
             advisor_explore_synthesis=os.getenv("DIALEXITY_ADVISOR_EXPLORE_SYNTHESIS", "true").lower() == "true",
