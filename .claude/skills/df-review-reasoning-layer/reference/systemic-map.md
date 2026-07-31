@@ -216,9 +216,17 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   transformations+synthesis — layer desc, then raw `CausalityProbabilityEstimation` desc (unestimated last).
   Advisor explore pins cap=1 (`MAX_DEEP_WHEELS`); Explorer agent path passes None (user selects wheels).
   Locked by `tests/test_exploration_lazy_depth.py`.
+- **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +
+  empirical inequalities run post-commit on every generated tetrad; verdict persisted on
+  `Perspective.validation` ("passed" / "failed: reasons" / None). NOT a blocking gate — prompts
+  deprioritize failed perspectives (Advisor `_SCORE_READING` + `_INTERNAL_MODEL` "machine-run verdict",
+  Analyst "Reading Polarity Quality"); rendered by `dialectical_context` / `present_analysis` /
+  `inspect_node`. The CC prompt (`control_statements_check.py`) is therefore a flag input — wording
+  changes shift the verdict distribution. SIMPLE-path antitheses render as "mechanical opposition — HS
+  not evaluated" in the dump (never a fake numeric 1.0). Locked by
+  `tests/test_perspective_validation_wiring.py`.
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
-  `PerspectiveValidation` is unwired (tests only); the one live post-hoc check is
-  `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
+  The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 
 ---
 

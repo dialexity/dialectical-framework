@@ -10,6 +10,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Annotated, Optional
 
 from dependency_injector.wiring import Provide, inject
@@ -51,6 +52,8 @@ from dialectical_framework.graph.repositories.perspective_repository import (
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
+
+logger = logging.getLogger(__name__)
 
 
 class ExpandPolarity(ReasonableConcern[list[Perspective]]):
@@ -144,6 +147,11 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
             self._report.node_committed(pp)
             completed_pps.append(pp)
 
+        # Validate newly generated tetrads (CC + empirical inequalities) and
+        # flag the verdict — non-blocking: a failed perspective stays usable,
+        # prompts deprioritize it via the rendered flag.
+        await self._validate_and_flag(completed_pps, input_text)
+
         # Return all PPs: existing complete + newly completed
         all_pps = complete_pps + completed_pps
 
@@ -161,6 +169,58 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         self._report.summary = f"{len(all_pps)} Perspective(s) ({len(complete_pps)} existing, {len(completed_pps)} new)"
 
         return all_pps
+
+    async def _validate_and_flag(
+        self, perspectives: list[Perspective], input_text: str
+    ) -> None:
+        """
+        Run PerspectiveValidation on each new tetrad and persist the verdict
+        on Perspective.validation (metadata field, hash-neutral).
+
+        Fail-soft: a crashing validator leaves validation=None (unvalidated),
+        never blocks the perspective. Sequential on purpose: the underlying
+        ControlStatementsCheck commits Estimation/Rationale nodes inside its
+        resolve(), and GQLAlchemy graph writes are not concurrency-safe.
+        (Its two control-statement LLM calls already gather internally.)
+        """
+        if not perspectives:
+            return
+
+        from dialectical_framework.concerns.perspective_validation import \
+            PerspectiveValidation
+
+        validation_summary: list[dict] = []
+        for pp in perspectives:
+            try:
+                result = await PerspectiveValidation().resolve(
+                    perspective=pp, text=input_text
+                )
+            except Exception as e:
+                logger.warning(
+                    "Perspective validation failed softly for %s: %s",
+                    pp.short_hash,
+                    e,
+                )
+                continue
+            if result.is_valid:
+                pp.validation = "passed"
+            elif result.is_empirically_valid is None and (
+                result.is_conceptually_coherent
+            ):
+                # EI couldn't run (missing complementarity data) and CC held —
+                # inconclusive, not a failure. Leave unvalidated.
+                continue
+            else:
+                reasons = "; ".join(result.failure_reasons)
+                pp.validation = f"failed: {reasons}"
+            pp.save()
+            self._report.node_updated(pp, patch={"validation": pp.validation})
+            validation_summary.append(
+                {"hash": pp.short_hash, "validation": pp.validation}
+            )
+
+        if validation_summary:
+            self._report.artifacts["validation"] = validation_summary
 
     def _resolve_polarity(self) -> Optional[Polarity]:
         """Resolve Polarity by hash."""

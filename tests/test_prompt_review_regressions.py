@@ -746,6 +746,39 @@ class TestNavigatorRoundTrip:
         assert "the last segment of the dx:// URI" in joined
 
 
+class TestValidationVerdictNarration:
+    """PerspectiveValidation now runs live (task #4) — the prompts may
+    reference the machine-run verdict, and must frame it as a flag to
+    prioritize by, not a structural guarantee (which stays banned)."""
+
+    def test_advisor_reads_the_validation_line(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        p = " ".join(SYSTEM_PROMPT.split())
+        assert "machine-run verdict" in p
+        # score-reading section explains the three states
+        assert '"passed"' in p and '"failed' in p
+        # the floor-guarantee ban stays: no unwired-guarantee claim
+        assert "structural guarantee" not in p
+
+    def test_advisor_names_mechanical_opposition(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "mechanical opposition" in SYSTEM_PROMPT
+
+    def test_analyst_narrates_the_verdict_as_meaning(self):
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT
+
+        p = " ".join(SYSTEM_PROMPT.split())
+        assert "`validation` verdict" in p
+        # failed = provisional + offer a fix path, not silent drop
+        assert "provisional" in p
+        assert "edit_perspective" in p
+
+
 class TestArrangementContrast:
     """The wheel enumeration's payoff (task #3): when top arrangements are
     close AND encode different causal readings, both prompts must instruct

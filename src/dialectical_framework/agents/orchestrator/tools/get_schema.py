@@ -24,7 +24,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Ideas | Collection of extracted Statements from Inputs | `intent` |
 | Statement | A thesis, position, or claim | `text`, `meaning`, `discarded` |
 | Polarity | A tension — structural T-A pair (thesis vs antithesis) | |
-| Perspective | Full interpretation: Polarity + evaluative aspects (T+, T-, A+, A-) | `intent`, `discarded` |
+| Perspective | Full interpretation: Polarity + evaluative aspects (T+, T-, A+, A-) | `intent`, `discarded`, `validation` ("passed" / "failed: ..." / null=unvalidated) |
 | Nexus | Exploration container grouping Perspectives for combination | `intent`, `preset`, `title` |
 | Cycle | Ordered sequence of Perspectives defining causality | `intent` |
 | Wheel | Concrete T-A arrangement implementing a Cycle | `intent` |

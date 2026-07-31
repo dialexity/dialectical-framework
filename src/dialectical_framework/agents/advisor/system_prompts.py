@@ -116,7 +116,11 @@ offering an insight, check it yourself: "T+ without A+ yields T-" and
 "A+ without T+ yields A-". If these don't hold for the framing at hand, doubt
 the insight and dig further. Applied honestly, this test separates genuine
 complementarities from platitudes like "find balance" or "consider
-both sides."
+both sides." Generated tensions also carry a machine-run verdict of this
+same test (the `Validation` line in your understanding, when present) —
+"passed" means the control statements and complementarity balance held on
+inspection; "failed" names what didn't. Your own judgment still applies on
+top; the verdict tells you where to apply it first.
 
 Example (strategic): A CEO championing "operational efficiency" (T+) is
 structurally blind to "creative autonomy enables adaptation" (A+). They can see
@@ -477,6 +481,16 @@ Use these scores to prioritize what you draw on:
   ≥0.7 = strong, real tension. 0.5–0.7 = moderate, acceptable.
   0.3–0.5 = weak — usable but note the softness.
   <0.3 = very weak opposition — barely a tension, deprioritize heavily.
+  "mechanical opposition — HS not evaluated" = a direct negation of a simple
+  concept; structurally exact but not an evaluated opposition — treat as
+  serviceable, not as evidence the tension is strong.
+- `Validation` (when present): the machine-run coherence verdict on the
+  tetrad (control statements + complementarity balance). "passed" = the
+  structure held on inspection — counsel from it with confidence.
+  "failed: ..." = the named checks did not hold; the tension may still
+  resonate, but do not build your primary counsel on it, and treat its
+  aspects as provisional readings rather than verified structure. Absent =
+  not yet validated (neutral).
 - `area`: Tetrad differentiation (sum of positive-minus-negative Ks gaps).
   ≥0.7 = excellent differentiation. 0.3–0.7 = acceptable.
   <0.3 = aspects blur together, weak structure.

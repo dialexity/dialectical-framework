@@ -194,6 +194,8 @@ def _inspect_perspective(pp: Perspective) -> str:
     lines.append(f"## Perspective [{_node_id(pp)}]{_status_tag(pp)}")
     if pp.discarded:
         lines.append(f"Discarded: {pp.discarded}")
+    if pp.validation:
+        lines.append(f"Validation: {pp.validation}")
     if pp.intent:
         lines.append(f"Intent: {pp.intent}")
     lines.append("")

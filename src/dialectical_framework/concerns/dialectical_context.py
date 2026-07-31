@@ -188,7 +188,15 @@ class DialecticalContext(ReasonableConcern[str]):
             lines.append(f"T{idx}: \"{stmt.text}\"")
         if a_result:
             stmt, rel = a_result
-            hs = f" (HS={rel.heuristic_similarity:.2f})" if rel.heuristic_similarity else ""
+            if stmt.is_simple:
+                # SIMPLE path: the antithesis is a mechanical negation and its
+                # HS is hardcoded 1.0 — not an earned score. Say so instead of
+                # rendering a fake perfect number.
+                hs = " (mechanical opposition — HS not evaluated)"
+            elif rel.heuristic_similarity:
+                hs = f" (HS={rel.heuristic_similarity:.2f})"
+            else:
+                hs = ""
             lines.append(f"A{idx}: \"{stmt.text}\"{hs}")
 
         for position, manager in [
@@ -205,6 +213,12 @@ class DialecticalContext(ReasonableConcern[str]):
 
         if pp.area is not None:
             lines.append(f"Quality: area={pp.area:.2f}, rectangularity={pp.rectangularity:.2f}")
+
+        # Post-generation validation verdict (CC + empirical inequalities).
+        if pp.validation == "passed":
+            lines.append("Validation: passed")
+        elif pp.validation and pp.validation.startswith("failed"):
+            lines.append(f"Validation: {pp.validation}")
 
         return "\n".join(lines)
 

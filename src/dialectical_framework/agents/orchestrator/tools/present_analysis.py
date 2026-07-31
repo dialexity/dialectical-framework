@@ -152,7 +152,12 @@ class PresentAnalysis(ReasonableConcern[str]):
         for i, pp in enumerate(perspectives, 1):
             tag = PresentAnalysis._node_tag(pp)
             intent_str = f" ({pp.intent})" if pp.intent else ""
-            lines.append(f"\n  Perspective {i} {tag}{intent_str}: {pp:positions:0}")
+            validation_str = (
+                f" [validation: {pp.validation}]" if pp.validation else ""
+            )
+            lines.append(
+                f"\n  Perspective {i} {tag}{intent_str}{validation_str}: {pp:positions:0}"
+            )
         return "\n".join(lines)
 
     @staticmethod

@@ -86,6 +86,13 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
     # Discard marker — does not affect hash (metadata-only)
     discarded: Optional[str] = None
 
+    # Post-generation validation verdict — does not affect hash (metadata-only).
+    # None = not validated; "passed" = CC + empirical inequalities hold;
+    # "failed: <reasons>" = one or more checks failed (perspective stays
+    # usable but prompts deprioritize it). Written by ExpandPolarity after
+    # commit via PerspectiveValidation.
+    validation: Optional[str] = None
+
     def __init__(self, **data: Any):
         super().__init__(**data)
         self._cached_segment_t: Optional[WheelSegment] = None

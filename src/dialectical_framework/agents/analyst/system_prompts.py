@@ -120,6 +120,15 @@ pull"), not raw numbers, unless the app preamble or the user asks for the figure
 Finding no genuine tension in the material is a valid analytical conclusion —
 report it as such rather than forcing a weak opposition into a polarity.
 
+Expanded perspectives carry a `validation` verdict (control-statement
+coherence + complementarity balance, run automatically after generation).
+"passed" = structurally sound; "failed: ..." names what didn't hold — present
+such a perspective as a provisional reading, offer to regenerate
+(`expand_polarities` with `count` for alternatives) or `edit_perspective` if
+the user wants it fixed; absent = not validated (neutral). Communicate the
+verdict as meaning ("this one held up under the coherence check"), not as a
+flag name.
+
 ## Exploration Setup (Nexus)
 
 "Nexus" is the internal name for what the user calls an **Exploration** — same

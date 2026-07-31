@@ -105,7 +105,7 @@ untested in code.
 
 | Gate | Paper | Code | Status |
 |------|-------|------|--------|
-| Tetrad acceptance | SP > 0.5 AND DV > 0.5 [P0 p.12] — soft ("Biased < 0.5, balanced > 0.2 is only a heuristic"; no universal cutoff exists) | HS ≥ 0.7 (`_rank_polarities`, `HS_THRESHOLD`) + empirical bands diff ≥ 0.1, Ks(+) > 0.4, Ks(−) < 0.6 (`perspective_validation.py`, unwired) | **diverges** |
+| Tetrad acceptance | SP > 0.5 AND DV > 0.5 [P0 p.12] — soft ("Biased < 0.5, balanced > 0.2 is only a heuristic"; no universal cutoff exists) | HS ≥ 0.7 (`_rank_polarities`, `HS_THRESHOLD`) + empirical bands diff ≥ 0.1, Ks(+) > 0.4, Ks(−) < 0.6 (`perspective_validation.py`, wired live 2026-07 as a non-blocking flag in `ExpandPolarity._validate_and_flag` → `Perspective.validation`; prompts deprioritize "failed", nothing is dropped) | **diverges** (paper gates on SP/DV; implementation flags on CC+empirical bands) |
 | Sequence viability | P ≥ 0.5 [P1 p.35] | CausalityEstimation scores, no threshold gate | partial |
 | Consolidation | — | HS ≥ 0.7 merge / 0.1 suggest (`antithetical_thesis_detection.py`) | code-only |
 
