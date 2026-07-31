@@ -35,9 +35,9 @@ class Settings(BaseModel):
     # all wheels are always built + estimated (structural, cheap); the budget
     # caps the expensive stages. The Navigator/Explorer path is user-driven
     # and ignores these.
-    advisor_deep_wheels: int = Field(default=1, description="Wheels deep-generated (transformations + synthesis) per silent Advisor explore call, top-plausibility first. 0 = none (build + rank only).")
+    advisor_explore_deepen: bool = Field(default=True, description="Deepen the top-plausibility arrangement (transformations + synthesis) eagerly at silent Advisor explore time. False = fully reactive: explore builds + ranks only; pathways are generated on demand via the deepen tool.")
     advisor_explore_perspectives: int = Field(default=2, description="Max perspectives woven per silent Advisor explore call; excess is reported as deferred (weave in a follow-up call), never silently dropped. 0 = unlimited.")
-    advisor_explore_synthesis: bool = Field(default=True, description="Generate S+/S- for deepened wheels on the silent Advisor explore path.")
+    advisor_explore_synthesis: bool = Field(default=True, description="Generate S+/S- when deepening a wheel on the silent Advisor path (explore and the deepen tool).")
 
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
@@ -121,7 +121,7 @@ class Settings(BaseModel):
             advisor_polarity_quality_min_hs=float(os.getenv("DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS", 0.5)),
             advisor_perspective_quality_min_area=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA", 0.3)),
             advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),
-            advisor_deep_wheels=int(os.getenv("DIALEXITY_ADVISOR_DEEP_WHEELS", 1)),
+            advisor_explore_deepen=os.getenv("DIALEXITY_ADVISOR_EXPLORE_DEEPEN", "true").lower() == "true",
             advisor_explore_perspectives=int(os.getenv("DIALEXITY_ADVISOR_EXPLORE_PERSPECTIVES", 2)),
             advisor_explore_synthesis=os.getenv("DIALEXITY_ADVISOR_EXPLORE_SYNTHESIS", "true").lower() == "true",
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),

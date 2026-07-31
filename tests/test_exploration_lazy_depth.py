@@ -182,7 +182,13 @@ class TestAdvisorExploreIsLazy:
     deepened wheels."""
 
     def test_advisor_default_budget_deepens_one(self, di_container):
-        assert di_container.settings().advisor_deep_wheels == 1
+        """advisor_explore_deepen is a FLAG (deepen top-1 eagerly or nothing);
+        the integer pipeline seam stays generic underneath."""
+        from dialectical_framework.agents.advisor.tools.explore import \
+            _ExploreBudget
+
+        assert di_container.settings().advisor_explore_deepen is True
+        assert _ExploreBudget().deep_wheels == 1
 
     async def test_synthesis_follows_deepened_only(self, monkeypatch):
         from dialectical_framework.agents.advisor.tools.explore import \

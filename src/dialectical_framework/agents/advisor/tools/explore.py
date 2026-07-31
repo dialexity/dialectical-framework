@@ -18,10 +18,11 @@ from pydantic import Field
 
 from dialectical_framework.protocols.has_config import SettingsAware
 
-# The Advisor's explore is LAZY and budgeted (settings.advisor_*): every
-# valid wheel is built and estimated (structural, cheap), but the expensive
-# stages are capped — transformations + synthesis go only to the
-# top-plausibility wheel(s) (advisor_deep_wheels, default 1), at most
+# The Advisor's explore is LAZY and budgeted (settings.advisor_explore_*):
+# every valid wheel is built and estimated (structural, cheap), but the
+# expensive stages are capped — transformations + synthesis go only to the
+# single top-plausibility wheel (advisor_explore_deepen, default on; off =
+# fully reactive, pathways come only from the deepen tool), at most
 # advisor_explore_perspectives (default 2) are woven per call (excess is
 # reported as deferred, never dropped), and synthesis can be switched off
 # (advisor_explore_synthesis). "Rich vs simple" exploration is this runtime
@@ -34,7 +35,9 @@ class _ExploreBudget(SettingsAware):
 
     @property
     def deep_wheels(self) -> int:
-        return self.settings.advisor_deep_wheels
+        # The pipeline seam stays an integer (generic); the Advisor's policy
+        # is a flag: deepen the top arrangement eagerly, or none at all.
+        return 1 if self.settings.advisor_explore_deepen else 0
 
     @property
     def max_perspectives(self) -> int:

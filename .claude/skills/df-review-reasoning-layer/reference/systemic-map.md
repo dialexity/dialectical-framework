@@ -215,7 +215,8 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
 - **`_select_deep_wheels`** (`explorer/explorer.py`, `max_deep_wheels`): caps which wheels get
   transformations+synthesis — layer desc, then raw `CausalityProbabilityEstimation` desc (unestimated last).
   The Advisor's `run_exploration` feeds it from the **silent-explore depth budget**
-  (`settings.advisor_deep_wheels`=1 / `advisor_explore_perspectives`=2, excess reported as
+  (`settings.advisor_explore_deepen`=True — a FLAG mapped to the integer pipeline seam as 1/0; off = fully
+  reactive via the deepen tool / `advisor_explore_perspectives`=2, excess reported as
   `deferred_perspective_hashes`, never dropped / `advisor_explore_synthesis`; env
   `DIALEXITY_ADVISOR_*`) — "rich vs simple" exploration is this runtime budget, not a schema concept.
   Explorer agent path passes None (user selects wheels). The Advisor explore tool docs narrate
