@@ -132,6 +132,13 @@ The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+
 
 **Advisor preamble/engine split:** Advisor's system prompt is a domain-neutral dialectical engine (how to use graph output for counsel). Persona (warm counselor, sharp strategist, coach) comes entirely from the app preamble. This means the same engine works for personal counseling, CEO strategy, brand marketing, etc. See methodology mappings in `apps.py` docstring.
 
+### Agent Design Principles
+
+- **Product model:** Analyst + Explorer = the "Navigator" (a transparent consulting agency the user works inside — framework visible). Advisor = the consultant *replacement* (hidden machinery, pure counsel). Counsel mode of an exploration = the partner debriefing the user's own deliverable.
+- **Ceiling-not-floor:** the framework must improve the LLM's reasoning, never drop it below a bare persona-prompted model. Issue #57's ablation ladder (A0/A1/A1.5/A2) is the empirical test; `test_advisor_e2e.py` is the collapse tripwire.
+- **The person's lived reality outranks the plausibility score:** when the user gravitates to a non-top causal reading, follow them (deepen it), don't argue from %.
+- **Prune, don't instruct:** pre-computed filtering of what enters the model's context beats prioritization rules the model must self-apply.
+
 ### Agent Ownership
 
 - **Analyst** = everything up to and including nexus creation (inputs → statements → polarities → perspectives → `create_nexus` as handoff)
@@ -164,6 +171,10 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 ```
 
 **black/isort are NOT enforced** (no pre-commit/CI) and most of the tree is non-conforming. Running `black <file>` after a small edit reformats the WHOLE file (import-wrapping, line-wraps), bloating the diff with unrelated churn. For a targeted change, hand-format only your own lines; don't run black on the file.
+
+**Git:** commit and push directly to `main` (trunk-based). Do NOT auto-create feature branches; only branch when explicitly asked (e.g. "open a PR").
+
+**Debugging live agent behavior:** the Eye Opener host app stores per-case effect logs and chat messages at `~/src/dialexity/dialexity-eye-opener/storage/app/private/conversations/<sid>/` (`analyst.jsonl`/`explorer.jsonl` effect logs; `<conv_id>/messages.jsonl` chat). Produced when `DIALEXITY_GRAPH_LOG_DIR` is set (the Eye Opener sets it). The `/eo-debug <sid or URL>` command wraps this.
 
 ---
 
