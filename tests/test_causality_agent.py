@@ -510,15 +510,16 @@ class TestNexusPresetIntentSeparation:
         assert nexus.intent == "deep meaning of love"
 
     def test_nexus_default_preset(self):
-        """Nexus defaults to balanced preset."""
+        """Nexus defaults to the auto preset (changed from balanced in
+        fc6601b — the model picks the strategy unless one is set)."""
         nexus = Nexus(sid="test-case-id")
-        assert nexus.preset == CausalityPreset.BALANCED
+        assert nexus.preset == CausalityPreset.AUTO
         assert nexus.intent is None
 
     def test_nexus_intent_is_freeform(self):
         """Intent is always free-form text, never migrated."""
         nexus = Nexus(sid="test-case-id", intent="deep meaning of love")
-        assert nexus.preset == CausalityPreset.BALANCED
+        assert nexus.preset == CausalityPreset.AUTO
         assert nexus.intent == "deep meaning of love"
 
 
