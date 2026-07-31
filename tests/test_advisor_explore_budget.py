@@ -2,8 +2,8 @@
 Tests for the silent-explore depth budget (task #8).
 
 "Rich vs simple" exploration is a runtime budget, not a schema concept:
-settings.advisor_explore_deepen flags eager top-1 deepening (delivered by
-task #2; off = fully reactive via the deepen tool),
+explore always deepens exactly the top-plausibility wheel (fixed policy,
+EXPLORE_DEEP_WHEELS = 1; the deepen tool develops any other on demand),
 advisor_explore_perspectives caps perspectives woven per call (excess is
 deferred, reported, never dropped), advisor_explore_synthesis toggles S+/S-.
 The Explorer agent path is user-driven and ignores all of these.
@@ -106,29 +106,15 @@ class TestExploreBudget:
         assert stubs["expand"] == [["pp1", "pp2", "pp3"]]
         assert "deferred_perspective_hashes" not in report
 
-    async def test_deepen_flag_on_reaches_pipeline_as_one(
-        self, di_container, stubs
-    ):
+    async def test_explore_always_deepens_exactly_one(self, stubs):
+        """Fixed policy, not a setting: the pipeline gets max_deep_wheels=1
+        on every silent explore call."""
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration
 
-        with _settings(di_container, advisor_explore_deepen=True):
-            await run_exploration(["pp1"], intent="", nexus_hash="deadbee")
+        await run_exploration(["pp1"], intent="", nexus_hash="deadbee")
 
         assert stubs["pipeline"] == [1]
-
-    async def test_deepen_flag_off_reaches_pipeline_as_zero(
-        self, di_container, stubs
-    ):
-        """False = fully reactive: build + rank only; the deepen tool is the
-        sole pathway generator."""
-        from dialectical_framework.agents.advisor.tools.explore import \
-            run_exploration
-
-        with _settings(di_container, advisor_explore_deepen=False):
-            await run_exploration(["pp1"], intent="", nexus_hash="deadbee")
-
-        assert stubs["pipeline"] == [0]
 
     async def test_synthesis_toggle_off(self, di_container, stubs):
         from dialectical_framework.agents.advisor.tools.explore import \

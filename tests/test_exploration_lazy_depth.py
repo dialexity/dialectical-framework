@@ -181,13 +181,13 @@ class TestAdvisorExploreIsLazy:
     """run_exploration applies the depth budget and syntheses ONLY the
     deepened wheels."""
 
-    def test_advisor_default_budget_deepens_one(self, di_container):
-        """advisor_explore_deepen is a FLAG (deepen top-1 eagerly or nothing);
+    def test_advisor_policy_deepens_one(self):
+        """Explore's eager deepening is fixed policy (top-1), not a setting;
         the integer pipeline seam stays generic underneath."""
-        from dialectical_framework.agents.advisor.tools.explore import \
-            _ExploreBudget
+        from dialectical_framework.agents.advisor.tools.explore import (
+            EXPLORE_DEEP_WHEELS, _ExploreBudget)
 
-        assert di_container.settings().advisor_explore_deepen is True
+        assert EXPLORE_DEEP_WHEELS == 1
         assert _ExploreBudget().deep_wheels == 1
 
     async def test_synthesis_follows_deepened_only(self, monkeypatch):

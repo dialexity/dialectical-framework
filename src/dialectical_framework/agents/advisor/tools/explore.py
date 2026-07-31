@@ -21,13 +21,19 @@ from dialectical_framework.protocols.has_config import SettingsAware
 # The Advisor's explore is LAZY and budgeted (settings.advisor_explore_*):
 # every valid wheel is built and estimated (structural, cheap), but the
 # expensive stages are capped — transformations + synthesis go only to the
-# single top-plausibility wheel (advisor_explore_deepen, default on; off =
-# fully reactive, pathways come only from the deepen tool), at most
+# single top-plausibility wheel (fixed policy: lead with the best; the
+# `deepen` tool develops any other arrangement on demand), at most
 # advisor_explore_perspectives (default 2) are woven per call (excess is
 # reported as deferred, never dropped), and synthesis can be switched off
 # (advisor_explore_synthesis). "Rich vs simple" exploration is this runtime
 # budget, not a schema concept. The Explorer agent path is untouched — there
 # the USER selects which wheels to deepen.
+
+# One wheel deepened eagerly per explore call. Not a setting: 0 would strand
+# the conversation arc ("after explore, offer pathways") behind an extra
+# deepen round-trip, and N>1 pre-pays for arrangements the user may never
+# pick — contrast works at causality level, deepen covers the picked one.
+EXPLORE_DEEP_WHEELS = 1
 
 
 class _ExploreBudget(SettingsAware):
@@ -35,9 +41,7 @@ class _ExploreBudget(SettingsAware):
 
     @property
     def deep_wheels(self) -> int:
-        # The pipeline seam stays an integer (generic); the Advisor's policy
-        # is a flag: deepen the top arrangement eagerly, or none at all.
-        return 1 if self.settings.advisor_explore_deepen else 0
+        return EXPLORE_DEEP_WHEELS
 
     @property
     def max_perspectives(self) -> int:

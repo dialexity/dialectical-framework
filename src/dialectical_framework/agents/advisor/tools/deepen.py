@@ -1,8 +1,8 @@
 """
 deepen tool: Develop a shallow wheel on demand (transformations + synthesis).
 
-The Advisor's `explore` is budgeted (settings.advisor_explore_deepen): it
-deep-generates only the top-plausibility arrangement and leaves the rest shallow
+The Advisor's `explore` deep-generates only the single top-plausibility
+arrangement (fixed policy) and leaves the rest shallow
 (built + ranked, listed as `shallow_wheel_hashes`). `deepen` is the follow-up
 move: when the person's lived reality points at an ALTERNATIVE arrangement —
 the 20% reading over the 80% one — this generates its action-reflection
