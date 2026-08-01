@@ -180,11 +180,16 @@ dialectical engine; the **persona** comes entirely from the app preamble (counse
 strategist, coach, mediator, sparring partner — see `agents/apps.py`).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
-nexus_hash=None)`. `dialectical_context` is an optional pre-rendered graph snapshot
-(from `DialecticalContext().resolve()`) injected into the system prompt — use it when a
-rich graph already exists at conversation start. `nexus_hash` pins the Advisor to one
-exploration — this is the **counsel mode of an Explorer session**, not a standalone
-deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
+nexus_hash=None, extra_tools=None)`. `dialectical_context` is an optional pre-rendered
+graph snapshot (from `DialecticalContext().resolve()`) injected into the system prompt —
+use it when a rich graph already exists at conversation start. `nexus_hash` pins the
+Advisor to one exploration — this is the **counsel mode of an Explorer session**, not a
+standalone deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
+`extra_tools` is the app's domain-resource seam: additional `@llm.tool` functions
+(chart lookups, methodology references, knowledge-base fetches) appended to the
+built-in set. The engine prompt carries no docs for them (their tool-schema docstrings
+reach the LLM automatically) — introduce them and their usage rules in the app
+preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 
 **Tools (8)** — coarse, composed super-tools that hide the machinery:
 

@@ -83,6 +83,80 @@ class TestStaticSystemPrompt:
         advisor = Advisor()
         assert advisor._pending_context_render is False
 
+
+@pytest.mark.llm
+class TestExtraTools:
+    """App-provided @llm.tool functions wire in through the constructor —
+    the seam through which an app adds domain resources (chart lookups,
+    methodology references) alongside the built-in dialectical tools."""
+
+    @staticmethod
+    def _make_app_tool():
+        from mirascope import llm
+
+        @llm.tool
+        async def lookup_natal_chart(person: str) -> str:
+            """Look up the natal chart for a person."""
+            return f"chart for {person}"
+
+        return lookup_natal_chart
+
+    async def test_extra_tools_appended_to_tool_set(self):
+        tool = self._make_app_tool()
+        advisor = Advisor(extra_tools=[tool])
+
+        names = [t.__name__ for t in advisor._tools]
+        assert "lookup_natal_chart" in names
+        # Built-ins all still present
+        for builtin in ("ingest", "anchor", "explore", "deepen", "sync"):
+            assert builtin in names
+
+    async def test_extra_tools_reach_the_conversation(self):
+        tool = self._make_app_tool()
+        advisor = Advisor(extra_tools=[tool])
+        assert tool in advisor._conversation._tools
+
+    async def test_extra_tools_scoped_mode(self):
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.nodes.nexus import Nexus
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            nexus = Nexus(intent="extra tools scoped test")
+            nexus.save()
+            nexus.commit()
+
+            tool = self._make_app_tool()
+            advisor = Advisor(
+                nexus_hash=nexus.hash[:7],
+                dialectical_context="dump",
+                extra_tools=[tool],
+            )
+
+        assert "lookup_natal_chart" in [t.__name__ for t in advisor._tools]
+
+    async def test_extra_tool_shadowing_builtin_rejected(self):
+        from mirascope import llm
+
+        @llm.tool
+        async def sync() -> str:
+            """Impostor sync."""
+            return ""
+
+        with pytest.raises(ValueError, match="shadow built-in"):
+            Advisor(extra_tools=[sync])
+
+    async def test_engine_prompt_unaffected_by_unknown_tool_names(self):
+        """The engine renders docs only for names it knows — an app tool
+        must not corrupt or crash the prompt assembly."""
+        tool = self._make_app_tool()
+        with_extra = Advisor(extra_tools=[tool])
+        without = Advisor()
+        assert "lookup_natal_chart" not in _system_prompt_text(with_extra)
+        assert _system_prompt_text(with_extra) == _system_prompt_text(without)
+
     async def test_scoped_with_precomputed_context_has_no_pending_render(
         self,
     ):

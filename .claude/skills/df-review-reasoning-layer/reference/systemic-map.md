@@ -316,7 +316,9 @@ session toggle**: the host hands the Explorer conversation (messages + nexus_has
 ("what does this mean for me?") and can hand back for technical work. Same conversation, same exploration,
 different register; the host app drives the toggle (no automatic agent-switching). Its prompt is
 `system_prompt(tool_names, scoped_nexus_hash)` (`advisor/system_prompts.py`) — the tool-docs section renders
-only wired tools; the nexus pin is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),
+only wired tools (app-provided `extra_tools=` names are unknown to it and skipped: app tools are documented
+in the app preamble, their schemas travel via the `@llm.tool` docstring — `TestExtraTools`); the nexus pin
+is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),
 never by prompt admonition. Explorer, by contrast, steers its nexus_hash via prompt text only — a known
 weaker enforcement. Preamble pairing for the toggle: `NAVIGATOR_ADVANCED_MODE_APP` (Explorer side) ↔
 `EXPLORATION_ADVISOR_APP` (Advisor side). BOTH are `NAVIGATOR_APP + override` — that composition is what

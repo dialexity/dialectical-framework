@@ -69,6 +69,18 @@ class Advisor:
             advisor = Advisor(app_preamble=COUNSELOR_APP, messages=saved_messages)
             response = await advisor.chat("What about the other angle?")
 
+    Usage (app-provided domain tools):
+        # The app brings field knowledge two ways: prose in the preamble,
+        # and callable resources as extra @llm.tool functions. The engine
+        # prompt carries no docs for app tools (their tool-schema docstrings
+        # travel to the LLM automatically) — introduce them and their usage
+        # rules in the app preamble, where domain vocabulary lives.
+        with scope(case.sid):
+            advisor = Advisor(
+                app_preamble=ASTRO_COUNSELOR_APP,  # explains when to consult the chart
+                extra_tools=[lookup_natal_chart],   # @llm.tool from the app
+            )
+
     Usage (Advisor mode of an exploration session — Explorer handover):
         # User was chatting in Explorer (operator mode) and asks "what does
         # this all mean for me?" — the host toggles to counsel mode by
@@ -104,6 +116,7 @@ class Advisor:
         dialectical_context: Optional[str] = None,
         messages: Optional[list] = None,
         nexus_hash: Optional[str] = None,
+        extra_tools: Optional[list] = None,
     ) -> None:
         self._nexus_hash = nexus_hash
         if nexus_hash:
@@ -111,6 +124,21 @@ class Advisor:
             self._tools = _build_scoped_tools(nexus_hash)
         else:
             self._tools = _build_tools()
+        # App-provided @llm.tool functions (domain resources: chart lookups,
+        # methodology references, ...). The engine prompt has no docs for
+        # them and skips unknown names — describe them in the app preamble,
+        # which is where domain vocabulary lives anyway. Appended after the
+        # built-ins; name collisions with built-ins are a bug in the app.
+        if extra_tools:
+            builtin_names = {t.__name__ for t in self._tools}
+            collisions = [
+                t.__name__ for t in extra_tools if t.__name__ in builtin_names
+            ]
+            if collisions:
+                raise ValueError(
+                    f"extra_tools shadow built-in Advisor tools: {collisions}"
+                )
+            self._tools = self._tools + list(extra_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)
