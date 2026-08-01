@@ -36,6 +36,19 @@ Citations below use `[P0 p.N]` / `[P1 p.N]`.
 | [transformations-synthesis.md](transformations-synthesis.md) | Ac/Re mechanics, insight×proactiveness, Greimas criteria, transitions matrix, principles/ontologies, S± subtypes |
 | [pipeline.md](pipeline.md) | Where each rule is enforced vs merely described in the live pipelines; procedural theory (steps, workflows) vs agent architecture |
 
+## Theory-fidelity milestone: remaining gaps deferred (2026-08-01)
+
+After the 2026-07/08 gap-closure sweep (Greimas 5/5, equal-sign constraint, control statements
+incl. neutral-T + backfire, forcefulness→polarity-flip, DV with the Advisor SP∧DV floor, R3.2
+resolved via PDF verification, and two ledger corrections: transitions matrix and multi-antithesis
+were already implemented), the remaining 4 partial + 7 absent items are **deferred by decision** —
+the framework is considered useful with what is in it. Every deferred item carries its reason in
+its entry: either the paper itself cautions against it (unvalidated hypothesis, uncalibratable,
+authors' own "future work"), it sits on absent substrate, or it is a product feature awaiting a
+product decision (principles/ontologies layer, transition-tetrad diagonal check). Do not
+re-open these as fidelity debt; re-open them only when a concrete consumer or product need
+appears.
+
 ## Status ledger (last updated 2026-08-01; initial sync 2026-07-25)
 
 | Status | Count | Highlights |
