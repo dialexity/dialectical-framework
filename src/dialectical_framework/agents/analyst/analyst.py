@@ -20,6 +20,7 @@ from dialectical_framework.agents.analyst.system_prompts import SYSTEM_PROMPT
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
 
@@ -49,13 +50,17 @@ class Analyst:
 
     Usage:
         with scope(case.sid):
-            analyst = Analyst(app_preamble="You are a counselor...")
+            analyst = Analyst(app=MY_APP_SPEC)  # declarative (see AppSpec)
             response = await analyst.chat("I'm struggling with work-life balance")
 
         # Resuming with history:
         with scope(case.sid):
             analyst = Analyst(messages=loaded_messages)
             response = await analyst.chat("What about the second tension?")
+
+        # Manual preamble control (app_preamble replaces AppSpec composition):
+        with scope(case.sid):
+            analyst = Analyst(app_preamble="You are a counselor...")
     """
 
     AGENT_NAME = "analyst"
@@ -65,9 +70,15 @@ class Analyst:
         app_preamble: Optional[str] = None,
         messages: Optional[list] = None,
         app_tools: Optional[list] = None,
+        app: Optional[AppSpec] = None,
     ) -> None:
-        # app_tools: app-provided @llm.tool functions (domain resources) —
-        # see toolsets.merge_app_tools. Document them in the app preamble.
+        # app: declarative app definition — the framework composes the
+        # Navigator preamble (NAVIGATOR_APP + voicing + tool_guide) and tool
+        # set from it. app_preamble/app_tools remain for manual control;
+        # mixing them with app= raises (see app_spec.resolve_app_layer).
+        app_preamble, app_tools = resolve_app_layer(
+            app, app_preamble, app_tools, preamble_for="navigator"
+        )
         self._tools = merge_app_tools(_build_tools(), app_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:

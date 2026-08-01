@@ -22,6 +22,7 @@ from dialectical_framework.agents.advisor.system_prompts import \
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
+from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
 
@@ -118,8 +119,19 @@ class Advisor:
         messages: Optional[list] = None,
         nexus_hash: Optional[str] = None,
         app_tools: Optional[list] = None,
+        app: Optional[AppSpec] = None,
     ) -> None:
         self._nexus_hash = nexus_hash
+        # app: declarative app definition — composition depends on the mode:
+        # counsel toggle (nexus_hash set) keeps the Navigator contract
+        # (EXPLORATION_ADVISOR_APP + voicing + tool_guide); standalone uses
+        # the spec's advisor_persona (machinery hidden). See AppSpec.
+        app_preamble, app_tools = resolve_app_layer(
+            app,
+            app_preamble,
+            app_tools,
+            preamble_for="advisor_scoped" if nexus_hash else "advisor_unscoped",
+        )
         if nexus_hash:
             self._validate_nexus(nexus_hash)
             self._tools = _build_scoped_tools(nexus_hash)

@@ -20,6 +20,7 @@ from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.explorer.system_prompts import system_prompt
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
 from dialectical_framework.graph.repositories.nexus_repository import \
@@ -68,14 +69,19 @@ class Explorer:
         app_preamble: Optional[str] = None,
         messages: Optional[list] = None,
         app_tools: Optional[list] = None,
+        app: Optional[AppSpec] = None,
     ) -> None:
         self._nexus_hash = nexus_hash
-        # app_tools: app-provided @llm.tool functions (domain resources) —
-        # see toolsets.merge_app_tools. Document them in the app preamble.
-        # One app_tools list per app, passed to EVERY head (Analyst, Explorer,
-        # Advisor): the Explorer<->Advisor toggle shares literal history (a
-        # missing tool breaks capability mid-conversation), and the Analyst
-        # thread owes the user the same domain resources by parity.
+        # app: declarative app definition (Navigator base + voicing +
+        # tool_guide + tools) — see AppSpec. Pass the SAME AppSpec to every
+        # head (Analyst, Explorer, Advisor): the Explorer<->Advisor toggle
+        # shares literal history (a missing tool breaks capability
+        # mid-conversation), and the Analyst thread owes the user the same
+        # domain resources by parity. For advanced-mode preambles compose
+        # manually: app_preamble=my_app.navigator_preamble(advanced=True).
+        app_preamble, app_tools = resolve_app_layer(
+            app, app_preamble, app_tools, preamble_for="navigator"
+        )
         self._tools = merge_app_tools(_build_tools(), app_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)
 

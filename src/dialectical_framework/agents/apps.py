@@ -19,6 +19,12 @@ There are two territories:
 Apps define HOW the agents communicate — vocabulary, depth, framing, persona.
 They are injected by the host application at agent construction time.
 
+The recommended host interface is `AppSpec` (agents/app_spec.py): the app
+declares its custom pieces (voicing, advisor_persona, tool_guide, tools) and
+each agent head composes the right base from THIS module itself — hosts never
+concatenate these constants by hand. Direct `app_preamble=` passing remains
+for full manual control.
+
 Prompt Revision Methodology
 ===========================
 When fixing LLM output bugs in these prompts, use /df-review-reasoning-layer for the

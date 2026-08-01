@@ -41,16 +41,27 @@ tools like `query_graph`), `ResponseComplete`.
 Construction is uniform except for what each is bound to:
 
 ```python
-Analyst(app_preamble=None, messages=None, app_tools=None)              # Case-scoped (ambient)
-Explorer(nexus_hash, app_preamble=None, messages=None, app_tools=None) # bound to one Nexus
-Advisor(app_preamble=None, dialectical_context=None, messages=None,
+Analyst(app=None, app_preamble=None, messages=None, app_tools=None)              # Case-scoped (ambient)
+Explorer(nexus_hash, app=None, app_preamble=None, messages=None, app_tools=None) # bound to one Nexus
+Advisor(app=None, app_preamble=None, dialectical_context=None, messages=None,
         nexus_hash=None, app_tools=None)
 ```
 
-`app_preamble` is the flavor layer (see `agents/apps.py`). `messages` resumes a saved
-conversation. `app_tools` is the app's domain-resource seam, uniform across all three
-agents (`agents/toolsets.py`): additional `@llm.tool` functions appended to the built-in
-set — describe them in the app preamble; shadowing a built-in name raises. The **host application** owns four things the framework does not:
+**`app` (an `AppSpec`, `agents/app_spec.py`) is the recommended interface**: the app
+declares its custom pieces once — `voicing` (Navigator-side domain flavor),
+`advisor_persona` (standalone-Advisor identity), `tool_guide` (shared tool usage rules),
+`tools` — and every head composes the right preamble itself: Analyst/Explorer get
+`NAVIGATOR_APP + voicing + tool_guide`, the counsel toggle gets
+`EXPLORATION_ADVISOR_APP + voicing + tool_guide`, the standalone Advisor gets
+`advisor_persona + tool_guide`. The framework owns the composition lore; apps never
+touch the base preambles. One AppSpec constant, passed to every constructor — the
+continuity rule below is then automatic.
+
+`app_preamble`/`app_tools` are the manual low-level layer (full preamble control; see
+`agents/apps.py`): `app_preamble` replaces the AppSpec-derived composition entirely,
+`app_tools` are `@llm.tool` functions appended to the built-in set
+(`agents/toolsets.py`; shadowing a built-in name raises). Mixing `app=` with either
+manual param raises. `messages` resumes a saved conversation. The **host application** owns four things the framework does not:
 
 1. **DI setup** — `DialecticalReasoning.setup(Settings.from_env())` once at startup.
 2. **Scope** — wrap every `chat()` in `with scope(sid):` (all graph writes are `sid`-scoped).
@@ -290,23 +301,28 @@ Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Cons
 either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history
 — including tool-use blocks from tools the new head doesn't carry (provider-accepted;
 locked by `tests/test_agent_handover.py`, structure mocked + one `--real-llm` replay test).
-If the app wires `app_tools`, define ONE list per app and pass it to EVERY head — Analyst
-included, not just the toggle pair. The toggle heads share literal history, so a missing
-tool there breaks a capability the conversation already references (e.g. a chart lookup)
-mid-conversation; the Analyst thread is a separate conversation, but the app's user
-expects the same domain resources in the analysis phase (Analyst + Explorer + counsel
-toggle = one Navigator app). The framework cannot detect a forgotten head: at
-construction, "no app_tools" is indistinguishable from "this app has none", and diffing
+App capability continuity: define ONE `AppSpec` per app and pass it to EVERY head —
+Analyst included, not just the toggle pair. The toggle heads share literal history, so a
+missing tool there breaks a capability the conversation already references (e.g. a chart
+lookup) mid-conversation; the Analyst thread is a separate conversation, but the app's
+user expects the same domain resources in the analysis phase (Analyst + Explorer +
+counsel toggle = one Navigator app). The framework cannot detect a forgotten head: at
+construction, "no app" is indistinguishable from "this app has none", and diffing
 history tool-blocks against the tool set would false-positive on the intended built-in
-asymmetry (Advisor carries `anchor`; Explorer deliberately doesn't). Make forgetting
-structurally hard instead — one module-level constant, used by every factory:
+asymmetry (Advisor carries `anchor`; Explorer deliberately doesn't). One constant makes
+forgetting structurally hard — and each head derives its own correct preamble from it:
 
 ```python
-ASTRO_TOOLS = [lookup_natal_chart, lookup_transits]  # defined once
+ASTRO_APP = AppSpec(
+    voicing=ASTRO_VOICING,            # Navigator-side flavor
+    advisor_persona=ASTRO_PERSONA,    # standalone-Advisor identity
+    tool_guide=ASTRO_TOOL_GUIDE,      # shared usage rules, verbatim in every head
+    tools=[lookup_natal_chart, lookup_transits],
+)
 
-Analyst(app_preamble=ASTRO_NAVIGATOR_APP, app_tools=ASTRO_TOOLS)
-Explorer(nexus_hash=nx, app_preamble=ASTRO_NAVIGATOR_APP, messages=msgs, app_tools=ASTRO_TOOLS)
-Advisor(nexus_hash=nx, app_preamble=ASTRO_COUNSELOR_APP, messages=msgs, app_tools=ASTRO_TOOLS)
+Analyst(app=ASTRO_APP)
+Explorer(nexus_hash=nx, messages=msgs, app=ASTRO_APP)
+Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP)   # counsel toggle
 ```
 
 Both heads narrate the toggle moment without switching themselves: the Explorer suggests
