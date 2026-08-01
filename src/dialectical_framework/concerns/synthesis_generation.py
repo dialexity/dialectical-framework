@@ -13,7 +13,10 @@ TODO: Three-mode decomposition — decompose S+ into Sa+/Sb+/Sc+ processual/
 TODO: Recursive enforcement — higher-layer synthesis must satisfy convex-hull
       containment relative to lower-layer validated syntheses
 TODO: Control statements — "S+ without lower-layer support yields S-" style
-      coherence checks
+      coherence checks. NOTE: this is Rule 7 (apex coherence) material — an
+      extrapolation of the control-statement *style* to the synthesis level,
+      not a paper Rule 3.3 claim — and is blocked on the same sub-synthesis
+      substrate as the other apex-coherence TODOs above.
 """
 
 from __future__ import annotations

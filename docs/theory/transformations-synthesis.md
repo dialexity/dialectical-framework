@@ -82,6 +82,9 @@ data P1 p.18, p.36]
 **Notes:** Was "prompt-absent, no data to implement against". The supplement now provides the
 sub-synthesis enumeration + MHS scoring — the data model exists in theory; still unwired in code.
 Keep df-review-reasoning-layer's guard: reject prompt edits claiming apex validation until wired.
+Also owns the "S+ without lower-layer support yields S−" control-statement extrapolation (TODO in
+`synthesis_generation.py`) — control-statement *style* at synthesis level, no paper Rule 3.3
+anchor; blocked on the same sub-synthesis substrate.
 
 ### "Wisdom unit"
 **Theory:** Term of art: a tetrad + its complementary Ac/Re transitions as a self-regulating unit.

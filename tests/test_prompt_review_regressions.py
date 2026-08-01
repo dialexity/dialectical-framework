@@ -60,6 +60,18 @@ class TestSharedScoringConstants:
         assert "benefits, strengths" not in ASPECT_DEFINITIONS
         assert "risks, downsides, shadow" not in ASPECT_DEFINITIONS
 
+    def test_aspect_definitions_carry_neutral_degeneration(self):
+        """R3.3 neutral-T variant: 'T without A+ yields T-' + truth criterion
+        (P0 p.29) live in the shared constant, reaching every aspect prompt."""
+        from dialectical_framework.concerns.scoring_scales import \
+            ASPECT_DEFINITIONS
+
+        # neutral-level degeneration on both "-" definitions
+        assert "What T itself degenerates into when A+ is absent" in ASPECT_DEFINITIONS
+        assert "What A itself degenerates into when T+ is absent" in ASPECT_DEFINITIONS
+        # truth criterion
+        assert "only insofar as it fosters A+" in ASPECT_DEFINITIONS
+
     def test_hs_scale_is_descending_six_band_with_gate(self):
         """S2: one HS scale — descending 6-band, valid-above-0.1 gate."""
         from dialectical_framework.concerns.scoring_scales import HS_SCALE

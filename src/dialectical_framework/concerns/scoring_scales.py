@@ -12,17 +12,22 @@ scoring taxonomy): both are pure scoring-vocabulary modules, no service class.
 from __future__ import annotations
 
 # Canonical tetrad aspect definitions.
-# Names the two properties that distinguish dialectical aspects from mere
-# pros/cons: cross-enhancement (a "+" aspect strengthens the OPPOSITE side too)
-# and diagonal contradiction (each aspect contradicts its diagonal counterpart).
+# Names three properties that distinguish dialectical aspects from mere
+# pros/cons: cross-enhancement (a "+" aspect strengthens the OPPOSITE side too),
+# diagonal contradiction (each aspect contradicts its diagonal counterpart), and
+# neutral-level degeneration (Rule 3.3 variant: "T without A+ yields T-" — the
+# "-" aspect is what the bare concept becomes when the opposition's constructive
+# balance is absent; truth criterion: T is dialectically sound iff it fosters A+).
 ASPECT_DEFINITIONS = """## Aspect Definitions
 
 A dialectical tetrad adds four aspects around the T-A opposition:
 
 - **T+** — A constructive development of T that also strengthens what A offers; it balances the opposition instead of overpowering it. Contradicts A-.
 - **A+** — A constructive development of A that also strengthens what T offers; it balances the opposition instead of overpowering it. Contradicts T-.
-- **T-** — An exaggeration of T: overdevelops T's own side while underdeveloping A. A one-sided overextension, not merely "a downside of T". Contradicts A+.
-- **A-** — An exaggeration of A: overdevelops A's own side while underdeveloping T. A one-sided overextension, not merely "a downside of A". Contradicts T+."""
+- **T-** — An exaggeration of T: overdevelops T's own side while underdeveloping A. A one-sided overextension, not merely "a downside of T". What T itself degenerates into when A+ is absent. Contradicts A+.
+- **A-** — An exaggeration of A: overdevelops A's own side while underdeveloping T. A one-sided overextension, not merely "a downside of A". What A itself degenerates into when T+ is absent. Contradicts T+.
+
+Truth criterion: T is dialectically sound only insofar as it fosters A+ (and A only insofar as it fosters T+) — a concept that cannot foster its opposition's constructive side has no genuine "+" development, only exaggeration."""
 
 
 # HS band definitions (descending, best-first). Half-open bands: each includes

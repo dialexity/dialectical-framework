@@ -45,18 +45,20 @@ Variant at neutral-T level: "T without A+ yields T−"; truth criterion "T is tr
 **Implementation:** `concerns/control_statements_check.py:ControlStatementsCheck` (aspect level,
 CC-scored); invoked live from `skills/edit_perspective.py:_validate_tetrad_coherence` (user edits,
 blocking) AND from `skills/expand_polarities.py:_validate_and_flag` via `PerspectiveValidation`
-(generation path, non-blocking flag on `Perspective.validation`). The backfire dynamic
-("strengthening T+ directly strengthens A−, flipping T+ into T−") is encoded as a prompt
-constraint in `concerns/transformation_generation.py` ("Never propose direct reinforcement of a
-'+' aspect").
-**Status:** partial
-**Notes:** Aspect-level check now runs on both paths (edits gate; generation flags — deliberate:
-CC is the paper's less-reliable coherence metric, so it deprioritizes rather than drops).
-Backfire constraint added 2026-07-31 (locked by `TestBackfireConstraint` in
-`tests/test_prompt_review_regressions.py`). Still unencoded: the neutral-T variant ("T without A+
-yields T−" / "T is true iff it fosters A+") — no generation step operates at neutral-T level, so
-it has no natural prompt site; and the transition-level "S+ without lower-layer support yields
-S−" (TODO in `synthesis_generation.py`, blocked on sub-synthesis substrate — see Rule 7).
+(generation path, non-blocking flag on `Perspective.validation`). The neutral-T variant + truth
+criterion are encoded in `ASPECT_DEFINITIONS` (`concerns/scoring_scales.py`) — "What T itself
+degenerates into when A+ is absent" on the "−" definitions plus the explicit truth-criterion line
+— reaching every aspect prompt via the shared constant. The backfire dynamic ("strengthening T+
+directly strengthens A−, flipping T+ into T−") is a prompt constraint in
+`concerns/transformation_generation.py` ("Never propose direct reinforcement of a '+' aspect").
+**Status:** implemented
+**Notes:** All three paper claims of this rule are encoded: aspect-level statements (CC-scored on
+both live paths — edits gate; generation flags, deliberate since CC is the paper's less-reliable
+coherence metric), neutral-T variant (2026-07-31, via `ASPECT_DEFINITIONS`, locked by
+`TestSharedScoringConstants::test_aspect_definitions_carry_neutral_degeneration`), backfire
+constraint (2026-07-31, locked by `TestBackfireConstraint`). The "S+ without lower-layer support
+yields S−" TODO in `synthesis_generation.py` is Rule 7 material (control-statement *style* at
+synthesis level, no paper 3.3 anchor), tracked there.
 
 ### Rule 3.4: Ontology profiling (MMI-driven tetrad selection)
 **Theory:** S± outcomes depend on worldview assumptions estimable via empirical indices; the same
