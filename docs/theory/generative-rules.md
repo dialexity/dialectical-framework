@@ -11,10 +11,15 @@ not an entity. [P0 p.5]
 framing in candidates prompt); `concerns/statement_classification.py:StatementClassification`
 (SIMPLE→mechanical negation vs COMPLEX→taxonomy path).
 **Status:** implemented
-**Notes:** "Multiple antitheses per thesis" as a deliberate device (Conceptual Shifts Table
-[P1 p.49] — Truth×Falsehood vs Truth×Imagination as distinct tetrads) is **absent**: the model
-holds one A per Polarity; alternatives exist only as separate polarities, with no linkage that they
-share a thesis by design.
+**Notes:** "Multiple antitheses per thesis" (Conceptual Shifts Table [P1 p.49] — Truth×Falsehood
+vs Truth×Imagination as distinct tetrads) is **implemented**: `AntithesisExtraction` generates
+`count` candidates per thesis (default 5, round-robin across taxonomy branches);
+`FindPolarities._create_polarities` builds one Polarity per (T, A) pair — a thesis with N
+antitheses yields N Polarities → N distinct tetrads, exactly the paper's device. The shared-thesis
+linkage is structural: every such Polarity's T-edge points to the *same* Statement node, and
+`Statement.oppositions` (`OPPOSITE_OF`, symmetric, 0..N) links the thesis to all its antitheses
+directly. (A 2026-07 ledger note claimed "no linkage that they share a thesis by design" — wrong:
+shared-by-design is the graph identity itself, same node not a copy.)
 
 ### Rule 3.1: Tetradic structure + diagonal contradiction
 **Theory:** Every T–A interaction yields (T+,A+) upsides and (T−,A−) exaggerations such that
