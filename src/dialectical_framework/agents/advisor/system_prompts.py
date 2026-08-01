@@ -352,11 +352,15 @@ _TOOL_DOCS: dict[str, str] = {
   them. Deepening only adds analytical depth to existing structure — it
   never changes what the exploration contains, so no consent ceremony is
   needed. Harmless on already-developed wheels.""",
-    "sync": """- `sync` — Re-reads the full graph state. Use when you need a fresh full
-  picture — e.g., after multiple ingest/anchor calls, to see all perspectives
-  with scores before deciding what to group for explore. NOT needed after every
-  tool call (ingest/anchor/explore return their results directly), and NOT
-  needed at conversation start — the full state is already in your context.""",
+    "sync": """- `sync` — Re-reads the graph state. Without arguments: the full picture —
+  e.g., after multiple ingest/anchor calls, to see all perspectives with
+  scores before deciding what to group for explore. With a `nexus_hash`:
+  zooms into that one exploration in full depth — the overview caps wheels
+  per cycle for compactness, the zoom does not. Zoom when counsel settles on
+  one exploration and you need arrangements the overview truncated. NOT
+  needed after every tool call (ingest/anchor/explore return their results
+  directly), and NOT needed at conversation start — the full state is
+  already in your context.""",
     "sync_scoped": """- `sync` — Re-reads this exploration's state. Use when you need a fresh
   picture after changes. NOT needed at conversation start — the exploration
   is already in your context.""",

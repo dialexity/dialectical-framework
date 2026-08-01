@@ -121,7 +121,7 @@ Advisor has `discard` (to retract a framing the user rejects) but NO edit tool. 
 - `anchor` — plant a specific T/A tension → standalone perspective (composes IntroducePolarity + ExpandPolarity)
 - `explore` — group perspectives into nexus + pathways + synthesis (composes CreateNexus/ExpandNexus + ExplorationPipeline + GenerateSynthesis). LAZY: builds+ranks ALL wheels, deep-generates only the top-plausibility one (`EXPLORE_DEEP_WHEELS = 1`, fixed policy); rest reported as `shallow_wheel_hashes`. Weaves at most `settings.advisor_max_perspectives_per_exploration` per call (excess deferred, reported, never dropped).
 - `deepen` — develop a shallow wheel on demand (composes ExploreTransformations + GenerateSynthesis, synthesis always). The escape from explore's budget: called when the user's lived reality picks a non-top arrangement. Scoped variant guards wheel-membership in code.
-- `sync` — re-read graph state (composes DialecticalContext)
+- `sync` — re-read graph state (composes DialecticalContext); optional `nexus_hash` zooms into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps)
 - `discard`, `inspect_node`, `read_digest` — graph curation and detail reads (shared orchestrator tools)
 
 **ExpandPolarity creates `count` new perspectives per call (default 1).** Generated sequentially, each using `not_like_these` (existing + already-generated-this-call) for diversity. Pass `count > 1` to build alternative tetrads in one call; a pre-existing partial counts toward `count`.

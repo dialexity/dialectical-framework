@@ -49,9 +49,10 @@ def _create_perspective_with_aspects(
     t_minus_text: str = "Rigidity and micromanagement",
     a_plus_text: str = "Autonomy builds responsibility",
     a_minus_text: str = "Chaos without boundaries",
+    thesis_meaning: str = "test",
 ) -> Perspective:
     """Create a fully-populated Perspective for testing."""
-    thesis = Statement(text=thesis_text, meaning="test")
+    thesis = Statement(text=thesis_text, meaning=thesis_meaning)
     thesis.commit()
     antithesis = Statement(text=antithesis_text, meaning="test")
     antithesis.commit()
@@ -280,3 +281,105 @@ class TestDialecticalContextScoped:
             assert "Control" in dump
             assert "Speed" in dump
             assert "# Unexplored Tensions" in dump
+
+
+class TestDialecticalContextMultiNexus:
+    """Multi-exploration dumps: per-nexus index disambiguation + machine-stated
+    cross-nexus references (shared perspectives, shared taxonomy branch).
+    The parallels themselves stay LLM interpretation — the dump only surfaces
+    raw correspondences already persisted in the graph."""
+
+    @staticmethod
+    def _make_nexus(intent: str, *pps) -> Nexus:
+        nexus = Nexus(intent=intent)
+        nexus.save()
+        nexus.commit()
+        for pp in pps:
+            pp.nexus.connect(nexus)
+        return nexus
+
+    async def test_single_nexus_has_no_multi_header(self):
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            self._make_nexus("solo", pp)
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Multiple explorations below" not in dump
+            assert "Also woven into" not in dump
+
+    async def test_multi_nexus_index_disambiguation_note(self):
+        sid = _new_sid()
+        with scope(sid):
+            pp1 = _create_perspective_with_aspects(
+                thesis_text="Control", antithesis_text="Freedom"
+            )
+            pp2 = _create_perspective_with_aspects(
+                thesis_text="Speed", antithesis_text="Thoroughness"
+            )
+            self._make_nexus("first", pp1)
+            self._make_nexus("second", pp2)
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Multiple explorations below" in dump
+            assert "per-exploration" in dump
+
+    async def test_shared_perspective_annotated_in_both_nexuses(self):
+        sid = _new_sid()
+        with scope(sid):
+            shared = _create_perspective_with_aspects(
+                thesis_text="Control", antithesis_text="Freedom"
+            )
+            other = _create_perspective_with_aspects(
+                thesis_text="Speed", antithesis_text="Thoroughness"
+            )
+            nx1 = self._make_nexus("first", shared)
+            nx2 = self._make_nexus("second", shared, other)
+
+            dump = await DialecticalContext().resolve()
+
+            assert f"Also woven into Nexus [[{nx2.short_hash}]]" in dump
+            assert f"Also woven into Nexus [[{nx1.short_hash}]]" in dump
+
+    async def test_same_branch_across_nexuses_annotated(self):
+        sid = _new_sid()
+        with scope(sid):
+            uri = "dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion"
+            pp1 = _create_perspective_with_aspects(
+                thesis_text="Control",
+                antithesis_text="Freedom",
+                thesis_meaning=uri,
+            )
+            pp2 = _create_perspective_with_aspects(
+                thesis_text="Bonding",
+                antithesis_text="Detachment",
+                thesis_meaning=uri,
+            )
+            self._make_nexus("first", pp1)
+            self._make_nexus("second", pp2)
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Same opposition family (Integrity)" in dump
+
+    async def test_different_branches_not_annotated(self):
+        sid = _new_sid()
+        with scope(sid):
+            pp1 = _create_perspective_with_aspects(
+                thesis_text="Control",
+                antithesis_text="Freedom",
+                thesis_meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
+            )
+            pp2 = _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Thoroughness",
+                thesis_meaning="dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling",
+            )
+            self._make_nexus("first", pp1)
+            self._make_nexus("second", pp2)
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Same opposition family" not in dump

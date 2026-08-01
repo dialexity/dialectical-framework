@@ -115,8 +115,20 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 f"validation) — reachable via inspect_node if needed."
             )
 
+        # Cross-nexus references only make sense (and only cost anything)
+        # when several explorations coexist.
+        cross_refs: dict = {}
+        if len(nexuses) > 1:
+            sections.append(
+                "Multiple explorations below. Indices (T1, A1, ...) are "
+                "per-exploration — T1 in one nexus is unrelated to T1 in "
+                "another. When referring across explorations, qualify the "
+                "index with its nexus: \"T2 in [[hash]]\"."
+            )
+            cross_refs = self._build_cross_nexus_refs(nexuses)
+
         for nexus in nexuses:
-            nexus_dump = self._dump_nexus(nexus)
+            nexus_dump = self._dump_nexus(nexus, cross_refs)
             if nexus_dump:
                 sections.append(nexus_dump)
 
@@ -240,7 +252,83 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         return "\n".join(lines)
 
-    def _dump_nexus(self, nexus: Nexus) -> Optional[str]:
+    def _build_cross_nexus_refs(
+        self, nexuses: list[Nexus]
+    ) -> dict[tuple[str, int], list[str]]:
+        """
+        Machine-stated cross-exploration facts, keyed by (nexus short_hash,
+        pp._id). Two kinds, both derived from data already persisted:
+        - the same perspective woven into several nexuses;
+        - two perspectives in different nexuses anchored to the same
+          taxonomy branch (same opposition family).
+        The parallels themselves stay the LLM's free interpretation — the
+        dump only surfaces the raw correspondence.
+        """
+        # (nexus short_hash, pp index in that nexus, pp._id, thesis branch)
+        entries: list[tuple[str, int, int, Optional[str]]] = []
+        for nexus in nexuses:
+            pp_index = build_pp_index(nexus)
+            for pp, _ in nexus.perspectives.all():
+                if pp.discarded:
+                    continue
+                entries.append(
+                    (
+                        nexus.short_hash,
+                        pp_index[pp._id],
+                        pp._id,
+                        self._get_thesis_branch(pp),
+                    )
+                )
+
+        refs: dict[tuple[str, int], list[str]] = {}
+
+        def add(nx_hash: str, pp_id: int, line: str) -> None:
+            refs.setdefault((nx_hash, pp_id), []).append(line)
+
+        for nx_hash, idx, pp_id, branch in entries:
+            same_branch: list[str] = []
+            for other_nx, other_idx, other_pp, other_branch in entries:
+                if other_nx == nx_hash:
+                    continue
+                if other_pp == pp_id:
+                    add(
+                        nx_hash,
+                        pp_id,
+                        f"Also woven into Nexus [[{other_nx}]] "
+                        f"(as perspective {other_idx} there).",
+                    )
+                elif branch and branch == other_branch and branch != "Apex":
+                    same_branch.append(f"{other_idx} in [[{other_nx}]]")
+            if same_branch:
+                # One compact line per perspective — branches are few (5), so
+                # collisions are common; per-pair lines would bloat the dump.
+                add(
+                    nx_hash,
+                    pp_id,
+                    f"Same opposition family ({branch}) as perspective(s) "
+                    f"{', '.join(same_branch)}.",
+                )
+        return refs
+
+    def _get_thesis_branch(self, pp: Perspective) -> Optional[str]:
+        """Taxonomy branch of the thesis meaning URI (None for Simple/unset)."""
+        from dialectical_framework.concerns.statement_classification import \
+            parse_meaning_uri
+
+        t_result = self._safe_get(pp.t)
+        if not t_result:
+            return None
+        stmt, _ = t_result
+        if not stmt.meaning or stmt.is_simple:
+            return None
+        _, _, branch, _ = parse_meaning_uri(stmt.meaning)
+        return branch
+
+    def _dump_nexus(
+        self,
+        nexus: Nexus,
+        cross_refs: dict[tuple[str, int], list[str]] | None = None,
+    ) -> Optional[str]:
         cycle_repo = CycleRepository()
         wheel_repo = WheelRepository()
 
@@ -256,6 +344,8 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         for pp in pp_list:
             lines.append("")
             lines.append(self._dump_one_perspective(pp, index=pp_index[pp._id]))
+            for ref in (cross_refs or {}).get((nexus.short_hash, pp._id), []):
+                lines.append(ref)
 
         # Cycles and Wheels (reference perspectives by index)
         cycles = self._find_top_layer_cycles(nexus, pp_list, cycle_repo)

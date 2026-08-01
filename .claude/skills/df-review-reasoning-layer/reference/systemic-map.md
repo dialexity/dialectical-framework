@@ -258,7 +258,17 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   prioritization rules now say "pre-pruned, rank within it, don't re-filter" — if you change the floors,
   reconcile that section (`TestContextDumpPrePruned`). Env: `DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS` /
   `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA` / `DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE`. Locked by
-  `tests/test_context_quality_filter.py`.
+  `tests/test_context_quality_filter.py`. The unscoped Advisor `sync` tool takes an optional `nexus_hash`
+  to zoom into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps); its
+  tool doc in `_TOOL_DOCS["sync"]` describes overview-vs-zoom and must stay consistent with this cap.
+- **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
+  when >1 nexus exists, the unscoped dump (a) prepends an index-disambiguation note ("indices are
+  per-exploration — qualify with the nexus"), and (b) annotates perspectives with machine-stated
+  correspondences derived from persisted data only: "Also woven into Nexus [[x]]" (shared perspective,
+  `cardinality=(0, None)`) and "Same opposition family (Branch) as perspective N in Nexus [[x]]" (same
+  thesis taxonomy branch via `parse_meaning_uri`; Apex and Simple excluded). Deliberately NO persisted
+  analogy edge — cross-exploration parallels stay LLM interpretation over these raw correspondences.
+  Locked by `tests/test_dialectical_context.py::TestDialecticalContextMultiNexus`.
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 
