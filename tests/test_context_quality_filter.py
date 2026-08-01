@@ -2,10 +2,12 @@
 Tests for the context-dump quality filter (task #5).
 
 DialecticalContext pre-prunes instead of instructing: standalone perspectives
-below the quality floor (HS < advisor_polarity_quality_min_hs, area < advisor_perspective_quality_min_area, or
-failed validation) are suppressed with a count line; wheels are capped to the
-top-% advisor_wheel_quality_top_plausible per cycle with a count line. Nexus members are
-load-bearing and never suppressed. Missing scores never suppress.
+below the quality floors (HS < advisor_polarity_quality_min_hs, SP/area <
+advisor_perspective_quality_min_sp, DV < advisor_perspective_quality_min_dv, or
+failed validation — the SP+DV pair mirrors the paper's acceptance criterion)
+are suppressed with a count line; wheels are capped to the top-%
+advisor_wheel_quality_top_plausible per cycle with a count line. Nexus members
+are load-bearing and never suppressed. Missing scores never suppress.
 """
 
 from __future__ import annotations
@@ -135,6 +137,65 @@ class TestPerspectiveQualityFloor:
             _perspective_with_hs(0.2, "weak")
             dump = await DialecticalContext().resolve()
             assert "1 unexplored tension(s) suppressed" in dump
+
+    @pytest.mark.asyncio
+    async def test_low_dv_suppressed(self):
+        """A distorted framing (low DialecticalValidityEstimation) is pruned
+        even when HS and validation pass — the DV half of the paper's SP+DV
+        acceptance pair."""
+        from dialectical_framework.graph.nodes.estimation import \
+            DialecticalValidityEstimation
+        from dialectical_framework.graph.nodes.rationale import Rationale
+
+        sid = _new_sid()
+        with scope(sid):
+            distorted = _perspective_with_hs(0.9, "distorted")
+            rationale = Rationale(text="forced framing")
+            rationale.set_explanation_target(distorted)
+            rationale.commit()
+            dv = DialecticalValidityEstimation(
+                value=0.1,
+                t_plus_without_a_plus_yields_t_minus=0.1,
+                a_plus_without_t_plus_yields_a_minus=0.1,
+            )
+            dv.set_target(distorted)
+            dv.set_provider(rationale)
+            dv.commit()
+
+            _perspective_with_hs(0.9, "natural")
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Thesis natural" in dump
+            assert "Thesis distorted" not in dump
+            assert "1 unexplored tension(s) suppressed" in dump
+
+    @pytest.mark.asyncio
+    async def test_zero_dv_floor_disables_check(self, di_container):
+        from dialectical_framework.graph.nodes.estimation import \
+            DialecticalValidityEstimation
+        from dialectical_framework.graph.nodes.rationale import Rationale
+
+        sid = _new_sid()
+        with scope(sid):
+            distorted = _perspective_with_hs(0.9, "distorted")
+            rationale = Rationale(text="forced framing")
+            rationale.set_explanation_target(distorted)
+            rationale.commit()
+            dv = DialecticalValidityEstimation(
+                value=0.1,
+                t_plus_without_a_plus_yields_t_minus=0.1,
+                a_plus_without_t_plus_yields_a_minus=0.1,
+            )
+            dv.set_target(distorted)
+            dv.set_provider(rationale)
+            dv.commit()
+
+            with _settings(
+                di_container, advisor_perspective_quality_min_dv=0.0
+            ):
+                dump = await DialecticalContext().resolve()
+            assert "Thesis distorted" in dump
 
     @pytest.mark.asyncio
     async def test_nexus_members_never_suppressed(self):

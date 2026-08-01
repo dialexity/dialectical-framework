@@ -218,7 +218,7 @@ def _inspect_perspective(pp: Perspective) -> str:
     diff_t = pp.diff_t
     diff_a = pp.diff_a
     # Raw area (= theory's SP, -2..2) — the scale every band/gate/prompt in the
-    # system speaks (settings min_area, advisor bands, dialectical_context).
+    # system speaks (settings min_sp, advisor bands, dialectical_context).
     # area_normalized (area/2) is a UI-only hint; showing it here under a
     # different scale than the Advisor's dump confused cross-surface reads.
     area = pp.area

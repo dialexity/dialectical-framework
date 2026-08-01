@@ -250,16 +250,19 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   not evaluated" in the dump (never a fake numeric 1.0). Locked by
   `tests/test_perspective_validation_wiring.py`.
 - **Context-dump quality filter** (`DialecticalContext._apply_quality_floor` + wheel cap in `_dump_cycle`,
-  live since 2026-07): standalone perspectives with HS(A) < `settings.advisor_polarity_quality_min_hs` (0.5), area <
-  `advisor_perspective_quality_min_area` (0.3), or `validation` starting "failed" are SUPPRESSED from the dump (count line
-  notes them); wheels per cycle capped to top-% `advisor_wheel_quality_top_plausible` (3), % denominator stays the full
+  live since 2026-07): standalone perspectives with HS(A) < `settings.advisor_polarity_quality_min_hs` (0.5), SP/area <
+  `advisor_perspective_quality_min_sp` (0.3), DV < `advisor_perspective_quality_min_dv` (0.3), or `validation` starting
+  "failed" are SUPPRESSED from the dump (count line notes them) — the SP+DV floor pair mirrors the paper's acceptance
+  criterion (SP AND DV [P0 p.12]) as soft pruning, conservative defaults, never the paper's 0.5 verbatim; wheels per
+  cycle capped to top-% `advisor_wheel_quality_top_plausible` (3), % denominator stays the full
   sibling set. Nexus members and unscored perspectives are never suppressed, and the wheel cap applies to
   the UNSCOPED dump only — the counsel-mode (nexus-pinned) render shows the user-built exploration in full
   (same load-bearing exemption). This is a RENDER gate — it
   filters what the Advisor sees, not what exists; `inspect_node` reaches everything. The Advisor's
   prioritization rules now say "pre-pruned, rank within it, don't re-filter" — if you change the floors,
   reconcile that section (`TestContextDumpPrePruned`). Env: `DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS` /
-  `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA` / `DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE`. Locked by
+  `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_SP` / `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_DV` /
+  `DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE`. Locked by
   `tests/test_context_quality_filter.py`. The unscoped Advisor `sync` tool takes an optional `nexus_hash`
   to zoom into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps); its
   tool doc in `_TOOL_DOCS["sync"]` describes overview-vs-zoom and must stay consistent with this cap.

@@ -121,7 +121,7 @@ untested in code.
 
 | Gate | Paper | Code | Status |
 |------|-------|------|--------|
-| Tetrad acceptance | SP > 0.5 AND DV > 0.5 [P0 p.12] — soft ("Biased < 0.5, balanced > 0.2 is only a heuristic"; no universal cutoff exists) | HS ≥ 0.7 (`_rank_polarities`, `HS_THRESHOLD`) + empirical bands diff ≥ 0.1, Ks(+) > 0.4, Ks(−) < 0.6 (`perspective_validation.py`, wired live 2026-07 as a non-blocking flag in `ExpandPolarity._validate_and_flag` → `Perspective.validation`; prompts deprioritize "failed", nothing is dropped) | **diverges** (paper gates on SP/DV; implementation flags on CC+empirical bands) |
+| Tetrad acceptance | SP > 0.5 AND DV > 0.5 [P0 p.12] — soft ("Biased < 0.5, balanced > 0.2 is only a heuristic"; no universal cutoff exists) | HS ≥ 0.7 (`_rank_polarities`, `HS_THRESHOLD`) + empirical bands diff ≥ 0.1, Ks(+) > 0.4, Ks(−) < 0.6 (`perspective_validation.py`, wired live 2026-07 as a non-blocking flag in `ExpandPolarity._validate_and_flag` → `Perspective.validation`; prompts deprioritize "failed", nothing is dropped). ALSO: the Advisor context dump soft-prunes standalone perspectives on **SP < 0.3 OR DV < 0.3** (`dialectical_context._apply_quality_floor`, `advisor_perspective_quality_min_sp`/`_dv`, since 2026-08-01) — the paper's SP∧DV pair as render-time pruning with deliberately conservative floors (not 0.5), graph untouched, `inspect_node` reaches everything | **partial convergence** (generation still flags on CC+empirical bands; the Advisor render path now prunes on the paper's SP+DV pair at conservative floors) |
 | Sequence viability | P ≥ 0.5 [P1 p.35] | CausalityEstimation scores, no threshold gate | partial |
 | Consolidation | — | HS ≥ 0.7 merge / 0.1 suggest (`antithetical_thesis_detection.py`) | code-only |
 

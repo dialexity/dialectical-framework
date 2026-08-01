@@ -4,7 +4,8 @@ DialecticalContext: Reads graph state and produces a structured dump.
 Designed for injection into the Advisor agent's system prompt.
 Dumps the graph as structured text with scores inline — pre-pruned:
 perspectives below the quality floors (settings.advisor_polarity_quality_min_hs /
-advisor_perspective_quality_min_area, mirroring the prompt's own scales) and failed-validation
+advisor_perspective_quality_min_sp / advisor_perspective_quality_min_dv — the SP+DV
+pair mirrors the paper's acceptance criterion, all mirroring the prompt's own scales) and failed-validation
 perspectives are suppressed with a count line, and wheels are capped to the
 top-% few per cycle (settings.advisor_wheel_quality_top_plausible). Pre-computed pruning
 beats prioritization rules the model must self-apply; a weak tetrad
@@ -121,8 +122,9 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if suppressed_count:
             sections.append(
                 f"{suppressed_count} unexplored tension(s) suppressed for low "
-                f"quality (weak opposition, blurred structure, or failed "
-                f"validation) — reachable via inspect_node if needed."
+                f"quality (weak opposition, blurred structure, unnatural/"
+                f"distorted framing, or failed validation) — reachable via "
+                f"inspect_node if needed."
             )
 
         if len(nexuses) > 1:
@@ -602,12 +604,16 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
     ) -> tuple[list[Perspective], int]:
         """
         Split perspectives into (kept, suppressed_count) by the quality floor:
-        antithesis HS < advisor_polarity_quality_min_hs, area < advisor_perspective_quality_min_area, or a failed
-        validation verdict. Missing scores never suppress (unscored ≠ bad).
-        Floors of 0 disable the respective check.
+        antithesis HS < advisor_polarity_quality_min_hs, SP (`area`) <
+        advisor_perspective_quality_min_sp, DV <
+        advisor_perspective_quality_min_dv, or a failed validation verdict.
+        The SP + DV pair mirrors the paper's acceptance criterion (SP AND DV
+        [P0 p.12]) as soft context-pruning. Missing scores never suppress
+        (unscored ≠ bad). Floors of 0 disable the respective check.
         """
         min_hs = self.settings.advisor_polarity_quality_min_hs
-        min_area = self.settings.advisor_perspective_quality_min_area
+        min_sp = self.settings.advisor_perspective_quality_min_sp
+        min_dv = self.settings.advisor_perspective_quality_min_dv
 
         kept: list[Perspective] = []
         suppressed = 0
@@ -619,8 +625,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             if min_hs > 0 and hs is not None and hs < min_hs:
                 suppressed += 1
                 continue
-            area = pp.area
-            if min_area > 0 and area is not None and area < min_area:
+            sp = pp.area
+            if min_sp > 0 and sp is not None and sp < min_sp:
+                suppressed += 1
+                continue
+            dv = self._get_dialectical_validity(pp)
+            if min_dv > 0 and dv is not None and dv < min_dv:
                 suppressed += 1
                 continue
             kept.append(pp)

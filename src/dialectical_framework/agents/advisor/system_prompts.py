@@ -614,12 +614,13 @@ Use these scores to prioritize what you draw on:
 
 **Prioritization rules:**
 
-The dump is pre-pruned: tensions below the quality floor (weak opposition,
-blurred structure, failed validation) and low-probability wheels are already
-suppressed — count lines note what was filtered. Everything you see passed
-the floor; you rank within it, you don't re-filter.
+The dump is pre-pruned: tensions below the quality floors (weak opposition,
+blurred structure, unnatural/distorted framing, failed validation) and
+low-probability wheels are already suppressed — count lines note what was
+filtered. Everything you see passed the floors; you rank within them, you
+don't re-filter.
 
-1. Lead with the strongest tensions (highest HS on A, best area). Softer
+1. Lead with the strongest tensions (highest HS on A, best area, best DV). Softer
    ones are still visible by design — usable, and they may resonate with
    the person's lived experience, but don't build your primary counsel
    around them.

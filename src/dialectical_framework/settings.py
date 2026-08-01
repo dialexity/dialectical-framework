@@ -26,8 +26,15 @@ class Settings(BaseModel):
     # HS bands: 0.5-0.7 moderate, 0.3-0.5 weak, <0.3 barely an antithesis.
     # area (SP) bands: >=0.7 clear differentiation, 0.3-0.7 acceptable,
     # <0.3 aspects blur together.
+    # DV: 0-1, naturalness of the dialectical relationship; <0.3 = forced/
+    # distorted framing (comparative, no theory-derived cutoff).
     advisor_polarity_quality_min_hs: float = Field(default=0.5, description="Polarity quality floor: suppress perspectives whose antithesis HS (how genuine the T-A opposition is, 0.0-1.0) is below this. 0 disables.")
-    advisor_perspective_quality_min_area: float = Field(default=0.3, description="Perspective quality floor: suppress perspectives whose tetrad area (differentiation of constructive over destructive aspects, ~0-2) is below this. 0 disables.")
+    # The SP + DV floors together operationalize the paper's acceptance pair
+    # (SP > 0.5 AND DV > 0.5 [P0 p.12]) as soft context-pruning — deliberately
+    # more conservative defaults than the paper's 0.5 (thresholds are per-LLM
+    # calibrated), and pruning the dump, never the graph.
+    advisor_perspective_quality_min_sp: float = Field(default=0.3, description="Perspective quality floor: suppress perspectives whose SP (Synthesis Potential = code `area`, differentiation of constructive over destructive aspects, ~0-2) is below this. 0 disables.")
+    advisor_perspective_quality_min_dv: float = Field(default=0.3, description="Perspective quality floor: suppress perspectives whose DV (Dialectical Validity — naturalness of the dialectical relationship, 0.0-1.0) is below this. 0 disables.")
     advisor_wheel_quality_top_plausible: int = Field(default=3, description="Max wheels rendered per cycle in the unscoped context dump, top-normalized-%. Counsel-mode (nexus-pinned) dumps are exempt. 0 = unlimited.")
 
     # Depth budget for the Advisor's SILENT exploration (its `explore` tool).
@@ -117,7 +124,8 @@ class Settings(BaseModel):
             max_wheel_layer=int(os.getenv("DIALEXITY_MAX_WHEEL_LAYER", 4)),
             cycle_preset=CausalityPreset.AUTO,
             advisor_polarity_quality_min_hs=float(os.getenv("DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS", 0.5)),
-            advisor_perspective_quality_min_area=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_AREA", 0.3)),
+            advisor_perspective_quality_min_sp=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_SP", 0.3)),
+            advisor_perspective_quality_min_dv=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_DV", 0.3)),
             advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),
             advisor_max_perspectives_per_exploration=int(os.getenv("DIALEXITY_ADVISOR_MAX_PERSPECTIVES_PER_EXPLORATION", 2)),
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),

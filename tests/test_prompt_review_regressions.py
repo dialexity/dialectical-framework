@@ -873,7 +873,10 @@ class TestContextDumpPrePruned:
     def test_prompt_declares_the_dump_pre_pruned(self):
         p = self._advisor()
         assert "pre-pruned" in p
-        assert "you rank within it, you don't re-filter" in p
+        assert "you rank within them, you don't re-filter" in p
+        # the DV floor joined the pruning (SP+DV pair) — the prompt's floor
+        # description must name the distorted-framing suppression
+        assert "unnatural/distorted framing" in p
 
     def test_old_poor_scores_rule_reconciled(self):
         """Rule 4 ('if a perspective has poor scores...') described material
