@@ -149,6 +149,8 @@ from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.nodes.estimation import \
+    DialecticalValidityEstimation
 from dialectical_framework.graph.rendering import (
     build_pp_index,
     component_alias,
@@ -230,6 +232,12 @@ def _inspect_perspective(pp: Perspective) -> str:
         metrics.append(f"area={area:.3f}")
     if rect is not None:
         metrics.append(f"rect={rect:.4f}")
+    # DV (Dialectical Validity, paper's naturalness companion to SP) — read
+    # from the persisted estimation, annotation only.
+    for est, _ in pp.estimations.all():
+        if isinstance(est, DialecticalValidityEstimation):
+            metrics.append(f"DV={est.value:.3f}")
+            break
     if metrics:
         lines.append(f"Quality: {', '.join(metrics)}")
 

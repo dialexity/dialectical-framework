@@ -17,8 +17,8 @@ from dialectical_framework.concerns.perspective_validation import (
     EmpiricalInequalitiesResult, PerspectiveValidation,
     PerspectiveValidationResult)
 from dialectical_framework.graph.nodes.case import Case
-from dialectical_framework.graph.nodes.estimation import \
-    ConceptualCoherenceEstimation
+from dialectical_framework.graph.nodes.estimation import (
+    ConceptualCoherenceEstimation, DialecticalValidityEstimation)
 from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.repositories.node_repository import \
@@ -43,8 +43,14 @@ def _fake_validation_result(
         t_plus_without_a_plus_yields_t_minus=score,
         a_plus_without_t_plus_yields_a_minus=score,
     )
+    dv_estimation = DialecticalValidityEstimation(
+        value=score,
+        t_plus_without_a_plus_yields_t_minus=score,
+        a_plus_without_t_plus_yields_a_minus=score,
+    )
     cs = ControlStatementsCheckResult(
         estimation=estimation,
+        dv_estimation=dv_estimation,
         rationale=Rationale(text="stub"),
         t_plus_without_a_plus_yields_t_minus_statement="s1",
         t_plus_without_a_plus_yields_t_minus_score=score,
@@ -52,6 +58,8 @@ def _fake_validation_result(
         a_plus_without_t_plus_yields_a_minus_statement="s2",
         a_plus_without_t_plus_yields_a_minus_score=score,
         a_plus_without_t_plus_yields_a_minus_reasoning="r2",
+        t_plus_without_a_plus_yields_t_minus_dv=score,
+        a_plus_without_t_plus_yields_a_minus_dv=score,
     )
     ei = EmpiricalInequalitiesResult(
         is_valid=ei_valid, failure_reasons=list(reasons or [])

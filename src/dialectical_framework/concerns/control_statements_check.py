@@ -42,7 +42,8 @@ from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.graph.nodes.estimation import (
-    CONCEPTUAL_COHERENCE_THRESHOLD, ConceptualCoherenceEstimation)
+    CONCEPTUAL_COHERENCE_THRESHOLD, ConceptualCoherenceEstimation,
+    DialecticalValidityEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                           POSITION_A_PLUS,
@@ -57,7 +58,16 @@ if TYPE_CHECKING:
 
 
 class CoherenceEvaluationDto(BaseModel):
-    """Result of evaluating a single control statement."""
+    """Result of evaluating a single control statement (CC + DV).
+
+    DESIGN FORK (revisit if scores correlate): CC and DV are scored in the SAME
+    LLM call here (zero extra cost), while the paper [P1 S1.7] used separate
+    prompts per metric. Same-call scoring risks the model anchoring one score
+    on the other. If real-LLM checks against the paper's reference table
+    (S1.7-1/-2: Orwellian DV≈0.0 with CC as high as 0.85 on some models;
+    Buddhist DV≈0.9) show CC and DV tracking each other where the paper
+    separates them, split DV into its own call (+2 calls per perspective).
+    """
 
     coherence_score: float = Field(
         ge=0.0,
@@ -65,6 +75,26 @@ class CoherenceEvaluationDto(BaseModel):
         description="Logical coherence score (0.0-1.0). >= 0.7 is considered coherent.",
     )
     reasoning: str = Field(description="Brief explanation of the coherence assessment")
+    dialectical_validity: float = Field(
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Dialectical Validity (DV, 0.0-1.0), judged INDEPENDENTLY of coherence. "
+            "1.0 = the statement expresses a natural, balanced, generative dialectical "
+            "relationship: the concepts occupy comparable semantic levels, the two "
+            "positive poles genuinely complement one another, and the predicted "
+            "pathology arises naturally from the absence of its complementary "
+            "counterpart. 0.0 = forced, artificial, or dialectically distorted: "
+            "semantically mismatched concepts, one pole arbitrarily privileged, or "
+            "outcomes relying on coercion, ideology, arbitrary conventions, or "
+            "implausible reasoning rather than natural system dynamics. Ignore "
+            "factual correctness; evaluate only the quality of the dialectical "
+            "relationship as a generative principle."
+        ),
+    )
+    dv_reasoning: str = Field(
+        description="Brief explanation of the dialectical-validity assessment"
+    )
 
 
 # --- Result ---
@@ -79,6 +109,7 @@ class ControlStatementsCheckResult:
     """
 
     estimation: ConceptualCoherenceEstimation
+    dv_estimation: DialecticalValidityEstimation
     rationale: Rationale
 
     # Control statement details for transparency
@@ -88,6 +119,9 @@ class ControlStatementsCheckResult:
     a_plus_without_t_plus_yields_a_minus_statement: str
     a_plus_without_t_plus_yields_a_minus_score: float
     a_plus_without_t_plus_yields_a_minus_reasoning: str
+    # DV per statement (annotation only — never gates; see DialecticalValidityEstimation)
+    t_plus_without_a_plus_yields_t_minus_dv: float
+    a_plus_without_t_plus_yields_a_minus_dv: float
 
     @property
     def is_coherent(self) -> bool:
@@ -159,29 +193,39 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
 
         # Create estimation and rationale nodes
         avg_score = (result_1.coherence_score + result_2.coherence_score) / 2
+        avg_dv = (result_1.dialectical_validity + result_2.dialectical_validity) / 2
 
         estimation = ConceptualCoherenceEstimation(
             value=avg_score,
             t_plus_without_a_plus_yields_t_minus=result_1.coherence_score,
             a_plus_without_t_plus_yields_a_minus=result_2.coherence_score,
         )
+        dv_estimation = DialecticalValidityEstimation(
+            value=avg_dv,
+            t_plus_without_a_plus_yields_t_minus=result_1.dialectical_validity,
+            a_plus_without_t_plus_yields_a_minus=result_2.dialectical_validity,
+        )
         status = "COHERENT" if estimation.is_coherent else "NOT COHERENT"
 
         rationale_text = (
             f"Conceptual Coherence Evaluation: {status}\n\n"
-            f"T+ without A+ yields T- (score={result_1.coherence_score:.2f}):\n"
+            f"T+ without A+ yields T- (CC={result_1.coherence_score:.2f}, DV={result_1.dialectical_validity:.2f}):\n"
             f"  {stmt_1}\n"
-            f"  Reasoning: {result_1.reasoning}\n\n"
-            f"A+ without T+ yields A- (score={result_2.coherence_score:.2f}):\n"
+            f"  Reasoning: {result_1.reasoning}\n"
+            f"  DV reasoning: {result_1.dv_reasoning}\n\n"
+            f"A+ without T+ yields A- (CC={result_2.coherence_score:.2f}, DV={result_2.dialectical_validity:.2f}):\n"
             f"  {stmt_2}\n"
-            f"  Reasoning: {result_2.reasoning}\n\n"
-            f"Coherence requires both scores >= {CONCEPTUAL_COHERENCE_THRESHOLD} (average: {avg_score:.2f})"
+            f"  Reasoning: {result_2.reasoning}\n"
+            f"  DV reasoning: {result_2.dv_reasoning}\n\n"
+            f"Coherence requires both CC scores >= {CONCEPTUAL_COHERENCE_THRESHOLD} (average: {avg_score:.2f}).\n"
+            f"DV (dialectical naturalness, avg {avg_dv:.2f}) annotates only — no threshold."
         )
         rationale = Rationale(text=rationale_text)
 
         # Only commit and attach if PP is committed
         if perspective.is_committed:
             estimation.set_target(perspective)
+            dv_estimation.set_target(perspective)
             rationale.set_explanation_target(perspective)
             rationale.commit()
             self._report.node_created(rationale)
@@ -190,8 +234,13 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
             estimation.commit()
             self._report.node_created(estimation)
 
+            dv_estimation.set_provider(rationale)
+            dv_estimation.commit()
+            self._report.node_created(dv_estimation)
+
         result = ControlStatementsCheckResult(
             estimation=estimation,
+            dv_estimation=dv_estimation,
             rationale=rationale,
             t_plus_without_a_plus_yields_t_minus_statement=stmt_1,
             t_plus_without_a_plus_yields_t_minus_score=result_1.coherence_score,
@@ -199,6 +248,8 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
             a_plus_without_t_plus_yields_a_minus_statement=stmt_2,
             a_plus_without_t_plus_yields_a_minus_score=result_2.coherence_score,
             a_plus_without_t_plus_yields_a_minus_reasoning=result_2.reasoning,
+            t_plus_without_a_plus_yields_t_minus_dv=result_1.dialectical_validity,
+            a_plus_without_t_plus_yields_a_minus_dv=result_2.dialectical_validity,
         )
 
         self._build_report(result)
@@ -212,19 +263,26 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
         """Evaluate a single control statement for logical coherence."""
         context_section = f"<context>\n{text}\n</context>\n\n" if text else ""
 
-        prompt = f"""{context_section}Rate the logical coherence of this control statement:
+        prompt = f"""{context_section}Rate this control statement on two independent scales:
 
 {statement}
 
 The pattern "[Positive] without [Balancing factor] yields [Negative]" tests whether
 the absence of a balancing positive aspect naturally leads to the negative/shadow aspect.
 
-Coherence scale:
+1. Conceptual Coherence (CC) — is the statement logically meaningful?
 - 0.9-1.0: Highly coherent, clear logical/causal relationship
 - 0.7-0.9: Coherent, reasonable logical connection
 - 0.5-0.7: Somewhat coherent, plausible but weak
 - 0.3-0.5: Weak coherence, tenuous connection
-- 0.0-0.3: Not coherent, no clear logical relationship"""
+- 0.0-0.3: Not coherent, no clear logical relationship
+
+2. Dialectical Validity (DV) — is the dialectical relationship natural, judged
+independently of coherence? A statement can be perfectly coherent yet dialectically
+distorted (e.g. one pole arbitrarily privileged, outcomes enforced by coercion or
+ideology rather than natural system dynamics). 1.0 = natural, balanced, generative;
+0.0 = forced, artificial, distorted. Ignore factual correctness; evaluate only the
+quality of the dialectical relationship as a generative principle."""
 
         conversation = ConversationFacilitator()
         return await conversation.submit(
@@ -238,10 +296,15 @@ Coherence scale:
         score_2 = result.a_plus_without_t_plus_yields_a_minus_score
         avg_score = (score_1 + score_2) / 2
 
+        dv_1 = result.t_plus_without_a_plus_yields_t_minus_dv
+        dv_2 = result.a_plus_without_t_plus_yields_a_minus_dv
+        avg_dv = (dv_1 + dv_2) / 2
+
         self._report.artifacts["t_plus_without_a_plus_yields_t_minus"] = score_1
         self._report.artifacts["a_plus_without_t_plus_yields_a_minus"] = score_2
         self._report.artifacts["average"] = avg_score
         self._report.artifacts["is_coherent"] = result.is_coherent
+        self._report.artifacts["dialectical_validity"] = avg_dv
 
         self._report.ok = True
         status = "COHERENT" if result.is_coherent else "NOT COHERENT"
@@ -249,5 +312,5 @@ Coherence scale:
             f"Control Statements Check: {status} "
             f"(T+\\A+→T-={score_1:.2f}, "
             f"A+\\T+→A-={score_2:.2f}, "
-            f"avg={avg_score:.2f})"
+            f"avg={avg_score:.2f}, DV={avg_dv:.2f})"
         )

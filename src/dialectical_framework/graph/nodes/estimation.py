@@ -321,6 +321,32 @@ class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
         )
 
 
+class DialecticalValidityEstimation(Estimation, label="DialecticalValidity"):
+    """
+    Dialectical Validity (DV) estimation for a Perspective's tetrad.
+
+    DV is the paper's quality companion to CC [P0 p.12; P1 S1.7]: it scores the
+    NATURALNESS of the dialectical relationship expressed by each control
+    statement ("natural, balanced, generative" = 1.0 vs "forced, artificial,
+    dialectically distorted" = 0.0), ignoring factual correctness. The paper
+    reports DV "performed better than CC" and is more model-stable, and its
+    acceptance heuristic pairs DV with SP (= code `area`).
+
+    Same shape as ConceptualCoherenceEstimation: one DV score per control
+    statement, `value` stores the average.
+
+    Deliberately NO threshold property: the paper's DV > 0.5 gate is per-LLM
+    calibrated (docs/theory/scoring.md "Gates"), so DV annotates and is
+    surfaced next to `area` — it never gates. Do not add an `is_valid` here
+    without a calibration story.
+
+    Stored on Perspective as it characterizes the entire tetrad.
+    """
+
+    t_plus_without_a_plus_yields_t_minus: float
+    a_plus_without_t_plus_yields_a_minus: float
+
+
 class DiagonalContradictionEstimation(Estimation, label="DiagonalContradiction"):
     """
     Diagonal contradiction estimation for Perspective validation.

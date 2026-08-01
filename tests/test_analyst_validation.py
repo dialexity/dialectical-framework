@@ -177,6 +177,39 @@ class TestControlStatementsCheck:
                 / 2
             )
 
+    @pytest.mark.asyncio
+    @traced
+    async def test_creates_dv_estimation(self):
+        """ControlStatementsCheck persists a DialecticalValidityEstimation
+        alongside CC (same call — see the fork note in CoherenceEvaluationDto)."""
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            pp = _create_test_perspective()
+
+            capability = ControlStatementsCheck()
+            result = await capability.resolve(perspective=pp)
+
+            dv = result.dv_estimation
+            assert dv.is_committed
+            assert 0.0 <= dv.t_plus_without_a_plus_yields_t_minus <= 1.0
+            assert 0.0 <= dv.a_plus_without_t_plus_yields_a_minus <= 1.0
+            assert (
+                dv.value
+                == (
+                    dv.t_plus_without_a_plus_yields_t_minus
+                    + dv.a_plus_without_t_plus_yields_a_minus
+                )
+                / 2
+            )
+            # per-statement DV surfaces on the result for transparency
+            assert 0.0 <= result.t_plus_without_a_plus_yields_t_minus_dv <= 1.0
+            assert 0.0 <= result.a_plus_without_t_plus_yields_a_minus_dv <= 1.0
+            # annotation only: DV deliberately has no is_valid/threshold property
+            assert not hasattr(dv, "is_valid")
+            assert not hasattr(dv, "is_coherent")
+
 
 class TestPerspectiveValidation:
     """Tests for PerspectiveValidation orchestrator."""

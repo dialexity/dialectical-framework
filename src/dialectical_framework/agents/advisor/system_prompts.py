@@ -578,6 +578,13 @@ Use these scores to prioritize what you draw on:
 - `rectangularity`: Tetrad balance (lower = better).
   <0.01 = well-balanced. 0.01–0.09 = mild imbalance, acceptable.
   >0.09 = one side overdeveloped — note the imbalance.
+- `DV`: Dialectical validity — how NATURAL the tension's dynamics are
+  (higher = the poles genuinely complement each other and the pathologies
+  arise organically; lower = the framing is forced, one-sided, or held
+  together by coercion/ideology rather than natural dynamics). Comparative
+  signal, no fixed cutoff: prefer high-DV tensions when choosing what to
+  build counsel on, and treat a low-DV tension as a hint the framing itself
+  may be distorted — consider re-anchoring rather than polishing aspects.
 - `Ks` on aspects: Complementarity toward synthesis.
   T+/A+ should be >0.4 (constructive poles complement the whole).
   T-/A- should be <0.6 (destructive poles don't overpower).

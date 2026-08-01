@@ -256,7 +256,11 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 lines.append(f"{position}: \"{stmt.text}\"{scores}")
 
         if pp.area is not None:
-            lines.append(f"Quality: area={pp.area:.2f}, rectangularity={pp.rectangularity:.2f}")
+            quality = f"Quality: area={pp.area:.2f}, rectangularity={pp.rectangularity:.2f}"
+            dv = self._get_dialectical_validity(pp)
+            if dv is not None:
+                quality += f", DV={dv:.2f}"
+            lines.append(quality)
 
         # Post-generation validation verdict (CC + empirical inequalities).
         if pp.validation == "passed":
@@ -652,6 +656,16 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         for est, _ in transition.estimations.all():
             if isinstance(est, FeasibilityEstimation):
+                return est.value
+        return None
+
+    @staticmethod
+    def _get_dialectical_validity(perspective) -> Optional[float]:
+        from dialectical_framework.graph.nodes.estimation import \
+            DialecticalValidityEstimation
+
+        for est, _ in perspective.estimations.all():
+            if isinstance(est, DialecticalValidityEstimation):
                 return est.value
         return None
 

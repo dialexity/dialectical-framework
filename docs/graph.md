@@ -711,7 +711,8 @@ Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
 | `FeasibilityEstimation` | Practical achievability |
 | `ModeEstimation` | T-A opposition characterization |
 | `ArousalEstimation` | T-A opposition intensity |
-| `ConceptualCoherenceEstimation` | Tetrad validation (control statements) |
+| `ConceptualCoherenceEstimation` | Tetrad validation (control statements, CC) |
+| `DialecticalValidityEstimation` | Tetrad naturalness (DV — paper's quality companion to SP; annotation only, never gates) |
 | `DiagonalContradictionEstimation` | Tetrad validation (diagonal pairs) |
 
 **Content-addressed identity:** Estimations are identified by `(type, value, target)`. Same tuple = same hash = reused node.

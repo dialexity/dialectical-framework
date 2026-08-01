@@ -53,10 +53,22 @@ per-statement acceptance score. Given the paper's own reliability caveat, the na
 
 ### DV — Dialectical Validity
 **Theory:** 0–1, "naturalness and dialectical balance", complements CC; paper's acceptance gate is
-**SP > 0.5 AND DV > 0.5**; DV tracks SP better than CC. [P0 p.12]
-**Implementation:** —
-**Status:** absent
-**Notes:** See "Gates" below for the divergence this creates.
+**SP > 0.5 AND DV > 0.5**; DV tracks SP better than CC ("Generally, DV parameter performed better
+than CC" [P1 S1.7]) and is more model-stable (Orwellian: CC 0.85 Gemini vs 0.15 GPT; DV 0.00 vs
+0.05 [P1 S1.7-2]). Verbatim prompt anchors in S1.7 [P1 p.11]. [P0 p.12]
+**Implementation:** `concerns/control_statements_check.py` — each control-statement evaluation
+scores CC and DV together (paper's verbatim 1.0/0.0 anchors in the DTO field description +
+prompt); persisted as `DialecticalValidityEstimation` (`graph/nodes/estimation.py`) on the
+Perspective. Surfaced next to `area` in `dialectical_context` (`DV=`), `inspect_node`, and the
+Advisor's score-reading section.
+**Status:** implemented (annotation only — deliberately no DV > 0.5 gate)
+**Notes:** Added 2026-08-01. The paper's DV > 0.5 gate is NOT adopted (per-LLM calibration, same
+stance as every other threshold — see "Gates"). DESIGN FORK, recorded in
+`CoherenceEvaluationDto`'s docstring: CC and DV are scored in the SAME LLM call (zero extra cost)
+while the paper used separate prompts; if real-LLM checks against the S1.7 reference values show
+the two scores anchoring on each other (the paper's own data separates them sharply on
+Orwellian-style cases), split DV into its own call (+2 calls per perspective). Reference-value
+spot-check lives in `tests/test_dialectical_validity_real_llm.py` (`--real-llm`).
 
 ### MMI — Mind-Matter Index
 **Theory:** 0 = matter ontologically primary, 1 = mind primary; low → optimize within ontology,
