@@ -42,8 +42,8 @@ Citations below use `[P0 p.N]` / `[P1 p.N]`.
 |--------|-------|-----------|
 | implemented | 20 | tetrad rules, circular causality, control statements (aspect checks both paths + neutral-T variant + backfire constraint), Mode ladder (=thesis-lessness), insight/proactiveness scales, systemic+elemental taxonomies, diagonal wheel geometry, Ks formula, SP formula (as `area`), Greimas criteria (5/5), equal-sign synthesis (explicit constraint), transitions matrix (as wheel-native decomposition; same-side cells deliberately unmediated), multi-antithesis per thesis (N candidates → N Polarities sharing the same T node), forcefulness→polarity-flip (subtlety constraint at both Ac/Re generation sites) |
 | partial | 4 | transition tetrad rules, Mode×Arousal semantics, feasibility scoring, apex coherence (data now available; also owns the "S+ without lower-layer support" control-statement extrapolation) |
-| absent | 9 | principles/ontologies layer, DV/MMI/PSI/PC metrics, Sa/Sb/Sc subtypes, sub-aspects hierarchy, coupling dendrograms, modality balance enforcement, reverse-order S− trigger, Abstraction scalar, Self-Reg metric |
-| diverges | 3 | rectangularity formula (code² vs paper-linear-and-rejected), acceptance gate (HS≥0.7 vs paper SP/DV>0.5), naming: paper "SP" = code `area` |
+| absent | 8 | principles/ontologies layer, DV/MMI/PSI/PC metrics, Sa/Sb/Sc subtypes, sub-aspects hierarchy, coupling dendrograms, reverse-order S− trigger, Abstraction scalar, Self-Reg metric |
+| diverges | 4 | rectangularity formula (code² vs paper-linear-and-rejected), acceptance gate (HS≥0.7 vs paper SP/DV>0.5), naming: paper "SP" = code `area`, modality balance R3.2 (measurable as rectangularity=0 under the paper's own approximation; deliberately unenforced — the paper's tests found Ks-balance criteria "not useful" [P1 S1.6-3]) |
 
 ## Standing cautions
 

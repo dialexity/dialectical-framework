@@ -31,7 +31,7 @@ ordering.
 | Rule | Enforced at generation | Checked post-hoc | Merely described |
 |------|----------------------|------------------|------------------|
 | 3.1 tetrad/diagonal | prompt constraints (`aspect_generation`) | `edit_perspective` only (`DiagonalOppositionsCheck`) | — |
-| 3.2 modality balance | — | — | CLAUDE.md/theory only |
+| 3.2 modality balance | — (deliberate: paper's own tests found Ks-balance criteria "not useful") | measurable as `rectangularity` = 0 (see generative-rules.md R3.2), nothing gates on it | — |
 | 3.3 control statements | backfire constraint (`transformation_generation`) | `edit_perspective` (blocking) + `expand_polarities._validate_and_flag` via `PerspectiveValidation` (non-blocking flag) | — |
 | 3.4 ontology profiling | — | — | absent everywhere |
 | 4.x synthesis rules | input selection (`synthesis_generation`) | — | prompt framing |

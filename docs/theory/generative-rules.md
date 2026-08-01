@@ -36,12 +36,28 @@ covered via modality/Ks balance — no explicit strength-parity check at generat
 ### Rule 3.2: Equal modalities (modality balance)
 **Theory:** S+ occurs iff all components have equal absolute modalities. Eq (1):
 `M(T+) = −M(T−) = M(A+) = −M(A−)` [P0 p.10]; linear approximation
-`M(X) ≈ Ks(X) − (Ks)_Avg` [P0 p.11].
-**Implementation:** —
-**Status:** absent
-**Notes:** No prompt or check enforces the zero-sum. The `M(X) ≈ Ks(X) − Ks_avg` approximation
-means it COULD be computed from persisted K_T/K_A without new LLM calls — cheapest wiring path
-if ever needed. Do not let prompts claim modality balance is enforced (see df-review-reasoning-layer).
+`M(X) ≈ Ks(X) − (Ks)_Avg` [P0 p.11], where (Ks)_Avg is the tetrad's own four-aspect mean
+(verified against the PDFs 2026-08-01: the approximation is introduced per-tetrad alongside
+Eq (3) and Fig. 4's per-tetrad diagrams).
+**Implementation:** `graph/nodes/perspective.py:rectangularity` — algebraically, under the linear
+approximation, Eq (1)'s equality chain reduces exactly to `Ks(T+)=Ks(A+) ∧ Ks(T−)=Ks(A−)`, and
+`rectangularity = (Ks(T+)−Ks(A+))² + (Ks(T−)−Ks(A−))²` is zero iff that holds — the framework
+already carries R3.2's only operationalizable (Ks-derived) form as its rectangularity metric.
+**Status:** diverges (deliberate non-enforcement, per the paper's own negative result)
+**Notes:** The paper's empirical program tested this exact family of Ks-derived balance criteria
+and reports them **"not useful"** — Table S1.6-3 [P1 p.10] lists linear Rectangularity and three
+other Ks-balance criteria all as "Not useful," and [P1 p.7] concludes the balance explorations
+"did not lead to any useful conclusions"; only SP (= `area`) survived as "the most useful
+empirical parameter." So no gate, flag, or prompt enforces Eq (1), and none should be added
+without new evidence — the standing caution ("check the paper's own verdict first") applies with
+the verdict now on record. Rectangularity remains a comparative balance *measurement* (lower =
+more balanced), never a validated S+ predictor. Three guardrails for anyone revisiting:
+(1) the equivalence is with Eq (1)'s sign-patterned chain, not the weaker "equal |M|" prose;
+(2) ΣM = 0 is identically true under the approximation (deviations from a mean sum to zero) —
+the zero-sum form is vacuous, only the equality chain has content; (3) rectangularity = 0 does
+not imply S+ — degenerate (all four Ks equal) and inverted (minus aspects above plus) tetrads
+pass it while area/complementarity inequalities reject them. M-modality (signed, Ks-derived) is
+unrelated to the Mode/thesis-lessness ladder (taxonomies.md) despite the shared root word.
 
 ### Rule 3.3: Control statements
 **Theory:** "T+ without A+ yields T−; A+ without T+ yields A−" must make sense. [P0 p.5]

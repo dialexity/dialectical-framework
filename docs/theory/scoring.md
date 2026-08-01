@@ -27,7 +27,11 @@ zero behavior — record the synonym instead.
 **Status:** diverges (formula form AND polarity of "good")
 **Notes:** Deliberate-looking divergence: squared penalty, no 1− inversion. Since the paper itself
 rejected its linear version, the code's variant is a local empirical choice, not an implementation
-bug. Documented so nobody "fixes" either direction blindly.
+bug. Documented so nobody "fixes" either direction blindly. Theory connection (2026-08-01): under
+the paper's linear approximation `M(X) ≈ Ks(X) − Ks_avg` [P0 p.11], rectangularity = 0 is exactly
+Rule 3.2's modality-balance chain Eq (1) — the squared and linear forms have identical zero-sets,
+so this holds despite the formula divergence. See generative-rules.md Rule 3.2 for why balance is
+measured but deliberately not enforced.
 
 ### HS — Heuristic Similarity (+ MHS)
 **Theory:** Similarity to taxonomy apex; appears in taxonomy triples [P1 p.19] and sub-synthesis

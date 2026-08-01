@@ -22,7 +22,7 @@ The framework implements **Structured Dialectics** (theory papers in `docs/r-n-d
 - A- is transformed into a constructive thesis component (T+)
 This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+) and `Re+` (A-→T+) are the required Transformation positions.
 
-**3. Modality Balance.** M(T+) + M(A-) + M(T-) + M(A+) = 0. A zero-sum constraint: increases in one pole are compensated by decreases in its complement. Balanced systems have symmetry in absolute modality values.
+**3. Modality Balance.** M(T+) = −M(T-) = M(A+) = −M(A-) — in a balanced system all four modalities have equal absolute value, with constructive poles above and exaggerations below the mean. (Not a mere zero-sum: under the paper's approximation M(X) ≈ Ks(X) − Ks_avg the sum is *always* zero; only the equality chain has content. The paper's own tests found Ks-derived balance criteria "not useful" — see `docs/theory/generative-rules.md` Rule 3.2 before wiring any check.)
 
 **4. Complementarity.** K = (K_T + K_A) / 2, where K_T and K_A measure how well aspects complement T and A respectively. In balanced tetrads: K_T(T+) > K_T(T-) and K_T(A+) > K_T(A-). Complementarity + HS (Heuristic Similarity to apex) together determine tetrad quality.
 
