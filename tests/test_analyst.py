@@ -77,7 +77,7 @@ class TestAnalystInitialization:
 
         assert len(analyst.messages) >= 1
 
-    def test_extra_tools_appended(self):
+    def test_app_tools_appended(self):
         """App-provided @llm.tool functions join the built-in set."""
         from mirascope import llm
 
@@ -86,7 +86,7 @@ class TestAnalystInitialization:
             """Look up the natal chart for a person."""
             return f"chart for {person}"
 
-        analyst = Analyst(extra_tools=[lookup_natal_chart])
+        analyst = Analyst(app_tools=[lookup_natal_chart])
 
         tool_names = [t.__name__ for t in analyst._tools]
         assert "lookup_natal_chart" in tool_names
@@ -101,7 +101,7 @@ class TestAnalystInitialization:
             return ""
 
         with pytest.raises(ValueError, match="shadow built-in"):
-            Analyst(extra_tools=[analyze])
+            Analyst(app_tools=[analyze])
 
 
 class TestAnalystWorkflow:

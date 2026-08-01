@@ -41,14 +41,14 @@ tools like `query_graph`), `ResponseComplete`.
 Construction is uniform except for what each is bound to:
 
 ```python
-Analyst(app_preamble=None, messages=None, extra_tools=None)              # Case-scoped (ambient)
-Explorer(nexus_hash, app_preamble=None, messages=None, extra_tools=None) # bound to one Nexus
+Analyst(app_preamble=None, messages=None, app_tools=None)              # Case-scoped (ambient)
+Explorer(nexus_hash, app_preamble=None, messages=None, app_tools=None) # bound to one Nexus
 Advisor(app_preamble=None, dialectical_context=None, messages=None,
-        nexus_hash=None, extra_tools=None)
+        nexus_hash=None, app_tools=None)
 ```
 
 `app_preamble` is the flavor layer (see `agents/apps.py`). `messages` resumes a saved
-conversation. `extra_tools` is the app's domain-resource seam, uniform across all three
+conversation. `app_tools` is the app's domain-resource seam, uniform across all three
 agents (`agents/toolsets.py`): additional `@llm.tool` functions appended to the built-in
 set — describe them in the app preamble; shadowing a built-in name raises. The **host application** owns four things the framework does not:
 
@@ -129,9 +129,9 @@ transformations, and synthesizes S+/S-. It is a **bounded consumer** — it cann
 new material or build new perspectives. When the user wants new analysis, it routes them
 back to the Analyst thread.
 
-**Construct:** `Explorer(nexus_hash, app_preamble=None, messages=None, extra_tools=None)`
+**Construct:** `Explorer(nexus_hash, app_preamble=None, messages=None, app_tools=None)`
 — `nexus_hash` is **required** and hard-bound at construction; a missing nexus raises
-immediately. `extra_tools` works as on the Advisor (see below).
+immediately. `app_tools` works as on the Advisor (see below).
 
 **Tools (12):**
 
@@ -184,12 +184,12 @@ dialectical engine; the **persona** comes entirely from the app preamble (counse
 strategist, coach, mediator, sparring partner — see `agents/apps.py`).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
-nexus_hash=None, extra_tools=None)`. `dialectical_context` is an optional pre-rendered
+nexus_hash=None, app_tools=None)`. `dialectical_context` is an optional pre-rendered
 graph snapshot (from `DialecticalContext().resolve()`) injected into the system prompt —
 use it when a rich graph already exists at conversation start. `nexus_hash` pins the
 Advisor to one exploration — this is the **counsel mode of an Explorer session**, not a
 standalone deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
-`extra_tools` is the app's domain-resource seam: additional `@llm.tool` functions
+`app_tools` is the app's domain-resource seam: additional `@llm.tool` functions
 (chart lookups, methodology references, knowledge-base fetches) appended to the
 built-in set. The engine prompt carries no docs for them (their tool-schema docstrings
 reach the LLM automatically) — introduce them and their usage rules in the app
@@ -290,7 +290,7 @@ Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Cons
 either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history
 — including tool-use blocks from tools the new head doesn't carry (provider-accepted;
 locked by `tests/test_agent_handover.py`, structure mocked + one `--real-llm` replay test).
-If the app wires `extra_tools`, pass the SAME list to both heads of a toggle — otherwise a
+If the app wires `app_tools`, pass the SAME list to both heads of a toggle — otherwise a
 capability the history already references (e.g. a chart lookup) silently disappears
 mid-conversation for one register.
 

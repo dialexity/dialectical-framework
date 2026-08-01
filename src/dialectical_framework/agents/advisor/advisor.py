@@ -23,7 +23,7 @@ from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.stream_events import StreamEvent
-from dialectical_framework.agents.toolsets import merge_extra_tools
+from dialectical_framework.agents.toolsets import merge_app_tools
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +72,14 @@ class Advisor:
 
     Usage (app-provided domain tools):
         # The app brings field knowledge two ways: prose in the preamble,
-        # and callable resources as extra @llm.tool functions. The engine
+        # and callable resources as app @llm.tool functions. The engine
         # prompt carries no docs for app tools (their tool-schema docstrings
         # travel to the LLM automatically) — introduce them and their usage
         # rules in the app preamble, where domain vocabulary lives.
         with scope(case.sid):
             advisor = Advisor(
                 app_preamble=ASTRO_COUNSELOR_APP,  # explains when to consult the chart
-                extra_tools=[lookup_natal_chart],   # @llm.tool from the app
+                app_tools=[lookup_natal_chart],   # @llm.tool from the app
             )
 
     Usage (Advisor mode of an exploration session — Explorer handover):
@@ -117,7 +117,7 @@ class Advisor:
         dialectical_context: Optional[str] = None,
         messages: Optional[list] = None,
         nexus_hash: Optional[str] = None,
-        extra_tools: Optional[list] = None,
+        app_tools: Optional[list] = None,
     ) -> None:
         self._nexus_hash = nexus_hash
         if nexus_hash:
@@ -126,8 +126,8 @@ class Advisor:
         else:
             self._tools = _build_tools()
         # App-provided @llm.tool functions (domain resources: chart lookups,
-        # methodology references, ...) — see toolsets.merge_extra_tools.
-        self._tools = merge_extra_tools(self._tools, extra_tools)
+        # methodology references, ...) — see toolsets.merge_app_tools.
+        self._tools = merge_app_tools(self._tools, app_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)

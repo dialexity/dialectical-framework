@@ -84,7 +84,7 @@ class TestExplorerInitialization:
 
             assert len(explorer.messages) >= 1
 
-    def test_extra_tools_appended(self):
+    def test_app_tools_appended(self):
         """App-provided @llm.tool functions join the built-in set — pass the
         SAME list to both toggle heads so no capability disappears."""
         from mirascope import llm
@@ -98,7 +98,7 @@ class TestExplorerInitialization:
         with scope(sid):
             nexus_hash = _create_nexus(sid)
             explorer = Explorer(
-                nexus_hash=nexus_hash, extra_tools=[lookup_natal_chart]
+                nexus_hash=nexus_hash, app_tools=[lookup_natal_chart]
             )
 
             tool_names = [t.__name__ for t in explorer._tools]
@@ -117,7 +117,7 @@ class TestExplorerInitialization:
         with scope(sid):
             nexus_hash = _create_nexus(sid)
             with pytest.raises(ValueError, match="shadow built-in"):
-                Explorer(nexus_hash=nexus_hash, extra_tools=[build_wheels])
+                Explorer(nexus_hash=nexus_hash, app_tools=[build_wheels])
 
     def test_raises_on_invalid_nexus(self):
         """Test Explorer raises when nexus_hash doesn't resolve."""

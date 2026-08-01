@@ -21,7 +21,7 @@ from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.stream_events import StreamEvent
-from dialectical_framework.agents.toolsets import merge_extra_tools
+from dialectical_framework.agents.toolsets import merge_app_tools
 
 if TYPE_CHECKING:
     pass
@@ -64,11 +64,11 @@ class Analyst:
         self,
         app_preamble: Optional[str] = None,
         messages: Optional[list] = None,
-        extra_tools: Optional[list] = None,
+        app_tools: Optional[list] = None,
     ) -> None:
-        # extra_tools: app-provided @llm.tool functions (domain resources) —
-        # see toolsets.merge_extra_tools. Document them in the app preamble.
-        self._tools = merge_extra_tools(_build_tools(), extra_tools)
+        # app_tools: app-provided @llm.tool functions (domain resources) —
+        # see toolsets.merge_app_tools. Document them in the app preamble.
+        self._tools = merge_app_tools(_build_tools(), app_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)

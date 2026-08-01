@@ -85,7 +85,7 @@ class TestStaticSystemPrompt:
 
 
 @pytest.mark.llm
-class TestExtraTools:
+class TestAppTools:
     """App-provided @llm.tool functions wire in through the constructor —
     the seam through which an app adds domain resources (chart lookups,
     methodology references) alongside the built-in dialectical tools."""
@@ -101,9 +101,9 @@ class TestExtraTools:
 
         return lookup_natal_chart
 
-    async def test_extra_tools_appended_to_tool_set(self):
+    async def test_app_tools_appended_to_tool_set(self):
         tool = self._make_app_tool()
-        advisor = Advisor(extra_tools=[tool])
+        advisor = Advisor(app_tools=[tool])
 
         names = [t.__name__ for t in advisor._tools]
         assert "lookup_natal_chart" in names
@@ -111,12 +111,12 @@ class TestExtraTools:
         for builtin in ("ingest", "anchor", "explore", "deepen", "sync"):
             assert builtin in names
 
-    async def test_extra_tools_reach_the_conversation(self):
+    async def test_app_tools_reach_the_conversation(self):
         tool = self._make_app_tool()
-        advisor = Advisor(extra_tools=[tool])
+        advisor = Advisor(app_tools=[tool])
         assert tool in advisor._conversation._tools
 
-    async def test_extra_tools_scoped_mode(self):
+    async def test_app_tools_scoped_mode(self):
         from dialectical_framework.graph.nodes.case import Case
         from dialectical_framework.graph.nodes.nexus import Nexus
         from dialectical_framework.graph.scope_context import scope
@@ -124,7 +124,7 @@ class TestExtraTools:
         case = Case()
         case.commit()
         with scope(case.sid):
-            nexus = Nexus(intent="extra tools scoped test")
+            nexus = Nexus(intent="app tools scoped test")
             nexus.save()
             nexus.commit()
 
@@ -132,7 +132,7 @@ class TestExtraTools:
             advisor = Advisor(
                 nexus_hash=nexus.hash[:7],
                 dialectical_context="dump",
-                extra_tools=[tool],
+                app_tools=[tool],
             )
 
         assert "lookup_natal_chart" in [t.__name__ for t in advisor._tools]
@@ -146,13 +146,13 @@ class TestExtraTools:
             return ""
 
         with pytest.raises(ValueError, match="shadow built-in"):
-            Advisor(extra_tools=[sync])
+            Advisor(app_tools=[sync])
 
     async def test_engine_prompt_unaffected_by_unknown_tool_names(self):
         """The engine renders docs only for names it knows — an app tool
         must not corrupt or crash the prompt assembly."""
         tool = self._make_app_tool()
-        with_extra = Advisor(extra_tools=[tool])
+        with_extra = Advisor(app_tools=[tool])
         without = Advisor()
         assert "lookup_natal_chart" not in _system_prompt_text(with_extra)
         assert _system_prompt_text(with_extra) == _system_prompt_text(without)
