@@ -290,9 +290,24 @@ Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Cons
 either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history
 — including tool-use blocks from tools the new head doesn't carry (provider-accepted;
 locked by `tests/test_agent_handover.py`, structure mocked + one `--real-llm` replay test).
-If the app wires `app_tools`, pass the SAME list to both heads of a toggle — otherwise a
-capability the history already references (e.g. a chart lookup) silently disappears
-mid-conversation for one register.
+If the app wires `app_tools`, define ONE list per app and pass it to EVERY head — Analyst
+included, not just the toggle pair. The toggle heads share literal history, so a missing
+tool there breaks a capability the conversation already references (e.g. a chart lookup)
+mid-conversation; the Analyst thread is a separate conversation, but the app's user
+expects the same domain resources in the analysis phase (Analyst + Explorer + counsel
+toggle = one Navigator app). The framework cannot detect a forgotten head: at
+construction, "no app_tools" is indistinguishable from "this app has none", and diffing
+history tool-blocks against the tool set would false-positive on the intended built-in
+asymmetry (Advisor carries `anchor`; Explorer deliberately doesn't). Make forgetting
+structurally hard instead — one module-level constant, used by every factory:
+
+```python
+ASTRO_TOOLS = [lookup_natal_chart, lookup_transits]  # defined once
+
+Analyst(app_preamble=ASTRO_NAVIGATOR_APP, app_tools=ASTRO_TOOLS)
+Explorer(nexus_hash=nx, app_preamble=ASTRO_NAVIGATOR_APP, messages=msgs, app_tools=ASTRO_TOOLS)
+Advisor(nexus_hash=nx, app_preamble=ASTRO_COUNSELOR_APP, messages=msgs, app_tools=ASTRO_TOOLS)
+```
 
 Both heads narrate the toggle moment without switching themselves: the Explorer suggests
 counsel mode when the conversation pulls from structure to meaning (only if the host offers

@@ -72,8 +72,10 @@ class Explorer:
         self._nexus_hash = nexus_hash
         # app_tools: app-provided @llm.tool functions (domain resources) —
         # see toolsets.merge_app_tools. Document them in the app preamble.
-        # For an Explorer<->Advisor session toggle, pass the SAME app_tools
-        # to both heads so no capability disappears mid-conversation.
+        # One app_tools list per app, passed to EVERY head (Analyst, Explorer,
+        # Advisor): the Explorer<->Advisor toggle shares literal history (a
+        # missing tool breaks capability mid-conversation), and the Analyst
+        # thread owes the user the same domain resources by parity.
         self._tools = merge_app_tools(_build_tools(), app_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)
 

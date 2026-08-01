@@ -318,8 +318,9 @@ different register; the host app drives the toggle (no automatic agent-switching
 `system_prompt(tool_names, scoped_nexus_hash)` (`advisor/system_prompts.py`) — the tool-docs section renders
 only wired tools (app-provided `app_tools=` names are unknown to it and skipped: app tools are documented
 in the app preamble, their schemas travel via the `@llm.tool` docstring — `TestAppTools`; the seam is
-uniform across Analyst/Explorer/Advisor via `agents/toolsets.py::merge_app_tools`, and toggle heads must
-receive the SAME app_tools for capability continuity); the nexus pin
+uniform across Analyst/Explorer/Advisor via `agents/toolsets.py::merge_app_tools`; one app_tools list per
+app, passed to EVERY head — toggle heads share literal history, and the Analyst thread owes the same
+domain resources by parity); the nexus pin
 is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),
 never by prompt admonition. Explorer, by contrast, steers its nexus_hash via prompt text only — a known
 weaker enforcement. Preamble pairing for the toggle: `NAVIGATOR_ADVANCED_MODE_APP` (Explorer side) ↔
