@@ -23,6 +23,7 @@ from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.stream_events import StreamEvent
+from dialectical_framework.agents.toolsets import merge_extra_tools
 
 logger = logging.getLogger(__name__)
 
@@ -125,20 +126,8 @@ class Advisor:
         else:
             self._tools = _build_tools()
         # App-provided @llm.tool functions (domain resources: chart lookups,
-        # methodology references, ...). The engine prompt has no docs for
-        # them and skips unknown names — describe them in the app preamble,
-        # which is where domain vocabulary lives anyway. Appended after the
-        # built-ins; name collisions with built-ins are a bug in the app.
-        if extra_tools:
-            builtin_names = {t.__name__ for t in self._tools}
-            collisions = [
-                t.__name__ for t in extra_tools if t.__name__ in builtin_names
-            ]
-            if collisions:
-                raise ValueError(
-                    f"extra_tools shadow built-in Advisor tools: {collisions}"
-                )
-            self._tools = self._tools + list(extra_tools)
+        # methodology references, ...) — see toolsets.merge_extra_tools.
+        self._tools = merge_extra_tools(self._tools, extra_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)
         if messages:
             self._conversation._messages = list(messages)

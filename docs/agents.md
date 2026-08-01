@@ -41,13 +41,16 @@ tools like `query_graph`), `ResponseComplete`.
 Construction is uniform except for what each is bound to:
 
 ```python
-Analyst(app_preamble=None, messages=None)                   # Case-scoped (ambient)
-Explorer(nexus_hash, app_preamble=None, messages=None)      # bound to one Nexus
-Advisor(app_preamble=None, dialectical_context=None, messages=None)
+Analyst(app_preamble=None, messages=None, extra_tools=None)              # Case-scoped (ambient)
+Explorer(nexus_hash, app_preamble=None, messages=None, extra_tools=None) # bound to one Nexus
+Advisor(app_preamble=None, dialectical_context=None, messages=None,
+        nexus_hash=None, extra_tools=None)
 ```
 
 `app_preamble` is the flavor layer (see `agents/apps.py`). `messages` resumes a saved
-conversation. The **host application** owns four things the framework does not:
+conversation. `extra_tools` is the app's domain-resource seam, uniform across all three
+agents (`agents/toolsets.py`): additional `@llm.tool` functions appended to the built-in
+set — describe them in the app preamble; shadowing a built-in name raises. The **host application** owns four things the framework does not:
 
 1. **DI setup** — `DialecticalReasoning.setup(Settings.from_env())` once at startup.
 2. **Scope** — wrap every `chat()` in `with scope(sid):` (all graph writes are `sid`-scoped).
@@ -126,8 +129,9 @@ transformations, and synthesizes S+/S-. It is a **bounded consumer** — it cann
 new material or build new perspectives. When the user wants new analysis, it routes them
 back to the Analyst thread.
 
-**Construct:** `Explorer(nexus_hash, app_preamble=None, messages=None)` — `nexus_hash`
-is **required** and hard-bound at construction; a missing nexus raises immediately.
+**Construct:** `Explorer(nexus_hash, app_preamble=None, messages=None, extra_tools=None)`
+— `nexus_hash` is **required** and hard-bound at construction; a missing nexus raises
+immediately. `extra_tools` works as on the Advisor (see below).
 
 **Tools (12):**
 
@@ -286,6 +290,9 @@ Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Cons
 either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history
 — including tool-use blocks from tools the new head doesn't carry (provider-accepted;
 locked by `tests/test_agent_handover.py`, structure mocked + one `--real-llm` replay test).
+If the app wires `extra_tools`, pass the SAME list to both heads of a toggle — otherwise a
+capability the history already references (e.g. a chart lookup) silently disappears
+mid-conversation for one register.
 
 Both heads narrate the toggle moment without switching themselves: the Explorer suggests
 counsel mode when the conversation pulls from structure to meaning (only if the host offers

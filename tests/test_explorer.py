@@ -84,6 +84,41 @@ class TestExplorerInitialization:
 
             assert len(explorer.messages) >= 1
 
+    def test_extra_tools_appended(self):
+        """App-provided @llm.tool functions join the built-in set — pass the
+        SAME list to both toggle heads so no capability disappears."""
+        from mirascope import llm
+
+        @llm.tool
+        async def lookup_natal_chart(person: str) -> str:
+            """Look up the natal chart for a person."""
+            return f"chart for {person}"
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = _create_nexus(sid)
+            explorer = Explorer(
+                nexus_hash=nexus_hash, extra_tools=[lookup_natal_chart]
+            )
+
+            tool_names = [t.__name__ for t in explorer._tools]
+            assert "lookup_natal_chart" in tool_names
+            assert "build_wheels" in tool_names
+
+    def test_extra_tool_shadowing_builtin_rejected(self):
+        from mirascope import llm
+
+        @llm.tool
+        async def build_wheels() -> str:
+            """Impostor."""
+            return ""
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = _create_nexus(sid)
+            with pytest.raises(ValueError, match="shadow built-in"):
+                Explorer(nexus_hash=nexus_hash, extra_tools=[build_wheels])
+
     def test_raises_on_invalid_nexus(self):
         """Test Explorer raises when nexus_hash doesn't resolve."""
         sid = _new_sid()
