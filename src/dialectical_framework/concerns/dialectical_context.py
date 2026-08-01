@@ -106,8 +106,18 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         # stay visible with their scores/Validation line.
         standalone, suppressed_count = self._apply_quality_floor(standalone)
 
+        # Cross-references need at least two groups to correspond across:
+        # several explorations, or one-plus with unexplored tensions beside it
+        # (a fresh anchor echoing an explored tension is exactly the moment
+        # a correspondence line earns its keep).
+        cross_refs: dict = {}
+        if len(nexuses) > 1 or (nexuses and standalone):
+            cross_refs = self._build_cross_nexus_refs(nexuses, standalone)
+
         if standalone:
-            sections.append(self._dump_standalone_perspectives(standalone))
+            sections.append(
+                self._dump_standalone_perspectives(standalone, cross_refs)
+            )
         if suppressed_count:
             sections.append(
                 f"{suppressed_count} unexplored tension(s) suppressed for low "
@@ -115,9 +125,6 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 f"validation) — reachable via inspect_node if needed."
             )
 
-        # Cross-nexus references only make sense (and only cost anything)
-        # when several explorations coexist.
-        cross_refs: dict = {}
         if len(nexuses) > 1:
             sections.append(
                 "Multiple explorations below. Indices (T1, A1, ...) are "
@@ -125,7 +132,6 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 "another. When referring across explorations, qualify the "
                 "index with its nexus: \"T2 in [[hash]]\"."
             )
-            cross_refs = self._build_cross_nexus_refs(nexuses)
 
         for nexus in nexuses:
             nexus_dump = self._dump_nexus(nexus, cross_refs)
@@ -199,10 +205,18 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             )
         return "\n".join(lines)
 
-    def _dump_standalone_perspectives(self, perspectives: list[Perspective]) -> str:
+    def _dump_standalone_perspectives(
+        self,
+        perspectives: list[Perspective],
+        cross_refs: dict[tuple[str, int], list[str]] | None = None,
+    ) -> str:
         lines = ["# Unexplored Tensions"]
         for pp in perspectives:
-            lines.append(self._dump_one_perspective(pp))
+            block = self._dump_one_perspective(pp)
+            refs = (cross_refs or {}).get((self._STANDALONE_KEY, pp._id), [])
+            if refs:
+                block = "\n".join([block, *refs])
+            lines.append(block)
         return "\n\n".join(lines)
 
     def _dump_one_perspective(self, pp: Perspective, index: int | None = None) -> str:
@@ -252,58 +266,82 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         return "\n".join(lines)
 
+    # Sentinel group key for perspectives outside any nexus. Correspondences
+    # are computed across GROUPS (nexus↔nexus, nexus↔unexplored), never within
+    # one group — within a nexus the members already sit side by side.
+    _STANDALONE_KEY = "__standalone__"
+
     def _build_cross_nexus_refs(
-        self, nexuses: list[Nexus]
+        self,
+        nexuses: list[Nexus],
+        standalone: list[Perspective] | None = None,
     ) -> dict[tuple[str, int], list[str]]:
         """
-        Machine-stated cross-exploration facts, keyed by (nexus short_hash,
-        pp._id). Two kinds, both derived from data already persisted:
+        Machine-stated cross-group facts, keyed by (group key, pp._id) where
+        the group key is a nexus short_hash or _STANDALONE_KEY. Two kinds,
+        both derived from data already persisted:
         - the same perspective woven into several nexuses;
-        - two perspectives in different nexuses anchored to the same
-          taxonomy branch (same opposition family).
+        - two perspectives in different groups anchored to the same
+          taxonomy branch (same opposition family) — including a fresh
+          unexplored anchor echoing an already-explored tension.
         The parallels themselves stay the LLM's free interpretation — the
         dump only surfaces the raw correspondence.
         """
-        # (nexus short_hash, pp index in that nexus, pp._id, thesis branch)
-        entries: list[tuple[str, int, int, Optional[str]]] = []
+        # (group key, index within nexus or None, display label, pp._id,
+        # thesis branch); the label is how OTHER groups' lines point at this
+        # perspective. Standalone perspectives never trigger "Also woven into"
+        # (standalone = not in any nexus, by construction).
+        entries: list[tuple[str, Optional[int], str, int, Optional[str]]] = []
         for nexus in nexuses:
             pp_index = build_pp_index(nexus)
             for pp, _ in nexus.perspectives.all():
                 if pp.discarded:
                     continue
+                idx = pp_index[pp._id]
                 entries.append(
                     (
                         nexus.short_hash,
-                        pp_index[pp._id],
+                        idx,
+                        f"{idx} in [[{nexus.short_hash}]]",
                         pp._id,
                         self._get_thesis_branch(pp),
                     )
                 )
+        for pp in standalone or []:
+            entries.append(
+                (
+                    self._STANDALONE_KEY,
+                    None,
+                    f"[[{pp.short_hash}]] (unexplored)",
+                    pp._id,
+                    self._get_thesis_branch(pp),
+                )
+            )
 
         refs: dict[tuple[str, int], list[str]] = {}
 
-        def add(nx_hash: str, pp_id: int, line: str) -> None:
-            refs.setdefault((nx_hash, pp_id), []).append(line)
+        def add(group: str, pp_id: int, line: str) -> None:
+            refs.setdefault((group, pp_id), []).append(line)
 
-        for nx_hash, idx, pp_id, branch in entries:
+        for group, _, _, pp_id, branch in entries:
             same_branch: list[str] = []
-            for other_nx, other_idx, other_pp, other_branch in entries:
-                if other_nx == nx_hash:
+            for other_group, other_idx, other_label, other_pp, other_branch in entries:
+                if other_group == group:
                     continue
                 if other_pp == pp_id:
                     add(
-                        nx_hash,
+                        group,
                         pp_id,
-                        f"Also woven into Nexus [[{other_nx}]] "
+                        f"Also woven into Nexus [[{other_group}]] "
                         f"(as perspective {other_idx} there).",
                     )
                 elif branch and branch == other_branch and branch != "Apex":
-                    same_branch.append(f"{other_idx} in [[{other_nx}]]")
+                    same_branch.append(other_label)
             if same_branch:
                 # One compact line per perspective — branches are few (5), so
                 # collisions are common; per-pair lines would bloat the dump.
                 add(
-                    nx_hash,
+                    group,
                     pp_id,
                     f"Same opposition family ({branch}) as perspective(s) "
                     f"{', '.join(same_branch)}.",

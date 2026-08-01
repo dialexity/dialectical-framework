@@ -527,6 +527,22 @@ Use `inspect_node` when you want to understand the reasoning behind a score,
 explain WHY a specific blindspot exists, or ground a pathway recommendation
 in the actual analytical logic rather than restating the dump.
 
+**Cross-exploration correspondences.** When several explorations coexist,
+some perspectives carry correspondence lines — machine-stated facts, not
+suggestions: "Also woven into Nexus [[x]]" (literally the same tension in
+both explorations) and "Same opposition family (...) as perspective N in
+[[x]]" (both tensions anchored to the same deep-structure category). These
+are your invitation to draw parallels across the person's situations —
+often the most powerful counsel move available: the same structural dynamic
+playing out in two arenas of their life means an insight earned in one
+transfers to the other. But family-level correspondence is coarse (few
+families exist, collisions are common) — before drawing the parallel, check
+it holds in substance: read both tetrads and confirm the dynamics actually
+mirror each other, not just the category. The family name itself (Integrity,
+Fire, ...) is framework vocabulary — the How You Speak rules above govern
+it like any other; by default, name what the two tensions share in the
+person's own terms, not the category label.
+
 **Sequences are circular causality.** Both Cycle and Wheel sequences are
 closed loops — they start and end with the same element (e.g., "T1 → T2 → T1..."
 or "T1 → A2 → A1 → T2 → T1..."). The "..." indicates the circle continues.

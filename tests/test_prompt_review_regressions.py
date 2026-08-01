@@ -1513,6 +1513,42 @@ class TestElementalTaxonomy:
         assert "COMPLEX/SYSTEMIC" not in SYSTEM_PROMPT
 
 
+# --- Cross-exploration correspondences guidance -------------------------------
+
+
+class TestCrossExplorationGuidance:
+    """The engine prompt must teach the Advisor what the correspondence lines
+    in the dump are FOR (parallels across the person's situations), that
+    family-level matches are coarse and need substance-checking, and that the
+    family names stay behind the vocabulary rules."""
+
+    def test_score_reading_explains_correspondence_lines(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "Cross-exploration correspondences" in SYSTEM_PROMPT
+        # Both line formats the dump emits are named
+        assert "Also woven into Nexus" in SYSTEM_PROMPT
+        assert "Same opposition family" in SYSTEM_PROMPT
+        # Coarseness warning: verify substance before drawing the parallel
+        assert "collisions are common" in SYSTEM_PROMPT
+        # Family names follow the speech rules, not raw disclosure
+        assert "How You Speak rules above govern" in SYSTEM_PROMPT
+
+    def test_scoped_render_keeps_guidance(self):
+        """Counsel-mode dumps are single-nexus, but the person can toggle
+        heads — the score-reading section is shared, so the guidance must
+        survive the scoped render too."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        scoped = system_prompt(
+            ["anchor", "explore", "sync", "inspect_node", "read_digest", "discard"],
+            scoped_nexus_hash="abc1234",
+        )
+        assert "Cross-exploration correspondences" in scoped
+
+
 # --- Fail loudly on taxonomy coercion ----------------------------------------
 
 

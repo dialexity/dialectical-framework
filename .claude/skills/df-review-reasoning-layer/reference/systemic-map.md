@@ -264,13 +264,20 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   to zoom into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps); its
   tool doc in `_TOOL_DOCS["sync"]` describes overview-vs-zoom and must stay consistent with this cap.
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
-  when >1 nexus exists, the unscoped dump (a) prepends an index-disambiguation note ("indices are
-  per-exploration — qualify with the nexus"), and (b) annotates perspectives with machine-stated
+  when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
+  dump (a) prepends an index-disambiguation note when >1 nexus ("indices are per-exploration — qualify
+  with the nexus"), and (b) annotates perspectives (nexus members AND standalone) with machine-stated
   correspondences derived from persisted data only: "Also woven into Nexus [[x]]" (shared perspective,
-  `cardinality=(0, None)`) and "Same opposition family (Branch) as perspective N in Nexus [[x]]" (same
-  thesis taxonomy branch via `parse_meaning_uri`; Apex and Simple excluded). Deliberately NO persisted
-  analogy edge — cross-exploration parallels stay LLM interpretation over these raw correspondences.
-  Locked by `tests/test_dialectical_context.py::TestDialecticalContextMultiNexus`.
+  `cardinality=(0, None)`; never emitted for standalone — they're in no nexus by construction) and
+  "Same opposition family (Branch) as perspective(s) N in [[x]] / [[hash]] (unexplored)" (same
+  thesis taxonomy branch via `parse_meaning_uri`; Apex and Simple excluded; correspondences computed
+  across groups only, never within one nexus). Deliberately NO persisted analogy edge —
+  cross-exploration parallels stay LLM interpretation over these raw correspondences. The engine
+  prompt's `_SCORE_READING` has a "Cross-exploration correspondences" block teaching what the lines
+  are for (parallels), that family matches are coarse (substance-check before drawing the parallel),
+  and that family names follow the How You Speak vocabulary rules — keep it in sync with the dump's
+  line formats. Locked by `tests/test_dialectical_context.py::TestDialecticalContextMultiNexus` and
+  `TestCrossExplorationGuidance`.
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 

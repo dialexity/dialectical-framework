@@ -383,3 +383,63 @@ class TestDialecticalContextMultiNexus:
             dump = await DialecticalContext().resolve()
 
             assert "Same opposition family" not in dump
+
+    async def test_standalone_echoing_explored_tension_annotated(self):
+        """A fresh unexplored anchor sharing a branch with an explored tension
+        gets a correspondence line in BOTH directions — this is exactly the
+        counseling moment the cross-refs exist for (single nexus suffices)."""
+        sid = _new_sid()
+        with scope(sid):
+            uri = "dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion"
+            explored = _create_perspective_with_aspects(
+                thesis_text="Control",
+                antithesis_text="Freedom",
+                thesis_meaning=uri,
+            )
+            nx = self._make_nexus("explored", explored)
+            fresh = _create_perspective_with_aspects(
+                thesis_text="Bonding",
+                antithesis_text="Detachment",
+                thesis_meaning=uri,
+            )
+
+            dump = await DialecticalContext().resolve()
+
+            # No multi-exploration header for a single nexus
+            assert "Multiple explorations below" not in dump
+            # Standalone side points at the nexus member by index
+            assert f"1 in [[{nx.short_hash}]]" in dump
+            # Nexus side points back at the unexplored anchor by hash
+            assert f"[[{fresh.short_hash}]] (unexplored)" in dump
+
+    async def test_standalone_never_marked_also_woven(self):
+        """Standalone perspectives are by definition not in any nexus — the
+        'Also woven into' fact can only relate two nexus memberships."""
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects(
+                thesis_text="Control", antithesis_text="Freedom"
+            )
+            self._make_nexus("solo", pp)
+            # No standalone perspectives at all: no cross-refs computed
+            dump = await DialecticalContext().resolve()
+            assert "Also woven into" not in dump
+
+    async def test_standalone_different_branch_not_annotated(self):
+        sid = _new_sid()
+        with scope(sid):
+            explored = _create_perspective_with_aspects(
+                thesis_text="Control",
+                antithesis_text="Freedom",
+                thesis_meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion",
+            )
+            self._make_nexus("explored", explored)
+            _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Thoroughness",
+                thesis_meaning="dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling",
+            )
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Same opposition family" not in dump
