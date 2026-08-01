@@ -10,48 +10,45 @@ A semantic graph system for dialectical reasoning — modeling thesis-antithesis
 
 ### Theoretical Foundation (Generative Rules)
 
-The framework implements **Structured Dialectics** (theory papers in `docs/r-n-d/`, gitignored). The full claim-by-claim theory→code mapping with statuses lives in `docs/theory/` (maintained by `/df-sync-theory`) — consult it before implementing anything theory-adjacent. The rules below are the promoted essentials:
+The framework implements **Structured Dialectics** (theory papers in `docs/r-n-d/`, gitignored). Full claim-by-claim theory→code mapping with statuses lives in `docs/theory/` (maintained by `/df-sync-theory`) — consult it before implementing anything theory-adjacent. Promoted essentials (details + statuses in `docs/theory/generative-rules.md`):
 
-**1. Tetrad structure.** Every thesis T generates exactly one antithesis A. The T–A interaction yields four components bound by three constraints:
-- **T+** / **A+**: Constructive developments that enhance the upsides of opposition (not merely "positive" — they actively balance the other side)
-- **T-** / **A-**: Exaggerations of the parent concept AND underdevelopments of the opposition (one-sided overdevelopments, not merely "negative")
-- T+ must directly contradict A- (and vice versa); T- must directly contradict A+
+**1. Tetrad structure.** Every thesis T generates exactly one antithesis A; the T–A interaction yields four components under three constraints:
+- **T+** / **A+**: constructive developments that actively balance the other side (not merely "positive")
+- **T-** / **A-**: one-sided overdevelopments — exaggerate the parent AND underdevelop the opposition (not merely "negative")
+- T+ directly contradicts A- (vice versa); T- directly contradicts A+
 
-**2. Circular Causality (Transition Rule).** Positive synthesis (S+) arises if and only if two complementary transitions occur simultaneously:
-- T- is transformed into a constructive antithesis component (A+)
-- A- is transformed into a constructive thesis component (T+)
-This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+) and `Re+` (A-→T+) are the required Transformation positions.
+**2. Circular Causality (Transition Rule).** S+ arises iff two transitions occur simultaneously: T-→A+ (constructive antithesis) and A-→T+ (constructive thesis). This closed loop is the source of self-regulation — WHY `Ac+` (T-→A+) and `Re+` (A-→T+) are the required Transformation positions.
 
-**3. Modality Balance.** M(T+) = −M(T-) = M(A+) = −M(A-) — all four modalities equal in absolute value, constructive poles above and exaggerations below the mean. Only the equality chain has content (the sum is always zero under the paper's approximation), and the paper's own tests found Ks-derived balance criteria "not useful" — see `docs/theory/generative-rules.md` Rule 3.2 before wiring any check.
+**3. Modality Balance.** M(T+) = −M(T-) = M(A+) = −M(A-). Only the equality chain has content (sum is always zero under the paper's approximation); the paper found Ks-derived balance criteria "not useful" — see Rule 3.2 before wiring any check.
 
-**4. Complementarity.** K = (K_T + K_A) / 2, where K_T and K_A measure how well aspects complement T and A respectively. In balanced tetrads: K_T(T+) > K_T(T-) and K_T(A+) > K_T(A-). Complementarity + HS (Heuristic Similarity to apex) together determine tetrad quality.
+**4. Complementarity.** K = (K_T + K_A) / 2 — how well aspects complement T and A. Balanced tetrads: K_T(T+) > K_T(T-), K_T(A+) > K_T(A-). Complementarity + HS (similarity to apex) determine tetrad quality.
 
-**5. Equal-Sign Synthesis.** S+ emerges between T+ and A+ (like-signed constructive poles). S- emerges between T- and A- (like-signed destructive poles). No direct interaction between different-sign poles (T+↔A-, T-↔A+) — these are contradictions at different developmental levels of the same phenomenon.
+**5. Equal-Sign Synthesis.** S+ emerges between T+/A+ (like-signed constructive); S- between T-/A- (like-signed destructive). No direct interaction between different-sign poles — those are contradictions at different developmental levels of the same phenomenon.
 
-**6. Control Statements.** Coherence test: "T+ without A+ yields T-" and "A+ without T+ yields A-". A system exhibits S+ iff it increases dimensionality while preserving stability, distinction, and normative coherence.
+**6. Control Statements.** Coherence test: "T+ without A+ yields T-", "A+ without T+ yields A-". A system exhibits S+ iff it increases dimensionality while preserving stability, distinction, and normative coherence.
 
-**7. Apex Coherence.** S+/- must lie within the convex hull (or semantic centroid) of its valid sub-syntheses. Valid sub-syntheses satisfy modality balance, complementarity (Kc), and control-statement coherence. This prevents extrapolation or arbitrary abstraction.
+**7. Apex Coherence.** S+/- must lie within the convex hull / semantic centroid of its valid sub-syntheses (those satisfying modality balance, complementarity, control-statement coherence) — prevents arbitrary abstraction.
 
-**8. Systemic Taxonomy.** Universal taxonomy (Table S-1) classifying balanced tetrads across 5 branches — Integrity, Fidelity, Exchange, Flexibility, Resilience — each with apex concepts for T+/T-/A+/A- per domain. Implemented as `SYSTEMIC_TAXONOMY` in `concerns/statement_classification.py`; used to compute HS and anchor aspects.
+**8. Systemic Taxonomy.** Universal taxonomy (Table S-1) across 5 branches — Integrity, Fidelity, Exchange, Flexibility, Resilience — each with apex concepts for T+/T-/A+/A- per domain. Implemented as `SYSTEMIC_TAXONOMY` in `concerns/statement_classification.py`; used for HS and anchor aspects.
 
-**Greimas mapping:** Ac (Action) corresponds to Not-A space (everything from T to Ac+); Re (Reflection) corresponds to Not-T space (everything from A to Re+). Ac+/Re+ are generative operations; Ac-/Re- represent transitions' degradation modes.
+**Greimas mapping:** Ac (Action) = Not-A space (T to Ac+); Re (Reflection) = Not-T space (A to Re+). Ac+/Re+ are generative; Ac-/Re- are transitions' degradation modes.
 
 ### Scoring & Metrics (see docs/scoring.md for full reference)
 
-**Ks** (complementarity toward synthesis) = `(K_T + K_A) / 2`. Computed property, never stored — only K_T and K_A are persisted on `AspectRelationship` edges.
+**Ks** (complementarity toward synthesis) = `(K_T + K_A) / 2`. Computed property, never stored — only K_T and K_A persisted on `AspectRelationship` edges.
 
 **Tetrad quality metrics (on Perspective):**
-- `area` = Ks(T+) + Ks(A+) - Ks(T-) - Ks(A-) — higher = better differentiation. The theory's canonical name is **SP (Synthesis Potential)** — same formula; treat SP ≡ area when reading the papers.
-- `rectangularity` = [Ks(T+)-Ks(A+)]² + [Ks(T-)-Ks(A-)]² — lower = better balance. Deliberately diverges from the paper's (rejected) linear form — see `docs/theory/scoring.md` before "fixing" either way.
+- `area` = Ks(T+) + Ks(A+) - Ks(T-) - Ks(A-) — higher = better differentiation. Theory's canonical name is **SP (Synthesis Potential)** — same formula; SP ≡ area.
+- `rectangularity` = [Ks(T+)-Ks(A+)]² + [Ks(T-)-Ks(A-)]² — lower = better balance. Deliberately diverges from the paper's (rejected) linear form — see `docs/theory/scoring.md` before "fixing".
 - Empirical thresholds: diff ≥ 0.1, |diff_t − diff_a| ≤ 0.15 (side balance), Ks(+) > 0.4, Ks(-) < 0.6
-- **DV (Dialectical Validity)** IS implemented — scored alongside CC in `ControlStatementsCheck`, annotation + Advisor render floor only (deliberately no DV > 0.5 gate). MMI, PSI, PC are NOT implemented — don't let prompts claim them. See `docs/theory/scoring.md`.
+- **DV (Dialectical Validity)** IS implemented — scored alongside CC in `ControlStatementsCheck`, annotation + Advisor render floor only (no DV > 0.5 gate). MMI, PSI, PC are NOT implemented — don't let prompts claim them. See `docs/theory/scoring.md`.
 
-**HS (Heuristic Similarity):** T=1.0 (always, defines apex), A=LLM-computed, Aspects=LLM-computed, Ac+/Re+=LLM-computed, Ac/Re/Ac-/Re-=None.
+**HS (Heuristic Similarity):** T=1.0 (defines apex), A/Aspects/Ac+/Re+ = LLM-computed, Ac/Re/Ac-/Re- = None.
 
-**Validation, in practice:** Tetrads are never blocked on validation — the generation prompt enforces structure; `AnalysisPipeline` gates only on HS (`_rank_polarities`, `HS_THRESHOLD=0.7`).
-- `PerspectiveValidation` (CC + empirical inequalities) runs post-commit in `ExpandPolarity._validate_and_flag` as a non-blocking flag → `Perspective.validation` ("passed" / "failed: reasons" / None). Rendered by `dialectical_context`, `present_analysis`, `inspect_node`; prompts deprioritize failed perspectives, the graph drops nothing. Fail-soft, sequential (CSC commits Estimation/Rationale nodes — no concurrent graph writes).
-- `edit_perspective._validate_tetrad_coherence` checks user-edited tetrads directly via `ControlStatementsCheck` + `DiagonalOppositionsCheck` (the diagonal LLM call is only needed when generation-prompt constraints are bypassed).
-- SIMPLE-path antitheses (hardcoded HS=1.0) render as "mechanical opposition — HS not evaluated", never as a numeric score.
+**Validation, in practice:** Tetrads are never blocked — the generation prompt enforces structure; `AnalysisPipeline` gates only on HS (`_rank_polarities`, `HS_THRESHOLD=0.7`).
+- `PerspectiveValidation` (CC + empirical inequalities) runs post-commit in `ExpandPolarity._validate_and_flag` as a non-blocking flag → `Perspective.validation` ("passed" / "failed: reasons" / None). Rendered by `dialectical_context`, `present_analysis`, `inspect_node`; prompts deprioritize failed perspectives, graph drops nothing. Fail-soft, sequential (CSC commits Estimation/Rationale nodes).
+- `edit_perspective._validate_tetrad_coherence` checks user-edited tetrads via `ControlStatementsCheck` + `DiagonalOppositionsCheck` (diagonal LLM call only needed when generation-prompt constraints are bypassed).
+- SIMPLE-path antitheses (hardcoded HS=1.0) render as "mechanical opposition — HS not evaluated", never a numeric score.
 
 ### Core Model
 
@@ -69,7 +66,7 @@ This closed loop is the true source of self-regulation and is WHY `Ac+` (T-→A+
 
 **Hierarchy:** Perspective → Cycle → Wheel (edges) → Transformation
 
-**Cycle vs Wheel:** Cycle = ordered T-causality sequence (which thesis causes which). Wheel = full circular TA-arrangement with transitions (`generate_compatible_sequences` places T and A components respecting diagonal symmetry, T_i opposite A_i). Rotated Cycles ([PP1,PP2] vs [PP2,PP1]) produce rotations of the same directed circle; since Wheels are rotation-invariant (`WheelRepository.find_by_component_sequence`), sibling Cycles share Wheel nodes. All scoped by `sid` — no cross-Case or cross-Nexus sharing.
+**Cycle vs Wheel:** Cycle = ordered T-causality sequence (which thesis causes which). Wheel = full circular TA-arrangement with transitions (`generate_compatible_sequences` places T/A respecting diagonal symmetry, T_i opposite A_i). Rotated Cycles ([PP1,PP2] vs [PP2,PP1]) produce rotations of the same directed circle; since Wheels are rotation-invariant (`WheelRepository.find_by_component_sequence`), sibling Cycles share Wheel nodes. All scoped by `sid`.
 
 **Case flow:** Case → Input → Ideas → Statements
 **Exploration flow:** Perspectives → Nexus → Cycles → Wheels
@@ -82,45 +79,39 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **Circular causality within Transformations:** Each Transformation already encodes both spiral directions — Ac+ (its own edge direction) and Re+ (the opposite edge's direction). A Transformation IS a complete circular causality statement.
 
-**Scaling from 1-PP to N-PP:**
-- 1-PP wheel: 2 edges, 1 edge pair, 2 Transformations (Ac/Re roles swap between them)
-- 2-PP wheel: 4 edges, 2 edge pairs, 4 Transformations — within one wheel, opposite-edge Transformations have Ac+/Re+ role-swapped (E1's Ac+ = E3's Re+, etc.)
-- N-PP wheel: 2N edges, N edge pairs, 2N Transformations
+**Scaling:** N-PP wheel = 2N edges, N edge pairs, 2N Transformations. Within one wheel, opposite-edge Transformations have Ac+/Re+ role-swapped (E1's Ac+ = E3's Re+). 1-PP = 2 edges/1 pair/2 Transformations (Ac/Re swap between them).
 
-**Discrete spiral:** Wheel edges form a directed circle where each step transforms the minus of one segment into the plus of the next (T1-→A2+→T2-→A1+→...). S+ emerges from ALL Transformations operating simultaneously along the spiral.
+**Discrete spiral:** Wheel edges form a directed circle where each step transforms the minus of one segment into the plus of the next (T1-→A2+→T2-→A1+→...). S+ emerges from ALL Transformations operating simultaneously.
 
 **BuildWheels is purely structural:** Always builds all valid Cycle/Wheel combinations from the Nexus's attached Perspectives and estimates them (layer 2+). Never generates transformations — those are triggered separately via `ExploreTransformations` (user-initiated or headless pipeline), even for layer-1 wheels.
 
-**OPPOSITE_DIRECTION** exists on both Cycle and Wheel (`_is_circular_reverse`). Cycle opposites: reversed causality ordering, layer 3+ only. Wheel opposites: reversed circular sequence — at layer 2 the two wheels within a cycle are each other's opposite; at layer 3+ opposites live across opposite-direction cycles (1:1). Each opposite produces its own independent synthesis.
+**OPPOSITE_DIRECTION** on both Cycle and Wheel (`_is_circular_reverse`). Cycle opposites: reversed causality ordering, layer 3+ only. Wheel opposites: reversed circular sequence — at layer 2 the two wheels within a cycle are each other's opposite; at layer 3+ opposites live across opposite-direction cycles (1:1). Each opposite produces its own independent synthesis.
 
 **Nexus grouping rule:** Prefer perspectives from different polarities (genuine synthesis with opponents). Same-polarity perspectives in a nexus only produce "angle shifts" within the same opposition.
 
 **Max wheel layer (`settings.max_wheel_layer`, default 4, env `DIALEXITY_MAX_WHEEL_LAYER`):** `PerspectiveCombination` builds layers only up to this cap regardless of nexus size — bounds combinatorial explosion.
 
-**Combinatorial growth (layer = PP count in combination):**
-- Layer generation: `C(N, k)` PP combinations × `max(1, (k-1)!)` cycles × `W(k)` wheels per cycle
-- W(1)=1, W(2)=2, W(3)=4, W(4)=8 (arrangements from `generate_compatible_sequences`)
-- Totals: 1PP→1C/1W, 2PP→3C/4W, 3PP→8C/17W, 4PP→24C/96W
+**Combinatorial growth (layer = PP count):** `C(N,k)` combinations × `max(1,(k-1)!)` cycles × `W(k)` wheels/cycle, where W(1..4)=1,2,4,8 (from `generate_compatible_sequences`). Totals: 1PP→1C/1W, 2PP→3C/4W, 3PP→8C/17W, 4PP→24C/96W.
 
 ### Structural vs Analytical Layers
 
 - **Structural** (immutable after commit): Merkle-tree backbone. Containers use `save() → add members → commit()`.
 - **Analytical** (mutable anytime): Rationale, Estimation, Critique, Synthesis, ac_re.
 
-### Discarding Nodes
-
-`discarded: Optional[str]` on Statement/Perspective soft-marks a node as excluded from active queries; `discard_uncommitted()` (PerspectiveRepository) physically deletes uncommitted ones. The `discard` tool unifies both: uncommitted → deleted, committed → soft-discarded.
-
 ### Shared Rendering (`graph/rendering.py`)
 
 `build_pp_index(nexus)` is the canonical source of perspective indices — `dialectical_context` and `inspect_node` both use it so T1 always means the same perspective. Indices are stable over the full `nexus.perspectives.all()` ordering (including discarded): gaps appear rather than re-numbering. Helpers: `component_alias`, `format_edge_label`, `format_spiral`, `find_nexus_for_*`.
 
+### Discarding Nodes
+
+`discarded: Optional[str]` on Statement/Perspective soft-marks a node as excluded from active queries; `discard_uncommitted()` (PerspectiveRepository) physically deletes uncommitted ones. The `discard` tool unifies both: uncommitted → deleted, committed → soft-discarded.
+
 ### Advisor Tool Constraints
 
-Advisor has `discard` but NO edit tool — re-framing means discard + `anchor` the new version, never editing aspects in place. On user rejection: the unscoped Advisor discards silently; the counsel-mode (nexus-pinned) head confirms first for exploration members (consent contract), fresh own anchors need no ceremony. To drop a claim entirely, discard the perspective first, then its statement (a statement still used by a live perspective won't discard; discarding a perspective never cascades to shared statements). Tools split by what the LLM knows at call time:
+Advisor has `discard` but NO edit tool — re-framing means discard + `anchor` the new version. On user rejection: unscoped Advisor discards silently; counsel-mode (nexus-pinned) head confirms first for exploration members (consent contract), fresh own anchors need no ceremony. To drop a claim: discard the perspective first, then its statement (a statement still used by a live perspective won't discard; discarding a perspective never cascades to shared statements). Tools split by what the LLM knows at call time:
 - `ingest` — bulk discovery from material → standalone perspectives (composes AnalysisPipeline)
-- `anchor` — plant a specific T/A tension → standalone perspective (composes IntroducePolarity + ExpandPolarity)
-- `explore` — group perspectives into nexus + pathways + synthesis (CreateNexus/ExpandNexus + ExplorationPipeline + GenerateSynthesis). LAZY: builds+ranks ALL wheels, deep-generates only the top one (`EXPLORE_DEEP_WHEELS = 1`, fixed policy); rest reported as `shallow_wheel_hashes`. Weaves ≤ `advisor_max_perspectives_per_exploration` per call (excess deferred, never dropped).
+- `anchor` — plant a specific T/A tension → standalone perspective (IntroducePolarity + ExpandPolarity)
+- `explore` — group perspectives into nexus + pathways + synthesis (CreateNexus/ExpandNexus + ExplorationPipeline + GenerateSynthesis). LAZY: builds+ranks ALL wheels, deep-generates only the top (`EXPLORE_DEEP_WHEELS = 1`); rest reported as `shallow_wheel_hashes`. Weaves ≤ `advisor_max_perspectives_per_exploration` per call (excess deferred).
 - `deepen` — develop a shallow wheel on demand (ExploreTransformations + GenerateSynthesis, synthesis always). The escape from explore's budget when the user's lived reality picks a non-top arrangement. Scoped variant guards wheel-membership in code.
 - `sync` — re-read graph state (DialecticalContext); optional `nexus_hash` zooms into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps)
 - `discard`, `inspect_node`, `read_digest` — graph curation and detail reads (shared orchestrator tools)
@@ -137,25 +128,24 @@ The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+
 
 ### Agent Design Principles
 
-- **Product model:** Analyst + Explorer = the "Navigator" (a transparent consulting agency the user works inside — framework visible). Advisor = the consultant *replacement* (hidden machinery, pure counsel). Counsel mode of an exploration = the partner debriefing the user's own deliverable.
-- **Ceiling-not-floor:** the framework must improve the LLM's reasoning, never drop it below a bare persona-prompted model. Issue #57's ablation ladder (A0/A1/A1.5/A2) is the empirical test; `test_advisor_e2e.py` is the collapse tripwire.
-- **The person's lived reality outranks the plausibility score:** when the user gravitates to a non-top causal reading, follow them (deepen it), don't argue from %.
-- **Prune, don't instruct:** pre-computed filtering of what enters the model's context beats prioritization rules the model must self-apply.
+- **Product model:** Analyst + Explorer = the "Navigator" (transparent consulting agency, framework visible). Advisor = the consultant *replacement* (hidden machinery, pure counsel). Counsel mode = the partner debriefing the user's own deliverable.
+- **Ceiling-not-floor:** the framework must improve the LLM's reasoning, never drop below a bare persona-prompted model. Issue #57's ablation ladder (A0/A1/A1.5/A2) is the empirical test; `test_advisor_e2e.py` is the collapse tripwire.
+- **Lived reality outranks the plausibility score:** when the user gravitates to a non-top causal reading, follow (deepen it), don't argue from %.
+- **Prune, don't instruct:** pre-computed filtering of context beats prioritization rules the model must self-apply.
 
 ### Agent Ownership
 
-- **Analyst** = everything up to and including nexus creation (inputs → statements → polarities → perspectives → `create_nexus` as handoff)
+- **Analyst** = everything up to and including nexus creation (inputs → statements → polarities → perspectives → `create_nexus` handoff). `create_nexus` lives here only — Explorer never creates nexuses.
 - **Explorer** = everything after nexus (nexus-scoped: cycles → wheels → transformations → synthesis). Constructed with `nexus_hash`. Carries `create_dx_input` to START the round-trip: capture a Transition insight as a dx:// Case Input → Analyst develops it → `expand_nexus` weaves back.
-- **Advisor** = pure-conversation agent where framework runs silently (no framework terminology exposed). Composes both pipelines via internal tools: `ingest`, `anchor`, `explore`, `deepen`, `sync` (plus shared `inspect_node`, `read_digest`, `discard`). System prompt is a FUNCTION `system_prompt(tool_names, scoped_nexus_hash)` — tool docs render only for wired tools.
+- **Advisor** = pure-conversation agent, framework runs silently (no terminology exposed). Composes both pipelines via `ingest`, `anchor`, `explore`, `deepen`, `sync` (+ shared `inspect_node`, `read_digest`, `discard`). System prompt is a FUNCTION `system_prompt(tool_names, scoped_nexus_hash)` — tool docs render only for wired tools.
 - **Apps plug in via `app=`** (an `AppSpec`, `agents/app_spec.py`) — declarative pieces `voicing`/`advisor_persona`/`tool_guide`/`tools`; each head composes its own preamble (Analyst/Explorer: NAVIGATOR_APP+voicing+tool_guide; counsel toggle: EXPLORATION_ADVISOR_APP+voicing+tool_guide; standalone Advisor: advisor_persona+tool_guide). ONE AppSpec per app, passed to EVERY head (toggle shares literal history; Analyst owes parity). Manual layer: `app_preamble=`/`app_tools=` (replaces AppSpec composition; mixing with `app=` raises). Tools merge via `agents/toolsets.py::merge_app_tools` (append; shadowing a built-in raises; system prompts skip unknown names).
-- **Advisor(nexus_hash=...)** = counsel mode of the Explorer↔Advisor session toggle (NOT a standalone variant): host hands `messages` + `nexus_hash` between heads; preamble pairing `NAVIGATOR_ADVANCED_MODE_APP` ↔ `EXPLORATION_ADVISOR_APP` (both composed on `NAVIGATOR_APP`). Nexus pin enforced by tool closures (`advisor/tools/scoped.py`), not prompt. See `docs/agents.md` Handoffs.
-- `create_nexus` lives in Analyst only — it's the handoff moment; Explorer never creates nexuses.
+- **Advisor(nexus_hash=...)** = counsel mode of the Explorer↔Advisor session toggle (NOT standalone): host hands `messages` + `nexus_hash` between heads; preamble pairing `NAVIGATOR_ADVANCED_MODE_APP` ↔ `EXPLORATION_ADVISOR_APP` (both on `NAVIGATOR_APP`). Nexus pin enforced by tool closures (`advisor/tools/scoped.py`), not prompt. See `docs/agents.md` Handoffs.
 
 ### Advisor Runtime Budgets (settings, Advisor-only)
 
 Five knobs bound the silent Advisor (`settings.advisor_*`, env `DIALEXITY_ADVISOR_*`; Navigator agents ignore all):
-- `advisor_polarity_quality_min_hs` (0.5), `advisor_perspective_quality_min_sp` (0.3), `advisor_perspective_quality_min_dv` (0.3) — standalone perspectives below the floors (or failed validation) are SUPPRESSED from the context dump with a count line. Nexus members exempt; unscored never suppressed. The SP+DV pair mirrors the paper's acceptance criterion as soft pruning.
-- `advisor_wheel_quality_top_plausible` (3) — wheels per cycle in the unscoped dump (counsel-mode dumps exempt — user-built explorations render in full).
+- `advisor_polarity_quality_min_hs` (0.5), `advisor_perspective_quality_min_sp` (0.3), `advisor_perspective_quality_min_dv` (0.3) — standalone perspectives below floors (or failed validation) are SUPPRESSED from the context dump with a count line. Nexus members exempt; unscored never suppressed. SP+DV pair mirrors the paper's acceptance criterion as soft pruning.
+- `advisor_wheel_quality_top_plausible` (3) — wheels per cycle in the unscoped dump (counsel-mode dumps exempt).
 - `advisor_max_perspectives_per_exploration` (2) — per-explore-call weave cap (excess deferred+reported; bounds turn latency, orthogonal to `max_wheel_layer` which bounds structure size).
 
 The Advisor's prioritization prompt says "pre-pruned, rank within it" — changing floors requires reconciling it (`TestContextDumpPrePruned`).
@@ -182,7 +172,6 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 **black/isort are NOT enforced** (no pre-commit/CI); most of the tree is non-conforming. Don't run `black <file>` after a small edit — it reformats the whole file and bloats the diff. Hand-format only your own lines.
 
 **Concurrent sessions share this working tree.** Before committing: check `git diff --cached --stat` for foreign staged files and `git status` for unexpected dirty ones; stage explicit paths, not `git add -A`. If your edits and a concurrent session's land in the SAME file, split by hunk: `git diff <file> > /tmp/f.patch`, drop foreign hunks, `git apply --cached /tmp/f.patch`.
-
 
 ---
 
@@ -268,20 +257,17 @@ def my_function(graph_db: Memgraph | Neo4j = Provide[DI.graph_db]):
     pass
 ```
 
-**Anti-patterns:**
-- Don't pass `graph_db` between `@inject` methods — each gets the same singleton automatically
-- Don't store `graph_db` as instance variable — inject on each method that needs it
+**Anti-patterns:** Don't pass `graph_db` between `@inject` methods (each gets the same singleton) or store it as an instance variable — inject on each method that needs it.
 
 ### Graph Node Lifecycle
 
 ```python
-# Simple nodes: commit() does save + hash
+# Simple (atomic): commit() does save + hash
 stmt = Statement(text="..."); stmt.commit()
-
-# Container nodes (IncrementalBuildMixin): save() → add → commit()
+# Container (IncrementalBuildMixin): save() → add → commit() (immutable after)
 container.save()
 child.rel.connect(container)  # OK before commit
-container.commit()            # Immutable after this
+container.commit()
 ```
 
 **Uncommitted node safety (`saved_at`):** `save()` sets `saved_at`; `commit()` clears it. `saved_at != NULL, hash == NULL` = actively building or abandoned garbage. All listing/discovery queries MUST filter `WHERE n.hash IS NOT NULL`. Cleanup: `scripts/cleanup_stale_nodes.py --max-age 86400`.
@@ -314,11 +300,11 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 **Consumption:** skills use `input_context()` (`utils/input_context.py`) — digests in `<Input id="{hash}">` tags, falling back to resolved content when digest is None. Exception: `surface_theses` needs raw content for extraction (digest for previews only). Tools: `read_digest` | `read_input` | `digest_input` (Analyst and Explorer).
 
-**Multimodal seam (#35):** `InputResolver.resolve() -> str` (text-only, safe to f-string) vs `resolve_native() -> UserContent` (opt-in, defaults to delegating `resolve()`). `SourceDigest` is the SOLE `resolve_native` consumer — one vision pass over native `Image`/`Document` parts emits a text digest, so everything downstream stays text. Never widen `resolve()` to return media — text callers would silently stringify it. `ConversationFacilitator.submit`/`submit_stream` accept `UserContent`.
+**Multimodal seam (#35):** `InputResolver.resolve() -> str` (text-only, safe to f-string) vs `resolve_native() -> UserContent` (opt-in, defaults to delegating `resolve()`). `SourceDigest` is the SOLE `resolve_native` consumer — one vision pass over native `Image`/`Document` parts emits a text digest, so downstream stays text. Never widen `resolve()` to return media — text callers would silently stringify it. `ConversationFacilitator.submit`/`submit_stream` accept `UserContent`.
 
 ### Antithesis Persistence Checklist
 
-When calling `AntithesisClassification`, the caller must persist Mode/Arousal via `EstimationManager.upsert_estimation()`. The concern itself does NOT create DB nodes — it only returns the result. `AntithesisExtraction` handles this internally; `AntithesisClassification` does not.
+When calling `AntithesisClassification`, the caller must persist Mode/Arousal via `EstimationManager.upsert_estimation()` — the concern returns the result but creates no DB nodes. `AntithesisExtraction` handles this internally; `AntithesisClassification` does not.
 
 ### Model Provenance is Rationale-Only
 
@@ -326,9 +312,9 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 
 ### Statement Generation Conventions
 
-- Word limit: always use `self.settings.component_length` (headlines, ~7) or `self.settings.transition_length` (transitions, ~15) via `SettingsAware` — never hardcode. Pydantic `Field` descriptions can't interpolate `self.settings`: keep length wording qualitative there, numeric limit in the method prompt body.
-- **`component_length` is enforced at generation/extraction time, not by `StatementClassification`** (which echoes text verbatim). The `anchor` path has no extraction step, so `StatementHeadline` (`concerns/statement_headline.py`) condenses there: both anchor legs (`IntroducePolarity._resolve_statement`, `AnchorTheses._classify_and_create`) run it in parallel with classification (`asyncio.gather`); classification reads the full text, only stored `Statement.text` becomes the headline; text already ≤ limit short-circuits without an LLM call. `edit_perspective` deliberately does NOT condense — user-typed wording must survive.
-- Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents unintended cross-context dedup while `commit()` handles exact-match dedup automatically.
+- Word limit: always use `self.settings.component_length` (headlines, ~7) or `self.settings.transition_length` (transitions, ~15) via `SettingsAware` — never hardcode. Pydantic `Field` descriptions can't interpolate `self.settings`: keep length qualitative there, numeric limit in the method prompt body.
+- **`component_length` is enforced at generation/extraction time, not by `StatementClassification`** (which echoes text verbatim). The `anchor` path has no extraction step, so `StatementHeadline` (`concerns/statement_headline.py`) condenses there: both anchor legs (`IntroducePolarity._resolve_statement`, `AnchorTheses._classify_and_create`) run it in parallel with classification (`asyncio.gather`); classification reads full text, only stored `Statement.text` becomes the headline; text already ≤ limit short-circuits without an LLM call. `edit_perspective` deliberately does NOT condense — user-typed wording must survive.
+- Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents cross-context dedup while `commit()` handles exact-match dedup automatically.
 
 ### Classification → HS Chain (Critical Invariant)
 
@@ -337,21 +323,19 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 ### Observability (Langfuse)
 
 - `ReasonableConcern.__init_subclass__` auto-wraps every concern's `resolve()` with `@observe` — spans only when an active Langfuse trace exists (no orphan traces).
-- `use_brain` creates generation spans named via `method.__qualname__` with `capture_input=False`; input is set by `_trace_generation`.
-- `ConversationFacilitator._strip_unsupported_input_fields()` strips output-only API fields (e.g., `caller`) before replaying — Mirascope passthrough-bug workaround.
+- `use_brain` names generation spans via `method.__qualname__` with `capture_input=False`; input set by `_trace_generation`.
+- `ConversationFacilitator._strip_unsupported_input_fields()` strips output-only API fields (e.g. `caller`) before replaying — Mirascope passthrough-bug workaround.
 - Mirascope `BaseResponse`: use `response.messages[:-1]` for input messages — `response.input_messages` does NOT exist.
-- Structured results enter history via `ConversationFacilitator._assistant_history_text` — DTOs with a `message` field store the plain text, never the Pydantic repr (repr wastes tokens and invites imitation). `mock_brain` delegates to the same helper.
-- Tests use `@traced` from conftest (not bare `@observe()`) for reliable trace naming. **`@traced` serializes the function's args as span input** — never put it on a test taking `monkeypatch` or other cyclic fixtures; the serializer recurses forever and the test HANGS. Diagnose hangs with `pytest -o faulthandler_timeout=25`.
+- Structured results enter history via `ConversationFacilitator._assistant_history_text` — DTOs with a `message` field store the plain text, never the Pydantic repr (wastes tokens, invites imitation). `mock_brain` delegates to the same helper.
+- Tests use `@traced` from conftest (not bare `@observe()`) for reliable trace naming. **`@traced` serializes the function's args as span input** — never put it on a test taking `monkeypatch` or other cyclic fixtures; the serializer recurses forever and HANGS. Diagnose with `pytest -o faulthandler_timeout=25`.
 
 ### Concurrency & Rate Limiting
 
-Optional concurrency semaphore in `utils/concurrency.py` (env `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`; 0/unset = disabled, rely on rate-limit retry). Applied inside `use_brain`; streaming (`raw_call=True`) excluded.
+Optional concurrency semaphore in `utils/concurrency.py` (env `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`; 0/unset = disabled). Applied inside `use_brain`; streaming (`raw_call=True`) excluded.
 
-Rate-limit retry (429/ThrottlingException) lives in `use_brain`: 10s base backoff, 2× up to 60s cap, max 10 attempts. ParseError retry: 10s base, 2× up to 120s.
+Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 60s cap, max 10 attempts. ParseError retry: 10s base, 2× up to 120s. **Hand-rolled by design — do NOT replace with Mirascope's `llm.retry`/`RetryConfig`.** Native retry can't express separate ParseError vs rate-limit curves, per-attempt slot re-acquisition, per-attempt Langfuse tracing, or string-based Bedrock throttle detection.
 
-**The `use_brain` retry loop is hand-rolled by design — do NOT replace it with Mirascope's native `llm.retry`/`RetryConfig`.** Native retry can't express: separate backoff curves for ParseError vs rate limits, per-attempt concurrency-slot re-acquisition, per-attempt Langfuse tracing, string-based Bedrock throttle detection.
-
-**Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, and audits. `AnalysisPipeline` already parallelizes `expand_polarities` and `find_polarities`. Graph writes stay sequential after gather.
+**Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, audits. `AnalysisPipeline` parallelizes `expand_polarities`/`find_polarities`. Graph writes stay sequential after gather.
 
 **Pattern:** Always `asyncio.gather` the LLM work, collect results, then write graph nodes sequentially in a loop. Never call `_create_transformation` or similar graph-writing code inside a gathered task — GQLAlchemy is not concurrency-safe.
 
@@ -362,14 +346,12 @@ Rate-limit retry (429/ThrottlingException) lives in `use_brain`: 10s base backof
 Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-facing interface).
 
 **Hierarchy (increasing scope):**
-- **Concern** = standalone service, single responsibility → `concerns/`. Public API — reusable across tools, skills, pipelines.
-- **Tool** = `@llm.tool` function + optional internal helper class → `agents/{phase}/tools/`. Helper classes may extend `ReasonableConcern` (for `self._report`) but are internal to that tool — not importable by other modules.
+- **Concern** = standalone single-responsibility service → `concerns/`. Public, reusable across tools/skills/pipelines.
+- **Tool** = `@llm.tool` function + optional internal helper class → `agents/{phase}/tools/`. Helpers may extend `ReasonableConcern` (for `self._report`) but stay internal — not importable elsewhere.
 - **Skill** = orchestrates multiple concerns, has reasoning responsibility → `agents/{phase}/skills/`
 - **Agent** = top-level conversational coordinator, owns a tool set → `agents/{phase}/`
 
-**When to promote:** if anything outside the tool file calls a helper's `resolve(...)` directly, move it to `concerns/`.
-
-Only `@llm.tool` functions go into tool lists — `ReasonableConcern` classes are never passed to Mirascope directly.
+**When to promote:** if anything outside the tool file calls a helper's `resolve(...)`, move it to `concerns/`. Only `@llm.tool` functions go into tool lists — `ReasonableConcern` classes never pass to Mirascope directly.
 
 **Tool return convention:** Mutating tools return `str(concern.report)` (JSON with effects, artifacts, hashes for the LLM). Read-only tools (inspect_node, read_digest, sync) return `await concern.resolve()` directly — the content is the useful output.
 
@@ -415,13 +397,13 @@ async def surface_theses(
 
 Default to `@pytest.mark.llm` for anything touching `use_brain` or `ConversationFacilitator`.
 
-**Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic responses. It does NOT test streaming, tool registration, tool argument parsing, or provider behavior. It returns **identical** DTOs every call — to test diversity/dedup logic, `monkeypatch` the concern's `resolve` instead. It fills `Literal[...]` fields with the FIRST allowed value — order Literal options so the first is a safe default.
+**Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic responses. Does NOT test streaming, tool registration, tool argument parsing, or provider behavior. Returns **identical** DTOs every call — to test diversity/dedup, `monkeypatch` the concern's `resolve`. Fills `Literal[...]` fields with the FIRST allowed value — order Literals so the first is a safe default.
 
-**Test fixtures may use `meaning="test"` placeholders ONLY on paths that never reach taxonomy lookups** — `StatementClassification.lookup_*` raises on unparseable meanings. Use a real `dx://taxonomy/...` URI when the path classifies or derives meanings.
+**Fixtures may use `meaning="test"` ONLY on paths that never reach taxonomy lookups** — `StatementClassification.lookup_*` raises on unparseable meanings. Use a real `dx://taxonomy/...` URI when the path classifies or derives meanings.
 
-**Response-model *shape* changes are invisible to the mocked suite** (mock brain auto-fills every field) — restructuring a `response_model` can pass mocked tests while the real LLM drops a branch → `ParseError`. Verify DTO-shape changes with `--real-llm`; prefer flatter schemas.
+**Response-model *shape* changes are invisible to the mocked suite** (auto-fills every field) — restructuring a `response_model` can pass mocked tests while the real LLM drops a branch → `ParseError`. Verify DTO-shape changes with `--real-llm`; prefer flatter schemas.
 
-**One graph-test run at a time.** The autouse `cleanup_graph_db` fixture `DETACH DELETE`s before/after each test — concurrent pytest processes against the same Memgraph deadlock. A `pkill -9`'d run leaves a stuck lock: clear with `docker compose -f docker-compose.test.yml restart`. The test Memgraph volume (`mg_lib`) persists across restarts — stale nodes cause spurious failures in unrelated tests; to confirm a failure is pre-existing, `git stash` and re-run; to truly wipe, `down -v`.
+**One graph-test run at a time.** The autouse `cleanup_graph_db` fixture `DETACH DELETE`s before/after each test — concurrent pytest processes against the same Memgraph deadlock. A `pkill -9`'d run leaves a stuck lock: clear with `docker compose -f docker-compose.test.yml restart`. The test volume (`mg_lib`) persists across restarts — stale nodes cause spurious failures elsewhere; confirm a failure is pre-existing via `git stash` + re-run; truly wipe with `down -v`.
 
 **DB-free tests:** Override autouse fixtures `cleanup_graph_db` and `cleanup_test_graph_data` with empty yields.
 
@@ -450,7 +432,7 @@ Only required: `DIALEXITY_DEFAULT_MODEL` — combined `provider/model` string (e
 
 The project is infused with LLM prompts at multiple layers. Use `/df-review-reasoning-layer` when writing or editing prompts — it reviews at three altitudes (isolated prompt → assembled context → whole reasoning chain) and carries the full methodology, checklist, drift-hotspot catalog, and cross-agent parity map (`.claude/skills/df-review-reasoning-layer/reference/systemic-map.md`).
 
-**`df-review-reasoning-layer` is a LIVING skill — keep it in lockstep with the framework.** Whenever you change something it maps, update the skill AND its reference map in the same change: new/moved prompt site → location table + assembly maps; changed shared constant/scale → theory-ownership table + drift-hotspot catalog; changed generative rule → rule↔prompt ownership entry; new pipeline stage or score-gate → chain-coherence section; new agent/handoff → parity matrix; new prompt regression test → Verify section. Part of "done" for any prompt/theory/pipeline change, same as `GRAPH_SCHEMA` for graph changes.
+**`df-review-reasoning-layer` is a LIVING skill — keep it in lockstep.** Any change it maps (prompt site, shared constant/scale, generative rule, pipeline stage/score-gate, agent/handoff, prompt regression test) updates the skill AND its reference map in the same change — part of "done" for prompt/theory/pipeline changes, same as `GRAPH_SCHEMA` for graph changes.
 
 | Location | What it controls |
 |----------|-----------------|
