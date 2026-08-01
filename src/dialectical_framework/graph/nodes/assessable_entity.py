@@ -33,7 +33,7 @@ class AssessableEntity(BaseNode, label="Assessable"):
 
     Quality is measured by structural edge properties (heuristic_similarity,
     complementarity_t/a, insight, proactiveness) and computed node properties
-    (diff_t, diff_a, area_normalized, rectangularity on Perspective).
+    (diff_t, diff_a, area (= theory's SP), rectangularity on Perspective).
     """
 
     # Declarative relationships

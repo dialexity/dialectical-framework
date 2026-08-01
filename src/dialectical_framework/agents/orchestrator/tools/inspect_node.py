@@ -215,7 +215,11 @@ def _inspect_perspective(pp: Perspective) -> str:
     # Tetrad quality metrics
     diff_t = pp.diff_t
     diff_a = pp.diff_a
-    area = pp.area_normalized
+    # Raw area (= theory's SP, -2..2) — the scale every band/gate/prompt in the
+    # system speaks (settings min_area, advisor bands, dialectical_context).
+    # area_normalized (area/2) is a UI-only hint; showing it here under a
+    # different scale than the Advisor's dump confused cross-surface reads.
+    area = pp.area
     rect = pp.rectangularity
     metrics: list[str] = []
     if diff_t is not None:
@@ -223,7 +227,7 @@ def _inspect_perspective(pp: Perspective) -> str:
     if diff_a is not None:
         metrics.append(f"diff_a={diff_a:.3f}")
     if area is not None:
-        metrics.append(f"area_normalized={area:.3f}")
+        metrics.append(f"area={area:.3f}")
     if rect is not None:
         metrics.append(f"rect={rect:.4f}")
     if metrics:

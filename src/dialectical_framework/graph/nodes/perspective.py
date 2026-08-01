@@ -547,6 +547,11 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
         """
         Area (SP) rescaled to a ~0-1 range for a readable quality hint.
 
+        UI-only convenience: no agent surface or gate consumes this — every
+        band/threshold in the system (settings min_area, advisor prompt bands,
+        dialectical_context, inspect_node) speaks the raw -2..2 `area` scale.
+        Kept for host-app visualization (docs/scoring.md).
+
         Formula:
             area_normalized = area / 2
 
