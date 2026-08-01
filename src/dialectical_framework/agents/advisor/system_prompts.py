@@ -34,6 +34,51 @@ def _ladder_lines(scale: dict[str, float], annotations: dict[float, str]) -> str
     return "\n".join(lines)
 
 
+def _resolve_max_wheel_layer() -> int:
+    """The live settings.max_wheel_layer, falling back to the Pydantic field
+    default when DI isn't wired (e.g. the import-time SYSTEM_PROMPT render).
+    """
+    from dialectical_framework.settings import Settings
+
+    try:
+        from dialectical_framework.protocols.has_config import SettingsAware
+
+        value = SettingsAware().settings.max_wheel_layer
+        if isinstance(value, int) and value >= 1:
+            return value
+    except Exception:
+        pass
+    return Settings.model_fields["max_wheel_layer"].default
+
+
+def _nexus_evolution(cap: int) -> str:
+    """Render the explore doc's 'How a nexus evolves' ladder from the live
+    wheel-layer cap (settings.max_wheel_layer), so the prompt's nexus-size
+    guidance never drifts from what PerspectiveCombination actually builds.
+    """
+    lines = [
+        "  How a nexus evolves:",
+        "  - 1 perspective: a single self-referential wheel. Already generates",
+        "    transformations and synthesis — useful even alone.",
+    ]
+    if cap >= 2:
+        lines += [
+            "  - 2 perspectives: the causal question emerges (which thesis enables which?).",
+            "    Produces multiple wheels (arrangements), each with its own pathways.",
+        ]
+    if cap >= 3:
+        span = f"3-{cap}" if cap > 3 else "3"
+        lines += [
+            f"  - {span} perspectives: richer causal chains, more transformation variety,",
+            "    deeper synthesis. The sweet spot for insight.",
+        ]
+    lines.append(
+        f"  - >{cap}: combinatorial explosion — arrangements aren't built beyond"
+        f" {cap} perspectives; start a new nexus for more tensions."
+    )
+    return "\n".join(lines)
+
+
 _ROLE = """## Role
 
 You are in conversation with someone navigating a decision, tension, or
@@ -277,14 +322,7 @@ _TOOL_DOCS: dict[str, str] = {
   and sibling nexuses on one theme fragment the pathways. Create separate
   nexuses only for genuinely distinct themes.
 
-  How a nexus evolves:
-  - 1 perspective: a single self-referential wheel. Already generates
-    transformations and synthesis — useful even alone.
-  - 2 perspectives: the causal question emerges (which thesis enables which?).
-    Produces multiple wheels (arrangements), each with its own pathways.
-  - 3-4 perspectives: richer causal chains, more transformation variety,
-    deeper synthesis. The sweet spot for insight.
-  - >4: combinatorial explosion — cap at 4, start a new nexus for more tensions.
+{nexus_evolution}
 
   Grouping principle: prefer perspectives from different polarities (different
   T-A oppositions) — transformations between them represent genuine synthesis
@@ -635,7 +673,13 @@ def system_prompt(
         # Scoped variants of sync/explore have their own doc text.
         key = f"{name}_scoped" if scoped and f"{name}_scoped" in _TOOL_DOCS else name
         if key in _TOOL_DOCS:
-            tool_docs.append(_TOOL_DOCS[key])
+            doc = _TOOL_DOCS[key]
+            if "{nexus_evolution}" in doc:
+                doc = doc.replace(
+                    "{nexus_evolution}",
+                    _nexus_evolution(_resolve_max_wheel_layer()),
+                )
+            tool_docs.append(doc)
 
     conversation_use = _CONVERSATION_USE
     if scoped and "ingest" not in names:

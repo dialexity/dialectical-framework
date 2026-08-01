@@ -17,8 +17,8 @@ from typing import AsyncGenerator, Optional
 
 from pydantic import BaseModel, Field
 
-from dialectical_framework.agents.advisor.system_prompts import (
-    SYSTEM_PROMPT, system_prompt)
+from dialectical_framework.agents.advisor.system_prompts import \
+    system_prompt
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
@@ -144,13 +144,13 @@ class Advisor:
             dialectical_context
             or "No prior understanding — this is a fresh conversation."
         )
-        if self._nexus_hash:
-            engine = system_prompt(
-                tool_names=[t.__name__ for t in self._tools],
-                scoped_nexus_hash=self._nexus_hash,
-            )
-        else:
-            engine = SYSTEM_PROMPT
+        # Rendered at construction (not the import-time SYSTEM_PROMPT
+        # constant) so settings-derived prompt values (max_wheel_layer)
+        # reflect the live DI configuration.
+        engine = system_prompt(
+            tool_names=[t.__name__ for t in self._tools],
+            scoped_nexus_hash=self._nexus_hash,
+        )
         parts.append(engine.replace("{dialectical_context}", context_text))
 
         return "\n\n".join(parts)

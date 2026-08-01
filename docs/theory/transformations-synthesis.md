@@ -55,11 +55,16 @@ cases; verbatim generation prompts; then compress each row → "how to overcome 
 each column → "how to cultivate that upside" in child-clear language ("Life Principles"); the
 principle set = an **ontology**; matrix extensible into R&D/business ideas. Cross-tetrad transitions
 score highest in worked examples (A4−→T1+ 0.93). [P0 pp.18,22,24; P1 pp.42-48]
-**Implementation:** — (Transformations exist only per edge pair, within-tetrad diagonals)
-**Status:** absent
-**Notes:** Biggest structural gap in the framework (also flagged in generative-rules.md Rule 8).
-Two independent absences: (a) cross-tetrad transitions as graph objects; (b) the compression layer
-(principles/ontology nodes). The paper's prompts [P1 p.42] are directly portable when/if built.
+**Implementation:** Matrix: wheel-native decomposition — arrangement enumeration materializes every
+cross-tetrad minus→plus pair as a wheel edge; matrix cell ≡ that edge's Transformation; higher
+layers refine lower via `find_parent_transformations` → `parent_context`. Compression layer: —.
+**Status:** matrix implemented (as wheel-native decomposition); principles/ontologies layer absent
+**Notes:** Split verdict (2026-08-01, see generative-rules.md Rule 8 for the full argument):
+eager-vs-lazy fill is application policy; a matrix *view* is an assembly query (group Transitions
+by source/target Statement, dedupe by nonce) — build when a consumer needs it. Same-side cells
+(T_i−→T_i+) deliberately unmediated (backfire constraint) — principled divergence from the naive
+4n² count. The compression layer (row/column principles → ontology nodes) is the remaining true
+absence; the paper's prompts [P1 p.42] are directly portable when/if built.
 
 ### Synthesis subtypes Sa/Sb/Sc (+ degradation modes)
 **Theory:** S+ decomposes into Sa+ Self-Regulation (Process), Sb+ Bounded Coupling (Structure),

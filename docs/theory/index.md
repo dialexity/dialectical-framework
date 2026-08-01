@@ -40,9 +40,9 @@ Citations below use `[P0 p.N]` / `[P1 p.N]`.
 
 | Status | Count | Highlights |
 |--------|-------|-----------|
-| implemented | 17 | tetrad rules, circular causality, control statements (aspect checks both paths + neutral-T variant + backfire constraint), Mode ladder (=thesis-lessness), insight/proactiveness scales, systemic+elemental taxonomies, diagonal wheel geometry, Ks formula, SP formula (as `area`), Greimas criteria (5/5), equal-sign synthesis (explicit constraint) |
+| implemented | 18 | tetrad rules, circular causality, control statements (aspect checks both paths + neutral-T variant + backfire constraint), Mode ladder (=thesis-lessness), insight/proactiveness scales, systemic+elemental taxonomies, diagonal wheel geometry, Ks formula, SP formula (as `area`), Greimas criteria (5/5), equal-sign synthesis (explicit constraint), transitions matrix (as wheel-native decomposition; same-side cells deliberately unmediated) |
 | partial | 4 | transition tetrad rules, Mode×Arousal semantics, feasibility scoring, apex coherence (data now available; also owns the "S+ without lower-layer support" control-statement extrapolation) |
-| absent | 12 | full transitions matrix (4n²), principles/ontologies layer, DV/MMI/PSI/PC metrics, Sa/Sb/Sc subtypes, sub-aspects hierarchy, coupling dendrograms, multi-antithesis per thesis, forcefulness→polarity-flip rule, modality balance enforcement, reverse-order S− trigger, Abstraction scalar, Self-Reg metric |
+| absent | 11 | principles/ontologies layer, DV/MMI/PSI/PC metrics, Sa/Sb/Sc subtypes, sub-aspects hierarchy, coupling dendrograms, multi-antithesis per thesis, forcefulness→polarity-flip rule, modality balance enforcement, reverse-order S− trigger, Abstraction scalar, Self-Reg metric |
 | diverges | 3 | rectangularity formula (code² vs paper-linear-and-rejected), acceptance gate (HS≥0.7 vs paper SP/DV>0.5), naming: paper "SP" = code `area` |
 
 ## Standing cautions

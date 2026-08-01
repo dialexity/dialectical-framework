@@ -37,7 +37,7 @@ ordering.
 | 4.x synthesis rules | input selection (`synthesis_generation`) | — | prompt framing |
 | 5.x circular causality | prompt constraints (`transformation_generation`) | audits annotate, don't gate | — |
 | 6-7 wheel geometry | `generate_compatible_sequences` (hard structural) | — | — |
-| 8 transitions matrix | — | — | absent everywhere |
+| 8 transitions matrix | wheel-native: arrangement enumeration + `ExploreTransformations` per edge (eager/lazy = app policy) | audits annotate, don't gate | principles/ontologies compression layer only |
 
 **The only live hard gates:** HS ≥ 0.7 (`_rank_polarities`) + consolidation bands 0.7/0.1
 (`antithetical_thesis_detection`) + wheel geometry (structural, can't be violated). Everything else

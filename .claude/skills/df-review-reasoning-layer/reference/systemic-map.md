@@ -38,8 +38,10 @@ The model sees **one fused system block** — it cannot tell where the preamble 
 - Advisor: `advisor/advisor.py` — preamble + engine prompt with `{dialectical_context}` **string-replaced**
   by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
   The engine is now a **function** `system_prompt(tool_names, scoped_nexus_hash)`
-  (`advisor/system_prompts.py`) assembled from section constants — tool docs render only for wired tools;
-  the module-level `SYSTEM_PROMPT` constant is the default unscoped render (back-compat + regression tests).
+  (`advisor/system_prompts.py`) assembled from section constants — tool docs render only for wired tools,
+  and settings-derived values (the `max_wheel_layer` nexus-size ladder) resolve at render time. The Advisor
+  always renders via the function at construction; the module-level `SYSTEM_PROMPT` constant is the
+  import-time default render (settings defaults), kept for back-compat + regression tests.
   Nexus-scoped mode (`Advisor(nexus_hash=...)`) adds a `## Scope` section and swaps eager-building guidance
   for counsel-from-existing-structure guidance.
   The system prompt is **static after its first render** — fresh graph state flows through the
@@ -159,7 +161,10 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
 **De-duplicated (removed from this catalog):** the Advisor's insight/proactiveness ladders in
 `_SCORE_READING` are now derived from `ac_re_taxonomy.py` via `_ladder_lines()` (same pattern as the
 Explorer's `_ladder()`); locked by `TestAdvisorScoreLaddersDerived`. `_SCORE_READING` is an f-string —
-keep it one, and assert on the module attribute, not `inspect.getsource`.
+keep it one, and assert on the module attribute, not `inspect.getsource`. Likewise the explore doc's
+nexus-size ladder ("How a nexus evolves", ">N: combinatorial explosion") is rendered by
+`_nexus_evolution(_resolve_max_wheel_layer())` from `settings.max_wheel_layer` — never re-type the cap
+as a literal "4"; locked by `TestAdvisorNexusSizeCapDerived`.
 - Analyst HS bands (`analyst/system_prompts.py` "Reading Polarity Quality", 3 bands).
 - Advisor score-reading section (`advisor/system_prompts.py`, 4 HS bands — ladders now derived, HS bands still hand-typed).
 - Neither imports `HS_SCALE` (6 bands) — three granularities for the same `HS_THRESHOLD=0.7` gate.

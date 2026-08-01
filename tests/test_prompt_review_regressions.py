@@ -1141,6 +1141,57 @@ class TestUnscopedAdvisorNexusDedup:
         assert "sibling nexuses" in joined
 
 
+class TestAdvisorNexusSizeCapDerived:
+    """The explore doc's nexus-size ladder ('How a nexus evolves', '>N:
+    combinatorial explosion') must derive from settings.max_wheel_layer —
+    the cap PerspectiveCombination actually enforces — not restate the
+    default as a hand-typed '4'. Otherwise DIALEXITY_MAX_WHEEL_LAYER=3
+    leaves the Advisor advising sizes the pipeline silently won't build."""
+
+    def test_default_render_matches_settings_default(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+        from dialectical_framework.settings import Settings
+
+        cap = Settings.model_fields["max_wheel_layer"].default
+        joined = " ".join(SYSTEM_PROMPT.split())
+        assert f">{cap}: combinatorial explosion" in joined
+        assert f"aren't built beyond {cap} perspectives" in joined
+        # the unfilled placeholder must never leak into a render
+        assert "{nexus_evolution}" not in SYSTEM_PROMPT
+
+    def test_render_follows_settings_override(self, di_container):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        current = di_container.settings()
+        di_container.settings.override(current.model_copy(update={"max_wheel_layer": 3}))
+        try:
+            joined = " ".join(system_prompt().split())
+        finally:
+            di_container.settings.reset_override()
+            di_container.settings.override(current)
+
+        assert ">3: combinatorial explosion" in joined
+        assert ">4:" not in joined
+        # ladder collapses gracefully: "3" alone, not "3-3"
+        assert "- 3 perspectives:" in joined
+        assert "3-3" not in joined
+
+    def test_ladder_handles_tiny_caps(self):
+        """No '3-2 perspectives' nonsense or stale rungs below the cap."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            _nexus_evolution
+
+        two = " ".join(_nexus_evolution(2).split())
+        assert ">2: combinatorial explosion" in two
+        assert "3" not in two.replace(">2", "")
+
+        one = " ".join(_nexus_evolution(1).split())
+        assert ">1: combinatorial explosion" in one
+        assert "2 perspectives" not in one
+
+
 class TestExplorationAdvisorColdStart:
     """EXPLORATION_ADVISOR_APP must not presuppose shared history or that the
     user built the exploration — the constructor explicitly supports

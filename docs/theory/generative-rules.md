@@ -130,13 +130,25 @@ document, don't "fix".
 **Theory:** Optimization lives in the **4n² transitions** mapping every negative pole to every
 positive pole; Ac+/Re+ are special cases. Verbatim generation prompts + row/column compression
 into "child-clear principles" [P0 pp.6,18,24; P1 p.42].
-**Implementation:** — (only the two diagonal transitions per edge pair exist)
-**Status:** absent
-**Notes:** The single biggest structural gap. The graph model (Transformation per edge pair) has no
-cross-tetrad transition concept, and no principles/ontology compression layer. See
-transformations-synthesis.md for the full sub-map. Worked examples in the paper score cross-tetrad
-transitions HIGHER than within-tetrad ones (A4−→T1+ 0.93 [P0 p.22]) — theory considers them
-first-class, not exotic.
+**Implementation:** Wheel-native decomposition. Arrangement enumeration
+(`generate_compatible_sequences` × all cycles × all layers up to `max_wheel_layer`) materializes
+every cross-tetrad minus→plus pair as a wheel edge in *some* arrangement (verified at layer 2:
+the two arrangements cover all 8 cross pairs; layer-1 wheels cover the within-tetrad diagonals).
+Matrix cell ≡ the edge's Transformation (`ExploreTransformations`); higher layers build on lower
+via `TransformationRepository.find_parent_transformations` → `parent_context` in
+`transformation_generation.py`.
+**Status:** implemented (as wheel-native decomposition)
+**Notes:** Eager vs lazy fill is *application policy*, not a framework gap (Navigator can explore
+every wheel; Advisor deepens lazily, `EXPLORE_DEEP_WHEELS = 1`). A matrix *view* is an assembly
+query over existing nodes — group Transitions by source/target Statement and dedupe (Transitions
+are per-container by nonce) — trivial when a consumer needs it; none does yet. **Same-side cells
+(T_i−→T_i+) are deliberately not produced**: a wheel edge always crosses segments, and reaching
+your own "+" without routing through the opposition is the unmediated direct-reinforcement trap
+the backfire constraint forbids — treat as a principled divergence from the naive 4n² count, not
+a gap. Single-prompt batch fill (then seeding Ac+ from cells) is a possible efficiency variant —
+it would bypass per-edge context assembly (edge/opposite/parent context, apex scoring); noted,
+not adopted. The row/column **principles/ontologies compression layer remains absent** — tracked
+as its own ledger item (transformations-synthesis.md).
 
 ### Operating-layer dynamics (pathological vs healthy)
 **Theory:** Pathological systems operate in the minus layer (T1−→T2−→…), rigidly coupled to
