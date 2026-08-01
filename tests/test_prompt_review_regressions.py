@@ -930,6 +930,31 @@ class TestCrossAgentHsBandParity:
             analyst_section
         )
 
+    def test_analyst_and_advisor_agree_on_dv_semantics(self):
+        """DV parity across the toggle: both agents must describe DV as
+        naturalness-of-framing (not quality/coherence), both must route low
+        DV to RE-FRAMING (not aspect polishing), and the Analyst must know
+        counsel mode prunes very-low-DV tensions — otherwise a perspective
+        visible in analysis silently vanishes in counsel and the Analyst
+        can't explain why."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT as ADVISOR
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT as ANALYST
+
+        for prompt, agent in ((ANALYST, "Analyst"), (ADVISOR, "Advisor")):
+            text = " ".join(prompt.split())
+            # DV = naturalness, both agents
+            assert "DV" in text, f"{agent} never mentions DV"
+            assert "natural" in text.lower(), f"{agent} DV not framed as naturalness"
+            # low DV → the FRAMING is at fault → re-frame/re-anchor
+            assert "re-anchor" in text.lower() or "re-fram" in text.lower(), (
+                f"{agent} lacks the low-DV re-framing route"
+            )
+        # the Analyst-specific toggle warning
+        analyst_text = " ".join(ANALYST.split())
+        assert "counsel mode prunes very-low-DV" in analyst_text
+
 
 class TestArrangementContrast:
     """The wheel enumeration's payoff (task #3): when top arrangements are

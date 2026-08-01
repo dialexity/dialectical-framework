@@ -130,6 +130,16 @@ the user wants it fixed; absent = not validated (neutral). Communicate the
 verdict as meaning ("this one held up under the coherence check"), not as a
 flag name.
 
+Validation also scores `DV` (dialectical validity) — how NATURAL the
+tension's dynamics are, separate from coherence: high DV means the poles
+genuinely complement each other and the pathologies arise organically; low
+DV means the framing itself is forced or one-sided even if it reads
+coherently. A low-DV tension is better re-framed (`edit_perspective` or
+discard-and-re-anchor) than polished aspect-by-aspect — the distortion sits
+in the T/A framing, not the aspects. Note: counsel mode prunes very-low-DV
+tensions from its working view, so a framing you keep here may be absent
+there — re-framing it fixes both.
+
 ## Exploration Setup (Nexus)
 
 "Nexus" is the internal name for what the user calls an **Exploration** — same
