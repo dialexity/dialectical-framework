@@ -17,9 +17,9 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
@@ -334,20 +334,69 @@ class ClassificationDto(BaseModel):
 
 
 class TaxonomyLocationDto(BaseModel):
-    """Result of locating statement in taxonomy."""
+    """Result of locating statement in taxonomy.
 
-    taxonomy_type: str = Field(
+    Constrained fields: an anchoring outside the known vocabulary must fail
+    (and be retried) at parse time, never be silently coerced to a default
+    branch — a mis-anchored statement poisons dedup prefixes and the
+    cross-nexus "same opposition family" facts downstream. "Apex" is not
+    offered: classification always picks a specific branch; Apex is a
+    lookup-time generic, not an anchor.
+    """
+
+    taxonomy_type: Literal["systemic", "elemental"] = Field(
         description="'systemic' (default) or 'elemental' (drive/energy/activation, or broad cross-domain/psychological concepts)"
     )
-    domain: str = Field(
-        default="General",
-        description="For systemic: General, Engineering, Ecology, Institutions, Love",
+    domain: Literal["General", "Engineering", "Ecology", "Institutions", "Love"] = (
+        Field(
+            default="General",
+            description="For systemic: General, Engineering, Ecology, Institutions, Love",
+        )
     )
-    branch: str = Field(
-        description="Systemic branch (Integrity/Fidelity/Exchange/Flexibility/Resilience) or element (Fire/Earth/Air/Water)"
+    branch: Literal[
+        "Integrity",
+        "Fidelity",
+        "Exchange",
+        "Flexibility",
+        "Resilience",
+        "Fire",
+        "Earth",
+        "Air",
+        "Water",
+    ] = Field(
+        description="Systemic branch (Integrity/Fidelity/Exchange/Flexibility/Resilience) or element (Fire/Earth/Air/Water) — must match taxonomy_type"
     )
     leaf: str = Field(description="T concept from taxonomy")
     reasoning: str = Field(description="Brief explanation")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_case(cls, data: dict) -> dict:
+        """Tolerate case drift ('Systemic', 'fire') — it isn't a wrong anchor,
+        just sloppy casing. Unknown vocabulary still fails the Literal."""
+        if isinstance(data, dict):
+            if isinstance(data.get("taxonomy_type"), str):
+                data["taxonomy_type"] = data["taxonomy_type"].strip().lower()
+            for key in ("domain", "branch"):
+                if isinstance(data.get(key), str):
+                    data[key] = data[key].strip().title()
+        return data
+
+    @model_validator(mode="after")
+    def _branch_matches_taxonomy(self) -> TaxonomyLocationDto:
+        if self.taxonomy_type == "elemental":
+            if self.branch not in VALID_ELEMENTS:
+                raise ValueError(
+                    f"branch '{self.branch}' is not an element; "
+                    f"elemental requires one of {VALID_ELEMENTS}"
+                )
+        elif self.branch in VALID_ELEMENTS:
+            raise ValueError(
+                f"branch '{self.branch}' is an element; "
+                f"systemic requires one of "
+                f"{[b for b in VALID_BRANCHES if b != 'Apex']}"
+            )
+        return self
 
 
 # --- Result ---
@@ -396,27 +445,38 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
         Returns:
             Meaning URI for the antithesis
+
+        Raises:
+            ValueError: If the thesis meaning is missing or doesn't parse to a
+                known taxonomy branch. A silent default would anchor the
+                antithesis in the wrong branch, corrupting dedup prefixes and
+                cross-nexus opposition-family facts downstream.
         """
         if thesis.is_simple:
             return "dx://taxonomy/Simple"
 
         thesis_meaning = thesis.meaning
         if not thesis_meaning:
-            return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
+            raise ValueError(
+                f"Complex thesis '{thesis.text}' has no meaning URI — "
+                f"classify it before deriving the antithesis meaning."
+            )
 
         # Parse thesis meaning URI properly, staying within its taxonomy family
         family = _family_for_meaning(thesis_meaning)
         taxonomy = TAXONOMY_BY_FAMILY[family]
         domain, category, branch, _ = parse_meaning_uri(thesis_meaning)
 
-        if branch and branch in taxonomy:
-            domain = domain or "General"
-            category = category or VIABILITY_CATEGORY
-            antithesis_leaf = taxonomy[branch][POSITION_A]
-            return f"dx://taxonomy/{family}({domain}.v1)/{category}/{branch}/{antithesis_leaf}"
+        if not branch or branch not in taxonomy:
+            raise ValueError(
+                f"Thesis meaning '{thesis_meaning}' has no known taxonomy "
+                f"branch — cannot derive the antithesis meaning."
+            )
 
-        # Fallback
-        return "dx://taxonomy/System(General.v1)/Viability/Fidelity/ErrorCorrection"
+        domain = domain or "General"
+        category = category or VIABILITY_CATEGORY
+        antithesis_leaf = taxonomy[branch][POSITION_A]
+        return f"dx://taxonomy/{family}({domain}.v1)/{category}/{branch}/{antithesis_leaf}"
 
     @staticmethod
     def lookup_thesis_meaning(
@@ -434,15 +494,23 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
         Returns:
             Meaning URI for the thesis
+
+        Raises:
+            ValueError: If branch or domain is not in the known vocabulary —
+                coercing to a default branch would silently mis-anchor.
         """
         # Normalize and validate
         branch = branch.strip().title()
         domain = domain.strip().title()
 
         if branch not in VALID_BRANCHES:
-            branch = "Fidelity"
+            raise ValueError(
+                f"Unknown taxonomy branch '{branch}'. Valid: {VALID_BRANCHES}"
+            )
         if domain not in VALID_DOMAINS:
-            domain = "General"
+            raise ValueError(
+                f"Unknown taxonomy domain '{domain}'. Valid: {VALID_DOMAINS}"
+            )
 
         if leaf is None:
             leaf = SYSTEMIC_TAXONOMY.get(branch, {}).get(POSITION_T, branch)
@@ -466,6 +534,12 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
         Returns:
             Meaning URI for the aspect
+
+        Raises:
+            ValueError: If the complex parent has no meaning URI or it doesn't
+                parse to a known taxonomy branch. Falling back to the generic
+                Apex row would silently detach the aspect from its branch —
+                wrong apex for HS, wrong dedup prefix.
         """
         if position not in VALID_ASPECT_POSITIONS:
             raise ValueError(
@@ -477,9 +551,10 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
         parent_meaning = parent.meaning
         if not parent_meaning:
-            # Fallback to apex-level aspects
-            leaf = SYSTEMIC_TAXONOMY["Apex"][position]
-            return f"dx://taxonomy/System(General.v1)/Viability/Apex/{leaf}"
+            raise ValueError(
+                f"Complex parent '{parent.text}' has no meaning URI — "
+                f"classify it before deriving aspect meanings."
+            )
 
         # Parse parent meaning URI properly, staying within its taxonomy family
         family = _family_for_meaning(parent_meaning)
@@ -488,14 +563,13 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
         domain = domain or "General"
         category = category or VIABILITY_CATEGORY
 
-        # Get aspect leaf from taxonomy using position directly as key
-        if branch and branch in taxonomy:
-            leaf = taxonomy[branch][position]
-        else:
-            # Use apex-level aspects
-            leaf = taxonomy["Apex"][position]
-            branch = "Apex"
+        if not branch or branch not in taxonomy:
+            raise ValueError(
+                f"Parent meaning '{parent_meaning}' has no known taxonomy "
+                f"branch — cannot derive the aspect meaning."
+            )
 
+        leaf = taxonomy[branch][position]
         return f"dx://taxonomy/{family}({domain}.v1)/{category}/{branch}/{leaf}"
 
     @staticmethod
@@ -515,6 +589,11 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
 
         Returns:
             Apex concept name (e.g., "Coherence", "Differentiation")
+
+        Raises:
+            ValueError: If the complex parent has no meaning URI or it doesn't
+                parse to a known taxonomy branch — the generic Apex row would
+                silently score HS against the wrong reference concept.
         """
         if position not in VALID_ASPECT_POSITIONS:
             raise ValueError(
@@ -524,17 +603,24 @@ class StatementClassification(ReasonableConcern[ClassificationResult]):
         if parent.is_simple:
             return "Simple"
 
-        parent_meaning = parent.meaning or ""
+        parent_meaning = parent.meaning
+        if not parent_meaning:
+            raise ValueError(
+                f"Complex parent '{parent.text}' has no meaning URI — "
+                f"classify it before deriving the aspect apex."
+            )
 
         # Parse parent meaning URI properly, staying within its taxonomy family
         taxonomy = _taxonomy_for_meaning(parent_meaning)
         _, _, branch, _ = parse_meaning_uri(parent_meaning)
 
-        # Get aspect apex from taxonomy using position directly as key
-        if branch and branch in taxonomy:
-            return taxonomy[branch][position]
-        else:
-            return taxonomy["Apex"][position]
+        if not branch or branch not in taxonomy:
+            raise ValueError(
+                f"Parent meaning '{parent_meaning}' has no known taxonomy "
+                f"branch — cannot derive the aspect apex."
+            )
+
+        return taxonomy[branch][position]
 
     @staticmethod
     def get_contradiction_pair(position: str) -> str:
@@ -679,31 +765,30 @@ Using the taxonomy tables from the system prompt, determine:
     def _build_meaning_uri(
         self, is_simple: bool, location: Optional[TaxonomyLocationDto]
     ) -> str:
-        """Build meaning URI from classification and taxonomy location."""
+        """Build meaning URI from classification and taxonomy location.
+
+        Vocabulary validity (taxonomy_type/domain/branch) is enforced by
+        TaxonomyLocationDto's constrained fields at parse time — an anchoring
+        outside the vocabulary fails the LLM call (and retries) instead of
+        being coerced to a default branch here.
+        """
         if is_simple:
             return "dx://taxonomy/Simple"
 
         if not location:
-            return "dx://taxonomy/System(General.v1)/Viability/Fidelity/Modeling"
+            raise ValueError(
+                f"Complex statement '{self._statement}' got no taxonomy "
+                f"location — cannot build a meaning URI."
+            )
 
-        # Normalize
-        taxonomy_type = location.taxonomy_type.lower().strip()
-        domain = location.domain.strip().title() if location.domain else "General"
-        branch = location.branch.strip().title() if location.branch else "Fidelity"
         leaf = (
-            location.leaf.strip().title().replace(" ", "") if location.leaf else branch
+            location.leaf.strip().title().replace(" ", "")
+            if location.leaf
+            else location.branch
         )
 
-        if domain not in VALID_DOMAINS:
-            domain = "General"
-
-        if taxonomy_type == "elemental":
-            if branch not in VALID_ELEMENTS:
-                branch = "Earth"
+        if location.taxonomy_type == "elemental":
             # Elemental vocabulary is domain-generic (General); the family token
             # keeps the URI structurally uniform with systemic for future domains.
-            return f"dx://taxonomy/Elements(General.v1)/Viability/{branch}/{leaf}"
-        else:
-            if branch not in VALID_BRANCHES:
-                branch = "Fidelity"
-            return f"dx://taxonomy/System({domain}.v1)/Viability/{branch}/{leaf}"
+            return f"dx://taxonomy/Elements(General.v1)/Viability/{location.branch}/{leaf}"
+        return f"dx://taxonomy/System({location.domain}.v1)/Viability/{location.branch}/{leaf}"

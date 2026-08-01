@@ -13,7 +13,7 @@ Usage in conftest.py:
 
 from __future__ import annotations
 
-from typing import Any, Optional, get_args, get_origin
+from typing import Any, Literal, Optional, get_args, get_origin
 from unittest.mock import AsyncMock
 
 from pydantic import BaseModel
@@ -61,6 +61,11 @@ def _build_field_value(name: str, field_info: FieldInfo) -> Any:
     # Handle dict[K, V]
     if origin is dict:
         return {}
+
+    # Handle Literal["a", "b", ...] — pick the first allowed value so
+    # constrained DTO fields (e.g. taxonomy branch enums) stay valid.
+    if origin is Literal:
+        return get_args(annotation)[0]
 
     # Concrete types
     if annotation is float or annotation is int:

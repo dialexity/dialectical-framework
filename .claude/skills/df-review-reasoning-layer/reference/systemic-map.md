@@ -199,7 +199,9 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
    COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**.
 2. **Thesis `meaning` URI → all taxonomy lookups.** `StatementClassification` writes the taxonomy branch into
    `meaning`; `lookup_aspect_apex` etc. derive the apex names that AspectGeneration/AntithesisExtraction score
-   HS *against*. Wrong branch → HS scored against the wrong reference.
+   HS *against*. Wrong branch → HS scored against the wrong reference. Guarded: `TaxonomyLocationDto` fields are
+   Literal-constrained (out-of-vocabulary anchor → ParseError → retry, never coerced), and the `lookup_*` methods
+   raise on missing/unparseable meanings instead of falling back to Fidelity/Apex rows (`TestTaxonomyFailsLoudly`).
 3. **Aspect statement text → wheel segments → transition context.** `build_edge_context` feeds exact
    T/T+/T-/A+/A- wording into Ac+/Re+ generation. Prompts require prose to "refer to concepts by their actual
    statement wording, never by T/A notation" — upstream phrasing is quoted verbatim.

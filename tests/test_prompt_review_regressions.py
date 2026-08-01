@@ -1373,11 +1373,12 @@ class TestDedupReportsAreMerged:
 
 
 class _FakeStatement:
-    """Minimal stand-in for the static lookups (touch only .meaning/.is_simple)."""
+    """Minimal stand-in for the static lookups (.meaning/.is_simple/.text)."""
 
     def __init__(self, meaning: str) -> None:
         self.meaning = meaning
         self.is_simple = False
+        self.text = "fake statement"
 
 
 class TestElementalTaxonomy:
@@ -1510,3 +1511,137 @@ class TestElementalTaxonomy:
         assert "drive, energy, motivation" in SYSTEM_PROMPT
         # polysemy fix: the is_simple=false label is no longer "COMPLEX/SYSTEMIC"
         assert "COMPLEX/SYSTEMIC" not in SYSTEM_PROMPT
+
+
+# --- Fail loudly on taxonomy coercion ----------------------------------------
+
+
+class TestTaxonomyFailsLoudly:
+    """Unknown/missing taxonomy anchorings must raise, never silently coerce.
+
+    The old fallbacks (unknown branch → Fidelity/Earth, missing meaning →
+    Fidelity leaves, unparseable branch → Apex row) mis-anchored statements
+    invisibly. Since the cross-nexus dump states "Same opposition family
+    (Branch)" facts derived from these URIs, a coerced anchor now produces
+    confident false correspondences — hence loud failure.
+    """
+
+    def test_location_dto_rejects_unknown_branch(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from dialectical_framework.concerns.statement_classification import \
+            TaxonomyLocationDto
+
+        with pytest.raises(ValidationError):
+            TaxonomyLocationDto(
+                taxonomy_type="systemic",
+                domain="General",
+                branch="Strengths",  # SWOT vocabulary, not in the taxonomy
+                leaf="Strengths",
+                reasoning="r",
+            )
+
+    def test_location_dto_rejects_unknown_domain_and_type(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from dialectical_framework.concerns.statement_classification import \
+            TaxonomyLocationDto
+
+        with pytest.raises(ValidationError):
+            TaxonomyLocationDto(
+                taxonomy_type="systemic",
+                domain="Astrology",
+                branch="Integrity",
+                leaf="Cohesion",
+                reasoning="r",
+            )
+        with pytest.raises(ValidationError):
+            TaxonomyLocationDto(
+                taxonomy_type="zodiac",
+                domain="General",
+                branch="Integrity",
+                leaf="Cohesion",
+                reasoning="r",
+            )
+
+    def test_location_dto_rejects_family_branch_mismatch(self):
+        import pytest
+        from pydantic import ValidationError
+
+        from dialectical_framework.concerns.statement_classification import \
+            TaxonomyLocationDto
+
+        with pytest.raises(ValidationError):
+            TaxonomyLocationDto(
+                taxonomy_type="elemental",
+                domain="General",
+                branch="Integrity",  # systemic branch under elemental type
+                leaf="Cohesion",
+                reasoning="r",
+            )
+        with pytest.raises(ValidationError):
+            TaxonomyLocationDto(
+                taxonomy_type="systemic",
+                domain="General",
+                branch="Fire",  # element under systemic type
+                leaf="Activation",
+                reasoning="r",
+            )
+
+    def test_lookup_antithesis_raises_on_missing_or_junk_meaning(self):
+        import pytest
+
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification as SC
+
+        with pytest.raises(ValueError, match="no meaning URI"):
+            SC.lookup_antithesis_meaning(_FakeStatement(""))
+        with pytest.raises(ValueError, match="no known taxonomy branch"):
+            SC.lookup_antithesis_meaning(_FakeStatement("dx://garbage/uri"))
+
+    def test_lookup_aspect_raises_instead_of_apex_fallback(self):
+        import pytest
+
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification as SC
+
+        junk = _FakeStatement("dx://taxonomy/System(General.v1)/Viability/Nope/X")
+        with pytest.raises(ValueError, match="no known taxonomy branch"):
+            SC.lookup_aspect_meaning(junk, "T+")
+        with pytest.raises(ValueError, match="no known taxonomy branch"):
+            SC.lookup_aspect_apex(junk, "T+")
+
+    def test_lookup_thesis_meaning_raises_on_unknown_vocab(self):
+        import pytest
+
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification as SC
+
+        with pytest.raises(ValueError, match="Unknown taxonomy branch"):
+            SC.lookup_thesis_meaning(branch="Strengths")
+        with pytest.raises(ValueError, match="Unknown taxonomy domain"):
+            SC.lookup_thesis_meaning(branch="Integrity", domain="Astrology")
+
+    def test_build_meaning_uri_raises_without_location(self):
+        import pytest
+
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification
+
+        classifier = StatementClassification()
+        classifier._statement = "Trust"
+        with pytest.raises(ValueError, match="no taxonomy location"):
+            classifier._build_meaning_uri(False, None)
+
+    def test_simple_paths_still_short_circuit(self):
+        """Simple statements never touch the taxonomy — no new raises there."""
+        from dialectical_framework.concerns.statement_classification import \
+            StatementClassification as SC
+
+        simple = _FakeStatement("dx://taxonomy/Simple")
+        simple.is_simple = True
+        assert SC.lookup_antithesis_meaning(simple) == "dx://taxonomy/Simple"
+        assert SC.lookup_aspect_meaning(simple, "T+") == "dx://taxonomy/Simple"
+        assert SC.lookup_aspect_apex(simple, "T+") == "Simple"
