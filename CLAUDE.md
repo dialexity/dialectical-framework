@@ -174,6 +174,8 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 
 **black/isort are NOT enforced** (no pre-commit/CI) and most of the tree is non-conforming. Running `black <file>` after a small edit reformats the WHOLE file (import-wrapping, line-wraps), bloating the diff with unrelated churn. For a targeted change, hand-format only your own lines; don't run black on the file.
 
+**Concurrent sessions share this working tree.** Multiple Claude/dev sessions often run against this repo simultaneously — the index and dirty files are shared. Before committing: check `git diff --cached --stat` for foreign staged files and `git status` for unexpected dirty ones. Stage explicit paths, not `git add -A`, unless you verified the whole tree is yours. If your edits and a concurrent session's land in the SAME file, split by hunk: `git diff <file> > /tmp/f.patch`, drop foreign hunks, `git apply --cached /tmp/f.patch`.
+
 
 ---
 
@@ -434,6 +436,9 @@ Default to `@pytest.mark.llm` for anything touching `use_brain` or `Conversation
 
 **Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic responses. It does NOT test: streaming, tool registration (`@llm.tool` decorator), tool argument parsing, or provider behavior.
 Mock brain returns **identical** DTOs every call — to test diversity/dedup logic (distinct outputs across calls), `monkeypatch` the concern's `resolve` directly instead.
+Mock brain fills `Literal[...]` fields with the FIRST allowed value — order Literal options so the first is a safe default for mocked tests.
+
+**Test fixtures may use `meaning="test"` placeholder statements ONLY on paths that never reach taxonomy lookups** — `StatementClassification.lookup_*` methods raise on unparseable meanings (no silent fallbacks). Use a real `dx://taxonomy/...` URI when the path classifies or derives meanings.
 
 **Mock brain auto-fills every field, so response-model *shape* changes are invisible to the mocked suite.** Restructuring a Mirascope `response_model` (nesting DTOs, adding required fields) can pass all mocked tests while the real LLM drops a branch → `ParseError`. Verify any DTO-shape change with `--real-llm`. Deep nesting is the usual culprit; prefer flatter schemas.
 
