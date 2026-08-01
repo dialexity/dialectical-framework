@@ -483,6 +483,12 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
         """
         Total spread between positive and negative aspects. Higher is better.
 
+        This is the theory's **SP (Synthesis Potential)** — Eq (3) [P0 p.11],
+        "dialectical work, by analogy with the area of a hysteresis loop." The
+        code name comes from the geometric reading: SP is the area enclosed by
+        the tetrad's complementarity diagram. Same formula, one quantity —
+        treat SP ≡ area when reading the papers (see docs/theory/scoring.md).
+
         Formula:
             area = KS(T+) + KS(A+) - KS(T-) - KS(A-)
                  = (sum of positive aspects) - (sum of negative aspects)

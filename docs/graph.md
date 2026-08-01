@@ -538,7 +538,7 @@ Quality is measured by structural edge properties, not a separate scoring system
 - **heuristic_similarity** (0.0-1.0) on T/A/aspect edges — similarity to taxonomy apex
 - **complementarity_t**, **complementarity_a** (0.0-1.0) on aspect edges — how well aspect complements T/A
 - **insight**, **proactiveness** (0.0-1.0) on transformation aspect edges
-- **Perspective computed properties:** `diff_t`, `diff_a`, `area_normalized`, `rectangularity`
+- **Perspective computed properties:** `diff_t`, `diff_a`, `area` (= theory's SP/Synthesis Potential), `area_normalized`, `rectangularity`
 
 ## Scope Context
 

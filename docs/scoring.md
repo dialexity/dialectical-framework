@@ -123,7 +123,7 @@ Computed from the four aspects' Ks values:
 |--------|---------|-------|------|-----|
 | **diff_t** | Ks(T+) − Ks(T−) | −1 to 1 | ≥ 0.1 | < 0.1 |
 | **diff_a** | Ks(A+) − Ks(A−) | −1 to 1 | ≥ 0.1 | < 0.1 |
-| **area** | diff_t + diff_a | −2 to 2 (well-formed tetrads ~0 to 2) | ≥ 0.7 | < 0.3 |
+| **area** (= theory's **SP**, Synthesis Potential) | diff_t + diff_a | −2 to 2 (well-formed tetrads ~0 to 2) | ≥ 0.7 | < 0.3 |
 | **area_normalized** | area / 2 | −1 to 1 (well-formed tetrads ~0 to 1) | ~0.5 | ~0.15 |
 | **rectangularity** | [Ks(T+)−Ks(A+)]² + [Ks(T−)−Ks(A−)]² | 0+ | < 0.01 | > 0.09 |
 
