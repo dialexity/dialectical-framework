@@ -111,8 +111,9 @@ APEX
 2. Must help transition FROM T- (problem) TOWARD A+ (benefit)
 3. Must NOT simply restate A+ - it's the PATH, not the destination
 4. Should be generative: enable discovery rather than prescribe specific outcomes
-5. Length: a fuller actionable form, longer than the headline
-6. Choose the insight level that best matches the nature of the action
+5. Must stay subtle, not forceful: an action that imposes, coerces, or overpowers reverses its polarity from Ac+ to Ac-. Prefer enabling over forcing
+6. Length: a fuller actionable form, longer than the headline
+7. Choose the insight level that best matches the nature of the action
 """
 
 

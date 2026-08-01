@@ -291,6 +291,26 @@ class TestBackfireConstraint:
         assert "flips T+ into T-" in p
 
 
+class TestForcefulnessPolarityFlip:
+    """Forcefulness -> polarity flip (P1 p.21): Ac+/Re+ must stay subtle and
+    flexible; becoming too forceful reverses their polarity to '-'. Both Ac/Re
+    generation prompts must carry the constraint
+    (docs/theory/transformations-synthesis.md)."""
+
+    def test_transformation_generation_carries_the_flip_rule(self):
+        from dialectical_framework.concerns import transformation_generation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "Forcefulness reverses polarity" in p
+        assert "subtle and flexible" in p
+
+    def test_action_extraction_carries_the_flip_rule(self):
+        from dialectical_framework.concerns import action_extraction as m
+
+        p = m.SYSTEM_PROMPT
+        assert "reverses its polarity from Ac+ to Ac-" in p
+
+
 # --- S4: transition length is settings-driven --------------------------------
 
 

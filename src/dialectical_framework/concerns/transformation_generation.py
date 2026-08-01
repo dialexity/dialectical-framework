@@ -81,6 +81,8 @@ Together, they form a closed loop — your action + awareness of the other side'
 
 **Never propose direct reinforcement of a "+" aspect.** Strengthening T+ head-on also strengthens A- and flips T+ into T- (one-sided overdevelopment). Transformations work indirectly: they transform the "-" of one side into the "+" of the other, never pump a "+" directly.
 
+**Forcefulness reverses polarity.** Ac+ and Re+ must stay subtle and flexible enough to balance each other — an Ac+ or Re+ that imposes, coerces, or overpowers stops being "+" and becomes its "-" counterpart. When a candidate reads as forcing an outcome rather than enabling it, soften it or reject it.
+
 ## Diagonal Contradictions
 
 The tetrad has diagonal contradictions that must be preserved:

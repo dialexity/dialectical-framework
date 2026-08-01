@@ -21,11 +21,13 @@ APEX Re at Interpretation 0.2, APEX Ac at Intervention 0.6); apex targets
 **Theory:** "Proactiveness and Insight discourage forceful decisions — Ac+ and Re+ must remain
 sufficiently subtle and flexible to balance each other. Becoming too forceful may reverse their
 polarity from positive to negative." [P1 p.21]
-**Implementation:** — (verified: no forcefulness/polarity-flip language in
-`transformation_generation.py` or `action_extraction.py`)
-**Status:** absent
-**Notes:** Cheap, high-value prompt addition for Ac+/Re+ generation: a subtlety constraint that the
-theory says prevents + from flipping to −. Candidate for the next transformation-prompt revision.
+**Implementation:** `transformation_generation.py` SYSTEM_PROMPT ("Forcefulness reverses polarity"
+constraint: an Ac+/Re+ that imposes/coerces/overpowers becomes its "−" counterpart — soften or
+reject) + `action_extraction.py` Requirements #5 (subtle-not-forceful, "reverses its polarity from
+Ac+ to Ac-").
+**Status:** implemented
+**Notes:** Added 2026-08-01 as a prompt constraint at both Ac/Re generation sites. Locked by
+`TestForcefulnessPolarityFlip` in `tests/test_prompt_review_regressions.py`.
 
 ### Greimas placement + 5 validity criteria
 **Theory:** Ac operates in Not-A space, Re in Not-T (asymmetric, rotation δ); negation of A+ enables
