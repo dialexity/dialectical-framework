@@ -284,11 +284,33 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
   "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
   recorded decisions stays available via query_graph/inspect_node, and NAVIGATOR_APP_ADVANCED_TOGGLE names Decision
-  in its vocabulary list). No settings knobs (policy-not-config). Locked by
+  in its vocabulary list). No settings knobs (policy-not-config).
+  **Named-options guidance** (in `_DECISION_READINESS`, live since 2026-08): when a decision arrives
+  as "X or Y", the pair is anchored AS the person's framing (options are valid graph citizens — the tetrad
+  expansion, not a translation layer, surfaces the root tension); alternative tetrads on the same polarity are
+  LAZY (ask which pull matters most first, repeat-anchor only on demonstrated demand — mirrors the
+  explore/deepen budget split) and explicitly exempted from the discrimination test ("readings of the choice
+  itself, not new candidate tensions" — remove that clause and the two rules compete); weave-time rule (take
+  the resonant reading + tensions beyond the fork — sibling readings are angle shifts per the nexus grouping
+  principle); weak/distancing opposition read from the anchor result AT CALL TIME (later dumps mask or
+  suppress it): low HS *or low Mode* — peer alternatives live in each other's negation space so HS alone can
+  score moderate; Mode ~0.0-0.1 (distancing/privation) is the "options differ rather than oppose" tell —
+  then keep the pair as frame and anchor EACH option alone (never drop an option from the graph).
+  Dependency chain: `_TOOL_DOCS["anchor"/"anchor_scoped"]` repeat-call line carries the identical-wording
+  caveat (statement hashing is content-addressed — a rephrase creates a new polarity, not a sibling tetrad);
+  `IntroducePolarity` reports `mode` in `artifacts["polarities"]` + summary (the paragraph's Mode-read
+  instruction points at it); `StatementClassification` SYSTEM_PROMPT + `_classification_prompt` classify
+  courses of action as COMPLEX (keystone: SIMPLE would strip taxonomy anchoring from option tetrads);
+  `AspectGeneration`'s `not_like_these` diversity instruction is load-bearing for sibling-tetrad variation —
+  weakening "generate something different" collapses repeat-anchors into dedup-discards.
+  Locked by
   `tests/test_prompt_review_regressions.py::TestDecisionReadiness` (+ `TestExplorerAdvisorToggleNarration::
   test_explorer_routes_decision_moments_to_counsel`) + `tests/test_decision.py` (incl.
   `TestRecordDecisionToolBoundary` — Mirascope passes raw dicts for nested-model tool params; the tool normalizes
   via `GroundLink.model_validate`, the only `@llm.tool` in the tree with a nested-model list param).
+  Named-options locks: `TestDecisionReadiness::test_named_options_*`, `::test_anchor_doc_alternative_tetrad_line_in_both_modes`,
+  `::test_classifier_treats_options_as_complex`, `::test_anchor_report_carries_mode`;
+  behavioral: `tests/test_options_classification_real_llm.py` (--real-llm).
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
   when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
   dump (a) prepends an index-disambiguation note when >1 nexus ("indices are per-exploration — qualify

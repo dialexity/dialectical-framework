@@ -169,11 +169,13 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
                 "thesis_text": thesis_stmt.text,
                 "antithesis_text": antithesis_stmt.text,
                 "heuristic_similarity": classification.heuristic_similarity,
+                "mode": classification.mode_value,
             }
         ]
         self._report.summary = (
             f"Introduced polarity: {thesis_stmt.text} vs {antithesis_stmt.text} "
-            f"(HS: {classification.heuristic_similarity:.2f})"
+            f"(HS: {classification.heuristic_similarity:.2f}, "
+            f"Mode: {classification.mode_value:.1f})"
         )
 
         return result

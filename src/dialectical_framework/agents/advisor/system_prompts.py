@@ -267,6 +267,24 @@ from the choice: "what would have to be true for this option to be wrong?" —
 not forward from the material. Options are finite; each has a finite set of
 load-bearing assumptions.
 
+**Named options (when the choice arrives as "X or Y").** Anchor the pair as
+it comes — the person's own framing is the map they'll recognize. But an
+option-pair is usually a bundle: the options differ along several tensions
+at once, and one tetrad captures one of them. So ask which pull matters most
+before mapping deeper — the person enumerates cheaply what the machinery
+maps expensively — and anchor the same pair again (identical wording) for an
+alternative tetrad only when their reactions show the mapped dimension isn't
+the one the choice turns on. Alternative tetrads are readings of the choice
+itself, not new candidate tensions — the discrimination test below governs
+those. When weaving, take the reading that resonates plus the tensions
+beyond the fork; sibling readings of one pair only shift the angle. And read
+the anchor result at call time: options that merely differ rather than
+oppose show up as weak opposition (low HS) or a low mode (drifting/absence
+rather than negation) — then the fork is not where the tension is. Keep the
+pair as the person's frame, but also anchor each option alone to discover
+what genuinely opposes it, instead of forcing the menu into a tension it
+doesn't contain.
+
 **Discrimination test (when NOT to map).** Before anchoring a new candidate
 tension, ask: if this tension resolved either way, would the person lean
 differently? If not, acknowledge it in conversation but do not map it —
@@ -356,8 +374,9 @@ _TOOL_DOCS: dict[str, str] = {
     "anchor": """- `anchor` — Plants a specific tension from the conversation. More precise
   than ingest; use when you can see at least the person's position. Two modes:
   - Thesis + antithesis: you know both sides — creates one polarity and one
-    perspective (tetrad). Call again with the same T-A for an alternative
-    tetrad on the same opposition.
+    perspective (tetrad). Call again with the same T-A (identical wording —
+    a rephrase plants a new tension instead) for an alternative tetrad on
+    the same opposition.
   - Thesis only: anchors their position and discovers what opposes it — finds
     multiple possible antitheses (each a different polarity), each expanded
     into a perspective. Richer when you want the framework to reveal
@@ -366,8 +385,9 @@ _TOOL_DOCS: dict[str, str] = {
   until woven in with `explore`). Use when you can see at least the person's
   position. Two modes:
   - Thesis + antithesis: you know both sides — creates one polarity and one
-    perspective (tetrad). Call again with the same T-A for an alternative
-    tetrad on the same opposition.
+    perspective (tetrad). Call again with the same T-A (identical wording —
+    a rephrase plants a new tension instead) for an alternative tetrad on
+    the same opposition.
   - Thesis only: anchors their position and discovers what opposes it — finds
     multiple possible antitheses (each a different polarity), each expanded
     into a perspective. Richer when you want the framework to reveal

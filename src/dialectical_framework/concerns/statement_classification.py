@@ -277,9 +277,12 @@ Your task is to classify statements and anchor them in taxonomy.
 - Involves causal dynamics, trade-offs, or systemic relationships
 - Describes how one thing affects another, or how a process shapes outcomes
 - Concerns viability, health, functioning, or governance of systems
-- Examples: "Trust", "Data consistency", "Open markets promote innovation", "Centralization enables coordination", "Distributed systems trade consistency for availability"
+- Named options and courses of action: a proposed choice, plan, or move
+  embeds trade-offs and systemic consequences even when phrased as a bare
+  imperative or noun phrase
+- Examples: "Trust", "Data consistency", "Open markets promote innovation", "Centralization enables coordination", "Distributed systems trade consistency for availability", "Take the startup offer", "Migrate to microservices"
 
-Heuristic: If the statement describes a causal relationship (X causes/enables/prevents Y), a trade-off, or a systemic dynamic → Complex. If it is a bare fact verifiable by inspection → Simple.
+Heuristic: If the statement describes a causal relationship (X causes/enables/prevents Y), a trade-off, a systemic dynamic, or a course of action someone could choose → Complex. If it is a bare fact verifiable by inspection → Simple.
 
 ## Taxonomy for Complex Statements
 
@@ -732,7 +735,7 @@ Using the classification criteria from the system prompt, classify as:
 - SIMPLE/BINARY (is_simple = true): verifiable by direct observation, no causal dynamics
 - COMPLEX (is_simple = false): describes causal relationships, trade-offs, or systemic dynamics
 
-A statement like "X prevents/enables/eliminates Y" describes a causal dynamic and is COMPLEX, even if one could argue the causal claim is "either true or false." The test is whether the statement embeds a systemic relationship, not whether one can assign it a truth value.
+A statement like "X prevents/enables/eliminates Y" describes a causal dynamic and is COMPLEX, even if one could argue the causal claim is "either true or false." The test is whether the statement embeds a systemic relationship, not whether one can assign it a truth value. A named option or course of action ("Take the startup offer") is likewise COMPLEX: choosing it embeds trade-offs and systemic consequences, even when phrased as a bare imperative.
 
 Provide your reasoning."""
 

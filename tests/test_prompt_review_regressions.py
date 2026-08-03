@@ -1858,6 +1858,76 @@ class TestDecisionReadiness:
         assert "use `discard`" in doc
         assert "EXPLICITLY confirmed" in doc
 
+    def test_named_options_paragraph_in_both_modes(self):
+        """Named-options guidance lives in _DECISION_READINESS, so it must
+        survive both renders: options anchored in the person's own words,
+        alternatives lazy (demand-driven), weak/distancing opposition read
+        as 'the fork is not where the tension is'."""
+        for prompt in (self._unscoped(), self._scoped()):
+            assert "Named options" in prompt
+            assert "Anchor the pair as it comes" in prompt
+            # Lazy, demand-driven alternatives — never eager enumeration
+            assert "ask which pull matters most" in prompt
+            assert "only when their reactions show" in prompt
+            # Weak-opposition branch keeps BOTH options in the graph
+            assert "the fork is not where the tension is" in prompt
+            assert "anchor each option alone" in prompt
+
+    def test_named_options_reconciled_with_discrimination_test(self):
+        """Alternative tetrads must be exempted from the discrimination test
+        explicitly — competing map-more/map-less signals in one section is
+        the failure mode this clause exists to prevent."""
+        prompt = self._unscoped()
+        assert (
+            "readings of the choice itself, not new candidate tensions"
+            in prompt
+        )
+
+    def test_anchor_doc_alternative_tetrad_line_in_both_modes(self):
+        """The repeat-call mechanism the named-options paragraph relies on
+        must stay documented in both anchor variants, WITH the
+        identical-wording caveat (a rephrase creates a new polarity, not a
+        sibling tetrad — statement hashing is content-addressed)."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            _TOOL_DOCS
+
+        for key in ("anchor", "anchor_scoped"):
+            doc = " ".join(_TOOL_DOCS[key].split())
+            assert "Call again with the same T-A" in doc, key
+            assert "identical wording" in doc, key
+            assert "a rephrase plants a new tension" in doc, key
+
+    def test_classifier_treats_options_as_complex(self):
+        """Keystone for the decision use case: named options / courses of
+        action must classify COMPLEX (both prompt sites), or the whole
+        option-pair tetrad loses taxonomy anchoring. Behavioral coverage:
+        tests/test_options_classification_real_llm.py (--real-llm)."""
+        import dialectical_framework.concerns.statement_classification as sc
+
+        # System prompt: criterion + a course-of-action example
+        assert "courses of action" in sc.SYSTEM_PROMPT
+        assert "Take the startup offer" in sc.SYSTEM_PROMPT
+        # Per-call classification prompt carries the same rule
+        concern = sc.StatementClassification()
+        concern._statement = "Take the startup offer"
+        concern._text = ""
+        prompt = concern._classification_prompt()
+        assert "course of action" in prompt
+
+    def test_anchor_report_carries_mode(self):
+        """The named-options paragraph tells the Advisor to read 'a low mode
+        (drifting/absence rather than negation)' from the anchor result at
+        call time — IntroducePolarity must actually put mode in the polarity
+        artifacts and summary, or the instruction points at nothing."""
+        import inspect as _inspect
+
+        from dialectical_framework.agents.analyst.skills import \
+            introduce_polarity as ip
+
+        src = _inspect.getsource(ip.IntroducePolarity)
+        assert '"mode": classification.mode_value' in src
+        assert "Mode: {classification.mode_value" in src
+
 
 class TestAdvisoryPersonaBoundary:
     """App/engine boundary for advisory personas (systemic-map gap: personas
