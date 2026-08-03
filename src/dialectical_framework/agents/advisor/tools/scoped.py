@@ -18,8 +18,10 @@ the pinned explore weaves them into the exploration, deepen develops an
 alternative arrangement of the pinned exploration on demand (guarded by
 wheel-membership), sync/inspect_node/read_digest read, discard retracts
 (members of the pinned nexus and standalone perspectives — e.g. its own
-rejected anchors — but never members of OTHER explorations). Only `ingest`
-is excluded — bulk extraction belongs to the unscoped flow.
+rejected anchors — but never members of OTHER explorations), and
+record_decision persists confirmed decisions (Case-level, unguarded by the
+pin). Only `ingest` is excluded — bulk extraction belongs to the unscoped
+flow.
 """
 
 from __future__ import annotations
@@ -40,6 +42,8 @@ def build_scoped_tools(nexus_hash: str) -> list:
     DB-free for signature tests).
     """
     from dialectical_framework.agents.advisor.tools.anchor import anchor
+    from dialectical_framework.agents.advisor.tools.record_decision import \
+        record_decision
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
     from dialectical_framework.agents.orchestrator.tools.read_digest import \
@@ -58,10 +62,10 @@ def build_scoped_tools(nexus_hash: str) -> list:
 
     @llm.tool
     async def discard(
-        hash: Annotated[str, Field(description="Hash (or prefix) of the Statement or Perspective to discard")],
+        hash: Annotated[str, Field(description="Hash (or prefix) of the Statement, Perspective, or Decision to discard")],
         reason: Annotated[str, Field(description="Why it's being discarded")] = "discarded",
     ) -> str:
-        """Mark a Statement or Perspective as discarded when the user disagrees with it or finds it irrelevant. Works on members of this exploration and on standalone perspectives (e.g. a freshly anchored framing the user rejected); refuses members of other explorations. Will refuse if the target participates in existing Cycles/Wheels."""
+        """Mark a Statement, Perspective, or Decision as discarded when the user disagrees with it or finds it irrelevant. Works on members of this exploration, on standalone perspectives (e.g. a freshly anchored framing the user rejected), and on recorded decisions the person retracts or replaces; refuses members of other explorations. Will refuse if the target participates in existing Cycles/Wheels."""
         from dialectical_framework.concerns.discard import Discard
 
         refusal = _outside_scope_refusal(pinned_hash, hash)
@@ -107,7 +111,10 @@ def build_scoped_tools(nexus_hash: str) -> list:
 
         return await run_deepen(wheel_hash)
 
-    return [anchor, sync, inspect_node, read_digest, discard, explore, deepen]
+    # record_decision is appended as-is: decisions are Case-level facts, not
+    # exploration members — no nexus-scope guard applies (grounds may be
+    # exploration members; grounding is read-only w.r.t. the exploration).
+    return [anchor, sync, inspect_node, read_digest, discard, explore, deepen, record_decision]
 
 
 def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
@@ -132,8 +139,8 @@ def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
 
     node = NodeRepository().find_by_hash(target_hash)
     if not isinstance(node, Perspective):
-        # Not a perspective (likely a statement) — let Discard's own
-        # guards handle it.
+        # Not a perspective (a statement or a decision) — let Discard's own
+        # guards handle it; decisions are Case-level, so no nexus pin applies.
         return None
     pp = node
 

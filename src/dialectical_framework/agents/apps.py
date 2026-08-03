@@ -55,6 +55,14 @@ When writing a custom preamble, define:
 The preamble should NOT explain dialectics, tool usage, or how analysis works —
 that's the system prompt's job. Keep it focused on persona and delivery style.
 
+The same split applies to decision-making: convergence mechanics (the engine's
+"Decision Readiness" section — discrimination test, saturation, the
+propose-and-confirm recording ceremony, re-audit) are engine behavior,
+rendered whenever decision recording is wired. A persona may tune how
+ceremonial or pushy convergence FEELS
+(a decision-partner persona drives toward the choice; a counselor lets it
+ripen), never re-specify the mechanics.
+
 
 Which Methodologies Map to the Dialectical Engine?
 ==================================================
@@ -555,7 +563,9 @@ non-expert users and does not apply here — use precise framework vocabulary
 directly. Adjust interaction accordingly:
 
 - Always use framework vocabulary: Thesis, Antithesis, T+, T-, A+, A-,
-  Polarity, Perspective, Wheel, Cycle, Transformation, Nexus, Transition.
+  Polarity, Perspective, Wheel, Cycle, Transformation, Nexus, Transition,
+  Decision (a recorded decision — readable here via inspect_node/query_graph;
+  recording and retiring them happens in counsel mode).
 - Show hashes (short form) for node references.
 - Show numeric scores: HS, Kc, Mode, Arousal, insight, proactiveness.
 - Present tetrads structurally with all six positions and scores.

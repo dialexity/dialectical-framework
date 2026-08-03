@@ -204,7 +204,7 @@ class TestScopedToolset:
         names = {t.__name__ for t in tools}
         assert names == {
             "anchor", "sync", "inspect_node", "read_digest", "discard",
-            "explore", "deepen",
+            "explore", "deepen", "record_decision",
         }
         assert "ingest" not in names
 

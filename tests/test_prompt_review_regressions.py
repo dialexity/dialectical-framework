@@ -1021,6 +1021,19 @@ class TestExplorerAdvisorToggleNarration:
         # graceful floor: absent a counsel mode, keep counseling
         assert "keep counseling" in joined
 
+    def test_explorer_routes_decision_moments_to_counsel(self):
+        """A decision declaration is a handover signal (immediate, not after
+        a sustained pull) — the Explorer cannot record decisions and must
+        never fake an acknowledgment."""
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        p = system_prompt(nexus_hash="abc1234", nexus_intent="test intent")
+        joined = " ".join(p.split())
+        assert "when the user tries to DECIDE" in joined
+        assert "NEVER claim to have noted a decision yourself" in joined
+        assert "Recording and retiring decisions happens in counsel mode" in joined
+
     def test_scoped_advisor_signals_exploration_view(self):
         """The counsel-mode preamble already narrates switching back to the
         technical exploration view — lock that phrase."""
@@ -1041,10 +1054,13 @@ class TestScopedAdvisorConsentContract:
         from dialectical_framework.agents.advisor.system_prompts import \
             system_prompt
 
+        # The FULL production scoped toolset (build_scoped_tools) — the sweep
+        # must see every section that actually renders in counsel mode; a
+        # reduced list leaves conditionally-rendered sections unswept.
         return system_prompt(
             tool_names=[
-                "anchor", "sync", "inspect_node",
-                "read_digest", "discard", "explore",
+                "anchor", "sync", "inspect_node", "read_digest",
+                "discard", "explore", "deepen", "record_decision",
             ],
             scoped_nexus_hash="abc1234",
         )
@@ -1709,3 +1725,135 @@ class TestTaxonomyFailsLoudly:
         assert SC.lookup_antithesis_meaning(simple) == "dx://taxonomy/Simple"
         assert SC.lookup_aspect_meaning(simple, "T+") == "dx://taxonomy/Simple"
         assert SC.lookup_aspect_apex(simple, "T+") == "Simple"
+
+
+class TestDecisionReadiness:
+    """Decision lifecycle prompt contract: the recording ceremony is
+    consented in BOTH modes, the section renders only when the tool is
+    wired, and the prompt's reading guidance stays in lockstep with what
+    _dump_decisions actually renders."""
+
+    def _unscoped(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        return " ".join(SYSTEM_PROMPT.split())
+
+    def _scoped(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        rendered = system_prompt(
+            tool_names=[
+                "anchor", "sync", "inspect_node", "read_digest", "discard",
+                "explore", "deepen", "record_decision",
+            ],
+            scoped_nexus_hash="abc1234",
+        )
+        return " ".join(rendered.split())
+
+    def test_never_silent_recording_in_both_modes(self):
+        """Decisions are a consented artifact even for the silent Advisor —
+        the explicit-confirmation contract must survive both renders."""
+        for prompt in (self._unscoped(), self._scoped()):
+            assert "Record ONLY on their explicit confirmation" in prompt
+            assert "NEVER recorded silently" in prompt
+
+    def test_section_renders_only_when_tool_wired(self):
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        without_tool = system_prompt(
+            tool_names=["anchor", "sync", "inspect_node", "read_digest", "discard"]
+        )
+        assert "Decision Readiness" not in without_tool
+        assert "record_decision" not in without_tool
+        assert "{decision" not in without_tool  # no leaked placeholders
+
+    def test_cross_references_render_when_wired(self):
+        """The conditional cross-references (eager filter note, arc step 6,
+        speech exception) must actually appear in the wired unscoped render —
+        the unwired absence alone doesn't prove the wiring works."""
+        prompt = self._unscoped()
+        assert (
+            "a candidate tension that could not change the choice is "
+            "acknowledged, not mapped" in prompt
+        )
+        assert "6. When the conversation is decision-shaped" in prompt
+        assert "One exception: the decision record" in prompt
+        assert "{decision" not in prompt  # all placeholders consumed
+
+    def test_discard_docs_mention_decisions_in_both_modes(self):
+        """record_decision's doc routes retraction through discard — the
+        discard docs must agree it accepts decisions (in-prompt consistency),
+        and must carry the consent rule for them."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            _TOOL_DOCS
+
+        for key in ("discard", "discard_scoped"):
+            doc = " ".join(_TOOL_DOCS[key].split())
+            assert "decision" in doc.lower(), key
+            assert "confirm" in doc.lower(), key
+
+    def test_convergence_mechanics_present(self):
+        prompt = self._unscoped()
+        # Discrimination test
+        assert "would the person lean differently" in prompt
+        # Saturation: honest claim + the exhaustiveness distinction
+        assert "collapsing into tensions already mapped" in prompt
+        assert 'Never claim "we found all tensions"' in prompt
+        # Pre-commit ritual is soft: the person's wish outranks it
+        assert "their wish outranks the ritual" in prompt
+        # Re-audit
+        assert "does this discriminate against what was decided?" in prompt
+
+    def test_score_reading_lockstep_with_dump_wording(self):
+        """The prompt's reading guidance must name what _dump_decisions
+        actually renders (role labels, ground-status flag, Validation line)."""
+        import dialectical_framework.agents.advisor.system_prompts as sp
+
+        reading = " ".join(sp._SCORE_READING.split())
+        # Role labels as rendered by _dump_decisions
+        assert "accepted cost" in reading
+        assert "adopted pathway" in reading
+        # Ground-status flag wording
+        assert "since discarded" in reading
+        # Validation line semantics
+        assert "Validation" in reading
+
+    def test_dump_wording_matches_prompt_expectations(self):
+        """Inverse lock: the shared role vocabulary and renderer emit the
+        labels the prompt teaches. DECISION_GROUND_ROLES is the single owner
+        (graph/rendering.py) consumed by _dump_decisions, _inspect_decision,
+        and the coherence-check prompt — locking it locks all three."""
+        import inspect as _inspect
+
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+        from dialectical_framework.graph.rendering import (
+            DECISION_GROUND_ROLES, decision_ground_line)
+
+        assert DECISION_GROUND_ROLES == {
+            "accepted_cost": "accepted cost",
+            "adopted_pathway": "adopted pathway",
+        }
+        ground_src = _inspect.getsource(decision_ground_line)
+        assert "since discarded" in ground_src
+
+        # Both renderers consume the shared helper (no local label dicts).
+        dump_src = _inspect.getsource(DialecticalContext._dump_decisions)
+        assert "decision_ground_line" in dump_src
+        assert "# Decisions" in dump_src
+        from dialectical_framework.agents.orchestrator.tools import inspect_node
+        inspect_src = _inspect.getsource(inspect_node._inspect_decision)
+        assert "decision_ground_line" in inspect_src
+
+    def test_tool_doc_defers_replacement_to_discard(self):
+        """record_decision's doc must route retraction through the standard
+        discard tool, not promise its own supersede machinery."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            _TOOL_DOCS
+
+        doc = " ".join(_TOOL_DOCS["record_decision"].split())
+        assert "use `discard`" in doc
+        assert "EXPLICITLY confirmed" in doc

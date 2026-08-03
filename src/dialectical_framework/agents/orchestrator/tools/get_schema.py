@@ -31,6 +31,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Transformation | Action-reflection structure (Ac, Re, Ac+, Ac-, Re+, Re-) on a Wheel edge | `intent` |
 | Transition | Movement between two Statements (source → target) | `statement`, `headline`, `haiku` |
 | Synthesis | Emergent S+/S- pair from a Wheel's circular causality | |
+| Decision | User-confirmed decision: question + stance (Case-level, immutable; timestamp = `committed_at`; the why = attached Rationale with `agent`="human") | `intent` (the question), `stance`, `discarded`, `validation` ("passed" / "failed: ..." / null=unchecked) |
 | Rationale | Explanation attached to any node | `text` |
 | Estimation | Numeric assessment (probability, relevance, feasibility) | `value` |
 
@@ -108,6 +109,7 @@ All nodes share: `hash` (content-addressable ID), `sid` (scope ID), `committed_a
 **Metadata**:
 - `(r:Rationale)-[:EXPLAINS]->(n)` — explanation for any node
 - `(e:Estimation)-[:ESTIMATES]->(n)` — numeric assessment of any node
+- `(d:Decision)-[:GROUNDED_IN]->(n)` — node the decision rests on; edge property `role`: "accepted_cost" (unchosen side's A+ the person confronted), "adopted_pathway" (Transformation adopted as management recipe), or null (plain ground). Active decisions: add `d.discarded IS NULL`.
 
 ### Common Cypher Patterns
 

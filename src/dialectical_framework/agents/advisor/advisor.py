@@ -238,6 +238,8 @@ def _build_tools() -> list:
     from dialectical_framework.agents.advisor.tools.deepen import deepen
     from dialectical_framework.agents.advisor.tools.explore import explore
     from dialectical_framework.agents.advisor.tools.ingest import ingest
+    from dialectical_framework.agents.advisor.tools.record_decision import \
+        record_decision
     from dialectical_framework.agents.advisor.tools.sync import sync
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
@@ -251,6 +253,7 @@ def _build_tools() -> list:
         anchor,
         explore,
         deepen,
+        record_decision,
         sync,
         inspect_node,
         read_digest,

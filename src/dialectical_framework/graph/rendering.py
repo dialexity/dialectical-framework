@@ -118,3 +118,62 @@ def format_spiral(wheel, pp_index: Optional[dict[int, int]] = None) -> str:
             pairs.append(label)
 
     return ", ".join(pairs)
+
+
+# --- Decision grounds ---------------------------------------------------
+
+# Ground-role vocabulary: role key → human-readable label. The single owning
+# constant — GroundLink descriptions, GRAPH_SCHEMA prose, the coherence-check
+# prompt, and both renderers (_dump_decisions, _inspect_decision) must all
+# agree with THIS dict, never re-type it. A role exists iff a consumer
+# branches on it; plain grounds carry role=None and render as "ground".
+DECISION_GROUND_ROLES: dict[str, str] = {
+    "accepted_cost": "accepted cost",
+    "adopted_pathway": "adopted pathway",
+}
+
+
+def one_line(text: Optional[str]) -> str:
+    """Collapse text to a single line for structured-dump fields.
+
+    Dump sections have line-oriented structure the LLM is taught to parse
+    (e.g. `Stance: ...` in # Decisions) — raw newlines in user-supplied text
+    would let content fabricate sibling lines/entries (ledger injection).
+    """
+    return " ".join((text or "").split())
+
+
+def decision_ground_line(node, role: Optional[str], show_type: bool = False) -> str:
+    """One-line rendering of a Decision ground for ledger/inspect output.
+
+    Grounds are heavyweight nodes (a Perspective's __str__ is a multi-line
+    block) — the ledger needs a compact single line per ground, so this
+    selects a compact FORMAT per type (format selection, not truncation:
+    full detail stays one inspect_node away via the hash).
+    """
+    from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.wheel import Wheel
+
+    label = DECISION_GROUND_ROLES.get(role or "", "ground")
+    flag = " — since discarded" if getattr(node, "discarded", None) else ""
+
+    if isinstance(node, Perspective):
+        text = f"{node:positions:0}"
+    elif isinstance(node, Wheel):
+        # Wheel.__str__ opens with a tabulate section header — the spiral
+        # sequence is the one-line summary that actually names the
+        # arrangement. Index the aliases (T1-/T2-) via the owning nexus so
+        # sibling arrangements stay distinguishable; the hash disambiguates
+        # when no nexus is found.
+        nexus = find_nexus_for_wheel(node)
+        pp_index = build_pp_index(nexus) if nexus else None
+        text = format_spiral(node, pp_index) or f"{node!r}"
+    else:
+        # Statements are single-line already; Transformations/Syntheses
+        # summarize as their first line (Ac/Re structure / S+ headline).
+        text = str(node).strip().split("\n")[0]
+
+    type_part = f" ({node.__class__.__name__})" if show_type else ""
+    # one_line: embedded newlines in node text must not fabricate sibling
+    # dump lines (see one_line docstring).
+    return f"- {label}: [[{node.short_hash}]]{type_part} {one_line(text)}{flag}"

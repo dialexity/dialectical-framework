@@ -18,7 +18,7 @@ class TestAdvisorInitialization:
     """Tests for Advisor initialization."""
 
     def test_tools(self):
-        """Test advisor has exactly the eight internal tools."""
+        """Test advisor has exactly the nine internal tools."""
         advisor = Advisor()
 
         tool_names = [t.__name__ for t in advisor._tools]
@@ -27,11 +27,12 @@ class TestAdvisorInitialization:
         assert "anchor" in tool_names
         assert "explore" in tool_names
         assert "deepen" in tool_names
+        assert "record_decision" in tool_names
         assert "sync" in tool_names
         assert "inspect_node" in tool_names
         assert "read_digest" in tool_names
         assert "discard" in tool_names
-        assert len(tool_names) == 8
+        assert len(tool_names) == 9
 
     def test_no_analyst_explorer_tools(self):
         """Test advisor does NOT have analyst/explorer tools."""
@@ -134,7 +135,7 @@ class TestScopedAdvisor:
         tool_names = [t.__name__ for t in advisor._tools]
         assert set(tool_names) == {
             "anchor", "sync", "inspect_node", "read_digest", "discard",
-            "explore", "deepen",
+            "explore", "deepen", "record_decision",
         }
         assert "ingest" not in tool_names
 

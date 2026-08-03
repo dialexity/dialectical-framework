@@ -266,6 +266,29 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   `tests/test_context_quality_filter.py`. The unscoped Advisor `sync` tool takes an optional `nexus_hash`
   to zoom into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps); its
   tool doc in `_TOOL_DOCS["sync"]` describes overview-vs-zoom and must stay consistent with this cap.
+- **Decision lifecycle** (`_DECISION_READINESS` in `advisor/system_prompts.py` + `DialecticalContext._dump_decisions`
+  + `concerns/record_decision.py` + `concerns/decision_coherence_check.py`, live since 2026-08): the Advisor's
+  convergence mechanics — discrimination test (map a new tension only if it could change the choice; cross-referenced
+  from `_EAGER`/`_DEFAULT_ARC`/`_HOW_YOU_SPEAK` via the `{decision_filter_note}`/`{decision_arc_step}`/
+  `{decision_speech_note}` placeholders, all rendering ONLY when `record_decision` is wired),
+  saturation-by-family judgment (reads the correspondence lines; "tensions saturate, never exhausted" — the
+  exhaustiveness claim belongs to arrangements only), propose-and-confirm recording ceremony (a decision is a speech
+  act; NEVER silent in either mode — explicit carve-out from the unscoped Advisor's hidden machinery), soft pre-commit
+  ritual (strongest unchosen A+ confronted + S- trap named; person's wish outranks it), and post-decision re-audit
+  (reassure FROM the record vs legitimate reopening → record new + consented discard of old, reason naming the
+  replacement — no bespoke supersede machinery). `DecisionCoherenceCheck` is a fail-soft record-time flag
+  (`Decision.validation`, `PerspectiveValidation` pattern — never blocks; DTO bool is `incoherent` so the mock brain's
+  auto-False reads as passed). The `# Decisions` dump section renders in BOTH unscoped and scoped dumps (decisions are
+  Case-level facts); its wording (role labels "accepted cost"/"adopted pathway", "since discarded" ground flag,
+  `Validation` line) must stay in lockstep with `_SCORE_READING`'s Decisions block and `_TOOL_DOCS["record_decision"]`.
+  Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
+  "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
+  recorded decisions stays available via query_graph/inspect_node, and NAVIGATOR_ADVANCED_MODE_APP names Decision
+  in its vocabulary list). No settings knobs (policy-not-config). Locked by
+  `tests/test_prompt_review_regressions.py::TestDecisionReadiness` (+ `TestExplorerAdvisorToggleNarration::
+  test_explorer_routes_decision_moments_to_counsel`) + `tests/test_decision.py` (incl.
+  `TestRecordDecisionToolBoundary` — Mirascope passes raw dicts for nested-model tool params; the tool normalizes
+  via `GroundLink.model_validate`, the only `@llm.tool` in the tree with a nested-model list param).
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
   when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
   dump (a) prepends an index-disambiguation note when >1 nexus ("indices are per-exploration — qualify
@@ -304,12 +327,12 @@ Independently-authored prompts that share a concept which MUST stay identical or
 
 ### Agent-mode authority matrix (who may touch the graph, enforced in code)
 
-| Mode | Create nexus | Expand nexus | Anchor/ingest | Discard | Context scope |
-|------|:---:|:---:|:---:|:---:|---|
-| Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ✅ sid-wide | full case |
-| Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | — | full case dump via tools |
-| Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ sid-wide | full case (render at construction) |
-| Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ pinned members + standalone PPs; ❌ other explorations' members (code guard) | one nexus + outside count |
+| Mode | Create nexus | Expand nexus | Anchor/ingest | Record decision | Discard | Context scope |
+|------|:---:|:---:|:---:|:---:|:---:|---|
+| Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ❌ | ✅ sid-wide | full case |
+| Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | ❌ | — | full case dump via tools |
+| Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ (consent-first, prompt-enforced) | ✅ sid-wide (incl. Decisions) | full case (render at construction) |
+| Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ unguarded (Decisions are Case-level, not exploration members) | ✅ pinned members + standalone PPs + Decisions; ❌ other explorations' members (code guard) | one nexus + outside count + Decisions (Case-wide) |
 
 `Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **counsel mode of an Explorer↔Advisor
 session toggle**: the host hands the Explorer conversation (messages + nexus_hash) to an Advisor head
@@ -339,7 +362,9 @@ to add it"), `_TOOLS_INTRO_SCOPED` (never name tools, but announce their EFFECTS
 (fresh own anchors → no ceremony; unwoven members → confirm-then-discard; woven-in members → can't remove,
 offer re-anchor instead — reconciles with `Discard`'s cycle-member refusal), `_HOW_YOU_SPEAK_SCOPED`, plus
 `_TOOL_DOCS` `_scoped` variants for `anchor`/`sync`/`explore`/`discard`, and the `_CONVERSATION_USE`
-"After ingest or anchor" heading drops `ingest` when unwired. **The whole assembled scoped render carries
+"After ingest or anchor" heading drops `ingest` when unwired. (`record_decision` needs no `_scoped`
+variant — its doc is consent-first in BOTH modes, since the decision record is the person's artifact
+even for the otherwise-silent unscoped Advisor; see the Decision lifecycle entry in §4.) **The whole assembled scoped render carries
 NO silent-mutation or machinery-hiding wording** (checked by a full-prompt sweep, not per-section — the
 first fix missed the `discard` tool doc's "Silently retracts", `_TOOLS_INTRO`'s "eagerly and silently",
 and `_ROLE`'s "never see the machinery" because it only checked the rejection section's phrases). Locked

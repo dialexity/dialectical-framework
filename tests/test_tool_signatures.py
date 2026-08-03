@@ -44,6 +44,9 @@ from dialectical_framework.agents.explorer.tools.expand_nexus import expand_nexu
 from dialectical_framework.agents.explorer.tools.present_exploration import (
     present_exploration,
 )
+from dialectical_framework.agents.advisor.tools.record_decision import (
+    record_decision,
+)
 from dialectical_framework.agents.orchestrator.tools.add_input import add_input
 from dialectical_framework.agents.orchestrator.tools.inspect_node import inspect_node
 from dialectical_framework.agents.orchestrator.tools.query_graph import query_graph
@@ -69,6 +72,7 @@ ALL_TOOLS = [
     inspect_node,
     query_graph,
     discard,
+    record_decision,
 ]
 
 # Nexus-scoped Advisor tools are produced per-instance by a factory (the

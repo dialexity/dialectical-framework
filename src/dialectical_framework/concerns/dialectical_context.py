@@ -30,6 +30,9 @@ from dialectical_framework.graph.rendering import (
     format_spiral,
 )
 from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
+from dialectical_framework.graph.repositories.decision_repository import (
+    DecisionRepository,
+)
 from dialectical_framework.graph.repositories.input_repository import InputRepository
 from dialectical_framework.graph.repositories.nexus_repository import NexusRepository
 from dialectical_framework.graph.repositories.perspective_repository import (
@@ -71,18 +74,22 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         perspectives = pp_repo.find_all_active()
         inputs_dump = self._dump_inputs()
+        decisions_dump = self._dump_decisions()
 
         if not perspectives:
-            if inputs_dump:
-                # No structure yet, but captured material exists — surface it
-                # so the model can pick it up instead of assuming a blank slate.
+            if inputs_dump or decisions_dump:
+                # No structure yet, but captured material and/or recorded
+                # decisions exist — surface them so the model can pick them
+                # up instead of assuming a blank slate.
                 self._report.ok = True
-                self._report.summary = "No perspectives yet, inputs pending"
-                return (
-                    f"{inputs_dump}\n\n"
-                    f"No tensions identified yet — sources above are captured "
-                    f"but not yet analyzed."
+                self._report.summary = "No perspectives yet, inputs/decisions pending"
+                parts = [p for p in (inputs_dump, decisions_dump) if p]
+                parts.append(
+                    "No tensions identified yet — sources above (if any) are "
+                    "captured but not yet analyzed; standing decisions (if "
+                    "any) remain in force."
                 )
+                return "\n\n".join(parts)
             self._report.ok = True
             self._report.summary = "Empty graph"
             return "No prior understanding — this is a fresh conversation."
@@ -101,6 +108,8 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         if inputs_dump:
             sections.append(inputs_dump)
+        if decisions_dump:
+            sections.append(decisions_dump)
 
         # Quality floor applies to standalone (unexplored) perspectives only —
         # nexus members are load-bearing (wheels reference their indices) and
@@ -157,6 +166,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if inputs_dump:
             sections.append(inputs_dump)
 
+        # Decisions are Case-level facts — the counsel head must see them
+        # even when pinned to one exploration.
+        decisions_dump = self._dump_decisions()
+        if decisions_dump:
+            sections.append(decisions_dump)
+
         nexus_dump = self._dump_nexus(nexus)
         if nexus_dump:
             sections.append(nexus_dump)
@@ -205,6 +220,51 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 f"Pending (captured, not yet analyzed): {hashes} — "
                 f"use read_digest for content."
             )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _dump_decisions() -> Optional[str]:
+        """Render the # Decisions ledger: active (non-discarded) decisions
+        with their grounds, ground-status flags, and coherence verdict.
+
+        Decisions are Case-level facts, shown in both the unscoped and
+        nexus-scoped dumps.
+        """
+        from datetime import datetime, timezone
+
+        from dialectical_framework.graph.rendering import (
+            decision_ground_line, one_line)
+
+        decisions = DecisionRepository().find_all_active()
+        if not decisions:
+            return None
+
+        lines = ["# Decisions"]
+        for d in decisions:
+            lines.append("")
+            date = ""
+            if d.committed_at:
+                date = datetime.fromtimestamp(
+                    d.committed_at, tz=timezone.utc
+                ).strftime(" (%Y-%m-%d)")
+            lines.append(f"## Decision [[{d.short_hash}]]{date}")
+            # one_line: user-confirmed text may contain newlines — rendered
+            # raw they could fabricate sibling ledger lines (injection).
+            lines.append(f"Question: {one_line(d.intent)}")
+            lines.append(f"Stance: {one_line(d.stance)}")
+            # Ledger shows only the human-confirmed why; machine rationales
+            # (critiques etc.) stay one inspect_node away — deliberate
+            # divergence from _inspect_decision, which shows all.
+            for rationale, _ in d.rationales.all():
+                if rationale.agent == "human":
+                    lines.append(f"Why: {one_line(rationale.text)}")
+            if d.validation:
+                lines.append(f"Validation: {one_line(d.validation)}")
+            grounds = d.grounds.all()
+            if grounds:
+                lines.append("Grounds:")
+                for node, rel in grounds:
+                    lines.append(decision_ground_line(node, rel.role))
         return "\n".join(lines)
 
     def _dump_standalone_perspectives(

@@ -58,6 +58,7 @@ Perspective → Cycle → Wheel (edges) → Transformation
 | **Input** | Content source | `statements`, `ideas` |
 | **Ideas** | Distilled concepts from Input | `inputs` (→Input), `statements` |
 | **Case** | Multi-input exploration | `inputs` (→Input) |
+| **Decision** | User-confirmed decision (question + stance) | `grounds` (→AssessableEntity via GROUNDED_IN, `role` property) |
 
 **Removed:**
 - **Spiral**: Replaced by Transformations on edges (removed as a node; "spiral" survives only as a rendering/format concept in `graph/rendering.py`)
@@ -302,6 +303,35 @@ Think of the analytical layer as **pins and sticky notes** attached to the struc
 | Estimation | Any AssessableEntity (P/R values) |
 | Critique | Rationales (audit/challenge) |
 | Synthesis | Wheel (emergent S+/S- from circular causality) |
+| Decision | Case-level record grounded in AssessableEntities (node itself immutable; its GROUNDED_IN edges + discarded/validation metadata are the analytical part — see below) |
+
+### Decision (Case-Level Record)
+
+A **Decision** records a user's explicitly confirmed stance on a question — the
+durable artifact of the Advisor's propose-and-confirm recording ceremony (a
+decision is a speech act, never extracted from conversation).
+
+- **Thin by design**: `intent` (the question, required at commit) + `stance`
+  (the confirmed wording). The distilled why is a `Rationale(agent="human")`
+  attached via EXPLAINS — which also enables ratings/critiques on decisions.
+  The timestamp is `committed_at` (recording IS deciding).
+- **Grounds**: `GROUNDED_IN` edges (analytical layer) to committed nodes, with
+  an open-vocabulary `role` property. Seed roles — a role exists iff a consumer
+  branches on it: `accepted_cost` (the unchosen side's A+ the person
+  confronted), `adopted_pathway` (the Transformation adopted as management
+  recipe), `None` = plain ground. Targets must be committed, so grounds never
+  dangle; a ground later soft-discarded renders as "since discarded" — re-audit
+  material, not a broken link.
+- **Immutable + standard discard**: commit() freezes it (nonce in hash — the
+  same text recorded twice is two speech acts, never a dedup). Replacing a
+  decision = record a new one + soft-discard the old via the ordinary `discard`
+  tool with a reason naming the replacement ("superseded by [[hash]]"). No
+  bespoke supersede machinery.
+- **Coherence flag**: `validation` ("passed" / "failed: ..." / None) written
+  fail-soft by `DecisionCoherenceCheck` at record time — flags contradictions
+  with standing decisions or grounds; never blocks the record.
+- Rendered as the `# Decisions` ledger in `dialectical_context` (both unscoped
+  and nexus-scoped dumps — decisions are Case-level facts).
 
 ### Why This Separation?
 

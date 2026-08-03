@@ -4,6 +4,7 @@ Discard: Concern for marking statements/perspectives as discarded.
 Blocking rules:
 - Statement: blocked if used by any non-discarded Perspective.
 - Perspective: blocked if it participates in any Cycle.
+- Decision: never blocked (nothing structural depends on a Decision).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.nodes.decision import Decision
 from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
@@ -33,10 +35,12 @@ class DiscardResult:
 
 class Discard(ReasonableConcern[DiscardResult]):
     """
-    Marks a Statement or Perspective as discarded.
+    Marks a Statement, Perspective, or Decision as discarded.
 
     For Statements: blocked if any non-discarded PP uses it. Discard the PPs first.
     For Perspectives: blocked if in a Cycle. Deletes uncommitted, soft-discards committed.
+    For Decisions: never blocked — replacing a decision is record-new + discard-old
+    with a reason referencing the new one (e.g. "superseded by [[hash]]").
 
     Programmatic usage:
         concern = Discard()
@@ -55,6 +59,11 @@ class Discard(ReasonableConcern[DiscardResult]):
     ) -> DiscardResult:
         repo = NodeRepository()
 
+        # An empty reason would exclude the node from active queries (NULL
+        # check) while suppressing truthiness-based "discarded" flags in
+        # renderers — normalize to the default.
+        reason = reason.strip() if reason and reason.strip() else "discarded"
+
         # find_by_hash(node_type=...) raises TypeError on a type mismatch
         # (it does not return None), so resolve untyped and dispatch here.
         node = repo.find_by_hash(hash)
@@ -62,8 +71,10 @@ class Discard(ReasonableConcern[DiscardResult]):
             return self._discard_statement(node, reason)
         if isinstance(node, Perspective):
             return self._discard_perspective(node, reason)
+        if isinstance(node, Decision):
+            return self._discard_decision(node, reason)
 
-        raise ValueError(f"No Statement or Perspective found with hash: {hash}")
+        raise ValueError(f"No Statement, Perspective, or Decision found with hash: {hash}")
 
     def _discard_statement(self, statement: Statement, reason: str) -> DiscardResult:
         pp_repo = PerspectiveRepository()
@@ -105,6 +116,24 @@ class Discard(ReasonableConcern[DiscardResult]):
             node_type="Statement",
             hash=statement.short_hash,
             affected_perspectives=affected,
+        )
+
+    def _discard_decision(self, decision: Decision, reason: str) -> DiscardResult:
+        # Decisions commit atomically, so only the committed path exists;
+        # nothing structural depends on a Decision — no dependency guards.
+        decision.discarded = reason
+        decision.save()
+        self._report.node_updated(decision, patch={"discarded": reason})
+
+        self._report.ok = True
+        self._report.summary = f"Discarded decision '{decision}'"
+        self._report.artifacts["node_type"] = "Decision"
+        self._report.artifacts["hash"] = decision.short_hash
+
+        return DiscardResult(
+            node_type="Decision",
+            hash=decision.short_hash,
+            affected_perspectives=[],
         )
 
     def _discard_perspective(self, perspective: Perspective, reason: str) -> DiscardResult:

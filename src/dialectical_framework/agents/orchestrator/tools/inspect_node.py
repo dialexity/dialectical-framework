@@ -165,6 +165,7 @@ from dialectical_framework.graph.repositories.perspective_repository import Pers
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.cycle import Cycle
+    from dialectical_framework.graph.nodes.decision import Decision
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.polarity import Polarity
@@ -261,6 +262,41 @@ def _inspect_perspective(pp: Perspective) -> str:
                 label += f" ({nexus_node.intent[:30]})"
             nexus_strs.append(f"[{label}]")
         lines.append(f"Nexus memberships: {', '.join(nexus_strs)}")
+
+    return "\n".join(lines)
+
+
+def _inspect_decision(decision: Decision) -> str:
+    """Build detailed inspection output for a Decision."""
+    from datetime import datetime, timezone
+
+    from dialectical_framework.graph.rendering import decision_ground_line
+
+    lines: list[str] = []
+    lines.append(f"## Decision [{_node_id(decision)}]{_status_tag(decision)}")
+    if decision.discarded:
+        lines.append(f"Discarded: {decision.discarded}")
+    if decision.validation:
+        lines.append(f"Validation: {decision.validation}")
+    if decision.committed_at:
+        date = datetime.fromtimestamp(
+            decision.committed_at, tz=timezone.utc
+        ).strftime("%Y-%m-%d %H:%M UTC")
+        lines.append(f"Decided at: {date}")
+    lines.append("")
+    lines.append(f"Question: {decision.intent}")
+    lines.append(f"Stance: {decision.stance}")
+
+    for rationale, _ in decision.rationales.all():
+        prefix = "Why (human)" if rationale.agent == "human" else f"Rationale ({rationale.agent})"
+        lines.append(f"{prefix}: {rationale.text}")
+
+    grounds = decision.grounds.all()
+    if grounds:
+        lines.append("")
+        lines.append("Grounds:")
+        for node, rel in grounds:
+            lines.append(decision_ground_line(node, rel.role, show_type=True))
 
     return "\n".join(lines)
 
@@ -706,6 +742,7 @@ class InspectNode(ReasonableConcern[str]):
         sid: Optional[str] = Provide[DI.sid],
     ) -> str:
         from dialectical_framework.graph.nodes.cycle import Cycle
+        from dialectical_framework.graph.nodes.decision import Decision
         from dialectical_framework.graph.nodes.nexus import Nexus
         from dialectical_framework.graph.nodes.perspective import Perspective
         from dialectical_framework.graph.nodes.polarity import Polarity
@@ -744,6 +781,8 @@ class InspectNode(ReasonableConcern[str]):
             result = _inspect_transition(node)
         elif isinstance(node, Synthesis):
             result = _inspect_synthesis(node)
+        elif isinstance(node, Decision):
+            result = _inspect_decision(node)
         else:
             # Fallback for other node types
             result = f"## {node.__class__.__name__} [{_node_id(node)}]{_status_tag(node)}\n\n{repr(node)}"
@@ -757,6 +796,6 @@ class InspectNode(ReasonableConcern[str]):
 async def inspect_node(
     node_hash: Annotated[str, Field(description="Full hash or unique prefix (7+ chars) of the node to inspect")],
 ) -> str:
-    """Inspect any node by hash to see full details. Routes display based on node type: Perspective shows positions with explanations, scores, lineage, and nexus memberships; Statement shows text, meaning, rationale, and which Perspectives use it; Polarity shows T-A pair with HS and referencing Perspectives; Nexus shows member Perspectives; Cycle shows T-causality sequence, perspectives, probability, rationale, and child wheels; Wheel shows TA-sequence, probability, perspectives, transformations, synthesis, and rationale; Transformation shows Ac/Re structure with scores per position and rationale; Transition shows its full text plus lineage (position/edge, parent Transformation or Wheel, owning Nexus); Synthesis shows S+/S- text, parent wheel, and rationale."""
+    """Inspect any node by hash to see full details. Routes display based on node type: Perspective shows positions with explanations, scores, lineage, and nexus memberships; Statement shows text, meaning, rationale, and which Perspectives use it; Polarity shows T-A pair with HS and referencing Perspectives; Nexus shows member Perspectives; Cycle shows T-causality sequence, perspectives, probability, rationale, and child wheels; Wheel shows TA-sequence, probability, perspectives, transformations, synthesis, and rationale; Transformation shows Ac/Re structure with scores per position and rationale; Transition shows its full text plus lineage (position/edge, parent Transformation or Wheel, owning Nexus); Synthesis shows S+/S- text, parent wheel, and rationale; Decision shows question, stance, human rationale, grounds with roles, and discard/validation status."""
     concern = InspectNode()
     return await concern.resolve(node_hash=node_hash)

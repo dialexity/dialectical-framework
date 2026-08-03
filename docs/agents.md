@@ -206,7 +206,7 @@ built-in set. The engine prompt carries no docs for them (their tool-schema docs
 reach the LLM automatically) — introduce them and their usage rules in the app
 preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 
-**Tools (8)** — coarse, composed super-tools that hide the machinery:
+**Tools (9)** — coarse, composed super-tools that hide the machinery:
 
 | Tool | Composes | Purpose |
 |------|----------|---------|
@@ -214,8 +214,9 @@ preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 | `anchor` | IntroducePolarity + ExpandPolarity | plant a specific T/A tension |
 | `explore` | CreateNexus + ExplorationPipeline + GenerateSynthesis | group → pathways → synthesis in one shot (budgeted: deepens only the top-plausibility arrangement) |
 | `deepen` | ExploreTransformations + GenerateSynthesis | develop an alternative arrangement when the person's lived reality picks a shallow reading |
+| `record_decision` | RecordDecision + DecisionCoherenceCheck | record an explicitly confirmed decision with grounds + human rationale (consent-first in BOTH modes — the one exception to silent machinery) |
 | `sync` | DialecticalContext | re-read full graph state |
-| `discard`, `inspect_node`, `read_digest` | shared | curate / detail |
+| `discard`, `inspect_node`, `read_digest` | shared | curate / detail (discard also retracts/supersedes Decisions) |
 
 `ingest` and `explore` each collapse an entire Analyst-or-Explorer workflow into one
 call; the Advisor decides internally when to analyze vs. explore — no phase split is
@@ -349,6 +350,45 @@ nexus — it IS Analyst+Explorer behind one voice), but with two constraints:
   analytical depth to existing structure, never changes what the exploration contains.)
 
 ---
+
+## Decision-making apps
+
+The Advisor carries the full decision lifecycle in its engine prompt (the
+"Decision Readiness" section, rendered whenever `record_decision` is wired):
+convergence mechanics (discrimination test, saturation-by-family judgment),
+the propose-and-confirm recording ceremony, the soft pre-commit ritual
+(accepted cost confronted, S- trap named), and the post-decision re-audit
+(reassure from the record vs legitimately reopen). All of that is
+domain-neutral framework behavior — always on, never re-specify it in an app.
+
+What belongs **app-side** (via `AppSpec`):
+- **Persona/ceremony intensity** — how pushy convergence feels, how formal the
+  recording moment is (a `DECISION_PARTNER_APP`-style persona whose contract is
+  the decision, not the exploration: establish what's being decided and by
+  when, treat every blindspot/pathway as input to that choice, switch register
+  at readiness).
+- **Urgency/deadline handling** — deadlines are conversation content the
+  persona attends to, not framework state.
+- **Decision-list UI** — the `# Decisions` ledger renders in the context dump;
+  a host can also query `DecisionRepository` directly for a decisions panel.
+- **Re-open flows** — the framework's primitive is record-new + discard-old
+  (reason naming the replacement); how a UI surfaces "revisit this decision"
+  is the host's design.
+
+**Navigator visibility (deliberate deferral):** `present_analysis` and
+`present_exploration` do NOT render decisions — the Analyst/Explorer heads
+have no rendered awareness of them (reachable only via `query_graph`/
+`inspect_node` by hash; the shared `discard` tool is technically
+decision-capable wherever it's wired, including the Analyst, but no Navigator
+prompt directs it at decisions — the consent ceremony lives in the Advisor
+line). Decisions are an Advisor-line artifact for now; extending the ledger
+to the Navigator surfaces is a scope decision to make explicitly, not an
+omission (it would touch the Navigator prompts' vocabulary contract, not
+just the renderers). The counsel toggle is the covered exception: after a
+counsel-mode recording, the Explorer head sees the record in its replayed
+history (verbatim tool blocks) and can read it via `inspect_node`/
+`query_graph`; its prompt routes decision *lifecycle* (record/retire) back
+to counsel mode and forbids fake acknowledgments.
 
 ## Choosing what to build
 
