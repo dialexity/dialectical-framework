@@ -64,6 +64,8 @@ The framework implements **Structured Dialectics** (theory papers in `docs/r-n-d
 
 **Key nodes:** Statement, Perspective (PP), Polarity, Nexus, Cycle, Wheel, Transformation, Transition, Ideas, Input, Case, Synthesis, Decision
 
+**Perspective.intent = the tetrad's "reading"** ("Reading along: X / Y", axes from TetradDto). Set BEFORE commit (hash-participating: distinct readings = distinct nodes; same reading dedups). Distinguishes sibling tetrads on one Polarity; `edit_perspective` clones drop it (stale after edits).
+
 **Hierarchy:** Perspective → Cycle → Wheel (edges) → Transformation
 
 **Cycle vs Wheel:** Cycle = ordered T-causality sequence (which thesis causes which). Wheel = full circular TA-arrangement with transitions (`generate_compatible_sequences`, diagonal symmetry: T_i opposite A_i). Rotated Cycles are rotations of one directed circle; Wheels are rotation-invariant (`WheelRepository.find_by_component_sequence`), so sibling Cycles share Wheel nodes. All scoped by `sid`.
@@ -122,7 +124,7 @@ Advisor has `discard` but NO edit tool — re-framing means discard + `anchor` t
 
 ### User-Facing Vocabulary is App-Layer
 
-The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-); user-facing vocabulary is contextual and lives in app preambles (`agents/apps.py`). System prompts handle tool selection/workflow only — presentation vocabulary and app-UI behavioral constraints (e.g., viewport scope) both go in app preambles.
+The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-); user-facing vocabulary lives in app preambles (`agents/apps.py`). System prompts handle tool selection/workflow only — presentation vocabulary and app-UI behavioral constraints (e.g., viewport scope) go in app preambles.
 
 **Surface names are fixed across all agent prompts:** "analysis view" (Analyst), "exploration view" (Explorer), "counsel mode" (exploration-pinned Advisor) — never "thread" or ad-hoc variants.
 
@@ -182,7 +184,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 ## Technology Stack
 
 - **Graph DB**: Memgraph or Neo4j (via GQLAlchemy)
-  - GQLAlchemy hardcodes `autocommit = True` — no multi-statement transactions available through the ORM. Each `save_node()`/`save_relationship()` is its own committed transaction. Application-level `saved_at` tracking (on `IncrementalBuildMixin`) provides the atomicity signal instead.
+  - GQLAlchemy hardcodes `autocommit = True` — no multi-statement transactions; each `save_node()`/`save_relationship()` commits alone. `saved_at` tracking (`IncrementalBuildMixin`) is the atomicity signal instead.
 - **DI**: dependency-injector
 - **Validation**: Pydantic v1 *style* (v1-compatible `Field`/validators), but the installed lib is **v2** — for introspection use `Model.model_fields[name].description`, not `__fields__`/`.field_info`.
 - **LLM**: Mirascope (OpenAI, Anthropic, Bedrock via custom provider)
@@ -276,18 +278,15 @@ container.commit()
 
 **Uncommitted node safety (`saved_at`):** `save()` sets `saved_at`; `commit()` clears it. `saved_at != NULL, hash == NULL` = actively building or abandoned garbage. All listing/discovery queries MUST filter `WHERE n.hash IS NOT NULL`. Cleanup: `scripts/cleanup_stale_nodes.py --max-age 86400`.
 
-**Event reporting:** `commit()` itself emits no SSE events. When it creates relationships internally (e.g., `Polarity.commit()` creates T/A edges), the calling skill must emit `relationship_created` for each edge. Container nodes using save-then-commit emit split events: `report.node_created(node)` after `save()` (db_id set, hash null), `report.node_committed(node)` after `commit()`. Atomic-commit nodes emit a single `node_created` with both set.
+**Event reporting:** `commit()` emits no SSE events. When it creates relationships internally (e.g., `Polarity.commit()` creates T/A edges), the calling skill emits `relationship_created` per edge. Save-then-commit containers emit split events: `report.node_created(node)` after `save()`, `report.node_committed(node)` after `commit()`. Atomic-commit nodes emit one `node_created` with both set.
 
 ### Relationship Direction
 
 `RelationshipTo` and `RelationshipFrom` define the SAME edge from different perspectives. Convention: Child→Parent edges use `RelationshipTo` on child.
 
 ```python
-class Perspective(AssessableEntity):
-    nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")  # PP→Nexus
-
-class Nexus(AssessableEntity):
-    perspectives = RelationshipFrom("Perspective", "BELONGS_TO_NEXUS")  # Same edge, reverse view
+nexus = RelationshipTo("Nexus", "BELONGS_TO_NEXUS")            # on Perspective (child)
+perspectives = RelationshipFrom("Perspective", "BELONGS_TO_NEXUS")  # on Nexus — same edge
 ```
 
 **Event direction for `relationship_created`:** `from_node`/`to_node` must match the actual DB edge direction, NOT the owner's perspective. E.g. `relationship_created(polarity.t, thesis_stmt, polarity)` — Statement is from_node because the DB edge is `(Statement)-[T]->(Polarity)`.
@@ -308,21 +307,23 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 ### Antithesis Persistence Checklist
 
-When calling `AntithesisClassification`, the caller must persist Mode/Arousal via `EstimationManager.upsert_estimation()` — the concern returns the result but creates no DB nodes. `AntithesisExtraction` handles this internally; `AntithesisClassification` does not.
+`AntithesisClassification` returns Mode/Arousal but creates no DB nodes — the caller persists via `EstimationManager.upsert_estimation()` (`AntithesisExtraction` does this internally).
 
 ### Model Provenance is Rationale-Only
 
-Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<model>` format, auto-populated from settings; the sentinel `"human"` marks user-confirmed content, e.g. a Decision's rationale). Other nodes (Statement, Estimation, Perspective, etc.) trace provenance indirectly through their associated Rationale. This is intentional — not an oversight to "fix" by adding `agent` to more node types.
+Only `Rationale.agent` tracks generating model (`<provider>/<model>`, auto-filled from settings; sentinel `"human"` = user-confirmed content, e.g. a Decision's rationale). Other nodes trace provenance through their Rationale — intentional, don't "fix" by adding `agent` elsewhere.
 
 ### Statement Generation Conventions
 
 - Word limit: always use `self.settings.component_length` (headlines, ~7) or `self.settings.transition_length` (transitions, ~15) via `SettingsAware` — never hardcode. Pydantic `Field` descriptions can't interpolate `self.settings`: keep length qualitative there, numeric limit in the method prompt body.
-- **`component_length` is enforced at generation/extraction time, not by `StatementClassification`** (echoes text verbatim). The `anchor` path has no extraction step, so `StatementHeadline` condenses there: both anchor legs run it in parallel with classification (`asyncio.gather`); classification reads full text, only stored `Statement.text` becomes the headline; text ≤ limit short-circuits without an LLM call. `edit_perspective` deliberately does NOT condense — user-typed wording must survive.
+- **`component_length` is enforced at generation/extraction time, not by `StatementClassification`** (echoes text verbatim). The `anchor` path has no extraction step, so `StatementHeadline` condenses there (gathered with classification; classification reads full text, stored `Statement.text` = headline; text ≤ limit skips the LLM call). `edit_perspective` deliberately does NOT condense — user-typed wording must survive.
 - Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents cross-context dedup while `commit()` handles exact-match dedup automatically.
 
 ### Classification → HS Chain (Critical Invariant)
 
 `StatementClassification` (SIMPLE vs COMPLEX) determines the entire antithesis path: SIMPLE → mechanical negation, HS hardcoded 1.0, no taxonomy contextualization; COMPLEX → LLM-evaluated antithesis taxonomy, LLM-scored HS (0.0–1.0). Polarity HS (UI + `_rank_polarities` gate at `HS_THRESHOLD=0.7`) comes from the A-relationship's `heuristic_similarity` — misclassifying COMPLEX as SIMPLE inflates all polarities to HS=1.0, defeating quality differentiation. The SIMPLE/COMPLEX boundary is the most leverage-dense prompt in the extraction pipeline.
+
+Named options / courses of action ("Take the startup offer") classify COMPLEX — SIMPLE strips taxonomy anchoring from the option tetrad. For option-pairs, Mode (in the anchor report) is the "differ rather than oppose" tell, not HS: mutually exclusive options sit in each other's negation space, so HS scores moderate; Mode ~0.0–0.1 (distancing/privation) flags a fork that isn't the tension.
 
 ### Observability (Langfuse)
 
@@ -363,15 +364,14 @@ Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-f
 @llm.tool
 async def surface_theses(
     intent: Annotated[str, Field(description="What theses to find")],
-    input_hashes: Annotated[list[str] | None, Field(description="Input hashes to process selectively")] = None,
 ) -> str:
     """Surfaces theses for dialectical analysis."""
-    skill = SurfaceTheses(intent=intent, input_hashes=input_hashes)
+    skill = SurfaceTheses(intent=intent)
     await skill.resolve()
     return str(skill.report)
 ```
 
-**Critical:** Never use `param = Field(default=X, ...)` as a Python default — Mirascope leaves the raw `FieldInfo` object as the runtime default. Always use `Annotated[type, Field(...)] = actual_default`. Test coverage: `test_tool_signatures.py`.
+**Critical:** Never use `param = Field(default=X, ...)` as a Python default — Mirascope leaves the raw `FieldInfo` as the runtime default. Always `Annotated[type, Field(...)] = actual_default`. Test coverage: `test_tool_signatures.py`.
 
 **Mirascope does NOT coerce nested models in tool kwargs** — `json.loads`'d args mean a `list[Model]` param arrives as raw dicts. Normalize via `Model.model_validate` in the concern (`RecordDecision`); test with raw-dict calls (`TestRecordDecisionToolBoundary`) — `test_tool_signatures.py` fills arrays with strings and can't catch it.
 
