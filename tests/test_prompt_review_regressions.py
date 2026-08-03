@@ -1914,6 +1914,14 @@ class TestDecisionReadiness:
         prompt = concern._classification_prompt()
         assert "course of action" in prompt
 
+    def test_named_options_reading_promotion(self):
+        """A resonant reading (Perspective.intent, the persisted axis) is an
+        anchor candidate — the lazy materialization path from reading-string
+        to first-class Polarity. Must survive both renders."""
+        for prompt in (self._unscoped(), self._scoped()):
+            assert "Each perspective names its reading" in prompt
+            assert "it is itself an anchor candidate" in prompt
+
     def test_anchor_report_carries_mode(self):
         """The named-options paragraph tells the Advisor to read 'a low mode
         (drifting/absence rather than negation)' from the anchor result at

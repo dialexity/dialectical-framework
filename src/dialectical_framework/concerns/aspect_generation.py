@@ -230,6 +230,12 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
+        # Axes named by the last resolve() (full-tetrad and pair paths only).
+        # Keys: "t_plus_vs_a_minus", "a_plus_vs_t_minus". The caller
+        # (ExpandPolarity) composes these into Perspective.intent — the
+        # human-readable name of THIS reading of the tension. Disclaimer
+        # axes ("no shared dimension...") are filtered to None.
+        self.axes: dict[str, str] = {}
 
     async def resolve(
         self,
@@ -257,6 +263,7 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         """
         self._pp = perspective
         self._text = text
+        self.axes = {}
 
         # Extract T and A from Perspective
         t_result = perspective.t.get()
@@ -351,6 +358,34 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
         return results
 
+    def _capture_axis(self, key: str, axis: str) -> None:
+        """Record a named axis for the caller, filtering disclaimers.
+
+        The DTO instructs the model to SAY when no genuine shared dimension
+        exists rather than invent one — such disclaimers must not become a
+        perspective's reading. Heuristic: a real axis is a short dimension
+        name ("closeness", "self-directed growth vs institutional security");
+        a disclaimer is a sentence about the absence of one.
+        """
+        axis = (axis or "").strip()
+        if not axis:
+            return
+        lowered = axis.lower()
+        disclaimer_markers = (
+            "no ",  # "no such dimension", "no shared axis"
+            "not a genuine",
+            "do not share",
+            "does not",
+            "doesn't",
+            "cannot",
+            "lack",
+        )
+        if any(marker in lowered for marker in disclaimer_markers):
+            return
+        if len(axis.split()) > 12:  # sentence-length = explanation, not a name
+            return
+        self.axes[key] = axis
+
     def _is_contradiction_pair(self, positions: list[str]) -> bool:
         """Check if positions form a contradiction pair."""
         if len(positions) != 2:
@@ -369,6 +404,9 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
             response_model=TetradDto,
             user_content=self._tetrad_prompt(existing_context),
         )
+
+        self._capture_axis("t_plus_vs_a_minus", result.t_plus_vs_a_minus_axis)
+        self._capture_axis("a_plus_vs_t_minus", result.a_plus_vs_t_minus_axis)
 
         results = []
         position_to_dto = {
@@ -404,6 +442,13 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
                 positive_pos, negative_pos, existing_context
             ),
         )
+
+        axis_key = (
+            "t_plus_vs_a_minus"
+            if positive_pos == POSITION_T_PLUS
+            else "a_plus_vs_t_minus"
+        )
+        self._capture_axis(axis_key, result.axis)
 
         results = []
         results.append(

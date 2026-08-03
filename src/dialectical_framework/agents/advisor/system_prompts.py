@@ -276,7 +276,11 @@ maps expensively — and anchor the same pair again (identical wording) for an
 alternative tetrad only when their reactions show the mapped dimension isn't
 the one the choice turns on. Alternative tetrads are readings of the choice
 itself, not new candidate tensions — the discrimination test below governs
-those. When weaving, take the reading that resonates plus the tensions
+those. Each perspective names its reading (the dimension its aspects oppose
+along); when a reading strongly resonates — the person keeps returning to
+that dimension — it is itself an anchor candidate: anchor it as its own
+tension (its two poles as thesis and antithesis) to give the root its full
+structure. When weaving, take the reading that resonates plus the tensions
 beyond the fork; sibling readings of one pair only shift the angle. And read
 the anchor result at call time: options that merely differ rather than
 oppose show up as weak opposition (low HS) or a low mode (drifting/absence

@@ -303,6 +303,20 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   courses of action as COMPLEX (keystone: SIMPLE would strip taxonomy anchoring from option tetrads);
   `AspectGeneration`'s `not_like_these` diversity instruction is load-bearing for sibling-tetrad variation —
   weakening "generate something different" collapses repeat-anchors into dedup-discards.
+  **Perspective reading (axis → intent)** (live since 2026-08): the axis names `TetradDto` forces the model
+  to produce (issue #25 fix) now PERSIST — `AspectGeneration._capture_axis` collects them on `self.axes`
+  (filtering the "no genuine shared axis" disclaimers the DTO deliberately allows; heuristic filter, sentence-length
+  or negation-marker axes are dropped), `ExpandPolarity._compose_reading` writes "Reading along: X / Y" into
+  `Perspective.intent` BEFORE commit (intent participates in the hash → distinct readings are structurally
+  distinct nodes; identical readings hash-collide into dedup — intended). The reading is what distinguishes
+  sibling tetrads on one Polarity; rendered by `_dump_one_perspective` (one_line-hardened) + `inspect_node`
+  (pre-existing Intent line) + `expand_polarities` final-state artifact (`reading` key); GRAPH_SCHEMA documents
+  the semantics. `edit_perspective` clones DROP the inherited intent (stale axis after user edits).
+  Promotion path (prompt): a resonant reading is an anchor candidate — anchor its poles as a real Polarity
+  (lazy materialization; axis-string = breadcrumb, Polarity = paid-for structure). Ontology note: an axis IS
+  polarity-shaped, but eager Polarity minting per tetrad was rejected (front-half LLM cost on every tetrad +
+  scaffolding promoted to first-class vocabulary); the string field + on-resonance anchor is the lazy variant.
+  Locked by `tests/test_perspective_reading.py` + `TestDecisionReadiness::test_named_options_reading_promotion`.
   Locked by
   `tests/test_prompt_review_regressions.py::TestDecisionReadiness` (+ `TestExplorerAdvisorToggleNarration::
   test_explorer_routes_decision_moments_to_counsel`) + `tests/test_decision.py` (incl.

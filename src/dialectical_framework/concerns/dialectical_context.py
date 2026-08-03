@@ -286,6 +286,13 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         header = f"## Perspective {idx} [[{pp.short_hash}]]" if idx else f"## Perspective [[{pp.short_hash}]]"
         lines = [header]
 
+        # The reading (intent): which dimension THIS tetrad opposes along —
+        # what distinguishes sibling tetrads on one polarity.
+        if pp.intent:
+            from dialectical_framework.graph.rendering import one_line
+
+            lines.append(one_line(pp.intent))
+
         t_result = self._safe_get(pp.t)
         a_result = self._safe_get(pp.a)
 

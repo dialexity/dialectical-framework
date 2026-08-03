@@ -128,6 +128,10 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         # Prepare working PP (clone if committed)
         if self._was_committed:
             working_pp = pp.clone()
+            # Drop the inherited reading (intent): the axis was named for the
+            # ORIGINAL aspects — after a user edit it may no longer describe
+            # this tetrad, and a stale reading is worse than none.
+            working_pp.intent = None
             working_pp.save()
             self._report.node_created(working_pp)
         else:
