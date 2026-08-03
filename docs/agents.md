@@ -52,7 +52,7 @@ declares its custom pieces once — `voicing` (Navigator-side domain flavor),
 `advisor_persona` (standalone-Advisor identity), `tool_guide` (shared tool usage rules),
 `tools` — and every head composes the right preamble itself: Analyst/Explorer get
 `NAVIGATOR_APP + voicing + tool_guide`, the counsel toggle gets
-`EXPLORATION_ADVISOR_APP + voicing + tool_guide`, the standalone Advisor gets
+`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + voicing + tool_guide`, the standalone Advisor gets
 `advisor_persona + tool_guide`. The framework owns the composition lore; apps never
 touch the base preambles. One AppSpec constant, passed to every constructor — the
 continuity rule below is then automatic.
@@ -192,7 +192,10 @@ locks the `create_nexus` exclusion specifically.
 pure-conversation agent where the framework runs behind the scenes and the user
 experiences only progressively wiser responses. Its system prompt is a domain-neutral
 dialectical engine; the **persona** comes entirely from the app preamble (counselor,
-strategist, coach, mediator, sparring partner — see `agents/apps.py`).
+strategist, coach, mediator, sparring partner, decision partner — see `agents/apps.py`;
+`DECISION_PARTNER_PERSONA` is the convergence-forward persona for decision-making apps:
+it drives toward the choice and keeps the recorded decision, while the convergence
+mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
 nexus_hash=None, app_tools=None)`. `dialectical_context` is an optional pre-rendered
@@ -285,7 +288,7 @@ handover of the SAME conversation between two heads, driven by the host:
 ```python
 # user in Explorer asks "so what should I actually do?" → toggle to counsel mode
 advisor = Advisor(
-    app_preamble=EXPLORATION_ADVISOR_APP,  # NAVIGATOR_APP + advisory register — same user contract, counsel voice
+    app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,  # NAVIGATOR_APP + advisory register — same user contract, counsel voice
     nexus_hash=explorer.nexus_hash,
     messages=explorer.messages,
 )
@@ -293,7 +296,7 @@ advisor = Advisor(
 # later: "let's compare the other wheels again" → toggle back
 explorer = Explorer(
     nexus_hash=advisor_nexus_hash,
-    app_preamble=NAVIGATOR_ADVANCED_MODE_APP,
+    app_preamble=NAVIGATOR_APP_ADVANCED_TOGGLE,
     messages=advisor.messages,
 )
 ```
@@ -343,7 +346,7 @@ nexus — it IS Analyst+Explorer behind one voice), but with two constraints:
 - **Nexus pin in code** (`advisor/tools/scoped.py`): it cannot create sibling nexuses or
   reach outside the exploration (deepen refuses wheels of other explorations). Only
   `ingest` is excluded (bulk extraction belongs to the Analyst thread).
-- **Transparent mutation** (`EXPLORATION_ADVISOR_APP`): unlike the unscoped Advisor's
+- **Transparent mutation** (`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER`): unlike the unscoped Advisor's
   silent graph-building, the counsel head asks before adding a new tension to the
   user-built exploration and announces the change afterwards. The deliverable never
   changes behind the user's back. (`deepen` needs no consent ceremony — it only adds
@@ -363,7 +366,7 @@ domain-neutral framework behavior — always on, never re-specify it in an app.
 
 What belongs **app-side** (via `AppSpec`):
 - **Persona/ceremony intensity** — how pushy convergence feels, how formal the
-  recording moment is (a `DECISION_PARTNER_APP`-style persona whose contract is
+  recording moment is (a `DECISION_PARTNER_PERSONA`-style persona whose contract is
   the decision, not the exploration: establish what's being decided and by
   when, treat every blindspot/pathway as input to that choice, switch register
   at readiness).

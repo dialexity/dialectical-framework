@@ -364,12 +364,12 @@ class TestAgentPrompts:
 
     def test_advanced_app_override_resolves_translation_table_conflict(self):
         """S5: override names both sections and supersedes the CRITICAL directive."""
-        from dialectical_framework.agents.apps import NAVIGATOR_ADVANCED_MODE_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_ADVANCED_TOGGLE
 
         assert (
-            "overrides Contextual Vocabulary and Presentation Defaults" in NAVIGATOR_ADVANCED_MODE_APP
+            "overrides Contextual Vocabulary and Presentation Defaults" in NAVIGATOR_APP_ADVANCED_TOGGLE
         )
-        assert "does not apply here" in NAVIGATOR_ADVANCED_MODE_APP
+        assert "does not apply here" in NAVIGATOR_APP_ADVANCED_TOGGLE
 
     def test_no_tetrades_misspelling(self):
         from dialectical_framework.agents.analyst.system_prompts import \
@@ -533,7 +533,7 @@ class TestAdvisorFloorGuarantee:
 
     def test_terminology_ban_has_preamble_escape_hatch(self):
         """Terminology hiding is preamble-overridable (vocabulary dial),
-        following the NAVIGATOR_ADVANCED_MODE_APP override precedent."""
+        following the NAVIGATOR_APP_ADVANCED_TOGGLE override precedent."""
         from dialectical_framework.agents.advisor.system_prompts import \
             SYSTEM_PROMPT
 
@@ -1037,9 +1037,9 @@ class TestExplorerAdvisorToggleNarration:
     def test_scoped_advisor_signals_exploration_view(self):
         """The counsel-mode preamble already narrates switching back to the
         technical exploration view — lock that phrase."""
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
-        joined = " ".join(EXPLORATION_ADVISOR_APP.split())
+        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.split())
         assert "they can switch anytime" in joined
         assert "exploration view" in joined
 
@@ -1257,14 +1257,14 @@ class TestAdvisorNexusSizeCapDerived:
 
 
 class TestExplorationAdvisorColdStart:
-    """EXPLORATION_ADVISOR_APP must not presuppose shared history or that the
+    """NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER must not presuppose shared history or that the
     user built the exploration — the constructor explicitly supports
     messages=None on an existing (possibly ingest-built or shared) nexus."""
 
     def test_history_is_ground_truth_not_assumed(self):
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
-        joined = " ".join(EXPLORATION_ADVISOR_APP.split())
+        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.split())
         assert "take the history you actually see as the ground truth" in joined
         assert "never assume shared memories" in joined
         # authorship is not presupposed either
@@ -1275,9 +1275,9 @@ class TestExplorationAdvisorColdStart:
     def test_switch_back_hedged_on_host_affordance(self):
         """Mirror of the Explorer's 'if the application offers' hedge — the
         counsel head must not promise a UI affordance the host may not have."""
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
-        joined = " ".join(EXPLORATION_ADVISOR_APP.split())
+        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.split())
         assert "if the application offers a way back" in joined
 
 
@@ -1347,14 +1347,14 @@ class TestNexusExplorationVocabulary:
         assert "name the existing nexus" not in SYSTEM_PROMPT
 
     def test_advanced_app_still_permits_nexus_for_experts(self):
-        """NAVIGATOR_ADVANCED_MODE_APP explicitly overrides the vocabulary rules for experts."""
-        from dialectical_framework.agents.apps import NAVIGATOR_ADVANCED_MODE_APP
+        """NAVIGATOR_APP_ADVANCED_TOGGLE explicitly overrides the vocabulary rules for experts."""
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_ADVANCED_TOGGLE
 
-        assert "Nexus" in NAVIGATOR_ADVANCED_MODE_APP
+        assert "Nexus" in NAVIGATOR_APP_ADVANCED_TOGGLE
 
 
 class TestExplorationAdvisorApp:
-    """EXPLORATION_ADVISOR_APP is the counsel-mode preamble of the
+    """NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER is the counsel-mode preamble of the
     Explorer<->Advisor toggle. It MUST be composed on NAVIGATOR_APP (Navigator
     territory: same vocabulary contract, perspective detection, score
     presentation) — not written from scratch — and it must mandate
@@ -1362,34 +1362,34 @@ class TestExplorationAdvisorApp:
 
     def test_composed_on_default_app(self):
         from dialectical_framework.agents.apps import (NAVIGATOR_APP,
-                                                       EXPLORATION_ADVISOR_APP)
+                                                       NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER)
 
-        assert EXPLORATION_ADVISOR_APP.startswith(NAVIGATOR_APP)
-        assert "## Advisory Register" in EXPLORATION_ADVISOR_APP
+        assert NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.startswith(NAVIGATOR_APP)
+        assert "## Advisory Register" in NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
     def test_grants_terminology_disclosure_for_engine_hatch(self):
         """The engine's terminology escape hatch keys on the preamble
         granting disclosure — the section must exist."""
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
-        assert "## Terminology Disclosure" in EXPLORATION_ADVISOR_APP
+        assert "## Terminology Disclosure" in NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
     def test_disclosure_defers_to_default_app_nexus_rule(self):
         """Disclosure does NOT unlock 'Nexus' — NAVIGATOR_APP's exploration
-        vocabulary still governs (unlike NAVIGATOR_ADVANCED_MODE_APP, which unlocks it)."""
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        vocabulary still governs (unlike NAVIGATOR_APP_ADVANCED_TOGGLE, which unlocks it)."""
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
-        idx = EXPLORATION_ADVISOR_APP.find("## Terminology Disclosure")
-        disclosure = EXPLORATION_ADVISOR_APP[idx:]
+        idx = NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.find("## Terminology Disclosure")
+        disclosure = NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER[idx:]
         assert '"Nexus" stays internal' in disclosure
 
     def test_mandates_transparent_mutation(self):
         """Counsel mode must never grow or prune the user-built exploration
         silently — ask first, announce after."""
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
         assert "Never grow or prune their exploration silently" in (
-            EXPLORATION_ADVISOR_APP
+            NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
         )
 
 
@@ -1857,3 +1857,80 @@ class TestDecisionReadiness:
         doc = " ".join(_TOOL_DOCS["record_decision"].split())
         assert "use `discard`" in doc
         assert "EXPLICITLY confirmed" in doc
+
+
+class TestAdvisoryPersonaBoundary:
+    """App/engine boundary for advisory personas (systemic-map gap: personas
+    were entirely untested). Advisory personas carry ONLY voice — the engine
+    owns framework terminology and the decision-convergence mechanics, and a
+    persona that re-states either would fuse into a contradicting or
+    double-specified system prompt."""
+
+    ADVISORY_PERSONAS = [
+        "COUNSELOR_PERSONA",
+        "STRATEGIC_ADVISOR_PERSONA",
+        "COACH_PERSONA",
+        "MEDIATOR_PERSONA",
+        "SPARRING_PARTNER_PERSONA",
+        "DECISION_PARTNER_PERSONA",
+    ]
+
+    @pytest.mark.parametrize("name", ADVISORY_PERSONAS)
+    def test_no_framework_terminology(self, name):
+        """The engine's How You Speak bans framework terms unless the preamble
+        grants disclosure — an advisory persona must not smuggle them in."""
+        import re
+
+        from dialectical_framework.agents import apps
+
+        persona = getattr(apps, name)
+        # Unambiguous framework-only vocabulary. Everyday polysemous words
+        # ("perspective", "transformation", "synthesis") are deliberately not
+        # banned — COUNSELOR_PERSONA legitimately "offers perspectives".
+        banned = [
+            "thesis", "antithesis", "polarity", "tetrad", "nexus",
+            "dialectic", "wheel",
+        ]
+        for term in banned:
+            assert not re.search(rf"(?<![\w+]){term}", persona, re.I), (
+                f"{name} carries framework term '{term}' — personas are "
+                "voice-only; terminology disclosure belongs to Navigator-side "
+                "preambles."
+            )
+
+    @pytest.mark.parametrize("name", ADVISORY_PERSONAS)
+    def test_no_engine_mechanics_respecification(self, name):
+        """Convergence mechanics (discrimination test, saturation, the
+        recording ceremony, re-audit) are engine behavior — a persona tunes
+        how convergence FEELS, never re-specifies the mechanics."""
+        from dialectical_framework.agents import apps
+
+        persona = getattr(apps, name).lower()
+        for term in ["discrimination", "saturation", "re-audit",
+                     "record_decision", "ceremony"]:
+            assert term not in persona, (
+                f"{name} re-specifies engine mechanics ('{term}') — "
+                "the Decision Readiness section owns these."
+            )
+
+    def test_decision_partner_is_convergence_forward(self):
+        """The decision-partner persona's contract: the decision (not the
+        exploration) is the deliverable, a formed leaning flips the persona's
+        phase from opening to testing (NOT a register in the Explorer↔Advisor
+        toggle sense — no head swap, just the persona's own arc), and settled
+        choices are defended against wobble but reopened on real news."""
+        from dialectical_framework.agents.apps import DECISION_PARTNER_PERSONA
+
+        text = " ".join(DECISION_PARTNER_PERSONA.split())
+        assert "decision partner" in text.lower()
+        # The frame: establish and hold the decision.
+        assert "what exactly is being decided" in text
+        # Phase shift on a forming leaning (within one persona).
+        assert "stop opening the space and start testing the choice" in text
+        # Vocabulary guard: "register" is the Explorer↔Advisor toggle's term.
+        assert "register" not in text.lower()
+        # Post-decision stance: keeper, not prosecutor; wobble vs news.
+        assert "keeper of their decisions" in text
+        assert "genuinely new information" in text
+        # The product is the person's own confidence, not obedience.
+        assert "not because you told them what to do" in text

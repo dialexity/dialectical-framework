@@ -31,7 +31,7 @@ The framework implements **Structured Dialectics** (theory papers in `docs/r-n-d
 
 **8. Systemic Taxonomy.** Universal taxonomy (Table S-1), 5 branches — Integrity, Fidelity, Exchange, Flexibility, Resilience — apex concepts for T+/T-/A+/A- per domain. `SYSTEMIC_TAXONOMY` in `concerns/statement_classification.py`; used for HS and anchor aspects.
 
-**Greimas mapping:** Ac (Action) = Not-A space (T to Ac+); Re (Reflection) = Not-T space (A to Re+). Ac+/Re+ are generative; Ac-/Re- are transitions' degradation modes.
+**Greimas mapping:** Ac (Action) = Not-A space (T to Ac+); Re (Reflection) = Not-T space (A to Re+). Ac+/Re+ generative; Ac-/Re- = degradation modes.
 
 ### Scoring & Metrics (see docs/scoring.md for full reference)
 
@@ -91,7 +91,7 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **Max wheel layer (`settings.max_wheel_layer`, default 4, env `DIALEXITY_MAX_WHEEL_LAYER`):** `PerspectiveCombination` caps layers regardless of nexus size — bounds combinatorial explosion.
 
-**Combinatorial growth (layer = PP count):** `C(N,k)` × `max(1,(k-1)!)` cycles × `W(k)` wheels/cycle, W(1..4)=1,2,4,8. Totals: 1PP→1C/1W, 2PP→3C/4W, 3PP→8C/17W, 4PP→24C/96W.
+**Combinatorial growth (layer = PP count):** `C(N,k)` × `max(1,(k-1)!)` cycles × `W(k)` wheels/cycle, W(1..4)=1,2,4,8; 4PP→24C/96W.
 
 ### Structural vs Analytical Layers
 
@@ -118,15 +118,15 @@ Advisor has `discard` but NO edit tool — re-framing means discard + `anchor` t
 - `sync` — re-read graph state (DialecticalContext); optional `nexus_hash` zooms into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps)
 - `discard`, `inspect_node`, `read_digest` — graph curation and detail reads (shared orchestrator tools)
 
-**ExpandPolarity creates `count` new perspectives per call (default 1).** Generated sequentially, each using `not_like_these` (existing + already-generated-this-call) for diversity. Pass `count > 1` to build alternative tetrads in one call; a pre-existing partial counts toward `count`.
+**ExpandPolarity creates `count` new perspectives per call (default 1),** sequentially, each using `not_like_these` (existing + generated-this-call) for diversity; a pre-existing partial counts toward `count`.
 
 ### User-Facing Vocabulary is App-Layer
 
 The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+/A-); user-facing vocabulary is contextual and lives in app preambles (`agents/apps.py`). System prompts handle tool selection/workflow only — presentation vocabulary and app-UI behavioral constraints (e.g., viewport scope) both go in app preambles.
 
-**Surface names are fixed across all agent prompts:** "analysis view" (Analyst), "exploration view" (Explorer), "counsel mode" (exploration-pinned Advisor). Never "thread" or ad-hoc variants — the toggle/round-trip UX needs every head naming the surfaces identically.
+**Surface names are fixed across all agent prompts:** "analysis view" (Analyst), "exploration view" (Explorer), "counsel mode" (exploration-pinned Advisor) — never "thread" or ad-hoc variants.
 
-**Advisor preamble/engine split:** the system prompt is a domain-neutral dialectical engine; persona (counselor, strategist, coach) comes entirely from the app preamble — same engine serves any domain. See methodology mappings in `apps.py` docstring.
+**Advisor preamble/engine split:** the system prompt is a domain-neutral dialectical engine; persona comes entirely from the app preamble. `apps.py` naming: `*_APP` = framework-owned Navigator contracts (AppSpec composes per head, hosts never pick); `*_PERSONA` = palette for the STANDALONE Advisor only (`AppSpec.advisor_persona`; ignored in counsel toggle). Switching persona = new chat on the same graph; register toggle = same `messages`. Personas carry voice only — no framework terms, no convergence mechanics (`TestAdvisoryPersonaBoundary`). App/Register/Persona/Phase vocabulary: `apps.py` docstring.
 
 ### Agent Design Principles
 
@@ -140,8 +140,8 @@ The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+
 - **Analyst** = everything up to and including nexus creation (inputs → statements → polarities → perspectives → `create_nexus` handoff). `create_nexus` lives here only — Explorer never creates nexuses.
 - **Explorer** = everything after nexus (nexus-scoped: cycles → wheels → transformations → synthesis). Constructed with `nexus_hash`. Carries `create_dx_input` to START the round-trip: capture a Transition insight as a dx:// Case Input → Analyst develops it → `expand_nexus` weaves back.
 - **Advisor** = pure-conversation agent, framework runs silently (no terminology exposed). Composes both pipelines via `ingest`, `anchor`, `explore`, `deepen`, `sync` (+ shared `inspect_node`, `read_digest`, `discard`). System prompt is a FUNCTION `system_prompt(tool_names, scoped_nexus_hash)` — tool docs render only for wired tools.
-- **Apps plug in via `app=`** (an `AppSpec`, `agents/app_spec.py`) — pieces `voicing`/`advisor_persona`/`tool_guide`/`tools`; each head composes its own preamble (Analyst/Explorer: NAVIGATOR_APP+voicing+tool_guide; counsel toggle: EXPLORATION_ADVISOR_APP+…; standalone Advisor: advisor_persona+tool_guide). ONE AppSpec per app, passed to EVERY head (toggle shares literal history; Analyst owes parity). Manual layer: `app_preamble=`/`app_tools=` (replaces AppSpec composition; mixing with `app=` raises). Tools merge via `agents/toolsets.py::merge_app_tools` (append; shadowing a built-in raises; system prompts skip unknown names).
-- **Advisor(nexus_hash=...)** = counsel mode of the Explorer↔Advisor session toggle (NOT standalone): host hands `messages` + `nexus_hash` between heads; preamble pairing `NAVIGATOR_ADVANCED_MODE_APP` ↔ `EXPLORATION_ADVISOR_APP` (both on `NAVIGATOR_APP`). Nexus pin enforced by tool closures (`advisor/tools/scoped.py`), not prompt. See `docs/agents.md` Handoffs.
+- **Apps plug in via `app=`** (an `AppSpec`, `agents/app_spec.py`) — pieces `voicing`/`advisor_persona`/`tool_guide`/`tools`; each head composes its own preamble (Analyst/Explorer: NAVIGATOR_APP+voicing+tool_guide; counsel toggle: NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER+…; standalone Advisor: advisor_persona+tool_guide). ONE AppSpec per app, passed to EVERY head (toggle shares literal history; Analyst owes parity). Manual layer: `app_preamble=`/`app_tools=` (replaces AppSpec composition; mixing with `app=` raises). Tools merge via `agents/toolsets.py::merge_app_tools` (append; shadowing a built-in raises; system prompts skip unknown names).
+- **Advisor(nexus_hash=...)** = counsel mode of the Explorer↔Advisor session toggle (NOT standalone): host hands `messages` + `nexus_hash` between heads; preamble pairing `NAVIGATOR_APP_ADVANCED_TOGGLE` ↔ `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER` (both on `NAVIGATOR_APP`). Nexus pin enforced by tool closures (`advisor/tools/scoped.py`), not prompt. See `docs/agents.md` Handoffs.
 
 ### Advisor Runtime Budgets (settings, Advisor-only)
 
@@ -174,6 +174,8 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 **black/isort are NOT enforced** (no pre-commit/CI); most of the tree is non-conforming. Don't run `black <file>` after a small edit — it reformats the whole file and bloats the diff. Hand-format only your own lines.
 
 **Concurrent sessions share this working tree.** Before committing: check `git diff --cached --stat` for foreign staged files and `git status` for unexpected dirty ones; stage explicit paths, never `git add -A`. If edits from two sessions land in ONE file, split by hunk (`git diff <file> > /tmp/f.patch`, drop foreign hunks, `git apply --cached /tmp/f.patch`).
+
+**No deprecated aliases on renames.** Rename public constants/functions outright and sweep all consumers (incl. host apps on live path dependencies) in the same change — never re-alias.
 
 ---
 
@@ -302,7 +304,7 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 **Consumption:** skills use `input_context()` (`utils/input_context.py`) — digests in `<Input id="{hash}">` tags, falling back to resolved content when digest is None. Exception: `surface_theses` needs raw content for extraction (digest for previews only). Tools: `read_digest` | `read_input` | `digest_input` (Analyst and Explorer).
 
-**Multimodal seam (#35):** `InputResolver.resolve() -> str` (text-only, safe to f-string) vs `resolve_native() -> UserContent` (opt-in, defaults to delegating `resolve()`). `SourceDigest` is the SOLE `resolve_native` consumer — one vision pass emits a text digest, so downstream stays text. Never widen `resolve()` to return media — text callers would silently stringify it. `ConversationFacilitator.submit`/`submit_stream` accept `UserContent`.
+**Multimodal seam (#35):** `InputResolver.resolve() -> str` (text-only, safe to f-string) vs `resolve_native() -> UserContent` (opt-in). `SourceDigest` is the SOLE `resolve_native` consumer — one vision pass emits a text digest, downstream stays text. Never widen `resolve()` to return media (text callers would silently stringify it). `ConversationFacilitator.submit`/`submit_stream` accept `UserContent`.
 
 ### Antithesis Persistence Checklist
 
@@ -315,7 +317,7 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 ### Statement Generation Conventions
 
 - Word limit: always use `self.settings.component_length` (headlines, ~7) or `self.settings.transition_length` (transitions, ~15) via `SettingsAware` — never hardcode. Pydantic `Field` descriptions can't interpolate `self.settings`: keep length qualitative there, numeric limit in the method prompt body.
-- **`component_length` is enforced at generation/extraction time, not by `StatementClassification`** (which echoes text verbatim). The `anchor` path has no extraction step, so `StatementHeadline` (`concerns/statement_headline.py`) condenses there: both anchor legs (`IntroducePolarity._resolve_statement`, `AnchorTheses._classify_and_create`) run it in parallel with classification (`asyncio.gather`); classification reads full text, only stored `Statement.text` becomes the headline; text already ≤ limit short-circuits without an LLM call. `edit_perspective` deliberately does NOT condense — user-typed wording must survive.
+- **`component_length` is enforced at generation/extraction time, not by `StatementClassification`** (echoes text verbatim). The `anchor` path has no extraction step, so `StatementHeadline` condenses there: both anchor legs run it in parallel with classification (`asyncio.gather`); classification reads full text, only stored `Statement.text` becomes the headline; text ≤ limit short-circuits without an LLM call. `edit_perspective` deliberately does NOT condense — user-typed wording must survive.
 - Analytical artifacts (synthesis, transformations) scope uniqueness via meaning field: `meaning=f"synthesis:positive:{wheel.hash}"` prevents cross-context dedup while `commit()` handles exact-match dedup automatically.
 
 ### Classification → HS Chain (Critical Invariant)
@@ -335,7 +337,7 @@ Only `Rationale.agent` tracks which LLM model generated content (`<provider>/<mo
 
 Optional concurrency semaphore in `utils/concurrency.py` (env `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`; 0/unset = disabled). Applied inside `use_brain`; streaming (`raw_call=True`) excluded.
 
-Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 60s cap, max 10 attempts. ParseError retry: 10s base, 2× up to 120s. **Hand-rolled by design — do NOT replace with Mirascope's `llm.retry`/`RetryConfig`.** Native retry can't express separate ParseError vs rate-limit curves, per-attempt slot re-acquisition, per-attempt Langfuse tracing, or string-based Bedrock throttle detection.
+Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 60s cap, max 10 attempts; ParseError: 2× up to 120s. **Hand-rolled by design — do NOT replace with Mirascope's `llm.retry`/`RetryConfig`** (can't express separate retry curves, per-attempt slot re-acquisition/tracing, or string-based Bedrock throttle detection).
 
 **Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, audits. `AnalysisPipeline` parallelizes `expand_polarities`/`find_polarities`. Graph writes stay sequential after gather.
 
@@ -403,9 +405,9 @@ Default to `@pytest.mark.llm` for anything touching `use_brain` or `Conversation
 
 **Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic responses. Does NOT test streaming, tool registration/argument parsing, or provider behavior. Returns **identical** DTOs every call — to test diversity/dedup, `monkeypatch` the concern's `resolve`. Fills `Literal[...]` fields with the FIRST allowed value — order Literals so the first is a safe default.
 
-**Fixtures may use `meaning="test"` ONLY on paths that never reach taxonomy lookups** — `StatementClassification.lookup_*` raises on unparseable meanings; use a real `dx://taxonomy/...` URI otherwise.
+**Fixtures may use `meaning="test"` ONLY on paths that never reach taxonomy lookups** — `lookup_*` raises on unparseable meanings; else use a real `dx://taxonomy/...` URI.
 
-**Response-model *shape* changes are invisible to the mocked suite** (auto-fills every field) — restructuring a `response_model` can pass mocked tests while the real LLM drops a branch → `ParseError`. Verify DTO-shape changes with `--real-llm`; prefer flatter schemas.
+**Response-model *shape* changes are invisible to the mocked suite** (auto-fills every field) — the real LLM may drop a branch → `ParseError`. Verify DTO-shape changes with `--real-llm`; prefer flatter schemas.
 
 **One graph-test run at a time.** The autouse `cleanup_graph_db` fixture `DETACH DELETE`s around each test — concurrent pytest processes against one Memgraph deadlock. A `pkill -9`'d run leaves a stuck lock: `docker compose -f docker-compose.test.yml restart`. The volume (`mg_lib`) persists across restarts — confirm a failure is pre-existing via `git stash` + re-run; truly wipe with `down -v`.
 
@@ -436,11 +438,11 @@ Only required: `DIALEXITY_DEFAULT_MODEL` — combined `provider/model` string (e
 
 The project is infused with LLM prompts at multiple layers. Use `/df-review-reasoning-layer` when writing or editing prompts — it reviews at three altitudes (isolated prompt → assembled context → whole reasoning chain) and carries the full methodology, checklist, drift-hotspot catalog, and cross-agent parity map (`.claude/skills/df-review-reasoning-layer/reference/systemic-map.md`).
 
-**`df-review-reasoning-layer` is a LIVING skill — keep it in lockstep.** Any change it maps (prompt site, shared constant/scale, generative rule, pipeline stage/score-gate, agent/handoff, prompt regression test) updates the skill AND its reference map in the same change — part of "done" for prompt/theory/pipeline changes, same as `GRAPH_SCHEMA` for graph changes.
+**`df-review-reasoning-layer` is a LIVING skill — keep it in lockstep.** Any change it maps (prompt site, shared constant/scale, generative rule, pipeline stage/score-gate, agent/handoff, regression test) updates the skill AND its reference map in the same change — part of "done", same as `GRAPH_SCHEMA` for graph changes.
 
 | Location | What it controls |
 |----------|-----------------|
-| `agents/apps.py` | User-facing vocabulary/framing (NAVIGATOR_APP, NAVIGATOR_ADVANCED_MODE_APP, advisory personas) |
+| `agents/apps.py` | User-facing vocabulary/framing (NAVIGATOR_APP, NAVIGATOR_APP_ADVANCED_TOGGLE, advisory personas) |
 | `agents/analyst/system_prompts.py` | Analyst tool selection and workflow |
 | `agents/explorer/system_prompts.py` | Explorer tool selection and workflow (function; interpolates insight/proactiveness ladders) |
 | `agents/advisor/system_prompts.py` | Advisor domain-neutral dialectical engine + `{dialectical_context}` slot |

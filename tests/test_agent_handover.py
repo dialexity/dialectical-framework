@@ -5,11 +5,11 @@ An exploration session has two registers — operator mode (Explorer) and
 counsel mode (Advisor pinned to the same nexus). The toggle is a handover of
 the SAME conversation between two heads, driven by the host:
 
-    advisor  = Advisor(app_preamble=EXPLORATION_ADVISOR_APP,
+    advisor  = Advisor(app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
                        nexus_hash=explorer.nexus_hash,
                        messages=explorer.messages)
     explorer = Explorer(nexus_hash=nx,
-                        app_preamble=NAVIGATOR_ADVANCED_MODE_APP,
+                        app_preamble=NAVIGATOR_APP_ADVANCED_TOGGLE,
                         messages=advisor.messages)
 
 Contract under test:
@@ -25,8 +25,8 @@ from __future__ import annotations
 import pytest
 
 from dialectical_framework.agents.advisor.advisor import Advisor
-from dialectical_framework.agents.apps import (EXPLORATION_ADVISOR_APP,
-                                               NAVIGATOR_ADVANCED_MODE_APP)
+from dialectical_framework.agents.apps import (NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+                                               NAVIGATOR_APP_ADVANCED_TOGGLE)
 from dialectical_framework.agents.explorer.explorer import Explorer
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.nexus import Nexus
@@ -66,7 +66,7 @@ class TestHandoverRoundTrip:
     def _explorer_with_history(self, nexus: Nexus) -> Explorer:
         explorer = Explorer(
             nexus_hash=nexus.hash[:7],
-            app_preamble=NAVIGATOR_ADVANCED_MODE_APP,
+            app_preamble=NAVIGATOR_APP_ADVANCED_TOGGLE,
         )
         explorer._conversation.add_user_message("Which wheel is most plausible?")
         explorer._conversation.add_assistant_message(
@@ -85,7 +85,7 @@ class TestHandoverRoundTrip:
             history_before = list(explorer.messages)
 
             advisor = Advisor(
-                app_preamble=EXPLORATION_ADVISOR_APP,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -110,7 +110,7 @@ class TestHandoverRoundTrip:
             explorer = self._explorer_with_history(nexus)
 
             advisor = Advisor(
-                app_preamble=EXPLORATION_ADVISOR_APP,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -122,7 +122,7 @@ class TestHandoverRoundTrip:
 
             explorer_again = Explorer(
                 nexus_hash=explorer.nexus_hash,
-                app_preamble=NAVIGATOR_ADVANCED_MODE_APP,
+                app_preamble=NAVIGATOR_APP_ADVANCED_TOGGLE,
                 messages=advisor.messages,
             )
 
@@ -141,7 +141,7 @@ class TestHandoverRoundTrip:
             explorer = Explorer(nexus_hash=nexus.hash[:7])
 
             advisor = Advisor(
-                app_preamble=EXPLORATION_ADVISOR_APP,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -172,7 +172,7 @@ class TestHandoverReplayAcceptance:
 
             explorer = Explorer(
                 nexus_hash=nexus.hash[:7],
-                app_preamble=NAVIGATOR_ADVANCED_MODE_APP,
+                app_preamble=NAVIGATOR_APP_ADVANCED_TOGGLE,
             )
             reply = await explorer.chat(
                 "Show me the current state of this exploration."
@@ -189,7 +189,7 @@ class TestHandoverReplayAcceptance:
             # Toggle to counsel mode: the Advisor head must replay a history
             # containing Explorer tool-use blocks it has no tools for.
             advisor = Advisor(
-                app_preamble=EXPLORATION_ADVISOR_APP,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -200,7 +200,7 @@ class TestHandoverReplayAcceptance:
             # (possibly containing scoped-Advisor tool-use blocks).
             explorer_again = Explorer(
                 nexus_hash=explorer.nexus_hash,
-                app_preamble=NAVIGATOR_ADVANCED_MODE_APP,
+                app_preamble=NAVIGATOR_APP_ADVANCED_TOGGLE,
                 messages=advisor.messages,
             )
             reply = await explorer_again.chat(

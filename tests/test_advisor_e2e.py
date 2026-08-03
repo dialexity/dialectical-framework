@@ -17,7 +17,7 @@ import pytest
 from conftest import traced
 
 from dialectical_framework.agents.advisor.advisor import Advisor
-from dialectical_framework.agents.apps import COUNSELOR_APP
+from dialectical_framework.agents.apps import COUNSELOR_PERSONA
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.repositories.perspective_repository import (
     PerspectiveRepository,
@@ -51,7 +51,7 @@ class TestAdvisorFrameworkHandoff:
         case.commit()
 
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_APP)
+            advisor = Advisor(app_preamble=COUNSELOR_PERSONA)
 
             tool_calls_per_turn: list[list[str]] = []
             for turn in TURNS:

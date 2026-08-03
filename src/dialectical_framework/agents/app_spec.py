@@ -4,7 +4,7 @@ each agent head composes the right preamble from it.
 
 Without this, an app developer must know framework lore to preamble an app:
 which base constant belongs to which head (NAVIGATOR_APP for Analyst/Explorer,
-EXPLORATION_ADVISOR_APP for the counsel toggle, bare persona for a standalone
+NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER for the counsel toggle, bare persona for a standalone
 Advisor), that later preamble sections override earlier ones, and that the
 same tool guide must be repeated into every head's preamble. AppSpec owns
 that lore: the app supplies only its custom pieces, the framework supplies
@@ -49,7 +49,7 @@ class AppSpec:
         standalone Advisor.
     advisor_persona: Persona for the STANDALONE (unscoped) Advisor, where
         the machinery is hidden and the preamble is the entire user-facing
-        identity (like COUNSELOR_APP). Ignored in counsel-toggle mode,
+        identity (like COUNSELOR_PERSONA). Ignored in counsel-toggle mode,
         which keeps the Navigator contract.
     tool_guide: Shared documentation for the app's tools — what each does,
         when to reach for it. Included verbatim in EVERY head's preamble
@@ -67,23 +67,23 @@ class AppSpec:
     def navigator_preamble(self, advanced: bool = False) -> str:
         """Preamble for Analyst/Explorer heads: Navigator contract + app pieces."""
         from dialectical_framework.agents.apps import (
-            NAVIGATOR_ADVANCED_MODE_APP, NAVIGATOR_APP)
+            NAVIGATOR_APP_ADVANCED_TOGGLE, NAVIGATOR_APP)
 
-        base = NAVIGATOR_ADVANCED_MODE_APP if advanced else NAVIGATOR_APP
+        base = NAVIGATOR_APP_ADVANCED_TOGGLE if advanced else NAVIGATOR_APP
         return _join(base, self.voicing, self.tool_guide)
 
     def advisor_preamble(self, scoped: bool) -> str:
         """Preamble for the Advisor head.
 
         scoped=True (counsel toggle of a Navigator session): the Navigator
-        contract survives the toggle — EXPLORATION_ADVISOR_APP + app pieces.
+        contract survives the toggle — NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + app pieces.
         scoped=False (standalone Advisor): the persona IS the identity —
         no Navigator base, machinery stays hidden.
         """
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
         if scoped:
-            return _join(EXPLORATION_ADVISOR_APP, self.voicing, self.tool_guide)
+            return _join(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER, self.voicing, self.tool_guide)
         return _join(self.advisor_persona, self.tool_guide)
 
 

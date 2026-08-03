@@ -57,18 +57,18 @@ class Advisor:
 
     Usage (fresh start):
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_APP)
+            advisor = Advisor(app_preamble=COUNSELOR_PERSONA)
             response = await advisor.chat("My son started smoking...")
 
     Usage (post-analysis, rich graph exists):
         with scope(case.sid):
             context = await DialecticalContext().resolve()
-            advisor = Advisor(app_preamble=COUNSELOR_APP, dialectical_context=context)
+            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, dialectical_context=context)
             response = await advisor.chat("I want to talk through what we found...")
 
     Usage (resuming conversation):
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_APP, messages=saved_messages)
+            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, messages=saved_messages)
             response = await advisor.chat("What about the other angle?")
 
     Usage (app-provided domain tools):
@@ -79,7 +79,7 @@ class Advisor:
         # rules in the app preamble, where domain vocabulary lives.
         with scope(case.sid):
             advisor = Advisor(
-                app_preamble=ASTRO_COUNSELOR_APP,  # explains when to consult the chart
+                app_preamble=ASTRO_COUNSELOR_PERSONA,  # explains when to consult the chart
                 app_tools=[lookup_natal_chart],   # @llm.tool from the app
             )
 
@@ -90,7 +90,7 @@ class Advisor:
         # exploration:
         with scope(case.sid):
             advisor = Advisor(
-                app_preamble=EXPLORATION_ADVISOR_APP,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -124,7 +124,7 @@ class Advisor:
         self._nexus_hash = nexus_hash
         # app: declarative app definition — composition depends on the mode:
         # counsel toggle (nexus_hash set) keeps the Navigator contract
-        # (EXPLORATION_ADVISOR_APP + voicing + tool_guide); standalone uses
+        # (NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + voicing + tool_guide); standalone uses
         # the spec's advisor_persona (machinery hidden). See AppSpec.
         app_preamble, app_tools = resolve_app_layer(
             app,

@@ -75,9 +75,9 @@ co-occurrence hotspots. Then:
       one system message)? Or concern (Stack B: `SYSTEM_PROMPT` + `_*_prompt()` + DTO `Field` descriptions)?
 - [ ] **Read the co-occurring layers, not just the file you're editing.**
     - Agent prompt → open the app preambles it fuses with. For Analyst that means **both `NAVIGATOR_APP` and
-      `NAVIGATOR_ADVANCED_MODE_APP`** (`NAVIGATOR_ADVANCED_MODE_APP = NAVIGATOR_APP + override`); for Advisor, all five personas. Check the edit
+      `NAVIGATOR_APP_ADVANCED_TOGGLE`** (`NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + override`); for Advisor, all five personas. Check the edit
       doesn't contradict the preamble's vocabulary / score-presentation rules (esp. the "communicate as MEANING
-      not numbers" default vs. `NAVIGATOR_ADVANCED_MODE_APP`'s "show numeric scores").
+      not numbers" default vs. `NAVIGATOR_APP_ADVANCED_TOGGLE`'s "show numeric scores").
     - Concern → check the SYSTEM_PROMPT, the `_*_prompt()` user content, AND the DTO field descriptions
       (Mirascope sends them). Inline examples must not contradict interpolated constants or field text.
 - [ ] **DTO `Field(description=...)` is prompt surface** — review it too.
@@ -134,7 +134,7 @@ anchors.
 - [ ] **App/engine boundary.** Engine system prompts must not hardcode persona voice; app preambles must not
       redefine tool selection; advisory personas must carry zero framework terminology; presentation defaults
       belong in the preamble.
-- [ ] **`NAVIGATOR_ADVANCED_MODE_APP` override completeness.** New section in `NAVIGATOR_APP`? Re-check the override list, or
+- [ ] **`NAVIGATOR_APP_ADVANCED_TOGGLE` override completeness.** New section in `NAVIGATOR_APP`? Re-check the override list, or
       expert users inherit non-expert framing.
 - [ ] **Internal-only strings** (`nexus_intent` is "do not surface to user") must keep that classification when interpolated into another agent's prompt.
 - [ ] **Structural/direction conventions match `docs/graph.md` and `GRAPH_SCHEMA`** — update `GRAPH_SCHEMA` in lockstep (per CLAUDE.md).

@@ -4,7 +4,7 @@ Tests for AppSpec — the declarative app definition.
 The host describes WHAT its app is (voicing, persona, tool guide, tools);
 each agent head composes the right preamble: Navigator heads get
 NAVIGATOR_APP + voicing + tool_guide, the counsel toggle gets
-EXPLORATION_ADVISOR_APP + voicing + tool_guide, the standalone Advisor gets
+NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + voicing + tool_guide, the standalone Advisor gets
 advisor_persona + tool_guide. The framework owns the composition lore so
 apps supply only their custom pieces.
 """
@@ -48,23 +48,23 @@ class TestAppSpecComposition:
 
     def test_navigator_preamble_advanced_mode(self):
         from dialectical_framework.agents.apps import \
-            NAVIGATOR_ADVANCED_MODE_APP
+            NAVIGATOR_APP_ADVANCED_TOGGLE
 
         preamble = FULL_SPEC.navigator_preamble(advanced=True)
-        assert preamble.startswith(NAVIGATOR_ADVANCED_MODE_APP.strip())
+        assert preamble.startswith(NAVIGATOR_APP_ADVANCED_TOGGLE.strip())
         assert VOICING in preamble
 
     def test_advisor_scoped_keeps_navigator_contract(self):
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
 
         preamble = FULL_SPEC.advisor_preamble(scoped=True)
-        assert preamble.startswith(EXPLORATION_ADVISOR_APP.strip())
+        assert preamble.startswith(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.strip())
         assert VOICING in preamble
         assert TOOL_GUIDE in preamble
         assert PERSONA not in preamble  # counsel toggle is NOT the standalone persona
 
     def test_advisor_unscoped_is_persona_only(self):
-        from dialectical_framework.agents.apps import (EXPLORATION_ADVISOR_APP,
+        from dialectical_framework.agents.apps import (NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
                                                        NAVIGATOR_APP)
 
         preamble = FULL_SPEC.advisor_preamble(scoped=False)
@@ -72,7 +72,7 @@ class TestAppSpecComposition:
         assert TOOL_GUIDE in preamble
         # standalone advisor hides the machinery — no Navigator contract
         assert NAVIGATOR_APP.strip() not in preamble
-        assert EXPLORATION_ADVISOR_APP.strip() not in preamble
+        assert NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.strip() not in preamble
         assert VOICING not in preamble  # voicing is Navigator-side flavor
 
     def test_tool_guide_identical_in_every_head(self):
@@ -115,7 +115,7 @@ class TestAgentsAcceptAppSpec:
 
     def test_explorer_and_scoped_advisor_compose_from_spec(self):
         from dialectical_framework.agents.advisor.advisor import Advisor
-        from dialectical_framework.agents.apps import EXPLORATION_ADVISOR_APP
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
         from dialectical_framework.agents.explorer.explorer import Explorer
         from dialectical_framework.graph.nodes.case import Case
         from dialectical_framework.graph.nodes.nexus import Nexus
@@ -140,7 +140,7 @@ class TestAgentsAcceptAppSpec:
                 app=FULL_SPEC,
             )
             prompt = _system_prompt_text(advisor)
-            assert EXPLORATION_ADVISOR_APP.strip()[:80] in prompt
+            assert NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.strip()[:80] in prompt
             assert VOICING in prompt
             assert PERSONA not in prompt
 
