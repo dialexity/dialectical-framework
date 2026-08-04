@@ -1162,10 +1162,17 @@ class BoundRelationshipManager(Generic[T]):
         else:  # any
             pattern = f"(source)-[r:{self.relationship_type}]-(target:{resolved_labels})"
 
+        # Deterministic ordering: without ORDER BY, Cypher result order is
+        # unspecified (stable only by accident of current storage) — but
+        # consumers like build_pp_index treat this ordering as canonical
+        # (T1/T2 indices, cycle sequences). committed_at gives temporal
+        # order; id(target) tiebreaks same-second commits and uncommitted
+        # targets (NULL committed_at sorts consistently within a vendor).
         query = f"""
         MATCH {pattern}
         WHERE id(source) = $source_id
         RETURN target, r as relationship
+        ORDER BY target.committed_at ASC, id(target) ASC
         """
 
         results = db.execute_and_fetch(query, {"source_id": self.source_node._id})

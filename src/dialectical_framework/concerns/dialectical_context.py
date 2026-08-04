@@ -514,10 +514,13 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             total_wheel_prob = sum(p for p in wheel_probs.values() if p is not None)
 
             max_wheels = 0 if self._nexus_hash else self.settings.advisor_wheel_quality_top_plausible
+            # Hash tiebreaker: with probability-only keys, tied (or unscored)
+            # wheels resolve by arrival order — unspecified in Cypher — so
+            # which wheel makes the rendered top-N could differ between two
+            # renders of the SAME graph. The hash pins it.
             rendered = sorted(
                 wheels,
-                key=lambda w: wheel_probs.get(w._id) or -1.0,
-                reverse=True,
+                key=lambda w: (-(wheel_probs.get(w._id) or -1.0), w.hash or ""),
             )
             hidden = 0
             if max_wheels > 0 and len(rendered) > max_wheels:

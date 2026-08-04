@@ -197,7 +197,7 @@ class WheelRepository:
             query += "    AND ALL(h IN c.perspective_hashes WHERE h IN $nexus_pp_hashes)\n"
             params["nexus_pp_hashes"] = nexus_pp_hashes
 
-        query += "    RETURN w"
+        query += "    RETURN w\n    ORDER BY w.committed_at ASC, id(w) ASC"
 
         results = list(graph_db.execute_and_fetch(query, params))
 

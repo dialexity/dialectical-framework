@@ -82,6 +82,7 @@ class NexusRepository:
         query = """
         MATCH (n:Nexus {sid: $sid})
         RETURN n
+        ORDER BY n.committed_at ASC, id(n) ASC
         """
         results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
         return [r["n"] for r in results]

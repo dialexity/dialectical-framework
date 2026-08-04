@@ -83,6 +83,7 @@ class CycleRepository:
                 AND size(c.perspective_hashes) = $hash_count
                 AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
                 RETURN c
+                ORDER BY c.committed_at ASC, id(c) ASC
             """
             results = list(graph_db.execute_and_fetch(query, {
                 "sid": sid,
@@ -107,6 +108,7 @@ class CycleRepository:
                 WHERE c.sid = $sid
                 AND ANY(h IN $pp_hashes WHERE h IN c.perspective_hashes)
                 RETURN c
+                ORDER BY c.committed_at ASC, id(c) ASC
             """
             results = list(graph_db.execute_and_fetch(query, {
                 "sid": sid,
@@ -165,7 +167,7 @@ class CycleRepository:
             query += "    AND ALL(h IN c.perspective_hashes WHERE h IN $nexus_pp_hashes)\n"
             params["nexus_pp_hashes"] = nexus_pp_hashes
 
-        query += "    RETURN c"
+        query += "    RETURN c\n    ORDER BY c.committed_at ASC, id(c) ASC"
 
         results = list(graph_db.execute_and_fetch(query, params))
 
