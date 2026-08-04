@@ -9,7 +9,9 @@ confirmed wording, never as instructions to interpret. The concern:
    fail-closed for grounds, since a dangling or reader-invisible ground
    would break the record's value)
 2. Commits the Decision (question rides intent, stance frozen in hash)
-3. Attaches the distilled why as a Rationale with agent="human"
+3. Attaches the distilled why as a Rationale carrying the confirming
+   principal's provenance (agent="human" only when a person confirmed;
+   delegated drivers pass their own identity — see resolve())
 4. Connects GROUNDED_IN edges with their roles
 5. Runs DecisionCoherenceCheck and flags the verdict (fail-soft: a failed
    or errored check NEVER blocks the record — soft gate)
@@ -62,7 +64,19 @@ class RecordDecision(ReasonableConcern[str | None]):
         stance: str,
         rationale: str,
         grounds: list[GroundLink] | None = None,
+        principal: str = "human",
     ) -> str | None:
+        """
+        `principal` is the provenance stamped on the decision's Rationale —
+        WHO confirmed the recording ceremony. "human" (default) is the
+        sentinel meaning an actual person confirmed the wording; a delegated
+        driver (agent-to-agent runs) must pass its own identity (e.g.
+        "agent:<name>" or a <provider>/<model> string) — the ledger and
+        inspect_node render only human-confirmed rationales as the person's
+        own "why", so a false "human" here corrupts the record's authority
+        semantics unfixably. Attested by the HOST at agent construction
+        (Advisor(principal=...)), never by the LLM.
+        """
         from dialectical_framework.concerns.decision_coherence_check import \
             DecisionCoherenceCheck
         from dialectical_framework.graph.nodes.assessable_entity import \
@@ -170,12 +184,13 @@ class RecordDecision(ReasonableConcern[str | None]):
         # a raw exception hiding that a Decision now exists.
         attach_failures: list[str] = []
         try:
-            # The distilled why: a human-provenance Rationale.
+            # The distilled why: a Rationale carrying the confirming
+            # principal's provenance (see resolve() docstring).
             why = Rationale(text=rationale)
-            why.agent = "human"  # overwrite the auto-filled model identifier
+            why.agent = principal  # overwrite the auto-filled model identifier
             why.set_explanation_target(decision)
             why.commit()  # auto-connects EXPLAINS
-            self._report.node_created(why, patch={"agent": "human"})
+            self._report.node_created(why, patch={"agent": principal})
             self._report.relationship_created(why.explains, why, decision)
         except Exception as e:
             attach_failures.append(f"rationale not attached ({e})")

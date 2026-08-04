@@ -312,6 +312,82 @@ class TestRecordDecisionConcern:
 
 
 @pytest.mark.llm
+class TestDecisionProvenance:
+    """The confirming principal is a host-attested fact (review finding:
+    hardcoded agent="human" would persist a false provenance claim under a
+    delegated agent driver). "human" stays the default; a driver identity
+    flows through the tool closure and renders attributed — never as the
+    person's own confirmation."""
+
+    async def test_driver_principal_stamped_on_rationale(self):
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        sid = _new_sid()
+        with scope(sid):
+            concern = RecordDecision()
+            await concern.resolve(
+                question="Which dataset scenario?",
+                stance="Scenario B",
+                rationale="Synthetic run rationale.",
+                principal="agent:dataset-driver",
+            )
+            decision = DecisionRepository().find_all_active()[0]
+            why, _ = decision.rationales.all()[0]
+            assert why.agent == "agent:dataset-driver"
+
+    async def test_default_principal_is_human(self):
+        from dialectical_framework.agents.advisor.tools.record_decision import (
+            record_decision,
+        )
+
+        sid = _new_sid()
+        with scope(sid):
+            await record_decision(
+                question="Q?", stance="S", rationale="R"
+            )
+            decision = DecisionRepository().find_all_active()[0]
+            why, _ = decision.rationales.all()[0]
+            assert why.agent == "human"
+
+    async def test_advisor_principal_reaches_tool_closure(self):
+        """Advisor(principal=...) must build a record_decision whose
+        recordings carry the driver identity."""
+        from dialectical_framework.agents.advisor.advisor import _build_tools
+
+        tools = _build_tools(principal="agent:driver-x")
+        record = next(t for t in tools if t.__name__ == "record_decision")
+
+        sid = _new_sid()
+        with scope(sid):
+            await record(question="Q?", stance="S", rationale="R")
+            decision = DecisionRepository().find_all_active()[0]
+            why, _ = decision.rationales.all()[0]
+            assert why.agent == "agent:driver-x"
+
+    async def test_ledger_attributes_driver_confirmation(self):
+        """The # Decisions ledger must never present a driver-confirmed
+        rationale as the person's own 'Why:' — it renders attributed."""
+        from dialectical_framework.concerns.dialectical_context import (
+            DialecticalContext,
+        )
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        sid = _new_sid()
+        with scope(sid):
+            concern = RecordDecision()
+            await concern.resolve(
+                question="Which scenario?",
+                stance="Scenario B",
+                rationale="Driver-confirmed why.",
+                principal="agent:dataset-driver",
+            )
+            dump = await DialecticalContext().resolve()
+
+        assert "Why (confirmed by agent:dataset-driver): Driver-confirmed why." in dump
+        assert "\nWhy: Driver-confirmed why." not in dump
+
+
+@pytest.mark.llm
 class TestRecordDecisionToolBoundary:
     """Mirascope passes json.loads'd kwargs WITHOUT coercing nested models —
     `grounds` arrives as raw dicts. These tests call the @llm.tool function

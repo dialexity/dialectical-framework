@@ -166,8 +166,20 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                     graph_db.execute(
                         "CREATE CONSTRAINT ON (n:Node) ASSERT n.hash, n.sid IS UNIQUE"
                     )
-            except Exception:
-                pass  # Constraint may already exist or DB doesn't support it
+            except Exception as e:
+                # Constraint may already exist or DB doesn't support it —
+                # but say so: this constraint is the only backstop against
+                # commit()'s check-then-act dedup race producing duplicate
+                # committed nodes under concurrent writers. Silent absence
+                # turns that race into silent corruption.
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Could not create (hash, sid) uniqueness constraint: %s — "
+                    "duplicate-node protection is NOT active; ensure a single "
+                    "writer per sid.",
+                    e,
+                )
 
     # Graph database (Memgraph or Neo4j) for graph-native dialectical structures
     graph_db: providers.Singleton[Union[Memgraph, Neo4j]] = providers.Singleton(

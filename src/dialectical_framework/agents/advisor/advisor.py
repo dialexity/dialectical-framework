@@ -121,7 +121,15 @@ class Advisor:
         nexus_hash: Optional[str] = None,
         app_tools: Optional[list] = None,
         app: Optional[AppSpec] = None,
+        principal: str = "human",
     ) -> None:
+        # principal: WHO confirms decisions in this conversation — a host
+        # attestation, fixed for the session (the counterpart doesn't change
+        # mid-conversation). "human" = an actual person; a delegated driver
+        # (agent-to-agent runs) must pass its own identity ("agent:<name>"
+        # or <provider>/<model>) so recorded decisions never claim human
+        # confirmation they didn't get. Closed over by record_decision —
+        # never an LLM-visible parameter.
         self._nexus_hash = nexus_hash
         # app: declarative app definition — composition depends on the mode:
         # counsel toggle (nexus_hash set) keeps the Navigator contract
@@ -135,9 +143,9 @@ class Advisor:
         )
         if nexus_hash:
             self._validate_nexus(nexus_hash)
-            self._tools = _build_scoped_tools(nexus_hash)
+            self._tools = _build_scoped_tools(nexus_hash, principal)
         else:
-            self._tools = _build_tools()
+            self._tools = _build_tools(principal)
         # App-provided @llm.tool functions (domain resources: chart lookups,
         # methodology references, ...) — see toolsets.merge_app_tools.
         self._tools = merge_app_tools(self._tools, app_tools)
@@ -236,13 +244,13 @@ class Advisor:
         return self._conversation._messages
 
 
-def _build_tools() -> list:
+def _build_tools(principal: str = "human") -> list:
     from dialectical_framework.agents.advisor.tools.anchor import anchor
     from dialectical_framework.agents.advisor.tools.deepen import deepen
     from dialectical_framework.agents.advisor.tools.explore import explore
     from dialectical_framework.agents.advisor.tools.ingest import ingest
     from dialectical_framework.agents.advisor.tools.record_decision import \
-        record_decision
+        build_record_decision
     from dialectical_framework.agents.advisor.tools.sync import sync
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
@@ -256,7 +264,7 @@ def _build_tools() -> list:
         anchor,
         explore,
         deepen,
-        record_decision,
+        build_record_decision(principal),
         sync,
         inspect_node,
         read_digest,
@@ -264,8 +272,8 @@ def _build_tools() -> list:
     ]
 
 
-def _build_scoped_tools(nexus_hash: str) -> list:
+def _build_scoped_tools(nexus_hash: str, principal: str = "human") -> list:
     from dialectical_framework.agents.advisor.tools.scoped import \
         build_scoped_tools
 
-    return build_scoped_tools(nexus_hash)
+    return build_scoped_tools(nexus_hash, principal)

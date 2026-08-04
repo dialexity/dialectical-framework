@@ -1034,6 +1034,19 @@ class TestExplorerAdvisorToggleNarration:
         assert "NEVER claim to have noted a decision yourself" in joined
         assert "Recording and retiring decisions happens in counsel mode" in joined
 
+    def test_analyst_never_fakes_or_anchors_decisions(self):
+        """Cross-agent parity (review finding): the Analyst serves the same
+        Case but had no decision seam — leaving it a plausible wrong move
+        (anchor the declared choice as a thesis, misfiling a decision as
+        analytical structure) and no bar on faking an acknowledgment."""
+        from dialectical_framework.agents.analyst.system_prompts import \
+            SYSTEM_PROMPT
+
+        joined = " ".join(SYSTEM_PROMPT.split())
+        assert "you cannot record decisions" in joined
+        assert "NEVER claim to have noted a decision yourself" in joined
+        assert "NEVER anchor the declared choice as a thesis" in joined
+
     def test_scoped_advisor_signals_exploration_view(self):
         """The counsel-mode preamble already narrates switching back to the
         technical exploration view — lock that phrase."""

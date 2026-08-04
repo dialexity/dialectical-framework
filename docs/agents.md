@@ -68,6 +68,14 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    Enforced: an unscoped `chat()`/`chat_stream()` raises `MissingScopeError` immediately —
    running unscoped would otherwise fail silently (nodes save with `sid=None`, invisible to
    every listing, and commit dedup can alias onto another Case's nodes).
+   **One writer per sid** — a hard contract, not enforced in code: never run two
+   agent conversations that write the same `sid` concurrently (headless drivers
+   fanning out included). The graph client is a singleton with one cached
+   connection, `commit()` dedup is check-then-act across autocommitted
+   statements, and directed `connect()` duplicates edges on repeated calls —
+   concurrent same-sid writers produce duplicate nodes/edges and half-built
+   containers. Different sids are fine. Parallelism *inside* one turn is
+   already handled (LLM work gathers, graph writes stay sequential).
 3. **Message persistence** — save/load `agent.messages` per conversation thread.
 4. **Phase handoff & live updates** — see [Handoffs](#handoffs-the-ux-glue) and the
    `GraphEventBus` (effects publish per `sid` for reactive canvas updates).
@@ -201,9 +209,14 @@ it drives toward the choice and keeps the recorded decision, while the convergen
 mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
-nexus_hash=None, app_tools=None)`. `dialectical_context` is an optional pre-rendered
-graph snapshot (from `DialecticalContext().resolve()`) injected into the system prompt —
-use it when a rich graph already exists at conversation start. `nexus_hash` pins the
+nexus_hash=None, app_tools=None, principal="human")`. `dialectical_context` is an optional
+pre-rendered graph snapshot (from `DialecticalContext().resolve()`) injected into the system
+prompt — use it when a rich graph already exists at conversation start. `principal` is the
+host's attestation of WHO confirms decisions in this conversation: leave the default only
+when an actual person is on the other end; a delegated driver (agent-to-agent runs) must
+pass its identity (e.g. `"agent:dataset-driver"`) so recorded decisions carry honest
+provenance — the ledger renders driver-confirmed rationales attributed, never as the
+person's own "Why". Closed over by the tool in code; the LLM cannot set it. `nexus_hash` pins the
 Advisor to one exploration — this is the **counsel mode of an Explorer session**, not a
 standalone deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
 `app_tools` is the app's domain-resource seam: additional `@llm.tool` functions
@@ -220,7 +233,7 @@ preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 | `anchor` | IntroducePolarity + ExpandPolarity | plant a specific T/A tension |
 | `explore` | CreateNexus + ExplorationPipeline + GenerateSynthesis | group → pathways → synthesis in one shot (budgeted: deepens only the top-plausibility arrangement) |
 | `deepen` | ExploreTransformations + GenerateSynthesis | develop an alternative arrangement when the person's lived reality picks a shallow reading |
-| `record_decision` | RecordDecision + DecisionCoherenceCheck | record an explicitly confirmed decision with grounds + human rationale (consent-first in BOTH modes — the one exception to silent machinery) |
+| `record_decision` | RecordDecision + DecisionCoherenceCheck | record an explicitly confirmed decision with grounds + the confirming principal's rationale (consent-first in BOTH modes — the one exception to silent machinery; provenance = `principal`, host-attested) |
 | `sync` | DialecticalContext | re-read full graph state |
 | `discard`, `inspect_node`, `read_digest` | shared | curate / detail (discard also retracts/supersedes Decisions) |
 

@@ -32,9 +32,12 @@ class Decision(IntentMixin, AssessableEntity, label="Decision"):
     Thin by design — the record points at the reasoning rather than
     restating it:
     - The question rides `intent` (IntentMixin); REQUIRED at commit.
-    - The distilled why is a Rationale node with agent="human" attached
-      via the standard EXPLAINS machinery (inherited `rationales`), which
-      also buys ratings/estimations/critiques on decisions.
+    - The distilled why is a Rationale attached via the standard EXPLAINS
+      machinery (inherited `rationales`), which also buys ratings/
+      estimations/critiques on decisions. Its `agent` names the confirming
+      principal: "human" iff a person confirmed the ceremony; a delegated
+      driver records "agent:<name>" (host-attested via
+      Advisor(principal=...), never LLM-supplied).
     - Grounds are GROUNDED_IN edges to committed nodes (perspectives,
       statements, wheels, transformations) with an optional role
       ("accepted_cost", "adopted_pathway", or None for a plain ground).

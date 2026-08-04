@@ -284,7 +284,17 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
   "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
   recorded decisions stays available via query_graph/inspect_node, and NAVIGATOR_APP_ADVANCED_TOGGLE names Decision
-  in its vocabulary list). No settings knobs (policy-not-config).
+  in its vocabulary list). Analyst side (live since 2026-08, cross-agent parity fix): the same seam in
+  analyst/system_prompts.py — cannot record, never fakes an acknowledgment, and NEVER anchors the declared choice
+  as a thesis (a decision is a stance, not a tension; anchoring it misfiles it as analytical structure); locked by
+  `test_analyst_never_fakes_or_anchors_decisions`. No settings knobs (policy-not-config).
+  **Decision provenance** (live since 2026-08): the rationale's `agent` names the confirming PRINCIPAL — "human"
+  iff a person confirmed the ceremony; delegated drivers (agent-to-agent runs) record "agent:<name>" instead.
+  Host-attested at construction (`Advisor(principal=...)` → closed over by `build_record_decision`, same
+  code-not-prompt enforcement as the nexus pin), never LLM-supplied. Renderers branch on it: the ledger shows
+  unattributed "Why:" ONLY for agent=="human" ("Why (confirmed by agent:<name>):" otherwise); inspect_node
+  mirrors this. Changing the sentinel or adding principals must update `_dump_decisions`, `_inspect_decision`,
+  GRAPH_SCHEMA's Decision row, and docs/graph.md together (locked by `TestDecisionProvenance`).
   **Named-options guidance** (in `_DECISION_READINESS`, live since 2026-08): when a decision arrives
   as "X or Y", the pair is anchored AS the person's framing (options are valid graph citizens — the tetrad
   expansion, not a translation layer, surfaces the root tension); alternative tetrads on the same polarity are

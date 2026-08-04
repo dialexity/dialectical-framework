@@ -312,9 +312,14 @@ durable artifact of the Advisor's propose-and-confirm recording ceremony (a
 decision is a speech act, never extracted from conversation).
 
 - **Thin by design**: `intent` (the question, required at commit) + `stance`
-  (the confirmed wording). The distilled why is a `Rationale(agent="human")`
-  attached via EXPLAINS — which also enables ratings/critiques on decisions.
-  The timestamp is `committed_at` (recording IS deciding).
+  (the confirmed wording). The distilled why is a Rationale attached via
+  EXPLAINS — which also enables ratings/critiques on decisions. The
+  Rationale's `agent` names the confirming principal: `"human"` iff an
+  actual person confirmed the ceremony; a delegated driver (agent-to-agent
+  runs) records `"agent:<name>"` instead — host-attested at Advisor
+  construction (`Advisor(principal=...)`), never LLM-supplied, so a record
+  can never claim human confirmation it didn't get. The timestamp is
+  `committed_at` (recording IS deciding).
 - **Grounds**: `GROUNDED_IN` edges (analytical layer) to committed nodes, with
   an open-vocabulary `role` property. Seed roles — a role exists iff a consumer
   branches on it: `accepted_cost` (the unchosen side's A+ the person

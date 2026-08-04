@@ -32,23 +32,26 @@ from mirascope import llm
 from pydantic import Field
 
 
-def build_scoped_tools(nexus_hash: str) -> list:
+def build_scoped_tools(nexus_hash: str, principal: str = "human") -> list:
     """
     Build the tool set for an exploration-pinned Advisor (counsel mode).
 
     The nexus_hash is captured by closure — the LLM cannot redirect any of
     these tools to another nexus or create a new one. Validation that the
     nexus exists happens in Advisor.__init__, not here (keeps the factory
-    DB-free for signature tests).
+    DB-free for signature tests). `principal` (host-attested confirmer
+    identity, closed over the same way) reaches record_decision — see
+    tools/record_decision.py.
     """
     from dialectical_framework.agents.advisor.tools.anchor import anchor
     from dialectical_framework.agents.advisor.tools.record_decision import \
-        record_decision
+        build_record_decision
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
     from dialectical_framework.agents.orchestrator.tools.read_digest import \
         read_digest
 
+    record_decision = build_record_decision(principal)
     pinned_hash = nexus_hash
 
     @llm.tool

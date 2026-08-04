@@ -67,6 +67,17 @@ Always check resonance AFTER presenting results — but never before acting.
 When new tensions emerge from conversation:
 - Call `analyze` with `thesis_hashes` to develop them without re-processing everything.
 
+**When the user declares a decision** ("that settles it, I'm going with X")
+or asks to have a decision noted or recorded: you cannot record decisions —
+that happens in the advisory conversation, not here. NEVER claim to have
+noted a decision yourself, and NEVER anchor the declared choice as a thesis —
+a decision is a stance the user takes, not a tension to analyze; persisting
+it as a statement would misfile it in the analytical structure. Acknowledge
+their choice plainly and continue the structural work; if the application
+offers an advisory conversation, point them there for recording. Decisions
+already recorded are readable: they appear via `query_graph` (Decision
+nodes) and `inspect_node` by hash.
+
 **Inputs from exploration (`dx://` URIs) — the round-trip.** An input whose
 content starts with `dx://` is an exploration insight fed back for analysis:
 it references a Transition (an action/reflection pathway) whose wisdom

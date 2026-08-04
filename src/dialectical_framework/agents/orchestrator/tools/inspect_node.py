@@ -288,7 +288,15 @@ def _inspect_decision(decision: Decision) -> str:
     lines.append(f"Stance: {decision.stance}")
 
     for rationale, _ in decision.rationales.all():
-        prefix = "Why (human)" if rationale.agent == "human" else f"Rationale ({rationale.agent})"
+        # "human" = a person confirmed the ceremony; "agent:<name>" = a
+        # delegated driver confirmed (still the ceremony why, attributed);
+        # anything else = machine-generated analysis (critique etc.).
+        if rationale.agent == "human":
+            prefix = "Why (human)"
+        elif rationale.agent and rationale.agent.startswith("agent:"):
+            prefix = f"Why (confirmed by {rationale.agent})"
+        else:
+            prefix = f"Rationale ({rationale.agent})"
         lines.append(f"{prefix}: {rationale.text}")
 
     grounds = decision.grounds.all()

@@ -252,12 +252,20 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             # raw they could fabricate sibling ledger lines (injection).
             lines.append(f"Question: {one_line(d.intent)}")
             lines.append(f"Stance: {one_line(d.stance)}")
-            # Ledger shows only the human-confirmed why; machine rationales
+            # Ledger shows only the ceremony-confirmed why; machine rationales
             # (critiques etc.) stay one inspect_node away — deliberate
-            # divergence from _inspect_decision, which shows all.
+            # divergence from _inspect_decision, which shows all. "human" =
+            # a person confirmed; "agent:<name>" = a delegated driver
+            # confirmed (rendered with attribution so a human reading the
+            # ledger never mistakes it for their own confirmation).
             for rationale, _ in d.rationales.all():
                 if rationale.agent == "human":
                     lines.append(f"Why: {one_line(rationale.text)}")
+                elif rationale.agent and rationale.agent.startswith("agent:"):
+                    lines.append(
+                        f"Why (confirmed by {rationale.agent}): "
+                        f"{one_line(rationale.text)}"
+                    )
             if d.validation:
                 lines.append(f"Validation: {one_line(d.validation)}")
             grounds = d.grounds.all()
