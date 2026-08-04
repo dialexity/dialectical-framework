@@ -65,6 +65,9 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
 
 1. **DI setup** — `DialecticalReasoning.setup(Settings.from_env())` once at startup.
 2. **Scope** — wrap every `chat()` in `with scope(sid):` (all graph writes are `sid`-scoped).
+   Enforced: an unscoped `chat()`/`chat_stream()` raises `MissingScopeError` immediately —
+   running unscoped would otherwise fail silently (nodes save with `sid=None`, invisible to
+   every listing, and commit dedup can alias onto another Case's nodes).
 3. **Message persistence** — save/load `agent.messages` per conversation thread.
 4. **Phase handoff & live updates** — see [Handoffs](#handoffs-the-ux-glue) and the
    `GraphEventBus` (effects publish per `sid` for reactive canvas updates).

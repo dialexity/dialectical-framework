@@ -16,6 +16,7 @@ from mirascope import llm
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.agent_context import agent_scope
+from dialectical_framework.graph.scope_context import require_current_sid
 from dialectical_framework.agents.analyst.system_prompts import SYSTEM_PROMPT
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
@@ -93,11 +94,13 @@ class Analyst:
         return "\n\n".join(parts)
 
     async def chat(self, user_message: str) -> str:
+        require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
             result = await self._conversation.submit(ChatResponse, user_message)
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
+        require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
             async for event in self._conversation.submit_stream(
                 ChatResponse, user_message

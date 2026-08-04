@@ -145,8 +145,9 @@ class TestAnalystChatStream:
 
         with patch.object(analyst._conversation, "submit_stream", mock_submit_stream):
             events = []
-            async for event in analyst.chat_stream("Hello"):
-                events.append(event)
+            with scope("test-analyst-stream-sid"):
+                async for event in analyst.chat_stream("Hello"):
+                    events.append(event)
 
         assert len(events) == 4
         assert isinstance(events[0], TextDelta)
@@ -164,8 +165,9 @@ class TestAnalystChatStream:
 
         with patch.object(analyst._conversation, "submit_stream", mock_submit_stream):
             events = []
-            async for event in analyst.chat_stream("Hi"):
-                events.append(event)
+            with scope("test-analyst-stream-sid"):
+                async for event in analyst.chat_stream("Hi"):
+                    events.append(event)
 
         assert len(events) == 1
         assert isinstance(events[0], ResponseComplete)

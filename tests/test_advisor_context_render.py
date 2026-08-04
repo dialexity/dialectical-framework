@@ -74,8 +74,11 @@ class TestStaticSystemPrompt:
             advisor._conversation, "submit", submit_with_tool_calls
         )
 
-        await advisor.chat(SUBSTANTIVE_MESSAGE)
-        await advisor.chat(SUBSTANTIVE_MESSAGE)
+        from dialectical_framework.graph.scope_context import scope
+
+        with scope("test-advisor-render-sid"):
+            await advisor.chat(SUBSTANTIVE_MESSAGE)
+            await advisor.chat(SUBSTANTIVE_MESSAGE)
 
         assert render_calls == []
 

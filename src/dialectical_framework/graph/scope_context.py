@@ -33,6 +33,33 @@ _current_scope: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
 )
 
 
+def require_current_sid() -> str:
+    """
+    Get the current scope ID (sid), raising if none is set.
+
+    Guard for entry points that must never run unscoped (agent chat
+    turns): running without scope fails silently otherwise — nodes save
+    with sid=None (invisible to every sid-scoped listing) and commit-time
+    dedup falls back to an unscoped lookup that can alias onto another
+    Case's nodes. Fail loud at the boundary instead.
+
+    Note: this is NOT enforced at the node layer — sid-less orphan nodes
+    are a supported semantic for programmatic callers (portable
+    identifiers). Only conversational entry points call this.
+    """
+    from dialectical_framework.exceptions.node_errors import \
+        MissingScopeError
+
+    sid = _current_scope.get()
+    if not sid:
+        raise MissingScopeError(
+            "No scope set for this agent turn. Wrap the call in "
+            "`with scope(case.sid):` — the framework never sets scope "
+            "itself, and running unscoped would silently drop all work."
+        )
+    return sid
+
+
 def get_current_sid() -> Optional[str]:
     """
     Get the current scope ID (sid) from context.
