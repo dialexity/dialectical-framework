@@ -133,7 +133,7 @@ The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+
 ### Agent Design Principles
 
 - **Product model:** Analyst + Explorer = the "Navigator" (transparent consulting agency, framework visible). Advisor = the consultant *replacement* (hidden machinery, pure counsel). Counsel mode = the partner debriefing the user's own deliverable.
-- **Ceiling-not-floor:** the framework must improve the LLM's reasoning, never drop below a bare persona-prompted model. Issue #57's ablation ladder (A0/A1/A1.5/A2) is the empirical test; `test_advisor_e2e.py` is the collapse tripwire.
+- **Ceiling-not-floor:** the framework must improve the LLM's reasoning, never drop below a bare persona-prompted model. The judged-eval design (`docs/r-n-d/judged-eval-vs-prompted-llm.md`, gitignored — competitive analysis) carries the ablation ladder (A0/A1/A1.5/A1.7/A2); `test_advisor_e2e.py` is the collapse tripwire.
 - **Lived reality outranks the plausibility score:** when the user gravitates to a non-top causal reading, follow (deepen it), don't argue from %.
 - **Prune, don't instruct:** pre-computed filtering of context beats prioritization rules the model must self-apply.
 

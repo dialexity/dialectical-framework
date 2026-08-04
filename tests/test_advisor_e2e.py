@@ -3,7 +3,8 @@ End-to-end smoke test for the Advisor's framework hand-off.
 
 Graph-building is model-initiated (via the ingest/anchor/explore tools, as
 steered by the system prompt). This test is the A2 != A1 instrumentation
-from issue #57: after a multi-turn counsel-shaped conversation, a committed
+from the judged-eval design (docs/r-n-d/judged-eval-vs-prompted-llm.md):
+after a multi-turn counsel-shaped conversation, a committed
 graph must exist — an Advisor whose graph is empty after a rich conversation
 has silently degraded to a bare persona-prompted model.
 
@@ -63,7 +64,7 @@ class TestAdvisorFrameworkHandoff:
 
             perspectives = PerspectiveRepository().find_all_active()
 
-            # Instrumentation for issue #57: which tools carried the hand-off.
+            # Judged-eval instrumentation: which tools carried the hand-off.
             print(f"\nTool calls per turn: {tool_calls_per_turn}")
             print(f"Committed active perspectives: {len(perspectives)}")
 
@@ -71,6 +72,7 @@ class TestAdvisorFrameworkHandoff:
                 "After a multi-turn counsel-shaped conversation the model "
                 "called no graph-building tools (or they produced nothing) — "
                 "the Advisor degraded to a bare persona-prompted model "
-                "(issue #57 A2->A1 collapse). Tool calls per turn: "
+                "(A2->A1 collapse, see docs/r-n-d/judged-eval-vs-prompted-llm.md). "
+                "Tool calls per turn: "
                 f"{tool_calls_per_turn}"
             )

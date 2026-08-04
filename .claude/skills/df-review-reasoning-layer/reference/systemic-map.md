@@ -52,7 +52,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   only** (prompt-steered tools); a background-analysis hook was also tried and removed (same day, too
   naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
   `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
-  produces no graph (issue #57 A2→A1 collapse) — treat failure as prompt-steering signal, not flake.
+  produces no graph (A2→A1 collapse, `docs/r-n-d/judged-eval-vs-prompted-llm.md`) — treat failure as prompt-steering signal, not flake.
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
 
