@@ -146,11 +146,25 @@ def render_report(
     # -- validity first: a report whose arms collapsed is worthless ---------
     add("## Validity checks")
     add("")
+    # Dead runs come first. A cell whose every turn failed is a harness or
+    # provider fault; reading it as a weak arm inverts the conclusion. This
+    # happened for real: an unsupported extended-thinking request shape killed
+    # every strong-tier A2 turn, and the only visible symptom was "collapsed".
+    dead = [r for r in runs if r.all_turns_errored]
+    if dead:
+        add(f"!! {len(dead)} run(s) had EVERY turn fail — the arm was never")
+        add("   exercised. Treat as MISSING data, not as evidence, and fix the")
+        add("   cause before reading anything below.")
+        for r in dead[:10]:
+            first = r.turn_errors[0] if r.turn_errors else "?"
+            add(f"   - {r.arm.value} {r.scenario_key} t={r.tier}: {first[:120]}")
+        add("")
     collapsed = [r for r in runs if r.collapsed_to_a1]
     if collapsed:
         add(f"!! {len(collapsed)} A2 run(s) built NO graph (A2 collapsed to A1).")
         for r in collapsed:
-            add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate}")
+            cause = " (every turn errored — see above)" if r.all_turns_errored else ""
+            add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate}{cause}")
         add("   These runs are INVALID as A2 evidence, not merely weak.")
     else:
         a2 = [r for r in runs if r.arm is Arm.A2]

@@ -53,6 +53,16 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
   `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
   produces no graph (A2→A1 collapse, `docs/r-n-d/judged-eval-vs-prompted-llm.md`) — treat failure as prompt-steering signal, not flake.
+  **The bench imports these section constants.** `tests/bench/arms.py` builds its A1 baseline (the
+  "prompt-only model given the real method") from `_ROLE`, `_EAGER`, `_INTERNAL_MODEL`,
+  `_CONVERSATION_USE`, `_DECISION_READINESS`, `_HOW_YOU_SPEAK` — rewriting tool verbs into mental acts
+  via a phrase table, then dropping only what stays machinery. Editing any of those sections can silently
+  invalidate the eval: an unmatched rewrite key means the paragraph keeps its tool verbs, gets dropped, and
+  the baseline loses method text — inflating every framework-vs-baseline delta. `tests/bench/test_bench.py::
+  TestMethodPrompt::test_rewrite_table_has_no_stale_keys` fails on that drift (free, no `--real-llm`);
+  run it after editing these constants and update `_TOOL_REWRITES` in the same change.
+  Rule of thumb for what belongs where: rules about **how to talk** (`_HOW_YOU_SPEAK`) must reach every
+  arm; only rules about **operating machinery** are the framework arm's. See `tests/bench/README.md`.
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
 

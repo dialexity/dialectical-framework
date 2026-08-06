@@ -430,6 +430,29 @@ class TestRecords:
         """`collapsed_to_a1` is an A2-only invariant; A1 has no tools by design."""
         assert _run(Arm.A1, "weak").collapsed_to_a1 is False
 
+    def test_all_turns_errored_is_visible(self):
+        """A cell whose every turn failed is missing data, not a weak arm.
+
+        Observed: four strong-tier A2 cells reported only "collapsed" while the
+        real cause was a 400 on every turn (unsupported thinking shape). If that
+        reads as "the model chose not to build a graph", the conclusion inverts.
+        """
+        run = _run(Arm.A2, "strong")
+        run.sessions[0].turns[0].error = "BadRequestError: 400"
+        assert run.turn_errors
+        assert run.all_turns_errored is True
+
+    def test_partial_failure_is_not_all_errored(self):
+        run = _run(Arm.A1, "weak")
+        run.sessions[0].turns.append(
+            TurnRecord(index=1, user="u", assistant="", error="boom")
+        )
+        assert run.turn_errors == ["boom"]
+        assert run.all_turns_errored is False
+
+    def test_healthy_run_has_no_turn_errors(self):
+        assert _run(Arm.A1, "weak").all_turns_errored is False
+
     def test_cell_key_distinguishes_branches(self):
         a = RunRecord(
             arm=Arm.A2, tier="weak", model="m", scenario_key="p",
@@ -488,6 +511,13 @@ class TestReport:
     def test_flags_collapsed_a2(self):
         text = render_report([_run(Arm.A2, "weak")], [], {}, ["weak"])
         assert "collapsed" in text.lower()
+
+    def test_flags_dead_runs_as_missing_data(self):
+        run = _run(Arm.A2, "strong")
+        run.sessions[0].turns[0].error = "BadRequestError: 400 thinking"
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "EVERY turn fail" in text
+        assert "MISSING data" in text
 
     def test_flags_single_tier(self):
         text = render_report([_run(Arm.A1, "weak")], [], {}, ["weak"])

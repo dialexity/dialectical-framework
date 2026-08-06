@@ -65,6 +65,8 @@ class Settings(BaseModel):
     #   "medium"  - 40% of max_tokens
     #   "high"    - 60% of max_tokens
     #   "max"     - 80% of max_tokens
+    # Claude 5 models take no token budget — they accept only adaptive thinking with a
+    # coarse effort label, so the level is mapped there instead (utils/thinking_compat.py).
     # If the model doesn't support thinking, the setting is silently ignored (warning logged).
     thinking_level: Optional[str] = Field(default=None, description="Extended thinking level. None = disabled.")
 

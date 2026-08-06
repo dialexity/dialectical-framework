@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, cast
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 from anthropic import AnthropicBedrock, AsyncAnthropicBedrock
 from anthropic.types import Message as AnthropicMessage
@@ -10,6 +10,11 @@ from mirascope.llm.providers.anthropic import _utils  # noqa: PLC2701
 from mirascope.llm.providers.anthropic.provider import AnthropicProvider
 from mirascope.llm.responses import AsyncResponse, AsyncStreamResponse, Response
 from typing_extensions import Unpack
+
+from dialectical_framework.utils.thinking_compat import (
+    learn_thinking_shape_from_error,
+    with_thinking_compat,
+)
 
 if TYPE_CHECKING:
     from mirascope.llm.formatting import FormatSpec, FormattableT
@@ -42,6 +47,44 @@ class BedrockAnthropicProvider(AnthropicProvider):
         self.async_client = AsyncAnthropicBedrock()
         self._beta_provider = None
 
+    async def _create_async(
+        self, kwargs: dict[str, Any], params: Mapping[str, Any]
+    ) -> AnthropicMessage:
+        """messages.create with the model's thinking shape, learning once on 400.
+
+        Mirascope encodes extended thinking as a token budget, which Claude 5
+        models reject. `with_thinking_compat` translates by model name; if the
+        name heuristic is wrong the 400 itself says which shape is wanted, so
+        one retry is both sufficient and self-correcting. See thinking_compat.
+        """
+        model_name = kwargs["model"]
+        try:
+            return await self.async_client.messages.create(
+                **with_thinking_compat(model_name, kwargs, params)
+            )
+        except Exception as e:
+            if not learn_thinking_shape_from_error(model_name, e):
+                raise
+            return await self.async_client.messages.create(
+                **with_thinking_compat(model_name, kwargs, params)
+            )
+
+    def _create_sync(
+        self, kwargs: dict[str, Any], params: Mapping[str, Any]
+    ) -> AnthropicMessage:
+        """Synchronous twin of `_create_async`."""
+        model_name = kwargs["model"]
+        try:
+            return self.client.messages.create(
+                **with_thinking_compat(model_name, kwargs, params)
+            )
+        except Exception as e:
+            if not learn_thinking_shape_from_error(model_name, e):
+                raise
+            return self.client.messages.create(
+                **with_thinking_compat(model_name, kwargs, params)
+            )
+
     async def _call_async(
         self,
         *,
@@ -61,7 +104,7 @@ class BedrockAnthropicProvider(AnthropicProvider):
         )
         kwargs["model"] = _bedrock_model_name(model_id)
         anthropic_response = cast(
-            AnthropicMessage, await self.async_client.messages.create(**kwargs)
+            AnthropicMessage, await self._create_async(kwargs, params)
         )
         include_thoughts = _utils.get_include_thoughts(params)
         assistant_message, finish_reason, usage = _utils.decode_response(
@@ -99,6 +142,11 @@ class BedrockAnthropicProvider(AnthropicProvider):
             params=params,
         )
         kwargs["model"] = _bedrock_model_name(model_id)
+        # Streaming cannot learn from a 400: the error surfaces when the caller
+        # consumes the iterator, by which point retrying would replay tokens
+        # already yielded. The name heuristic is applied, and a genuine mismatch
+        # raises to the caller.
+        kwargs = with_thinking_compat(kwargs["model"], kwargs, params)
         anthropic_stream = self.async_client.messages.stream(**kwargs)
         include_thoughts = _utils.get_include_thoughts(params)
         chunk_iterator = _utils.decode_async_stream(
@@ -133,9 +181,7 @@ class BedrockAnthropicProvider(AnthropicProvider):
             params=params,
         )
         kwargs["model"] = _bedrock_model_name(model_id)
-        anthropic_response = cast(
-            AnthropicMessage, self.client.messages.create(**kwargs)
-        )
+        anthropic_response = cast(AnthropicMessage, self._create_sync(kwargs, params))
         include_thoughts = _utils.get_include_thoughts(params)
         assistant_message, finish_reason, usage = _utils.decode_response(
             anthropic_response, model_id, include_thoughts=include_thoughts

@@ -242,6 +242,25 @@ class RunRecord(BaseModel):
         """
         return self.arm is Arm.A2 and not self.all_tool_calls
 
+    @property
+    def turn_errors(self) -> list[str]:
+        """Per-turn failures. A cell can finish "successfully" with every turn
+        broken, because `run_cell` records a turn error and moves on.
+
+        This is not bookkeeping: a strong-tier run once produced four cells
+        flagged only as "A2 collapsed" while the real cause was a 400 on every
+        single turn (an unsupported extended-thinking shape). "The model chose
+        not to build a graph" and "the model was never reached" are opposite
+        conclusions, so the distinction must reach the progress line and the
+        report.
+        """
+        return [t.error for s in self.sessions for t in s.turns if t.error]
+
+    @property
+    def all_turns_errored(self) -> bool:
+        turns = [t for s in self.sessions for t in s.turns]
+        return bool(turns) and all(t.error for t in turns)
+
     def session(self, label: str) -> Optional[SessionRecord]:
         for s in self.sessions:
             if s.label == label:

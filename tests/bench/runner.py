@@ -124,6 +124,16 @@ class BenchRun:
                             )
                             self.runs.append(record)
                             note = record.error or f"{record.duration_s}s"
+                            # Turn errors first: they explain a collapse rather
+                            # than accompanying it, and a run whose every turn
+                            # 400'd is a broken harness, not a weak arm.
+                            errors = record.turn_errors
+                            if errors:
+                                note += (
+                                    f" !! {len(errors)} TURN ERROR(S)"
+                                    f"{' — ALL TURNS FAILED' if record.all_turns_errored else ''}"
+                                    f": {errors[0][:160]}"
+                                )
                             if record.collapsed_to_a1:
                                 note += " !! NO TOOL CALLS (A2 collapsed)"
                             say(f"{label} done: {note}")
