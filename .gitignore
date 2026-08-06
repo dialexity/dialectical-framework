@@ -65,3 +65,6 @@ logs/
 tests/play.py
 docs/r-n-d/
 .chainlit/
+# Bench run outputs (the bench CODE is committed; individual runs are not —
+# transcripts are large and a run is reproducible from the harness)
+tests/bench/results/
