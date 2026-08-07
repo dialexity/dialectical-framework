@@ -73,7 +73,9 @@ def use_brain(
     """
     Decorator factory for Mirascope v2 LLM calls.
 
-    Retries on ParseError (validation failures) with exponential backoff.
+    Retries on ParseError (validation failures) with exponential backoff, on
+    rate limits / throttling, and on transient connection failures (each with
+    its own curve — see `_is_connection_error`).
     Automatically traces all LLM calls via Langfuse when configured.
 
     When ``format`` is provided, returns the parsed model instance.
@@ -137,6 +139,8 @@ def use_brain(
             attempts = max(1, retry_max)
             parse_delay = 10.0
             rate_delay = 10.0
+            connect_delay = _CONNECT_RETRY_BASE_S
+            connect_attempts = 0
             last_error: Exception | None = None
 
             for attempt in range(attempts):
@@ -168,6 +172,20 @@ def use_brain(
                         if attempt < attempts - 1:
                             await asyncio.sleep(rate_delay)
                             rate_delay = min(rate_delay * 2.0, 60.0)
+                    elif _is_connection_error(e):
+                        # Bounded separately from `attempts`: a down endpoint must
+                        # surface as an error, not consume the whole retry budget.
+                        connect_attempts += 1
+                        if connect_attempts >= _CONNECT_RETRY_MAX:
+                            raise
+                        last_error = e
+                        logging.getLogger(__name__).warning(
+                            "Connection error (attempt %d/%d), retrying in %.0fs: %s",
+                            connect_attempts, _CONNECT_RETRY_MAX, connect_delay, e,
+                        )
+                        if attempt < attempts - 1:
+                            await asyncio.sleep(connect_delay)
+                            connect_delay *= 2.0
                     else:
                         raise
 
@@ -234,6 +252,37 @@ def _serialize_message(msg: Any) -> dict[str, Any]:
             content = "\n".join(parts)
         return {"role": msg.role, "content": str(content)}
     return {"content": str(msg)}
+
+
+#: Retry curve for transient connection failures. Shorter and shallower than the
+#: throttle curve on purpose: throttling means "the service told us to wait", so
+#: waiting long is the correct response, while a connect failure is usually a
+#: momentary link glitch that either clears in seconds or is a real outage no
+#: amount of waiting fixes. Capped attempts so a genuinely-down endpoint still
+#: surfaces as an error instead of hanging a pipeline for minutes.
+_CONNECT_RETRY_MAX = 3
+_CONNECT_RETRY_BASE_S = 2.0
+
+
+def _is_connection_error(e: Exception) -> bool:
+    """Detect transient network failures worth retrying.
+
+    Real failure this catches: the framework's parallel stages
+    (ExplorationPipeline, ExploreTransformations) open many connections at once,
+    so a single cold-connect blip took down an entire agent turn — every call in
+    the gather died together and the turn recorded as "the model produced
+    nothing", which reads as a weak model rather than a network fault.
+
+    Matched by class name, not by import: Mirascope re-raises provider
+    exceptions as its own `mirascope.llm.exceptions.ConnectionError`/`TimeoutError`,
+    and importing those shadows the builtins in this module.
+    """
+    name = type(e).__name__
+    if name in ("ConnectionError", "TimeoutError", "APIConnectionError", "APITimeoutError"):
+        return True
+    # httpx raises distinct classes per phase (ConnectTimeout, ReadTimeout,
+    # ConnectError, RemoteProtocolError); the shared suffix is the reliable tell.
+    return name.endswith(("ConnectError", "ConnectTimeout", "ReadTimeout"))
 
 
 def _is_rate_limit_error(e: Exception) -> bool:

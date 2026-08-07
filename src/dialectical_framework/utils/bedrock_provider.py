@@ -3,14 +3,19 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, cast
 
+import httpx
 from anthropic import AnthropicBedrock, AsyncAnthropicBedrock
+from anthropic._constants import DEFAULT_TIMEOUT
 from anthropic.types import Message as AnthropicMessage
+from dependency_injector.wiring import Provide, inject
 from mirascope import llm
 from mirascope.llm.providers.anthropic import _utils  # noqa: PLC2701
 from mirascope.llm.providers.anthropic.provider import AnthropicProvider
 from mirascope.llm.responses import AsyncResponse, AsyncStreamResponse, Response
 from typing_extensions import Unpack
 
+from dialectical_framework.enums.di import DI
+from dialectical_framework.settings import Settings
 from dialectical_framework.utils.thinking_compat import (
     learn_thinking_shape_from_error,
     with_thinking_compat,
@@ -21,6 +26,27 @@ if TYPE_CHECKING:
     from mirascope.llm.messages import Message
     from mirascope.llm.models import Params
     from mirascope.llm.tools import AsyncToolkit, Toolkit
+
+
+def _connect_timeout(connect_timeout_s: float | None) -> httpx.Timeout:
+    """SDK default timeouts with a widened CONNECT phase only.
+
+    The SDK's 5s connect timeout assumes a warm datacenter link. A cold TLS
+    handshake over a tethered/VPN/mobile connection measured 7.7s, so the first
+    call on every fresh connection failed — and the parallel stages failed
+    hardest, since each concurrent call opens its own cold connection while a
+    sequential one reuses a handshaked socket. Read/write keep the SDK defaults:
+    a slow-to-connect link is a different problem from a slow generation, and
+    conflating them would mask real hangs.
+    """
+    seconds = connect_timeout_s if connect_timeout_s is not None else 30.0
+    default = DEFAULT_TIMEOUT
+    return httpx.Timeout(
+        connect=seconds,
+        read=default.read,
+        write=default.write,
+        pool=default.pool,
+    )
 
 
 def _bedrock_model_name(model_id: str) -> str:
@@ -41,10 +67,11 @@ class BedrockAnthropicProvider(AnthropicProvider):
     id = "bedrock"
     default_scope = "bedrock/"
 
-    def __init__(self, **kwargs) -> None:  # noqa: ARG002
+    def __init__(self, *, connect_timeout_s: float | None = None, **kwargs) -> None:  # noqa: ARG002
         # Skip super().__init__() — parent creates Anthropic/AsyncAnthropic clients we don't need
-        self.client = AnthropicBedrock()
-        self.async_client = AsyncAnthropicBedrock()
+        timeout = _connect_timeout(connect_timeout_s)
+        self.client = AnthropicBedrock(timeout=timeout)
+        self.async_client = AsyncAnthropicBedrock(timeout=timeout)
         self._beta_provider = None
 
     async def _create_async(
@@ -204,10 +231,24 @@ class BedrockAnthropicProvider(AnthropicProvider):
 _registered = False
 
 
-def ensure_bedrock_provider():
-    """Register the bedrock provider if not already registered. Idempotent."""
+@inject
+def ensure_bedrock_provider(
+    settings: Settings = Provide[DI.settings],
+) -> None:
+    """Register the bedrock provider if not already registered. Idempotent.
+
+    Registration happens on the first call, so `llm_connect_timeout_s` is read
+    from DI here rather than in `__init__` (Mirascope constructs providers with
+    no arguments). Consequence of the idempotence: changing the setting after
+    the first LLM call of the process has no effect.
+    """
     global _registered
     if _registered:
         return
-    llm.register_provider(BedrockAnthropicProvider(), scope="bedrock/")
+    llm.register_provider(
+        BedrockAnthropicProvider(
+            connect_timeout_s=getattr(settings, "llm_connect_timeout_s", None)
+        ),
+        scope="bedrock/",
+    )
     _registered = True

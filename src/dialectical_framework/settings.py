@@ -70,6 +70,19 @@ class Settings(BaseModel):
     # If the model doesn't support thinking, the setting is silently ignored (warning logged).
     thinking_level: Optional[str] = Field(default=None, description="Extended thinking level. None = disabled.")
 
+    # TCP connect timeout for the Bedrock client, in seconds.
+    #
+    # The Anthropic SDK defaults this to 5s, which is generous for a warm
+    # datacenter link and too tight for anything else: a cold TLS handshake over
+    # a mobile/tethered/VPN connection measured 7.7s here, so the FIRST call on
+    # every fresh connection failed. That is a whole class of "the framework
+    # doesn't work on my laptop" — and it hits the parallel stages hardest
+    # (ExplorationPipeline, ExploreTransformations), because each concurrent
+    # call opens its own cold connection while a single sequential call reuses
+    # one that already handshaked. Read/write timeouts keep the SDK defaults;
+    # slow generation is not the problem being solved here.
+    llm_connect_timeout_s: float = Field(default=30.0, description="TCP/TLS connect timeout for LLM calls, in seconds. Raise on slow or high-latency links.")
+
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
         """
@@ -138,5 +151,6 @@ class Settings(BaseModel):
             graph_db_encrypted=os.getenv("DIALEXITY_GRAPH_DB_ENCRYPTED", "false").lower() == "true",
             graph_db_client_name=os.getenv("DIALEXITY_GRAPH_DB_CLIENT_NAME", "dialectical_framework"),
             thinking_level=os.getenv("DIALEXITY_THINKING_LEVEL"),
+            llm_connect_timeout_s=float(os.getenv("DIALEXITY_LLM_CONNECT_TIMEOUT_S", 30.0)),
             effect_log_dir=os.getenv("DIALEXITY_GRAPH_LOG_DIR"),
         )
