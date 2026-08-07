@@ -291,6 +291,12 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   auto-False reads as passed). The `# Decisions` dump section renders in BOTH unscoped and scoped dumps (decisions are
   Case-level facts); its wording (role labels "accepted cost"/"adopted pathway", "since discarded" ground flag,
   `Validation` line) must stay in lockstep with `_SCORE_READING`'s Decisions block and `_TOOL_DOCS["record_decision"]`.
+  **Aspect addressability** (fixed 2026-08): every T/A/aspect line in `_dump_one_perspective` renders its Statement
+  `[[short_hash]]`. Load-bearing for this lifecycle, not cosmetic — `record_decision` asks for the unchosen side's
+  `+` aspect as the `accepted_cost` ground and the re-audit reassures FROM it; while aspect lines were unaddressed
+  the only hash in view was the Perspective's, so every observed recording grounded on the tension instead of the
+  cost and the re-audit had nothing specific to point back to (caught by `tests/bench`). `_TOOL_DOCS["record_decision"]`
+  names the aspect hash explicitly. Locked by `test_dialectical_context.py::test_aspect_lines_are_addressable`.
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
   "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
   recorded decisions stays available via query_graph/inspect_node, and NAVIGATOR_APP_ADVANCED_TOGGLE names Decision

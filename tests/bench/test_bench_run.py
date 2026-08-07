@@ -43,63 +43,51 @@ def _say(message: str) -> None:
 
 @pytest.mark.asyncio
 async def test_bench_preflight(di_container):
-    """Every configured model must answer, with tools, under current settings.
+    """Every configured model must produce non-empty text under current settings.
 
     This exists because of a real two-hour loss. An extended-thinking request
     shape unsupported by one tier made every strong-tier Advisor turn 400; the
-    turns recorded empty text, so the arm looked like a model that declined to
-    use its tools rather than one that was never reached. Half a matrix was
-    spent before the cause was visible.
+    turns recorded EMPTY TEXT, so the arm looked like a model that declined to
+    use its tools rather than one that was never reached.
 
-    A per-model, single-turn check catches that whole class of fault — a wrong
-    model id, a settings/model incompatibility, missing Bedrock access for one
-    tier — in seconds. It asserts a tool call because that is the specific
-    signal the matrix depends on and the one a broken request silently erases.
+    Empty text is the signal, and it needs no Advisor: the fault is in the
+    request, so one plain chat turn per model reproduces it. Deliberately NOT
+    asserting a tool call — the Advisor often asks a clarifying question before
+    anchoring, so "no tools on turn 1" is normal behaviour and asserting it
+    would make this fail on healthy configurations. Whether A2 ever builds a
+    graph is `collapsed_to_a1`'s job, over a whole run.
+
+    Cheap by construction: one short turn per distinct model, no graph, no
+    pipeline. Run it before spending a matrix.
     """
-    from dialectical_framework.graph.nodes.case import Case
-    from dialectical_framework.graph.scope_context import scope
-
-    from bench.arms import AdvisorArm
-    from bench.driver import BENCH_PERSONA, BENCH_PRINCIPAL
+    from bench.arms import PromptArm
+    from bench.driver import BENCH_PERSONA
     from bench.modelctx import using_model
+    from bench.models import Arm
 
     config = BenchConfig.from_env()
-    # Judge and simulator answer as plain chat; only the tiers under test drive
-    # the Advisor, so only they need the tool-calling assert.
-    models = {
-        **{f"tier:{label}": model for label, model in config.tiers.items()},
-        "simulator": config.simulator_model,
-        "judge": config.judge_model,
-    }
+    roles: dict[str, list[str]] = {}
+    for label, model in config.tiers.items():
+        roles.setdefault(model, []).append(f"tier:{label}")
+    roles.setdefault(config.simulator_model, []).append("simulator")
+    roles.setdefault(config.judge_model, []).append("judge")
 
     failures: list[str] = []
-    for role, model in models.items():
-        case = Case()
-        case.commit()
-        with scope(case.sid):
-            arm = AdvisorArm(BENCH_PERSONA, principal=BENCH_PRINCIPAL)
-            with using_model(di_container, model):
-                try:
-                    text = await arm.reply(
-                        "I need to decide whether to buy out my cofounder. He "
-                        "has checked out — took a three-week holiday during our "
-                        "launch. I own 55%, he owns 45%. I think buying him out "
-                        "is right."
-                    )
-                except Exception as e:  # noqa: BLE001 - reporting all, not first
-                    failures.append(f"{role} ({model}): {type(e).__name__}: {e}")
-                    continue
-            _say(
-                f"{role:14} {model}\n"
-                f"  chars={len(text)} tools={arm.last_tool_calls}"
+    for model, model_roles in roles.items():
+        who = ",".join(model_roles)
+        arm = PromptArm(Arm.A0, BENCH_PERSONA)
+        with using_model(di_container, model):
+            try:
+                text = await arm.reply("Reply with the single word: ready.")
+            except Exception as e:  # noqa: BLE001 - report all, not just first
+                failures.append(f"{who} ({model}): {type(e).__name__}: {e}")
+                continue
+        _say(f"{who:20} {model}\n  chars={len(text)} {text[:60]!r}")
+        if not text.strip():
+            failures.append(
+                f"{who} ({model}): answered with EMPTY TEXT — the request is "
+                f"being rejected; check thinking/settings compatibility"
             )
-            if not text.strip():
-                failures.append(f"{role} ({model}): answered with empty text")
-            elif role.startswith("tier:") and not arm.last_tool_calls:
-                failures.append(
-                    f"{role} ({model}): answered but called no tools — A2 would "
-                    f"collapse to A1 on this tier"
-                )
 
     assert not failures, (
         "preflight failed; do NOT spend a matrix until these are fixed:\n  "

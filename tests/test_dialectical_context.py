@@ -185,10 +185,41 @@ class TestDialecticalContextWithPerspectives:
             concern = DialecticalContext()
             result = await concern.resolve()
 
-            assert "T+:" in result
-            assert "T-:" in result
-            assert "A+:" in result
-            assert "A-:" in result
+            for position in ("T+", "T-", "A+", "A-"):
+                assert f"{position} [[" in result, f"{position} line missing"
+
+    @pytest.mark.asyncio
+    async def test_aspect_lines_are_addressable(self):
+        """Each T/A/aspect line carries its Statement hash.
+
+        Load-bearing, not cosmetic: `record_decision` asks for the unchosen
+        side's `+` aspect as the "accepted_cost" ground, and the later wobble
+        re-audit reassures FROM that ground. With no aspect hash in the dump the
+        only address in view is the Perspective's, so the model grounds on the
+        tension instead of the cost and the re-audit has nothing specific to
+        point back to — observed in tests/bench before this was rendered.
+        """
+        import re
+
+        sid = _new_sid()
+        with scope(sid):
+            _create_perspective_with_aspects()
+
+            result = await DialecticalContext().resolve()
+
+        hashes = {
+            position: re.search(
+                rf"^{re.escape(position)} \[\[([0-9a-f]+)\]\]:", result, re.M
+            )
+            for position in ("T", "A", "T+", "T-", "A+", "A-")
+        }
+        missing = [p for p, m in hashes.items() if m is None]
+        assert not missing, f"positions rendered without a hash: {missing}"
+        found = [m.group(1) for m in hashes.values() if m]
+        assert len(set(found)) == len(found), (
+            "two positions rendered the same hash — grounding one would be "
+            f"ambiguous: {found}"
+        )
 
     @pytest.mark.asyncio
     async def test_unexplored_header_present(self):

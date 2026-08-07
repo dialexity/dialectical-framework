@@ -304,9 +304,18 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         t_result = self._safe_get(pp.t)
         a_result = self._safe_get(pp.a)
 
+        # Statement hashes are rendered because a Statement is an addressable
+        # AssessableEntity and readers are asked to reference these specific
+        # positions — most sharply `record_decision`, whose "accepted_cost"
+        # ground IS the unchosen side's A+ (or T+). Without an address here the
+        # only hash in view is the whole Perspective's, so that instruction is
+        # unfollowable: observed in the bench, every recorded accepted_cost
+        # grounded on a Perspective/Polarity instead — the tension rather than
+        # the cost — leaving the wobble re-audit nothing specific to reassure
+        # from. Do not drop these hashes without re-checking that path.
         if t_result:
             stmt, rel = t_result
-            lines.append(f"T{idx}: \"{stmt.text}\"")
+            lines.append(f"T{idx} [[{stmt.short_hash}]]: \"{stmt.text}\"")
         if a_result:
             stmt, rel = a_result
             if stmt.is_simple:
@@ -318,7 +327,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 hs = f" (HS={rel.heuristic_similarity:.2f})"
             else:
                 hs = ""
-            lines.append(f"A{idx}: \"{stmt.text}\"{hs}")
+            lines.append(f"A{idx} [[{stmt.short_hash}]]: \"{stmt.text}\"{hs}")
 
         for position, manager in [
             (f"T{idx}+", pp.t_plus),
@@ -330,7 +339,9 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             if result:
                 stmt, rel = result
                 scores = self._format_aspect_scores(rel)
-                lines.append(f"{position}: \"{stmt.text}\"{scores}")
+                lines.append(
+                    f"{position} [[{stmt.short_hash}]]: \"{stmt.text}\"{scores}"
+                )
 
         if pp.area is not None:
             quality = f"Quality: area={pp.area:.2f}, rectangularity={pp.rectangularity:.2f}"

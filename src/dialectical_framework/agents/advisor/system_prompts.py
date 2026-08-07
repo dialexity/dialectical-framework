@@ -455,7 +455,12 @@ _TOOL_DOCS: dict[str, str] = {
   `stance` (the position taken), `rationale` (the distilled why, including
   reasons outside the mapped structure). Pass `grounds` as {hash, role}
   entries: role "accepted_cost" for the unchosen side's contribution they
-  confronted, "adopted_pathway" for the pathway adopted as their ongoing
+  confronted — the hash of that specific aspect line (the unchosen side's
+  `+` aspect, e.g. `A1+` when they chose the thesis), NOT the whole
+  perspective, whose hash names the tension rather than the cost; the
+  accepted cost is what the later re-audit reassures from, so a
+  tension-level hash makes that reassurance impossible. Use
+  "adopted_pathway" for the pathway adopted as their ongoing
   recipe, no role for plain grounds (tensions weighed, arrangements counseled
   from). The result may carry a coherence verdict — if it flags a
   contradiction, raise it with the person immediately; the record stands
