@@ -80,6 +80,18 @@ def _patch_validation(monkeypatch, result_or_exc):
     monkeypatch.setattr(PerspectiveValidation, "resolve", stub)
 
 
+#: Real taxonomy URIs, NOT meaning="test".
+#:
+#: `ExpandPolarity` derives each aspect's apex through `lookup_aspect_apex`,
+#: which raises on a meaning that names no known branch — deliberate since
+#: "Taxonomy anchoring fails loudly instead of silently coercing" (b286d94):
+#: a coerced anchor makes the cross-nexus dump state confident false
+#: correspondences. `meaning="test"` is only safe on paths that never reach a
+#: taxonomy lookup, and the expansion path does.
+_T_MEANING = "dx://taxonomy/System(General.v1)/Viability/Integrity/Cohesion"
+_A_MEANING = "dx://taxonomy/System(General.v1)/Viability/Integrity/Separation"
+
+
 async def _expand(monkeypatch) -> Perspective:
     """Run ExpandPolarity over a fresh polarity; return the new perspective."""
     from dialectical_framework.agents.analyst.skills.expand_polarities import \
@@ -87,9 +99,9 @@ async def _expand(monkeypatch) -> Perspective:
     from dialectical_framework.graph.nodes.polarity import Polarity
     from dialectical_framework.graph.nodes.statement import Statement
 
-    t = Statement(text="Discipline", meaning="test")
+    t = Statement(text="Discipline", meaning=_T_MEANING)
     t.commit()
-    a = Statement(text="Spontaneity", meaning="test")
+    a = Statement(text="Spontaneity", meaning=_A_MEANING)
     a.commit()
     polarity = Polarity()
     polarity.set_t(t, heuristic_similarity=1.0)
@@ -171,9 +183,9 @@ class TestValidationWiring:
         )
         sid = _new_sid()
         with scope(sid):
-            t = Statement(text="Order", meaning="test")
+            t = Statement(text="Order", meaning=_T_MEANING)
             t.commit()
-            a = Statement(text="Chaos", meaning="test")
+            a = Statement(text="Chaos", meaning=_A_MEANING)
             a.commit()
             polarity = Polarity()
             polarity.set_t(t, heuristic_similarity=1.0)
