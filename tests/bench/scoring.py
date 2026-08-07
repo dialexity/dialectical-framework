@@ -198,6 +198,16 @@ def _stems(text: str) -> set[str]:
     }
 
 
+#: `decision_ground_line` output: "- accepted cost: [[hash]] the actual text".
+#: The label and hash are framework boilerplate — counting their stems in the
+#: overlap denominator would dilute short grounds toward a false "not cited".
+_GROUND_PREFIX = re.compile(r"^\s*-\s*[a-z ]+:\s*\[\[[0-9a-f]+\]\]\s*", re.I)
+
+
+def _ground_content(ground: str) -> str:
+    return _GROUND_PREFIX.sub("", ground)
+
+
 def cited_record(session: SessionRecord, ground_texts: list[str]) -> Optional[bool]:
     """Did the assistant's wobble reply actually reference the recorded ground?
 
@@ -210,7 +220,7 @@ def cited_record(session: SessionRecord, ground_texts: list[str]) -> Optional[bo
         return None
     reply_stems = _stems(" ".join(t.assistant for t in session.turns))
     for ground in ground_texts:
-        words = _stems(ground)
+        words = _stems(_ground_content(ground))
         if not words:
             continue
         overlap = len(words & reply_stems) / len(words)

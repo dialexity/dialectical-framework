@@ -360,6 +360,22 @@ class TestCitation:
         session = _session(("That sounds hard. What does your gut say?", "wobble"))
         assert scoring.cited_record(session, self._GROUND) is False
 
+    def test_ground_line_boilerplate_is_stripped(self):
+        """Grounds arrive as `decision_ground_line` output, not raw text.
+
+        Counting "accepted cost" and the hash as content stems dilutes the
+        denominator, so a short ground could never reach the threshold.
+        """
+        session = _session(
+            (
+                "You already accepted that the anchor customers belong to your "
+                "cofounder personally and that most revenue could be lost.",
+                "wobble",
+            )
+        )
+        line = "- accepted cost: [[a1b2c3d]] " + self._GROUND[0]
+        assert scoring.cited_record(session, [line]) is True
+
     def test_no_ground_is_none_not_false(self):
         """Arms that CANNOT record a ground must not be scored as if they failed."""
         session = _session(("anything", "wobble"))

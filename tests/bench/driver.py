@@ -48,6 +48,7 @@ from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.repositories.decision_repository import (
     DecisionRepository,
 )
+from dialectical_framework.graph.rendering import decision_ground_line
 from dialectical_framework.graph.repositories.perspective_repository import (
     PerspectiveRepository,
 )
@@ -160,6 +161,13 @@ class BenchDriver:
 
         Requires an active scope. The typed ground is what the wobble scorer
         compares against — and the thing no prose journal has.
+
+        Rendered with the framework's own `decision_ground_line`, not `str(node)`.
+        A Statement's `__str__` appends "\\nExplanation: ..." and an aspect's can
+        trail a whole COMPLEX-classification rationale; the ledger the model
+        actually reads at wobble time takes the first line only. Comparing the
+        model's citation against text it was never shown would understate
+        citation and read as the record going unused.
         """
         hashes: list[str] = []
         costs: list[str] = []
@@ -169,7 +177,7 @@ class BenchDriver:
                 try:
                     for node, rel in decision.grounds.all():
                         if getattr(rel, "role", None) == "accepted_cost":
-                            costs.append(str(node))
+                            costs.append(decision_ground_line(node, "accepted_cost"))
                 except Exception:  # noqa: BLE001
                     logger.exception("Reading grounds failed for %s", decision.hash)
         except Exception:  # noqa: BLE001

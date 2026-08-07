@@ -1,8 +1,10 @@
 """
 Entry points that actually spend money. `--real-llm` only.
 
-Two of them, deliberately:
+Three of them, deliberately:
 
+- `test_bench_preflight` — seconds, cents. Every configured model must actually
+  answer under the current settings. Run it FIRST.
 - `test_bench_smoke` — one scenario, one tier, one arm pair, no judge. Proves
   the plumbing end to end for a few cents. Run this before anything else after
   touching the bench.
@@ -37,6 +39,72 @@ def _say(message: str) -> None:
     # print() rather than logging: with `-s` this is the live progress view of a
     # run that can take an hour, and pytest swallows log output by default.
     print(message, flush=True)
+
+
+@pytest.mark.asyncio
+async def test_bench_preflight(di_container):
+    """Every configured model must answer, with tools, under current settings.
+
+    This exists because of a real two-hour loss. An extended-thinking request
+    shape unsupported by one tier made every strong-tier Advisor turn 400; the
+    turns recorded empty text, so the arm looked like a model that declined to
+    use its tools rather than one that was never reached. Half a matrix was
+    spent before the cause was visible.
+
+    A per-model, single-turn check catches that whole class of fault — a wrong
+    model id, a settings/model incompatibility, missing Bedrock access for one
+    tier — in seconds. It asserts a tool call because that is the specific
+    signal the matrix depends on and the one a broken request silently erases.
+    """
+    from dialectical_framework.graph.nodes.case import Case
+    from dialectical_framework.graph.scope_context import scope
+
+    from bench.arms import AdvisorArm
+    from bench.driver import BENCH_PERSONA, BENCH_PRINCIPAL
+    from bench.modelctx import using_model
+
+    config = BenchConfig.from_env()
+    # Judge and simulator answer as plain chat; only the tiers under test drive
+    # the Advisor, so only they need the tool-calling assert.
+    models = {
+        **{f"tier:{label}": model for label, model in config.tiers.items()},
+        "simulator": config.simulator_model,
+        "judge": config.judge_model,
+    }
+
+    failures: list[str] = []
+    for role, model in models.items():
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            arm = AdvisorArm(BENCH_PERSONA, principal=BENCH_PRINCIPAL)
+            with using_model(di_container, model):
+                try:
+                    text = await arm.reply(
+                        "I need to decide whether to buy out my cofounder. He "
+                        "has checked out — took a three-week holiday during our "
+                        "launch. I own 55%, he owns 45%. I think buying him out "
+                        "is right."
+                    )
+                except Exception as e:  # noqa: BLE001 - reporting all, not first
+                    failures.append(f"{role} ({model}): {type(e).__name__}: {e}")
+                    continue
+            _say(
+                f"{role:14} {model}\n"
+                f"  chars={len(text)} tools={arm.last_tool_calls}"
+            )
+            if not text.strip():
+                failures.append(f"{role} ({model}): answered with empty text")
+            elif role.startswith("tier:") and not arm.last_tool_calls:
+                failures.append(
+                    f"{role} ({model}): answered but called no tools — A2 would "
+                    f"collapse to A1 on this tier"
+                )
+
+    assert not failures, (
+        "preflight failed; do NOT spend a matrix until these are fixed:\n  "
+        + "\n  ".join(failures)
+    )
 
 
 @pytest.mark.asyncio
