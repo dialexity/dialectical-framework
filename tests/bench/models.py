@@ -227,6 +227,20 @@ class RunRecord(BaseModel):
     #: A2 only: did the decision ceremony fire, and with what grounds.
     decision_hashes: list[str] = Field(default_factory=list)
     accepted_cost_grounds: list[str] = Field(default_factory=list)
+    #: What KIND of node each accepted_cost ground is ("A+", "T+", "A-",
+    #: "Perspective", "Wheel", ...). Recording a ground is not enough: the
+    #: instruction asks for the unchosen side's `+` aspect, and grounding on
+    #: the Perspective instead names the TENSION rather than the cost, which
+    #: leaves the wobble re-audit nothing specific to reassure from. The two
+    #: cases are indistinguishable in `accepted_cost_grounds` alone, and the
+    #: difference was a real framework bug (unaddressed aspect lines), so the
+    #: report states it rather than making a reader infer it from text.
+    accepted_cost_positions: list[str] = Field(default_factory=list)
+
+    @property
+    def costs_grounded_on_aspect(self) -> bool:
+        """True when at least one accepted_cost names a constructive aspect."""
+        return any(p in ("T+", "A+") for p in self.accepted_cost_positions)
 
     @property
     def all_tool_calls(self) -> list[str]:

@@ -49,6 +49,7 @@ from dialectical_framework.graph.repositories.decision_repository import (
     DecisionRepository,
 )
 from dialectical_framework.graph.rendering import decision_ground_line
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.repositories.perspective_repository import (
     PerspectiveRepository,
 )
@@ -155,8 +156,37 @@ class BenchDriver:
 
     # -- graph reads -------------------------------------------------------
 
-    @staticmethod
-    def _read_decisions() -> tuple[list[str], list[str]]:
+    #: Graph relationship type -> the position label a reader would recognise.
+    _POSITION_OF_REL = {
+        "T_PLUS": "T+",
+        "T_MINUS": "T-",
+        "A_PLUS": "A+",
+        "A_MINUS": "A-",
+        "T": "T",
+        "A": "A",
+    }
+
+    @classmethod
+    def _ground_position(cls, node) -> str:
+        """Which dialectical position an accepted_cost ground occupies.
+
+        Non-Statement grounds report their node type: a Perspective ground is
+        the whole TENSION, which is precisely the miss this distinguishes.
+        A Statement can sit at several positions across perspectives, so all
+        distinct ones are joined rather than one being picked arbitrarily.
+        """
+        if not isinstance(node, Statement):
+            return type(node).__name__
+        try:
+            rels = PerspectiveRepository().find_by_statement(node)
+        except Exception:  # noqa: BLE001
+            logger.exception("Position lookup failed for %s", node.hash)
+            return "Statement"
+        positions = sorted({cls._POSITION_OF_REL.get(r, r) for _, r in rels})
+        return "/".join(positions) if positions else "Statement"
+
+    @classmethod
+    def _read_decisions(cls) -> tuple[list[str], list[str], list[str]]:
         """Committed decisions + their accepted-cost ground texts.
 
         Requires an active scope. The typed ground is what the wobble scorer
@@ -171,6 +201,7 @@ class BenchDriver:
         """
         hashes: list[str] = []
         costs: list[str] = []
+        positions: list[str] = []
         try:
             for decision in DecisionRepository().find_all_active():
                 hashes.append(decision.short_hash)
@@ -178,11 +209,12 @@ class BenchDriver:
                     for node, rel in decision.grounds.all():
                         if getattr(rel, "role", None) == "accepted_cost":
                             costs.append(decision_ground_line(node, "accepted_cost"))
+                            positions.append(cls._ground_position(node))
                 except Exception:  # noqa: BLE001
                     logger.exception("Reading grounds failed for %s", decision.hash)
         except Exception:  # noqa: BLE001
             logger.exception("Reading decisions failed")
-        return hashes, costs
+        return hashes, costs, positions
 
     @staticmethod
     def _graph_summary() -> str:
@@ -345,12 +377,15 @@ class BenchDriver:
                 session.turns = await self._run_beats(
                     advisor_arm, simulator, spec.beats, tier_model=tier_model
                 )
-                hashes, costs = self._read_decisions()
+                hashes, costs, positions = self._read_decisions()
                 record.decision_hashes = sorted(
                     set(record.decision_hashes) | set(hashes)
                 )
                 record.accepted_cost_grounds = sorted(
                     set(record.accepted_cost_grounds) | set(costs)
+                )
+                record.accepted_cost_positions = sorted(
+                    set(record.accepted_cost_positions) | set(positions)
                 )
                 session.graph_summary = self._graph_summary()
             return session, journal

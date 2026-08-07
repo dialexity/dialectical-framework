@@ -435,6 +435,28 @@ def _run(arm: Arm, tier: str, *, tool_calls: list[str] | None = None) -> RunReco
     )
 
 
+class TestCostGroundPosition:
+    def test_plus_aspect_counts_as_confronting_the_cost(self):
+        for position in ("A+", "T+"):
+            run = _run(Arm.A2, "weak")
+            run.accepted_cost_positions = [position]
+            assert run.costs_grounded_on_aspect is True, position
+
+    def test_tension_and_minus_grounds_do_not_count(self):
+        for position in ("Perspective", "Polarity", "Wheel", "A-", "T", "Statement"):
+            run = _run(Arm.A2, "weak")
+            run.accepted_cost_positions = [position]
+            assert run.costs_grounded_on_aspect is False, position
+
+    def test_no_ground_at_all_is_not_grounded(self):
+        assert _run(Arm.A2, "weak").costs_grounded_on_aspect is False
+
+    def test_one_good_ground_among_several_counts(self):
+        run = _run(Arm.A2, "weak")
+        run.accepted_cost_positions = ["Perspective", "A+"]
+        assert run.costs_grounded_on_aspect is True
+
+
 class TestRecords:
     def test_a2_with_no_tool_calls_is_flagged_collapsed(self):
         assert _run(Arm.A2, "weak").collapsed_to_a1 is True
@@ -534,6 +556,31 @@ class TestReport:
         text = render_report([run], [], {}, ["weak", "strong"])
         assert "EVERY turn fail" in text
         assert "MISSING data" in text
+
+    def test_distinguishes_cost_ground_on_aspect_from_on_tension(self):
+        """A recorded ground is not automatically a USABLE ground.
+
+        Grounding accepted_cost on the Perspective names the tension rather
+        than the cost, so the wobble re-audit has nothing to reassure from —
+        a real observed failure. The report must not collapse the two into one
+        "has a ground" count.
+        """
+        on_tension = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        on_tension.decision_hashes = ["dead1"]
+        on_tension.accepted_cost_grounds = ["- accepted cost: [[dead1]] Control"]
+        on_tension.accepted_cost_positions = ["Perspective"]
+
+        text = render_report([on_tension], [], {}, ["weak", "strong"])
+        assert "grounded on a +aspect: 0/1" in text
+        assert "positions used: Perspective" in text
+
+        on_aspect = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        on_aspect.decision_hashes = ["beef1"]
+        on_aspect.accepted_cost_grounds = ["- accepted cost: [[beef1]] Autonomy"]
+        on_aspect.accepted_cost_positions = ["A+"]
+
+        text = render_report([on_aspect], [], {}, ["weak", "strong"])
+        assert "grounded on a +aspect: 1/1" in text
 
     def test_flags_single_tier(self):
         text = render_report([_run(Arm.A1, "weak")], [], {}, ["weak"])
