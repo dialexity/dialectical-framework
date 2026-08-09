@@ -40,6 +40,22 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
+def _tool_output_text(output: Any) -> str:
+    """The tool's own return value as text, not the envelope's repr.
+
+    `execute_tools()` returns Mirascope `ToolOutput` wrappers, whose `str()` is
+    the dataclass repr (`ToolOutput(type='tool_output', id=..., result='{...}')`).
+    Using that directly is a silent bug: it is a perfectly good string, so
+    nothing raises — but `ExecutionReport.model_validate_json` can never parse
+    it, so every `ToolResult` event carried `report=None` and consumers saw no
+    graph effects at all. Present since streaming was introduced.
+
+    Falls back to `str()` for plain values, since tools may return bare strings.
+    """
+    result = getattr(output, "result", output)
+    return result if isinstance(result, str) else str(result)
+
+
 class ConversationFacilitator(SettingsAware):
     """
     Helper for managing LLM conversation with optional tool calling.
@@ -381,8 +397,8 @@ class ConversationFacilitator(SettingsAware):
         results = [
             ToolResult(
                 tool_name=(tool_calls[i].name if i < len(tool_calls) else "unknown"),
-                report=self._try_parse_execution_report(str(output)),
-                raw_output=str(output),
+                report=self._try_parse_execution_report(_tool_output_text(output)),
+                raw_output=_tool_output_text(output),
             )
             for i, output in enumerate(tool_outputs)
         ]

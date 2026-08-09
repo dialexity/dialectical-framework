@@ -192,6 +192,31 @@ class TestToolResultRecording:
     was invisible in the data, so the run had to be re-diagnosed by hand.
     """
 
+    def test_report_is_extracted_from_the_real_toolouput_envelope(self):
+        """The shape `execute_tools()` actually returns — NOT a bare string.
+
+        A regression that existed from the introduction of streaming: the code
+        used `str(output)` on the `ToolOutput` wrapper, which yields the
+        dataclass repr (`ToolOutput(type='tool_output', id=..., result='{...}')`).
+        Nothing raises — it is a valid string — but it can never parse as an
+        ExecutionReport, so every ToolResult event carried report=None and
+        consumers saw no graph effects. A test using a bare string would have
+        passed against the broken code, which is why this one uses the envelope.
+        """
+        from mirascope.llm import ToolOutput
+
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        report = ExecutionReport(tool="anchor", ok=True, summary="anchored")
+        envelope = ToolOutput(id="toolu_1", name="anchor", result=str(report))
+
+        recorded = facilitator._record_tool_results(
+            [_tool_call("toolu_1", name="anchor")], [envelope]
+        )
+
+        assert recorded[0].report is not None, "envelope repr leaked instead of result"
+        assert recorded[0].report.summary == "anchored"
+        assert not recorded[0].raw_output.startswith("ToolOutput(")
+
     def test_reports_are_paired_with_their_calls(self):
         facilitator = ConversationFacilitator(tools=[lambda: None])
         report = ExecutionReport(tool="anchor", ok=False, summary="dedup failed")
