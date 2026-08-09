@@ -67,6 +67,9 @@ class ArmSession(Protocol):
     @property
     def last_tool_calls(self) -> list[str]: ...
 
+    @property
+    def last_tool_outcomes(self) -> list[str]: ...
+
 
 # ---------------------------------------------------------------------------
 # Prompt construction for the non-framework arms
@@ -297,6 +300,10 @@ class PromptArm:
     def last_tool_calls(self) -> list[str]:
         return []  # no tools by construction
 
+    @property
+    def last_tool_outcomes(self) -> list[str]:
+        return []  # no tools by construction
+
     async def write_journal(self) -> str:
         """A1.7: have the model write its own carry-forward notes.
 
@@ -336,6 +343,26 @@ class AdvisorArm:
     @property
     def last_tool_calls(self) -> list[str]:
         return list(self._advisor._conversation.last_tool_calls)
+
+    @property
+    def last_tool_outcomes(self) -> list[str]:
+        """Whether each tool the model called actually did anything.
+
+        Only tools returning an ExecutionReport are represented — read-only ones
+        (`sync`, `inspect_node`) return prose and are skipped rather than
+        recorded as a fake "ok", so this list is shorter than `last_tool_calls`
+        by design.
+        """
+        outcomes = []
+        for result in self._advisor._conversation.last_tool_results:
+            report = result.report
+            if report is None:
+                continue
+            if report.ok:
+                outcomes.append(f"{result.tool_name}:ok")
+            else:
+                outcomes.append(f"{result.tool_name}:FAILED — {report.summary}")
+        return outcomes
 
     @property
     def messages(self) -> list:

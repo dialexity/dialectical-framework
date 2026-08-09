@@ -180,6 +180,24 @@ def render_report(
     )
     if turn_errors:
         add(f"!! {turn_errors} individual turn(s) errored (see JSON).")
+    # A tool that RAN and reported failure raises no exception and leaves no
+    # turn error — the turn reads as a normal reply over a graph that never
+    # grew. Surfaced here because it is a validity question, not a score: it
+    # bounds what the A2 arm was actually able to do.
+    failed_tools = [
+        outcome
+        for r in runs
+        for s in r.sessions
+        for t in s.turns
+        for outcome in t.tool_outcomes
+        if ":FAILED" in outcome
+    ]
+    if failed_tools:
+        add(f"!! {len(failed_tools)} tool call(s) ran but REPORTED FAILURE.")
+        add("   The turns look normal; the graph is what suffered. Fix before")
+        add("   reading A2 as weak.")
+        for outcome in failed_tools[:10]:
+            add(f"   - {outcome[:140]}")
     if len(tier_order) < 2:
         add(
             "!! Only one model tier ran — no delta can be classified as "

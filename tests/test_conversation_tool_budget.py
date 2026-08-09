@@ -1,5 +1,11 @@
 """
-History stays API-valid when the agentic tool loop hits its round budget.
+The agentic tool loop stays diagnosable: valid history, and visible outcomes.
+
+Two guarantees, both learned from bench runs that were misread as weak models:
+history that survives the round budget (below), and tool outcomes that record
+whether a call actually did anything (`TestToolResultRecording`).
+
+--- Part one: history stays API-valid when the loop hits its round budget.
 
 The loop in `submit`/`submit_stream` stops after `max_tool_rounds` even if the
 model just asked for another tool. Because `self._messages` is then reassigned
@@ -23,6 +29,7 @@ from mirascope.llm.content import ToolCall
 
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
+from dialectical_framework.agents.execution_report import ExecutionReport
 
 
 # DB-free: override the autouse graph fixtures.
@@ -172,3 +179,109 @@ class TestBudgetExhaustionEndToEnd:
 
         assert outputs, "the unanswered tool call was never closed"
         assert f"toolu_{rounds['n']}" in outputs
+
+
+class TestToolResultRecording:
+    """A tool that RAN and reported failure must be distinguishable from one
+    that succeeded.
+
+    Same root diagnosis problem, one layer over: `last_tool_calls` records only
+    what the model ATTEMPTED. When the bench's A2 arm spent 2.6h issuing
+    `anchor` calls against a graph that stayed empty, the recorded JSON showed
+    eight attempts, an empty graph, and nothing in between — the failing tool
+    was invisible in the data, so the run had to be re-diagnosed by hand.
+    """
+
+    def test_reports_are_paired_with_their_calls(self):
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        report = ExecutionReport(tool="anchor", ok=False, summary="dedup failed")
+
+        recorded = facilitator._record_tool_results(
+            [_tool_call("toolu_1", name="anchor")], [str(report)]
+        )
+
+        assert [r.tool_name for r in recorded] == ["anchor"]
+        assert facilitator.last_tool_results == recorded
+        assert recorded[0].report is not None
+        assert recorded[0].report.ok is False
+        assert recorded[0].report.summary == "dedup failed"
+
+    def test_non_report_output_is_kept_with_a_null_report(self):
+        """Read-only tools return prose. It must be retained as raw output, not
+        dropped and not misparsed into a fake report."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        recorded = facilitator._record_tool_results(
+            [_tool_call("toolu_1", name="sync")], ["here is the graph state"]
+        )
+
+        assert recorded[0].report is None
+        assert recorded[0].raw_output == "here is the graph state"
+
+    def test_results_accumulate_across_rounds(self):
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        facilitator._record_tool_results([_tool_call("t1", name="anchor")], ["a"])
+        facilitator._record_tool_results([_tool_call("t2", name="explore")], ["b"])
+
+        assert [r.tool_name for r in facilitator.last_tool_results] == [
+            "anchor",
+            "explore",
+        ]
+
+    def test_extra_output_degrades_to_unknown_rather_than_raising(self):
+        """Observability code must never be the reason a turn fails."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        recorded = facilitator._record_tool_results(
+            [_tool_call("toolu_1", name="anchor")], ["a", "orphan"]
+        )
+
+        assert [r.tool_name for r in recorded] == ["anchor", "unknown"]
+
+    @pytest.mark.asyncio
+    async def test_submit_records_results_and_resets_between_turns(self, monkeypatch):
+        """The recording must happen on the non-streaming path too — that is the
+        path the bench and every structured caller use."""
+        from pydantic import BaseModel
+
+        class _Chat(BaseModel):
+            message: str
+
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        facilitator.set_system_prompt("You are a test assistant.")
+
+        report = ExecutionReport(tool="anchor", ok=False, summary="boom")
+        state = {"served": False}
+
+        class _OneToolResponse:
+            def __init__(self, tool_calls) -> None:
+                self.tool_calls = tool_calls
+                self.messages = []
+
+            async def execute_tools(self):
+                return [str(report)]
+
+            async def resume(self, _outputs):
+                return _OneToolResponse([])
+
+        async def _fake_call_with_tools(self):
+            state["served"] = True
+            return _OneToolResponse([_tool_call("toolu_1", name="anchor")])
+
+        monkeypatch.setattr(
+            ConversationFacilitator, "_call_with_tools", _fake_call_with_tools
+        )
+
+        await facilitator.submit(_Chat, "go", max_tool_rounds=3)
+        assert state["served"]
+        assert [r.tool_name for r in facilitator.last_tool_results] == ["anchor"]
+        assert facilitator.last_tool_results[0].report.ok is False
+
+        # A second turn must report ITS own tools, not the previous turn's —
+        # otherwise a stale failure would be attributed to a healthy turn.
+        async def _no_tools(self):
+            return _OneToolResponse([])
+
+        monkeypatch.setattr(ConversationFacilitator, "_call_with_tools", _no_tools)
+        await facilitator.submit(_Chat, "again", max_tool_rounds=3)
+        assert facilitator.last_tool_results == []

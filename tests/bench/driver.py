@@ -134,11 +134,13 @@ class BenchDriver:
                 with using_model(self._container, tier_model):
                     assistant_text = await arm.reply(user_text)
                 tool_calls = list(arm.last_tool_calls)
+                tool_outcomes = list(arm.last_tool_outcomes)
                 error = None
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Arm failed at beat %s", index)
                 assistant_text = ""
                 tool_calls = []
+                tool_outcomes = []
                 error = f"arm: {type(exc).__name__}: {exc}"
 
             simulator.observe("assistant", assistant_text)
@@ -149,6 +151,7 @@ class BenchDriver:
                     assistant=assistant_text,
                     tag=beat.tag,
                     tool_calls=tool_calls,
+                    tool_outcomes=tool_outcomes,
                     error=error,
                 )
             )

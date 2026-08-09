@@ -412,7 +412,13 @@ class TestJudgeSetup:
 # ---------------------------------------------------------------------------
 
 
-def _run(arm: Arm, tier: str, *, tool_calls: list[str] | None = None) -> RunRecord:
+def _run(
+    arm: Arm,
+    tier: str,
+    *,
+    tool_calls: list[str] | None = None,
+    tool_outcomes: list[str] | None = None,
+) -> RunRecord:
     return RunRecord(
         arm=arm,
         tier=tier,
@@ -428,6 +434,7 @@ def _run(arm: Arm, tier: str, *, tool_calls: list[str] | None = None) -> RunReco
                         user="u",
                         assistant="a",
                         tool_calls=tool_calls or [],
+                        tool_outcomes=tool_outcomes or [],
                     )
                 ],
             )
@@ -549,6 +556,27 @@ class TestReport:
     def test_flags_collapsed_a2(self):
         text = render_report([_run(Arm.A2, "weak")], [], {}, ["weak"])
         assert "collapsed" in text.lower()
+
+    def test_flags_tools_that_ran_but_reported_failure(self):
+        """A silent failure mode: the turn succeeds, the graph does not grow.
+
+        No exception is raised and no turn error is recorded, so without this
+        line the report shows a healthy-looking run over an empty graph — the
+        exact ambiguity that cost a 2.6h A2 run its diagnosis.
+        """
+        run = _run(
+            Arm.A2,
+            "strong",
+            tool_calls=["anchor"],
+            tool_outcomes=["anchor:FAILED — SemanticDedupDto parse failed"],
+        )
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "REPORTED FAILURE" in text
+        assert "SemanticDedupDto" in text
+
+    def test_healthy_tools_do_not_trip_the_failure_flag(self):
+        run = _run(Arm.A2, "strong", tool_calls=["anchor"], tool_outcomes=["anchor:ok"])
+        assert "REPORTED FAILURE" not in render_report([run], [], {}, ["weak", "strong"])
 
     def test_flags_dead_runs_as_missing_data(self):
         run = _run(Arm.A2, "strong")

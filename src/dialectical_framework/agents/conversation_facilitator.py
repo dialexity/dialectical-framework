@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional, Sequence, TypeVar
 
 from langfuse import observe
 from mirascope import llm
@@ -70,6 +70,12 @@ class ConversationFacilitator(SettingsAware):
         # turn. Lets callers (e.g. the Advisor's context-staleness tracking)
         # observe what the model chose to do this turn.
         self.last_tool_calls: list[str] = []
+        # Outcomes of those same calls, in call order. Names alone say what the
+        # model ATTEMPTED; a tool that ran and reported ok=False is
+        # indistinguishable from one that succeeded. That gap cost a 2.6h bench
+        # run its diagnosis: the recorded JSON showed eight `anchor` calls and a
+        # graph with nothing in it, and nothing in between.
+        self.last_tool_results: list[ToolResult] = []
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -143,6 +149,7 @@ class ConversationFacilitator(SettingsAware):
         """
         self._messages.append(llm.messages.user(user_content))
         self.last_tool_calls = []
+        self.last_tool_results = []
 
         if not self._tools:
             return await self._call_with_response_model(response_model)
@@ -155,6 +162,7 @@ class ConversationFacilitator(SettingsAware):
             self.last_tool_calls.extend(tc.name for tc in response.tool_calls)
             self._log_tool_calls(response.tool_calls)
             tool_outputs = await response.execute_tools()
+            self._record_tool_results(response.tool_calls, tool_outputs)
             self._strip_caller_from_messages(response.messages)
             response = await response.resume(tool_outputs)
 
@@ -212,11 +220,10 @@ class ConversationFacilitator(SettingsAware):
             self._log_tool_calls(stream.tool_calls)
             tool_outputs = await stream.execute_tools()
 
-            for i, output in enumerate(tool_outputs):
-                tool_name = stream.tool_calls[i].name if i < len(stream.tool_calls) else "unknown"
-                raw_str = str(output)
-                report = self._try_parse_execution_report(raw_str)
-                yield ToolResult(tool_name=tool_name, report=report, raw_output=raw_str)
+            # Recorded and streamed from one construction: the events a UI sees
+            # and the outcomes a caller inspects must not be able to disagree.
+            for result in self._record_tool_results(stream.tool_calls, tool_outputs):
+                yield result
 
             self._strip_caller_from_messages(stream.messages)
             stream = await stream.resume(tool_outputs)
@@ -357,6 +364,30 @@ class ConversationFacilitator(SettingsAware):
             return messages
 
         return await _llm_call()
+
+    def _record_tool_results(
+        self, tool_calls: Sequence[Any], tool_outputs: Sequence[Any]
+    ) -> list[ToolResult]:
+        """Pair executed tool calls with their outputs onto `last_tool_results`.
+
+        Returns the same objects so the streaming path can yield exactly what
+        was recorded, instead of building a second copy that could drift.
+
+        `tool_outputs` is index-aligned with `tool_calls` (Mirascope gathers them
+        in order), but the name lookup stays defensive: a mismatch must degrade
+        to `"unknown"` rather than raise, since this is observability code and
+        must never be the reason a turn fails.
+        """
+        results = [
+            ToolResult(
+                tool_name=(tool_calls[i].name if i < len(tool_calls) else "unknown"),
+                report=self._try_parse_execution_report(str(output)),
+                raw_output=str(output),
+            )
+            for i, output in enumerate(tool_outputs)
+        ]
+        self.last_tool_results.extend(results)
+        return results
 
     @staticmethod
     def _try_parse_execution_report(raw_output: str) -> ExecutionReport | None:

@@ -187,6 +187,13 @@ class TurnRecord(BaseModel):
     #: construction; empty across a whole A2 run means A2 silently collapsed to
     #: A1 and the result must not be trusted (the A2!=A1 assert).
     tool_calls: list[str] = Field(default_factory=list)
+    #: Per-call outcome, `"<tool>:ok"` / `"<tool>:FAILED — <summary>"`, for tools
+    #: that returned an ExecutionReport. Names alone record only what the model
+    #: ATTEMPTED: a tool that ran and reported ok=False looks identical to one
+    #: that succeeded. That gap cost a 2.6h A2 run its diagnosis — the JSON
+    #: showed eight `anchor` calls against an empty graph and nothing in
+    #: between. Scan this before trusting any run whose graph looks thin.
+    tool_outcomes: list[str] = Field(default_factory=list)
     error: Optional[str] = None
 
 
