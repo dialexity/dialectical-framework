@@ -65,6 +65,16 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   arm; only rules about **operating machinery** are the framework arm's. See `tests/bench/README.md`.
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
+- **Tool-budget exhaustion is a prompt surface too.** The agentic loop in `submit`/`submit_stream` stops after
+  `max_tool_rounds` (10) even if the model just asked for another tool, and `self._messages` is then reassigned from the
+  response chain — so an unanswered `tool_use` is PERSISTED and replayed every later turn, which every Anthropic-shaped
+  API rejects ("`tool_use` ids were found without `tool_result` blocks immediately after"). One overrun therefore bricks
+  the whole session, each turn failing on the same stale id, and the turns record no text — which reads as model
+  collapse rather than malformed history (the recurring misdiagnosis; cf. the connect-timeout and thinking-shape bugs).
+  `_close_dangling_tool_calls` answers every open call with a synthetic `tool_result` carrying `_BUDGET_STOP_NOTICE`
+  (`conversation_facilitator.py`) — **model-visible text**: it says the tool did not run and to answer now without
+  further calls, so a cut-short turn can't present unverified material as tool-confirmed. Caught by `tests/bench`
+  (an A2 arm lost 103 min of real tool work to it); locked by `test_conversation_tool_budget.py`.
 
 ### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
 

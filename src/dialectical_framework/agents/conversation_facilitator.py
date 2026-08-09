@@ -30,7 +30,7 @@ from dialectical_framework.agents.stream_events import (
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.use_brain import use_brain
 
-from mirascope.llm import TextChunk, ThoughtChunk
+from mirascope.llm import TextChunk, ThoughtChunk, ToolOutput
 
 if TYPE_CHECKING:
     from mirascope.llm import UserContent
@@ -160,6 +160,7 @@ class ConversationFacilitator(SettingsAware):
 
         # Sync full conversation history from the response chain
         self._messages = list(response.messages)
+        self._close_dangling_tool_calls(response)
         self._strip_unsupported_input_fields()
 
         # Extract structured response
@@ -221,11 +222,68 @@ class ConversationFacilitator(SettingsAware):
             stream = await stream.resume(tool_outputs)
 
         self._messages = list(stream.messages)
+        self._close_dangling_tool_calls(stream)
         self._strip_unsupported_input_fields()
         result = await self._call_with_response_model(response_model)
         yield ResponseComplete(result=result)
 
     # --- Internal helpers ---
+
+    #: Answer written into the synthetic tool_result when the tool loop is cut
+    #: short. Addressed to the model, because the model reads it: it must
+    #: understand that the tool did not run and that it should wrap up with
+    #: what it already has, rather than re-issue the same call forever.
+    _BUDGET_STOP_NOTICE = (
+        "Tool not executed: this turn's tool-call budget is exhausted. "
+        "Do not call more tools — answer now using what you already have, "
+        "and say plainly which part is still unverified."
+    )
+
+    def _close_dangling_tool_calls(self, response: Any) -> None:
+        """Answer any tool_call left unanswered when the tool loop ended.
+
+        The loop stops after `max_tool_rounds` even if the model asked for yet
+        another tool. That leaves history ending in an assistant `tool_use`
+        with no `tool_result` — which every Anthropic-shaped API rejects
+        outright ("`tool_use` ids were found without `tool_result` blocks
+        immediately after"), because `_call_with_response_model` appends a
+        plain user message next.
+
+        Two reasons this is repaired here rather than tolerated:
+
+        - The 400 is not the real cost. `self._messages` has already been
+          reassigned from the response chain, so the malformed history is
+          PERSISTED and replayed on every subsequent turn: one budget overrun
+          bricks the whole session, and each turn fails citing the same stale
+          tool_use id. Observed in the bench as six identical failures.
+        - Dropping the trailing assistant message instead would discard
+          whatever text the model produced alongside the tool call, and would
+          silently hide from the model that its request went unanswered.
+
+        Synthetic outputs carry an explicit notice (`_BUDGET_STOP_NOTICE`) so
+        the transcript never implies a tool ran when it did not.
+        """
+        tool_calls = getattr(response, "tool_calls", None)
+        if not tool_calls:
+            return
+        self._messages.append(
+            llm.messages.user(
+                [
+                    ToolOutput(
+                        id=tc.id,
+                        name=tc.name,
+                        result=self._BUDGET_STOP_NOTICE,
+                    )
+                    for tc in tool_calls
+                ]
+            )
+        )
+        logging.getLogger(__name__).warning(
+            "Tool-call budget exhausted with %d unanswered call(s) (%s); "
+            "closed with a synthetic tool_result to keep history valid.",
+            len(tool_calls),
+            ", ".join(tc.name for tc in tool_calls),
+        )
 
     def _strip_unsupported_input_fields(self) -> None:
         """Strip output-only fields from self._messages before the next API call."""
