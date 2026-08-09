@@ -75,6 +75,17 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   (`conversation_facilitator.py`) — **model-visible text**: it says the tool did not run and to answer now without
   further calls, so a cut-short turn can't present unverified material as tool-confirmed. Caught by `tests/bench`
   (an A2 arm lost 103 min of real tool work to it); locked by `test_conversation_tool_budget.py`.
+- **A tool that RAN and failed is not an error anywhere.** `last_tool_calls` records only what the model *attempted*;
+  a tool returning `ok=False` raises nothing and sets no turn error, so the turn reads as a normal reply over a graph
+  that never grew. `_record_tool_results` pairs each call with its `ExecutionReport` onto `last_tool_results` on BOTH
+  `submit` and `submit_stream` (the streaming path yields exactly what it recorded, so UI events and caller-visible
+  outcomes can't drift); the bench renders failures in the **validity** section, not the scores, because they bound
+  what the arm could do at all. Two traps when touching this: tool payloads arrive wrapped in Mirascope `ToolOutput`,
+  whose `str()` is the dataclass repr — `_tool_output_text` reads `.result`, and a test built on a bare string passes
+  against the broken code (that's how `report=None` for EVERY event survived from streaming's introduction until a
+  real bench run made 16 successful calls and recorded zero outcomes); and read-only tools (`sync`, `inspect_node`)
+  legitimately have no report, so "no report" can't be treated as failure. Locked by `test_conversation_tool_budget.py`
+  and `test_bench.py::TestReport`.
 
 ### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
 
