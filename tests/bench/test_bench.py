@@ -658,3 +658,43 @@ class TestConfig:
         """A model judging its own transcript against a rival self-prefers."""
         config = BenchConfig.from_env()
         assert config.judge_model not in config.tiers.values()
+
+
+class TestThinDataWarning:
+    """One replicate cannot separate a real delta from judge variance.
+
+    Measured, not hypothesised: the same cell (A2 vs A1, strong, agile_process)
+    run twice gave A2 +1 on six dimensions, then -1 on three. The rubric's
+    integer steps make that variance look decisive, so the report has to say so
+    where the numbers are read.
+    """
+
+    @staticmethod
+    def _comparison(tier: str, gap: int) -> Comparison:
+        return Comparison(
+            scenario_key="probe",
+            tier=tier,
+            replicate=1,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1,
+            x_arm=Arm.A2,
+            scores={"entanglement": (3 + gap, 3)},
+        )
+
+    #: The warning line itself. Asserting on bare "n=1" would also match the
+    #: static "Reading this report" footer, which mentions it unconditionally —
+    #: so such a test passes even when the warning is missing.
+    _WARNING = "n=1 on some cells"
+
+    def test_single_replicate_is_flagged(self):
+        text = render_report([], [self._comparison("strong", 1)], {}, ["strong"])
+        assert self._WARNING in text
+        assert "REPLICATES" in text
+
+    def test_two_replicates_are_not_flagged(self):
+        comparisons = [self._comparison("strong", 1), self._comparison("strong", 0)]
+        assert self._WARNING not in render_report([], comparisons, {}, ["strong"])
+
+    def test_no_comparisons_produces_no_warning(self):
+        """An arms-only run (no judge) must not be told its judged data is thin."""
+        assert self._WARNING not in render_report([], [], {}, ["strong"])

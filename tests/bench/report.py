@@ -326,6 +326,27 @@ def render_report(
     add("folded into the headline.")
     add("")
     deltas = collect_deltas(comparisons)
+    # A single replicate cannot separate a real gap from run-to-run variance,
+    # and the rubric's ±1 steps make that variance LOOK decisive. Measured on
+    # the same cell (A2 vs A1, strong, agile_process) twice: the first run gave
+    # A2 +1 on six dimensions, the second gave it -1 on three. Neither is a
+    # finding. Stated next to the table because a reader who scrolls to the
+    # numbers must meet this before believing any of them.
+    thin = sorted(
+        {
+            (arm_a.value, arm_b.value, tier, dim)
+            for (arm_a, arm_b), d in deltas.items()
+            for tier in tier_order
+            for dim in d.dimensions()
+            if 0 < d.n(tier, dim) < 2
+        }
+    )
+    if thin:
+        add("!! n=1 on some cells below: at one replicate a +/-1 rubric step is")
+        add("   indistinguishable from judge variance. The same cell run twice")
+        add("   has flipped from +1 on six dimensions to -1 on three. Raise")
+        add("   DIALEXITY_BENCH_REPLICATES before reading any row as a result.")
+        add("")
     for (arm_a, arm_b), d in sorted(deltas.items(), key=lambda kv: (kv[0][0].value, kv[0][1].value)):
         add(f"### {arm_a.value} vs {arm_b.value}")
         add("")
@@ -346,13 +367,15 @@ def render_report(
     add("")
     add("1. Check the validity section FIRST. A collapsed A2 arm or a")
     add("   single-tier run bounds what any number below can mean.")
-    add("2. A delta only counts if the machine scores agree with the judge.")
+    add("2. Check n before believing a row. One replicate cannot distinguish a")
+    add("   delta from judge variance — see the n=1 warning above the table.")
+    add("3. A delta only counts if the machine scores agree with the judge.")
     add("   Where they disagree, trust the machine score — it cannot be")
     add("   flattered by eloquence.")
-    add("3. 'depreciating' deltas will shrink to zero as models improve; do")
+    add("4. 'depreciating' deltas will shrink to zero as models improve; do")
     add("   not build the product claim on them. 'durable' deltas are the")
     add("   claim. 'absent' means the framework added nothing measurable.")
-    add("4. On poor-fit controls the framework SHOULD show no gain. A win")
+    add("5. On poor-fit controls the framework SHOULD show no gain. A win")
     add("   there means the judge is rewarding structure, and the rubric")
     add("   needs revision before any other number is trusted.")
     return "\n".join(lines)
