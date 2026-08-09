@@ -95,6 +95,22 @@ that co-occur in one call:
 (e.g. `AspectDto.heuristic_similarity` description in `aspect_generation.py`;
 `TaxonomyLocationDto.taxonomy_type` in `statement_classification.py`).
 
+**The DTO *shape* is prompt surface too, and it is model-specific.** Some models re-serialize the whole
+response object and return that string as the first field's value — observed on sonnet-5/Bedrock answering
+`SemanticDedupDto` with `{"matches": "{\"matches\": [...]}"}`. Pydantic rejects the field
+(`input_type=str`) although every byte of the answer is there. The cost is the retry, not the parse: a
+re-ask resamples the same tendency, and `parse_delay` (10s ×2 → 120s cap over `retry_max`=10) spends 10+
+minutes per call before raising — nested in `AnalysisPipeline` that became **2.6h for one bench A2 cell**
+(a single `anchor`: 857s-then-fail on sonnet-5 vs ~33s-succeed on haiku), read as framework slowness when
+the model answered correctly first try. `_salvage_double_encoded` (`use_brain.py`) unwraps exactly one
+layer, gated on the inner object validating against the model AND naming one of its fields — validation
+alone is too weak because all-defaulted DTOs (`matches` included) accept any JSON object, so unrelated
+JSON would "salvage" into a silently empty result. Locked by `test_double_encoded_response.py`.
+Two standing implications when editing this stack: **mocked tests cannot see this class of bug** (mock
+brain auto-fills every field — verify shape changes with `--real-llm`, prefer flatter schemas per
+CLAUDE.md), and **a per-model parse failure presents as latency, not as an error**, which is the same
+misdiagnosis family as the connect-timeout and thinking-shape bugs.
+
 ### Co-occurrence hotspots (edit one → silently affects the other)
 
 1. **`NAVIGATOR_APP` "communicate as MEANING not numbers" sits directly above Analyst's numeric HS bands**

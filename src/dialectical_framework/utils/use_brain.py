@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Optional, TypeVar, overload
@@ -9,6 +10,8 @@ from dependency_injector.wiring import Provide, inject
 from langfuse import get_client, observe
 from mirascope import llm
 from mirascope.llm.exceptions import ParseError
+from mirascope.llm.responses import _utils
+from pydantic import ValidationError as PydanticValidationError
 
 from dialectical_framework.enums.di import DI
 from dialectical_framework.settings import Settings
@@ -155,7 +158,15 @@ def use_brain(
                         attempt=attempt + 1,
                     )
                     if has_format:
-                        return response.parse()
+                        try:
+                            return response.parse()
+                        except ParseError as e:
+                            salvaged = _salvage_double_encoded(
+                                response, call_params["format"], e
+                            )
+                            if salvaged is not None:
+                                return salvaged
+                            raise
                     return response
                 except ParseError as e:
                     last_error = e
@@ -194,6 +205,71 @@ def use_brain(
         return wrapper
 
     return decorator
+
+
+def _salvage_double_encoded(response: Any, format: type, error: ParseError) -> Any:
+    """Recover a structured result the model returned double-encoded.
+
+    Some models (observed: sonnet-5 on Bedrock) serialize the WHOLE response
+    object a second time and hand that string back as the value of the first
+    field, so the wire payload is::
+
+        {"matches": "{\\"matches\\": [{...}]}"}
+
+    Pydantic then rejects the field (`Input should be a valid array`,
+    `input_type=str`) even though every byte of the answer is present. The
+    content is right; only one layer of encoding is wrong.
+
+    Salvaged here rather than left to the retry loop because the retry is the
+    expensive part: a re-ask is a fresh sample of the same model tendency, so
+    it usually fails again, and `parse_delay` (10s doubling to a 120s cap over
+    `retry_max` attempts) turns one such call into 10+ minutes before it raises.
+    Nested inside a pipeline that is hours, and the framework arm looks
+    catastrophically slow when the model in fact answered correctly the first
+    time. Measured: a single `anchor` on sonnet-5 took 857s and then failed,
+    against ~33s on haiku.
+
+    Deliberately narrow — a genuinely malformed or truncated response must still
+    raise and still retry, so the inner value has to look like a re-encoding of
+    this very model: it must validate against it AND name at least one of its
+    fields. Validation alone is too weak a test, because DTOs whose fields all
+    have defaults (`SemanticDedupDto.matches` among them) accept ANY JSON
+    object — unrelated JSON in a string field would otherwise be "salvaged"
+    into a silently empty result, which is worse than the parse error it
+    replaces. Returns None when the shape does not match, leaving the caller's
+    `raise` intact.
+    """
+    if not isinstance(error.original_exception, PydanticValidationError):
+        return None
+
+    try:
+        raw = json.loads(_utils.extract_serialized_json(response.text("")))
+    except Exception:
+        return None
+    if not isinstance(raw, dict):
+        return None
+
+    fields = set(format.model_fields)
+    for value in raw.values():
+        if not isinstance(value, str):
+            continue
+        try:
+            inner = json.loads(value)
+        except Exception:
+            continue
+        if not isinstance(inner, dict) or not fields & set(inner):
+            continue
+        try:
+            salvaged = format.model_validate(inner)
+        except Exception:
+            continue
+        logging.getLogger(__name__).warning(
+            "Model returned %s double-encoded (whole object as a string inside a "
+            "field); unwrapped one layer instead of retrying.",
+            format.__name__,
+        )
+        return salvaged
+    return None
 
 
 def _trace_generation(
