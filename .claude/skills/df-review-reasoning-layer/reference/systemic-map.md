@@ -452,7 +452,26 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   prompt rule governs whether to CALL something, it belongs in the tool doc too.** Bench-side, the symptom is
   double-counted unless attributed: the missing record made the wobble (a) variant unanswerable, so the row read
   as the framework losing the re-audit (`RunRecord.prose_only_decision` /
-  `wobble_a_without_a_record` in `tests/bench/models.py` name the cause once). Locked by
+  `wobble_a_without_a_record` in `tests/bench/models.py` name the cause once).
+  **RESOLVED IN CODE, not in the prompt** (live since 2026-08-10): the prompt layer was the wrong layer. Firing
+  rate was 6/6 strong vs **0/6 weak** on identical text, and three rounds of strengthening (the prose paragraph,
+  the `record_decision` tool doc, the `explore` threshold) moved the weak tier by zero. A decision is a
+  **user-driven artefact** — it exists because the person declared it, and that declaration is an OBSERVABLE
+  EVENT in their message — so whether a record gets written must not be the model's election at the moment it is
+  most inclined to just answer well. `record_decision` already host-attests WHO confirmed (`principal`); the same
+  principle now covers WHETHER: `concerns/decision_confirmation_check.py` (bounded classification of the person's
+  own message, creates/mutates nothing, fail-soft) + `Advisor._repair_unrecorded_decision` (post-reply, both
+  `chat` and `chat_stream`, records under the same attested principal when the person confirmed and no SUCCESSFUL
+  `record_decision` ran — a failed call still repairs, since an in-band refusal leaves the identical false
+  belief). Grounds are deliberately NOT guessed: a fabricated `accepted_cost` invents the confrontation the
+  ledger reports. **The prompt is deliberately silent about the backstop** — telling the model it exists would
+  license the laziness it compensates for. Reviewing prompts here: the three prose/tool-doc rules stay exactly as
+  they are (the model calling the tool itself is still the path that produces good grounds); the seam is a
+  floor under them, not a replacement. Locked by `tests/test_decision_confirmation_repair.py` (DB/LLM-free seam:
+  when it fires, when it must not, what it records) + `tests/test_decision_repair_weak_tier.py` (`real_llm`,
+  pinned to the weak model — at the strong tier the repair never fires, so a strong-tier version asserts nothing).
+  General lesson, and the one that outranks the tool-doc lesson above: **when a rule governs whether an
+  observable user event gets persisted, it belongs in code, not in a prompt at any distance.** Locked by
   `test_ritual_asks_once_and_never_gates_the_record`,
   `test_reading_the_record_back_is_not_speaking_as_them`, `test_prose_summary_is_not_a_substitute_for_recording`.
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py

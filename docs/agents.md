@@ -380,6 +380,24 @@ the propose-and-confirm recording ceremony, the soft pre-commit ritual
 (reassure from the record vs legitimately reopen). All of that is
 domain-neutral framework behavior — always on, never re-specify it in an app.
 
+**The record itself does not depend on the prompt.** A decision is a
+user-driven artefact: it exists because the person declared it, and that
+declaration is an observable event in their message. So after every Advisor
+turn, `DecisionConfirmationCheck` asks whether the person confirmed a decision
+that then went unrecorded, and `Advisor._repair_unrecorded_decision` writes it
+under the same host-attested `principal` the tool would have used. Hosts get
+this for free on both `chat()` and `chat_stream()` — nothing to wire.
+
+Why it exists: `record_decision` fired 6/6 at a strong tier and **0/6** at a
+weak one on identical prompt text, the weak model writing a formatted "Your
+Decision" section in prose every time while the person was told it was saved
+(`tests/bench/README.md`). Three rounds of prompt strengthening changed that by
+zero. The model calling the tool itself is still the preferred path — it
+produces the richer grounds (`accepted_cost`, `adopted_pathway`), which the
+repair deliberately never guesses — so the seam is a floor, not a replacement.
+The engine prompt does not mention it: telling the model a backstop exists
+would license the laziness it compensates for.
+
 What belongs **app-side** (via `AppSpec`):
 - **Persona/ceremony intensity** — how pushy convergence feels, how formal the
   recording moment is (a `DECISION_PARTNER_PERSONA`-style persona whose contract is
