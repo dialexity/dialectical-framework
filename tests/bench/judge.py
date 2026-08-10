@@ -212,7 +212,12 @@ def dimensions_for(scenario: Scenario) -> list[str]:
     return ordered
 
 
-def _x_is_a(comparison_key: str, *, ordinal: int | None = None) -> bool:
+def _x_is_a(
+    comparison_key: str,
+    *,
+    ordinal: int | None = None,
+    pair_key: str | None = None,
+) -> bool:
     """Deterministic position assignment, balanced across a pair's comparisons.
 
     A hash of the comparison identity, not `random`: re-judging the same matrix
@@ -236,8 +241,20 @@ def _x_is_a(comparison_key: str, *, ordinal: int | None = None) -> bool:
     Rebalancing r3 by position flipped no dimension's sign, so that run's
     conclusions stand — but at its 12-comparison cell size the bias was worth
     roughly a third of the gaps being read, and it must not be left to luck.
+
+    `pair_key` is what the starting side is hashed from, and it must be
+    CONSTANT across the alternation — otherwise each call re-rolls its own
+    start and flipping it by parity balances nothing. The first version of this
+    hashed `comparison_key`, which carries the replicate and the session and so
+    changes every call: `decision-strong-r4` drew 10/2 with the alternation
+    supposedly active, and read as an 8-of-12-dimension A2 win under a +0.48
+    Y-slot bias sitting on A2's side of 10 comparisons. The unit test missed it
+    by holding the key fixed while varying `ordinal` — which is not how the
+    runner calls it. Omitting `pair_key` falls back to `comparison_key` for
+    callers that pass no ordinal at all.
     """
-    digest = hashlib.sha256(comparison_key.encode()).hexdigest()
+    seed = pair_key if pair_key is not None else comparison_key
+    digest = hashlib.sha256(seed.encode()).hexdigest()
     start = int(digest[:8], 16) % 2 == 0
     if ordinal is None:
         return start
@@ -291,7 +308,14 @@ class BenchJudge:
             f"{scenario.key}|{run_a.tier}|{run_a.replicate}|"
             f"{run_a.arm.value}|{run_b.arm.value}|{session_label}"
         )
-        a_is_x = _x_is_a(key, ordinal=ordinal)
+        # The starting side is hashed from the ARM PAIR alone — everything that
+        # varies per comparison (replicate, session) must stay out of it, or the
+        # alternation below re-rolls its start each call and balances nothing.
+        a_is_x = _x_is_a(
+            key,
+            ordinal=ordinal,
+            pair_key=f"{run_a.arm.value}|{run_b.arm.value}",
+        )
         comparison.x_arm = run_a.arm if a_is_x else run_b.arm
         transcript_x = session_a.transcript if a_is_x else session_b.transcript
         transcript_y = session_b.transcript if a_is_x else session_a.transcript

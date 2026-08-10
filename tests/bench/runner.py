@@ -38,7 +38,7 @@ from .models import (
     RunRecord,
     Scenario,
 )
-from .report import render_report, save_records
+from .report import load_records, render_report, save_records
 from .scenarios import scenarios_for
 from .scoring import cited_record, score_erosion, score_symmetry, turn_by_tag
 
@@ -285,6 +285,33 @@ class BenchRun:
     def report(self) -> str:
         return render_report(
             self.runs, self.comparisons, self.machine, self._config.tier_order
+        )
+
+    def load(self, path: Path, *, keep_comparisons: bool = False) -> None:
+        """Rehydrate runs + machine scores from a saved records JSON.
+
+        This is what makes "judging is cheap and re-runnable" true rather than
+        merely intended: the matrix is hours of model time, the judge is minutes,
+        and a judge-side defect must not cost the former. It cost exactly that
+        once — `decision-strong-r4`'s X/Y split came out 10/2 because the
+        starting side was hashed per comparison instead of per arm pair, and with
+        no loader the only way to re-judge was to re-run 1h22m of conversation.
+
+        Comparisons are DROPPED by default: the reason to reload is almost always
+        that the previous verdicts are suspect, and silently keeping them would
+        append new ones alongside, doubling every delta's n with two different
+        judging regimes averaged together.
+        """
+        payload = load_records(path)
+        self.runs = [RunRecord.model_validate(r) for r in payload["runs"]]
+        self.machine = {
+            k: MachineScores.model_validate(v)
+            for k, v in payload.get("machine", {}).items()
+        }
+        self.comparisons = (
+            [Comparison.model_validate(c) for c in payload.get("comparisons", [])]
+            if keep_comparisons
+            else []
         )
 
     def save(self, directory: Path, *, stem: str = "bench") -> tuple[Path, Path]:

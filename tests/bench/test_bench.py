@@ -32,6 +32,7 @@ from bench.models import (
     BeatKind,
     Comparison,
     ErosionScore,
+    MachineScores,
     NON_INFERIORITY_DIMENSIONS,
     RunRecord,
     Scenario,
@@ -408,12 +409,50 @@ class TestJudgeSetup:
         sides = [_x_is_a(key, ordinal=i) for i in range(12)]
         assert sides.count(True) == sides.count(False) == 6
 
+    def test_split_is_exact_when_the_comparison_key_varies(self):
+        """The runner's ACTUAL call pattern: a different key every comparison.
+
+        This is the test that was missing. The first `ordinal` version hashed
+        the starting side from the per-comparison key, so each call re-rolled
+        its own start and parity-flipping it balanced nothing:
+        `decision-strong-r4` drew 10/2 and reported an 8-of-12-dimension A2 win
+        with a +0.48 Y-slot bias sitting on A2's side of 10 comparisons. Holding
+        the key fixed (the test above) cannot see that, because the bug is
+        precisely that the key moves.
+        """
+        pair = "A2|A1.7"
+        sides = [
+            _x_is_a(
+                f"cofounder_equity|strong|{rep}|A2|A1.7|{session}",
+                ordinal=i,
+                pair_key=pair,
+            )
+            for i, (rep, session) in enumerate(
+                (rep, session)
+                for rep in (1, 2, 3)
+                for session in ("decide", "wobble_a", "decide", "wobble_b")
+            )
+        ]
+        assert sides.count(True) == sides.count(False) == 6, (
+            "X/Y split is uneven under varying comparison keys — the starting "
+            f"side is not pair-stable: {sides}"
+        )
+
     def test_ordinal_layout_is_still_scenario_dependent(self):
         """The hash must still choose the STARTING side, or every pair would be
         laid out identically ("A always first at ordinal 0") and position bias
         would align with arm order across the whole matrix."""
         starts = {_x_is_a(f"cell{i}", ordinal=0) for i in range(40)}
         assert starts == {True, False}
+
+    def test_pair_key_alone_decides_the_starting_side(self):
+        """Two comparisons of the same pair at the same ordinal must agree even
+        when their comparison keys differ — that is what makes the alternation
+        an alternation rather than twelve independent coin flips."""
+        pair = "A2|A1.7"
+        assert _x_is_a("a|1|decide", ordinal=0, pair_key=pair) == _x_is_a(
+            "b|3|wobble_b", ordinal=0, pair_key=pair
+        )
 
     def test_ordinal_assignment_stays_deterministic(self):
         key = "probe|strong|1|A2|A1|decide"
@@ -888,3 +927,54 @@ class TestReportedBiasAndSessions:
         """A table with one column repeats the row above it — noise, not signal."""
         comparisons = [self._comparison("decide", Arm.A2, -3)]
         assert "by session:" not in render_report([], comparisons, {}, ["strong"])
+
+
+class TestReloadSavedRecords:
+    """Re-judging saved transcripts must not cost a matrix re-run.
+
+    The docstring promised this ("judging is cheap and re-runnable from the
+    saved records") while no loader existed, so a judge bug found after r4 would
+    have cost 1h22m of conversation to re-check.
+    """
+
+    @staticmethod
+    def _config() -> BenchConfig:
+        return BenchConfig(
+            tiers={"strong": "m"}, simulator_model="m", judge_model="m"
+        )
+
+    def _saved(self, tmp_path, *, comparisons: list[Comparison]):
+        from bench.report import save_records
+
+        runs = [_run(Arm.A2, "strong", tool_calls=["anchor"])]
+        runs[0].accepted_cost_positions = ["T-"]
+        machine = {runs[0].cell_key: MachineScores()}
+        path = tmp_path / "saved.json"
+        save_records(path, runs, comparisons, machine)
+        return path, runs
+
+    def test_round_trips_runs_and_machine_scores(self, tmp_path):
+        path, runs = self._saved(tmp_path, comparisons=[])
+        run = BenchRun(None, self._config())
+        run.load(path)
+        assert [r.cell_key for r in run.runs] == [r.cell_key for r in runs]
+        assert run.runs[0].accepted_cost_positions == ["T-"]
+        assert set(run.machine) == {runs[0].cell_key}
+
+    def test_old_comparisons_are_dropped_by_default(self, tmp_path):
+        """The reason to reload is usually that the verdicts are suspect. Keeping
+        them would append the new ones alongside, averaging two judging regimes
+        into one delta at double the n."""
+        stale = TestReportedBiasAndSessions._comparison("decide", Arm.A2, 3)
+        path, _ = self._saved(tmp_path, comparisons=[stale])
+        run = BenchRun(None, self._config())
+        run.load(path)
+        assert run.comparisons == []
+
+    def test_comparisons_can_be_kept_explicitly(self, tmp_path):
+        stale = TestReportedBiasAndSessions._comparison("decide", Arm.A2, 3)
+        path, _ = self._saved(tmp_path, comparisons=[stale])
+        run = BenchRun(None, self._config())
+        run.load(path, keep_comparisons=True)
+        assert len(run.comparisons) == 1
+        assert run.comparisons[0].session_label == "decide"

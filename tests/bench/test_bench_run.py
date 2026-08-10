@@ -188,6 +188,47 @@ async def test_bench_matrix(di_container):
     )
 
 
+@pytest.mark.asyncio
+async def test_bench_rejudge(di_container):
+    """Re-judge a saved matrix. Minutes and cents instead of hours.
+
+    DIALEXITY_BENCH_REJUDGE     stem to reload (required, e.g. decision-strong-r4)
+    DIALEXITY_BENCH_STEM        stem to write (default: <reloaded>-rejudged)
+    DIALEXITY_BENCH_ARMS        restrict which pairs get judged (default: all present)
+
+    Exists because judge-side defects are found AFTER a run, and the transcripts
+    are innocent. The r4 run's X/Y split came out 10/2 from a judge bug; without
+    this the only way to get trustworthy verdicts on those same transcripts was
+    to re-spend 1h22m of conversation. Machine scores are reloaded rather than
+    recomputed, so what changes between the two reports is only the judging.
+    """
+    stem = os.getenv("DIALEXITY_BENCH_REJUDGE")
+    if not stem:
+        pytest.skip("set DIALEXITY_BENCH_REJUDGE=<stem> to re-judge a saved run")
+    source = OUTPUT_DIR / f"{stem}.json"
+    assert source.exists(), f"no saved records at {source}"
+
+    config = BenchConfig.from_env(tiers=_csv("DIALEXITY_BENCH_TIERS"))
+    run = BenchRun(di_container, config)
+    run.load(source)  # drops old comparisons on purpose — see BenchRun.load
+    _say(f"reloaded {len(run.runs)} run(s) from {source}")
+
+    present = {r.arm for r in run.runs}
+    wanted = _csv("DIALEXITY_BENCH_ARMS")
+    if wanted:
+        present &= {Arm(a) for a in wanted}
+    pairs = [p for p in JUDGED_PAIRS if p[0] in present and p[1] in present]
+    _say(f"judging pairs: {[(a.value, b.value) for a, b in pairs]}")
+
+    await run.judge_wobbles(progress=_say)
+    await run.judge_pairs(pairs=pairs, progress=_say)
+
+    out_stem = os.getenv("DIALEXITY_BENCH_STEM", f"{stem}-rejudged")
+    json_path, report_path = run.save(OUTPUT_DIR, stem=out_stem)
+    _say(run.report())
+    _say(f"\nrecords: {json_path}\nreport:  {report_path}")
+
+
 def _csv(name: str) -> list[str] | None:
     raw = os.getenv(name)
     if not raw:
