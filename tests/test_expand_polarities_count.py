@@ -198,3 +198,108 @@ class TestExpandPolarityCount:
 
             assert len(pps) == 1
             assert call_index["n"] == 1
+
+
+@pytest.mark.llm
+class TestAspectsNeverDedupIntoTheirOwnPoles:
+    """An aspect must not be replaced by the T or A it develops.
+
+    Rule 1 requires the four aspects to be distinct from the poles: T- is what
+    T degenerates into when A+ is absent, not T itself. But an aspect is a
+    development OF a pole, so it is by construction the most similar thing in
+    the graph to that pole — and the aspect deduplicator was handed the full
+    vocabulary, poles included. It then did exactly what it is built to do.
+
+    Measured: a live weak-tier run recorded an `accepted_cost` on a Statement
+    sitting at `T/T-` — one node serving as both the neutral thesis and its own
+    overdevelopment. Same signature in `claim2-weak-r4` (`T/T-` on f142e3c).
+
+    A collapsed tetrad breaks every consumer that reads the positions apart:
+    the control statement degenerates to "T without A+ yields T", the diagonal
+    contradictions vanish, `area`/`rectangularity` compare an aspect to itself,
+    and a decision's accepted cost names the CHOICE instead of its price.
+    """
+
+    @pytest.mark.asyncio
+    async def test_poles_are_excluded_from_the_aspect_dedup_vocabulary(
+        self, monkeypatch
+    ):
+        from dialectical_framework.concerns.statement_deduplication import \
+            StatementDeduplication
+
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+            t_node, _ = polarity.t.get()
+            a_node, _ = polarity.a.get()
+
+            stub, _ = _distinct_aspect_stub(case_node.sid)
+            monkeypatch.setattr(AspectGeneration, "resolve", stub)
+
+            offered: list[list[str]] = []
+
+            async def _capture(self, *, extracted_hashes, vocabulary, text=""):
+                offered.append([v["hash"] for v in vocabulary])
+                from dialectical_framework.concerns.statement_deduplication import \
+                    DedupResult
+
+                return DedupResult(
+                    replacements={}, deleted_count=0, originals=[]
+                )
+
+            monkeypatch.setattr(StatementDeduplication, "resolve", _capture)
+
+            concern = ExpandPolarity(polarity_hash=polarity.hash)
+            await concern.resolve()
+
+            assert offered, "the aspect deduplicator was never consulted"
+            for vocab_hashes in offered:
+                assert t_node.hash not in vocab_hashes, (
+                    "T was offered as a dedup target for its own tetrad's "
+                    "aspects — an aspect can collapse into the pole it develops"
+                )
+                assert a_node.hash not in vocab_hashes, (
+                    "A was offered as a dedup target for its own tetrad's "
+                    "aspects — an aspect can collapse into the pole it develops"
+                )
+
+    @pytest.mark.asyncio
+    async def test_committed_tetrad_keeps_aspects_distinct_from_poles(
+        self, monkeypatch
+    ):
+        """The invariant itself, read off the committed graph.
+
+        Asserted on the real dedup path (not stubbed) so it covers the whole
+        chain, not just what the vocabulary filter was handed.
+        """
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+            t_node, _ = polarity.t.get()
+            a_node, _ = polarity.a.get()
+            pole_hashes = {t_node.hash, a_node.hash}
+
+            stub, _ = _distinct_aspect_stub(case_node.sid)
+            monkeypatch.setattr(AspectGeneration, "resolve", stub)
+
+            concern = ExpandPolarity(polarity_hash=polarity.hash)
+            pps = await concern.resolve()
+
+            assert pps
+            for pp in pps:
+                for position in (
+                    POSITION_T_PLUS,
+                    POSITION_T_MINUS,
+                    POSITION_A_PLUS,
+                    POSITION_A_MINUS,
+                ):
+                    manager = pp.get_relationship_manager_by_position(position)
+                    for aspect, _rel in manager.all():
+                        assert aspect.hash not in pole_hashes, (
+                            f"{position} is the same node as a pole of its own "
+                            f"tetrad: {aspect.text!r}"
+                        )

@@ -266,10 +266,15 @@ def accepted_cost_condition(node) -> str:
             return ""
         held_node, _ = held_result
         remedy_node, _ = remedy_result
+        # `:short`, NOT str(): a Statement's default format is text PLUS its
+        # rationale's explanation, and one_line() collapses that into the ledger
+        # rather than dropping it. Measured — the first live run rendered a
+        # 300-word COMPLEX-classification essay inside the condition clause.
+        # The ground's own text uses the same short reading (first line only).
         return (
             f"{ACCEPTED_COST_CONDITION_MARKER}"
-            f"{one_line(str(held_node))} is held without "
-            f"{one_line(str(remedy_node))}"
+            f"{one_line(f'{held_node:short}')} is held without "
+            f"{one_line(f'{remedy_node:short}')}"
         )
     except Exception:  # noqa: BLE001
         # Rendering a ledger must never fail on a decoration.

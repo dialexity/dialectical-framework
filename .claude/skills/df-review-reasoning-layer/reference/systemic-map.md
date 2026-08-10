@@ -242,6 +242,21 @@ the agent files: `AnalysisPipeline` in `analyst/analyst.py`, `ExplorationPipelin
 per thesis → Phase-2 dedup) → **`_rank_polarities` gate** → **ExpandPolarity ×N** (`AspectGeneration` →
 aspect dedup). `create_nexus` is the Analyst-only handoff.
 
+**Aspect dedup excludes the tetrad's own poles — and must keep doing so.** An aspect is a development OF
+a pole, so it is by construction the most similar node in the graph to that pole, while Rule 1 requires
+them to stay distinct (T- is what T degenerates into when A+ is absent, *not* T itself). Handed the full
+vocabulary, `StatementDeduplication` did exactly what it is built to do and replaced the aspect WITH the
+pole. Measured: a live weak-tier run recorded an `accepted_cost` on a Statement sitting at `T/T-` — one
+node serving as both the neutral thesis and its own overdevelopment (same signature in `claim2-weak-r4`,
+`T/T-` on f142e3c). The collapse is silent and breaks every consumer that reads the positions apart: the
+control statement degenerates to "T without A+ yields T", the diagonal contradictions vanish,
+`area`/`rectangularity` compare an aspect to itself, and a decision's accepted cost names the CHOICE
+instead of its price. Fixed in `ExpandPolarity._deduplicate_aspects` (filters `polarity.t`/`polarity.a`
+hashes out of the offered vocabulary); locked by `TestAspectsNeverDedupIntoTheirOwnPoles`. The other three
+`get_vocabulary_with_rationales()` consumers (`surface_theses`, `find_polarities`, `statement_placement`)
+correctly want the full vocabulary — they are not generating developments of a specific pole.
+`edit_perspective` does not dedup at all (user wording survives verbatim, by design).
+
 ### Exploration chain (`ExplorationPipeline.resolve`)
 **BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **depth gate
 `_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all —

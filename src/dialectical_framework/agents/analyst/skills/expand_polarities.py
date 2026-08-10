@@ -125,7 +125,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
             self._report = self._report.merge(generator.report)
 
             # Deduplicate aspects against vocabulary
-            aspects = await self._deduplicate_aspects(aspects, input_text)
+            aspects = await self._deduplicate_aspects(aspects, input_text, polarity)
 
             # Connect aspects to Perspective
             for aspect in aspects:
@@ -331,14 +331,41 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         return state
 
     async def _deduplicate_aspects(
-        self, aspects: list[AspectResult], text: str
+        self, aspects: list[AspectResult], text: str, polarity: Polarity
     ) -> list[AspectResult]:
-        """Deduplicate generated aspects against vocabulary."""
+        """Deduplicate generated aspects against vocabulary.
+
+        The tetrad's OWN poles are excluded from that vocabulary. An aspect is a
+        development OF a pole, so it is by construction the most similar thing in
+        the graph to it — and Rule 1 requires them to stay distinct nodes (T- is
+        what T degenerates into when A+ is absent, not T itself). Left in, the
+        deduplicator does exactly what it is built to do and replaces the aspect
+        WITH the pole, silently collapsing the tetrad.
+
+        Measured: a live weak-tier run recorded an `accepted_cost` on a Statement
+        sitting at `T/T-` — one node serving as both the neutral thesis and its
+        own overdevelopment. Same signature in `claim2-weak-r4` (`T/T-` on
+        f142e3c). A collapsed tetrad breaks everything downstream that reads the
+        positions apart: the control statement degenerates to "T without A+
+        yields T", the diagonal contradictions vanish, `area`/`rectangularity`
+        compare an aspect to itself, and a decision's accepted cost names the
+        choice instead of its price.
+        """
         if not aspects:
             return aspects
 
         repo = StatementRepository()
-        vocab = repo.get_vocabulary_with_rationales()
+        pole_hashes = {
+            node.hash
+            for manager in (polarity.t, polarity.a)
+            for node, _rel in manager.all()
+            if node.hash
+        }
+        vocab = [
+            entry
+            for entry in repo.get_vocabulary_with_rationales()
+            if entry.get("hash") not in pole_hashes
+        ]
         if not vocab:
             return aspects
 
