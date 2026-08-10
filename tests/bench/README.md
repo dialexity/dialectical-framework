@@ -78,8 +78,19 @@ Model choices also come from the environment (`DIALEXITY_BENCH_TIER_WEAK`,
 or account-scoped ARNs in committed files.
 
 Output lands in `tests/bench/results/` (gitignored). The runner saves records
-**before** judging, so a judge crash never costs a re-run: re-judge from the
-saved JSON instead.
+**before** judging, so a judge crash — or a judge *bug* — never costs a re-run:
+
+```bash
+# re-judge saved transcripts. minutes and cents instead of hours.
+DIALEXITY_BENCH_REJUDGE=decision-strong-r4 \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_rejudge --real-llm -s
+```
+
+Measured: 10m43s to re-judge what took 1h22m to run. Old comparisons are
+dropped on load — the reason to re-judge is usually that they are suspect, and
+keeping them would average two judging regimes into one delta at double the n.
+Machine scores are reloaded, not recomputed, so the only thing that differs
+between the two reports is the judging.
 
 ## Cost shape
 
@@ -113,6 +124,15 @@ conclusion. The guards, each with a test in `test_bench.py`:
 - **Blind, paired, position-randomised judging**, per-dimension, with length and
   eloquence explicitly discounted — and raw word counts printed anyway, because
   "instructed to ignore" is not "did ignore".
+- **The X/Y split is exact, not merely random.** The judge scores whatever sits
+  in the Y slot higher — measured at +0.35 of a 5-point step over 288 scores.
+  The rubric discounts length and eloquence and that works; it says nothing about
+  position and evidently cannot. This is bias, not variance, so replication does
+  not remove it: it has to be cancelled by construction (`judge._x_is_a`
+  alternates within each arm pair). The report prints the measured bias and the
+  split ABOVE the delta table, because a lopsided split makes every row below it
+  unreadable — which is exactly how `decision-strong-r4` first reported an
+  8-of-12-dimension A2 "win" on a 10/2 split.
 - **Non-inferiority dimensions** (warmth, actionability, conversational fit) are
   judged but never folded into the headline. They are the base model's home turf.
 - **Machine scorers that no LLM can flatter** (`scoring.py`) reported beside the
