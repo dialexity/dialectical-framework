@@ -319,6 +319,15 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   S+/S- is structurally unfinished, the toggle was removed 2026-07-31) — "rich vs simple" exploration is this runtime budget, not a schema concept.
   Explorer agent path passes None (user selects wheels). The Advisor explore tool docs narrate
   `shallow_wheel_hashes` + `deferred_perspective_hashes` semantics — keep in lockstep with the budget.
+  **The `explore` tool doc also carries the CALL threshold** ("Two mapped tensions are already
+  enough", + the consequence: waiting for a fuller map is how a decision closes with no pathway).
+  Measured in `claim2-weak-r2`: 5/6 live A2 runs never called `explore`, and 0/6 decision records
+  carried an `adopted_pathway` ground — the threshold was stated only in `_DECISION_READINESS`,
+  ~100 lines below the tool list, while the doc read at call time said merely "use once tensions
+  exist" and left "enough" to the model's judgement. Same lesson as `record_decision` (see
+  §decision-lifecycle): **when a prompt rule governs whether to CALL something, it belongs in the
+  tool doc too.** Unscoped only — the scoped variant is already inside an exploration. Locked by
+  `TestDecisionReadiness.test_the_explore_threshold_reaches_its_tool_doc_too`.
   The escape from the budget is the Advisor's **`deepen` tool** (`advisor/tools/deepen.py`,
   `run_deepen` = ExploreTransformations + GenerateSynthesis, synthesis always, fail-soft):
   when the person's lived reality picks a shallow reading, the model deepens that wheel — the

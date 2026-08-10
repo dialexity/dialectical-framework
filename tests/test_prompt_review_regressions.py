@@ -2069,6 +2069,26 @@ class TestDecisionReadiness:
         assert "OBLIGES this call" in tool_doc
         assert "same turn" in tool_doc
 
+    def test_the_explore_threshold_reaches_its_tool_doc_too(self):
+        """The same lesson, applied to the other half of the closing.
+
+        `claim2-weak-r2`: 5 of 6 live A2 runs never called `explore`, so the
+        closing turn had no pathway to adopt and no trap version of the choice
+        to name — measured as 0/6 records carrying an `adopted_pathway` ground.
+        "Two mapped tensions are enough to explore" was stated only in Decision
+        Readiness; the explore tool doc said "use once tensions exist" without
+        naming the threshold, leaving "enough structure" to the model's
+        judgement at exactly the point where it stalls.
+
+        Unscoped only: the scoped variant is already inside an exploration.
+        """
+        from dialectical_framework.agents.advisor import system_prompts as sp
+
+        tool_doc = " ".join(sp._TOOL_DOCS["explore"].split())
+        assert "Two mapped tensions are already enough" in tool_doc
+        # Names the consequence, so the threshold is not read as arbitrary.
+        assert "closes with no pathway" in tool_doc
+
     def test_coherence_auditor_reads_accepted_cost_as_a_risk(self):
         """The re-audit's own auditor is a third surface teaching the role.
 

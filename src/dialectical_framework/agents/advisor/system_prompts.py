@@ -455,7 +455,10 @@ _TOOL_DOCS: dict[str, str] = {
   together; pass an existing `nexus_hash` to enrich it with new perspectives.
   Call incrementally — start with 1-2 perspectives for early insight, then
   enrich as new tensions emerge; each call builds only what's new, keeping
-  existing wheels/transformations.
+  existing wheels/transformations. Two mapped tensions are already enough:
+  waiting for a fuller map is the common way a decision closes with no
+  pathway, and a decision needs one (a recipe IS a pathway — see Decision
+  Readiness).
 
   Depth is selective: ALL causal arrangements are built and ranked by
   plausibility, but pathways + synthesis are generated only for the most
