@@ -1924,6 +1924,69 @@ class TestDecisionReadiness:
             # Reassurance is bounded, not merely discouraged.
             assert "no more than what was priced" in prompt
 
+    def test_ritual_asks_once_and_never_gates_the_record(self):
+        """A soft ritual pressed twice is a hard gate on the person's own call.
+
+        Measured at weak tier (`claim1-weak-r1`): handed "That's the decision,
+        final… I'm not reopening this one. Go ahead and write this down as my
+        decision", one A2 run answered with "I need you to answer the question
+        directly… Can you name that cost and own it?" and recorded nothing.
+        The section already said the person's wish outranks the ritual, but it
+        illustrated declining only with the polite "just record it" — a firm
+        refusal to be tested did not pattern-match, so the model read its own
+        unanswered question as an outstanding precondition.
+
+        Both renders, because a prompt-only arm can withhold a written record
+        for the same reason.
+        """
+        for prompt in (self._unscoped(), self._scoped()):
+            prompt = " ".join(prompt.split())
+            assert "Ask once." in prompt
+            # Declining is illustrated by the refusals actually observed, not
+            # by the one polite phrasing.
+            assert "that's the decision, not a maybe" in prompt
+            assert "I'm not reopening this one" in prompt
+            assert "does not have to be polite" in prompt
+            # The stakes of pressing again, named as the failure it is.
+            assert "gate you are holding" in prompt
+
+    def test_reading_the_record_back_is_not_speaking_as_them(self):
+        """"In their own words" invited the model to take the person's voice.
+
+        Measured at weak tier: one A2 commit turn replied entirely in the
+        user's first person — "I'm paying the premium now to get him out
+        cleanly… Record it: Buy out cofounder now" — handing the person a
+        script of their own decision. An A1 run drifted the same way, so the
+        correction belongs in the shared section, not in tool prose.
+        """
+        for prompt in (self._unscoped(), self._scoped()):
+            prompt = " ".join(prompt.split())
+            assert "Their words, YOUR voice" in prompt
+            assert "not speaking as them" in prompt
+            # The observed surface form, so the model can catch itself.
+            assert '"I\'m buying him out"' in prompt
+
+    def test_prose_summary_is_not_a_substitute_for_recording(self):
+        """A formatted "Decision:" reply is a message, not a record.
+
+        Measured at weak tier: 4 of 6 A2 runs never called `record_decision`,
+        and 2 of those had already written the full record out in prose under
+        headings — question, stance, accepted cost, pathway. The ceremony
+        promises the person an artifact they can be held to later; prose alone
+        leaves them believing in a record that does not exist and the re-audit
+        with nothing to reassure from.
+
+        Unscoped/scoped only: the paragraph names the tool, so the bench's
+        `_strip_tool_prose` drops it for prompt-only arms — which record in
+        prose legitimately, and must not be told that is a failure.
+        """
+        for prompt in (self._unscoped(), self._scoped()):
+            prompt = " ".join(prompt.split())
+            assert "Writing the record out is not recording it" in prompt
+            assert "is a MESSAGE" in prompt
+            # Not an either/or — the reply AND the call.
+            assert "not alternatives" in prompt
+
     def test_coherence_auditor_reads_accepted_cost_as_a_risk(self):
         """The re-audit's own auditor is a third surface teaching the role.
 

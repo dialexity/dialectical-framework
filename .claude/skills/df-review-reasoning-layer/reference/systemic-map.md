@@ -366,6 +366,20 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   ACCEPTED COST special case, `GRAPH_SCHEMA` and `docs/graph.md` — all must move together. Locked by
   `test_prompt_review_regressions.py::test_accepted_cost_asks_for_the_chosen_side_minus` (which also asserts the old
   "unchosen side's `+`" phrasing is gone) and `..._tool_schema_matches_the_prompt`.
+  **The ceremony's three weak-model failure modes** (fixed 2026-08, all measured in `claim1-weak-r1` — the weak tier
+  is where ceremony discipline breaks, so a strong-tier pass proves nothing about them). (a) *The soft ritual pressed
+  twice is a hard gate*: handed "That's the decision, final… I'm not reopening this one", one run demanded "Can you
+  name that cost and own it?" and recorded nothing. The section already deferred to the person's wish but illustrated
+  declining only with the polite "just record it", so a firm refusal did not pattern-match — now "Ask once.", the
+  observed refusals quoted, and "does not have to be polite". (b) *Reading the record back became speaking AS them*:
+  "in their own words" produced a commit reply entirely in the user's first person ("I'm paying the premium now…
+  Record it: Buy out cofounder now") — a script of the decision instead of a record of it; now "Their words, YOUR
+  voice". An A1 run drifted the same way, so both (a) and (b) belong in the shared section and MUST survive
+  `_strip_tool_prose` (asserted in `bench/arms.py`'s rewrite table + the bench's own tests). (c) *Prose is not
+  recording*: 4 of 6 A2 runs never called `record_decision`, 2 having already written the full record out under
+  headings. That paragraph names the tool deliberately so prompt-only arms drop it — they record in prose
+  legitimately. Locked by `test_ritual_asks_once_and_never_gates_the_record`,
+  `test_reading_the_record_back_is_not_speaking_as_them`, `test_prose_summary_is_not_a_substitute_for_recording`.
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
   "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
   recorded decisions stays available via query_graph/inspect_node, and NAVIGATOR_APP_ADVANCED_TOGGLE names Decision
