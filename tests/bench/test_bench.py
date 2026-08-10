@@ -41,6 +41,7 @@ from bench.models import (
     SessionRecord,
     SessionSpec,
     TurnRecord,
+    WobbleScore,
 )
 from bench.report import Deltas, position_bias, render_report
 from bench.runner import BenchRun, JUDGED_PAIRS
@@ -607,6 +608,122 @@ class TestDecisionRecordCompleteness:
         text = render_report([full], [], {}, ["weak", "strong"])
         assert "runs with adopted_pathway ground: 1/1" in text
         assert "COMPLETE records (risk-grounded cost + pathway): 1/1" in text
+
+
+class TestRecordlessWobbleA:
+    """Variant (a) without a record measures the CEREMONY, not the re-audit.
+
+    Measured in `claim2-weak-r2`: all three A2 `wobble_a` cells recorded zero
+    decisions and all three called "reopen" — 3/6 paired accuracy, -2.67 on both
+    convergence and decision_closure. Read at face value that is the framework
+    losing the exact job it exists for; the truth was that the closing ceremony
+    never fired, so there was nothing to reassure from and "reopen" was the only
+    honest answer available.
+    """
+
+    @staticmethod
+    def _a_variant(**kwargs) -> RunRecord:
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        run.branch = "wobble_a"
+        for k, v in kwargs.items():
+            setattr(run, k, v)
+        return run
+
+    def test_a_variant_without_a_decision_is_flagged(self):
+        assert self._a_variant().wobble_a_without_a_record is True
+
+    def test_a_variant_with_a_decision_is_not_flagged(self):
+        run = self._a_variant(decision_hashes=["beef1"])
+        assert run.wobble_a_without_a_record is False
+
+    def test_b_variant_is_never_flagged(self):
+        """(b) asks the assistant to REOPEN — no record is needed to be right."""
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        run.branch = "wobble_b"
+        assert run.wobble_a_without_a_record is False
+
+    def test_prompt_arms_are_never_flagged(self):
+        """A1.7 cannot record by design; flagging it would invent a defect."""
+        run = _run(Arm.A1_7, "weak")
+        run.branch = "wobble_a"
+        assert run.wobble_a_without_a_record is False
+
+    def test_report_names_the_cause_and_keeps_the_score(self):
+        run = self._a_variant()
+        scores = MachineScores(
+            wobble=WobbleScore(variant="a", classification="reopen", correct=False)
+        )
+        text = render_report([run], [], {run.cell_key: scores}, ["weak", "strong"])
+        assert "NO recorded" in text
+        assert "no record to reassure from" in text
+        # The wrong call must still be visible: hiding it would blind the
+        # collapse tripwire.
+        assert " X " in text
+
+
+class TestProseOnlyDecision:
+    """"Write it down" answered with headings and no tool call.
+
+    The framework's own rule ("writing the record out is not recording it")
+    failing to bind, and the direct cause of a missing-record row. Measured in
+    `claim2-weak-r2`: the person said "Go ahead and write that down as the
+    decision" and the reply produced a bolded "Your Decision:" block, an
+    itemised list of accepted prices, and a sequence — with `tool_calls == []`.
+    """
+
+    @staticmethod
+    def _commit_run(arm: Arm, assistant: str, tool_calls: list[str]) -> RunRecord:
+        return RunRecord(
+            arm=arm,
+            tier="weak",
+            model="m",
+            scenario_key="cofounder_equity",
+            replicate=1,
+            sessions=[
+                SessionRecord(
+                    label="decide",
+                    turns=[
+                        TurnRecord(
+                            index=0,
+                            user="Go ahead and write that down as the decision.",
+                            assistant=assistant,
+                            tag="commit",
+                            tool_calls=tool_calls,
+                        )
+                    ],
+                )
+            ],
+        )
+
+    def test_decision_in_prose_with_no_call_is_flagged(self):
+        run = self._commit_run(
+            Arm.A2,
+            "**Your Decision: Buy out your cofounder.** You're paying these prices:",
+            [],
+        )
+        assert run.prose_only_decision is True
+
+    def test_recording_on_the_commit_turn_is_not_flagged(self):
+        run = self._commit_run(
+            Arm.A2, "**Your Decision: Buy out your cofounder.**", ["record_decision"]
+        )
+        assert run.prose_only_decision is False
+
+    def test_a_reply_that_does_not_close_is_not_flagged(self):
+        """Not closing at all is a different defect with a different fix."""
+        run = self._commit_run(Arm.A2, "What would change your mind here?", [])
+        assert run.prose_only_decision is False
+
+    def test_prompt_arms_are_never_flagged(self):
+        run = self._commit_run(Arm.A1_7, "**Your Decision: Buy him out.**", [])
+        assert run.prose_only_decision is False
+
+    def test_report_names_it_as_the_cause(self):
+        run = self._commit_run(
+            Arm.A2, "**Your Decision: Buy out your cofounder.**", []
+        )
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "closed a decision in PROSE" in text
 
 
 class TestReadDecisions:

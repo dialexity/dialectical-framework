@@ -313,6 +313,57 @@ class RunRecord(BaseModel):
         )
 
     @property
+    def wobble_a_without_a_record(self) -> bool:
+        """An A2 (a)-variant cell that reached the wobble holding no record.
+
+        Variant (a) asks the assistant to reassure FROM the record when the
+        already-accepted cost resurfaces. With no Decision node there is nothing
+        to reassure from, so "reopen" is the only honest answer available — and
+        the wobble judge scores it wrong, the paired accuracy halves, and
+        `convergence`/`decision_closure` collapse. That is a measurement of the
+        ceremony never firing, NOT of the re-audit failing.
+
+        Measured in `claim2-weak-r2`: all three A2 `wobble_a` cells recorded
+        zero decisions and all three called "reopen" — 3/6 paired accuracy and
+        -2.67 on both convergence and decision_closure, read at face value as
+        the framework losing the re-audit it was built for.
+        """
+        return (
+            self.arm is Arm.A2
+            and (self.branch or "").endswith("_a")
+            and not self.decision_hashes
+        )
+
+    @property
+    def prose_only_decision(self) -> bool:
+        """The person said "write it down" and the reply wrote it in prose.
+
+        The specific failure behind `wobble_a_without_a_record`: not a model
+        that declined to close, but one that closed in a MESSAGE. Detected on
+        the commit turn — an assistant that formats a decision under headings
+        while calling no tool. `record_decision` is the only tool that can close
+        a decision, so its absence on a turn tagged `commit` is the whole test.
+
+        Kept separate from the missing-record check because the two imply
+        different fixes: no closure at all is a steering problem, prose-only
+        closure is the "writing the record out is not recording it" rule failing
+        to bind.
+        """
+        if self.arm is not Arm.A2:
+            return False
+        for session in self.sessions:
+            for turn in session.turns:
+                if turn.tag != "commit":
+                    continue
+                if "record_decision" in turn.tool_calls:
+                    continue
+                # The reply presents a decision as settled without recording it.
+                text = turn.assistant.lower()
+                if "decision" in text or "you're paying" in text:
+                    return True
+        return False
+
+    @property
     def collapsed_to_a1(self) -> bool:
         """True when an A2 run built nothing — the result is invalid, not weak.
 

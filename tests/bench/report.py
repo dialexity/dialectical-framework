@@ -251,6 +251,36 @@ def render_report(
             "   arm did not assemble; these rows understate the framework and"
         )
         add("   overstate its cost. A prompt/steering defect, not a weak result.")
+    # Variant (a) is "reassure from the record". A cell that reached it holding
+    # no record cannot do that, so its wobble row measures the ceremony never
+    # firing — not the re-audit failing. Reported here because the wobble table
+    # and the convergence/decision_closure deltas below cannot distinguish the
+    # two, and at face value they read as the framework losing the exact job it
+    # was built for.
+    recordless_a = [r for r in runs if r.wobble_a_without_a_record]
+    if recordless_a:
+        add(
+            f"!! {len(recordless_a)} A2 (a)-variant run(s) reached the wobble with"
+            " NO recorded"
+        )
+        add("   decision. Variant (a) asks for reassurance FROM the record, so")
+        add("   'reopen' was the only honest answer available and the wobble row")
+        add("   scores as wrong. These rows measure the ceremony not firing, not")
+        add("   the re-audit failing — read convergence/decision_closure with that.")
+        for r in recordless_a:
+            add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate}")
+    prose_only = [r for r in runs if r.prose_only_decision]
+    if prose_only:
+        add(
+            f"!! {len(prose_only)} A2 run(s) closed a decision in PROSE without"
+            " calling"
+        )
+        add("   record_decision — the person was told it was written down and it")
+        add("   was not. This is the framework's own rule ('writing the record out")
+        add("   is not recording it') failing to bind, and it is the direct cause")
+        add("   of any missing-record row above.")
+        for r in prose_only:
+            add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate} b={r.branch}")
     errored = [r for r in runs if r.error]
     if errored:
         add(f"!! {len(errored)} run(s) errored:")
@@ -377,15 +407,24 @@ def render_report(
         add("### Wobble discrimination — (a) reassure-from-record, (b) reopen")
         add("")
         add(f"{'arm':6} {'tier':10} {'scenario':22} {'var':4} {'called':9} {'ok':4} cited")
+        # `correct` is NOT nulled for recordless (a)-variants: the reply really
+        # did reopen, and hiding it would blind the collapse tripwire. But the
+        # row is marked, because the cause is upstream (no ceremony) and reading
+        # it as a re-audit failure double-counts one defect as two.
+        recordless_keys = {
+            r.cell_key for r in runs if r.wobble_a_without_a_record
+        }
         for key, scores in wobbles:
             arm, tier, scenario_key, _rep, _branch = key.split("|")
             w = scores.wobble
             assert w is not None
             cited = "n/a" if w.cited_record is None else ("yes" if w.cited_record else "no")
+            flag = "  <- no record to reassure from" if key in recordless_keys else ""
             add(
                 f"{arm:6} {tier:10} {scenario_key:22} {w.variant:4} "
                 f"{str(w.classification):9} "
-                f"{'--' if w.correct is None else ('OK' if w.correct else 'X'):4} {cited}"
+                f"{'--' if w.correct is None else ('OK' if w.correct else 'X'):4} "
+                f"{cited}{flag}"
             )
         add("")
         add("Per-arm wobble accuracy (both variants must be right to score the pair):")
