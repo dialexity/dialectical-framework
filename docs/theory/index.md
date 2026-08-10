@@ -69,3 +69,10 @@ appears.
 - All numeric scores are **LLM-dependent** [P0 p.21; P1 p.24]: thresholds must be calibrated per
   model (e.g. GPT feasibility ≥0.5 ≈ Gemini ≥0.2). Any hardcoded threshold in code implicitly
   assumes one provider's calibration.
+- Not every reading encoded in code comes from the papers. The **dialogical gloss** of the four
+  positions (T = what is said, T+ its implied goal, T− its risk; A = the opponent's say, A+ the
+  obligation on the T-sayer, A− a subsequent risk — generative-rules.md, Rule 3.1) is the framework
+  author's, and it is what any code that *selects* a position for a role must reason from: a cost is
+  a minus, an obligation is a plus. Glosses of this kind are marked as such where they appear; do
+  not cite them as paper claims, and do not delete them as unsourced — they are owning definitions
+  for code the papers do not speak to.

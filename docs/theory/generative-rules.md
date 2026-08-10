@@ -33,6 +33,20 @@ components need equal argumentative/affective strength [P0 p.3].
 **Notes:** Strength-matching ("equal argumentative AND affective strengths") is only implicitly
 covered via modality/Ks balance — no explicit strength-parity check at generation time.
 
+**Dialogical reading of the four positions** (the framework author's gloss, 2026-08 — not a paper
+claim, and it does not replace `ASPECT_DEFINITIONS`, which stays the generation-time authority):
+read the tetrad as an exchange between two speakers. **T** is what is said; **T+** is the implied
+goal of what is said; **T−** is its risk. **A** is the opponent's say; **A+** is the *obligation*
+that falls on the T-sayer; **A−** is a subsequent risk. Load-bearing wherever a position is
+selected for a *role* rather than generated: it is why the `accepted_cost` decision ground must be
+the CHOSEN side's minus (a price is a risk) and never a plus — a plus is a goal or an obligation,
+so asking for one yields a remedy, something to DO. Encoded in
+`graph/relationships/grounded_in_relationship.py` (owning definition, with the measurement that
+forced the correction) and taught to the model in `_TOOL_DOCS["record_decision"]`,
+`_DECISION_READINESS`, `GroundLink.role`, and `DecisionCoherenceCheck`. Consistent with Rule 3.3's
+truth criterion, which is the same asymmetry stated normatively: T is sound only insofar as it
+fosters A+ — i.e. only insofar as the T-sayer takes on the obligation the opponent names.
+
 ### Rule 3.2: Equal modalities (modality balance)
 **Theory:** S+ occurs iff all components have equal absolute modalities. Eq (1):
 `M(T+) = −M(T−) = M(A+) = −M(A−)` [P0 p.10]; linear approximation
