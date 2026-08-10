@@ -2036,6 +2036,39 @@ class TestDecisionReadiness:
             # Not an either/or — the reply AND the call.
             assert "not alternatives" in prompt
 
+    def test_the_obligation_reaches_the_text_nearest_the_call(self):
+        """The prose rule alone lost to the tool doc at call time.
+
+        `test_prose_summary_is_not_a_substitute_for_recording` above locks the
+        Decision Readiness paragraph, and it WAS rendering — yet the failure
+        recurred at weak tier (`claim2-weak-r2`, 4 of 6 A2 runs closed in prose
+        with `tool_calls == []`). The paragraph sits ~100 lines below the tool
+        list, while the text the model actually reads when deciding whether to
+        call — the docstring and `_TOOL_DOCS` entry — carried only the
+        PROHIBITION ("never call this silently") with no counterpart obligation.
+        On a weak model that asymmetry reads as "when in doubt, don't call".
+
+        So: when a prompt rule governs whether to CALL something, the tool doc
+        has to carry it too. Both surfaces are asserted because they drift
+        independently.
+        """
+        from dialectical_framework.agents.advisor.tools.record_decision import (
+            build_record_decision,
+        )
+
+        docstring = " ".join((build_record_decision().__doc__ or "").split())
+        # The prohibition must survive — the ceremony is still consent-first.
+        assert "Never call this silently or speculatively" in docstring
+        # ...but no longer alone.
+        assert "OBLIGES the call" in docstring
+        assert "SAME turn" in docstring
+
+        from dialectical_framework.agents.advisor import system_prompts as sp
+
+        tool_doc = " ".join(sp._TOOL_DOCS["record_decision"].split())
+        assert "OBLIGES this call" in tool_doc
+        assert "same turn" in tool_doc
+
     def test_coherence_auditor_reads_accepted_cost_as_a_risk(self):
         """The re-audit's own auditor is a third surface teaching the role.
 

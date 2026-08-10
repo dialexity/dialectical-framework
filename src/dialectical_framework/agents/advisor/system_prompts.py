@@ -504,6 +504,10 @@ _TOOL_DOCS: dict[str, str] = {
   needed. Harmless on already-developed wheels.""",
     "record_decision": """- `record_decision` — Records a decision the person has EXPLICITLY
   confirmed, after the propose-and-confirm ceremony (see Decision Readiness).
+  Their confirmation OBLIGES this call: once they have said to write it down,
+  or agreed to the record you read back, this call is what writing it down
+  MEANS. If you are about to state a settled decision in your reply, the call
+  belongs in that same turn — the prose is the telling, this is the record.
   Pass the confirmed wording literally: `question` (what was being decided),
   `stance` (the position taken), `rationale` (the distilled why, including
   reasons outside the mapped structure). Pass `grounds` as {hash, role}

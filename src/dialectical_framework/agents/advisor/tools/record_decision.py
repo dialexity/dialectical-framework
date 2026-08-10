@@ -62,7 +62,7 @@ def build_record_decision(principal: str = "human"):
             ),
         ] = None,
     ) -> str:
-        """Record a decision the person has EXPLICITLY confirmed in conversation. Never call this silently or speculatively — propose the distilled record first, read it back, and record only on their clear yes. Links the decision to the graph nodes that grounded it and attaches the confirmed rationale. To replace or retract a recorded decision, use `discard` on it (with a reason naming the newer decision if one replaces it)."""
+        """Record a decision the person has EXPLICITLY confirmed in conversation. Never call this silently or speculatively — propose the distilled record first, read it back, and record only on their clear yes. But their yes OBLIGES the call: when they have said to write it down, or have confirmed the record you read back, this call is what writing it down MEANS. Stating the decision in your reply — however well formatted, under any heading — is a message that ends with the conversation, and leaves them believing in a record they do not have. If you are about to present a settled decision in prose, call this in the SAME turn. Links the decision to the graph nodes that grounded it and attaches the confirmed rationale. To replace or retract a recorded decision, use `discard` on it (with a reason naming the newer decision if one replaces it)."""
         from dialectical_framework.concerns.record_decision import RecordDecision
 
         # Mirascope passes json.loads'd kwargs without coercing nested models, so

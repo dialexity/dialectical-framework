@@ -434,7 +434,17 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   `_strip_tool_prose` (asserted in `bench/arms.py`'s rewrite table + the bench's own tests). (c) *Prose is not
   recording*: 4 of 6 A2 runs never called `record_decision`, 2 having already written the full record out under
   headings. That paragraph names the tool deliberately so prompt-only arms drop it — they record in prose
-  legitimately. Locked by `test_ritual_asks_once_and_never_gates_the_record`,
+  legitimately. **RECURRED at the weak tier** (`claim2-weak-r2`, 4 of 6 A2 runs, prompt paragraph verified
+  rendering): the paragraph is 100 lines below the tool list, and the text nearest the call decision — the
+  `record_decision` DOCSTRING and `_TOOL_DOCS["record_decision"]` — carried only the PROHIBITION ("never call
+  this silently") and no counterpart obligation, so on a weak model the asymmetry reads as "when in doubt, don't
+  call". Both now state that confirmation OBLIGES the call and that prose in the same turn needs the call in that
+  turn. General lesson: a rule stated only in a prose section can lose to the tool doc at call time — **when a
+  prompt rule governs whether to CALL something, it belongs in the tool doc too.** Bench-side, the symptom is
+  double-counted unless attributed: the missing record made the wobble (a) variant unanswerable, so the row read
+  as the framework losing the re-audit (`RunRecord.prose_only_decision` /
+  `wobble_a_without_a_record` in `tests/bench/models.py` name the cause once). Locked by
+  `test_ritual_asks_once_and_never_gates_the_record`,
   `test_reading_the_record_back_is_not_speaking_as_them`, `test_prose_summary_is_not_a_substitute_for_recording`.
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
   "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
