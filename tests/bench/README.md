@@ -190,19 +190,70 @@ CALL something, it belongs in the tool doc, not only in a prose section** — a
 rule ~100 lines below the tool list loses to the docstring at call time. It is
 in the systemic map. It just is not sufficient here.
 
+### Fixed in code, and the number moved (`claim2-weak-r4`)
+
+The prompt layer was the wrong layer. A decision is a **user-driven artefact** —
+it exists because the person declared it, and that declaration is an *observable
+event in their message* — so `DecisionConfirmationCheck` +
+`Advisor._repair_unrecorded_decision` now write the record whenever the person
+confirmed one and the model didn't (`docs/agents.md`; framework-side, so every
+host gets it). What r4 measured, same tier, same scenario, n=3:
+
+| | r2/r3 (prompt only) | r4 (with the seam) |
+|---|---|---|
+| runs recording ≥1 decision | **0/6** | **6/6** |
+| `wobble_a` convergence | **−2.67** | **−0.33** |
+| `wobble_a` decision_closure | **−2.67** | **0.00** |
+| `wobble_a` earned_confidence / entanglement / non_triviality / tension_coverage | negative | **+0.33 each** |
+
+3 of 6 runs still closed in prose — the seam caught all 3, which is the point.
+The `wobble_a` misattribution is gone: those rows now measure the re-audit
+instead of a missing record.
+
+**It is still not a win, and the remaining gap is honest.** Two things sit
+between here and a real Claim 2 result, and both are visible in the r4 validity
+section rather than inferred:
+
+1. **The record exists but is mostly empty.** `accepted_cost` 2/6,
+   `adopted_pathway` 1/6, COMPLETE records **0/6**. The repair deliberately
+   guesses no grounds (a fabricated `accepted_cost` invents the very
+   confrontation the ledger reports), so a repaired record secures *existence*,
+   not *substance* — and reassurance at wobble time needs the substance. Read the
+   `wobble_a` transcripts: A2's replies are *correct* — they faithfully audit a
+   record that does not contain the cost, which is why they call "reopen". The
+   machine scorer marks that wrong against the scenario's intent, and it is right
+   to: the arm cannot reassure from a record with nothing in it.
+2. **5/6 still never called `explore`**, so the pathway half has no source at
+   all. That flag has survived every prompt fix aimed at it.
+
+`wobble_b` now carries the loss (decision_closure −2.00, convergence −1.67) —
+but A2 called `reopen` correctly **3/3** there by machine score, so judge and
+machine disagree, and this report's own rule is to trust the machine. Worth
+re-judging before treating that row as a finding.
+
 What this means for the product claim, stated plainly:
 
-- **Claim 2 is not measurable at the weak tier by prompting alone.** The
+- **Claim 2 was not measurable at the weak tier by prompting alone.** The
   institution cannot beat a prose journal in a run where the institution was
-  never written to. Weak-tier A2-vs-A1.7 rows from r2/r3 measure a
-  non-firing ceremony; they are not evidence about the record.
-- The honest fix is a **seam in `src/`, not more prompt text** — the decision
-  ceremony currently depends on the conversational model electing to call a tool
-  at exactly the moment it is most inclined to just answer well. Anything that
-  does not depend on that election (a commitment-detection pass, or a host-driven
-  confirm step) is a design change and needs review before it is built.
-- Reported as a **framework limitation found by its own bench**, which is what
-  the harness is for. It is not yet a framework win.
+  never written to. Weak-tier A2-vs-A1.7 rows from r2/r3 measure a non-firing
+  ceremony; they are not evidence about the record. r4 is the first weak-tier row
+  where the record exists in every run.
+- **Existence was the first blocker; substance is the next.** The seam fixed the
+  0/6, and the `wobble_a` numbers moved with it. But COMPLETE records are 0/6, so
+  the re-audit still has little to point back to — and the two missing halves have
+  different causes: `accepted_cost` needs the model to identify the chosen side's
+  minus (a real judgement, correctly left to it), `adopted_pathway` needs
+  `explore` to have run at all (a steering problem that has resisted three prompt
+  fixes).
+- **The next thing to try is not more prompt text.** The lesson that generalised
+  from the ceremony is that a rule governing whether an observable user event gets
+  persisted belongs in code. Whether the same reasoning applies to `explore` is a
+  genuine design question — unlike a confirmation, "there is enough structure to
+  build pathways from" is not an observable user event, so it is not obviously the
+  same fix. That needs review before it is built.
+- Still **not a framework win**. What the harness has produced so far is one
+  framework limitation found and closed, with the measurement to show the close
+  worked, and a clearly-named remaining gap.
 
 ### Known limits, stated rather than hidden
 
