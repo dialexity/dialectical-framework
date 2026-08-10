@@ -1001,6 +1001,31 @@ class TestRunnerWiring:
         for arm_a, arm_b in JUDGED_PAIRS:
             assert arm_a in DEFAULT_ARMS and arm_b in DEFAULT_ARMS
 
+    def test_wobble_judge_sees_both_halves_of_the_record(self):
+        """The judge is asked what the assistant DID with what it HAD.
+
+        A2 held both grounds in its ledger, so showing the judge only the costs
+        would mark it down for "not using the record" when the reply reassured
+        from the adopted pathway — which is the most likely correct answer to
+        variant (a), the reply the whole ceremony exists for.
+        """
+        record = _run(Arm.A2, "weak")
+        record.accepted_cost_grounds = ["- accepted cost: [[beef1]] Accounts go"]
+        record.adopted_pathway_grounds = ["- adopted pathway: [[cafe1]] T1- -> A2+"]
+
+        context = BenchRun._decision_context(record)
+        assert "Accounts go" in context
+        assert "T1- -> A2+" in context
+        # `decision_ground_line` already emits the bullet; a second one is text
+        # no ledger renders.
+        assert "- - " not in context
+
+    def test_wobble_judge_context_falls_back_when_nothing_was_recorded(self):
+        """Arms that cannot record must not be handed a record they never had."""
+        record = _run(Arm.A1_7, "weak")
+        record.sessions[0].journal_after = "my own notes from last time"
+        assert "my own notes" in BenchRun._decision_context(record)
+
     def test_cells_for_scenario_without_branches(self):
         poor_fit = [s for s in ALL_SCENARIOS if s.kind is ScenarioKind.POOR_FIT][0]
         assert BenchRun._cells_for(poor_fit, None) == [None]

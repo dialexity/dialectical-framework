@@ -200,7 +200,14 @@ class BenchRun:
                 wobble_text=wobble_turn.user if wobble_turn else "",
                 reply_text=reply,
             )
-            score.cited_record = cited_record(session, record.accepted_cost_grounds)
+            # Both halves of the record count as the record: reassuring from
+            # the adopted pathway ("here is what you set up for exactly this")
+            # is citing it just as much as naming the price again. Scoring only
+            # costs understated A2 on precisely the reply the ceremony is FOR.
+            score.cited_record = cited_record(
+                session,
+                record.accepted_cost_grounds + record.adopted_pathway_grounds,
+            )
             self.machine.setdefault(record.cell_key, MachineScores()).wobble = score
 
     @staticmethod
@@ -213,10 +220,18 @@ class BenchRun:
         context the assistant never had would let it mark an arm down for
         failing to use a record it never received.
         """
-        if record.accepted_cost_grounds:
-            return "Recorded accepted costs of the decision:\n" + "\n".join(
-                f"- {g}" for g in record.accepted_cost_grounds
-            )
+        # Both roles, because both are in the ledger the Advisor was handed.
+        # Showing only costs would let the judge mark A2 down for "not using
+        # the record" when the reply reassured from the adopted pathway — the
+        # single most likely correct answer to variant (a).
+        if record.accepted_cost_grounds or record.adopted_pathway_grounds:
+            # No added "- ": `decision_ground_line` already emits it, and the
+            # old code's double bullet ("- - accepted cost: ...") was text no
+            # ledger ever renders that way.
+            parts = ["The typed decision record the assistant was holding:"]
+            parts.extend(record.accepted_cost_grounds)
+            parts.extend(record.adopted_pathway_grounds)
+            return "\n".join(parts)
         base = record.sessions[0] if record.sessions else None
         if base is not None and base.journal_after:
             return "The assistant's own notes from the earlier session:\n" + (
