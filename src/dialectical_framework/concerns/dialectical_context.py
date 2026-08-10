@@ -271,8 +271,11 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             grounds = d.grounds.all()
             if grounds:
                 lines.append("Grounds:")
+                ground_nodes = [n for n, _ in grounds]
                 for node, rel in grounds:
-                    lines.append(decision_ground_line(node, rel.role))
+                    lines.append(
+                        decision_ground_line(node, rel.role, siblings=ground_nodes)
+                    )
         return "\n".join(lines)
 
     def _dump_standalone_perspectives(

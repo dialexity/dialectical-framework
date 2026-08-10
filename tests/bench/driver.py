@@ -218,10 +218,19 @@ class BenchDriver:
             for decision in DecisionRepository().find_all_active():
                 hashes.append(decision.short_hash)
                 try:
-                    for node, rel in decision.grounds.all():
+                    all_grounds = decision.grounds.all()
+                    # Siblings disambiguate a shared minus's condition clause —
+                    # pass them exactly as the live renderers do, or the bench
+                    # measures a ledger the model never sees.
+                    ground_nodes = [n for n, _ in all_grounds]
+                    for node, rel in all_grounds:
                         role = getattr(rel, "role", None)
                         if role == "accepted_cost":
-                            costs.append(decision_ground_line(node, "accepted_cost"))
+                            costs.append(
+                                decision_ground_line(
+                                    node, "accepted_cost", siblings=ground_nodes
+                                )
+                            )
                             positions.append(cls._ground_position(node))
                         elif role == "adopted_pathway":
                             pathways.append(

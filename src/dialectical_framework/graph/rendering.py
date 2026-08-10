@@ -150,13 +150,25 @@ def one_line(text: Optional[str]) -> str:
     return " ".join((text or "").split())
 
 
-def decision_ground_line(node, role: Optional[str], show_type: bool = False) -> str:
+def decision_ground_line(
+    node,
+    role: Optional[str],
+    show_type: bool = False,
+    siblings: Optional[list] = None,
+) -> str:
     """One-line rendering of a Decision ground for ledger/inspect output.
 
     Grounds are heavyweight nodes (a Perspective's __str__ is a multi-line
     block) — the ledger needs a compact single line per ground, so this
     selects a compact FORMAT per type (format selection, not truncation:
     full detail stays one inspect_node away via the hash).
+
+    `siblings` are the OTHER nodes grounding the same decision. They exist only
+    to disambiguate an `accepted_cost` condition: a shared minus sits in several
+    perspectives, and if one of them is also a ground of this decision, that one
+    is the tension the person actually decided on. Callers that render a
+    decision's grounds should pass them; callers rendering a lone node can't and
+    needn't.
     """
     from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.wheel import Wheel
@@ -182,13 +194,13 @@ def decision_ground_line(node, role: Optional[str], show_type: bool = False) -> 
 
     type_part = f" ({node.__class__.__name__})" if show_type else ""
     if role == "accepted_cost":
-        text = f"{one_line(text)}{accepted_cost_condition(node)}"
+        text = f"{one_line(text)}{accepted_cost_condition(node, siblings=siblings)}"
     # one_line: embedded newlines in node text must not fabricate sibling
     # dump lines (see one_line docstring).
     return f"- {label}: [[{node.short_hash}]]{type_part} {one_line(text)}{flag}"
 
 
-def accepted_cost_condition(node) -> str:
+def accepted_cost_condition(node, siblings: Optional[list] = None) -> str:
     """The control statement's condition, appended to an accepted-cost ground.
 
     A bare minus is a named bad outcome; the control statement is the same
@@ -228,6 +240,18 @@ def accepted_cost_condition(node) -> str:
     Returns "" for anything that is not a minus aspect of a locatable
     perspective — the ground is still worth rendering plain, and a half-derived
     condition would be worse than none.
+
+    Ambiguity is the common case, not the exception. A minus aspect is shared
+    across perspectives whenever `commit()` dedup finds the same wording, and a
+    real session anchors several adjacent tensions on one theme: measured on the
+    live anchor path, 3 well-separated tensions shared nothing (6/6 conditions
+    rendered) but 5 adjacent ones shared 7 of 10 minus aspects (0 of those 7
+    rendered) — which is why `claim2-weak-r5` recorded 5 risk-grounded costs and
+    not one condition. So `siblings` (the decision's OTHER grounds) is consulted
+    first: if exactly one of the candidate perspectives is itself a ground of
+    this decision, that is the tension the person decided on, and no guessing is
+    involved. Only when the siblings settle nothing does the single-candidate
+    rule apply.
     """
     from dialectical_framework.graph.nodes.statement import Statement
 
@@ -248,6 +272,18 @@ def accepted_cost_condition(node) -> str:
             for pp, rel_type in PerspectiveRepository().find_by_statement(node)
             if rel_type in ("T_MINUS", "A_MINUS")
         ]
+        if len(found) != 1:
+            # Shared minus: let the decision's own other grounds pick the
+            # perspective. A decision grounded on both a tension and its price
+            # names them together, so the overlap is evidence, not a heuristic.
+            sibling_ids = {
+                s._id for s in (siblings or []) if getattr(s, "_id", None) is not None
+            }
+            found = [
+                (pp, rel_type)
+                for pp, rel_type in found
+                if pp._id in sibling_ids
+            ] or found
         if len(found) != 1:
             return ""
         pp, rel_type = found[0]

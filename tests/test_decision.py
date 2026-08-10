@@ -693,6 +693,89 @@ class TestDecisionRendering:
                 t_minus, "adopted_pathway"
             )
 
+    async def test_siblings_disambiguate_a_shared_minus(self):
+        """A shared minus IS the common case, and the decision's other grounds
+        resolve it.
+
+        Measured on the live anchor path: 3 well-separated tensions shared no
+        minus aspect (6/6 conditions rendered), but 5 adjacent ones — an
+        ordinary session's shape — shared 7 of 10 (0 of those rendered). That is
+        why `claim2-weak-r5` recorded 5 risk-grounded costs and not one
+        condition clause. Falling back to "" on every shared minus makes the
+        clause a feature that works only on toy graphs.
+
+        The way out needs no guessing: the repair seam grounds the PERSPECTIVE
+        alongside the cost, so the decision itself says which tetrad it
+        resolved. Passing the decision's other grounds as `siblings` lets the
+        renderer read that instead of picking.
+        """
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            shared, _ = pp.t_minus.get()
+            other = _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Care",
+                t_minus_text=shared.text,
+            )
+
+            # Without siblings: ambiguous, no condition (the guard still holds).
+            assert "arises when" not in decision_ground_line(shared, "accepted_cost")
+
+            # Grounded with its own perspective: the condition reads THAT tetrad.
+            line = decision_ground_line(
+                shared, "accepted_cost", siblings=[shared, pp]
+            )
+            assert "arises when" in line
+            assert "Control" in line
+            assert "Autonomy builds responsibility" in line
+
+            # And the other tetrad, from the same shared statement.
+            other_line = decision_ground_line(
+                shared, "accepted_cost", siblings=[shared, other]
+            )
+            assert "arises when" in other_line
+            assert "Speed" in other_line
+
+    async def test_siblings_that_settle_nothing_leave_the_guard_intact(self):
+        """Siblings are evidence, not a licence to pick.
+
+        If the decision's other grounds include BOTH candidate perspectives (or
+        neither), the reading is still ambiguous and the clause must stay off —
+        otherwise the disambiguation quietly becomes "choose the first row",
+        which is the arbitrary attribution the guard exists to prevent.
+        """
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            shared, _ = pp.t_minus.get()
+            other = _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Care",
+                t_minus_text=shared.text,
+            )
+
+            both = decision_ground_line(
+                shared, "accepted_cost", siblings=[shared, pp, other]
+            )
+            assert "arises when" not in both
+
+            unrelated = _create_perspective_with_aspects(
+                thesis_text="Openness",
+                antithesis_text="Discretion",
+                t_minus_text="Oversharing that erodes trust",
+            )
+            neither = decision_ground_line(
+                shared, "accepted_cost", siblings=[shared, unrelated]
+            )
+            assert "arises when" not in neither
+
     async def test_ambiguous_statement_renders_without_a_condition(self):
         """A Statement reused as the minus of TWO perspectives has two
         conditions. Picking one would attribute the person's accepted price to
@@ -778,3 +861,113 @@ class TestDecisionRepository:
         with scope(sid_b):
             repo = DecisionRepository()
             assert repo.find_all_active() == []
+
+
+@pytest.mark.llm
+class TestRepairGroundsTheTensionItMatched:
+    """The repair seam records the perspective alongside the cost.
+
+    Two independent reasons, and the second is why this is not merely a
+    rendering convenience:
+
+    1. `accepted_cost_condition` cannot read a shared minus's tetrad unless the
+       decision says which one it is. Measured on the live anchor path: 7 of 10
+       minus aspects were shared across perspectives once five adjacent tensions
+       existed, which is exactly why `claim2-weak-r5` recorded 5 risk-grounded
+       costs and rendered 0 conditions.
+    2. The tension the person resolved is part of what the decision rests on.
+       The aspect alone names the price without naming the choice it was the
+       price of.
+
+    Graph-backed (unlike `test_decision_confirmation_repair.py`, which is
+    deliberately DB-free) because resolving the ground walks real perspectives.
+    """
+
+    @pytest.mark.asyncio
+    async def test_cost_ground_arrives_with_its_perspective(self):
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.concerns.decision_confirmation_check import \
+            ConfirmationVerdictDto
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            polarity, _ = pp.polarity.get()
+            t_minus, _ = pp.t_minus.get()
+
+            verdict = ConfirmationVerdictDto(
+                confirmed=True,
+                question="Control or freedom?",
+                stance="I'm going with control",
+                chosen_polarity_hash=polarity.hash,
+                chosen_side="T",
+            )
+            grounds = Advisor._accepted_cost_ground(verdict)
+
+            assert grounds is not None
+            by_role = {g.role: g.hash for g in grounds}
+            assert by_role.get("accepted_cost") == t_minus.hash
+            # The perspective rides along as a PLAIN ground: it is the tension
+            # decided on, not a second price.
+            assert by_role.get(None) == pp.hash
+
+    @pytest.mark.asyncio
+    async def test_the_recorded_ledger_renders_the_condition(self):
+        """End to end: what the seam records is what the next session reads.
+
+        The two halves are wired separately (the seam grounds the perspective;
+        the renderers pass siblings), so this asserts the whole path — a record
+        built by the repair renders its cost WITH the condition even when the
+        minus is shared, which is the case that produced 0/6 live.
+        """
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.concerns.decision_confirmation_check import \
+            ConfirmationVerdictDto
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            polarity, _ = pp.polarity.get()
+            shared, _ = pp.t_minus.get()
+            # Make the minus shared — the live condition, not the toy one.
+            _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Care",
+                t_minus_text=shared.text,
+            )
+
+            verdict = ConfirmationVerdictDto(
+                confirmed=True,
+                question="Control or freedom?",
+                stance="I'm going with control",
+                chosen_polarity_hash=polarity.hash,
+                chosen_side="T",
+            )
+            decision_hash = await RecordDecision().resolve(
+                question=verdict.question,
+                stance=verdict.stance,
+                rationale="Structure is what this team is missing right now.",
+                grounds=Advisor._accepted_cost_ground(verdict),
+                principal="human",
+            )
+            assert decision_hash
+
+            decision = DecisionRepository().find_all_active()[0]
+            all_grounds = decision.grounds.all()
+            ground_nodes = [n for n, _ in all_grounds]
+            lines = [
+                decision_ground_line(node, rel.role, siblings=ground_nodes)
+                for node, rel in all_grounds
+            ]
+
+        cost_lines = [ln for ln in lines if "accepted cost:" in ln]
+        assert cost_lines, f"no accepted_cost ground was rendered: {lines}"
+        assert any("arises when" in ln for ln in cost_lines), (
+            f"the cost rendered without its condition despite the decision "
+            f"grounding its own perspective: {cost_lines}"
+        )
+        assert any("Control" in ln for ln in cost_lines)

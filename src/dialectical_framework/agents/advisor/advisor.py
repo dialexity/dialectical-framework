@@ -307,6 +307,19 @@ class Advisor:
         aspect on the perspective built over it. Every break is a non-event,
         not an error — the record is worth having without the ground, and a
         half-resolved ground is worth less than none.
+
+        The PERSPECTIVE is grounded too, as a plain ground alongside the cost.
+        Two reasons, both measured. (1) A minus aspect is shared across
+        perspectives whenever `commit()` dedup finds the same wording, and an
+        ordinary session anchors several adjacent tensions on one theme: 7 of 10
+        minus aspects were shared on the live anchor path, which is why
+        `claim2-weak-r5` recorded 5 risk-grounded costs and rendered 0 condition
+        clauses — `accepted_cost_condition` cannot tell which tetrad to read
+        without being told, and guessing would attribute the price to a tension
+        the person never decided on. The perspective ground is exactly that
+        telling. (2) It is true independently of the rendering: the tension the
+        person resolved is part of what the decision rests on, and the aspect
+        alone names the price without naming the choice it was the price of.
         """
         position = verdict.chosen_cost_position
         if not position:
@@ -328,9 +341,12 @@ class Advisor:
                 aspects = getattr(pp, position).all()
                 for aspect, _rel in aspects:
                     if aspect.is_committed:
-                        return [
+                        grounds = [
                             GroundLink(hash=aspect.hash, role="accepted_cost")
                         ]
+                        if pp.is_committed:
+                            grounds.append(GroundLink(hash=pp.hash, role=None))
+                        return grounds
         except Exception:
             logger.exception("Accepted-cost ground resolution failed (fail-soft)")
         return None

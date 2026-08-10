@@ -303,8 +303,13 @@ def _inspect_decision(decision: Decision) -> str:
     if grounds:
         lines.append("")
         lines.append("Grounds:")
+        ground_nodes = [n for n, _ in grounds]
         for node, rel in grounds:
-            lines.append(decision_ground_line(node, rel.role, show_type=True))
+            lines.append(
+                decision_ground_line(
+                    node, rel.role, show_type=True, siblings=ground_nodes
+                )
+            )
 
     return "\n".join(lines)
 
