@@ -253,18 +253,19 @@ def render_report(
         add("## Decision ceremony (A2)")
         add("")
         with_cost = [r for r in a2_all if r.accepted_cost_grounds]
-        on_aspect = [r for r in with_cost if r.costs_grounded_on_aspect]
+        on_risk = [r for r in with_cost if r.costs_grounded_on_risk]
         add(f"runs recording >=1 decision : {len(a2_decision_runs)}/{len(a2_all)}")
         add(f"runs with accepted_cost ground: {len(with_cost)}/{len(a2_all)}")
         add(
             "   (an accepted_cost ground is what the wobble re-audit compares "
             "against — its absence means the choice never confronted its cost)"
         )
-        add(f"   of those, grounded on a +aspect: {len(on_aspect)}/{len(with_cost)}")
+        add(f"   of those, grounded on a risk (T-/A-): {len(on_risk)}/{len(with_cost)}")
         add(
-            "   (the instruction asks for the unchosen side's T+/A+. A ground on "
-            "the Perspective names the TENSION, not the cost, so the re-audit has "
-            "nothing specific to reassure from — a recorded-but-useless ground.)"
+            "   (a cost is the CHOSEN side's minus. A ground on the Perspective "
+            "names the TENSION; a ground on a plus names a goal (T+) or an "
+            "obligation (A+) — i.e. a remedy, something to DO. Both leave the "
+            "re-audit nothing to reassure from: a recorded-but-useless ground.)"
         )
         seen_positions = sorted(
             {p for r in with_cost for p in r.accepted_cost_positions}

@@ -308,7 +308,13 @@ woven in. Tensions saturate; they are never exhausted.
 **Pre-commit ritual (earned confidence, soft).** Before proposing to record,
 have the choice face its strongest test: name what the unchosen side offers —
 its genuine contribution — and ask whether they can say what choosing costs
-them. Name the trap version of the choice (the resolution that is actually
+them. The cost is the chosen side's own `-` aspect: the risk that comes from
+pushing their choice one-sidedly. State it as the price they are paying, in
+their own terms, NOT as a task that would avert it — "you're accepting that
+the accounts may follow him" is a cost; "diversify the relationships first"
+is a remedy, and a remedy silently converts a confronted risk into a to-do
+the confidence then rests on. Both belong in the counsel; only the risk is
+the cost. Name the trap version of the choice (the resolution that is actually
 one side dominating). A decision that has faced both is earned; record that
 confrontation in the rationale. If the person says "just record it," record
 it — their wish outranks the ritual — and note in the rationale that the cost
@@ -454,12 +460,16 @@ _TOOL_DOCS: dict[str, str] = {
   Pass the confirmed wording literally: `question` (what was being decided),
   `stance` (the position taken), `rationale` (the distilled why, including
   reasons outside the mapped structure). Pass `grounds` as {hash, role}
-  entries: role "accepted_cost" for the unchosen side's contribution they
-  confronted — the hash of that specific aspect line (the unchosen side's
-  `+` aspect, e.g. `A1+` when they chose the thesis), NOT the whole
-  perspective, whose hash names the tension rather than the cost; the
-  accepted cost is what the later re-audit reassures from, so a
-  tension-level hash makes that reassurance impossible. Use
+  entries: role "accepted_cost" for the risk they confronted and accepted —
+  the hash of the CHOSEN side's `-` aspect line (`T1-` when they chose that
+  thesis, `A1-` when they chose the antithesis). A minus is the risk of
+  pushing that side one-sidedly, which is exactly what a decision's price is;
+  a `+` is a goal or an obligation, so it names something to DO and never a
+  cost. Not the whole perspective either, whose hash names the tension. The
+  accepted cost is what the later re-audit reassures from, so anything else
+  here makes that reassurance impossible: a prescription ("diversify the
+  client relationships first") cannot be the thing they are steadied about at
+  4am. Use
   "adopted_pathway" for the pathway adopted as their ongoing
   recipe, no role for plain grounds (tensions weighed, arrangements counseled
   from). The result may carry a coherence verdict — if it flags a
@@ -651,7 +661,8 @@ in the actual analytical logic rather than restating the dump.
 standing decisions, each recorded with their explicit confirmation: the
 question, the stance in their confirmed words, the why, and grounds (the
 tensions, statements, arrangements, and pathways it rests on; "accepted cost" marks the
-unchosen side's contribution they confronted, "adopted pathway" the recipe
+risk of the side they chose — its `-` aspect, the price they confronted and
+took on — "adopted pathway" the recipe
 they committed to). Treat these as the person's own declared positions —
 counsel that contradicts a standing decision must name that openly. A
 ground flagged "since discarded" means a support

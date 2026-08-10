@@ -109,7 +109,7 @@ All nodes share: `hash` (content-addressable ID), `sid` (scope ID), `committed_a
 **Metadata**:
 - `(r:Rationale)-[:EXPLAINS]->(n)` — explanation for any node
 - `(e:Estimation)-[:ESTIMATES]->(n)` — numeric assessment of any node
-- `(d:Decision)-[:GROUNDED_IN]->(n)` — node the decision rests on; edge property `role`: "accepted_cost" (unchosen side's A+ the person confronted), "adopted_pathway" (Transformation adopted as management recipe), or null (plain ground). Active decisions: add `d.discarded IS NULL`.
+- `(d:Decision)-[:GROUNDED_IN]->(n)` — node the decision rests on; edge property `role`: "accepted_cost" (the risk accepted — the chosen side's minus aspect, T- or A-), "adopted_pathway" (Transformation adopted as management recipe), or null (plain ground). Active decisions: add `d.discarded IS NULL`.
 
 ### Common Cypher Patterns
 

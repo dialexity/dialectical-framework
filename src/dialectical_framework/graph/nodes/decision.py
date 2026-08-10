@@ -40,7 +40,8 @@ class Decision(IntentMixin, AssessableEntity, label="Decision"):
       Advisor(principal=...), never LLM-supplied).
     - Grounds are GROUNDED_IN edges to committed nodes (perspectives,
       statements, wheels, transformations) with an optional role
-      ("accepted_cost", "adopted_pathway", or None for a plain ground).
+      ("accepted_cost" — the chosen side's minus aspect, i.e. the risk
+      accepted; "adopted_pathway"; or None for a plain ground).
 
     Immutable + standard discard: commit() freezes intent/stance; changing
     a decision = record a new one, then soft-discard the old (reason

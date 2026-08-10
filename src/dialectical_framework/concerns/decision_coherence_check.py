@@ -47,10 +47,14 @@ You check exactly three things:
 2. GROUNDING coherence: does the stance plausibly follow from (or at least
    relate to) the grounds it cites? A decision with no grounds recorded is
    NOT incoherent for that reason — skip this check when grounds are absent.
-   Special case: if a ground is marked as the ACCEPTED COST (what the
-   unchosen side offered), the decision — stance and rationale together —
-   must not read as if that cost did not exist; accepting a cost and
-   ignoring it are different things.
+   Special case: if a ground is marked as the ACCEPTED COST (the risk the
+   chosen side carries — what pushing this choice one-sidedly does to the
+   person), the decision — stance and rationale together — must not read as
+   if that cost did not exist; accepting a cost and ignoring it are
+   different things. Nor may the rationale convert it into a task that
+   would avert it: "we will diversify the accounts first" is a remedy, and
+   a stance resting on a remedy has not accepted the cost, it has
+   scheduled its avoidance.
 
 3. TRIVIAL incoherence: the stance does not answer the question, or the
    rationale argues against the stance.

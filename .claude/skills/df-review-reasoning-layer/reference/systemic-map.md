@@ -334,7 +334,8 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   saturation-by-family judgment (reads the correspondence lines; "tensions saturate, never exhausted" — the
   exhaustiveness claim belongs to arrangements only), propose-and-confirm recording ceremony (a decision is a speech
   act; NEVER silent in either mode — explicit carve-out from the unscoped Advisor's hidden machinery), soft pre-commit
-  ritual (strongest unchosen A+ confronted + S- trap named; person's wish outranks it), and post-decision re-audit
+  ritual (strongest unchosen A+ confronted, the CHOSEN side's `-` stated as the price + S- trap named; person's wish
+  outranks it), and post-decision re-audit
   (reassure FROM the record vs legitimate reopening → record new + consented discard of old, reason naming the
   replacement — no bespoke supersede machinery). `DecisionCoherenceCheck` is a fail-soft record-time flag
   (`Decision.validation`, `PerspectiveValidation` pattern — never blocks; DTO bool is `incoherent` so the mock brain's
@@ -342,11 +343,22 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   Case-level facts); its wording (role labels "accepted cost"/"adopted pathway", "since discarded" ground flag,
   `Validation` line) must stay in lockstep with `_SCORE_READING`'s Decisions block and `_TOOL_DOCS["record_decision"]`.
   **Aspect addressability** (fixed 2026-08): every T/A/aspect line in `_dump_one_perspective` renders its Statement
-  `[[short_hash]]`. Load-bearing for this lifecycle, not cosmetic — `record_decision` asks for the unchosen side's
-  `+` aspect as the `accepted_cost` ground and the re-audit reassures FROM it; while aspect lines were unaddressed
+  `[[short_hash]]`. Load-bearing for this lifecycle, not cosmetic — `record_decision` asks for the CHOSEN side's
+  `-` aspect as the `accepted_cost` ground and the re-audit reassures FROM it; while aspect lines were unaddressed
   the only hash in view was the Perspective's, so every observed recording grounded on the tension instead of the
   cost and the re-audit had nothing specific to point back to (caught by `tests/bench`). `_TOOL_DOCS["record_decision"]`
   names the aspect hash explicitly. Locked by `test_dialectical_context.py::test_aspect_lines_are_addressable`.
+  **A cost is a MINUS** (corrected 2026-08, was "the unchosen side's `+`"): reading the tetrad plainly, T is what is
+  said, T+ its implied goal, T- its risk; A is the opponent's say, A+ the obligation falling on the T-sayer, A- the
+  risk that follows. So a `+` names a goal or an obligation — something to DO — and a request for one yields a REMEDY
+  where a price was wanted. Measured: with the old wording, 4 of 6 `decision-strong-r3` A2 runs recorded remedies
+  ("Diversify client relationships before any separation") as the accepted cost, and A2 lost `earned_confidence` by
+  1.50 in the commitment session to the A1.7 prose-journal control that named the actual risk. The correction spans
+  `GroundLink.role`, `GROUNDED_IN`'s docstring (the owning definition), `_TOOL_DOCS["record_decision"]`,
+  `_DECISION_READINESS`, `DialecticalContext`'s `_SCORE_READING` Decisions block, `DecisionCoherenceCheck`'s
+  ACCEPTED COST special case, `GRAPH_SCHEMA` and `docs/graph.md` — all must move together. Locked by
+  `test_prompt_review_regressions.py::test_accepted_cost_asks_for_the_chosen_side_minus` (which also asserts the old
+  "unchosen side's `+`" phrasing is gone) and `..._tool_schema_matches_the_prompt`.
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
   "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
   recorded decisions stays available via query_graph/inspect_node, and NAVIGATOR_APP_ADVANCED_TOGGLE names Decision

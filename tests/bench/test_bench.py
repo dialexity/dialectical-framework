@@ -467,25 +467,49 @@ def _run(
 
 
 class TestCostGroundPosition:
-    def test_plus_aspect_counts_as_confronting_the_cost(self):
+    """A cost is a MINUS. The scorer must not credit anything else.
+
+    This inverted: it used to accept T+/A+, which scored the framework's own
+    defect as a success — `decision-strong-r3` reported 4/6 grounded "on a
+    +aspect" while the recorded texts were remedies ("Diversify client
+    relationships before any separation"). A plus is a goal (T+) or an
+    obligation (A+); neither is a price paid.
+    """
+
+    def test_minus_aspect_counts_as_confronting_the_cost(self):
+        for position in ("A-", "T-"):
+            run = _run(Arm.A2, "weak")
+            run.accepted_cost_positions = [position]
+            assert run.costs_grounded_on_risk is True, position
+
+    def test_plus_aspects_do_not_count(self):
+        """The regression this class now guards: a prescription is not a cost."""
         for position in ("A+", "T+"):
             run = _run(Arm.A2, "weak")
             run.accepted_cost_positions = [position]
-            assert run.costs_grounded_on_aspect is True, position
+            assert run.costs_grounded_on_risk is False, position
 
-    def test_tension_and_minus_grounds_do_not_count(self):
-        for position in ("Perspective", "Polarity", "Wheel", "A-", "T", "Statement"):
+    def test_tension_and_neutral_grounds_do_not_count(self):
+        for position in ("Perspective", "Polarity", "Wheel", "T", "A", "Statement"):
             run = _run(Arm.A2, "weak")
             run.accepted_cost_positions = [position]
-            assert run.costs_grounded_on_aspect is False, position
+            assert run.costs_grounded_on_risk is False, position
 
     def test_no_ground_at_all_is_not_grounded(self):
-        assert _run(Arm.A2, "weak").costs_grounded_on_aspect is False
+        assert _run(Arm.A2, "weak").costs_grounded_on_risk is False
 
     def test_one_good_ground_among_several_counts(self):
         run = _run(Arm.A2, "weak")
-        run.accepted_cost_positions = ["Perspective", "A+"]
-        assert run.costs_grounded_on_aspect is True
+        run.accepted_cost_positions = ["Perspective", "A-"]
+        assert run.costs_grounded_on_risk is True
+
+    def test_a_multi_position_statement_counts_if_any_is_a_minus(self):
+        """`_ground_position` joins positions with "/" when one Statement sits
+        at several across perspectives (e.g. "A/A-"), so the check must see
+        through that rather than string-comparing the whole label."""
+        run = _run(Arm.A2, "weak")
+        run.accepted_cost_positions = ["A/A-"]
+        assert run.costs_grounded_on_risk is True
 
 
 class TestRecords:
@@ -689,13 +713,13 @@ class TestReport:
         assert "EVERY turn fail" in text
         assert "MISSING data" in text
 
-    def test_distinguishes_cost_ground_on_aspect_from_on_tension(self):
+    def test_distinguishes_cost_ground_on_risk_from_unusable_grounds(self):
         """A recorded ground is not automatically a USABLE ground.
 
-        Grounding accepted_cost on the Perspective names the tension rather
-        than the cost, so the wobble re-audit has nothing to reassure from —
-        a real observed failure. The report must not collapse the two into one
-        "has a ground" count.
+        Two ways to record one that the re-audit cannot use: the Perspective
+        (names the tension) and a plus (names a goal or an obligation — a
+        remedy). Both were observed for real. The report must not collapse them
+        into one "has a ground" count.
         """
         on_tension = _run(Arm.A2, "weak", tool_calls=["anchor"])
         on_tension.decision_hashes = ["dead1"]
@@ -703,16 +727,30 @@ class TestReport:
         on_tension.accepted_cost_positions = ["Perspective"]
 
         text = render_report([on_tension], [], {}, ["weak", "strong"])
-        assert "grounded on a +aspect: 0/1" in text
+        assert "grounded on a risk (T-/A-): 0/1" in text
         assert "positions used: Perspective" in text
 
-        on_aspect = _run(Arm.A2, "weak", tool_calls=["anchor"])
-        on_aspect.decision_hashes = ["beef1"]
-        on_aspect.accepted_cost_grounds = ["- accepted cost: [[beef1]] Autonomy"]
-        on_aspect.accepted_cost_positions = ["A+"]
+        # The r3 shape: a well-formed A+ ground that is nonetheless a remedy.
+        on_plus = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        on_plus.decision_hashes = ["cafe1"]
+        on_plus.accepted_cost_grounds = [
+            "- accepted cost: [[cafe1]] Diversify client relationships first"
+        ]
+        on_plus.accepted_cost_positions = ["A+"]
+        assert (
+            "grounded on a risk (T-/A-): 0/1"
+            in render_report([on_plus], [], {}, ["weak", "strong"])
+        )
 
-        text = render_report([on_aspect], [], {}, ["weak", "strong"])
-        assert "grounded on a +aspect: 1/1" in text
+        on_risk = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        on_risk.decision_hashes = ["beef1"]
+        on_risk.accepted_cost_grounds = [
+            "- accepted cost: [[beef1]] Accounts may follow him out"
+        ]
+        on_risk.accepted_cost_positions = ["A-"]
+
+        text = render_report([on_risk], [], {}, ["weak", "strong"])
+        assert "grounded on a risk (T-/A-): 1/1" in text
 
     def test_flags_single_tier(self):
         text = render_report([_run(Arm.A1, "weak")], [], {}, ["weak"])

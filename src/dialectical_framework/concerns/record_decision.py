@@ -37,8 +37,10 @@ class GroundLink(BaseModel):
     role: str | None = Field(
         default=None,
         description="Optional semantic role. Seed vocabulary: "
-        "'accepted_cost' = the unchosen side's constructive contribution "
-        "the person confronted and accepted; 'adopted_pathway' = the "
+        "'accepted_cost' = the risk the person confronted and accepted — the "
+        "CHOSEN side's overdevelopment aspect (T- if they chose the thesis, "
+        "A- if the antithesis), never a plus (a plus is a goal or an "
+        "obligation, not a price); 'adopted_pathway' = the "
         "transformation adopted as the ongoing management recipe. "
         "Omit for a plain ground.",
     )
@@ -54,6 +56,7 @@ class RecordDecision(ReasonableConcern[str | None]):
             question="Which job offer to take?",
             stance="Accept the startup offer",
             rationale="Growth outweighs stability for me right now...",
+            # abc123 is the chosen side's minus — the risk being accepted.
             grounds=[GroundLink(hash="abc123", role="accepted_cost")],
         )
     """

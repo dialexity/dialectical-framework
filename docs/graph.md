@@ -322,8 +322,10 @@ decision is a speech act, never extracted from conversation).
   `committed_at` (recording IS deciding).
 - **Grounds**: `GROUNDED_IN` edges (analytical layer) to committed nodes, with
   an open-vocabulary `role` property. Seed roles — a role exists iff a consumer
-  branches on it: `accepted_cost` (the unchosen side's A+ the person
-  confronted), `adopted_pathway` (the Transformation adopted as management
+  branches on it: `accepted_cost` (the risk confronted and accepted — the
+  CHOSEN side's minus aspect, `T-` if they chose the thesis, `A-` if the
+  antithesis; a plus is a goal or an obligation, never a price),
+  `adopted_pathway` (the Transformation adopted as management
   recipe), `None` = plain ground. Targets must be committed, so grounds never
   dangle; a ground later soft-discarded renders as "since discarded" — re-audit
   material, not a broken link.

@@ -307,12 +307,15 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         # Statement hashes are rendered because a Statement is an addressable
         # AssessableEntity and readers are asked to reference these specific
         # positions — most sharply `record_decision`, whose "accepted_cost"
-        # ground IS the unchosen side's A+ (or T+). Without an address here the
-        # only hash in view is the whole Perspective's, so that instruction is
-        # unfollowable: observed in the bench, every recorded accepted_cost
-        # grounded on a Perspective/Polarity instead — the tension rather than
-        # the cost — leaving the wobble re-audit nothing specific to reassure
-        # from. Do not drop these hashes without re-checking that path.
+        # ground is the CHOSEN side's minus aspect (T- or A-; see
+        # GroundedInRelationship for why the cost is a minus). Without an
+        # address here the only hash in view is the whole Perspective's, so
+        # that instruction is unfollowable: observed in the bench, every
+        # recorded accepted_cost grounded on a Perspective/Polarity instead —
+        # the tension rather than the cost — leaving the wobble re-audit
+        # nothing specific to reassure from. The minus lines below are
+        # addressed for exactly this reason: do not drop any of these hashes
+        # without re-checking that path.
         if t_result:
             stmt, rel = t_result
             lines.append(f"T{idx} [[{stmt.short_hash}]]: \"{stmt.text}\"")

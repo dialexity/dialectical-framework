@@ -1871,6 +1871,62 @@ class TestDecisionReadiness:
         assert "use `discard`" in doc
         assert "EXPLICITLY confirmed" in doc
 
+    def test_accepted_cost_asks_for_the_chosen_side_minus(self):
+        """A cost is a RISK, so the ground is the chosen side's minus.
+
+        Read the tetrad plainly: T is what is said, T+ its implied goal, T- its
+        risk; A is the opponent's say, A+ the obligation falling on the T-sayer,
+        A- the risk that follows. The role previously asked for the unchosen
+        side's A+ — a correctly-selected A+, being an obligation, reads as a
+        task. The bench duly recorded remedies as costs ("Diversify client
+        relationships before any separation") in 4 of 6 A+ -grounded runs, the
+        re-audit had no risk to reassure from, and the judge marked the
+        commitment turn down on `earned_confidence` against a prose-journal
+        baseline in all six cells.
+
+        Asserted on both renders and on the tool schema, because the LLM sees
+        the two independently and one drifting from the other reintroduces the
+        bug in exactly the way that is hardest to spot.
+        """
+        from dialectical_framework.agents.advisor.system_prompts import \
+            _TOOL_DOCS
+
+        doc = " ".join(_TOOL_DOCS["record_decision"].split())
+        assert "CHOSEN side's `-` aspect" in doc
+        # The mis-selection must be named, not merely the right answer stated.
+        assert "never a cost" in doc
+        assert "unchosen side's `+`" not in doc
+
+        for prompt in (self._unscoped(), self._scoped()):
+            assert "CHOSEN side's `-` aspect" in prompt
+            # The ritual must elicit a price, not a to-do, or the right hash is
+            # never in hand to pass.
+            assert "chosen side's own `-` aspect" in prompt
+            assert "is a remedy" in prompt
+
+    def test_coherence_auditor_reads_accepted_cost_as_a_risk(self):
+        """The re-audit's own auditor is a third surface teaching the role.
+
+        It is the one that can catch the failure after the fact: a rationale
+        resting on "we will diversify the accounts first" has scheduled the
+        cost's avoidance rather than accepted it, and an auditor told the cost
+        is "what the unchosen side offered" has no basis to say so.
+        """
+        from dialectical_framework.concerns import decision_coherence_check
+
+        prompt = " ".join(decision_coherence_check.SYSTEM_PROMPT.split())
+        assert "the risk the chosen side carries" in prompt
+        assert "is a remedy" in prompt
+        assert "unchosen side offered" not in prompt
+
+    def test_accepted_cost_tool_schema_matches_the_prompt(self):
+        """The Field description is a second, independent prompt surface."""
+        from dialectical_framework.concerns.record_decision import GroundLink
+
+        description = GroundLink.model_fields["role"].description
+        assert "CHOSEN side's overdevelopment aspect" in description
+        assert "never a plus" in description
+
     def test_named_options_paragraph_in_both_modes(self):
         """Named-options guidance lives in _DECISION_READINESS, so it must
         survive both renders: options anchored in the person's own words,

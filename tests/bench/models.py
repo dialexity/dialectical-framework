@@ -234,20 +234,35 @@ class RunRecord(BaseModel):
     #: A2 only: did the decision ceremony fire, and with what grounds.
     decision_hashes: list[str] = Field(default_factory=list)
     accepted_cost_grounds: list[str] = Field(default_factory=list)
-    #: What KIND of node each accepted_cost ground is ("A+", "T+", "A-",
-    #: "Perspective", "Wheel", ...). Recording a ground is not enough: the
-    #: instruction asks for the unchosen side's `+` aspect, and grounding on
-    #: the Perspective instead names the TENSION rather than the cost, which
-    #: leaves the wobble re-audit nothing specific to reassure from. The two
-    #: cases are indistinguishable in `accepted_cost_grounds` alone, and the
-    #: difference was a real framework bug (unaddressed aspect lines), so the
-    #: report states it rather than making a reader infer it from text.
+    #: What KIND of node each accepted_cost ground is ("T-", "A-", "A+",
+    #: "Perspective", "Wheel", ...). Recording a ground is not enough: a cost
+    #: is the chosen side's MINUS, and the other cases are indistinguishable in
+    #: `accepted_cost_grounds` alone while being useless to the re-audit —
+    #: grounding on the Perspective names the TENSION, and grounding on a plus
+    #: names a goal or an obligation. So the report states the position rather
+    #: than making a reader infer it from the text.
     accepted_cost_positions: list[str] = Field(default_factory=list)
 
     @property
-    def costs_grounded_on_aspect(self) -> bool:
-        """True when at least one accepted_cost names a constructive aspect."""
-        return any(p in ("T+", "A+") for p in self.accepted_cost_positions)
+    def costs_grounded_on_risk(self) -> bool:
+        """True when at least one accepted_cost names a minus (a risk).
+
+        Was `costs_grounded_on_aspect`, accepting T+/A+ — which scored the
+        framework's own defect as a success. In `decision-strong-r3` this read
+        4/6 "grounded on a +aspect" while what was actually recorded were
+        remedies ("Diversify client relationships before any separation"): a
+        plus is a goal or an obligation, so it cannot be a price. Renamed
+        rather than re-pointed so no reader carries the old meaning across.
+
+        Positions arrive "/"-joined when one Statement sits at several across
+        perspectives (`driver._ground_position`) — r3 recorded "A/A-" — so this
+        splits rather than comparing whole labels.
+        """
+        return any(
+            part in ("T-", "A-")
+            for p in self.accepted_cost_positions
+            for part in p.split("/")
+        )
 
     @property
     def all_tool_calls(self) -> list[str]:

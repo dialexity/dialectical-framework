@@ -53,10 +53,12 @@ def build_record_decision(principal: str = "human"):
             list[GroundLink] | None,
             Field(
                 description="Nodes this decision rests on: {hash, role?} each. "
-                "role='accepted_cost' for the unchosen side's contribution the person "
-                "confronted and accepted; role='adopted_pathway' for the pathway adopted "
-                "as the ongoing recipe; omit role for a plain ground (tensions weighed, "
-                "arrangements counseled from)."
+                "role='accepted_cost' for the risk the person confronted and accepted: "
+                "the CHOSEN side's minus aspect (T- if they chose the thesis, A- if the "
+                "antithesis) — a minus is a risk, whereas a plus is a goal or an "
+                "obligation and is never a cost; role='adopted_pathway' for the pathway "
+                "adopted as the ongoing recipe; omit role for a plain ground (tensions "
+                "weighed, arrangements counseled from)."
             ),
         ] = None,
     ) -> str:

@@ -192,9 +192,10 @@ class TestDialecticalContextWithPerspectives:
     async def test_aspect_lines_are_addressable(self):
         """Each T/A/aspect line carries its Statement hash.
 
-        Load-bearing, not cosmetic: `record_decision` asks for the unchosen
-        side's `+` aspect as the "accepted_cost" ground, and the later wobble
-        re-audit reassures FROM that ground. With no aspect hash in the dump the
+        Load-bearing, not cosmetic: `record_decision` asks for the CHOSEN
+        side's `-` aspect as the "accepted_cost" ground (a cost is a risk), and
+        the later wobble re-audit reassures FROM that ground. With no aspect
+        hash in the dump the
         only address in view is the Perspective's, so the model grounds on the
         tension instead of the cost and the re-audit has nothing specific to
         point back to — observed in tests/bench before this was rendered.
