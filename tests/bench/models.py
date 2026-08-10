@@ -436,6 +436,13 @@ class Comparison(BaseModel):
     arm_b: Arm
     #: Which arm was shown as X. Recorded so position bias can be audited.
     x_arm: Arm
+    #: Which session was judged ("decide", "wobble_a", ...). Without it a delta
+    #: cannot be attributed: a loss concentrated in the commitment turn and one
+    #: spread evenly across the conversation call for opposite fixes, and the
+    #: report cannot tell them apart. Recovering this by re-deriving append
+    #: order from the runs list — which is what the r3 diagnosis had to do — is
+    #: guesswork that breaks the moment judging order changes.
+    session_label: str = ""
     #: dimension -> (score for arm_a, score for arm_b), de-randomised.
     scores: dict[str, tuple[int, int]] = Field(default_factory=dict)
     notes: dict[str, str] = Field(default_factory=dict)

@@ -40,7 +40,7 @@ from bench.models import (
     SessionSpec,
     TurnRecord,
 )
-from bench.report import Deltas, render_report
+from bench.report import Deltas, position_bias, render_report
 from bench.runner import BenchRun, JUDGED_PAIRS
 from bench.scenarios import ALL_SCENARIOS, scenarios_for
 
@@ -395,6 +395,30 @@ class TestJudgeSetup:
         seen = {_x_is_a(f"cell{i}") for i in range(40)}
         assert seen == {True, False}, "position assignment is constant"
 
+    def test_ordinal_makes_the_split_exact(self):
+        """Hashing alone balances only in EXPECTATION, which is not enough.
+
+        Measured: whichever arm sat in the Y slot scored +0.35 of a 5-point step
+        higher (288 scores, decision-strong-r3). The same run drew an 8/4 X/Y
+        split per pair, so that bias did not cancel — it entered the deltas as a
+        per-arm effect. Alternating by ordinal makes the split exact, which is
+        what actually cancels it.
+        """
+        key = "probe|strong|1|A2|A1|decide"
+        sides = [_x_is_a(key, ordinal=i) for i in range(12)]
+        assert sides.count(True) == sides.count(False) == 6
+
+    def test_ordinal_layout_is_still_scenario_dependent(self):
+        """The hash must still choose the STARTING side, or every pair would be
+        laid out identically ("A always first at ordinal 0") and position bias
+        would align with arm order across the whole matrix."""
+        starts = {_x_is_a(f"cell{i}", ordinal=0) for i in range(40)}
+        assert starts == {True, False}
+
+    def test_ordinal_assignment_stays_deterministic(self):
+        key = "probe|strong|1|A2|A1|decide"
+        assert _x_is_a(key, ordinal=3) == _x_is_a(key, ordinal=3)
+
     def test_dimensions_include_non_inferiority_for_every_kind(self):
         for scenario in ALL_SCENARIOS:
             dims = dimensions_for(scenario)
@@ -551,6 +575,86 @@ class TestDeltas:
         d.add(c)
         assert d.n("weak", "entanglement") == 0
 
+    def test_gaps_are_attributable_to_a_session(self):
+        """A pooled delta cannot say WHERE it comes from.
+
+        Concentrated in one session it is a targeted defect; spread evenly it is
+        a property of the arm — opposite fixes. In decision-strong-r3 A2's
+        earned_confidence gap was three times larger in `decide` than in the
+        wobble follow-up, and recovering that required re-deriving judging order
+        by hand because the label was never recorded.
+        """
+        d = Deltas(Arm.A2, Arm.A1)
+        decide = self._comparison("strong", -3)
+        decide.session_label = "decide"
+        wobble = self._comparison("strong", 1)
+        wobble.session_label = "wobble_a"
+        d.add(decide)
+        d.add(wobble)
+
+        assert d.sessions() == ["decide", "wobble_a"]
+        assert d.session_gap("decide", "entanglement") == -3
+        assert d.session_gap("wobble_a", "entanglement") == 1
+        # The pooled figure still averages both, and on its own would read as a
+        # mild deficit rather than one localised to the commitment turn.
+        assert d.gap("strong", "entanglement") == -1
+
+
+class TestPositionBias:
+    """The judge scores the Y slot higher regardless of content.
+
+    Measured at +0.35 of a 5-point step over 288 scores in decision-strong-r3,
+    with Y winning 16 of 24 comparisons. This is bias, not variance: replicates
+    do not remove it, so it has to be measured and the split kept even.
+    """
+
+    @staticmethod
+    def _comparison(x_arm: Arm, y_score: int) -> Comparison:
+        """A comparison where the Y slot always scores `y_score` and X scores 3,
+        whichever arm happens to be in Y."""
+        a_is_x = x_arm is Arm.A2
+        pair = (3, y_score) if a_is_x else (y_score, 3)
+        return Comparison(
+            scenario_key="probe",
+            tier="strong",
+            replicate=1,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1,
+            x_arm=x_arm,
+            scores={"entanglement": pair},
+        )
+
+    def test_measures_the_y_slot_advantage(self):
+        bias, n, split = position_bias(
+            [self._comparison(Arm.A2, 5), self._comparison(Arm.A1, 5)]
+        )
+        assert bias == 2.0
+        assert n == 2
+        assert split == {"A2": 1, "A1": 1}
+
+    def test_an_even_split_cancels_the_bias_in_the_delta(self):
+        """Why the `ordinal` fix works: with the split exact, a pure position
+        effect contributes nothing to the per-arm gap."""
+        d = Deltas(Arm.A2, Arm.A1)
+        d.add(self._comparison(Arm.A2, 5))
+        d.add(self._comparison(Arm.A1, 5))
+        assert d.gap("strong", "entanglement") == 0
+
+    def test_an_uneven_split_leaks_bias_into_the_delta(self):
+        """The r3 situation: 2:1 in favour of one arm sitting in Y, so the
+        judge's slot preference shows up as an arm advantage."""
+        d = Deltas(Arm.A2, Arm.A1)
+        d.add(self._comparison(Arm.A1, 5))
+        d.add(self._comparison(Arm.A1, 5))
+        d.add(self._comparison(Arm.A2, 5))
+        assert d.gap("strong", "entanglement") > 0
+
+    def test_errored_comparisons_are_ignored(self):
+        c = self._comparison(Arm.A2, 5)
+        c.error = "judge failed"
+        bias, n, split = position_bias([c])
+        assert bias is None and n == 0 and split == {}
+
 
 class TestReport:
     def test_flags_collapsed_a2(self):
@@ -698,3 +802,51 @@ class TestThinDataWarning:
     def test_no_comparisons_produces_no_warning(self):
         """An arms-only run (no judge) must not be told its judged data is thin."""
         assert self._WARNING not in render_report([], [], {}, ["strong"])
+
+
+class TestReportedBiasAndSessions:
+    """Both were needed to diagnose decision-strong-r3 and neither was there."""
+
+    @staticmethod
+    def _comparison(session: str, x_arm: Arm, gap: int) -> Comparison:
+        """`gap` is A2-minus-A1, independent of which arm sat in X."""
+        return Comparison(
+            scenario_key="probe",
+            tier="strong",
+            replicate=1,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1,
+            x_arm=x_arm,
+            session_label=session,
+            scores={"entanglement": (3 + gap, 3)},
+        )
+
+    def test_position_bias_is_stated_before_the_rows(self):
+        """It contaminates every row, so a reader must meet it first."""
+        comparisons = [
+            self._comparison("decide", Arm.A2, 1),
+            self._comparison("decide", Arm.A1, 1),
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "position bias" in text.lower()
+        assert text.index("position bias") < text.index("### A2 vs A1")
+
+    def test_a_large_bias_is_flagged_loudly(self):
+        """+2.0 on a 5-point scale from the slot alone: unreadable deltas."""
+        comparisons = [self._comparison("decide", Arm.A2, -2)]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "fifth of a rubric" in text
+
+    def test_per_session_breakdown_localises_the_delta(self):
+        comparisons = [
+            self._comparison("decide", Arm.A2, -3),
+            self._comparison("wobble_a", Arm.A2, 1),
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "by session:" in text
+        assert "decide" in text and "wobble_a" in text
+
+    def test_single_session_runs_skip_the_breakdown(self):
+        """A table with one column repeats the row above it — noise, not signal."""
+        comparisons = [self._comparison("decide", Arm.A2, -3)]
+        assert "by session:" not in render_report([], comparisons, {}, ["strong"])

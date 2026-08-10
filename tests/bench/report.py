@@ -50,12 +50,26 @@ class Deltas:
         self._gaps: dict[str, dict[str, list[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
+        #: session label -> dimension -> same gaps. A delta pooled over sessions
+        #: hides where it comes from: in `decision-strong-r3` A2's
+        #: earned_confidence loss was -1.50 in `decide` but only -0.50 in the
+        #: wobble follow-up, which localises the fix to the commitment turn.
+        self._by_session: dict[str, dict[str, list[float]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
 
     def add(self, comparison: Comparison) -> None:
         if comparison.error:
             return
         for dimension, (a, b) in comparison.scores.items():
             self._gaps[comparison.tier][dimension].append(a - b)
+            self._by_session[comparison.session_label or "?"][dimension].append(a - b)
+
+    def sessions(self) -> list[str]:
+        return sorted(self._by_session)
+
+    def session_gap(self, session: str, dimension: str) -> Optional[float]:
+        return _mean(self._by_session.get(session, {}).get(dimension, []))
 
     @property
     def tiers(self) -> list[str]:
@@ -126,6 +140,31 @@ def load_records(path: Path) -> dict:
 
 def _fmt(value: Optional[float], width: int = 6) -> str:
     return "   n/a" if value is None else f"{value:+{width}.2f}"
+
+
+def position_bias(comparisons: list[Comparison]) -> tuple[Optional[float], int, dict]:
+    """Mean (Y - X) score across every judged dimension, plus the X/Y split.
+
+    A judge that scores the second transcript higher regardless of content
+    contaminates every delta, and no amount of replication removes it — it is
+    bias, not variance. Measured at +0.35 of a 5-point step over 288 scores in
+    `decision-strong-r3`, with Y winning 16 of 24 comparisons.
+
+    Returned rather than asserted because the sign is informative: the fix
+    (`judge._x_is_a`'s `ordinal`) makes the SPLIT exact, which cancels the bias
+    across arms without pretending it stopped existing.
+    """
+    gaps: list[float] = []
+    split: dict[str, int] = defaultdict(int)
+    for c in comparisons:
+        if c.error:
+            continue
+        split[c.x_arm.value] += 1
+        a_is_x = c.x_arm is c.arm_a
+        for a, b in c.scores.values():
+            x, y = (a, b) if a_is_x else (b, a)
+            gaps.append(y - x)
+    return _mean(gaps), len(gaps), dict(split)
 
 
 def render_report(
@@ -325,6 +364,19 @@ def render_report(
     add("marked [NI]: the framework arm must not LOSE these; they are never")
     add("folded into the headline.")
     add("")
+
+    # Position bias contaminates every row below and replication cannot remove
+    # it, so it is stated before the numbers rather than after.
+    bias, bias_n, split = position_bias(comparisons)
+    if bias is not None:
+        counts = ", ".join(f"{arm} first x{n}" for arm, n in sorted(split.items()))
+        add(f"Judge position bias: Y scored {bias:+.2f} vs X over {bias_n} scores")
+        add(f"   ({counts})")
+        if abs(bias) >= 0.2:
+            add("   !! The slot, not the content, is worth a fifth of a rubric")
+            add("      step or more. Deltas are only trustworthy insofar as the")
+            add("      X/Y split above is even — check it before reading rows.")
+        add("")
     deltas = collect_deltas(comparisons)
     # A single replicate cannot separate a real gap from run-to-run variance,
     # and the rubric's ±1 steps make that variance LOOK decisive. Measured on
@@ -360,6 +412,20 @@ def render_report(
             row += f"   {d.classify_delta(dimension, tier_order)}{tag}"
             add(row)
         add("")
+        # Where the delta lives. A gap concentrated in one session is a targeted
+        # defect (r3: A2's earned_confidence was -1.50 in `decide` against
+        # -0.50 in the wobble follow-up, pointing at the commitment turn); a gap
+        # spread evenly is a property of the arm.
+        sessions = d.sessions()
+        if len(sessions) > 1:
+            add("by session:")
+            add(f"  {'dimension':24}" + "".join(f"{s:>12}" for s in sessions))
+            for dimension in d.dimensions():
+                row = f"  {dimension:24}"
+                for session in sessions:
+                    row += f"{_fmt(d.session_gap(session, dimension)):>12}"
+                add(row)
+            add("")
 
     add("=" * 78)
     add("Reading this report")

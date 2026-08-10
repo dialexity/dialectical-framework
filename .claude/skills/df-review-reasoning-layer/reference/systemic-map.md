@@ -86,6 +86,19 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   real bench run made 16 successful calls and recorded zero outcomes); and read-only tools (`sync`, `inspect_node`)
   legitimately have no report, so "no report" can't be treated as failure. Locked by `test_conversation_tool_budget.py`
   and `test_bench.py::TestReport`.
+- **The judge's rubric is a prompt, and its slot order outweighs some of what it scores.** `tests/bench/judge.py`'s
+  `_JUDGE_PROMPT` explicitly discounts length, eloquence, framework vocabulary and agreement — and it works for those.
+  It says nothing about position, and measurement says it cannot: whichever arm sat in the **Y** slot scored **+0.35** of
+  a 5-point step higher (288 scores in `decision-strong-r3`; per-comparison mean +0.354, sd 0.704, n=24, t=2.5; Y won
+  16/24). Hashing the comparison identity balances only *in expectation* — that run drew 8/4 splits, so the bias didn't
+  cancel, it entered the deltas as a per-arm effect worth roughly a third of the gaps being read. `_x_is_a(key,
+  ordinal=…)` now alternates to make the split **exact** (hash picks only the starting side, so layout stays
+  scenario-dependent); `report.position_bias` measures and prints it above the delta table, since replication cannot
+  remove bias. Two standing implications: **a judged delta is only as trustworthy as its X/Y split** — check it before
+  reading rows; and **any new rubric dimension must be assumed position-sensitive** until the reported bias says
+  otherwise. Also record `Comparison.session_label`: a delta pooled over sessions cannot be attributed, and the
+  `decide`-vs-`wobble` split is what localised A2's `earned_confidence` loss (−1.50 vs −0.50) to the commitment turn.
+  Locked by `test_bench.py::TestJudgeSetup`, `TestPositionBias`, `TestReportedBiasAndSessions`.
 
 ### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
 

@@ -212,14 +212,36 @@ def dimensions_for(scenario: Scenario) -> list[str]:
     return ordered
 
 
-def _x_is_a(comparison_key: str) -> bool:
-    """Deterministic position assignment.
+def _x_is_a(comparison_key: str, *, ordinal: int | None = None) -> bool:
+    """Deterministic position assignment, balanced across a pair's comparisons.
 
     A hash of the comparison identity, not `random`: re-judging the same matrix
     must produce the same layout, or replicates aren't comparable.
+
+    MEASURED POSITION BIAS — why `ordinal` exists
+    =============================================
+    Whatever sits in the Y slot scores higher: pooled over 288 dimension scores
+    in `decision-strong-r3`, Y beat X by +0.35 of a 5-point step (per-comparison
+    mean +0.354, sd 0.704, n=24, t=2.5), and Y won 16 of 24 comparisons overall.
+    The judge prompt already discounts length and eloquence; it says nothing
+    about position, and evidently cannot.
+
+    Pure hashing gives no protection, because it balances only in expectation:
+    that run drew 8/4 and 8/4 splits, so the bias did not cancel — it leaked
+    into the deltas as a per-arm effect. `ordinal` (the index of this comparison
+    within its arm pair) makes the split exact by alternating, with the hash
+    choosing only the starting side so the layout stays scenario-dependent
+    rather than uniformly "A first".
+
+    Rebalancing r3 by position flipped no dimension's sign, so that run's
+    conclusions stand — but at its 12-comparison cell size the bias was worth
+    roughly a third of the gaps being read, and it must not be left to luck.
     """
     digest = hashlib.sha256(comparison_key.encode()).hexdigest()
-    return int(digest[:8], 16) % 2 == 0
+    start = int(digest[:8], 16) % 2 == 0
+    if ordinal is None:
+        return start
+    return start if ordinal % 2 == 0 else not start
 
 
 class BenchJudge:
@@ -242,8 +264,14 @@ class BenchJudge:
         run_a: RunRecord,
         run_b: RunRecord,
         session_label: str,
+        ordinal: int | None = None,
     ) -> Comparison:
-        """Blind paired judgement of two runs on one session."""
+        """Blind paired judgement of two runs on one session.
+
+        `ordinal` is this comparison's index within its arm pair; it makes the
+        X/Y split exact rather than merely unbiased in expectation. See
+        `_x_is_a` for the measured position bias that requires it.
+        """
         comparison = Comparison(
             scenario_key=scenario.key,
             tier=run_a.tier,
@@ -251,6 +279,7 @@ class BenchJudge:
             arm_a=run_a.arm,
             arm_b=run_b.arm,
             x_arm=run_a.arm,
+            session_label=session_label,
         )
         session_a = run_a.session(session_label)
         session_b = run_b.session(session_label)
@@ -262,7 +291,7 @@ class BenchJudge:
             f"{scenario.key}|{run_a.tier}|{run_a.replicate}|"
             f"{run_a.arm.value}|{run_b.arm.value}|{session_label}"
         )
-        a_is_x = _x_is_a(key)
+        a_is_x = _x_is_a(key, ordinal=ordinal)
         comparison.x_arm = run_a.arm if a_is_x else run_b.arm
         transcript_x = session_a.transcript if a_is_x else session_b.transcript
         transcript_y = session_b.transcript if a_is_x else session_a.transcript

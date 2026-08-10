@@ -242,6 +242,10 @@ class BenchRun:
         judge = BenchJudge(self._container, self._config.judge_model)
         index = {r.cell_key: r for r in self.runs}
         for arm_a, arm_b in pairs:
+            # Counts comparisons within THIS pair so the judge can alternate
+            # X/Y exactly (see judge._x_is_a). Per-pair, not global: each pair's
+            # own split is what enters its delta table.
+            ordinal = 0
             for record in self.runs:
                 if record.arm is not arm_a or record.error:
                     continue
@@ -270,7 +274,9 @@ class BenchRun:
                         run_a=record,
                         run_b=other,
                         session_label=session.label,
+                        ordinal=ordinal,
                     )
+                    ordinal += 1
                     self.comparisons.append(comparison)
         return self.comparisons
 
