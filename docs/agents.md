@@ -411,10 +411,12 @@ risk — "accounts may follow him out — arises when buying him out is held wit
 diversifying the client relationships". That is what lets the person tell "the
 risk I accepted, and I'm not paying it" from "the thing now happening to me",
 which is the whole job of the record when they come back wobbling. Derived
-structurally from the tetrad, so it costs no LLM call. Note it instantiates the
-control statement at the level the decision was made at ("T without A+ yields
-T-"), not the theory's "T+ without A+ yields T-" — the person committed to the
-side, not to its idealised plus.
+structurally from the tetrad, so it costs no LLM call. It renders the theory's
+**neutral-T** control statement ("T without A+ yields T−", Rule 3.3's second
+form) rather than the primary aspect-level one ("T+ without A+ yields T−") that
+`ControlStatementsCheck` scores — the person committed to the side, not to its
+idealised plus. Both are the paper's; they sit at different levels and are not
+interchangeable.
 
 What belongs **app-side** (via `AppSpec`):
 - **Persona/ceremony intensity** — how pushy convergence feels, how formal the

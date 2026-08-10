@@ -31,6 +31,7 @@ import pytest
 from dialectical_framework.agents.advisor.advisor import Advisor
 from dialectical_framework.agents.apps import COUNSELOR_PERSONA
 from dialectical_framework.graph.nodes.case import Case
+from dialectical_framework.graph.rendering import decision_ground_line
 from dialectical_framework.graph.repositories.decision_repository import (
     DecisionRepository,
 )
@@ -90,6 +91,11 @@ class TestWeakTierStillLeavesARecord:
                 )
 
             decisions = DecisionRepository().find_all_active()
+            ground_lines = [
+                decision_ground_line(node, getattr(rel, "role", None))
+                for d in decisions
+                for node, rel in d.grounds.all()
+            ]
 
         # Instrumentation first — a failure here should say WHY, and whether
         # the model recorded it itself or the repair did is the whole point.
@@ -97,6 +103,8 @@ class TestWeakTierStillLeavesARecord:
         print(f"Active decisions: {len(decisions)}")
         for d in decisions:
             print(f"  [[{d.short_hash}]] {d.intent} -> {d.stance}")
+        for line in ground_lines:
+            print(f"  {line}")
         model_called_it = "record_decision" in tool_calls_per_turn[-1]
         print(f"Recorded by the model itself: {model_called_it}")
         print(f"Recorded by the repair seam: {not model_called_it}")
@@ -116,3 +124,16 @@ class TestWeakTierStillLeavesARecord:
             f"A decision was recorded but its stance does not name the choice "
             f"the person confirmed (buying the cofounder out): {stances!r}"
         )
+
+        # Whether a cost ground attaches is NOT asserted: it requires the model
+        # to have anchored a tension whose pole the stance actually matches, and
+        # an unmatched stance grounding nothing is correct behaviour, not a
+        # regression. What IS asserted is the invariant that holds whenever one
+        # does attach — a cost is a price, so it can never be a plus (a plus is
+        # a goal or an obligation, i.e. a remedy). A ground landing on T+/A+
+        # would be the defect the bench caught in 4 of 6 strong-tier runs.
+        costs = [line for line in ground_lines if "accepted cost:" in line]
+        for line in costs:
+            assert " (T+)" not in line and " (A+)" not in line, (
+                f"An accepted_cost ground names a remedy, not a price: {line!r}"
+            )

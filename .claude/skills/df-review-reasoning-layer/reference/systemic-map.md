@@ -420,10 +420,13 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   `rendering.accepted_cost_condition` appends the control statement's CONDITION, derived structurally off the
   perspective the aspect sits in: "— arises when {chosen side} is held without {opposing plus}". No LLM call, no
   new node, `accepted_cost` role only (a condition clause on an `adopted_pathway` would read as the recipe being
-  what goes wrong). **Deliberate divergence from the paper**: theory scores "T+ without A+ yields T-" (CC/DV,
-  Rule 6) while the ledger renders "T without A+ yields T-" — what the person committed to is the SIDE, not its
-  idealised plus, and the price arrives precisely when they hold the side and don't pay A+. Same causal claim at
-  the developmental level the decision was actually made at; do NOT collapse the two forms. Ambiguity is a
+  what goes wrong). **This is the paper's NEUTRAL-T variant, not a divergence** — "T without A+ yields T-" with
+  truth criterion "T is true iff it fosters A+" [P0 p.29] is the theory's own second form of Rule 3.3, alongside
+  the primary aspect-level "T+ without A+ yields T-" [P0 p.5] that CC/DV score. The ledger wants the neutral-T
+  level because what the person committed to is the SIDE, not its idealised plus. Do NOT collapse the two forms:
+  different developmental levels, different jobs (CC/DV score aspect coherence; this states the condition under
+  which a committed side extracts its price). Third encoding site of the same variant: `ASPECT_DEFINITIONS`
+  (`concerns/scoring_scales.py`) — all three move together. Ambiguity is a
   non-event: a Statement that is the minus of two perspectives renders plain, since picking one would attribute
   the accepted price to a tension they never decided on. Bench side, `scoring._ground_content` imports
   `ACCEPTED_COST_CONDITION_MARKER` and strips the clause before the citation overlap — the derived clause roughly

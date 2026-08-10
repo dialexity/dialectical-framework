@@ -209,14 +209,21 @@ def accepted_cost_condition(node) -> str:
     aspect already sits in. No LLM call, no new node — same reasoning as
     deriving the cost position from the chosen side.
 
-    Divergence from the paper's control statement, deliberately: theory scores
-    "T+ without A+ yields T-" (ConceptualCoherenceEstimation /
-    DialecticalValidityEstimation). A ledger renders "T without A+ yields T-",
-    because what the person committed to is the SIDE, not its idealised plus —
-    the price arrives precisely when they hold the side and don't pay A+. Same
-    causal claim at the developmental level the decision was actually made at.
-    Do not "fix" one form into the other: CC/DV keep the T+ form where they
-    score it (see docs/theory/generative-rules.md Rule 6).
+    This renders the paper's NEUTRAL-T variant of the control statement — "T
+    without A+ yields T-" [P0 p.29], with its truth criterion "T is true iff it
+    fosters A+" — not the primary aspect-level form "T+ without A+ yields T-"
+    [P0 p.5] that ConceptualCoherenceEstimation and DialecticalValidityEstimation
+    score. Both are the theory's (docs/theory/generative-rules.md Rule 3.3); the
+    neutral-T level is the right one for a ledger because what the person
+    committed to is the SIDE, not its idealised plus, and the price arrives
+    precisely when they hold the side and don't pay A+.
+
+    Do not "fix" one form into the other. They sit at different developmental
+    levels and have different jobs: CC/DV score whether the tetrad's aspects
+    cohere, this states the condition under which a committed side extracts its
+    price. The neutral-T variant's other encoding site is `ASPECT_DEFINITIONS`
+    (concerns/scoring_scales.py, "What T itself degenerates into when A+ is
+    absent") — keep the three in agreement.
 
     Returns "" for anything that is not a minus aspect of a locatable
     perspective — the ground is still worth rendering plain, and a half-derived
