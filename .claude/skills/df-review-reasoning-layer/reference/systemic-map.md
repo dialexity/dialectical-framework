@@ -271,6 +271,21 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
    → matching silently falls back to `candidates[0]` / midpoint defaults (`get_polar_pair`, `explore_transformations`).
 6. **Only Ac+/Re+ headlines reach SynthesisGeneration.** If a transformation prompt stops producing crisp
    headlines, synthesis degrades with no other signal.
+7. **`str(report)` is the ONLY seam back to the model — a pipeline's Python return value is not.**
+   `AnalysisPipeline` returns `AnalysisResult(errors=[StepError...])`, but the `@llm.tool` wrappers
+   (`analyze`, `anchor`, `ingest`) return `str(concern.report)`. Anything that lands only on the result
+   object is invisible to the LLM. Measured: in `claim2-weak-r1` two A2 cells logged `anchor:ok`
+   repeatedly and then summarised `perspectives=0` — every expansion had failed, the errors rode home on
+   `AnalysisResult`, and the report said `ok=True`, `"Analysis complete: 2 theses, 2 polarities, 0
+   perspectives"`. The arm whose whole claim is a durable record read as a model that declined to build
+   one. Two silent-success sites caused it, now guarded: `AnalysisPipeline.resolve` (ok tracks
+   `perspective_hashes`; sub-reports with `ok=False` become `StepError`s since they never raise;
+   expansion failures named in the summary AND `artifacts["errors"]`) and `ExpandPolarity.resolve`
+   (`ok = bool(all_pps)`). Same rule as the repositories' fail-soft reads: **degrade, never silently** —
+   "nothing to build" and "the build failed" are opposite conclusions for the agent's next turn. When
+   auditing any pipeline, check the report, not the return type. Partial success stays `ok=True` (a
+   built perspective is real) but must name the loss. Locked by
+   `tests/test_pipeline_failure_visibility.py`.
 
 ### Gates (score-based filters — the prompt that feeds each *is* a gate input)
 - **`_rank_polarities`** (`analyst/analyst.py`, `HS_THRESHOLD=0.7`, `MAX_POLARITIES_TO_EXPAND=5`): keeps

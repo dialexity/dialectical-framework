@@ -269,6 +269,32 @@ class RunRecord(BaseModel):
         return [tc for s in self.sessions for t in s.turns for tc in t.tool_calls]
 
     @property
+    def all_tool_outcomes(self) -> list[str]:
+        return [o for s in self.sessions for t in s.turns for o in t.tool_outcomes]
+
+    @property
+    def graph_reads_contradict_tools(self) -> bool:
+        """True when tools reported building and the graph summary says empty.
+
+        The repositories are fail-soft: a read fault returns [] rather than
+        raising, so `perspectives=0` means EITHER nothing was built or the count
+        could not be taken — opposite conclusions about the arm. Observed in
+        `claim2-weak-r1`: two cells logged `anchor:ok` several times and then
+        summarised `perspectives=0`, which without this check reads as a model
+        that never used its tools.
+        """
+        built = any(
+            o.startswith(("anchor:ok", "ingest:ok", "explore:ok"))
+            for o in self.all_tool_outcomes
+        )
+        if not built:
+            return False
+        return any(
+            s.graph_summary is not None and s.graph_summary.startswith("perspectives=0")
+            for s in self.sessions
+        )
+
+    @property
     def collapsed_to_a1(self) -> bool:
         """True when an A2 run built nothing — the result is invalid, not weak.
 

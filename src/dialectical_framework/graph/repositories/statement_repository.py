@@ -6,12 +6,16 @@ All queries are scoped by sid (injected from DI context) to prevent cross-user d
 
 from __future__ import annotations
 
+import logging
+
 from typing import Optional, Union, TYPE_CHECKING
 
 from dependency_injector.wiring import inject, Provide
 from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.statement import Statement
@@ -199,6 +203,10 @@ class StatementRepository:
             results = list(graph_db.execute_and_fetch(query, {"sid": sid, "limit": limit}))
             return [r["s"] for r in results]
         except Exception:
+            # Fail-soft but never silent — see PerspectiveRepository
+            # .find_all_active. An empty result here reads as "nothing left to
+            # do" (unconnected statements the Advisor is told still need work), so a swallowed fault quietly ends the work.
+            logger.exception("%s query failed for sid=%s", type(self).__name__, sid)
             return []
 
     def get_vocabulary_with_rationales(self) -> list[dict]:

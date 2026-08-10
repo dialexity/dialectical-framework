@@ -221,6 +221,15 @@ class BenchDriver:
 
     @staticmethod
     def _graph_summary() -> str:
+        """What the graph holds at the end of a session.
+
+        Cross-checked against the cell's own tool outcomes rather than trusted:
+        the repositories are fail-soft, so a read fault returns [] and would
+        report an empty graph over a populated one. Observed in
+        `claim2-weak-r1` — two cells logged `anchor:ok` repeatedly and then
+        summarised `perspectives=0`, which reads as "the model built nothing"
+        when the truth was "the count could not be taken".
+        """
         try:
             return (
                 f"perspectives={len(PerspectiveRepository().find_all_active())} "

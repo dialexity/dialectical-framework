@@ -362,8 +362,31 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                 pp_hashes, report = result
                 perspective_hashes.extend(pp_hashes)
                 reports.append(report)
+                # A sub-skill that reports ok=False did not raise, so without
+                # this its failure would reach only `reports` — which the
+                # pipeline discards (see the class note on report merging).
+                if getattr(report, "ok", True) is False:
+                    errors.append(
+                        StepError(
+                            step="expand_polarities",
+                            message=getattr(report, "summary", "")
+                            or "expansion reported failure",
+                            hash=hashes_to_expand[i],
+                        )
+                    )
 
-        self._report.ok = True
+        expansion_errors = [e for e in errors if e.step == "expand_polarities"]
+        # Producing NO perspectives is a failed analysis, not a quiet success.
+        # This block used to set ok=True unconditionally and drop `errors` on
+        # the floor (they rode home on AnalysisResult, which no tool renders),
+        # so a pipeline whose every expansion raised reported "Analysis
+        # complete: 2 theses, 2 polarities, 0 perspectives" and the `anchor`
+        # tool that composes it reported `anchor:ok`. Measured in
+        # `claim2-weak-r1`: two A2 cells logged `anchor:ok` repeatedly and then
+        # summarised `perspectives=0` — the arm whose whole claim is a durable
+        # record looked like a model that declined to build one. Same rule as
+        # the repositories' fail-soft reads: degrade, but never silently.
+        self._report.ok = bool(perspective_hashes) or not errors
         set_aside_note = (
             f", {set_aside_count} weaker tension(s) set aside"
             if set_aside_count
@@ -375,10 +398,20 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             f"{len(perspective_hashes)} perspectives"
             f"{set_aside_note}"
         )
+        if expansion_errors:
+            failed = "; ".join(
+                f"{e.hash or '?'}: {e.message}" for e in expansion_errors
+            )
+            self._report.summary += (
+                f" — {len(expansion_errors)} tension(s) FAILED to expand "
+                f"({failed})"
+            )
         self._report.artifacts["thesis_hashes"] = thesis_hashes
         self._report.artifacts["polarity_hashes"] = polarity_hashes
         self._report.artifacts["perspective_hashes"] = perspective_hashes
         self._report.artifacts["polarity_quality"] = polarity_quality
+        if errors:
+            self._report.artifacts["errors"] = [e.model_dump() for e in errors]
 
         return AnalysisResult(
             ideas_hash=ideas_hash,

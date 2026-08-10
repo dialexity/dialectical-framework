@@ -166,7 +166,17 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         # Return all PPs: existing complete + newly completed
         all_pps = complete_pps + completed_pps
 
-        self._report.ok = True
+        # No perspectives means the tension was not expanded — the caller
+        # (`anchor`, AnalysisPipeline) must not read that as success. Reachable
+        # whenever every generated tetrad deduped into an existing one and
+        # there was no pre-existing complete PP to return.
+        self._report.ok = bool(all_pps)
+        if not all_pps:
+            self._report.summary = (
+                f"No Perspective produced for polarity "
+                f"[[{self.polarity_hash}]] — nothing was added to the graph."
+            )
+            return all_pps
         self._report.artifacts["perspective_hashes"] = [
             pp.hash for pp in all_pps if pp.hash
         ]

@@ -218,6 +218,21 @@ def render_report(
     # 5 of 6 — so a weak-tier "A2 loses" row is partly an arm that was never
     # assembled. Surfaced as depth, not pass/fail, because the shortfall is
     # the finding.
+    # A read fault and an unused toolset look identical in the graph summary,
+    # and they are opposite conclusions about the arm. Reported before the
+    # depth check below, which would otherwise blame the model.
+    inconsistent = [r for r in runs if r.graph_reads_contradict_tools]
+    if inconsistent:
+        add(
+            f"!! {len(inconsistent)} run(s) report a graph that CONTRADICTS their"
+            " own tool"
+        )
+        add("   outcomes (tools built; the summary counts nothing). The count")
+        add("   failed, or the writes went elsewhere — either way these rows say")
+        add("   nothing about the arm. Check the repository logs.")
+        for r in inconsistent[:10]:
+            summaries = ", ".join(s.graph_summary or "?" for s in r.sessions)
+            add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate}: {summaries}")
     shallow = [
         r
         for r in runs

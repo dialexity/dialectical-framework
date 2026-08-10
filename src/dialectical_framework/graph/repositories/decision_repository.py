@@ -6,12 +6,15 @@ All queries are scoped by sid (injected from DI context) to prevent cross-user d
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, TYPE_CHECKING, Union
 
 from dependency_injector.wiring import Provide, inject
 from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.decision import Decision
@@ -50,6 +53,11 @@ class DecisionRepository:
             results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
             return [r["d"] for r in results]
         except Exception:
+            # Fail-soft but never silent — see PerspectiveRepository
+            # .find_all_active. The decision ledger is what the wobble
+            # re-audit reassures FROM; swallowed, a read fault is
+            # indistinguishable from "they never decided anything".
+            logger.exception("Decision query failed for sid=%s", sid)
             return []
 
     @inject
@@ -78,4 +86,9 @@ class DecisionRepository:
             results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
             return [r["d"] for r in results]
         except Exception:
+            # Fail-soft but never silent — see PerspectiveRepository
+            # .find_all_active. The decision ledger is what the wobble
+            # re-audit reassures FROM; swallowed, a read fault is
+            # indistinguishable from "they never decided anything".
+            logger.exception("Decision query failed for sid=%s", sid)
             return []

@@ -6,12 +6,15 @@ All queries are scoped by sid (injected from DI context) to prevent cross-user d
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, Union, TYPE_CHECKING
 
 from dependency_injector.wiring import inject, Provide
 from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
@@ -51,6 +54,14 @@ class PerspectiveRepository:
             results = list(graph_db.execute_and_fetch(query, {"sid": sid}))
             return [r["pp"] for r in results]
         except Exception:
+            # Fail-soft (a read fault must not crash a live conversation) but
+            # never SILENT: "the graph is empty" and "the query failed" lead to
+            # opposite conclusions, and this list feeds the Advisor's context
+            # dump. Swallowed, a fault degrades the Advisor to an arm with no
+            # memory while every tool still reports success — observed in
+            # `claim2-weak-r1`, where two cells recorded `anchor:ok` several
+            # times over and then summarised the graph as `perspectives=0`.
+            logger.exception("find_all_active failed for sid=%s", sid)
             return []
 
     @inject

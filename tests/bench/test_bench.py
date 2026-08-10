@@ -724,6 +724,32 @@ class TestReport:
         text = render_report([_run(Arm.A2, "weak")], [], {}, ["weak"])
         assert "collapsed" in text.lower()
 
+    def test_flags_a_graph_summary_that_contradicts_its_tools(self):
+        """`perspectives=0` after `anchor:ok` is a read fault, not a weak arm.
+
+        The repositories are fail-soft (a query fault returns [] rather than
+        raising), so the summary cannot distinguish "built nothing" from "could
+        not count". Observed in `claim2-weak-r1`: two cells logged `anchor:ok`
+        several times each and summarised `perspectives=0`.
+        """
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"], tool_outcomes=["anchor:ok"])
+        run.sessions[0].graph_summary = "perspectives=0 decisions=0"
+        text = render_report([run], [], {}, ["weak"])
+        assert "CONTRADICTS" in text
+
+    def test_no_contradiction_flag_when_the_counts_agree(self):
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"], tool_outcomes=["anchor:ok"])
+        run.sessions[0].graph_summary = "perspectives=2 decisions=0"
+        text = render_report([run], [], {}, ["weak"])
+        assert "CONTRADICTS" not in text
+
+    def test_no_contradiction_flag_when_nothing_was_built(self):
+        """An empty graph after zero building tools is honest, not suspect."""
+        run = _run(Arm.A2, "weak", tool_calls=["inspect_node"])
+        run.sessions[0].graph_summary = "perspectives=0 decisions=0"
+        text = render_report([run], [], {}, ["weak"])
+        assert "CONTRADICTS" not in text
+
     def test_flags_live_a2_runs_that_never_explored(self):
         """"Built a graph" is a floor; anchor-only is A1 plus a tetrad.
 
