@@ -159,6 +159,7 @@ from dialectical_framework.graph.rendering import (
     find_nexus_for_cycle,
     find_nexus_for_wheel,
     find_nexus_for_transformation,
+    grounding_line,
 )
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
@@ -201,6 +202,11 @@ def _inspect_perspective(pp: Perspective) -> str:
         lines.append(f"Validation: {pp.validation}")
     if pp.intent:
         lines.append(f"Intent: {pp.intent}")
+    # Case particulars the tetrad was abstracted from — same shared helper the
+    # context dump uses, so the two views cannot disagree about what is known.
+    grounding = grounding_line(pp)
+    if grounding:
+        lines.append(grounding)
     lines.append("")
 
     # Full formatted positions with rationale explanations

@@ -150,6 +150,53 @@ def one_line(text: Optional[str]) -> str:
     return " ".join((text or "").split())
 
 
+#: Lead-in for the case particulars a node was abstracted from.
+#: Phrased as evidence ("came in as") rather than as a claim, so the model
+#: treats it as facts to check against, not as another assertion to defend.
+GROUNDING_PREFIX = "Grounded in: "
+
+
+def grounding_line(node) -> Optional[str]:
+    """The grounding note attached to `node`, or None.
+
+    Reads `Rationale` nodes whose EXPLAINS edge carries
+    `role == ROLE_GROUNDING`. Untagged rationales are machine assessment prose
+    (control-statement checks, causality reasoning) and are deliberately NOT
+    returned — rendering those in the counsel dump would bury the tetrad in
+    CC/DV scoring text on every turn.
+
+    Shared by `dialectical_context` and `inspect_node` for the same reason
+    `build_pp_index` is shared: two renderers filtering on a role by hand drift
+    apart, and a grounding that shows in one view but not the other reads as
+    data loss.
+
+    Multiple notes accrete (a person reveals more later) and are joined oldest
+    first, so the note reads as a chronology of what was learned when. Fail-soft:
+    an unreadable relationship yields None rather than breaking the dump.
+    """
+    from dialectical_framework.graph.relationships.explains_relationship import \
+        ROLE_GROUNDING
+
+    try:
+        rationales = node.rationales.all()
+    except Exception:  # noqa: BLE001
+        return None
+
+    notes: list[tuple[float, str]] = []
+    for rationale, rel in rationales:
+        if getattr(rel, "role", None) != ROLE_GROUNDING:
+            continue
+        text = one_line(getattr(rationale, "text", ""))
+        if text:
+            notes.append((getattr(rationale, "committed_at", 0.0) or 0.0, text))
+
+    if not notes:
+        return None
+
+    notes.sort(key=lambda pair: pair[0])
+    return GROUNDING_PREFIX + " ".join(text for _at, text in notes)
+
+
 def decision_ground_line(
     node,
     role: Optional[str],

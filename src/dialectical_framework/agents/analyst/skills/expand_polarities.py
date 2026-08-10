@@ -27,6 +27,9 @@ from dialectical_framework.concerns.statement_deduplication import (
     StatementDeduplication,
 )
 from dialectical_framework.graph.nodes.polarity import Polarity
+from dialectical_framework.graph.nodes.rationale import Rationale
+from dialectical_framework.graph.relationships.explains_relationship import \
+    ROLE_GROUNDING
 from dialectical_framework.graph.nodes.perspective import (
     POSITION_A_MINUS,
     POSITION_A_PLUS,
@@ -76,9 +79,21 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
     5. Return list of completed Perspectives (existing + new)
     """
 
-    def __init__(self, polarity_hash: str, count: int = 1) -> None:
+    def __init__(
+        self,
+        polarity_hash: str,
+        count: int = 1,
+        grounding_context: Optional[str] = None,
+    ) -> None:
         self.polarity_hash = polarity_hash
         self.count = max(1, count)
+        #: Conversational material the tension was drawn from. Attached to each
+        #: committed tetrad as grounding (`TetradGrounding`) so the case
+        #: particulars survive the abstraction into ~7-word poles. Optional:
+        #: pipeline callers working from Inputs have their particulars in the
+        #: Input digest already; the `anchor` path does not, and used to
+        #: discard this text after using it for classification.
+        self.grounding_context = (grounding_context or "").strip() or None
 
     async def resolve(self) -> list[Perspective]:
         """
@@ -158,6 +173,12 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
             self._report.node_committed(pp)
             completed_pps.append(pp)
 
+        # Attach the case particulars these tetrads were abstracted from, so
+        # the conversation can later be held against the person's own facts
+        # instead of the universal wording. Before validation: cheap, and a
+        # validation crash must not cost the grounding.
+        await self._ground_tetrads(completed_pps)
+
         # Validate newly generated tetrads (CC + empirical inequalities) and
         # flag the verdict — non-blocking: a failed perspective stays usable,
         # prompts deprioritize it via the rendered flag.
@@ -190,6 +211,55 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         self._report.summary = f"{len(all_pps)} Perspective(s) ({len(complete_pps)} existing, {len(completed_pps)} new)"
 
         return all_pps
+
+    async def _ground_tetrads(self, perspectives: list[Perspective]) -> None:
+        """Attach case particulars from `grounding_context` to each new tetrad.
+
+        One extraction for the whole call, reused across the perspectives: the
+        particulars describe the SITUATION, not one reading of it, and
+        `Rationale` dedups on (text, target) so N tetrads sharing one context
+        yield N edges to N nodes without redundant LLM work.
+
+        Fail-soft and no-op without context: grounding is enrichment, never a
+        gate. Sequential because GQLAlchemy graph writes are not
+        concurrency-safe (CLAUDE.md) — the single LLM call happens once, up
+        front, so there is nothing to parallelize anyway.
+        """
+        if not self.grounding_context or not perspectives:
+            return
+
+        from dialectical_framework.concerns.tetrad_grounding import \
+            TetradGrounding
+
+        # Extract ONCE, then attach to each tetrad. Re-extracting per
+        # perspective would spend N LLM calls to produce the same text from the
+        # same material.
+        first = TetradGrounding()
+        try:
+            rationale = await first.resolve(
+                perspective=perspectives[0], context=self.grounding_context
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Grounding failed softly: %s", e)
+            return
+        self._report = self._report.merge(first.report)
+        if rationale is None:
+            return
+
+        grounded = [perspectives[0].short_hash]
+        for pp in perspectives[1:]:
+            try:
+                extra = Rationale(text=rationale.text)
+                extra.set_explanation_target(pp, role=ROLE_GROUNDING)
+                extra.commit()
+                self._report.node_created(extra)
+                grounded.append(pp.short_hash)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Grounding attach failed softly for %s: %s", pp.short_hash, e
+                )
+
+        self._report.artifacts["grounded"] = grounded
 
     async def _validate_and_flag(
         self, perspectives: list[Perspective], input_text: str

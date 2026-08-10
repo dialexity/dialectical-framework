@@ -292,6 +292,41 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             lines.append(block)
         return "\n\n".join(lines)
 
+    def _collect_grounding(self, pp: Perspective) -> Optional[str]:
+        """Grounding for the tetrad plus any attached to its own poles.
+
+        A pole-level note is deduplicated against the tetrad-level one: a
+        Statement can be the T- of several perspectives (`commit()` dedup), so
+        the same particulars would otherwise repeat down the block.
+        """
+        from dialectical_framework.graph.rendering import (GROUNDING_PREFIX,
+                                                           grounding_line)
+
+        seen: set[str] = set()
+        parts: list[str] = []
+        for node in (pp, *self._own_statements(pp)):
+            line = grounding_line(node)
+            if not line:
+                continue
+            body = line[len(GROUNDING_PREFIX):]
+            if body in seen:
+                continue
+            seen.add(body)
+            parts.append(body)
+
+        if not parts:
+            return None
+        return GROUNDING_PREFIX + " ".join(parts)
+
+    def _own_statements(self, pp: Perspective) -> list:
+        """The tetrad's six positions, skipping any that fail to resolve."""
+        statements = []
+        for manager in (pp.t, pp.a, pp.t_plus, pp.t_minus, pp.a_plus, pp.a_minus):
+            result = self._safe_get(manager)
+            if result:
+                statements.append(result[0])
+        return statements
+
     def _dump_one_perspective(self, pp: Perspective, index: int | None = None) -> str:
         idx = str(index) if index is not None else ""
         header = f"## Perspective {idx} [[{pp.short_hash}]]" if idx else f"## Perspective [[{pp.short_hash}]]"
@@ -361,6 +396,16 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             lines.append("Validation: passed")
         elif pp.validation and pp.validation.startswith("failed"):
             lines.append(f"Validation: {pp.validation}")
+
+        # The case particulars this tetrad was abstracted from. Rendered
+        # unconditionally rather than left behind an inspect_node call: the
+        # moment these matter most is a returning session's wobble, when the
+        # model does not know it needs to go looking. Pole-level grounding is
+        # collected here too so a shared minus's evidence appears once per
+        # tetrad instead of once per position line.
+        grounding = self._collect_grounding(pp)
+        if grounding:
+            lines.append(grounding)
 
         return "\n".join(lines)
 

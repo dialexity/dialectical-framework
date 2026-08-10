@@ -700,6 +700,43 @@ for tr in wheel.transformations:
     print(f"Transformation: {tr.short_hash}")
 ```
 
+## Grounding (case particulars on the EXPLAINS edge)
+
+`EXPLAINS` carries an optional `role`, open vocabulary in the same sense as
+`GROUNDED_IN.role` — a role exists iff a consumer branches on it.
+
+| `role` | Meaning |
+|--------|---------|
+| `"grounding"` (`ROLE_GROUNDING`) | The case particulars the target was abstracted from: specific facts, numbers, dates, named commitments the person stated. |
+| `null` | Machine assessment prose — coherence checks, causality reasoning. The pre-existing population. |
+
+Why the lane exists: a tetrad's text is universal by construction
+(`component_length` ~7 words, `commit()` dedup folding matching wording into one
+shared node, taxonomy anchoring toward `SYSTEMIC_TAXONOMY` apexes). That is what
+makes a tetrad transferable, and it is also why the graph could hold a whole
+exploration without holding one fact the person stated. Grounding restores the
+evidence without touching the structure.
+
+- **Mechanism is universal, writing is editorial.** Role lives on the edge, so
+  every `AssessableEntity` can be grounded with no schema change. Written today:
+  Perspective (primary) and Statement (pole-specific — a Statement survives
+  `commit()` dedup reuse across tetrads where a per-perspective note does not).
+  Not arrangements (Cycle/Wheel/Synthesis — their particulars are their members'),
+  not Decision (`intent`/`stance`/`Why:` already), not Transition/Transformation
+  (`instruction`/`summary`/`haiku` already).
+- **Role is NOT hashed** (absent from `Rationale._collect_structure_hash_parts`)
+  — hashing it would fork the node and break content-addressable dedup.
+- **Accretes, never mutates.** Each disclosure appends a new Rationale
+  (cardinality is many); renderers join them oldest-first, so the note reads as a
+  chronology. `Rationale` is content-addressable and cannot be edited anyway.
+- **Rendered unconditionally** by `dialectical_context` and `inspect_node` via the
+  shared `rendering.grounding_line`. Untagged rationales are deliberately excluded
+  there — rendering assessment prose would bury every tetrad in CC/DV text.
+
+Written by `concerns/tetrad_grounding.py` off `anchor(context=...)`, threaded as
+`ExpandPolarity(grounding_context=...)`. Fail-soft throughout: grounding is
+enrichment, never a gate.
+
 ## Critique Architecture
 
 Critique is NOT a separate node — it's a **Rationale→Rationale relationship** (`CRITIQUES`):

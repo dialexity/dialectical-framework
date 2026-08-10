@@ -584,6 +584,60 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   and that family names follow the How You Speak vocabulary rules — keep it in sync with the dump's
   line formats. Locked by `tests/test_dialectical_context.py::TestDialecticalContextMultiNexus` and
   `TestCrossExplorationGuidance`.
+- **Tetrad grounding — the case-particulars lane** (`concerns/tetrad_grounding.py` + `ExpandPolarity._ground_tetrads`
+  + `rendering.grounding_line` + `DialecticalContext._collect_grounding`, live since 2026-08-10): a NEW Stack-B prompt
+  site whose entire job is to preserve what every OTHER prompt in this map is built to strip. The tetrad's text is
+  universal by construction — `component_length` (~7 words), `commit()` dedup folding matching wording into one shared
+  node, taxonomy anchoring pulling poles toward `SYSTEMIC_TAXONOMY` apexes — which is what makes a tetrad transferable
+  and is why the graph could carry a whole exploration without carrying one fact the person stated. Measured over six
+  live counsel sessions (`claim2-weak-r5`): the graph ledger carried **0 of 15** case particulars at 28 mean words
+  against the A1.7 prose journal's **11 of 15** at 571, and at the returning-session wobble A2 asserted "This isn't the
+  accepted cost resurfacing" (`cited_record: false`) because it held no fact to check the panic against, where the
+  prompt-only control — holding "cofounder isn't a rainmaker" — asked whether the person had known all along, and they
+  conceded they had. So this is not a memory feature bolted on; it is the counterweight to the abstraction the rest of
+  the pipeline performs deliberately.
+  **Scope is the whole design, and the prompt is where it is enforced.** `SYSTEM_PROMPT` admits only situation facts
+  (numbers, equity splits, dates, named commitments, concrete cited instances) and explicitly refuses four
+  neighbours: restatements of the tension (already the tetrad's job), interpretation/diagnosis/advice (the counsel's
+  job), facts about the PERSON's character/tone/register, and forward-looking conversational strategy. The last two
+  are the HOST application's memory, not the framework's — admitting them turns the dialectical graph into a
+  general-purpose notebook, and no theory rule covers them (searched: no reject/negative-space/person-modeling hook
+  in any of the six `docs/theory/` pages). Empty string is the required answer when there are no particulars;
+  `MAX_GROUNDING_WORDS = 60` is a module constant, not a setting (policy-not-config), generous next to
+  `component_length` because the point is to hold what the tetrad cannot, bounded because it renders on EVERY
+  counsel turn.
+  **Storage is `ExplainsRelationship.role == ROLE_GROUNDING`** — an open-vocabulary edge property following
+  `GroundedInRelationship.role` ("a role exists iff a consumer branches on it"). Three properties are load-bearing:
+  role is deliberately NOT in `Rationale._collect_structure_hash_parts` (hashing it would fork the node and break
+  content-addressable dedup); untagged rationales keep meaning machine assessment prose (CC/DV checks, causality
+  reasoning) and MUST stay out of the grounding render, or every tetrad in the dump grows a scoring essay; and
+  grounding ACCRETES (a new Rationale per disclosure, joined oldest-first) rather than mutating one field, so the
+  note reads as a chronology of what was revealed when. Rejected alternatives, for anyone tempted: an Input (it is
+  generative — material there feeds thesis extraction, so conversational particulars would manufacture tensions
+  nobody raised and sit permanently "pending analysis"), `Perspective.intent` (hash-participating AND load-bearing
+  for sibling-tetrad dedup — case facts there fork identity, and the immutability failure is a LATE `save()` raise,
+  no setter guard), and `Rationale.agent="human"` (that sentinel attests a person confirmed wording verbatim;
+  grounding is model-composed, so tagging it would be a provenance lie).
+  **Render is unconditional, in both views, via ONE shared helper.** `rendering.grounding_line` feeds
+  `_dump_one_perspective` and `inspect_node` for the same reason `build_pp_index` is shared — a grounding visible in
+  one view and not the other reads as data loss. Unconditional because the moment it matters is a returning
+  session's wobble, when the model does not know it needs to call `inspect_node`: anything lazily loaded is anything
+  unread. `_collect_grounding` also gathers the tetrad's own poles' notes and dedups them against the tetrad-level
+  one (`commit()` dedup makes one Statement the T- of several perspectives, so pole-level grounding survives reuse
+  where a per-perspective note does not — but naive per-position rendering would repeat it down the block).
+  **Write path is the `anchor` seam only, and closes a documented lie**: `anchor(context=...)` said "conversational
+  context that grounds this tension" while the string reached `IntroducePolarity`, informed
+  classification/headlining, and was then discarded. `ExpandPolarity(grounding_context=...)` extracts ONCE per call
+  and attaches copies to every tetrad it produced (the particulars describe the situation; each tetrad is a reading
+  OF it), before `_validate_and_flag` so a validation blow-up cannot cost an already-committed tetrad its evidence.
+  Fail-soft at every step — grounding is enrichment, never a gate; the Analyst path passes no context and is
+  byte-for-byte unaffected. Reviewing here: this prompt is the ONE place in the tree where concreteness beats
+  abstraction, so the usual "condense to component_length" instinct is exactly wrong. `GRAPH_SCHEMA`'s EXPLAINS row
+  documents the role vocabulary and must move with it. Locked by `tests/test_rationale_grounding_role.py` (edge-role
+  round-trip, default-None for pre-existing callers, role-not-hashed so dedup survives),
+  `tests/test_tetrad_grounding.py` (render in both views, assessment prose excluded, accretion order, pole dedup),
+  `tests/test_expand_polarities_grounding.py` (one extraction reused, no-context no-op, failure isolation,
+  grounding-before-validation).
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 

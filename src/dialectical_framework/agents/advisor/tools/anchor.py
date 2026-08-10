@@ -49,7 +49,13 @@ async def anchor(
         if not result.primary_polarity_hash:
             return str(introduce.report)
 
-        expand = ExpandPolarity(polarity_hash=result.primary_polarity_hash)
+        # `context` grounds the tetrad, not just its classification: the poles
+        # are capped near seven words and deduped, so without this the case
+        # particulars are used once for classification and then lost.
+        expand = ExpandPolarity(
+            polarity_hash=result.primary_polarity_hash,
+            grounding_context=context,
+        )
         perspectives = await expand.resolve()
 
         combined_report = introduce.report.merge(expand.report)

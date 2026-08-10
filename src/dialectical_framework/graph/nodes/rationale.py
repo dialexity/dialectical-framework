@@ -127,8 +127,13 @@ class Rationale(BaseNode, label="Rationale"):
     # Transient refs for auto-connecting after save (not persisted)
     _explanation_ref: Optional[AssessableEntity] = None
     _critiques_target_ref: Optional[Rationale] = None
+    # Role for the EXPLAINS edge, applied at auto-connect. Transient and
+    # hash-neutral — see set_explanation_target.
+    _explanation_role: Optional[str] = None
 
-    def set_explanation_target(self, target: AssessableEntity) -> Rationale:
+    def set_explanation_target(
+        self, target: AssessableEntity, *, role: Optional[str] = None
+    ) -> Rationale:
         """
         Set the explanation target for this rationale (before save).
 
@@ -137,6 +142,14 @@ class Rationale(BaseNode, label="Rationale"):
 
         Args:
             target: The committed assessable entity this rationale explains
+            role: Optional semantic role for the EXPLAINS edge — open
+                vocabulary, see `ExplainsRelationship`. Defaults to None
+                (machine assessment prose), which is what every pre-existing
+                caller means. `ROLE_GROUNDING` marks case particulars.
+                NOT part of the hash: role classifies the edge, while a
+                Rationale's identity is (text, target). Two identical texts on
+                one target are the same artifact whatever the role, so keeping
+                role out of the hash preserves content-addressable dedup.
 
         Returns:
             Self for chaining
@@ -151,6 +164,7 @@ class Rationale(BaseNode, label="Rationale"):
             )
         self._explanation_target_hash = target.hash
         self._explanation_ref = target
+        self._explanation_role = role
         return self
 
     def set_critiques_target(self, target: Rationale) -> Rationale:
@@ -297,8 +311,18 @@ class Rationale(BaseNode, label="Rationale"):
 
         # Auto-connect explanation target if ref was stored AND not already connected
         if self._explanation_ref and self.explains.count() == 0:
-            self.explains.connect(self._explanation_ref)
+            if self._explanation_role is not None:
+                from dialectical_framework.graph.relationships.explains_relationship import \
+                    ExplainsRelationship
+
+                self.explains.connect(
+                    self._explanation_ref,
+                    relationship=ExplainsRelationship(role=self._explanation_role),
+                )
+            else:
+                self.explains.connect(self._explanation_ref)
             self._explanation_ref = None  # Clear transient ref
+            self._explanation_role = None
         # Auto-connect critiques target if ref was stored AND not already connected
         if self._critiques_target_ref and self._critiques_target.count() == 0:
             self._critiques_target.connect(self._critiques_target_ref)
