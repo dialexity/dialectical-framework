@@ -337,7 +337,14 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   ritual (strongest unchosen A+ confronted, the CHOSEN side's `-` stated as the price + S- trap named; person's wish
   outranks it), and post-decision re-audit
   (reassure FROM the record vs legitimate reopening → record new + consented discard of old, reason naming the
-  replacement — no bespoke supersede machinery). `DecisionCoherenceCheck` is a fail-soft record-time flag
+  replacement — no bespoke supersede machinery). **Materialised ≠ resurfacing** (added 2026-08): a well-named cost
+  matches almost any development in its own subject matter, so the re-audit's failure mode is filing an EVENT as the
+  probability it already priced. Measured — once `accepted_cost` named a real risk, 2 of 3 `decision-strong-r4` A2 runs
+  met "the customer called yesterday, 40% of revenue on a six-week clock" by reassuring from the record (one verbatim:
+  it changed "the shape of the risk, not the decision itself"), dropping A2's wobble accuracy to 4/6 against A1.7's
+  6/6. The rule bounds reassurance to "no more than what was priced" and names that rationalisation so the model can
+  catch itself. Note the coupling: sharpening the cost is what created this, so the two rules must be read together.
+  Locked by `test_prompt_review_regressions.py::test_materialised_risk_is_not_the_risk_resurfacing`. `DecisionCoherenceCheck` is a fail-soft record-time flag
   (`Decision.validation`, `PerspectiveValidation` pattern — never blocks; DTO bool is `incoherent` so the mock brain's
   auto-False reads as passed). The `# Decisions` dump section renders in BOTH unscoped and scoped dumps (decisions are
   Case-level facts); its wording (role labels "accepted cost"/"adopted pathway", "since discarded" ground flag,

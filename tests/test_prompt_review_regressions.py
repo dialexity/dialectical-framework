@@ -1904,6 +1904,26 @@ class TestDecisionReadiness:
             assert "chosen side's own `-` aspect" in prompt
             assert "is a remedy" in prompt
 
+    def test_materialised_risk_is_not_the_risk_resurfacing(self):
+        """The re-audit must not file an EVENT as the cost it already priced.
+
+        Measured, and it is the failure mode a sharper record invites: once
+        `accepted_cost` named a real risk ("the accounts may follow him"),
+        `decision-strong-r4` had 2 of 3 A2 runs answer "the customer called
+        yesterday, 40% of revenue on a six-week clock" by reassuring from the
+        record — one of them verbatim that this changed "the shape of the risk,
+        not the decision itself". A2's wobble accuracy fell to 4/6 against
+        A1.7's 6/6. A probability that became a dated fact with a named
+        counterparty is new information however familiar its topic, and the
+        decision was priced on the probability.
+        """
+        for prompt in (self._unscoped(), self._scoped()):
+            assert "has MATERIALISED is not that risk resurfacing" in prompt
+            # The observed rationalisation, named so the model can catch itself.
+            assert 'the shape of the risk, not the decision' in prompt
+            # Reassurance is bounded, not merely discouraged.
+            assert "no more than what was priced" in prompt
+
     def test_coherence_auditor_reads_accepted_cost_as_a_risk(self):
         """The re-audit's own auditor is a third surface teaching the role.
 
