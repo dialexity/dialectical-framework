@@ -24,7 +24,7 @@ from dialectical_framework.graph.scope_context import require_current_sid
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
-from dialectical_framework.agents.stream_events import StreamEvent
+from dialectical_framework.agents.stream_events import ResponseComplete, StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
 
 logger = logging.getLogger(__name__)
@@ -129,7 +129,10 @@ class Advisor:
         # (agent-to-agent runs) must pass its own identity ("agent:<name>"
         # or <provider>/<model>) so recorded decisions never claim human
         # confirmation they didn't get. Closed over by record_decision —
-        # never an LLM-visible parameter.
+        # never an LLM-visible parameter. Kept on the instance because the
+        # decision-confirmation repair records under the same attestation as
+        # the tool would have (see _repair_unrecorded_decision).
+        self._principal = principal
         self._nexus_hash = nexus_hash
         # app: declarative app definition — composition depends on the mode:
         # counsel toggle (nexus_hash set) keeps the Navigator contract
@@ -198,16 +201,110 @@ class Advisor:
         with agent_scope(self.AGENT_NAME):
             await self._render_pending_context()
             result = await self._conversation.submit(ChatResponse, user_message)
+            await self._repair_unrecorded_decision(user_message, result.message)
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
             await self._render_pending_context()
+            # The final reply comes from ResponseComplete, not from accumulated
+            # TextDeltas: deltas cover the tool rounds, and the structured
+            # message is what the person actually receives.
+            reply = ""
             async for event in self._conversation.submit_stream(
                 ChatResponse, user_message
             ):
+                if isinstance(event, ResponseComplete):
+                    reply = event.message
                 yield event
+            # After the stream, so the person's reply is never delayed by the
+            # repair. Same guarantee as chat(): a confirmed decision is on
+            # disk by the time the turn is over.
+            await self._repair_unrecorded_decision(user_message, reply)
+
+    async def _repair_unrecorded_decision(
+        self, user_message: str, assistant_message: str
+    ) -> None:
+        """Write the record when the person confirmed one and the model didn't.
+
+        A decision is a USER-driven artefact: it exists because the person
+        declared it, and that declaration is an observable event in their
+        message. So the record must not depend on the conversational model
+        electing to call `record_decision` at the very moment it is most
+        inclined to just answer well instead — which is exactly what it does
+        at the weak tier. Measured: `record_decision` fired 6/6 at the strong
+        tier and 0/6 at the weak tier on the same prompt, the weak tier
+        writing a formatted "Your Decision" section in prose every time. The
+        person was told it was written down; it was not. Three rounds of
+        prompt strengthening moved that number not at all (see
+        `tests/bench/README.md`), because no amount of prompt text makes an
+        elective call reliable.
+
+        `record_decision` already treats WHO confirmed as a host attestation
+        rather than an LLM parameter (`principal`); this is the same principle
+        applied to WHETHER.
+
+        Consent is honoured, not bypassed — this fires ONLY on the person's own
+        confirming words, and the framework's own rule is that refusing to
+        write down a decision the person has stated "is the one failure the
+        record exists to prevent". Grounds are deliberately omitted: which
+        nodes a decision rests on is a genuine judgement the model makes well
+        when it calls the tool itself, and a guessed `accepted_cost` is worse
+        than none (it fabricates the very confrontation the ledger reports).
+        The repair secures the record's existence; richer grounding stays the
+        model's own path.
+
+        Fail-soft in every direction: no exception here may affect the reply
+        the person already received.
+        """
+        if self._recorded_decision_this_turn():
+            return
+        try:
+            from dialectical_framework.concerns.decision_confirmation_check import \
+                DecisionConfirmationCheck
+            from dialectical_framework.concerns.record_decision import \
+                RecordDecision
+
+            check = DecisionConfirmationCheck()
+            verdict = await check.resolve(
+                user_message=user_message,
+                assistant_message=assistant_message,
+            )
+            if verdict is None or not verdict.is_recordable:
+                return
+
+            recorder = RecordDecision()
+            decision_hash = await recorder.resolve(
+                question=verdict.question,
+                stance=verdict.stance,
+                rationale=verdict.rationale,
+                principal=self._principal,
+            )
+            if decision_hash:
+                logger.info(
+                    "Recorded a decision the person confirmed but the model "
+                    "left unrecorded: [[%s]]",
+                    decision_hash[:7],
+                )
+        except Exception:
+            logger.exception("Decision confirmation repair failed (fail-soft)")
+
+    def _recorded_decision_this_turn(self) -> bool:
+        """Did `record_decision` already run, successfully, on this turn?
+
+        A FAILED call still needs the repair — an in-band refusal (empty
+        stance, dangling ground hash) leaves the person believing in a record
+        that does not exist, which is the same defect by a different route.
+        Read-only tools contribute no report and are simply absent here.
+        """
+        for result in self._conversation.last_tool_results:
+            if result.tool_name != "record_decision":
+                continue
+            report = result.report
+            if report is None or report.ok:
+                return True
+        return False
 
     async def _render_pending_context(self) -> None:
         """One-shot deferred render of the scoped Current Understanding dump
