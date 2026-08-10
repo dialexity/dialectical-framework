@@ -314,6 +314,20 @@ def render_report(
         )
         if seen_positions:
             add(f"   positions used: {', '.join(seen_positions)}")
+        with_pathway = [r for r in a2_all if r.adopted_pathway_grounds]
+        complete = [r for r in a2_all if r.decision_record_complete]
+        add(f"runs with adopted_pathway ground: {len(with_pathway)}/{len(a2_all)}")
+        add(
+            "   (the cost's other half — the recipe for living with the price. A "
+            "recipe IS a pathway, so a decision closed without `explore` cannot "
+            "have one.)"
+        )
+        add(f"COMPLETE records (risk-grounded cost + pathway): {len(complete)}/{len(a2_all)}")
+        add(
+            "   (this is the bar A2 claims to clear at wobble time. A number "
+            "below both lines above means the two halves are landing in "
+            "different runs, not that either is rare.)"
+        )
         add("")
 
     # -- machine scores ----------------------------------------------------

@@ -242,6 +242,24 @@ class RunRecord(BaseModel):
     #: names a goal or an obligation. So the report states the position rather
     #: than making a reader infer it from the text.
     accepted_cost_positions: list[str] = Field(default_factory=list)
+    #: The other half of the record: what the person adopted to LIVE WITH the
+    #: cost. A cost without a pathway is a price named and no recipe for paying
+    #: it, and the wobble re-audit's reassurance ("here is what you adopted for
+    #: this") needs both halves. Untracked, that incomplete record scored
+    #: identically to a complete one — which is exactly what a decision closed
+    #: without `explore` produces, since a recipe IS a pathway and an unexplored
+    #: tension has none.
+    adopted_pathway_grounds: list[str] = Field(default_factory=list)
+
+    @property
+    def decision_record_complete(self) -> bool:
+        """A cost grounded on a risk AND a pathway to live with it.
+
+        The bar the A2 arm is actually claiming to clear at wobble time. Kept
+        separate from `costs_grounded_on_risk` so the report can show which of
+        the two halves is the one going missing.
+        """
+        return self.costs_grounded_on_risk and bool(self.adopted_pathway_grounds)
 
     @property
     def costs_grounded_on_risk(self) -> bool:

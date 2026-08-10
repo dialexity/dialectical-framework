@@ -189,11 +189,19 @@ class BenchDriver:
         return "/".join(positions) if positions else "Statement"
 
     @classmethod
-    def _read_decisions(cls) -> tuple[list[str], list[str], list[str]]:
-        """Committed decisions + their accepted-cost ground texts.
+    def _read_decisions(cls) -> tuple[list[str], list[str], list[str], list[str]]:
+        """Committed decisions + their accepted-cost and adopted-pathway grounds.
 
         Requires an active scope. The typed ground is what the wobble scorer
         compares against — and the thing no prose journal has.
+
+        `adopted_pathway` is tracked alongside the cost because the two are the
+        record's two halves: the cost is the price confronted, the pathway is
+        the recipe for living with it, and the re-audit's reassurance ("here is
+        what you adopted for this") needs BOTH. Untracked, a record with a cost
+        and no recipe scored identically to a complete one — which is exactly
+        what a decision closed without `explore` produces, since a recipe IS a
+        pathway and unexplored tensions have none.
 
         Rendered with the framework's own `decision_ground_line`, not `str(node)`.
         A Statement's `__str__` appends "\\nExplanation: ..." and an aspect's can
@@ -205,19 +213,25 @@ class BenchDriver:
         hashes: list[str] = []
         costs: list[str] = []
         positions: list[str] = []
+        pathways: list[str] = []
         try:
             for decision in DecisionRepository().find_all_active():
                 hashes.append(decision.short_hash)
                 try:
                     for node, rel in decision.grounds.all():
-                        if getattr(rel, "role", None) == "accepted_cost":
+                        role = getattr(rel, "role", None)
+                        if role == "accepted_cost":
                             costs.append(decision_ground_line(node, "accepted_cost"))
                             positions.append(cls._ground_position(node))
+                        elif role == "adopted_pathway":
+                            pathways.append(
+                                decision_ground_line(node, "adopted_pathway")
+                            )
                 except Exception:  # noqa: BLE001
                     logger.exception("Reading grounds failed for %s", decision.hash)
         except Exception:  # noqa: BLE001
             logger.exception("Reading decisions failed")
-        return hashes, costs, positions
+        return hashes, costs, positions, pathways
 
     @staticmethod
     def _graph_summary() -> str:
@@ -389,7 +403,7 @@ class BenchDriver:
                 session.turns = await self._run_beats(
                     advisor_arm, simulator, spec.beats, tier_model=tier_model
                 )
-                hashes, costs, positions = self._read_decisions()
+                hashes, costs, positions, pathways = self._read_decisions()
                 record.decision_hashes = sorted(
                     set(record.decision_hashes) | set(hashes)
                 )
@@ -398,6 +412,9 @@ class BenchDriver:
                 )
                 record.accepted_cost_positions = sorted(
                     set(record.accepted_cost_positions) | set(positions)
+                )
+                record.adopted_pathway_grounds = sorted(
+                    set(record.adopted_pathway_grounds) | set(pathways)
                 )
                 session.graph_summary = self._graph_summary()
             return session, journal

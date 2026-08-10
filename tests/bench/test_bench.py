@@ -25,6 +25,7 @@ from bench.arms import (
     method_prompt,
 )
 from bench.config import BenchConfig
+from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
 from bench.models import (
     Arm,
@@ -549,6 +550,142 @@ class TestCostGroundPosition:
         run = _run(Arm.A2, "weak")
         run.accepted_cost_positions = ["A/A-"]
         assert run.costs_grounded_on_risk is True
+
+
+class TestDecisionRecordCompleteness:
+    """A cost is half a record. The pathway is the other half.
+
+    The cost is the price confronted; the adopted pathway is the recipe for
+    living with it. The wobble re-audit's reassurance ("here is what you
+    adopted for this") needs both, so a record carrying only one must not score
+    as a complete one. It used to: `adopted_pathway` was never read at all,
+    which made a decision closed without `explore` — a decision that cannot
+    have a pathway, since a recipe IS a pathway — indistinguishable from a
+    complete record.
+    """
+
+    def test_cost_without_pathway_is_incomplete(self):
+        run = _run(Arm.A2, "weak")
+        run.accepted_cost_positions = ["A-"]
+        run.accepted_cost_grounds = ["- accepted cost: [[beef1]] Accounts may follow"]
+        assert run.costs_grounded_on_risk is True
+        assert run.decision_record_complete is False
+
+    def test_pathway_without_a_risk_grounded_cost_is_incomplete(self):
+        """A recipe for a price that was never named is not a record either."""
+        run = _run(Arm.A2, "weak")
+        run.accepted_cost_positions = ["Perspective"]
+        run.accepted_cost_grounds = ["- accepted cost: [[dead1]] Control"]
+        run.adopted_pathway_grounds = ["- adopted pathway: [[cafe1]] T1- -> A2+"]
+        assert run.decision_record_complete is False
+
+    def test_both_halves_present_is_complete(self):
+        run = _run(Arm.A2, "weak")
+        run.accepted_cost_positions = ["T-"]
+        run.accepted_cost_grounds = ["- accepted cost: [[beef1]] Accounts may follow"]
+        run.adopted_pathway_grounds = ["- adopted pathway: [[cafe1]] T1- -> A2+"]
+        assert run.decision_record_complete is True
+
+    def test_report_separates_the_two_halves(self):
+        """The counts must be readable apart, so a reader can see WHICH half is
+        going missing rather than only that completeness is low."""
+        cost_only = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        cost_only.decision_hashes = ["beef1"]
+        cost_only.accepted_cost_grounds = ["- accepted cost: [[beef1]] Accounts go"]
+        cost_only.accepted_cost_positions = ["A-"]
+
+        text = render_report([cost_only], [], {}, ["weak", "strong"])
+        assert "runs with adopted_pathway ground: 0/1" in text
+        assert "COMPLETE records (risk-grounded cost + pathway): 0/1" in text
+
+        full = _run(Arm.A2, "weak", tool_calls=["anchor", "explore"])
+        full.decision_hashes = ["beef1"]
+        full.accepted_cost_grounds = ["- accepted cost: [[beef1]] Accounts go"]
+        full.accepted_cost_positions = ["A-"]
+        full.adopted_pathway_grounds = ["- adopted pathway: [[cafe1]] T1- -> A2+"]
+
+        text = render_report([full], [], {}, ["weak", "strong"])
+        assert "runs with adopted_pathway ground: 1/1" in text
+        assert "COMPLETE records (risk-grounded cost + pathway): 1/1" in text
+
+
+class TestReadDecisions:
+    """`_read_decisions` must split grounds by ROLE, not lump them together.
+
+    Both roles render through the same `decision_ground_line`, so a reader
+    cannot tell them apart downstream — the split has to happen here.
+    """
+
+    class _Ground:
+        def __init__(self, text: str) -> None:
+            self._text = text
+            self.short_hash = "cafe123"
+            self.discarded = None
+
+        def __str__(self) -> str:  # what decision_ground_line renders
+            return self._text
+
+    class _Rel:
+        def __init__(self, role: str) -> None:
+            self.role = role
+
+    class _Grounds:
+        def __init__(self, pairs) -> None:
+            self._pairs = pairs
+
+        def all(self):
+            return self._pairs
+
+    def _fake_repo(self, pairs):
+        outer = self
+
+        class _Decision:
+            short_hash = "dec1234"
+            hash = "dec1234full"
+            grounds = outer._Grounds(pairs)
+
+        class _Repo:
+            def find_all_active(self):
+                return [_Decision()]
+
+        return _Repo
+
+    def test_roles_land_in_separate_lists(self, monkeypatch):
+        pairs = [
+            (self._Ground("Accounts may follow him out"), self._Rel("accepted_cost")),
+            (self._Ground("T1- -> A2+ rebalancing"), self._Rel("adopted_pathway")),
+        ]
+        monkeypatch.setattr(
+            "bench.driver.DecisionRepository", self._fake_repo(pairs)
+        )
+        hashes, costs, positions, pathways = BenchDriver._read_decisions()
+
+        assert hashes == ["dec1234"]
+        assert len(costs) == 1 and "Accounts may follow" in costs[0]
+        assert len(pathways) == 1 and "rebalancing" in pathways[0]
+        # The cost's position is still tracked; a pathway has no position slot
+        # because a pathway is never a cost — it is what you do about one.
+        assert len(positions) == 1
+
+    def test_a_cost_with_no_pathway_yields_an_empty_pathway_list(self, monkeypatch):
+        """The shape a decision closed without `explore` produces."""
+        pairs = [
+            (self._Ground("Accounts may follow him out"), self._Rel("accepted_cost")),
+        ]
+        monkeypatch.setattr(
+            "bench.driver.DecisionRepository", self._fake_repo(pairs)
+        )
+        _hashes, costs, _positions, pathways = BenchDriver._read_decisions()
+        assert costs and pathways == []
+
+    def test_unknown_roles_are_ignored(self, monkeypatch):
+        """A new ground role must not silently count as either half."""
+        pairs = [(self._Ground("something else"), self._Rel("supporting_evidence"))]
+        monkeypatch.setattr(
+            "bench.driver.DecisionRepository", self._fake_repo(pairs)
+        )
+        _hashes, costs, _positions, pathways = BenchDriver._read_decisions()
+        assert costs == [] and pathways == []
 
 
 class TestRecords:
