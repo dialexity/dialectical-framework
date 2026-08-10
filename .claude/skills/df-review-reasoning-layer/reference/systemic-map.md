@@ -631,13 +631,31 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   and attaches copies to every tetrad it produced (the particulars describe the situation; each tetrad is a reading
   OF it), before `_validate_and_flag` so a validation blow-up cannot cost an already-committed tetrad its evidence.
   Fail-soft at every step — grounding is enrichment, never a gate; the Analyst path passes no context and is
-  byte-for-byte unaffected. Reviewing here: this prompt is the ONE place in the tree where concreteness beats
+  byte-for-byte unaffected.
+  **The whole lane hangs on one prompt line, and this is the third instance of the same lesson.** Everything above
+  can be correct and the lane still stays permanently empty, because `context` is optional and neither `_TOOL_DOCS`
+  entry mentioned it — a parameter the prompt never asks for is a parameter the model omits. Measured baseline: 11
+  live `anchor` calls across six A2 cells, 0 particulars carried. So both `_TOOL_DOCS["anchor"]` and
+  `["anchor_scoped"]` now say ALWAYS pass `context` **and what belongs in it** (numbers/dates/splits/named events,
+  in the person's own terms, facts-not-reading), with the reason stated rather than just the rule — the tetrad keeps
+  a few words per position, so `context` is the only lane the particulars live in. `anchor`'s `Field` description
+  carries the same demand, since Mirascope serialises it into the request and a Field still reading "conversational
+  context that grounds this tension" would compete with the doc. Same rule as `record_decision` and the `explore`
+  threshold: **when a prompt rule governs whether to CALL or PASS something, it belongs in the tool doc too** — but
+  note the ranking established by the decision-repair fix: a rule governing whether an observable USER EVENT gets
+  persisted belongs in code. This one is not that; what goes in `context` is a judgement about relevance, and there
+  is no observable event to classify, so the tool doc is the right layer. Machinery, not method — so `bench/arms.py`
+  correctly does NOT carry it into the A1 baseline (tool docs are absent from `method_prompt`); a prompt-only arm's
+  journal is its own equivalent lane.
+  Reviewing here: this prompt is the ONE place in the tree where concreteness beats
   abstraction, so the usual "condense to component_length" instinct is exactly wrong. `GRAPH_SCHEMA`'s EXPLAINS row
-  documents the role vocabulary and must move with it. Locked by `tests/test_rationale_grounding_role.py` (edge-role
-  round-trip, default-None for pre-existing callers, role-not-hashed so dedup survives),
-  `tests/test_tetrad_grounding.py` (render in both views, assessment prose excluded, accretion order, pole dedup),
-  `tests/test_expand_polarities_grounding.py` (one extraction reused, no-context no-op, failure isolation,
-  grounding-before-validation).
+  and `docs/graph.md`'s Grounding section document the role vocabulary and must move with it. Locked by
+  `tests/test_rationale_grounding_role.py` (edge-role round-trip, default-None for pre-existing callers,
+  role-not-hashed so dedup survives), `tests/test_tetrad_grounding.py` (render in both views, assessment prose
+  excluded, accretion order, pole dedup), `tests/test_expand_polarities_grounding.py` (one extraction reused,
+  no-context no-op, failure isolation, grounding-before-validation), and
+  `test_prompt_review_regressions.py::TestAnchorGroundingReachesTheToolDoc` (both docs demand context WITH
+  specifics, the reason is stated, the Field agrees).
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 

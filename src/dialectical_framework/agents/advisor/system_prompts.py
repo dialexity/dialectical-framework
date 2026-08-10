@@ -437,7 +437,13 @@ _TOOL_DOCS: dict[str, str] = {
   - Thesis only: anchors their position and discovers what opposes it — finds
     multiple possible antitheses (each a different polarity), each expanded
     into a perspective. Richer when you want the framework to reveal
-    opposition you haven't spotted yourself.""",
+    opposition you haven't spotted yourself.
+  ALWAYS pass `context`, and put the person's SPECIFICS in it: the numbers,
+  dates, splits, named events and concrete instances they gave you, in their
+  own terms. The tension itself is stored in a few words — `context` is the
+  only place their particulars are kept, and next session it is what lets you
+  say "you told me he closed both customers" instead of speaking in
+  generalities. Facts they stated, not your reading of them.""",
     "anchor_scoped": """- `anchor` — Plants a specific tension from the conversation (standalone,
   until woven in with `explore`). Use when you can see at least the person's
   position. Two modes:
@@ -448,7 +454,13 @@ _TOOL_DOCS: dict[str, str] = {
   - Thesis only: anchors their position and discovers what opposes it — finds
     multiple possible antitheses (each a different polarity), each expanded
     into a perspective. Richer when you want the framework to reveal
-    opposition you haven't spotted yourself.""",
+    opposition you haven't spotted yourself.
+  ALWAYS pass `context`, and put the person's SPECIFICS in it: the numbers,
+  dates, splits, named events and concrete instances they gave you, in their
+  own terms. The tension itself is stored in a few words — `context` is the
+  only place their particulars are kept, and next session it is what lets you
+  say "you told me he closed both customers" instead of speaking in
+  generalities. Facts they stated, not your reading of them.""",
     "explore": """- `explore` — Groups perspectives into a nexus and generates pathways (causal
   arrangements, action-reflection transformations, synthesis). Use once
   tensions exist as perspectives. Pass the perspective hashes to explore

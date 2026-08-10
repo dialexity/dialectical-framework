@@ -2266,3 +2266,78 @@ class TestAdvisoryPersonaBoundary:
         assert "genuinely new information" in text
         # The product is the person's own confidence, not obedience.
         assert "not because you told them what to do" in text
+
+
+class TestAnchorGroundingReachesTheToolDoc:
+    """The `context` parameter must be ASKED for where the model decides to call.
+
+    `anchor(context=...)` is the sole write path for the grounding lane
+    (`concerns/tetrad_grounding.py`) — the case particulars a tetrad was
+    abstracted from. Everything downstream can be perfect and the lane still
+    stays permanently empty, because a parameter the prompt never mentions is a
+    parameter a model omits: the measured baseline was 11 `anchor` calls across
+    six live cells with the graph carrying 0 of 15 particulars.
+
+    This is the same lesson the decision ceremony learned twice (see the
+    systemic map): **when a prompt rule governs whether to pass/call something,
+    it belongs in the tool doc too** — a rule stated only in prose, or only in a
+    Field description, loses at call time. Both surfaces are asserted here
+    because the model reads both and neither is redundant.
+    """
+
+    def _tool_docs(self) -> dict:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            _TOOL_DOCS
+
+        return _TOOL_DOCS
+
+    def test_both_anchor_docs_demand_context_with_specifics(self):
+        """Unscoped AND counsel mode — the same `anchor` function backs both."""
+        docs = self._tool_docs()
+        for key in ("anchor", "anchor_scoped"):
+            doc = " ".join(docs[key].split())
+            assert "ALWAYS pass `context`" in doc, (
+                f"_TOOL_DOCS[{key!r}] does not ask for `context` — the grounding "
+                "lane has no writer"
+            )
+            # Naming the parameter is not enough; the doc must say what goes in
+            # it, or the model fills it with a restatement of the tension.
+            assert "numbers" in doc and "dates" in doc
+            assert "in their own terms" in doc
+            # Scope fence: facts, not the model's reading of them.
+            assert "not your reading of them" in doc
+
+    def test_the_reason_is_stated_not_just_the_rule(self):
+        """A bare imperative degrades; the WHY is what survives paraphrase.
+
+        The reason is specific and checkable: the tetrad stores a few words per
+        position, so `context` is the only lane the particulars live in.
+        """
+        docs = self._tool_docs()
+        for key in ("anchor", "anchor_scoped"):
+            doc = " ".join(docs[key].split())
+            assert "only place their particulars are kept" in doc
+
+    def test_field_description_agrees_with_the_tool_doc(self):
+        """The other surface the model reads at call time.
+
+        Mirascope serializes `Field(description=...)` into the request, so a
+        Field that still says only "conversational context that grounds this
+        tension" would compete with the tool doc's specifics-demand.
+        """
+        from mirascope.llm.tools.tool_schema import ToolSchema
+
+        from dialectical_framework.agents.advisor.tools.anchor import anchor
+
+        # Read the generated SCHEMA, not the annotation: `from __future__ import
+        # annotations` leaves the latter a string, and the schema is what the
+        # provider actually receives.
+        schema = ToolSchema.from_function(anchor)
+        description = " ".join(
+            str(schema.parameters.properties["context"]["description"]).split()
+        )
+        assert "numbers" in description
+        assert "dates" in description
+        assert "not interpretation" in description
+        # The Field must not re-open what the prompt fences off.
+        assert "notes about the person" in description

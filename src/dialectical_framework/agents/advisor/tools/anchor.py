@@ -28,7 +28,16 @@ async def anchor(
     ] = None,
     context: Annotated[
         str,
-        Field(description="Conversational context that grounds this tension"),
+        Field(
+            description=(
+                "The person's own specifics behind this tension — numbers, "
+                "dates, equity splits, named events, concrete instances they "
+                "cited, in their terms. Stored as the tension's grounding: the "
+                "tetrad itself keeps only a few words per position, so this is "
+                "the only place their particulars survive. Facts they stated, "
+                "not interpretation, advice, or notes about the person."
+            )
+        ),
     ] = "",
 ) -> str:
     """Plant a specific tension into the graph. With both thesis and antithesis: creates the opposition directly and generates the full tetrad. With thesis only: anchors the position and discovers what opposes it. Use when you can see the person's position clearly."""
