@@ -209,6 +209,33 @@ def render_report(
         a2 = [r for r in runs if r.arm is Arm.A2]
         if a2:
             add(f"ok  all {len(a2)} A2 run(s) built a graph (A2 != A1 holds).")
+    # "Built a graph" is a floor, not a description. An A2 run that only
+    # anchored is A1 plus a tetrad: it pays the framework's latency and cost
+    # without the pathways or the record that the two claims are ABOUT, and
+    # reporting it beside a fully-exercised run averages two different arms.
+    # Measured: at weak tier every A2 run stopped at anchor (1-2 perspectives,
+    # zero explores) where the strong tier explored in 4 of 6 and recorded in
+    # 5 of 6 — so a weak-tier "A2 loses" row is partly an arm that was never
+    # assembled. Surfaced as depth, not pass/fail, because the shortfall is
+    # the finding.
+    shallow = [
+        r
+        for r in runs
+        if r.arm is Arm.A2 and not r.collapsed_to_a1 and "explore" not in r.all_tool_calls
+    ]
+    a2_live = [r for r in runs if r.arm is Arm.A2 and not r.collapsed_to_a1]
+    if shallow and a2_live:
+        add(
+            f"!! {len(shallow)}/{len(a2_live)} live A2 run(s) never called explore —"
+            " tensions mapped,"
+        )
+        add(
+            "   no pathways built. Claim 1 measures reasoning over structure the"
+        )
+        add(
+            "   arm did not assemble; these rows understate the framework and"
+        )
+        add("   overstate its cost. A prompt/steering defect, not a weak result.")
     errored = [r for r in runs if r.error]
     if errored:
         add(f"!! {len(errored)} run(s) errored:")

@@ -202,6 +202,41 @@ class TestReadingOnPerspective:
             assert state["reading"] == "Reading along: growth / security"
 
     @pytest.mark.asyncio
+    @pytest.mark.llm
+    async def test_final_state_addresses_every_aspect(self, monkeypatch):
+        """Each aspect carries its own hash, not just its text.
+
+        `record_decision` asks for the chosen side's `-` aspect hash as the
+        `accepted_cost` ground. A decision reached in the FIRST session has no
+        context dump to read aspect hashes from — this artifact is the only
+        place they appear. Measured before the fix: every recorded cost in
+        `claim1-weak-r2` grounded on the Perspective (the tension, not the
+        price) because the Perspective's was the only hash on offer, leaving
+        the wobble re-audit nothing specific to reassure from.
+        """
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+            stub, _ = _axis_aware_stub(
+                case_node.sid,
+                [{"t_plus_vs_a_minus": "growth", "a_plus_vs_t_minus": "security"}],
+            )
+            monkeypatch.setattr(AspectGeneration, "resolve", stub)
+
+            concern = ExpandPolarity(polarity_hash=polarity.hash)
+            pps = await concern.resolve()
+
+            state = concern.report.artifacts["perspectives"][0]
+            for position in ("T+", "T-", "A+", "A-"):
+                assert state[position], f"{position} text missing"
+                assert state[f"{position}_hash"], f"{position} not addressable"
+            # The whole point: the cost ground is reachable and is NOT the
+            # Perspective's own hash.
+            assert state["T-_hash"] != state["hash"]
+
+    @pytest.mark.asyncio
     async def test_sibling_tetrads_carry_distinct_readings(self, monkeypatch):
         """The point of the feature: siblings on ONE polarity are
         distinguishable by their reading."""

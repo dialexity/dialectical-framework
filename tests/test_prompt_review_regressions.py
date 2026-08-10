@@ -1924,6 +1924,29 @@ class TestDecisionReadiness:
             # Reassurance is bounded, not merely discouraged.
             assert "no more than what was priced" in prompt
 
+    def test_decision_mode_closes_on_pathways_not_tensions_alone(self):
+        """Pruning tensions must not read as permission to stop building.
+
+        Measured at weak tier (`claim1-weak-r1`): all 6 A2 runs stopped at
+        `anchor` — 1-2 perspectives, zero explores — where the strong tier
+        explored in 4 of 6. Decision mode's discrimination test tells the model
+        what NOT to map, and nothing told it to develop what it kept, so the
+        closing turn counselled from a single tension. The record then asks for
+        an "adopted_pathway" ground that no explore had produced, and the trap
+        version of the choice has no arrangement to be read from.
+
+        The rule is method, not machinery: a prompt-only arm owes the same
+        reasoning, so `bench/arms.py` rewrites the tool verb rather than
+        dropping the paragraph (asserted there).
+        """
+        for prompt in (self._unscoped(), self._scoped()):
+            prompt = " ".join(prompt.split())
+            assert "closes on pathways, not on tensions alone" in prompt
+            # Names the mistake, not just the instruction.
+            assert "permission to stop building" in prompt
+            # The threshold, because "enough structure" is what stalls it.
+            assert "Two mapped tensions are enough to explore" in prompt
+
     def test_ritual_asks_once_and_never_gates_the_record(self):
         """A soft ritual pressed twice is a hard gate on the person's own call.
 

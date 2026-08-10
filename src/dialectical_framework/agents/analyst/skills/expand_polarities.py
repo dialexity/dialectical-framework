@@ -287,7 +287,19 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         )
 
     def _perspective_final_state(self, pp: Perspective) -> dict[str, str | None]:
-        """Build a dict with the final post-dedup text at each position."""
+        """Build a dict with the final post-dedup text and hash at each position.
+
+        Each aspect carries its Statement `short_hash` because an aspect is an
+        ADDRESSABLE node, and the caller may need to reference one before any
+        context dump exists. `record_decision` asks for the chosen side's `-`
+        aspect hash as the `accepted_cost` ground, and a decision reached in
+        the first session has only this artifact to read: measured, every
+        recorded cost in `claim1-weak-r2` grounded on the Perspective — the
+        tension, not the price — because the Perspective's was the sole hash on
+        offer. Same reasoning as `DialecticalContext._dump_one_perspective`
+        (see `test_aspect_lines_are_addressable`); do not drop these hashes to
+        compact the artifact.
+        """
         positions = [
             POSITION_T_PLUS,
             POSITION_T_MINUS,
@@ -303,6 +315,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
             if pairs:
                 node, _rel = pairs[0]
                 state[pos] = node.text
+                state[f"{pos}_hash"] = node.short_hash
             else:
                 state[pos] = None
         return state

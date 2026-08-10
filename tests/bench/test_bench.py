@@ -724,6 +724,33 @@ class TestReport:
         text = render_report([_run(Arm.A2, "weak")], [], {}, ["weak"])
         assert "collapsed" in text.lower()
 
+    def test_flags_live_a2_runs_that_never_explored(self):
+        """"Built a graph" is a floor; anchor-only is A1 plus a tetrad.
+
+        Measured: every weak-tier A2 run in `claim1-weak-r1` stopped at anchor
+        (zero explores) while the strong tier explored in 4 of 6, so the weak
+        tier's "A2 loses" rows were partly an arm that was never assembled.
+        `collapsed_to_a1` cannot catch it — one tool call clears it — and
+        without this line the validity section actively says the opposite
+        ("A2 != A1 holds").
+        """
+        text = render_report(
+            [_run(Arm.A2, "weak", tool_calls=["anchor"])], [], {}, ["weak"]
+        )
+        assert "never called explore" in text
+
+    def test_no_explore_warning_when_the_arm_was_assembled(self):
+        text = render_report(
+            [_run(Arm.A2, "weak", tool_calls=["anchor", "explore"])], [], {}, ["weak"]
+        )
+        assert "never called explore" not in text
+
+    def test_collapsed_runs_are_not_also_counted_as_shallow(self):
+        """A run with no tools at all is already reported as invalid; adding a
+        second, weaker complaint about the same run would double-count it."""
+        text = render_report([_run(Arm.A2, "weak")], [], {}, ["weak"])
+        assert "never called explore" not in text
+
     def test_flags_tools_that_ran_but_reported_failure(self):
         """A silent failure mode: the turn succeeds, the graph does not grow.
 

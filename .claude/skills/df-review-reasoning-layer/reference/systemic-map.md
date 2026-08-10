@@ -355,6 +355,15 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   the only hash in view was the Perspective's, so every observed recording grounded on the tension instead of the
   cost and the re-audit had nothing specific to point back to (caught by `tests/bench`). `_TOOL_DOCS["record_decision"]`
   names the aspect hash explicitly. Locked by `test_dialectical_context.py::test_aspect_lines_are_addressable`.
+  **Second addressability surface — the anchor RESULT** (fixed 2026-08): the dump is not the only place aspect hashes
+  are needed. A decision reached in the FIRST session has no dump at all — the only artifact in view is
+  `ExpandPolarity`'s `perspectives` final-state, which carried each aspect's TEXT but only the Perspective's hash.
+  Measured: all 3 recorded costs in `claim1-weak-r2` grounded on the Perspective, exactly the pre-fix failure the dump
+  change was supposed to have ended, because the Perspective's was the sole hash on offer. `_perspective_final_state`
+  now emits `{position}_hash` per aspect and `_TOOL_DOCS["record_decision"]` says both surfaces carry them (so the
+  Perspective hash is never "the closest thing available"). Locked by
+  `test_perspective_reading.py::test_final_state_addresses_every_aspect`. Generalise: any hash the prompt ASKS for
+  must be addressable on every surface the model can be asked from, not just the richest one.
   **A cost is a MINUS** (corrected 2026-08, was "the unchosen side's `+`"): reading the tetrad plainly, T is what is
   said, T+ its implied goal, T- its risk; A is the opponent's say, A+ the obligation falling on the T-sayer, A- the
   risk that follows. So a `+` names a goal or an obligation — something to DO — and a request for one yields a REMEDY
@@ -366,6 +375,15 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   ACCEPTED COST special case, `GRAPH_SCHEMA` and `docs/graph.md` — all must move together. Locked by
   `test_prompt_review_regressions.py::test_accepted_cost_asks_for_the_chosen_side_minus` (which also asserts the old
   "unchosen side's `+`" phrasing is gone) and `..._tool_schema_matches_the_prompt`.
+  **Decision mode closes on PATHWAYS** (added 2026-08): the discrimination test tells the model what not to map, and
+  nothing told it to develop what it kept — so pruning read as permission to stop building. Measured: all 6 weak-tier
+  A2 runs in `claim1-weak-r1` stopped at `anchor` (1-2 perspectives, zero `explore`) where the strong tier explored in
+  4 of 6, leaving the ceremony with no pathway to offer as the `adopted_pathway` ground and no arrangement to read the
+  S- trap version from. Method, not machinery, so `bench/arms.py` REWRITES the tool verb instead of dropping the
+  paragraph (`explore` is deliberately absent from `_TOOL_TOKENS`) — a prompt-only arm owes the same reasoning. Locked
+  by `test_decision_mode_closes_on_pathways_not_tensions_alone`. Bench side: `report.py` now flags live A2 runs that
+  never explored, because `collapsed_to_a1` clears on a single tool call and the validity section otherwise asserts
+  the opposite ("A2 != A1 holds") over an arm that was never assembled.
   **The ceremony's three weak-model failure modes** (fixed 2026-08, all measured in `claim1-weak-r1` — the weak tier
   is where ceremony discipline breaks, so a strong-tier pass proves nothing about them). (a) *The soft ritual pressed
   twice is a hard gate*: handed "That's the decision, final… I'm not reopening this one", one run demanded "Can you

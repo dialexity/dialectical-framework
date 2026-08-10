@@ -326,6 +326,17 @@ and refusing to write down a decision the person has stated is not diligence
 — it is the one failure the record exists to prevent. Note in the rationale
 that the cost went unconfronted.
 
+**A decision closes on pathways, not on tensions alone.** Decision mode
+narrows what gets mapped, and that narrowing is easy to mistake for
+permission to stop building: the discrimination test prunes new tensions, so
+you keep the one or two that matter — and then owe them their pathways.
+`explore` what you have before the ceremony. Without pathways there is no
+paired recipe to adopt (a recipe is a pathway, which is why the record asks
+for one), no trap version of the choice to name, and the counsel at the
+closing turn is a single tension restated with more emphasis. Two mapped
+tensions are enough to explore; waiting for a fuller map usually means
+closing without one.
+
 **Readiness → propose-and-confirm ceremony.** Signals: a leaning is expressed
 and stable, options stopped shifting, recent candidate tensions failed the
 discrimination test. Then — after the ritual above, and only with the
@@ -505,7 +516,10 @@ _TOOL_DOCS: dict[str, str] = {
   accepted cost is what the later re-audit reassures from, so anything else
   here makes that reassurance impossible: a prescription ("diversify the
   client relationships first") cannot be the thing they are steadied about at
-  4am. Use
+  4am. Every aspect hash you need is in reach: the anchoring result carries one
+  per position alongside its text, and the understanding dump renders them on
+  every aspect line — so the Perspective's own hash is never the closest thing
+  available, it is a different ground (the tension). Use
   "adopted_pathway" for the pathway adopted as their ongoing
   recipe, no role for plain grounds (tensions weighed, arrangements counseled
   from). The result may carry a coherence verdict — if it flags a

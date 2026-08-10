@@ -105,6 +105,11 @@ _TOOL_REWRITES: tuple[tuple[str, str], ...] = (
     ("read the anchor result at call time", "judge it as you work"),
     ("When weaving, take the reading", "Take the reading"),
     ("the person enumerates cheaply what the machinery maps expensively", "the person enumerates cheaply what you would work out expensively"),
+    # Working out pathways before closing is METHOD, not machinery — a
+    # prompt-only arm owes the same reasoning, so this is rewritten rather
+    # than dropped (and "explore" is deliberately not a drop token).
+    ("`explore` what you have before the ceremony.", "Work out their pathways before the ceremony."),
+    ("Two mapped tensions are enough to explore; waiting for a fuller map usually means closing without one.", "Two mapped tensions are enough to work pathways from; waiting for a fuller map usually means closing without any."),
     ("offer to record the decision", "offer to set the decision down in writing"),
     ("Record ONLY on their explicit confirmation", "Write it down ONLY on their explicit confirmation"),
     ("Before proposing to record", "Before proposing to set it down"),
