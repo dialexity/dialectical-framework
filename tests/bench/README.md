@@ -147,6 +147,63 @@ conclusion. The guards, each with a test in `test_bench.py`:
 - **Simulated decisions are attested as `agent:bench-simulator`**, never
   `"human"` — the framework's own provenance contract holds under test.
 
+## Measured: the ceremony is tier-gated, and prompting does not fix it
+
+The clearest repeatable result so far is not a delta — it is a **capability
+threshold**, and it bounds every Claim 2 number at the weak tier.
+
+Same prompt, same tools, same scenario, `record_decision` firing rate:
+
+| Tier | model | runs recording ≥1 decision | wobble accuracy |
+|------|-------|---------------------------|-----------------|
+| strong | `claude-sonnet-5` | **6/6** (`decision-strong-r3`) | A2 5/6, A1 3/6 |
+| weak | `claude-haiku-4-5` | **0/6** (`claim2-weak-r2`, `-r3`) | A2 3/6, A1.7 6/6 |
+
+The weak tier fails the same way every time: asked to "write that down", it
+writes a beautifully formatted **"Your Decision"** section in prose, with
+`tool_calls == []`. The person is told it is recorded. It is not. Session 2 then
+opens with an empty ledger, so variant (a) — "reassure me from the record" — has
+no record, `reopen` is the only honest answer, and the judge scores it wrong.
+**One defect was being counted as two**: `wobble_a_without_a_record` and
+`prose_only_decision` in `models.py` now separate them, which is why the r3
+validity section names the cause instead of leaving a bad convergence number to
+be misread as the re-audit failing.
+
+Three rounds of prompt strengthening were spent on it, and are worth recording
+as **negative results**, because each looked like the obvious fix:
+
+1. `_DECISION_READINESS` prose — "Writing the record out is not recording it",
+   "is a MESSAGE", "not alternatives". Verified present in the rendered prompt.
+   Weak tier: no change.
+2. The `record_decision` **tool docstring** and `_TOOL_DOCS` entry — the
+   asymmetry was real (the text nearest the call carried only the prohibition,
+   "never call this speculatively", which a weak model reads as "when in doubt,
+   don't"), so the obligation now sits there too (77930f6). Strong tier is
+   unaffected because it already complied. Weak tier: no change.
+3. The `explore` **call threshold** in its tool doc — "two mapped tensions are
+   already enough", since a decision closed without `explore` cannot carry an
+   `adopted_pathway` and so has no recipe half (71be246). Weak tier: 2/2 still
+   never called `explore`.
+
+The general lesson that did generalise: **when a prompt rule governs whether to
+CALL something, it belongs in the tool doc, not only in a prose section** — a
+rule ~100 lines below the tool list loses to the docstring at call time. It is
+in the systemic map. It just is not sufficient here.
+
+What this means for the product claim, stated plainly:
+
+- **Claim 2 is not measurable at the weak tier by prompting alone.** The
+  institution cannot beat a prose journal in a run where the institution was
+  never written to. Weak-tier A2-vs-A1.7 rows from r2/r3 measure a
+  non-firing ceremony; they are not evidence about the record.
+- The honest fix is a **seam in `src/`, not more prompt text** — the decision
+  ceremony currently depends on the conversational model electing to call a tool
+  at exactly the moment it is most inclined to just answer well. Anything that
+  does not depend on that election (a commitment-detection pass, or a host-driven
+  confirm step) is a design change and needs review before it is built.
+- Reported as a **framework limitation found by its own bench**, which is what
+  the harness is for. It is not yet a framework win.
+
 ### Known limits, stated rather than hidden
 
 - **`mean_share` cannot see reframing.** An arm that renames both poles into its
