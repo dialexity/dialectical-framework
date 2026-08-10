@@ -375,6 +375,15 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   ACCEPTED COST special case, `GRAPH_SCHEMA` and `docs/graph.md` — all must move together. Locked by
   `test_prompt_review_regressions.py::test_accepted_cost_asks_for_the_chosen_side_minus` (which also asserts the old
   "unchosen side's `+`" phrasing is gone) and `..._tool_schema_matches_the_prompt`.
+  **The open-naming carve-out is about CONTENT, not storage** (fixed 2026-08): `{decision_speech_note}` exempts the
+  decision record from the machinery ban, and bounding only the *naming* let the model recite the record's SCHEMA in
+  plain words. Measured: an A2 wobble turn in `claim1-weak-r2` said "the validation on your decision already failed…
+  it said the stance 'directly contradicts the adopted pathway ground'" and "the T pathway holds", costing
+  `conversational_fit` — a non-inferiority dimension, i.e. the base model's home turf, where a loss is disqualifying
+  rather than a trade-off. The note now separates what the record SAYS (theirs) from how it is stored (not), names
+  grounds/roles/pathways/validation-verdict as internals, and carries a paired example — "don't say it" alone
+  suppresses the counsel with the jargon. Unscoped only (the scoped preamble governs vocabulary; prompt-only arms have
+  no schema to leak). Locked by `test_naming_the_record_openly_does_not_expose_its_schema`.
   **Decision mode closes on PATHWAYS** (added 2026-08): the discrimination test tells the model what not to map, and
   nothing told it to develop what it kept — so pruning read as permission to stop building. Measured: all 6 weak-tier
   A2 runs in `claim1-weak-r1` stopped at `anchor` (1-2 perspectives, zero `explore`) where the strong tier explored in

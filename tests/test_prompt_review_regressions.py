@@ -1924,6 +1924,32 @@ class TestDecisionReadiness:
             # Reassurance is bounded, not merely discouraged.
             assert "no more than what was priced" in prompt
 
+    def test_naming_the_record_openly_does_not_expose_its_schema(self):
+        """The record's CONTENT is theirs; its storage is not.
+
+        The machinery ban has one carve-out — the decision record is named
+        openly — and it bounded only the naming, not what about the record may
+        be said. Measured at weak tier (`claim1-weak-r2`): one A2 wobble turn
+        told the person "the validation on your decision already failed… it
+        said the stance 'directly contradicts the adopted pathway ground'" and
+        later "the T pathway holds". The judge marked it down on
+        `conversational_fit` ("references to 'recorded stance', 'validation…
+        failed', 'T pathway' break the conversational frame") — a
+        non-inferiority dimension the framework must not lose. Grounds, roles
+        and the coherence verdict are internals; what they IMPLY is counsel.
+
+        Unscoped only: the scoped render's preamble governs vocabulary
+        (the person knows the structural terms there), and prompt-only arms
+        have no record schema to leak.
+        """
+        prompt = " ".join(self._unscoped().split())
+        assert "how it is stored is not" in prompt
+        # The specific internals observed leaking, named so the ban is checkable.
+        assert "never of its grounds, roles, pathways or validation verdict" in prompt
+        # Paired example — the same content spoken two ways, since "don't say
+        # it" without "say this instead" suppresses the counsel too.
+        assert "machinery wearing plain words" in prompt
+
     def test_decision_mode_closes_on_pathways_not_tensions_alone(self):
         """Pruning tensions must not read as permission to stop building.
 

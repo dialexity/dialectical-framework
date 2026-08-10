@@ -937,7 +937,14 @@ def system_prompt(
     if "{decision_speech_note}" in how_you_speak:
         speech_note = (
             "\n\nOne exception: the decision record (see Decision Readiness) "
-            "is named openly, in plain words — never as a tool or node."
+            "is named openly, in plain words — never as a tool or node. What "
+            "the record SAYS is theirs to hear; how it is stored is not. So "
+            "speak of what they decided and the price they took on — never of "
+            "its grounds, roles, pathways or validation verdict as such. "
+            "\"The check on your decision flagged a contradiction with the "
+            "pathway ground\" is machinery wearing plain words; \"what you "
+            "decided sits against the sequence you settled on — move the "
+            "relationships first\" is the same content, spoken to a person."
             if decisions_wired
             else ""
         )
