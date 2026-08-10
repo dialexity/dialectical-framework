@@ -248,12 +248,19 @@ class Advisor:
         Consent is honoured, not bypassed — this fires ONLY on the person's own
         confirming words, and the framework's own rule is that refusing to
         write down a decision the person has stated "is the one failure the
-        record exists to prevent". Grounds are deliberately omitted: which
-        nodes a decision rests on is a genuine judgement the model makes well
-        when it calls the tool itself, and a guessed `accepted_cost` is worse
-        than none (it fabricates the very confrontation the ledger reports).
-        The repair secures the record's existence; richer grounding stays the
-        model's own path.
+        record exists to prevent".
+
+        The `accepted_cost` ground is attached when — and only when — the
+        stance clearly IS one pole of one mapped tension. That is a matching
+        question with a verifiable answer, and the cost then follows by
+        DEFINITION rather than by judgement: the price of choosing a side is
+        that side's own minus (chose T → T-), because a plus is a goal or an
+        obligation, i.e. something to do, never a price. No match means no
+        ground: a wrong `accepted_cost` is worse than none, since it makes the
+        record claim the person accepted a price they never faced and sends the
+        later re-audit to reassure them with the wrong risk. `adopted_pathway`
+        is never guessed here at all — it needs a transformation the wheel may
+        not have, so it stays the model's own path.
 
         Fail-soft in every direction: no exception here may affect the reply
         the person already received.
@@ -279,6 +286,7 @@ class Advisor:
                 question=verdict.question,
                 stance=verdict.stance,
                 rationale=verdict.rationale,
+                grounds=self._accepted_cost_ground(verdict),
                 principal=self._principal,
             )
             if decision_hash:
@@ -289,6 +297,43 @@ class Advisor:
                 )
         except Exception:
             logger.exception("Decision confirmation repair failed (fail-soft)")
+
+    @staticmethod
+    def _accepted_cost_ground(verdict) -> list | None:
+        """Resolve the matched pole into the minus aspect it costs.
+
+        Returns None (no ground) unless the whole chain holds: a matched
+        polarity that still exists, a recognised side, and a committed minus
+        aspect on the perspective built over it. Every break is a non-event,
+        not an error — the record is worth having without the ground, and a
+        half-resolved ground is worth less than none.
+        """
+        position = verdict.chosen_cost_position
+        if not position:
+            return None
+        try:
+            from dialectical_framework.concerns.record_decision import GroundLink
+            from dialectical_framework.graph.repositories.perspective_repository import \
+                PerspectiveRepository
+
+            wanted = verdict.chosen_polarity_hash.strip()
+            for pp in PerspectiveRepository().find_all_active():
+                # RelationshipManager.get() yields (node, relationship).
+                polarity_result = pp.polarity.get()
+                if not polarity_result:
+                    continue
+                polarity, _ = polarity_result
+                if not polarity.hash or not polarity.hash.startswith(wanted):
+                    continue
+                aspects = getattr(pp, position).all()
+                for aspect, _rel in aspects:
+                    if aspect.is_committed:
+                        return [
+                            GroundLink(hash=aspect.hash, role="accepted_cost")
+                        ]
+        except Exception:
+            logger.exception("Accepted-cost ground resolution failed (fail-soft)")
+        return None
 
     def _recorded_decision_this_turn(self) -> bool:
         """Did `record_decision` already run, successfully, on this turn?

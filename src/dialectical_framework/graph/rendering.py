@@ -127,6 +127,13 @@ def format_spiral(wheel, pp_index: Optional[dict[int, int]] = None) -> str:
 # prompt, and both renderers (_dump_decisions, _inspect_decision) must all
 # agree with THIS dict, never re-type it. A role exists iff a consumer
 # branches on it; plain grounds carry role=None and render as "ground".
+#: Stable lead-in for the condition clause appended to an `accepted_cost`
+#: ground. Machine-strippable on purpose: consumers that compare a ledger
+#: against a reply (the bench's citation scorer) must be able to isolate the
+#: cost text itself, so the clause is a suffix behind one owning marker rather
+#: than woven into the sentence.
+ACCEPTED_COST_CONDITION_MARKER = " — arises when "
+
 DECISION_GROUND_ROLES: dict[str, str] = {
     "accepted_cost": "accepted cost",
     "adopted_pathway": "adopted pathway",
@@ -174,6 +181,89 @@ def decision_ground_line(node, role: Optional[str], show_type: bool = False) -> 
         text = str(node).strip().split("\n")[0]
 
     type_part = f" ({node.__class__.__name__})" if show_type else ""
+    if role == "accepted_cost":
+        text = f"{one_line(text)}{accepted_cost_condition(node)}"
     # one_line: embedded newlines in node text must not fabricate sibling
     # dump lines (see one_line docstring).
     return f"- {label}: [[{node.short_hash}]]{type_part} {one_line(text)}{flag}"
+
+
+def accepted_cost_condition(node) -> str:
+    """The control statement's condition, appended to an accepted-cost ground.
+
+    A bare minus is a named bad outcome; the control statement is the same
+    fact with the condition that produces it, which is what makes it usable at
+    re-audit time. Compare:
+
+        "accounts may follow him out"
+        "accounts may follow him out — arises when buying him out is pursued
+         without diversifying the client relationships"
+
+    Only the second lets the person tell "the risk I accepted, and I am not
+    currently paying it" from "the thing now happening to me". Variant (a) of
+    the wobble ("reassure me from the record") turns entirely on that
+    distinction, and a ledger of bare minuses cannot make it.
+
+    Derived, never generated: the condition is the chosen side's own pole
+    ("without" the opposing plus), read structurally off the perspective the
+    aspect already sits in. No LLM call, no new node — same reasoning as
+    deriving the cost position from the chosen side.
+
+    Divergence from the paper's control statement, deliberately: theory scores
+    "T+ without A+ yields T-" (ConceptualCoherenceEstimation /
+    DialecticalValidityEstimation). A ledger renders "T without A+ yields T-",
+    because what the person committed to is the SIDE, not its idealised plus —
+    the price arrives precisely when they hold the side and don't pay A+. Same
+    causal claim at the developmental level the decision was actually made at.
+    Do not "fix" one form into the other: CC/DV keep the T+ form where they
+    score it (see docs/theory/generative-rules.md Rule 6).
+
+    Returns "" for anything that is not a minus aspect of a locatable
+    perspective — the ground is still worth rendering plain, and a half-derived
+    condition would be worse than none.
+    """
+    from dialectical_framework.graph.nodes.statement import Statement
+
+    if not isinstance(node, Statement):
+        return ""
+    try:
+        from dialectical_framework.graph.repositories.perspective_repository import (
+            PerspectiveRepository,
+        )
+
+        # A shared Statement can sit at several positions across perspectives
+        # (driver._ground_position records "A/A-" for exactly this). Render a
+        # condition only when the reading is unambiguous: picking one of two
+        # perspectives arbitrarily would attribute the person's accepted price
+        # to a tension they never decided on.
+        found = [
+            (pp, rel_type)
+            for pp, rel_type in PerspectiveRepository().find_by_statement(node)
+            if rel_type in ("T_MINUS", "A_MINUS")
+        ]
+        if len(found) != 1:
+            return ""
+        pp, rel_type = found[0]
+        if rel_type == "T_MINUS":
+            held, remedy = pp.polarity.get(), pp.a_plus
+            side = "t"
+        else:
+            held, remedy = pp.polarity.get(), pp.t_plus
+            side = "a"
+        if not held:
+            return ""
+        polarity, _ = held
+        held_result = getattr(polarity, side).get()
+        remedy_result = remedy.get()
+        if not held_result or not remedy_result:
+            return ""
+        held_node, _ = held_result
+        remedy_node, _ = remedy_result
+        return (
+            f"{ACCEPTED_COST_CONDITION_MARKER}"
+            f"{one_line(str(held_node))} is held without "
+            f"{one_line(str(remedy_node))}"
+        )
+    except Exception:  # noqa: BLE001
+        # Rendering a ledger must never fail on a decoration.
+        return ""

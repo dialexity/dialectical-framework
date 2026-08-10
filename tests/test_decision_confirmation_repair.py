@@ -60,6 +60,7 @@ class _StubAdvisor:
 
     _repair_unrecorded_decision = Advisor._repair_unrecorded_decision
     _recorded_decision_this_turn = Advisor._recorded_decision_this_turn
+    _accepted_cost_ground = Advisor.__dict__["_accepted_cost_ground"]
 
 
 def _ok_report() -> ExecutionReport:
@@ -169,9 +170,10 @@ class TestRepairFires:
         assert recorded["principal"] == "agent:bench-driver"
 
     @pytest.mark.asyncio
-    async def test_no_grounds_are_guessed(self, monkeypatch):
+    async def test_unmatched_stance_grounds_nothing(self, monkeypatch):
         """A fabricated accepted_cost invents the very confrontation the ledger
-        reports. The repair secures existence; grounding stays the model's."""
+        reports, and would send the re-audit to the wrong risk. No match, no
+        ground — the record is still worth having."""
         recorded = {}
 
         async def fake_check(self, *, user_message, assistant_message):
@@ -191,6 +193,107 @@ class TestRepairFires:
         await _StubAdvisor([])._repair_unrecorded_decision("log it", "done")
 
         assert recorded.get("grounds") in (None, [])
+
+    @pytest.mark.asyncio
+    async def test_adopted_pathway_is_never_guessed(self, monkeypatch):
+        """The pathway half needs a transformation the wheel may not have —
+        that one stays entirely the model's own path, even when a side matched."""
+        recorded = {}
+
+        async def fake_check(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(
+                confirmed=True,
+                question="q",
+                stance="s",
+                rationale="r",
+                chosen_polarity_hash="pol123",
+                chosen_side="T",
+            )
+
+        async def fake_record(self, **kwargs):
+            recorded.update(kwargs)
+            return "hash"
+
+        def fake_ground(verdict):
+            from dialectical_framework.concerns.record_decision import GroundLink
+
+            return [GroundLink(hash="cost456", role="accepted_cost")]
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        monkeypatch.setattr(RecordDecision, "resolve", fake_record)
+
+        advisor = _StubAdvisor([])
+        # Instance attribute: the resolution itself needs a graph, and what is
+        # under test here is what the repair does NOT add alongside it.
+        advisor._accepted_cost_ground = fake_ground
+        await advisor._repair_unrecorded_decision("log it", "done")
+
+        roles = [g.role for g in (recorded.get("grounds") or [])]
+        assert "accepted_cost" in roles
+        assert "adopted_pathway" not in roles
+
+
+class TestCostFollowsFromTheChosenSide:
+    """The cost is DERIVED from the side, never asked for separately.
+
+    The owning definition: T is what is said, T+ its implied goal, T- its risk;
+    A is the opponent's say, A+ the obligation of the T-sayer, A- a subsequent
+    risk. So the price of choosing a side is that side's own MINUS — a plus is a
+    goal or obligation, i.e. something to DO, which is a remedy and not a price.
+    """
+
+    def test_choosing_the_thesis_costs_t_minus(self):
+        verdict = ConfirmationVerdictDto(
+            confirmed=True, question="q", stance="s",
+            chosen_polarity_hash="abc", chosen_side="T",
+        )
+        assert verdict.chosen_cost_position == "t_minus"
+
+    def test_choosing_the_antithesis_costs_a_minus(self):
+        verdict = ConfirmationVerdictDto(
+            confirmed=True, question="q", stance="s",
+            chosen_polarity_hash="abc", chosen_side="A",
+        )
+        assert verdict.chosen_cost_position == "a_minus"
+
+    def test_a_plus_is_never_a_cost(self):
+        """A plus is a goal or an obligation — grounding a cost on one yields a
+        remedy (something to DO), not a price. The mapping simply cannot
+        produce a plus, so no prompt wording can drift into one."""
+        for side in ("T", "A"):
+            verdict = ConfirmationVerdictDto(
+                confirmed=True, question="q", stance="s",
+                chosen_polarity_hash="abc", chosen_side=side,
+            )
+            assert verdict.chosen_cost_position.endswith("_minus")
+
+    def test_side_is_case_and_whitespace_tolerant(self):
+        verdict = ConfirmationVerdictDto(
+            confirmed=True, question="q", stance="s",
+            chosen_polarity_hash="abc", chosen_side=" t ",
+        )
+        assert verdict.chosen_cost_position == "t_minus"
+
+    def test_no_polarity_match_means_no_cost_position(self):
+        verdict = ConfirmationVerdictDto(
+            confirmed=True, question="q", stance="s", chosen_side="T"
+        )
+        assert verdict.chosen_cost_position == ""
+
+    def test_unrecognised_side_means_no_cost_position(self):
+        """"between the poles" must not silently become one of them."""
+        verdict = ConfirmationVerdictDto(
+            confirmed=True, question="q", stance="s",
+            chosen_polarity_hash="abc", chosen_side="both",
+        )
+        assert verdict.chosen_cost_position == ""
+
+    def test_ground_resolution_returns_none_without_a_match(self):
+        """No DB access at all when there is nothing to look up."""
+        verdict = ConfirmationVerdictDto(confirmed=True, question="q", stance="s")
+        assert Advisor._accepted_cost_ground(verdict) is None
 
 
 class TestRepairStaysQuiet:

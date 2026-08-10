@@ -413,6 +413,23 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   ACCEPTED COST special case, `GRAPH_SCHEMA` and `docs/graph.md` — all must move together. Locked by
   `test_prompt_review_regressions.py::test_accepted_cost_asks_for_the_chosen_side_minus` (which also asserts the old
   "unchosen side's `+`" phrasing is gone) and `..._tool_schema_matches_the_prompt`.
+  **A cost RENDERS with its condition** (live since 2026-08-10): the ground edge still points at the minus
+  Statement (the only committed node that IS the price, and what the bench's position guard checks), but a bare
+  minus is a named bad OUTCOME — "accounts may follow him out" cannot distinguish "the risk I accepted and am not
+  paying" from "the thing now happening to me", which is the exact distinction wobble variant (a) turns on. So
+  `rendering.accepted_cost_condition` appends the control statement's CONDITION, derived structurally off the
+  perspective the aspect sits in: "— arises when {chosen side} is held without {opposing plus}". No LLM call, no
+  new node, `accepted_cost` role only (a condition clause on an `adopted_pathway` would read as the recipe being
+  what goes wrong). **Deliberate divergence from the paper**: theory scores "T+ without A+ yields T-" (CC/DV,
+  Rule 6) while the ledger renders "T without A+ yields T-" — what the person committed to is the SIDE, not its
+  idealised plus, and the price arrives precisely when they hold the side and don't pay A+. Same causal claim at
+  the developmental level the decision was actually made at; do NOT collapse the two forms. Ambiguity is a
+  non-event: a Statement that is the minus of two perspectives renders plain, since picking one would attribute
+  the accepted price to a tension they never decided on. Bench side, `scoring._ground_content` imports
+  `ACCEPTED_COST_CONDITION_MARKER` and strips the clause before the citation overlap — the derived clause roughly
+  triples a ground's word count, so leaving it in the denominator would score a reply that names the price exactly
+  as "not cited". Locked by `test_decision.py::TestDecisionRendering` (both sides, role-scoping, ambiguity,
+  loose-statement fail-soft).
   **The open-naming carve-out is about CONTENT, not storage** (fixed 2026-08): `{decision_speech_note}` exempts the
   decision record from the machinery ban, and bounding only the *naming* let the model recite the record's SCHEMA in
   plain words. Measured: an A2 wobble turn in `claim1-weak-r2` said "the validation on your decision already failed…
@@ -463,8 +480,14 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   own message, creates/mutates nothing, fail-soft) + `Advisor._repair_unrecorded_decision` (post-reply, both
   `chat` and `chat_stream`, records under the same attested principal when the person confirmed and no SUCCESSFUL
   `record_decision` ran — a failed call still repairs, since an in-band refusal leaves the identical false
-  belief). Grounds are deliberately NOT guessed: a fabricated `accepted_cost` invents the confrontation the
-  ledger reports. **The prompt is deliberately silent about the backstop** — telling the model it exists would
+  belief). **The `accepted_cost` ground IS derived** (live since 2026-08-10), and only that one: the check also
+  asks which mapped tension's pole the stance corresponds to (`chosen_polarity_hash` + `chosen_side`) — a MATCHING
+  question with a verifiable answer, not a judgement — and `Advisor._accepted_cost_ground` then resolves the cost
+  BY DEFINITION, chose T → `t_minus`, chose A → `a_minus`, because a plus is a goal or an obligation (something to
+  DO, i.e. a remedy) and never a price. No match → no ground: a wrong `accepted_cost` is worse than none, since it
+  makes the record claim a price the person never faced and sends the re-audit to reassure them with the wrong
+  risk. `adopted_pathway` is still never guessed (it needs a Transformation the wheel may not have).
+  **The prompt is deliberately silent about the backstop** — telling the model it exists would
   license the laziness it compensates for. Reviewing prompts here: the three prose/tool-doc rules stay exactly as
   they are (the model calling the tool itself is still the path that produces good grounds); the seam is a
   floor under them, not a replacement. Locked by `tests/test_decision_confirmation_repair.py` (DB/LLM-free seam:

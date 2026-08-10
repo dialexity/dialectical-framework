@@ -91,7 +91,27 @@ own words — never invent, upgrade or tidy their reasoning:
   resting on a remedy has not accepted anything.
 
 Be conservative. A false "confirmed" writes a record the person never asked for,
-which is worse than a missing one: it puts words in their mouth."""
+which is worse than a missing one: it puts words in their mouth.
+
+## Which side of the tension they chose
+
+You are also given the mapped tensions, each with a thesis (T) and an
+antithesis (A). If the stance the person committed to IS one side of one of
+those tensions, say which: `chosen_polarity_hash` plus `chosen_side` ("T" or
+"A"). This is a MATCHING task, not an evaluation — does their stance say the
+same thing as that pole?
+
+Match only on a clear correspondence. Leave `chosen_polarity_hash` empty when:
+- the stance does not correspond to either pole of any listed tension
+- it sits between them (a both/and compromise, a staged sequence) — that is not
+  choosing a side
+- two tensions match about equally well, so you would be picking arbitrarily
+- the tension is mapped along a dimension the choice does not turn on
+
+An empty match is a perfectly good answer and costs nothing. A WRONG match is
+expensive: it makes the record claim the person accepted a price they never
+faced, and the later re-audit would reassure them with the wrong risk
+entirely."""
 
 
 # --- DTO (flat — response-model shape caution) ---
@@ -128,6 +148,33 @@ class ConfirmationVerdictDto(BaseModel):
         "including any cost the person acknowledged accepting. Empty when not "
         "confirmed.",
     )
+    chosen_polarity_hash: str = Field(
+        default="",
+        description="Short hash of the mapped tension whose pole the stance "
+        "corresponds to. Empty when the stance matches no listed tension, sits "
+        "between the poles, or two tensions match equally well.",
+    )
+    chosen_side: str = Field(
+        default="",
+        description="'T' if the stance is the thesis pole, 'A' if the "
+        "antithesis pole. Empty when no tension was matched.",
+    )
+
+    @property
+    def chosen_cost_position(self) -> str:
+        """The aspect that IS the accepted cost, given the chosen side.
+
+        The user's owning definition: T is what is said, T+ its implied goal,
+        T- its risk; A is the opponent's say, A+ the obligation of the
+        T-sayer, A- a subsequent risk. So the price of choosing a side is that
+        side's own MINUS — a plus is a goal or an obligation, which is
+        something to DO (a remedy), never a price. Derived, not asked: once
+        the side is known this is a definition, and a definition should not be
+        left to an LLM to re-derive.
+        """
+        if not self.chosen_polarity_hash:
+            return ""
+        return {"T": "t_minus", "A": "a_minus"}.get(self.chosen_side.strip().upper(), "")
 
     @property
     def is_recordable(self) -> bool:
@@ -178,11 +225,18 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
             self._report.summary = "No user message to check"
             return None
 
+        # Mapped tensions are offered so the stance can be matched to a pole —
+        # which is what makes the accepted cost derivable. An empty graph just
+        # means no match is possible; the confirmation still records.
+        tensions = self._active_perspectives()
+
         try:
             self._conversation.set_system_prompt(SYSTEM_PROMPT)
             result = await self._conversation.submit(
                 response_model=ConfirmationVerdictDto,
-                user_content=self._prompt(user_message, assistant_message),
+                user_content=self._prompt(
+                    user_message, assistant_message, tensions
+                ),
             )
         except Exception as e:
             self._report.ok = True
@@ -203,7 +257,56 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
         return result
 
     @staticmethod
-    def _prompt(user_message: str, assistant_message: str) -> str:
+    def _active_perspectives() -> list:
+        """Active, complete perspectives — the poles a stance could match.
+
+        Incomplete ones are skipped: matching a stance to a tension whose
+        minus aspects don't exist yet would name a chosen side and then have
+        no cost node to ground on, which reads as a framework error rather
+        than as the non-event it is.
+        """
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        try:
+            return [
+                pp
+                for pp in PerspectiveRepository().find_all_active()
+                if pp.is_complete
+            ]
+        except Exception:
+            # The confirmation still matters without them — no match, no cost.
+            return []
+
+    @staticmethod
+    def _prompt(
+        user_message: str, assistant_message: str, tensions: list
+    ) -> str:
+        from dialectical_framework.graph.rendering import one_line
+
+        tensions_section = "None mapped."
+        if tensions:
+            lines = []
+            for pp in tensions:
+                # RelationshipManager.get() yields (node, relationship).
+                polarity_result = pp.polarity.get()
+                if not polarity_result:
+                    continue
+                polarity, _ = polarity_result
+                t_result = polarity.t.get()
+                a_result = polarity.a.get()
+                if not t_result or not a_result:
+                    continue
+                t, _ = t_result
+                a, _ = a_result
+                # one_line: node text must not fabricate prompt sections.
+                lines.append(
+                    f"- [[{polarity.short_hash}]] T: {one_line(str(t))} | "
+                    f"A: {one_line(str(a))}"
+                )
+            if lines:
+                tensions_section = "\n".join(lines)
+
         return f"""Did the person confirm a decision for the record in this turn?
 
 ## The person said
@@ -212,5 +315,9 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
 ## The assistant replied
 {assistant_message or "(nothing)"}
 
+## Mapped tensions
+{tensions_section}
+
 Judge the PERSON's words for the confirmation. Use the reply only as context \
-for what was being decided and why."""
+for what was being decided and why. Then, only if their stance clearly IS one \
+pole of one tension above, name that tension and side."""

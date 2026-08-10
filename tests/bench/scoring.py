@@ -205,7 +205,23 @@ _GROUND_PREFIX = re.compile(r"^\s*-\s*[a-z ]+:\s*\[\[[0-9a-f]+\]\]\s*", re.I)
 
 
 def _ground_content(ground: str) -> str:
-    return _GROUND_PREFIX.sub("", ground)
+    """The cost itself, without framework decoration.
+
+    `accepted_cost` grounds render the control statement's CONDITION after
+    `ACCEPTED_COST_CONDITION_MARKER` ("... — arises when X is held without Y").
+    That clause is derived from the tetrad, not from the person's own words, and
+    it roughly triples the ground's word count — leaving it in the denominator
+    would make a reply that names the accepted price exactly score "not cited"
+    purely because it did not also recite both poles. The scorer imports the
+    framework's own marker rather than re-typing it, so a wording change to the
+    renderer cannot silently stop the strip from matching.
+    """
+    from dialectical_framework.graph.rendering import \
+        ACCEPTED_COST_CONDITION_MARKER
+
+    return _GROUND_PREFIX.sub("", ground).split(
+        ACCEPTED_COST_CONDITION_MARKER
+    )[0]
 
 
 def cited_record(session: SessionRecord, ground_texts: list[str]) -> Optional[bool]:

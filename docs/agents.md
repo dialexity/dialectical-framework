@@ -392,11 +392,29 @@ Why it exists: `record_decision` fired 6/6 at a strong tier and **0/6** at a
 weak one on identical prompt text, the weak model writing a formatted "Your
 Decision" section in prose every time while the person was told it was saved
 (`tests/bench/README.md`). Three rounds of prompt strengthening changed that by
-zero. The model calling the tool itself is still the preferred path — it
-produces the richer grounds (`accepted_cost`, `adopted_pathway`), which the
-repair deliberately never guesses — so the seam is a floor, not a replacement.
-The engine prompt does not mention it: telling the model a backstop exists
-would license the laziness it compensates for.
+zero. The model calling the tool itself is still the preferred path — it can
+adopt a pathway, which the repair never guesses — so the seam is a floor, not a
+replacement. The engine prompt does not mention it: telling the model a backstop
+exists would license the laziness it compensates for.
+
+The repair does attach the **`accepted_cost`** ground, because that half is
+derivable rather than guessable. The check asks which mapped tension's pole the
+person's stance corresponds to — a matching question with a verifiable answer —
+and the cost then follows by definition: chose the thesis, the price is `T-`;
+chose the antithesis, `A-`. (A plus is a goal or an obligation, i.e. something to
+do, so it can never be a price.) No clear match means no ground: a wrong
+`accepted_cost` claims the person accepted a price they never faced, and sends
+the later re-audit to reassure them about the wrong risk.
+
+In the ledger an `accepted_cost` renders with its **condition**, not as a bare
+risk — "accounts may follow him out — arises when buying him out is held without
+diversifying the client relationships". That is what lets the person tell "the
+risk I accepted, and I'm not paying it" from "the thing now happening to me",
+which is the whole job of the record when they come back wobbling. Derived
+structurally from the tetrad, so it costs no LLM call. Note it instantiates the
+control statement at the level the decision was made at ("T without A+ yields
+T-"), not the theory's "T+ without A+ yields T-" — the person committed to the
+side, not to its idealised plus.
 
 What belongs **app-side** (via `AppSpec`):
 - **Persona/ceremony intensity** — how pushy convergence feels, how formal the

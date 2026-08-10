@@ -629,6 +629,110 @@ class TestDecisionRendering:
             assert len(ground_lines) == 1
             assert pp.short_hash in ground_lines[0]
 
+    async def test_accepted_cost_carries_its_condition(self):
+        """A bare minus names a bad outcome; the control statement names the
+        condition that produces it, and only the second is usable at re-audit.
+
+        "Rigidity and micromanagement" cannot tell "the risk I accepted and am
+        not paying" from "what is happening to me now". "...arises when Control
+        is held without Autonomy builds responsibility" can. Variant (a) of the
+        wobble turns entirely on that distinction.
+
+        Derived structurally (chosen side's pole, without the opposing plus) —
+        no LLM call, no new node.
+        """
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            t_minus, _ = pp.t_minus.get()
+
+            line = decision_ground_line(t_minus, "accepted_cost")
+
+            assert "Rigidity and micromanagement" in line
+            assert "arises when" in line
+            # The held side, and the plus whose absence is the trigger.
+            assert "Control" in line
+            assert "Autonomy builds responsibility" in line
+            # Still one line: the ledger's section structure is line-oriented.
+            assert "\n" not in line
+
+    async def test_accepted_cost_condition_flips_with_the_side(self):
+        """Chose the antithesis → the price is A-, triggered by A held without
+        T+. The condition is not a fixed sentence; it follows the side."""
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            a_minus, _ = pp.a_minus.get()
+
+            line = decision_ground_line(a_minus, "accepted_cost")
+
+            assert "Chaos without boundaries" in line
+            assert "Freedom" in line
+            assert "Safety through structure" in line
+
+    async def test_only_accepted_cost_grounds_get_a_condition(self):
+        """An `adopted_pathway` is a recipe, not a price — a "arises when"
+        clause on it would read as the pathway being the thing that goes wrong.
+        Plain grounds stay plain too."""
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            t_minus, _ = pp.t_minus.get()
+
+            assert "arises when" not in decision_ground_line(t_minus, None)
+            assert "arises when" not in decision_ground_line(
+                t_minus, "adopted_pathway"
+            )
+
+    async def test_ambiguous_statement_renders_without_a_condition(self):
+        """A Statement reused as the minus of TWO perspectives has two
+        conditions. Picking one would attribute the person's accepted price to
+        a tension they never decided on, so no condition is rendered at all —
+        the bare ground is still worth having."""
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            shared, _ = pp.t_minus.get()
+            # A second tension whose T- is the SAME statement. Built with the
+            # shared text rather than by reconnecting: aspect edges are identity
+            # relationships, immutable once the Perspective commits, so `commit`
+            # dedup is what actually makes two perspectives share one node.
+            _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Care",
+                t_minus_text=shared.text,
+            )
+
+            line = decision_ground_line(shared, "accepted_cost")
+
+            assert "Rigidity and micromanagement" in line
+            assert "arises when" not in line
+
+    async def test_non_aspect_cost_ground_renders_plain(self):
+        """A cost recorded on a loose Statement (no perspective) has no
+        derivable condition — a fail-soft path, not an error."""
+        from dialectical_framework.graph.rendering import decision_ground_line
+
+        sid = _new_sid()
+        with scope(sid):
+            loose = _committed_statement("What the corporate track offered")
+            line = decision_ground_line(loose, "accepted_cost")
+
+            assert "What the corporate track offered" in line
+            assert "arises when" not in line
+
     async def test_inspect_node_renders_decision(self):
         from dialectical_framework.agents.orchestrator.tools.inspect_node import (
             InspectNode,
