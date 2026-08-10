@@ -296,7 +296,16 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
                 errors.append(error)
 
         shallow_count = len(wheel_hashes) - len(deep_wheel_hashes)
-        self._report.ok = True
+        # Same rule as AnalysisPipeline: degrade, but never silently. Every
+        # transformation failing is not "exploration complete" — and the
+        # consequence lands squarely on the decision ceremony, since an adopted
+        # pathway IS a transformation, so a wheel with none can only ground a
+        # cost and never a recipe for living with it. `errors` used to ride home
+        # on ExplorationResult, which no tool renders; `str(report)` is the whole
+        # of what the model learns from a mutating call.
+        # Zero transformations with no errors stays ok: that is "nothing new to
+        # add", which is a real success.
+        self._report.ok = bool(transformation_count) or not errors
         self._report.summary = (
             f"Exploration complete: {len(cycle_hashes)} cycles, "
             f"{len(wheel_hashes)} wheels, "
@@ -312,6 +321,12 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         self._report.artifacts["cycle_hashes"] = cycle_hashes
         self._report.artifacts["wheel_hashes"] = wheel_hashes
         self._report.artifacts["deepened_wheel_hashes"] = deep_wheel_hashes
+        if errors:
+            failed = "; ".join(f"{e.hash or '?'}: {e.message}" for e in errors)
+            self._report.summary += (
+                f" — {len(errors)} wheel(s) FAILED to deepen ({failed})"
+            )
+            self._report.artifacts["errors"] = [e.model_dump() for e in errors]
         self._report.artifacts["transformation_count"] = transformation_count
 
         return ExplorationResult(

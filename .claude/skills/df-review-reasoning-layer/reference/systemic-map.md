@@ -287,6 +287,20 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
    built perspective is real) but must name the loss. Locked by
    `tests/test_pipeline_failure_visibility.py`.
 
+   **Same defect, exploration side (3 more sites, now guarded).** `ExplorationPipeline.resolve`
+   (ok tracks `transformation_count`; per-wheel `StepError`s named in the summary AND
+   `artifacts["errors"]` instead of riding home on `ExplorationResult`) and
+   `ExploreTransformations.resolve` twice — failed edge pairs were only `logger.warning`ed, so a wheel
+   whose every pair failed rendered as `"0 new, 0 existing"` with `ok=True`, **the same text a
+   fully-transformed wheel produces**; and the no-edge-pairs early return left `ok=True` although a
+   well-formed wheel always has pairs (N PPs → 2N edges → N pairs), so a structural fault read as
+   "deepened". Note `ExecutionReport.ok` defaults to `True` — a failure branch that never sets it
+   reports success, so the absence of an assignment is the smell to grep for.
+   This chain is load-bearing for the decision ceremony specifically: an `adopted_pathway` ground IS a
+   Transformation, so a wheel that got none can only ground a cost and never a recipe for living with
+   it — a silent "Exploration complete" yields a half-record that reads as whole. Locked by
+   `tests/test_exploration_failure_visibility.py`. **A log line is not a report line.**
+
 ### Gates (score-based filters — the prompt that feeds each *is* a gate input)
 - **`_rank_polarities`** (`analyst/analyst.py`, `HS_THRESHOLD=0.7`, `MAX_POLARITIES_TO_EXPAND=5`): keeps
   polarities with antithesis HS ≥ 0.7. Fed by `AntithesisExtraction` / `AntithesisClassification` HS. The

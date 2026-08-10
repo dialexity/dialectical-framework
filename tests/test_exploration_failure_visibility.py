@@ -1,0 +1,271 @@
+"""
+An exploration that transformed nothing must not report success.
+
+The sibling of `test_pipeline_failure_visibility.py`, one layer down the
+pathway chain. Same defect class, and here it lands squarely on the decision
+ceremony: an `adopted_pathway` ground IS a Transformation, so a wheel that got
+none can only ground a cost and never a recipe for living with it. A silent
+"Exploration complete" therefore produces a half-record that reads as whole.
+
+Three silent-success paths, all fixed:
+
+1. `ExplorationPipeline.resolve` set `ok=True` unconditionally after the
+   per-wheel gather and carried its `StepError`s home on `ExplorationResult`,
+   which no tool renders.
+2. `ExploreTransformations.resolve` only *logged* failed edge pairs, so a wheel
+   whose every pair failed rendered as "0 new, 0 existing" with ok=True —
+   indistinguishable from a wheel that was already fully transformed.
+3. The same skill's no-edge-pairs early return left ok=True, telling the agent
+   a structurally broken wheel had been deepened.
+
+`ExecutionReport.ok` defaults to True, so in each case the failure had to be
+asserted, not merely not-denied.
+
+DB-free and LLM-free: the defect is in how the report is composed, so the
+sub-skill and the graph steps are patched out.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
+
+
+# DB-free: override the autouse graph fixtures (per CLAUDE.md convention).
+@pytest.fixture(autouse=True)
+def cleanup_graph_db():
+    yield
+
+
+@pytest.fixture(autouse=True)
+def cleanup_test_graph_data():
+    yield
+
+
+class _FakeReport:
+    def __init__(self, ok: bool = True, summary: str = "") -> None:
+        self.ok = ok
+        self.summary = summary
+        self.artifacts: dict = {}
+
+
+class _FakeWheel:
+    def __init__(self, hash_: str) -> None:
+        self.hash = hash_
+        self.short_hash = hash_[:7]
+
+
+class _FakeBuildResult:
+    def __init__(self, wheels: list[_FakeWheel]) -> None:
+        self.new_cycles = [_FakeWheel("cyc1")]
+        self.new_wheels = wheels
+
+
+def _patch_build(monkeypatch, wheels: list[str]) -> None:
+    class _FakeBuild:
+        def __init__(self, **kwargs) -> None:
+            self.report = _FakeReport(True, "built")
+
+        async def resolve(self):
+            return _FakeBuildResult([_FakeWheel(h) for h in wheels])
+
+    monkeypatch.setattr(
+        "dialectical_framework.agents.explorer.skills.build_wheels.BuildWheels",
+        _FakeBuild,
+    )
+
+
+def _patch_transformations(monkeypatch, behaviour) -> None:
+    """`behaviour(wheel_hash)` -> new-transformation count, or raises."""
+
+    class _FakeExplore:
+        def __init__(self, wheel_hash: str, **kwargs) -> None:
+            self._wheel_hash = wheel_hash
+            self.report = _FakeReport(True, "explored")
+
+        async def resolve(self):
+            count = behaviour(self._wheel_hash)
+
+            class _Result:
+                new = list(range(count))
+
+            return _Result()
+
+    monkeypatch.setattr(
+        "dialectical_framework.agents.explorer.skills.explore_transformations."
+        "ExploreTransformations",
+        _FakeExplore,
+    )
+
+
+@pytest.mark.asyncio
+async def test_pipeline_that_deepened_nothing_reports_failure(monkeypatch):
+    """Every wheel's transformations raised -> the report must NOT say ok.
+
+    Left ok=True, `explore` reports success over a graph with no pathway in
+    it — and the decision ceremony that follows can only ground a cost.
+    """
+    _patch_build(monkeypatch, ["wh1", "wh2"])
+
+    def boom(wheel_hash: str) -> int:
+        raise RuntimeError("apex derivation timed out")
+
+    _patch_transformations(monkeypatch, boom)
+
+    pipeline = ExplorationPipeline(nexus_hash="nx1")
+    await pipeline.resolve()
+
+    assert pipeline.report.ok is False
+    assert "FAILED to deepen" in pipeline.report.summary
+    assert "apex derivation timed out" in str(pipeline.report)
+    assert pipeline.report.artifacts["errors"]
+
+
+@pytest.mark.asyncio
+async def test_partial_deepening_reports_ok_but_names_the_loss(monkeypatch):
+    """One wheel deepened, one failed: usable result, visible loss."""
+    _patch_build(monkeypatch, ["wh1", "wh2"])
+
+    def half(wheel_hash: str) -> int:
+        if wheel_hash == "wh1":
+            return 2
+        raise RuntimeError("second wheel timed out")
+
+    _patch_transformations(monkeypatch, half)
+
+    pipeline = ExplorationPipeline(nexus_hash="nx1")
+    await pipeline.resolve()
+
+    assert pipeline.report.ok is True, "A partial result is still a result"
+    assert "1 wheel(s) FAILED to deepen" in pipeline.report.summary
+    assert "second wheel timed out" in str(pipeline.report)
+
+
+@pytest.mark.asyncio
+async def test_successful_exploration_still_reports_ok(monkeypatch):
+    """The guard must not flip healthy runs."""
+    _patch_build(monkeypatch, ["wh1"])
+    _patch_transformations(monkeypatch, lambda wheel_hash: 4)
+
+    pipeline = ExplorationPipeline(nexus_hash="nx1")
+    await pipeline.resolve()
+
+    assert pipeline.report.ok is True
+    assert "FAILED" not in pipeline.report.summary
+    assert "errors" not in pipeline.report.artifacts
+
+
+@pytest.mark.asyncio
+async def test_zero_transformations_without_errors_is_still_ok(monkeypatch):
+    """"Nothing new to add" is a real success, not a failure.
+
+    Every transformation already existing is the common re-run case; failing it
+    would be the opposite error and would make `deepen` unusable as an idempotent
+    call.
+    """
+    _patch_build(monkeypatch, ["wh1"])
+    _patch_transformations(monkeypatch, lambda wheel_hash: 0)
+
+    pipeline = ExplorationPipeline(nexus_hash="nx1")
+    await pipeline.resolve()
+
+    assert pipeline.report.ok is True
+    assert "FAILED" not in pipeline.report.summary
+
+
+class TestExploreTransformationsSkill:
+    """The sub-skill's own two silent paths.
+
+    Driven by calling the failure branches directly rather than through a real
+    Wheel: the defect is entirely in report composition, and building a
+    committed 2-PP wheel here would need the DB and the LLM.
+    """
+
+    @staticmethod
+    def _skill():
+        from dialectical_framework.agents.explorer.skills.explore_transformations \
+            import ExploreTransformations
+
+        return ExploreTransformations(wheel_hash="wh1")
+
+    @pytest.mark.asyncio
+    async def test_no_edge_pairs_is_not_ok(self, monkeypatch):
+        """A wheel with no edge pairs is malformed, not already-complete."""
+        skill = self._skill()
+        monkeypatch.setattr(skill, "_resolve_wheel", lambda: _FakeWheel("wh1abcd"))
+        monkeypatch.setattr(
+            skill, "_resolve_nexus", lambda wheel: _FakeWheel("nx1abcd")
+        )
+        monkeypatch.setattr(skill, "_get_target_edge_pairs", lambda wheel: [])
+
+        await skill.resolve()
+
+        assert skill.report.ok is False
+        assert "nothing could be transformed" in skill.report.summary
+
+    @pytest.mark.asyncio
+    async def test_all_edge_pairs_failing_is_not_ok(self, monkeypatch):
+        """Failed pairs were only logged, so the report said "0 new, 0 existing".
+
+        That is the same text a fully-transformed wheel produces — the agent
+        could not tell "already done" from "everything broke".
+        """
+        skill = self._skill()
+        monkeypatch.setattr(skill, "_resolve_wheel", lambda: _FakeWheel("wh1abcd"))
+        monkeypatch.setattr(
+            skill, "_resolve_nexus", lambda wheel: _FakeWheel("nx1abcd")
+        )
+        monkeypatch.setattr(
+            skill, "_get_target_edge_pairs", lambda wheel: [("ea", "eb")]
+        )
+
+        async def _no_input():
+            return "some input"
+
+        monkeypatch.setattr(skill, "_get_input_text", _no_input)
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("aspect pair generation failed")
+
+        monkeypatch.setattr(skill, "_process_edge_pair", boom)
+
+        await skill.resolve()
+
+        assert skill.report.ok is False
+        assert "edge pair(s) FAILED" in skill.report.summary
+        assert "aspect pair generation failed" in str(skill.report)
+
+    @pytest.mark.asyncio
+    async def test_partial_edge_pair_failure_stays_ok(self, monkeypatch):
+        """Transformations that WERE built are real and the agent should use them."""
+        skill = self._skill()
+        monkeypatch.setattr(skill, "_resolve_wheel", lambda: _FakeWheel("wh1abcd"))
+        monkeypatch.setattr(
+            skill, "_resolve_nexus", lambda wheel: _FakeWheel("nx1abcd")
+        )
+        monkeypatch.setattr(
+            skill,
+            "_get_target_edge_pairs",
+            lambda wheel: [("ea", "eb"), ("ec", "ed")],
+        )
+
+        async def _input():
+            return "some input"
+
+        monkeypatch.setattr(skill, "_get_input_text", _input)
+
+        calls = {"n": 0}
+
+        async def half(wheel, nexus, edge_a, edge_b, input_text):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return ([], ["existing-transformation"], None)
+            raise RuntimeError("second pair failed")
+
+        monkeypatch.setattr(skill, "_process_edge_pair", half)
+
+        await skill.resolve()
+
+        assert skill.report.ok is True
+        assert "1 edge pair(s) FAILED" in skill.report.summary

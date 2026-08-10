@@ -112,7 +112,14 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         edge_pairs = self._get_target_edge_pairs(wheel)
 
         if not edge_pairs:
-            self._report.summary = f"No edge pairs found for Wheel {wheel.short_hash}"
+            # Every well-formed Wheel has edge pairs (N PPs -> 2N edges -> N
+            # pairs), so this is a structural fault, not "nothing to do". Left
+            # ok=True it told the agent the wheel was deepened.
+            self._report.ok = False
+            self._report.summary = (
+                f"No edge pairs found for Wheel {wheel.short_hash} — nothing "
+                f"could be transformed (a well-formed wheel always has pairs)"
+            )
             return ExploreTransformationsResult()
 
         # 3. Get input text from scope
@@ -131,9 +138,16 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         all_new: list[Transformation] = []
         last_apexes: Optional[ApexDerivationResultDto] = None
 
+        failed_pairs: list[str] = []
         for result in pair_results:
             if isinstance(result, Exception):
                 logging.getLogger(__name__).warning("Edge pair failed: %s", result)
+                # A log line is not a report line. The caller
+                # (ExplorationPipeline, `deepen`) reads only `str(report)`, so
+                # without this a wheel whose every edge pair failed rendered as
+                # "0 new, 0 existing" with ok=True — indistinguishable from a
+                # wheel that was already fully transformed.
+                failed_pairs.append(f"{type(result).__name__}: {result}")
                 continue
             existing, new, apexes = result
             all_existing.extend(existing)
@@ -170,6 +184,15 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             f"Processed {len(edge_pairs)} edge pair(s) for Wheel {wheel.short_hash}: "
             f"{len(all_new)} new, {len(all_existing)} existing"
         )
+        if failed_pairs:
+            # Partial success stays ok — the transformations that WERE built are
+            # real and the agent should use them. Total failure is not ok.
+            self._report.ok = bool(all_new or all_existing)
+            self._report.summary += (
+                f" — {len(failed_pairs)} edge pair(s) FAILED "
+                f"({'; '.join(failed_pairs)})"
+            )
+            self._report.artifacts["failed_edge_pairs"] = failed_pairs
 
         return ExploreTransformationsResult(
             existing=all_existing,
