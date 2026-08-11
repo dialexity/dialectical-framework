@@ -437,6 +437,42 @@ class RunRecord(BaseModel):
         return False
 
     @property
+    def wove_no_pathway(self) -> bool:
+        """No pathway was built — by the model OR by the framework's own seam.
+
+        Replaces `"explore" not in all_tool_calls`, which asked the wrong
+        question. `Advisor._ensure_pathways_before_closing` calls
+        `run_exploration` DIRECTLY rather than through the tool layer, so a cell
+        where the seam wove correctly and a cell where nothing was ever woven
+        produced identical `tool_calls` — the same mistake `collapsed_to_a1`
+        already corrects for `record_decision`, arriving one seam later.
+        `claim2-weak-r10` flagged "4/6 never called explore" and its records
+        could not say whether that was true.
+
+        So the graph answers instead: `woven=N` in the session summary counts
+        perspectives inside a Cycle, which is what a pathway IS regardless of who
+        built it. An unparseable or unavailable summary returns False — "cannot
+        tell" must not be reported as "built nothing", the distinction
+        `graph_reads_contradict_tools` exists to protect.
+        """
+        if self.arm is not Arm.A2:
+            return False
+        saw_a_count = False
+        for session in self.sessions:
+            for part in (session.graph_summary or "").split():
+                key, _, value = part.partition("=")
+                if key != "woven":
+                    continue
+                try:
+                    count = int(value)
+                except ValueError:
+                    continue
+                saw_a_count = True
+                if count > 0:
+                    return False
+        return saw_a_count
+
+    @property
     def collapsed_to_a1(self) -> bool:
         """True when an A2 run built nothing — the result is invalid, not weak.
 

@@ -51,6 +51,12 @@ from dialectical_framework.graph.repositories.decision_repository import (
 )
 from dialectical_framework.graph.rendering import decision_ground_line
 from dialectical_framework.graph.nodes.statement import Statement
+from dialectical_framework.graph.repositories.nexus_repository import (
+    NexusRepository,
+)
+from dialectical_framework.graph.repositories.transformation_repository import (
+    TransformationRepository,
+)
 from dialectical_framework.graph.repositories.perspective_repository import (
     PerspectiveRepository,
 )
@@ -300,10 +306,33 @@ class BenchDriver:
         `claim2-weak-r1` — two cells logged `anchor:ok` repeatedly and then
         summarised `perspectives=0`, which reads as "the model built nothing"
         when the truth was "the count could not be taken".
+
+        `woven` and `transformations` are here because perspectives+decisions
+        cannot answer the question the bench exists to ask. Structured Dialectics
+        differs from tetrads-plus-a-prompt precisely at the pathway, and
+        `claim2-weak-r10` could not be read: its validity flag said "4/6 never
+        called explore" from `tool_calls`, which cannot see the pathway seam
+        calling `run_exploration` DIRECTLY rather than as a tool. So a cell where
+        the seam wove correctly and a cell where nothing was ever woven produced
+        identical records. `woven` counts perspectives inside a Cycle — the same
+        predicate the seam uses for idempotence, so the two agree by
+        construction — and `transformations` is what an `adopted_pathway` ground
+        must point at, making a 0 there the difference between "the model never
+        named the pathway" and "there was no pathway to name".
         """
         try:
+            repo = PerspectiveRepository()
+            perspectives = repo.find_all_active()
+            woven = sum(1 for p in perspectives if repo.is_in_use_by_cycle(p))
+            transformations = 0
+            for nexus in NexusRepository().find_all():
+                transformations += len(
+                    TransformationRepository().find_by_nexus(nexus)
+                )
             return (
-                f"perspectives={len(PerspectiveRepository().find_all_active())} "
+                f"perspectives={len(perspectives)} "
+                f"woven={woven} "
+                f"transformations={transformations} "
                 f"decisions={len(DecisionRepository().find_all_active())}"
             )
         except Exception as exc:  # noqa: BLE001

@@ -1912,7 +1912,7 @@ class TestReport:
         text = render_report([run], [], {}, ["weak"])
         assert "CONTRADICTS" not in text
 
-    def test_flags_live_a2_runs_that_never_explored(self):
+    def test_flags_live_a2_runs_that_wove_no_pathway(self):
         """"Built a graph" is a floor; anchor-only is A1 plus a tetrad.
 
         Measured: every weak-tier A2 run in `claim1-weak-r1` stopped at anchor
@@ -1921,23 +1921,30 @@ class TestReport:
         `collapsed_to_a1` cannot catch it — one tool call clears it — and
         without this line the validity section actively says the opposite
         ("A2 != A1 holds").
-        """
-        text = render_report(
-            [_run(Arm.A2, "weak", tool_calls=["anchor"])], [], {}, ["weak"]
-        )
-        assert "never called explore" in text
 
-    def test_no_explore_warning_when_the_arm_was_assembled(self):
-        text = render_report(
-            [_run(Arm.A2, "weak", tool_calls=["anchor", "explore"])], [], {}, ["weak"]
-        )
-        assert "never called explore" not in text
+        Now asked of the GRAPH rather than of `tool_calls`: the closing seam
+        weaves without a tool call, so the tool-call form both missed real
+        pathways and could not be adjudicated from a saved record. See
+        `TestWovePathwayReadsTheGraph`.
+        """
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        run.sessions[0].graph_summary = "perspectives=6 woven=0 decisions=1"
+        text = render_report([run], [], {}, ["weak"])
+        assert "NO woven" in text
+
+    def test_no_pathway_warning_when_the_arm_was_assembled(self):
+        run = _run(Arm.A2, "weak", tool_calls=["anchor", "explore"])
+        run.sessions[0].graph_summary = "perspectives=6 woven=6 decisions=1"
+        text = render_report([run], [], {}, ["weak"])
+        assert "NO woven" not in text
 
     def test_collapsed_runs_are_not_also_counted_as_shallow(self):
         """A run with no tools at all is already reported as invalid; adding a
         second, weaker complaint about the same run would double-count it."""
-        text = render_report([_run(Arm.A2, "weak")], [], {}, ["weak"])
-        assert "never called explore" not in text
+        run = _run(Arm.A2, "weak")
+        run.sessions[0].graph_summary = "perspectives=0 woven=0 decisions=0"
+        text = render_report([run], [], {}, ["weak"])
+        assert "NO woven" not in text
 
     def test_flags_tools_that_ran_but_reported_failure(self):
         """A silent failure mode: the turn succeeds, the graph does not grow.
@@ -2359,3 +2366,71 @@ class TestSwallowedErrorCapture:
         assert "ThrottlingException" in text
         # Before the "Machine scores" heading — i.e. in the validity block.
         assert text.index("SWALLOWED") < text.index("Machine scores")
+
+
+class TestWovePathwayReadsTheGraph:
+    """A pathway counts when it EXISTS, not when a tool call names it.
+
+    `Advisor._ensure_pathways_before_closing` calls `run_exploration` directly
+    rather than through the tool layer, so the old `"explore" not in
+    all_tool_calls` test reported a correctly-woven cell as unwoven.
+    `claim2-weak-r10` flagged 4/6 that way and its records could not adjudicate
+    it — the same mistake `collapsed_to_a1` already corrects for
+    `record_decision`, one seam later.
+    """
+
+    @staticmethod
+    def _with_summary(summary: str, *, arm: Arm = Arm.A2) -> RunRecord:
+        run = _run(arm, "weak", tool_calls=["anchor"])
+        run.sessions[0].graph_summary = summary
+        return run
+
+    def test_a_seam_woven_pathway_is_not_reported_as_shallow(self):
+        """The regression this property exists for: no `explore` in tool_calls,
+        yet the graph plainly holds a pathway."""
+        run = self._with_summary(
+            "perspectives=6 woven=6 transformations=4 decisions=1"
+        )
+        assert "explore" not in run.all_tool_calls
+        assert run.wove_no_pathway is False
+
+    def test_tensions_without_an_arrangement_are_shallow(self):
+        run = self._with_summary(
+            "perspectives=6 woven=0 transformations=0 decisions=1"
+        )
+        assert run.wove_no_pathway is True
+
+    def test_an_unavailable_count_is_not_a_finding(self):
+        """"Cannot tell" must never read as "built nothing" — the distinction
+        `graph_reads_contradict_tools` exists to protect."""
+        assert self._with_summary("unavailable: OSError: db gone").wove_no_pathway is False
+        assert self._with_summary("perspectives=6 woven=? decisions=1").wove_no_pathway is False
+
+    def test_a_missing_summary_is_not_a_finding(self):
+        run = _run(Arm.A2, "weak")
+        assert run.sessions[0].graph_summary is None
+        assert run.wove_no_pathway is False
+
+    def test_a_baseline_arm_is_never_flagged(self):
+        """A1.7 has no graph — flagging it for an unwoven one is meaningless."""
+        assert self._with_summary("perspectives=0 woven=0", arm=Arm.A1_7).wove_no_pathway is False
+
+    def test_any_session_weaving_clears_the_run(self):
+        """The graph carries across sessions, so weaving once is weaving."""
+        run = self._with_summary("perspectives=6 woven=0 decisions=0")
+        run.sessions.append(
+            SessionRecord(
+                label="wobble_a",
+                graph_summary="perspectives=6 woven=6 transformations=4 decisions=1",
+            )
+        )
+        assert run.wove_no_pathway is False
+
+    def test_the_report_names_the_unwoven_cells(self):
+        run = self._with_summary(
+            "perspectives=6 woven=0 transformations=0 decisions=1"
+        )
+        run.branch = "wobble_b"
+        text = render_report([run], [], {}, ["weak"])
+        assert "NO woven" in text
+        assert "woven=0" in text

@@ -264,24 +264,31 @@ def render_report(
         for r in inconsistent[:10]:
             summaries = ", ".join(s.graph_summary or "?" for s in r.sessions)
             add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate}: {summaries}")
-    shallow = [
-        r
-        for r in runs
-        if r.arm is Arm.A2 and not r.collapsed_to_a1 and "explore" not in r.all_tool_calls
-    ]
+    # Read from the GRAPH, not from `tool_calls` — the pathway seam calls
+    # `run_exploration` directly, so a tool-call test cannot see it weave.
+    shallow = [r for r in runs if not r.collapsed_to_a1 and r.wove_no_pathway]
     a2_live = [r for r in runs if r.arm is Arm.A2 and not r.collapsed_to_a1]
     if shallow and a2_live:
         add(
-            f"!! {len(shallow)}/{len(a2_live)} live A2 run(s) never called explore —"
-            " tensions mapped,"
+            f"!! {len(shallow)}/{len(a2_live)} live A2 run(s) ended with NO woven"
+            " pathway —"
         )
         add(
-            "   no pathways built. Claim 1 measures reasoning over structure the"
+            "   tensions mapped, nothing arranged (by the model OR by the closing"
         )
         add(
-            "   arm did not assemble; these rows understate the framework and"
+            "   seam). Claim 1 measures reasoning over structure the arm did not"
         )
-        add("   overstate its cost. A prompt/steering defect, not a weak result.")
+        add(
+            "   assemble; these rows understate the framework and overstate its"
+        )
+        add("   cost. A prompt/steering defect, not a weak result.")
+        for r in shallow[:10]:
+            summaries = ", ".join(s.graph_summary or "?" for s in r.sessions)
+            add(
+                f"   - {r.scenario_key} tier={r.tier} rep={r.replicate} "
+                f"b={r.branch}: {summaries}"
+            )
     # Variant (a) is "reassure from the record". A cell that reached it holding
     # no record cannot do that, so its wobble row measures the ceremony never
     # firing — not the re-audit failing. Reported here because the wobble table
