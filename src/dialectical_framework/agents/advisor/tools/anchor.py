@@ -81,7 +81,18 @@ async def anchor(
     if not thesis_hashes:
         return str(anchor_skill.report)
 
-    pipeline = AnalysisPipeline(thesis_hashes=thesis_hashes, intent=context or None)
+    # `context` grounds this branch's tetrads too. It used to ride in as
+    # `intent` alone, which dropped it twice over: `AnalysisPipeline` never
+    # reads `intent` once `thesis_hashes` is supplied (only the surface-theses
+    # step does), and nothing forwarded it to `ExpandPolarity`. So the
+    # thesis-only branch discarded the person's particulars outright while the
+    # both-poles branch above preserved them — the same tool, silently two
+    # different memories depending on whether the model named the opposition.
+    pipeline = AnalysisPipeline(
+        thesis_hashes=thesis_hashes,
+        intent=context or None,
+        grounding_context=context,
+    )
     result = await pipeline.resolve()
 
     combined_report = anchor_skill.report.merge(pipeline.report)

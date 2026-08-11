@@ -644,6 +644,17 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   OF it), before `_validate_and_flag` so a validation blow-up cannot cost an already-committed tetrad its evidence.
   Fail-soft at every step — grounding is enrichment, never a gate; the Analyst path passes no context and is
   byte-for-byte unaffected.
+  **`anchor` has TWO branches and only one was wired** (fixed 2026-08-11, before any bench run could be misread as
+  measuring the lane): with `antithesis` it calls `ExpandPolarity` directly and grounded correctly; thesis-only
+  composes `AnalysisPipeline`, which forwarded nothing — and `context` went in as `intent`, which
+  `AnalysisPipeline` reads ONLY on the surface-theses step, so with `thesis_hashes` supplied it was dropped
+  outright. One tool, two different memories depending on whether the model happened to name the opposition, with
+  nothing in the report distinguishing them. `AnalysisPipeline(grounding_context=...)` now forwards to every
+  `_expand_one`. **`ingest` deliberately does NOT set it**: bulk material is one document holding several unrelated
+  tensions, and one 60-word extraction stamped onto all of them would cross-contaminate — bulk keeps its
+  particulars in the Input digest. Generalises: the existing tests all drove `ExpandPolarity` directly, so they were
+  structurally blind to a CALLER that passes nothing. When a lane is optional-by-default, at least one test must
+  assert at the caller seam.
   **The whole lane hangs on one prompt line, and this is the third instance of the same lesson.** Everything above
   can be correct and the lane still stays permanently empty, because `context` is optional and neither `_TOOL_DOCS`
   entry mentioned it — a parameter the prompt never asks for is a parameter the model omits. Measured baseline: 11
@@ -665,7 +676,8 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   `tests/test_rationale_grounding_role.py` (edge-role round-trip, default-None for pre-existing callers,
   role-not-hashed so dedup survives), `tests/test_tetrad_grounding.py` (render in both views, assessment prose
   excluded, accretion order, pole dedup), `tests/test_expand_polarities_grounding.py` (one extraction reused,
-  no-context no-op, failure isolation, grounding-before-validation), and
+  no-context no-op, failure isolation, grounding-before-validation, plus
+  `TestAnchorBranchesGroundAlike` — both branches ground, `ingest` still does not), and
   `test_prompt_review_regressions.py::TestAnchorGroundingReachesTheToolDoc` (both docs demand context WITH
   specifics, the reason is stated, the Field agrees). Measured by `bench/test_bench.py::TestCarriedParticulars`,
   `TestCarryoverIsRecorded`, `TestParticularsAreWellFormed` (a particular form may not collide with a pole marker, or

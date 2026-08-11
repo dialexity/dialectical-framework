@@ -219,11 +219,24 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         intent: Optional[str] = None,
         thesis_hashes: Optional[list[str]] = None,
         input_hashes: Optional[list[str]] = None,
+        grounding_context: Optional[str] = None,
     ) -> None:
         self.text = text
         self.intent = intent
         self.thesis_hashes = thesis_hashes or []
         self.input_hashes = input_hashes
+        #: Conversational material about ONE tension, forwarded to every
+        #: `ExpandPolarity` this run performs so the case particulars survive
+        #: the abstraction into ~7-word poles (`TetradGrounding`).
+        #:
+        #: Only `anchor`'s thesis-only branch sets this, and the restriction is
+        #: the point: one extraction is reused across every tetrad the run
+        #: produces, which is sound when the material describes a single
+        #: tension and wrong when it does not. `ingest` material is a whole
+        #: document holding several unrelated tensions, so forwarding it here
+        #: would stamp one tension's facts onto another's tetrad. Bulk material
+        #: keeps its particulars in the Input digest (`read_digest`) instead.
+        self.grounding_context = (grounding_context or "").strip() or None
 
     async def resolve(self) -> AnalysisResult:
         from dialectical_framework.agents.analyst.skills.find_polarities import \
@@ -478,7 +491,10 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         from dialectical_framework.agents.analyst.skills.expand_polarities import \
             ExpandPolarity
 
-        concern = ExpandPolarity(polarity_hash=polarity_hash)
+        concern = ExpandPolarity(
+            polarity_hash=polarity_hash,
+            grounding_context=self.grounding_context,
+        )
         perspectives = await concern.resolve()
         pp_hashes = [pp.hash for pp in perspectives if pp.hash]
         return pp_hashes, concern.report

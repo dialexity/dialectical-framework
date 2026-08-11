@@ -306,6 +306,106 @@ class TestExpandPolarityGrounding:
 
 
 @pytest.mark.llm
+class TestAnchorBranchesGroundAlike:
+    """Both `anchor` branches must ground, or the tool has two memories.
+
+    The tests above drive `ExpandPolarity` directly, which is exactly why they
+    missed this: `anchor`'s thesis-only branch composes `AnalysisPipeline`
+    instead, and that path forwarded nothing. Worse, `context` went in as
+    `intent`, which `AnalysisPipeline` reads ONLY on the surface-theses step —
+    with `thesis_hashes` supplied it is never read at all, so the person's
+    particulars were dropped outright.
+
+    The user-visible symptom was a tool that remembered the case when the model
+    happened to name the opposition and forgot it when the model asked the
+    framework to find one. Nothing in the report distinguished the two.
+
+    These assert at the seam (which kwargs the callers pass) rather than
+    end-to-end: the wiring is what broke, and a full pipeline run here would
+    need the whole find-polarities stack stubbed to prove one argument.
+    """
+
+    @pytest.mark.asyncio
+    async def test_pipeline_forwards_grounding_to_every_expansion(self, monkeypatch):
+        from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+
+        seen: list[str | None] = []
+
+        class _Recorder:
+            def __init__(self, polarity_hash: str, **kwargs) -> None:
+                seen.append(kwargs.get("grounding_context"))
+                self.report = type("R", (), {"ok": True, "summary": ""})()
+
+            async def resolve(self):
+                return []
+
+        monkeypatch.setattr(
+            "dialectical_framework.agents.analyst.skills.expand_polarities.ExpandPolarity",
+            _Recorder,
+        )
+
+        pipeline = AnalysisPipeline(thesis_hashes=["h1"], grounding_context=CONTEXT)
+        await pipeline._expand_one("polarity-hash")
+
+        assert seen == [CONTEXT]
+
+    def test_pipeline_defaults_to_no_grounding(self):
+        """`ingest` must NOT ground: one document holds several tensions, and a
+        single extraction stamped onto all of them would cross-contaminate."""
+        from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+
+        assert AnalysisPipeline(text="whatever").grounding_context is None
+        assert AnalysisPipeline(thesis_hashes=["h1"]).grounding_context is None
+        # Whitespace-only is nothing to ground, not a one-space note.
+        assert AnalysisPipeline(thesis_hashes=["h1"], grounding_context="  ").grounding_context is None
+
+    @pytest.mark.asyncio
+    async def test_thesis_only_anchor_passes_context_as_grounding(self, monkeypatch):
+        """The regression itself: `intent` alone is not grounding."""
+        from dialectical_framework.agents.advisor.tools import anchor as anchor_mod
+
+        captured: dict = {}
+
+        class _FakePipeline:
+            def __init__(self, **kwargs) -> None:
+                captured.update(kwargs)
+                self.report = type("R", (), {"ok": True, "summary": ""})()
+
+            async def resolve(self):
+                return type("Res", (), {"perspective_hashes": []})()
+
+        class _FakeAnchorTheses:
+            def __init__(self, statements) -> None:
+                self.report = type(
+                    "R",
+                    (),
+                    {
+                        "ok": True,
+                        "summary": "",
+                        "artifacts": {"thesis_hashes": ["t1"]},
+                        "merge": lambda self, other: self,
+                    },
+                )()
+
+            async def resolve(self):
+                return None
+
+        monkeypatch.setattr(
+            "dialectical_framework.agents.analyst.analyst.AnalysisPipeline",
+            _FakePipeline,
+        )
+        monkeypatch.setattr(
+            "dialectical_framework.agents.analyst.skills.anchor_theses.AnchorTheses",
+            _FakeAnchorTheses,
+        )
+
+        # `.fn` is the undecorated coroutine; `execute` wants a tool-call payload.
+        await anchor_mod.anchor.fn(thesis="Keep him as cofounder", context=CONTEXT)
+
+        assert captured.get("grounding_context") == CONTEXT
+
+
+@pytest.mark.llm
 class TestGroundingDtoShape:
     def test_particulars_is_the_only_field(self):
         """Flat single-field DTO — the real LLM drops branches the mock fills in."""
