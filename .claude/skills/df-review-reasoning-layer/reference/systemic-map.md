@@ -135,6 +135,16 @@ brain auto-fills every field — verify shape changes with `--real-llm`, prefer 
 CLAUDE.md), and **a per-model parse failure presents as latency, not as an error**, which is the same
 misdiagnosis family as the connect-timeout and thinking-shape bugs.
 
+**Transport faults are a four-way taxonomy, and every branch has its own curve** (`use_brain.py`):
+`_is_connection_error` (class-name based, `_CONNECT_RETRY_MAX`), `_is_rate_limit_error` (429/Throttling, 10s
+×2 → 60s over 10 attempts), `_is_transient_server_error` (5xx, `_SERVER_RETRY_MAX`=3, 5s ×2), and ParseError
+(above). A fault matching none of them hits the bare `else: raise` and is **not retried at all** — that gap
+cost `claim2-weak-r9-pathways-judged` three turns to one Bedrock 503, in the BASELINE arm, which inflates a
+framework-vs-baseline delta without touching a framework number. When adding a predicate: match the
+*message* shape too (Bedrock surfaces the code only as `Error code: 503 - {...}`, never as `status_code`),
+never widen into 4xx (our bug — retrying buries the cause), and bound it separately from `retry_max` so a
+real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
+
 ### Co-occurrence hotspots (edit one → silently affects the other)
 
 1. **`NAVIGATOR_APP` "communicate as MEANING not numbers" sits directly above Analyst's numeric HS bands**

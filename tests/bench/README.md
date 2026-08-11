@@ -543,6 +543,41 @@ Also measured: pathway construction is expensive. wobble_a took 2532s against
 r7's 1271s for the same branch. Latency was never a claim, but a re-run of the
 full matrix now costs roughly twice what it did.
 
+#### A framework bug the bench caught next, in the BASELINE (2026-08-11)
+
+`claim2-weak-r9-pathways-judged` was abandoned after two cells because its first
+line was:
+
+```
+[weak] cofounder_equity r1 wobble_a A1.7 done: 116.1s
+  !! 3 TURN ERROR(S): simulator: ProviderError:
+     Error code: 503 - {'message': 'Bedrock is unable to process your request.'}
+```
+
+A transient 5xx matched neither retry predicate in `utils/use_brain.py` —
+`_is_connection_error` keys off exception class names, `_is_rate_limit_error` off
+429/Throttling — so it reached the bare `else: raise` and was **not retried at
+all**. One provider blip killed three turns.
+
+The direction is what makes this urgent rather than merely annoying: the losses
+landed in **A1.7, the baseline**. A silently degraded baseline inflates every
+framework-vs-baseline delta with nobody touching a framework number — it
+manufactures a win instead of hiding one. Any A1.7 row from r9 is unusable, which
+is why the run was killed rather than caveated.
+
+Fixed with `_is_transient_server_error` + a separately bounded retry branch
+(`_SERVER_RETRY_MAX = 3`, 5s doubling), deliberately not matching 4xx (our bug —
+retrying wastes budget and buries the cause) and leaving 429 on its own longer
+curve. Pinned by `tests/test_llm_transport_resilience.py`
+(`TestTransientServerErrorDetection`, `TestServerErrorRetryLoop`), including the
+verbatim message-only shape above, since the status code never appears as an
+attribute on it.
+
+Note the sequencing: the swallowed-error harness above catches faults the
+framework hides from itself, and this one was visible in the log all along. Both
+failure classes are now instrumented, and no judged run should be read from
+before either fix.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and

@@ -212,3 +212,110 @@ class TestConnectionRetryLoop:
         with pytest.raises(ValueError):
             await method()
         assert len(calls) == 1
+
+
+class _FakeProviderError(Exception):
+    """A provider error shaped like the ones that actually arrive.
+
+    Two shapes exist and both must be caught: some SDKs attach `status_code`,
+    while Bedrock through Mirascope often carries the code only in the message
+    (`Error code: 503 - {'message': 'Bedrock is unable to process your
+    request.'}`). A predicate that reads only the attribute passes a unit test
+    and misses the real thing.
+    """
+
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        if status_code is not None:
+            self.status_code = status_code
+
+
+class TestTransientServerErrorDetection:
+    """A 5xx is the provider saying "not now" — the request was fine.
+
+    Measured: one Bedrock 503 cost `claim2-weak-r9-pathways-judged` three turns
+    of its A1.7 BASELINE arm on the first cell. That direction matters — a
+    degraded baseline inflates every framework-vs-baseline delta with nobody
+    touching a framework number, so it manufactures a win rather than hiding one.
+    """
+
+    @pytest.mark.parametrize("status", [500, 502, 503, 504])
+    def test_server_errors_are_retryable_by_attribute(self, status):
+        exc = _FakeProviderError("upstream sad", status_code=status)
+        assert use_brain_module._is_transient_server_error(exc)
+
+    def test_the_real_bedrock_503_shape_is_retryable(self):
+        """Verbatim from the bench log — the message-only shape."""
+        exc = _FakeProviderError(
+            "Error code: 503 - {'message': 'Bedrock is unable to process "
+            "your request.'}"
+        )
+        assert use_brain_module._is_transient_server_error(exc)
+
+    @pytest.mark.parametrize(
+        "msg",
+        [
+            "ServiceUnavailableException: try later",
+            "InternalServerException: something broke",
+            "ModelNotReadyException: warming up",
+        ],
+    )
+    def test_named_aws_transients_are_retryable(self, msg):
+        assert use_brain_module._is_transient_server_error(_FakeProviderError(msg))
+
+    @pytest.mark.parametrize("status", [400, 401, 403, 404, 413, 422])
+    def test_client_errors_are_not_retried(self, status):
+        """4xx is OUR bug — a malformed request, bad auth, too much context.
+        Retrying wastes the budget and buries the cause."""
+        exc = _FakeProviderError("that's on us", status_code=status)
+        assert not use_brain_module._is_transient_server_error(exc)
+
+    def test_a_throttle_is_not_a_server_error(self):
+        """429 has its own, much longer backoff curve; classifying it here would
+        retry it 3 times fast and then give up, instead of 10 times patiently."""
+        exc = _FakeProviderError("ThrottlingException", status_code=429)
+        assert not use_brain_module._is_transient_server_error(exc)
+        assert use_brain_module._is_rate_limit_error(exc)
+
+    def test_a_plain_bug_is_not_a_server_error(self):
+        assert not use_brain_module._is_transient_server_error(ValueError("bug"))
+
+
+class TestServerErrorRetryLoop(TestConnectionRetryLoop):
+    """Same seam, same stubbed sleeps — inherits the `_decorated` harness."""
+
+    @pytest.mark.asyncio
+    async def test_a_transient_503_does_not_kill_the_turn(self, monkeypatch):
+        method, calls = self._decorated(
+            [
+                _FakeProviderError(
+                    "Error code: 503 - {'message': 'Bedrock is unable to "
+                    "process your request.'}"
+                ),
+                "recovered",
+            ],
+            monkeypatch,
+        )
+        assert await method() == "recovered"
+        assert len(calls) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_persistent_outage_still_surfaces(self, monkeypatch):
+        """Bounded separately from `retry_max` (10): a provider that is genuinely
+        down must fail in seconds, not stall a pipeline for minutes."""
+        method, calls = self._decorated(
+            [_FakeProviderError("down", status_code=503)] * 10, monkeypatch
+        )
+        with pytest.raises(_FakeProviderError):
+            await method()
+        assert len(calls) == use_brain_module._SERVER_RETRY_MAX
+
+    @pytest.mark.asyncio
+    async def test_a_client_error_is_not_retried(self, monkeypatch):
+        method, calls = self._decorated(
+            [_FakeProviderError("bad request", status_code=400), "unreachable"],
+            monkeypatch,
+        )
+        with pytest.raises(_FakeProviderError):
+            await method()
+        assert len(calls) == 1

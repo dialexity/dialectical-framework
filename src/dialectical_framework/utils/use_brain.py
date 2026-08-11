@@ -144,6 +144,8 @@ def use_brain(
             rate_delay = 10.0
             connect_delay = _CONNECT_RETRY_BASE_S
             connect_attempts = 0
+            server_delay = _SERVER_RETRY_BASE_S
+            server_attempts = 0
             last_error: Exception | None = None
 
             for attempt in range(attempts):
@@ -197,6 +199,20 @@ def use_brain(
                         if attempt < attempts - 1:
                             await asyncio.sleep(connect_delay)
                             connect_delay *= 2.0
+                    elif _is_transient_server_error(e):
+                        # Bounded separately, same reasoning as connection
+                        # errors: a persistent 5xx is an outage and must surface.
+                        server_attempts += 1
+                        if server_attempts >= _SERVER_RETRY_MAX:
+                            raise
+                        last_error = e
+                        logging.getLogger(__name__).warning(
+                            "Provider %d/%d unavailable, retrying in %.0fs: %s",
+                            server_attempts, _SERVER_RETRY_MAX, server_delay, e,
+                        )
+                        if attempt < attempts - 1:
+                            await asyncio.sleep(server_delay)
+                            server_delay *= 2.0
                     else:
                         raise
 
@@ -359,6 +375,45 @@ def _is_connection_error(e: Exception) -> bool:
     # httpx raises distinct classes per phase (ConnectTimeout, ReadTimeout,
     # ConnectError, RemoteProtocolError); the shared suffix is the reliable tell.
     return name.endswith(("ConnectError", "ConnectTimeout", "ReadTimeout"))
+
+
+#: Provider-side transient failures: the request was well-formed and the service
+#: simply could not take it right now. Bounded like connection errors rather than
+#: like throttles — a 500/503 that persists is an outage, and burning the full
+#: `retry_max` budget on one would hang a pipeline for minutes.
+_SERVER_RETRY_MAX = 3
+_SERVER_RETRY_BASE_S = 5.0
+
+
+def _is_transient_server_error(e: Exception) -> bool:
+    """Detect a provider saying "not now" — 500/502/503/504.
+
+    Real failure this catches: a single Bedrock 503 ("Bedrock is unable to
+    process your request") killed three turns of a bench baseline arm, which
+    records as an arm that produced nothing and reads as a weak model rather than
+    a provider blip — the identical misdiagnosis `_is_connection_error` exists to
+    prevent, arriving one layer higher. Silently degrading the BASELINE is worse
+    than degrading the framework arm: it inflates every framework-vs-baseline
+    delta with nobody touching a framework number.
+
+    Deliberately NOT matching 4xx: those are our bug (bad request, auth, too
+    large) and retrying them wastes the budget and hides the cause. 429 is
+    excluded here too — it has its own, longer backoff curve.
+    """
+    status = getattr(e, "status_code", None)
+    if isinstance(status, int) and 500 <= status < 600:
+        return True
+    # Bedrock/Mirascope frequently surface the status only in the message
+    # ("Error code: 503 - {'message': 'Bedrock is unable to process...'}"), so
+    # the class name and attribute are not enough on their own.
+    msg = str(e)
+    if any(f"code: {code}" in msg for code in (500, 502, 503, 504)):
+        return True
+    return (
+        "ServiceUnavailable" in msg
+        or "InternalServerException" in msg
+        or "ModelNotReadyException" in msg
+    )
 
 
 def _is_rate_limit_error(e: Exception) -> bool:
