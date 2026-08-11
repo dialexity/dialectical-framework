@@ -340,6 +340,34 @@ def render_report(
         add("   reading A2 as weak.")
         for outcome in failed_tools[:10]:
             add(f"   - {outcome[:140]}")
+    # A fail-soft `except` in `src/` logs and continues by design, so a turn can
+    # lose a decision record, a pathway, or a whole exploration and still look
+    # perfect here: reply present, no turn error, every tool ok. That is the
+    # state `claim2-weak-r8-pathways`/wobble_b is in — and the reason its missing
+    # record is uninterpretable rather than merely unexplained. Read this BEFORE
+    # concluding anything from a thin graph or an absent decision.
+    swallowed = [
+        (r, msg)
+        for r in runs
+        for s in r.sessions
+        for t in s.turns
+        for msg in t.swallowed_errors
+    ]
+    if swallowed:
+        add(
+            f"!! {len(swallowed)} framework exception(s) were SWALLOWED by a "
+            "fail-soft block."
+        )
+        add("   The turns look healthy — that is what fail-soft means. Any missing")
+        add("   decision, pathway or synthesis in this run is explained here first,")
+        add("   and no score below should be read as the framework reasoning badly.")
+        for r, msg in swallowed[:10]:
+            add(
+                f"   - {r.arm.value} {r.scenario_key} t={r.tier} "
+                f"rep={r.replicate} b={r.branch}: {msg[:160]}"
+            )
+        if len(swallowed) > 10:
+            add(f"   ... and {len(swallowed) - 10} more (see JSON).")
     if len(tier_order) < 2:
         add(
             "!! Only one model tier ran — no delta can be classified as "

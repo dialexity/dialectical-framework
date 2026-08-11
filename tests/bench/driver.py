@@ -41,7 +41,8 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
+from contextlib import contextmanager
+from typing import Iterator, Optional
 
 from dialectical_framework.concerns.dialectical_context import DialecticalContext
 from dialectical_framework.graph.nodes.case import Case
@@ -69,6 +70,48 @@ from .modelctx import using_model
 from .simulator import UserSimulator
 
 logger = logging.getLogger(__name__)
+
+
+class _SwallowedErrorCapture(logging.Handler):
+    """Collect framework exceptions that a fail-soft block logged and moved past.
+
+    Every `except: logger.exception(...)` in `src/` is deliberate — a graph fault
+    must not break a live conversation — but it makes a turn that lost a decision
+    record, a pathway, or an entire exploration indistinguishable from a healthy
+    one: reply present, `error` None, every tool ok. That is exactly the state
+    `claim2-weak-r8-pathways`/wobble_b is in, and why its missing record is
+    uninterpretable rather than merely unexplained.
+
+    Attached to the `dialectical_framework` logger for the duration of one turn,
+    so a swallowed exception lands in the RECORD instead of only in a terminal
+    nobody kept. ERROR and above only: warnings are routine.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.ERROR)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            exc = record.exc_info[0].__name__ if record.exc_info else None
+        except Exception:  # noqa: BLE001
+            exc = None
+        text = f"{record.name}: {record.getMessage()}"
+        if exc:
+            text = f"{text} [{exc}]"
+        self.messages.append(text)
+
+
+@contextmanager
+def _capturing_swallowed_errors() -> Iterator[list[str]]:
+    """Framework-only: the bench's own loggers are not under test."""
+    handler = _SwallowedErrorCapture()
+    target = logging.getLogger("dialectical_framework")
+    target.addHandler(handler)
+    try:
+        yield handler.messages
+    finally:
+        target.removeHandler(handler)
 
 #: The persona every arm wears, held constant across the ladder so persona
 #: quality is never the variable — only structure and state are.
@@ -130,18 +173,22 @@ class BenchDriver:
 
             simulator.observe("user", user_text)
 
-            try:
-                with using_model(self._container, tier_model):
-                    assistant_text = await arm.reply(user_text)
-                tool_calls = list(arm.last_tool_calls)
-                tool_outcomes = list(arm.last_tool_outcomes)
-                error = None
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("Arm failed at beat %s", index)
-                assistant_text = ""
-                tool_calls = []
-                tool_outcomes = []
-                error = f"arm: {type(exc).__name__}: {exc}"
+            # The capture spans the arm's whole turn, which for A2 includes the
+            # post-reply repair and pathway seams — the fail-soft blocks most
+            # able to lose an artifact without anyone noticing.
+            with _capturing_swallowed_errors() as swallowed:
+                try:
+                    with using_model(self._container, tier_model):
+                        assistant_text = await arm.reply(user_text)
+                    tool_calls = list(arm.last_tool_calls)
+                    tool_outcomes = list(arm.last_tool_outcomes)
+                    error = None
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Arm failed at beat %s", index)
+                    assistant_text = ""
+                    tool_calls = []
+                    tool_outcomes = []
+                    error = f"arm: {type(exc).__name__}: {exc}"
 
             simulator.observe("assistant", assistant_text)
             turns.append(
@@ -153,6 +200,7 @@ class BenchDriver:
                     tool_calls=tool_calls,
                     tool_outcomes=tool_outcomes,
                     error=error,
+                    swallowed_errors=list(swallowed),
                 )
             )
         return turns

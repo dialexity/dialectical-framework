@@ -2265,3 +2265,97 @@ class TestReloadSavedRecords:
         run.load(path, keep_comparisons=True)
         assert len(run.comparisons) == 1
         assert run.comparisons[0].session_label == "decide"
+
+
+class TestSwallowedErrorCapture:
+    """A fail-soft exception must reach the record, not just a terminal.
+
+    Every `except: logger.exception(...)` in `src/` is deliberate — a graph fault
+    must not break a live conversation — and the cost is that a turn which lost a
+    decision record, a pathway, or a whole exploration is indistinguishable from a
+    healthy one: reply present, `error` None, every tool ok.
+    `claim2-weak-r8-pathways`/wobble_b sits in exactly that state, which is why
+    its missing record is uninterpretable rather than merely unexplained.
+    """
+
+    def test_a_swallowed_framework_exception_is_captured(self):
+        import logging
+
+        from bench.driver import _capturing_swallowed_errors
+
+        with _capturing_swallowed_errors() as swallowed:
+            log = logging.getLogger("dialectical_framework.agents.advisor.advisor")
+            try:
+                raise RuntimeError("memgraph went away")
+            except RuntimeError:
+                log.exception("Pathway construction before closing failed")
+
+        assert len(swallowed) == 1
+        assert "Pathway construction" in swallowed[0]
+        # The exception TYPE is the diagnostic half — "failed fail-soft" without
+        # it cannot distinguish a provider throttle from a code defect.
+        assert "RuntimeError" in swallowed[0]
+
+    def test_routine_warnings_are_not_swallowed_errors(self):
+        """Warnings are normal traffic; treating them as losses would cry wolf
+        on every run and train the reader to skip the section."""
+        import logging
+
+        from bench.driver import _capturing_swallowed_errors
+
+        with _capturing_swallowed_errors() as swallowed:
+            logging.getLogger("dialectical_framework.graph").warning("retrying")
+
+        assert swallowed == []
+
+    def test_the_benchs_own_logging_is_not_captured(self):
+        """The harness is not under test — only the framework's fail-soft paths."""
+        import logging
+
+        from bench.driver import _capturing_swallowed_errors
+
+        with _capturing_swallowed_errors() as swallowed:
+            logging.getLogger("bench.driver").error("simulator failed at beat 3")
+
+        assert swallowed == []
+
+    def test_a_clean_turn_records_an_empty_list_not_a_missing_field(self):
+        """An empty list is the finding "nothing was swallowed". A field that is
+        absent or None would be indistinguishable from a record written before
+        this instrumentation existed."""
+        from bench.models import TurnRecord
+
+        turn = TurnRecord(index=0, user="u", assistant="a")
+        assert turn.swallowed_errors == []
+
+    def test_the_report_surfaces_a_swallowed_error_as_a_validity_flag(self):
+        """It must land in VALIDITY, not among the scores: a swallowed exception
+        bounds what the arm could do at all, and reading a score below it as
+        "the framework reasons badly" is the exact misdiagnosis it prevents."""
+        from bench.models import (Arm, RunRecord, SessionRecord, TurnRecord)
+        from bench.report import render_report
+
+        turn = TurnRecord(
+            index=0,
+            user="write that down as the decision",
+            assistant="**Decision** ...",
+            swallowed_errors=[
+                "dialectical_framework.agents.advisor.advisor: Decision "
+                "confirmation repair failed (fail-soft) [ThrottlingException]"
+            ],
+        )
+        run = RunRecord(
+            arm=Arm.A2,
+            tier="weak",
+            model="m",
+            scenario_key="cofounder_equity",
+            replicate=1,
+            sessions=[SessionRecord(index=0, label="decide", turns=[turn])],
+        )
+
+        text = render_report([run], [], {}, tier_order=["weak"])
+
+        assert "SWALLOWED" in text
+        assert "ThrottlingException" in text
+        # Before the "Machine scores" heading — i.e. in the validity block.
+        assert text.index("SWALLOWED") < text.index("Machine scores")

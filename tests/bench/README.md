@@ -526,10 +526,18 @@ that exact tier returns `confirmed=True, is_recordable=True`
 (`probe_confirmation_on_r8_wobble_b.py`), so the loss is downstream of the
 verdict; every downstream branch is guarded and reproduces correctly under test.
 The remaining candidate is a transient provider fault inside a fail-soft
-`except`, and the bench captures no log to confirm it. **Next harness change: run
-cells with the framework's logger attached, so a swallowed exception appears in
-the record instead of as a missing row.** Until then, any single missing record
-is uninterpretable.
+`except`.
+
+**Fixed in the harness** (2026-08-11): `TurnRecord.swallowed_errors` now captures
+every ERROR the `dialectical_framework` logger emits during a turn, and the report
+prints them as a VALIDITY flag. Every `except: logger.exception(...)` in `src/` is
+deliberate — a graph fault must not break a live conversation — and the cost was
+that a turn which lost a decision record, a pathway or an entire exploration read
+as perfectly healthy: reply present, `error` None, every tool `ok`. That is
+precisely wobble_b's state. An empty list is now a real finding ("nothing was
+swallowed"), and a populated one says to stop reading the scores as reasoning
+quality. Runs recorded before this exists cannot be diagnosed retroactively,
+r8/wobble_b included.
 
 Also measured: pathway construction is expensive. wobble_a took 2532s against
 r7's 1271s for the same branch. Latency was never a claim, but a re-run of the

@@ -226,6 +226,16 @@ class TurnRecord(BaseModel):
     #: between. Scan this before trusting any run whose graph looks thin.
     tool_outcomes: list[str] = Field(default_factory=list)
     error: Optional[str] = None
+    #: Framework exceptions the turn SWALLOWED. Every fail-soft block in `src/`
+    #: logs and continues by design (a graph fault must not break a live
+    #: conversation), which means a turn can lose a decision record, a pathway or
+    #: a whole exploration and still look completely healthy here: reply present,
+    #: `error` None, tools ok. `claim2-weak-r8-pathways`/wobble_b closed on an
+    #: unambiguous confirmation and recorded NOTHING, and the cause is still
+    #: unknown precisely because nothing captured what its `except` blocks saw.
+    #: Populated by a log handler around the turn — an empty list means "nothing
+    #: was swallowed", which is a real finding, not an absence of data.
+    swallowed_errors: list[str] = Field(default_factory=list)
 
 
 def _graph_summary_is_populated(summary: Optional[str]) -> bool:
