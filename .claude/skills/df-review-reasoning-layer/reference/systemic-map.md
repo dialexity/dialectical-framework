@@ -569,7 +569,15 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   exploring on its own is still the path that produces the best-fitted arrangement, and the prompt stays silent
   about the backstop for the same reason as above. Locked by `TestPathwaysBeforeClosing` in
   `tests/test_decision_confirmation_repair.py` (fires on the r7 shape, skips woven/single/empty, carries the
-  counsel-mode `nexus_hash` pin, orders before the record, survives an exploration fault with the record intact).
+  counsel-mode `nexus_hash` pin, orders before the record, survives an exploration fault with the record intact)
+  + `tests/test_pathways_seam_real_llm.py` (`real_llm`, weak tier, tensions SEEDED: the conversational tripwire
+  `tests/test_pathways_before_closing_weak_tier.py` skipped on its first run because the weak tier anchored only
+  ONE tension in three turns and the floor correctly silenced the seam — that measures `anchor` productivity, not
+  the seam, so the seeded pair is the instrument that can actually fail). Measured: `0 → 2` woven perspectives,
+  and weaving does NOT cost the record (both on the same turn), which was the live suspicion once the seam moved
+  between the verdict and `RecordDecision`. It fires on BOTH closing branches — the model-recorded one is larger
+  (50 saved cells recorded without exploring vs 48 with both) and weaker (an already-written record cannot take an
+  `adopted_pathway`; the pathway still serves the returning session's re-audit).
   **Decision provenance** (live since 2026-08): the rationale's `agent` names the confirming PRINCIPAL — "human"
   iff a person confirmed the ceremony; delegated drivers (agent-to-agent runs) record "agent:<name>" instead.
   Host-attested at construction (`Advisor(principal=...)` → closed over by `build_record_decision`, same

@@ -597,6 +597,43 @@ class TestPathwaysBeforeClosing:
         assert order == ["explore", "record"]
 
     @pytest.mark.asyncio
+    async def test_a_model_recorded_decision_still_gets_pathways(self, monkeypatch):
+        """The branch the first version of this seam missed.
+
+        Gating pathways on the REPAIR firing skips every turn where the model
+        recorded the decision itself — and that is the larger population:
+        `record_decision` ran without `explore` in **50** saved A2 cells against
+        48 with both. Recording is stronger evidence of closing than any
+        classifier verdict, so it must trigger pathways too, even though the
+        already-written record can no longer take an `adopted_pathway`.
+        """
+        self._patch_repo(monkeypatch, self._perspectives(4))
+        calls = self._capture_exploration(monkeypatch)
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        # No confirmation check is patched: reaching one would mean the repair
+        # ran, and a recorded decision must never be re-recorded.
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert len(calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_a_recorded_decision_is_never_recorded_twice(self, monkeypatch):
+        """Weaving on the recorded branch must not reopen the repair path."""
+        self._patch_repo(monkeypatch, self._perspectives(4))
+        self._capture_exploration(monkeypatch)
+
+        async def explode(self, **kwargs):
+            raise AssertionError("re-recorded an already-recorded decision")
+
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        monkeypatch.setattr(RecordDecision, "resolve", explode)
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+    @pytest.mark.asyncio
     async def test_no_pathways_are_built_when_nothing_was_confirmed(
         self, monkeypatch
     ):

@@ -487,9 +487,53 @@ unwoven perspectives once a confirmed decision is closing, before the record is
 written. Same seam and same ranking as the decision repair (see the systemic map
 entry for scope, idempotence, ordering and the two-tension floor).
 
-What the re-run must check, beyond the judged rows: `adopted_pathway` (was
-**0/6**), `cited_record`, and whether transformations and synthesis appear in the
-reply at all for the first time.
+#### Measured after the fix (`claim2-weak-r8-pathways`, 2 cells, judge off)
+
+| | r7 (6 A2 cells) | r8 wobble_a | r8 wobble_b |
+|---|---|---|---|
+| `explore` called | 0/6 | yes (model's own) | no |
+| decisions recorded | 3/6 | 2 | **0** |
+| `adopted_pathway` ground | **0/6** | **1** (`T1 → T2, T2 → A1, A1 → A2, A2 → T1`) | 0 |
+| COMPLETE record (risk cost + pathway) | 0/6 | **1** | 0 |
+| duration | 404-2007s | 2532s | 1924s |
+
+So the first complete record the bench has ever produced — but note what
+produced it: in wobble_a the MODEL called `explore` itself, which means
+`record_decision` succeeded, which means the repair returned early and **the new
+seam never ran**. The cell that needed the seam (wobble_b, 6 tensions, prose-only
+closing) recorded nothing at all.
+
+Two findings, both acted on:
+
+1. **The seam was gated on the wrong branch.** Placing it after the
+   "already recorded" early return skips every turn where the model records the
+   decision itself — and that is the LARGER population: across every saved A2
+   cell, `record_decision` ran WITHOUT `explore` **50** times against 48 with
+   both. It now also fires on the recorded branch (weaker there: the written
+   record can no longer take an `adopted_pathway`, but the returning session
+   gets a recipe). Pinned by
+   `test_a_model_recorded_decision_still_gets_pathways`.
+2. **Weaving does NOT cost the record** — the obvious suspicion, since the seam
+   now sits between the confirmation verdict and `RecordDecision`. Tested
+   directly on the weak tier with the r8/wobble_b shape seeded
+   (`tests/test_pathways_seam_real_llm.py::test_weaving_first_does_not_cost_the_record`):
+   2 perspectives woven AND the decision recorded, same turn. The seam itself is
+   verified end-to-end too — `0 → 2` woven perspectives on a real weak-tier run.
+
+**wobble_b's missing record is still unexplained, and it is an observability
+gap, not a mystery worth guessing at.** Replaying that exact turn's classifier on
+that exact tier returns `confirmed=True, is_recordable=True`
+(`probe_confirmation_on_r8_wobble_b.py`), so the loss is downstream of the
+verdict; every downstream branch is guarded and reproduces correctly under test.
+The remaining candidate is a transient provider fault inside a fail-soft
+`except`, and the bench captures no log to confirm it. **Next harness change: run
+cells with the framework's logger attached, so a swallowed exception appears in
+the record instead of as a missing row.** Until then, any single missing record
+is uninterpretable.
+
+Also measured: pathway construction is expensive. wobble_a took 2532s against
+r7's 1271s for the same branch. Latency was never a claim, but a re-run of the
+full matrix now costs roughly twice what it did.
 
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 

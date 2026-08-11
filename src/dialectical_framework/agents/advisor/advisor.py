@@ -268,6 +268,23 @@ class Advisor:
         the person already received.
         """
         if self._recorded_decision_this_turn():
+            # The record is written, so there is nothing to repair — but a
+            # decision closing IS the trigger for pathways, and the model
+            # recording one is stronger evidence of closing than any classifier
+            # verdict. Measured across every saved A2 cell, `record_decision`
+            # ran WITHOUT `explore` in 50 of them (against 48 with both): gating
+            # pathways on the repair firing would have skipped the single
+            # largest population of decisions closed on tensions alone.
+            # `adopted_pathway` cannot be attached to a record already written,
+            # so this is the weaker half of the seam — it still gives the
+            # returning session a recipe to be reassured from.
+            try:
+                await self._ensure_pathways_before_closing()
+            except Exception:
+                logger.exception(
+                    "Pathway construction after a recorded decision failed "
+                    "(fail-soft)"
+                )
             return
         try:
             from dialectical_framework.concerns.decision_confirmation_check import \
@@ -332,12 +349,18 @@ class Advisor:
         this is election, not capability — the same failure mode, and the same
         remedy, as `_repair_unrecorded_decision` itself.
 
-        Scope is deliberately narrow: this fires only once a decision has been
-        confirmed (the caller already established that), never mid-exploration.
-        It builds what the person's own closing entitles them to and nothing
-        more. Weaving obeys `run_exploration`'s existing per-call perspective
-        cap, so a wide graph is woven across successive closings rather than in
-        one latency spike.
+        Scope is deliberately narrow: this fires only on a closing — either the
+        model recorded a decision this turn, or the confirmation check found one
+        in the person's own words — never mid-exploration. It builds what the
+        person's own closing entitles them to and nothing more. Weaving obeys
+        `run_exploration`'s existing per-call perspective cap, so a wide graph is
+        woven across successive closings rather than in one latency spike.
+
+        BOTH closings need it, and the model-recorded branch is the larger one:
+        across every saved A2 cell, `record_decision` ran without `explore` 50
+        times against 48 with both. That branch is the weaker half of the seam —
+        the record is already written, so `adopted_pathway` cannot be attached to
+        it — but the pathway still exists for the returning session's re-audit.
 
         Fail-soft and silent to the person: their reply has already been
         delivered, and a pathway they never asked about must not surface as an
