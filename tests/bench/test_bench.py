@@ -35,6 +35,8 @@ from bench.models import (
     ErosionScore,
     MachineScores,
     NON_INFERIORITY_DIMENSIONS,
+    Particular,
+    ParticularScore,
     RunRecord,
     Scenario,
     ScenarioKind,
@@ -383,6 +385,255 @@ class TestCitation:
         """Arms that CANNOT record a ground must not be scored as if they failed."""
         session = _session(("anything", "wobble"))
         assert scoring.cited_record(session, []) is None
+
+
+def _turns(
+    *pairs: tuple[str, str], label: str = "decide", memory: str | None = None
+) -> SessionRecord:
+    """(user_text, assistant_text) pairs -> a SessionRecord.
+
+    Separate from `_session` because the particulars scorer reads BOTH sides:
+    who said a fact is the whole discriminator, and a helper that stubs the
+    user turn as "u" cannot express the test.
+    """
+    return SessionRecord(
+        label=label,
+        carryover_in=memory,
+        turns=[
+            TurnRecord(index=i, user=user, assistant=assistant)
+            for i, (user, assistant) in enumerate(pairs)
+        ],
+    )
+
+
+_PARTICULARS_PROBE = Scenario(
+    key="probe_particulars",
+    kind=ScenarioKind.DECISION,
+    domain="control",
+    title="probe",
+    persona="p",
+    favoured_side="buy out",
+    disfavoured_side="keep him",
+    sessions=[SessionSpec(label="decide", beats=[Beat(text="hi")])],
+    particulars=[
+        Particular(label="his 45%", forms=["45%", "forty-five percent"]),
+        Particular(label="60% of revenue", forms=["60%", "sixty percent"]),
+        Particular(label="three-week holiday", forms=["three-week holiday"]),
+    ],
+)
+
+
+class TestCarriedParticulars:
+    """The probe the grounding lane exists for.
+
+    Measured by hand before this existed (`claim2-weak-r5`: the graph ledger
+    carried 0 of 15 case particulars at 28 mean words against A1.7's prose
+    journal at 11 of 15) — which is exactly the kind of number that cannot be
+    re-checked after a fix. Hence a scorer.
+    """
+
+    def test_a_fact_only_memory_could_supply_counts(self):
+        base = _turns(("He owns 45% and took a three-week holiday.", "Noted."))
+        returning = _turns(
+            ("I'm second-guessing myself.", "You told me he holds 45%."),
+            label="wobble_a",
+        )
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert score.stated == ["his 45%", "three-week holiday"]
+        assert score.eligible == ["his 45%", "three-week holiday"]
+        assert score.carried == ["his 45%"]
+        assert score.carry_rate == 0.5
+
+    def test_restated_facts_leave_the_denominator(self):
+        """Echoing back what the person just said is not memory.
+
+        The wobble openers re-state some facts verbatim. Counting those would
+        hand every arm — including the ones that carry nothing at all — a score
+        for reading the transcript in front of it.
+        """
+        base = _turns(("He owns 45%.", "Noted."))
+        returning = _turns(
+            ("What about his 45%?", "Yes — his 45% is the crux."),
+            label="wobble_a",
+        )
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert score.stated == ["his 45%"]
+        assert score.restated == ["his 45%"]
+        assert score.eligible == []
+        # Nothing was left to remember, so the probe does not apply: None, never
+        # 0.0, which would read as total forgetting.
+        assert score.carry_rate is None
+
+    def test_a_fact_the_person_never_stated_is_not_scored(self):
+        """The simulator improvises DIRECTED beats and may never elicit a fact.
+
+        Fixing the denominator to the scenario's full list would score an arm
+        down for forgetting something nobody told it.
+        """
+        base = _turns(("He owns 45%.", "Noted."))
+        returning = _turns(("Worried.", "His 45%."), label="wobble_a")
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert "60% of revenue" not in score.stated
+        assert "60% of revenue" not in score.eligible
+
+    def test_an_assistant_invention_is_not_the_persons_particular(self):
+        """Only USER turns establish a fact.
+
+        An arm that introduces "60% of revenue" itself and then repeats it next
+        session has remembered its own inference, which says nothing about
+        whether the person's case survived.
+        """
+        base = _turns(("He's been coasting.", "Perhaps 60% of revenue is his?"))
+        returning = _turns(("Worried.", "That 60% is the risk."), label="wobble_a")
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert score.stated == []
+        assert score.carry_rate is None
+
+    def test_a_paraphrased_form_still_counts(self):
+        """"sixty percent" and "60%" are one fact; paraphrase is not forgetting."""
+        base = _turns(("They're 60% of revenue.", "Noted."))
+        returning = _turns(
+            ("Worried.", "Those accounts are sixty percent of your revenue."),
+            label="wobble_a",
+        )
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert score.carried == ["60% of revenue"]
+
+    def test_percent_forms_match_at_all(self):
+        """Regression: the erosion matcher cannot see a trailing "%".
+
+        `_marker_hits` anchors on `\\b{stem}\\w{0,8}\\b`, which scores zero
+        against text containing "60%" verbatim. Percentages and equity splits
+        are precisely the particulars this probe is about, so reusing that
+        helper would have produced a permanent, silent 0/N for every arm.
+        """
+        assert scoring._marker_hits("they are 60% of revenue", ["60%"]) == 0
+        assert scoring._form_present("they are 60% of revenue", "60%")
+
+    def test_line_wrapped_multiword_form_still_matches(self):
+        assert scoring._form_present("a three-week\n  holiday", "three-week holiday")
+
+    def test_memory_and_use_are_scored_separately(self):
+        """The pair is the diagnosis; one number would hide which fix applies.
+
+        Here the artifact HELD the fact and the reply ignored it — a prompt
+        defect. A grounding lane cannot fix that, and a single combined score
+        would send the fix to the wrong layer.
+        """
+        base = _turns(("He owns 45% and they're 60% of revenue.", "Noted."))
+        returning = _turns(
+            ("Worried.", "Let's think about the relationship risk."),
+            label="wobble_a",
+            memory="Grounded in: he holds 45%; two accounts are 60% of revenue.",
+        )
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert sorted(score.in_memory) == ["60% of revenue", "his 45%"]
+        assert score.carried == []
+        assert score.memory_rate == 1.0
+        assert score.carry_rate == 0.0
+
+    def test_an_arm_with_no_artifact_scores_memory_as_none(self):
+        """A0/A1 carry nothing by construction — absence, not failure.
+
+        The same trap `cited_record` avoids: reporting 0.00 for an arm that has
+        no memory reads as a memory that forgot everything.
+        """
+        base = _turns(("He owns 45%.", "Noted."))
+        returning = _turns(("Worried.", "Tell me more."), label="wobble_a")
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert score.had_memory is False
+        assert score.memory_rate is None
+        assert score.carry_rate == 0.0
+
+    def test_scenario_without_particulars_scores_nothing(self):
+        bare = _PARTICULARS_PROBE.model_copy(update={"particulars": []})
+        score = scoring.score_particulars(
+            [_turns(("45%", "a"))], _turns(("b", "45%")), bare
+        )
+        assert score.eligible == [] and score.carry_rate is None
+
+
+class TestParticularsAreWellFormed:
+    def test_only_multi_session_scenarios_declare_particulars(self):
+        """Carry-over needs a boundary to cross.
+
+        Inside one session every arm holds the transcript, so a number scored
+        there measures nothing and would dilute the per-arm mean.
+        """
+        for scenario in ALL_SCENARIOS:
+            if scenario.particulars:
+                assert scenario.branch_labels, (
+                    f"{scenario.key} declares particulars but has no returning "
+                    "session to carry them into"
+                )
+
+    def test_every_decision_scenario_declares_particulars(self):
+        """The claim-2 arm is where the grounding lane is measured."""
+        for scenario in ALL_SCENARIOS:
+            if scenario.kind is ScenarioKind.DECISION:
+                assert scenario.particulars, f"{scenario.key} has no particulars"
+
+    def test_declared_particulars_actually_appear_in_the_script(self):
+        """A form no literal beat contains can only be elicited by improvisation.
+
+        Not fatal — the persona holds facts the simulator reveals under
+        pressure — but a particular absent from BOTH the literal beats and the
+        persona is a typo that would silently sit at 0/N forever.
+        """
+        for scenario in ALL_SCENARIOS:
+            script = " ".join(
+                [scenario.persona]
+                + [b.text for s in scenario.sessions for b in s.beats]
+            ).lower()
+            for particular in scenario.particulars:
+                assert any(
+                    " ".join(f.lower().split()) in " ".join(script.split())
+                    for f in particular.forms
+                ), f"{scenario.key}: {particular.label!r} appears nowhere in the script"
+
+    def test_no_form_is_a_bare_number_or_common_word(self):
+        """Forms are matched as substrings, so an ambiguous one is a false positive.
+
+        "34" matches "340" and every date; "double" is ordinary advisor
+        vocabulary ("double down") and also sits in `favoured_markers`. A loose
+        form inflates every arm equally, which does not look like a bug — it
+        looks like all the arms remembering, and it destroys the metric's whole
+        job of separating them.
+        """
+        for scenario in ALL_SCENARIOS:
+            for particular in scenario.particulars:
+                for form in particular.forms:
+                    # A percentage or split ("45%") is short but unambiguous —
+                    # the unit is what disambiguates it, and those are the
+                    # particulars this probe is most about.
+                    if "%" in form:
+                        continue
+                    assert len(form) >= 4, f"{scenario.key}: {form!r} is too short"
+                    assert not form.replace(".", "").replace(
+                        ",", ""
+                    ).isdigit(), f"{scenario.key}: {form!r} is a bare number"
+
+    def test_particular_forms_do_not_collide_with_pole_markers(self):
+        """A form that is also pole vocabulary measures development, not memory.
+
+        The two probes must be able to disagree: erosion/symmetry are about
+        which SIDE got airtime, this is about whether the person's specifics
+        survived. Sharing a term makes them agree by construction.
+        """
+        for scenario in ALL_SCENARIOS:
+            poles = {
+                m.lower()
+                for m in scenario.favoured_markers + scenario.disfavoured_markers
+            }
+            for particular in scenario.particulars:
+                collisions = {f.lower() for f in particular.forms} & poles
+                assert not collisions, f"{scenario.key}: {collisions}"
+
+    def test_labels_are_unique_per_scenario(self):
+        """Labels are the report's keys; a duplicate silently merges two facts."""
+        for scenario in ALL_SCENARIOS:
+            labels = [p.label for p in scenario.particulars]
+            assert len(labels) == len(set(labels)), scenario.key
 
 
 # ---------------------------------------------------------------------------
@@ -973,6 +1224,146 @@ class TestPositionBias:
         assert bias is None and n == 0 and split == {}
 
 
+class TestCarryoverIsRecorded:
+    """The artifact each arm was HANDED must land on the record.
+
+    Without it the two carryovers cannot be compared: A1.7's journal is text
+    while A2's `graph_summary` is `perspectives=N`, and a count says nothing
+    about whether the person's case is inside. That mismatch is how a hand-read
+    came to compare one arm's artifact against the other arm's replies.
+    """
+
+    @staticmethod
+    async def _session(monkeypatch, arm: Arm, **kwargs):
+        """Run `_run_session` for a prompt arm with the LLM plumbing stubbed."""
+        driver = BenchDriver(None, simulator_model="sim")
+
+        async def _beats(self, arm_obj, simulator, beats, **_kw):
+            return [TurnRecord(index=0, user="u", assistant="a")]
+
+        monkeypatch.setattr(BenchDriver, "_run_beats", _beats)
+        monkeypatch.setattr("bench.driver.UserSimulator", lambda scenario: object())
+        monkeypatch.setattr("bench.driver.PromptArm", lambda *a, **k: object())
+        monkeypatch.setattr("bench.driver.method_prompt", lambda: "method")
+
+        scenario = [s for s in ALL_SCENARIOS if s.kind is ScenarioKind.DECISION][0]
+        session, _journal = await driver._run_session(
+            arm=arm,
+            tier_model="m",
+            scenario=scenario,
+            spec=scenario.sessions[0],
+            case=None,
+            static_context=None,
+            is_first=False,
+            is_last=True,
+            record=_run(arm, "weak"),
+            **kwargs,
+        )
+        return session
+
+    @pytest.mark.asyncio
+    async def test_a1_7_records_the_journal_it_was_handed(self, monkeypatch):
+        session = await self._session(
+            monkeypatch, Arm.A1_7, journal="he holds 45% of the company"
+        )
+        assert session.carryover_in == "he holds 45% of the company"
+
+    @pytest.mark.asyncio
+    async def test_an_arm_that_carries_nothing_records_nothing(self, monkeypatch):
+        """A0/A1 must stay None — an empty string would score as a memory."""
+        session = await self._session(monkeypatch, Arm.A1, journal="ignored")
+        assert session.carryover_in is None
+
+
+class TestParticularsReporting:
+    @staticmethod
+    def _scores(carried: list[str], eligible: list[str]) -> MachineScores:
+        return MachineScores(
+            particulars=ParticularScore(
+                stated=eligible,
+                eligible=eligible,
+                carried=carried,
+                session_label="wobble_a",
+            )
+        )
+
+    def test_the_table_shows_the_fraction_and_the_rate(self):
+        machine = {
+            "A2|weak|probe|1|wobble_a": self._scores(["his 45%"], ["his 45%", "60%"]),
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "Case particulars carried" in text
+        assert "1/2" in text
+        assert "used 0.50" in text
+
+    def test_memory_and_use_are_separate_columns(self):
+        """A high memory with a low use is a prompt defect, not a storage one.
+
+        The report must be able to say which, or the reader sends the fix to the
+        wrong layer.
+        """
+        scores = self._scores(["his 45%"], ["his 45%", "60%"])
+        assert scores.particulars is not None
+        scores.particulars.in_memory = ["his 45%", "60%"]
+        scores.particulars.had_memory = True
+        text = render_report([], [], {"A2|weak|probe|1|wobble_a": scores}, ["weak"])
+        assert "2/2" in text  # memory held both
+        assert "1/2" in text  # the reply used one
+        assert "memory 1.00" in text
+
+    def test_an_arm_that_carries_nothing_reads_as_n_a(self):
+        machine = {
+            "A1|weak|probe|1|wobble_a": self._scores([], ["his 45%"]),
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "memory n/a" in text
+        # The legend explains `--`; no CELL should be flagged as one.
+        assert "do not read those rows as forgetting" not in text
+
+    def test_an_unrecorded_artifact_is_flagged_not_scored(self):
+        """A2 with no `carryover_in` is a harness gap, not an empty memory.
+
+        Saved records predating the field would otherwise read as the graph
+        having held nothing — the exact wrong conclusion, and one that would
+        look like evidence for the thing being tested.
+        """
+        machine = {
+            "A2|weak|probe|1|wobble_a": self._scores([], ["his 45%"]),
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "--" in text
+        assert "1 cell(s) show `--`" in text
+        assert "do not read those rows as forgetting" in text
+
+    def test_cells_with_nothing_eligible_are_omitted_not_zeroed(self):
+        """A cell where the person re-stated everything measures nothing.
+
+        Printing it as 0/0 would drag the per-arm mean toward a number that has
+        no denominator behind it.
+        """
+        machine = {"A2|weak|probe|1|wobble_a": self._scores([], [])}
+        text = render_report([], [], machine, ["weak"])
+        assert "Case particulars carried" not in text
+
+    def test_a_particular_no_arm_kept_is_called_out(self):
+        """Usually a script defect, not a memory one — so it must not read as one."""
+        machine = {
+            "A2|weak|probe|1|wobble_a": self._scores([], ["60% of revenue"]),
+            "A1.7|weak|probe|1|wobble_a": self._scores([], ["60% of revenue"]),
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "NO arm carried" in text
+        assert "60% of revenue (eligible in 2 cell(s))" in text
+
+    def test_a_particular_some_arm_kept_is_not_called_out(self):
+        machine = {
+            "A2|weak|probe|1|wobble_a": self._scores(["60% of revenue"], ["60% of revenue"]),
+            "A1.7|weak|probe|1|wobble_a": self._scores([], ["60% of revenue"]),
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "NO arm carried" not in text
+
+
 class TestReport:
     def test_flags_collapsed_a2(self):
         text = render_report([_run(Arm.A2, "weak")], [], {}, ["weak"])
@@ -1142,6 +1533,44 @@ class TestRunnerWiring:
         record = _run(Arm.A1_7, "weak")
         record.sessions[0].journal_after = "my own notes from last time"
         assert "my own notes" in BenchRun._decision_context(record)
+
+    def test_particulars_are_scored_only_across_the_boundary(self):
+        """The scorer needs the branch session AND the bases that preceded it.
+
+        Keyed off the RECORD's sessions, not the scenario's declared list: a
+        cell that errored before reaching the wobble must produce no score
+        rather than a 0/N that reads as forgetting.
+        """
+        scenario = [s for s in ALL_SCENARIOS if s.kind is ScenarioKind.DECISION][0]
+        fact = scenario.particulars[0].forms[0]
+
+        run = BenchRun(None, BenchConfig.from_env())
+        complete = RunRecord(
+            arm=Arm.A2,
+            tier="weak",
+            model="m",
+            scenario_key=scenario.key,
+            replicate=1,
+            branch="wobble_a",
+            sessions=[
+                _turns((f"He owns {fact}.", "Noted."), label="decide"),
+                _turns(("Worried.", f"You told me {fact}."), label="wobble_a"),
+            ],
+        )
+        # A different replicate, or the two share a `cell_key` and the second
+        # silently overwrites the first in the scores dict.
+        truncated = complete.model_copy(
+            update={"sessions": [complete.sessions[0]], "replicate": 2}, deep=True
+        )
+        run.runs = [complete, truncated]
+
+        machine = run.score_machine()
+        scored = machine[complete.cell_key].particulars
+        assert scored is not None
+        assert scored.session_label == "wobble_a"
+        assert scored.carried == [scenario.particulars[0].label]
+        # Never reached the wobble: no denominator, so no score.
+        assert machine[truncated.cell_key].particulars is None
 
     def test_cells_for_scenario_without_branches(self):
         poor_fit = [s for s in ALL_SCENARIOS if s.kind is ScenarioKind.POOR_FIT][0]

@@ -589,13 +589,25 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   site whose entire job is to preserve what every OTHER prompt in this map is built to strip. The tetrad's text is
   universal by construction — `component_length` (~7 words), `commit()` dedup folding matching wording into one shared
   node, taxonomy anchoring pulling poles toward `SYSTEMIC_TAXONOMY` apexes — which is what makes a tetrad transferable
-  and is why the graph could carry a whole exploration without carrying one fact the person stated. Measured over six
-  live counsel sessions (`claim2-weak-r5`): the graph ledger carried **0 of 15** case particulars at 28 mean words
-  against the A1.7 prose journal's **11 of 15** at 571, and at the returning-session wobble A2 asserted "This isn't the
-  accepted cost resurfacing" (`cited_record: false`) because it held no fact to check the panic against, where the
-  prompt-only control — holding "cofounder isn't a rainmaker" — asked whether the person had known all along, and they
-  conceded they had. So this is not a memory feature bolted on; it is the counterweight to the abstraction the rest of
-  the pipeline performs deliberately.
+  and is why the graph could carry a whole exploration without carrying one fact the person stated. At the
+  returning-session wobble in `claim2-weak-r5` A2 asserted "This isn't the accepted cost resurfacing"
+  (`cited_record: false`) holding no fact to check the panic against, where the prompt-only control — holding
+  "cofounder isn't a rainmaker" — asked whether the person had known all along, and they conceded they had. So this is
+  not a memory feature bolted on; it is the counterweight to the abstraction the rest of the pipeline performs
+  deliberately.
+  **The founding measurement is now machine-scored, and it corrected itself.** An earlier hand-read of the same
+  transcripts reported "the graph carried 0 of 15 particulars against the journal's 11 of 15" — it compared one arm's
+  ARTIFACT against the other arm's REPLIES, because `SessionRecord` stored A1.7's journal text but only
+  `perspectives=N` for A2, and a count says nothing about whether the case is inside. `bench/scoring.py::
+  score_particulars` + `SessionRecord.carryover_in` now record what every arm was HANDED on one field and score two
+  separate columns — `memory` (was the fact in the artifact?) vs `used` (did the reply reference it?) — because a
+  memory that never held the fact is a STORAGE defect and one that held it while the reply generalised is a PROMPT
+  defect, and a single number sends the fix to the wrong layer. Re-scored on the saved r5 records (free, no model
+  calls): A1.7's journal holds ~3/4 per cell and its replies use 0–1/4; A2 uses 0/N in 6 of 6. What survives the
+  correction is narrower and more useful than the original claim — BOTH arms barely use their memory, and the journal
+  at least holds the particulars. Denominators exclude facts the person re-stated in the returning session (echoing
+  the transcript is not memory) and facts only the ASSISTANT introduced (remembering its own inference proves
+  nothing). **This lane is not yet measured against a grounding-built graph — no win is claimed.**
   **Scope is the whole design, and the prompt is where it is enforced.** `SYSTEM_PROMPT` admits only situation facts
   (numbers, equity splits, dates, named commitments, concrete cited instances) and explicitly refuses four
   neighbours: restatements of the tension (already the tetrad's job), interpretation/diagnosis/advice (the counsel's
@@ -655,7 +667,10 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   excluded, accretion order, pole dedup), `tests/test_expand_polarities_grounding.py` (one extraction reused,
   no-context no-op, failure isolation, grounding-before-validation), and
   `test_prompt_review_regressions.py::TestAnchorGroundingReachesTheToolDoc` (both docs demand context WITH
-  specifics, the reason is stated, the Field agrees).
+  specifics, the reason is stated, the Field agrees). Measured by `bench/test_bench.py::TestCarriedParticulars`,
+  `TestCarryoverIsRecorded`, `TestParticularsAreWellFormed` (a particular form may not collide with a pole marker, or
+  the carry probe and the symmetry share agree by construction) and `TestParticularsReporting` (an unrecorded artifact
+  renders `--` and a warning, never a zero — the same absence-is-not-failure rule as `cited_record`).
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 

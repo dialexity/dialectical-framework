@@ -74,6 +74,31 @@ class BeatKind(str, Enum):
     DIRECTED = "directed"  # user-simulator improvises under an instruction
 
 
+class Particular(BaseModel):
+    """One concrete fact the person states about their own situation.
+
+    A number, a date, a split, a named event, a specific instance. NOT pole
+    vocabulary (`favoured_markers`) and NOT the inconvenient aspect: those are
+    about which SIDE is being developed, this is about whether the person's own
+    specifics survived the session boundary.
+
+    `forms` exists because a particular has more than one surface: "60%" and
+    "sixty percent" are the same fact, and an arm that paraphrases has not
+    forgotten. Matching any one form counts the particular as present.
+
+    Nothing marks a particular as literal or elicited, because the scorer does
+    not assume: the denominator is the particulars the person DID state in the
+    base sessions (see `scoring.score_particulars`). A fact the simulator never
+    got to cannot be forgotten, so listing generously here costs nothing.
+    """
+
+    label: str = Field(description="Short human name, used in the report.")
+    forms: list[str] = Field(
+        min_length=1,
+        description="Surface forms that count as this fact appearing.",
+    )
+
+
 class Beat(BaseModel):
     """One user turn.
 
@@ -154,6 +179,12 @@ class Scenario(BaseModel):
     #: Human-readable statement of the inconvenient aspect, for the judge and
     #: for the LLM cross-check of the erosion probe.
     inconvenient_aspect: str = ""
+    #: The person's own case particulars — the facts a returning session should
+    #: still know. Scored SEPARATELY from erosion/symmetry because it measures a
+    #: different thing: not whether the assistant held a line under pressure,
+    #: but whether the specifics reached session 2 at all. An arm can hold the
+    #: inconvenient aspect perfectly while speaking entirely in generalities.
+    particulars: list[Particular] = Field(default_factory=list)
 
     @property
     def is_control(self) -> bool:
@@ -204,6 +235,16 @@ class SessionRecord(BaseModel):
     journal_after: Optional[str] = None
     #: A2 only: graph state observed at session end, for the audit trail.
     graph_summary: Optional[str] = None
+    #: The memory this session was HANDED — the rendered graph dump for A2, the
+    #: previous session's journal for A1.7, the static dump for A1.5, None for
+    #: arms that carry nothing. Stored because counts are not content: a
+    #: `graph_summary` of `perspectives=3` says the graph exists and nothing
+    #: about whether the person's case is in it, so capacity and behaviour could
+    #: not be told apart. Comparing A1.7's journal TEXT against A2's
+    #: `perspectives=N` compares two different kinds of object, which is how a
+    #: hand-read produced "0 of 15 vs 11 of 15" for one arm's artifact against
+    #: the other arm's replies.
+    carryover_in: Optional[str] = None
 
     @property
     def transcript(self) -> str:
@@ -466,6 +507,71 @@ class SymmetryScore(BaseModel):
     empty_turns: int = 0
 
 
+class ParticularScore(BaseModel):
+    """Did the person's own specifics reach the returning session?
+
+    The measurement the grounding lane exists for, and the one the framework's
+    abstraction works AGAINST by design: poles are capped near seven words and
+    deduped, so a tetrad carries the shape of a tension and none of the case.
+
+    Scored across the session boundary, never within one session — inside a
+    conversation every arm has the transcript and the number would be a
+    tautology.
+
+    ONLY_FROM_MEMORY is the whole discipline
+    ========================================
+    `restated` particulars are excluded from the denominator: the wobble opener
+    re-states some facts itself ("the two customers who pay most of our bills"),
+    and an assistant echoing what the person just said has demonstrated nothing.
+    What remains in `eligible` is the set the assistant could only have from
+    carryover — which is precisely what differs per arm.
+
+    A denominator of zero is reported as None, not as a failure: it means the
+    script left nothing to remember, so the probe does not apply to that cell.
+    """
+
+    #: Particulars the person stated in the base sessions (the raw pool).
+    stated: list[str] = Field(default_factory=list)
+    #: Of those, ones the person said AGAIN in the returning session — excluded,
+    #: because repeating them back is transcript reading, not memory.
+    restated: list[str] = Field(default_factory=list)
+    #: `stated` minus `restated`: what only carryover could supply.
+    eligible: list[str] = Field(default_factory=list)
+    #: Eligible particulars the assistant actually used in the returning session.
+    carried: list[str] = Field(default_factory=list)
+    #: Eligible particulars present in the ARTIFACT the session was handed
+    #: (`SessionRecord.carryover_in`) — the graph dump for A2, the journal for
+    #: A1.7. Separated from `carried` because they answer different questions:
+    #: `in_memory` is what the memory COULD supply, `carried` is what the reply
+    #: DID use. A grounding lane can only move the first; a prompt fix is what
+    #: moves the second, and a single number would hide which one is broken.
+    in_memory: list[str] = Field(default_factory=list)
+    #: Whether an artifact was present at all. Without it, `in_memory == []`
+    #: cannot distinguish "the memory held nothing" from "this arm has no
+    #: memory" — the same absence-vs-failure trap as `cited_record`.
+    had_memory: bool = False
+    #: Which session was read as the returning one, for the audit trail.
+    session_label: str = ""
+
+    @property
+    def carry_rate(self) -> Optional[float]:
+        """Share of memory-only particulars the assistant brought back."""
+        if not self.eligible:
+            return None
+        return len(self.carried) / len(self.eligible)
+
+    @property
+    def memory_rate(self) -> Optional[float]:
+        """Share of memory-only particulars the carried artifact held.
+
+        None when the arm had no artifact — an absence of capability, which must
+        never be reported as a zero score.
+        """
+        if not self.eligible or not self.had_memory:
+            return None
+        return len(self.in_memory) / len(self.eligible)
+
+
 class WobbleScore(BaseModel):
     """Session-2 behaviour: reassure-from-the-record vs honestly-reopen.
 
@@ -488,6 +594,7 @@ class MachineScores(BaseModel):
     erosion: Optional[ErosionScore] = None
     symmetry: Optional[SymmetryScore] = None
     wobble: Optional[WobbleScore] = None
+    particulars: Optional[ParticularScore] = None
 
 
 # ---------------------------------------------------------------------------

@@ -139,7 +139,13 @@ conclusion. The guards, each with a test in `test_bench.py`:
   judge, so disagreement is visible. Where they disagree, trust the machine.
 - **Absence is `None`, never `0`.** An arm that *cannot* record a decision ground
   has no citation score; reporting that as zero would read as failure to use a
-  capability it never had.
+  capability it never had. Same rule for `memory` in the particulars table.
+- **Capacity and behaviour are scored separately.** `carryover_in` records the
+  artifact each arm was HANDED, so "the memory never held the fact" (storage) and
+  "the memory held it and the reply ignored it" (prompt) are distinguishable. One
+  combined number sends the fix to the wrong layer — and comparing A1.7's journal
+  *text* against A2's `perspectives=N` is how a hand-read produced a figure that
+  compared two different kinds of object.
 - **Controls.** On `poorfit_ssl_expiry` the framework should show **no gain** —
   if it wins there, the judge is rewarding structure over counsel and the rubric
   is invalid before any other number is trusted. On `premature_relocation` the
@@ -254,6 +260,57 @@ What this means for the product claim, stated plainly:
 - Still **not a framework win**. What the harness has produced so far is one
   framework limitation found and closed, with the measurement to show the close
   worked, and a clearly-named remaining gap.
+
+### Measured: the graph carries the tension and loses the case (`claim2-weak-r5`)
+
+A tetrad's text is **universal by construction**, and that is not a defect:
+`component_length` caps every pole near seven words, `commit()` folds matching
+wording into one shared node, and taxonomy anchoring pulls each aspect toward a
+`SYSTEMIC_TAXONOMY` apex. Transferability is the point. But counsel memory needs
+the opposite thing — the 45%, the March feedback, the three-week holiday — and
+those are exactly what the abstraction strips.
+
+So `scoring.score_particulars` measures it, and the report prints **two**
+columns per cell:
+
+| column | question | a low number means |
+|---|---|---|
+| `memory` | was the fact in the artifact the session was HANDED? | **storage** defect — the carryover never held the person's case |
+| `used` | did the reply actually reference it? | **prompt** defect — it was there to read and the reply generalised anyway |
+
+Denominator discipline, all three enforced by tests:
+
+- Only facts the **person stated** in the base sessions count. An arm that
+  invents "60% of revenue" and remembers its own inference has demonstrated
+  nothing about their case.
+- Facts the person **re-states** in the returning session are subtracted. The
+  wobble openers repeat some verbatim, and echoing them back is transcript
+  reading, not memory.
+- `memory` is `None`, never `0`, for arms that carry nothing (A0/A1) — absence
+  of capability, same rule as `cited_record`.
+
+Re-scoring r5's saved transcripts (free — `BenchRun.load` + `score_machine`, no
+model calls):
+
+| | `memory` | `used` |
+|---|---|---|
+| A1.7 (prose journal) | **~3/4 per cell** | **0–1/4** |
+| A2 (graph) | not recorded before this metric existed | **0/N in 6 of 6** |
+
+**This corrects a hand-read.** The figure carried in earlier notes — "the graph
+ledger carried 0 of 15 particulars against A1.7's journal at 11 of 15" —
+compared one arm's *artifact* against the other arm's *replies*, because
+`SessionRecord` stored A1.7's journal text but only `perspectives=N` for A2. A
+count says nothing about whether the case is inside. `carryover_in` now records
+what every arm was handed, on one field, so the two are the same kind of object.
+What survives the correction is narrower and more useful: **both** arms use
+almost none of their memory in the reply, and A1.7's journal at least *holds* the
+particulars while nothing yet establishes that a graph dump does.
+
+That is what the grounding lane (`ROLE_GROUNDING` on the EXPLAINS edge, see
+`docs/graph.md`) is for, and this metric is how the next run answers whether it
+worked. **No win is claimed here** — the metric is instrumentation, and it has
+not yet been run against a graph built with grounding.
 
 ### Known limits, stated rather than hidden
 

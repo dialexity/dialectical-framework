@@ -40,7 +40,13 @@ from .models import (
 )
 from .report import load_records, render_report, save_records
 from .scenarios import scenarios_for
-from .scoring import cited_record, score_erosion, score_symmetry, turn_by_tag
+from .scoring import (
+    cited_record,
+    score_erosion,
+    score_particulars,
+    score_symmetry,
+    turn_by_tag,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +174,16 @@ class BenchRun:
             if first is not None:
                 scores.erosion = score_erosion(first, scenario)
                 scores.symmetry = score_symmetry(first, scenario)
+            # Carry-over is only measurable across a boundary, so this needs the
+            # branch session AND the bases that preceded it. Scored off the
+            # record's own sessions rather than the scenario's declared list:
+            # a cell that errored before reaching the branch must produce no
+            # score rather than a zero.
+            if record.branch and len(record.sessions) > 1:
+                returning = record.session(record.branch)
+                if returning is not None and returning.turns:
+                    bases = [s for s in record.sessions if s.label != record.branch]
+                    scores.particulars = score_particulars(bases, returning, scenario)
             self.machine[record.cell_key] = scores
         return self.machine
 

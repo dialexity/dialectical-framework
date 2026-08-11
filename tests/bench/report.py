@@ -20,6 +20,7 @@ from typing import Iterable, Optional
 
 from .models import (
     Arm,
+    CARRYOVER,
     Comparison,
     MachineScores,
     NON_INFERIORITY_DIMENSIONS,
@@ -437,6 +438,110 @@ def render_report(
             got = pair_correct[arm]
             add(f"  {arm:6} {sum(got)}/{len(got)} correct")
         add("")
+
+    # -- case particulars across the boundary ------------------------------
+    carried = [(k, v.particulars) for k, v in sorted(machine.items()) if v.particulars]
+    carried = [(k, p) for k, p in carried if p.eligible]
+    if carried:
+        add("### Case particulars carried into the returning session")
+        add("")
+        add("The person's own specifics — numbers, splits, named events — that")
+        add("only carryover could supply. Facts the person RE-STATED in the")
+        add("returning session are excluded from the denominator: repeating them")
+        add("back is transcript reading, not memory.")
+        add("")
+        add("This is the probe the framework's own abstraction works against:")
+        add("poles are capped near seven words and deduped, so a tetrad carries")
+        add("the shape of a tension and none of the case. A2 scoring BELOW a")
+        add("prose journal here is the expected result without a grounding lane,")
+        add("and is a finding about the graph, not about the model.")
+        add("")
+        add("TWO columns, and the pair is the diagnosis:")
+        add("  memory  — the fact was in the artifact the session was HANDED")
+        add("            (rendered graph dump for A2, journal for A1.7).")
+        add("  used    — the assistant's reply actually referenced it.")
+        add("A low `memory` is a STORAGE defect: the carryover never held the")
+        add("person's case. A high `memory` with a low `used` is a PROMPT defect:")
+        add("it was there to read and the reply spoke in generalities anyway.")
+        add("Collapsing the two into one number hides which fix applies.")
+        add("")
+        add("`n/a` under memory = the arm carries nothing by construction")
+        add("(A0/A1): an absence of capability, never a zero. `--` = the arm DOES")
+        add("carry something and it was not recorded, which is a harness gap and")
+        add("must not be read as an empty memory. Records saved before")
+        add("`carryover_in` existed show `--` on every carrying arm.")
+        add("")
+        add(
+            f"{'arm':6} {'tier':10} {'scenario':22} {'r':3} {'session':10} "
+            f"{'memory':>8} {'used':>8}"
+        )
+        for key, p in carried:
+            arm, tier, scenario_key, rep, _branch = key.split("|")
+            if p.memory_rate is not None:
+                mem = f"{len(p.in_memory)}/{len(p.eligible)}"
+            elif CARRYOVER.get(Arm(arm), "none") == "none":
+                mem = "n/a"
+            else:
+                mem = "--"
+            add(
+                f"{arm:6} {tier:10} {scenario_key:22} {rep:3} {p.session_label:10} "
+                f"{mem:>8} {f'{len(p.carried)}/{len(p.eligible)}':>8}"
+            )
+        unrecorded = [
+            key
+            for key, p in carried
+            if p.memory_rate is None and CARRYOVER.get(Arm(key.split("|")[0])) != "none"
+        ]
+        if unrecorded:
+            add("")
+            add(
+                f"!! {len(unrecorded)} cell(s) show `--`: the arm carries state and"
+                " the artifact"
+            )
+            add("   was not recorded, so its `memory` column says nothing. Re-run to")
+            add("   populate `carryover_in`; do not read those rows as forgetting.")
+        add("")
+        add("Per-arm means:")
+        per_arm: dict[str, list[float]] = defaultdict(list)
+        per_arm_mem: dict[str, list[float]] = defaultdict(list)
+        for key, p in carried:
+            arm = key.split("|")[0]
+            if p.carry_rate is not None:
+                per_arm[arm].append(p.carry_rate)
+            if p.memory_rate is not None:
+                per_arm_mem[arm].append(p.memory_rate)
+        for arm in sorted(per_arm):
+            rates = per_arm[arm]
+            mean_mem = _mean(per_arm_mem.get(arm, []))
+            if mean_mem is not None:
+                mem = f"{mean_mem:.2f}"
+            elif CARRYOVER.get(Arm(arm), "none") == "none":
+                mem = "n/a"
+            else:
+                mem = "  --"
+            add(
+                f"  {arm:6} used {_mean(rates):.2f}  memory {mem}"
+                f"  over {len(rates)} cell(s)"
+            )
+        add("")
+        # Which facts nobody keeps is more actionable than the mean: a
+        # particular missed by every arm is usually one the simulator never
+        # elicited, i.e. a scenario-script finding rather than a memory one.
+        missed: dict[str, int] = defaultdict(int)
+        total_eligible: dict[str, int] = defaultdict(int)
+        for _key, p in carried:
+            for label in p.eligible:
+                total_eligible[label] += 1
+                if label not in p.carried:
+                    missed[label] += 1
+        dropped = sorted(
+            (lbl for lbl in total_eligible if missed[lbl] == total_eligible[lbl]),
+        )
+        if dropped:
+            add("Particulars NO arm carried (check the script elicited them at all):")
+            for label in dropped:
+                add(f"  - {label} (eligible in {total_eligible[label]} cell(s))")
+            add("")
 
     # -- verbosity ---------------------------------------------------------
     words: dict[str, list[int]] = defaultdict(list)

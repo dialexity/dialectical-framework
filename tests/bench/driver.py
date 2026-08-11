@@ -404,6 +404,7 @@ class BenchDriver:
                             live_context = await DialecticalContext().resolve()
                     except Exception:  # noqa: BLE001
                         logger.exception("Live context render failed")
+                session.carryover_in = live_context
                 advisor_arm = AdvisorArm(
                     BENCH_PERSONA,
                     principal=BENCH_PRINCIPAL,
@@ -428,6 +429,12 @@ class BenchDriver:
                 session.graph_summary = self._graph_summary()
             return session, journal
 
+        # What this arm was handed, recorded on the same field for every arm so
+        # the two carryovers can be compared as the same kind of object.
+        if arm is Arm.A1_7:
+            session.carryover_in = journal
+        elif arm is Arm.A1_5:
+            session.carryover_in = static_context
         prompt_arm = PromptArm(
             arm,
             BENCH_PERSONA,

@@ -19,6 +19,8 @@ from typing import Optional
 
 from .models import (
     ErosionScore,
+    Particular,
+    ParticularScore,
     Scenario,
     SessionRecord,
     SymmetryScore,
@@ -243,6 +245,90 @@ def cited_record(session: SessionRecord, ground_texts: list[str]) -> Optional[bo
         if overlap >= _CITATION_THRESHOLD:
             return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# Case particulars across the session boundary
+# ---------------------------------------------------------------------------
+
+
+def _form_present(text: str, form: str) -> bool:
+    """Is this surface form in `text`?
+
+    Deliberately NOT `_marker_hits`: that helper's `\\b{stem}\\w{0,8}\\b` pattern
+    cannot match a form ending in a non-word character, so "60%" and "1.5%"
+    score zero against text containing them verbatim (checked, not assumed).
+    Percentages and splits are exactly the particulars this probe is about, so
+    the matcher here is a plain normalised substring test.
+
+    Normalising whitespace matters because a form can straddle a line break in a
+    wrapped reply, where a raw `in` test silently misses.
+    """
+    form = " ".join(form.lower().split())
+    if not form:
+        return False
+    return form in " ".join(text.lower().split())
+
+
+def _any_form(text: str, particular: Particular) -> bool:
+    return any(_form_present(text, f) for f in particular.forms)
+
+
+def score_particulars(
+    base_sessions: list[SessionRecord],
+    returning: SessionRecord,
+    scenario: Scenario,
+) -> ParticularScore:
+    """Did the person's own specifics survive into the returning session?
+
+    Three-step, and each step is there to stop the number from flattering
+    somebody:
+
+    1. **stated** — particulars the person actually said in the base sessions.
+       Read from the USER's turns only. A fact the assistant introduced is the
+       assistant's inference, and crediting an arm for remembering its own
+       invention measures nothing about the person's case.
+    2. **restated** — of those, ones the person said again in the returning
+       session. Subtracted, because the wobble openers re-state some facts
+       verbatim and echoing them back is transcript reading, not memory.
+    3. **carried** — eligible particulars appearing in the returning session's
+       ASSISTANT turns. Scored alongside **in_memory**: the same particulars
+       found in the ARTIFACT the session was handed. The two must be reported
+       separately because they fail for different reasons — a memory that never
+       held the fact is a storage defect, a memory that held it while the reply
+       ignored it is a prompt one.
+
+    The denominator is therefore per-cell, not per-scenario: two cells of the
+    same scenario can have different `eligible` sets because the simulator
+    improvises the DIRECTED beats and may never elicit a given fact. Fixing the
+    denominator to the scenario's full list would score an arm down for
+    forgetting something nobody told it.
+    """
+    score = ParticularScore(
+        session_label=returning.label,
+        had_memory=bool(returning.carryover_in),
+    )
+    if not scenario.particulars:
+        return score
+
+    user_before = " ".join(t.user for s in base_sessions for t in s.turns)
+    user_returning = " ".join(t.user for t in returning.turns)
+    assistant_returning = " ".join(t.assistant for t in returning.turns)
+    memory = returning.carryover_in or ""
+
+    for particular in scenario.particulars:
+        if not _any_form(user_before, particular):
+            continue
+        score.stated.append(particular.label)
+        if _any_form(user_returning, particular):
+            score.restated.append(particular.label)
+            continue
+        score.eligible.append(particular.label)
+        if _any_form(assistant_returning, particular):
+            score.carried.append(particular.label)
+        if memory and _any_form(memory, particular):
+            score.in_memory.append(particular.label)
+    return score
 
 
 def assistant_word_count(session: SessionRecord) -> int:
