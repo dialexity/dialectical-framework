@@ -157,6 +157,18 @@ real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
    silent-framework contract. NOTE: the terminology fence is now **preamble-overridable** ("unless the app
    preamble explicitly grants terminology disclosure") — same override mechanism as `NAVIGATOR_APP_ADVANCED_TOGGLE` flipping
    `NAVIGATOR_APP`'s presentation rules. A preamble granting disclosure is a legitimate configuration, not a leak.
+   **The fence does NOT hold at the weak tier, and it was measured as prose-only for a long time.**
+   `claim2-weak-r10` leaked framework vocabulary to the person 15 times across 6 A2 cells (against 1 in
+   A1.7) — labelled tables (`**T+: Solo leadership...**`) and the machinery as an actor ("the framework
+   flagged as avoidance") — while every prompt regression stayed green, because they assert the prompt
+   CONTAINS the ban and nothing asserted the reply obeyed it. A concrete counter-example in
+   `_HOW_YOU_SPEAK` (the exact bad shape, then the same counsel said plainly) took it 15 → 1; a bare label
+   in running prose survives, tracked by `test_machinery_silence_weak_tier.py` (xfail, non-strict). Two
+   standing rules: measure this class on OUTPUT (`bench/scoring.py::score_machinery_leak`, shared by the
+   tripwire and the bench so they cannot disagree), and note that `_HOW_YOU_SPEAK` is **shared with the A1
+   baseline arms** (`bench/arms.py`, fairness rule 4) — wording that assumes a graph dump is false there,
+   so keep additions arm-neutral. A leak silently corrupts `conversational_fit` (−1.33 in r10, read as the
+   framework conversing worse).
 3. **A concern's SYSTEM_PROMPT inline examples co-occur with interpolated shared constants + DTO field text.**
    In `aspect_generation.py`, the hand-written Love/Indifference example sits with interpolated `ASPECT_DEFINITIONS`
    / `HS_SCALE` / `COMPLEMENTARITY_SCALE` + live taxonomy apexes. Changing the constant reaches every consumer;
