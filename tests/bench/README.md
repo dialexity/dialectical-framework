@@ -578,6 +578,55 @@ framework hides from itself, and this one was visible in the log all along. Both
 failure classes are now instrumented, and no judged run should be read from
 before either fix.
 
+#### `claim2-weak-r10-pathways-judged` — the first readable judged run, and A2 loses
+
+First judged run with the 503 retry and the swallowed-error capture in place.
+A1.7 vs A2, weak tier, 3 replicates, 6 cells per arm, 1h51m.
+
+**The confounds that invalidated earlier rows are gone.** Verbosity is matched
+(A2 2726 words/run vs A1.7 2805 — the earlier runs' 2x gap is what made every
+prior judged row unreadable). Swallowed framework exceptions: **0**. No turn
+errors. So the deltas below are not artifacts of a degraded arm.
+
+**A2 loses every judged dimension**, worst on `conversational_fit` (−1.33),
+`cross_turn_coherence` (−1.17), `convergence` and `decision_closure` (−0.92).
+Machine scores are less lopsided: wobble accuracy ties 2/3, erosion is slightly
+better for A2 (4 of 6 cells ≥ 0.5 vs 3 of 6), symmetry mean slightly worse.
+
+Three findings, in descending order of how much they explain:
+
+1. **The silent-framework contract was broken, and `conversational_fit` was
+   measuring that.** 15 machinery leaks across the 6 A2 cells against 1 in A1.7 —
+   labelled tables (`**T+: Solo leadership with unified strategic vision**`) and
+   the machinery as an actor ("which the framework flagged as avoidance"). Being
+   handed a position table is a worse conversation whatever the reasoning behind
+   it. Now measured on output (`score_machinery_leak`, a validity flag) and
+   partly fixed: a concrete counter-example in `_HOW_YOU_SPEAK` took a real
+   weak-tier probe from 15 hits to 1. Not yet zero — see
+   `tests/test_machinery_silence_weak_tier.py`.
+
+2. **A2 remembers everything and says none of it.** `memory` 1.00 (24/24 of the
+   person's own particulars were in the carryover) against `used` 0.04 (1/24
+   referenced in a reply); A1.7 is 0.92 / 0.12. Three facts — the founder's 55%,
+   the messy sales notes, the three-week holiday during the launch — were held in
+   memory in every eligible cell and spoken in none. By the report's own
+   two-column rule this is a PROMPT defect, not storage: the case was there to
+   read. This is the strongest candidate for the actual cause of
+   `cross_turn_coherence` −1.17, and it is not addressed yet.
+
+3. **The pathway seam works; the ceremony still doesn't complete.** 6/6 runs
+   recorded a decision (against 0/6 in r7) with 6/6 risk-grounded costs — the
+   repair seam is doing its job. But `adopted_pathway` is 0/6 and therefore
+   COMPLETE records are 0/6, *including the cells that called `explore`
+   themselves*. A pathway exists and the model never grounds the decision on it.
+
+**A retraction about r10's own validity block:** it reported "4/6 live A2 runs
+never called explore", which was wrong. That flag read `tool_calls`, and the
+closing seam calls `run_exploration` directly — 5 of 6 cells did build nexuses.
+`graph_summary` now reports `woven` and `transformations`, and the flag reads the
+graph (`wove_no_pathway`). Verified against a real graph: `woven=0 → 2`,
+`transformations=0 → 12` across the seam.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
