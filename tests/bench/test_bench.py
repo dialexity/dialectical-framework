@@ -121,6 +121,37 @@ class TestMethodPrompt:
         assert "framework terminology" in prompt
         assert "T+, T-, A+" in prompt, "the forbidden-term list was dropped"
 
+    def test_no_dangling_section_cross_references(self):
+        """Every "(see X)" in A1's prompt must name a heading A1 actually has.
+
+        The failure this catches, from 4f9e479 (landed between r6 and r7): the
+        engine's `_HOW_YOU_SPEAK` gained "The one exception is a `Grounded in:`
+        line ... (see Reading Your Understanding)". Both referents are A2-only —
+        `Grounded in:` is a graph-render artifact and `## Reading Your
+        Understanding` is `_SCORE_READING`, which `method_prompt` never draws.
+        A1 was left holding an instruction about a construct that never appears
+        and a pointer to a section that does not exist.
+
+        `_TOOL_TOKENS` cannot see it (neither string is a tool name) and
+        `test_rewrite_table_has_no_stale_keys` checks the opposite direction
+        (keys matching nothing, not prompt text that should have been rewritten).
+        This is the class of silent baseline degradation that inflates an A2
+        delta without anyone touching an A2 number.
+        """
+        import re
+
+        prompt = method_prompt()
+        headings = {
+            h.strip().lower() for h in re.findall(r"^#{1,3} (.+)$", prompt, re.M)
+        }
+        for ref in re.findall(r"\(see ([^)]+)\)", prompt):
+            target = ref.strip().lower()
+            assert any(target in h or h in target for h in headings), (
+                f"A1's prompt points at {ref!r}, which is not one of its own "
+                f"sections {sorted(headings)} — an A2-only referent leaked into "
+                "the baseline"
+            )
+
     def test_no_unrendered_placeholders(self):
         for include_decision in (True, False):
             prompt = method_prompt(include_decision=include_decision)
@@ -691,6 +722,58 @@ class TestJudgeSetup:
             f"side is not pair-stable: {sides}"
         )
 
+    def test_split_is_exact_within_every_session_stratum(self):
+        """The gap the test above leaves open, and the one that actually bit.
+
+        `test_split_is_exact_when_the_comparison_key_varies` asserts the COUNT
+        and never the balance within a stratum — and its own fixture is
+        single-slot per session, so it passed throughout. Reproducing the
+        runner's real loop (sessions in fixed order per run) with one counter per
+        pair gives `decide` an even ordinal every time and the wobble an odd one:
+        6/6 overall, 0/100 inside each column of `by session:`.
+
+        Stratifying the counter by session label is the fix; this asserts the
+        property directly rather than the total. With an odd number of
+        replicates a stratum cannot split exactly, so the achievable property is
+        alternation — imbalance of at most one — which is what an even split
+        degrades to and what a single-slot stratum violates outright.
+        """
+        pair = "A2|A1.7"
+        layout = [
+            (rep, session)
+            for rep in (1, 2, 3)
+            for session in ("decide", "wobble_a")
+        ]
+
+        def sides(stratified: bool) -> dict[str, list[bool]]:
+            counters: dict[str, int] = {}
+            got: dict[str, list[bool]] = {}
+            for rep, session in layout:
+                bucket = session if stratified else "*"
+                ordinal = counters.get(bucket, 0)
+                counters[bucket] = ordinal + 1
+                got.setdefault(session, []).append(
+                    _x_is_a(
+                        f"cofounder_equity|weak|{rep}|A2|A1.7|{session}",
+                        ordinal=ordinal,
+                        pair_key=pair,
+                    )
+                )
+            return got
+
+        flat = sides(stratified=False)
+        assert all(len(set(v)) == 1 for v in flat.values()), (
+            "the pre-fix layout should be single-slot per session; if this "
+            f"fails the reproduction is wrong, not the fix: {flat}"
+        )
+
+        strat = sides(stratified=True)
+        for session, got in strat.items():
+            assert abs(got.count(True) - got.count(False)) <= 1, (
+                f"session {session!r} is not alternating: {got} — slot bias "
+                "enters this column of the `by session:` table undiluted"
+            )
+
     def test_ordinal_layout_is_still_scenario_dependent(self):
         """The hash must still choose the STARTING side, or every pair would be
         laid out identically ("A always first at ordinal 0") and position bias
@@ -912,6 +995,106 @@ class TestRecordlessWobbleA:
         assert " X " in text
 
 
+class TestVerbosityConfound:
+    """Telling the judge to ignore length is not controlling for length.
+
+    r6 -> r7: the A2/A1.7 word gap went 0% -> +32% and `conversational_fit` went
+    -0.92 -> -1.42 while the MEAN delta barely moved. The two rows that degraded
+    are the two the rubric most couples to length (`conversational_fit` docks a
+    reply that "reads like a report"; `warmth` tracks it too). At that gap those
+    magnitudes are not readable as content, and the report has to say so next to
+    the numbers rather than leave a reader to compute the ratio.
+    """
+
+    @staticmethod
+    def _run_with_words(arm: Arm, words: int) -> RunRecord:
+        run = _run(arm, "weak")
+        run.sessions[0].turns[0].assistant = " ".join(["word"] * words)
+        return run
+
+    def test_a_large_gap_is_flagged(self):
+        text = render_report(
+            [self._run_with_words(Arm.A2, 3328), self._run_with_words(Arm.A1_7, 2527)],
+            [],
+            {},
+            ["weak"],
+        )
+        assert "Verbosity gap 32%" in text
+        assert "length-confounded" in text
+
+    def test_a_small_gap_is_not_flagged(self):
+        """r6's shape: near-identical lengths, so the rows are readable."""
+        text = render_report(
+            [self._run_with_words(Arm.A2, 2637), self._run_with_words(Arm.A1_7, 2632)],
+            [],
+            {},
+            ["weak"],
+        )
+        assert "mean assistant words/run" in text
+        assert "Verbosity gap" not in text
+
+
+class TestWobblePairAccuracy:
+    """The (a)/(b) pair is the unit — running both branches is the whole point.
+
+    An arm that always reassures (or always reopens) is right on exactly one
+    variant of every pair, so a per-CELL average prints 0.50 and reads as
+    half-competent while the arm has failed the discrimination outright.
+    Measured: r6's A2 got 0 of 3 pairs and the report printed 0.50 under a
+    header promising "both variants must be right to score the pair".
+    """
+
+    @staticmethod
+    def _cell(arm: Arm, rep: int, variant: str, correct: bool):
+        run = _run(arm, "weak")
+        run.replicate = rep
+        run.branch = f"wobble_{variant}"
+        scores = MachineScores(
+            wobble=WobbleScore(
+                variant=variant,
+                classification="reassure" if correct else "reopen",
+                correct=correct,
+            )
+        )
+        return run, scores
+
+    def _render(self, cells) -> str:
+        runs, machine = [], {}
+        for run, scores in cells:
+            runs.append(run)
+            machine[run.cell_key] = scores
+        return render_report(runs, [], machine, ["weak"])
+
+    def test_an_always_one_answer_arm_scores_zero_pairs(self):
+        """Right on (a), wrong on (b), three times over: 0 pairs, not 0.50."""
+        cells = []
+        for rep in (1, 2, 3):
+            cells.append(self._cell(Arm.A2, rep, "a", True))
+            cells.append(self._cell(Arm.A2, rep, "b", False))
+        out = self._render(cells)
+        assert "A2     0/3 pair(s) correct" in out
+        assert "3/6" not in out and "0.50" not in out
+
+    def test_both_right_scores_the_pair(self):
+        cells = [
+            self._cell(Arm.A2, 1, "a", True),
+            self._cell(Arm.A2, 1, "b", True),
+        ]
+        assert "A2     1/1 pair(s) correct" in self._render(cells)
+
+    def test_an_incomplete_pair_is_excluded_and_counted(self):
+        """Scoring a lone half would invent the other half; dropping it silently
+        would overstate the denominator's meaning. So: excluded, and said."""
+        cells = [
+            self._cell(Arm.A2, 1, "a", True),
+            self._cell(Arm.A2, 1, "b", True),
+            self._cell(Arm.A2, 2, "a", True),
+        ]
+        out = self._render(cells)
+        assert "A2     1/1 pair(s) correct" in out
+        assert "1 incomplete pair(s) excluded" in out
+
+
 class TestProseOnlyDecision:
     """"Write it down" answered with headings and no tool call.
 
@@ -1067,6 +1250,31 @@ class TestRecords:
         """`collapsed_to_a1` is an A2-only invariant; A1 has no tools by design."""
         assert _run(Arm.A1, "weak").collapsed_to_a1 is False
 
+    def test_a_repair_written_decision_is_not_a_collapse(self):
+        """Zero tool calls is not zero framework activity.
+
+        `Advisor.chat` runs `_repair_unrecorded_decision` after every turn, and
+        that pass commits Decision nodes without anything landing in
+        `tool_calls`. Real cell: r6 rep3 `wobble_a`, 0 tool calls and 2
+        Decisions, reported as a collapse — the ceiling-not-floor tripwire
+        firing on a run where the framework demonstrably ran.
+        """
+        run = _run(Arm.A2, "weak")
+        run.decision_hashes = ["5249ea2", "79ce83f"]
+        assert run.collapsed_to_a1 is False
+
+    def test_a_populated_graph_summary_is_not_a_collapse(self):
+        """The other artifact of a tool-call-free framework turn."""
+        run = _run(Arm.A2, "weak")
+        run.sessions[0].graph_summary = "perspectives=0 decisions=2"
+        assert run.collapsed_to_a1 is False
+
+    def test_an_empty_graph_summary_still_collapses(self):
+        """All-zero counts are the genuine collapse this flag exists for."""
+        run = _run(Arm.A2, "weak")
+        run.sessions[0].graph_summary = "perspectives=0 decisions=0"
+        assert run.collapsed_to_a1 is True
+
     def test_all_turns_errored_is_visible(self):
         """A cell whose every turn failed is missing data, not a weak arm.
 
@@ -1136,6 +1344,29 @@ class TestDeltas:
         d.add(self._comparison("strong", 0))
         assert d.classify_delta("entanglement", ["weak", "strong"]) == "absent"
 
+    def test_a_widening_deficit_is_never_durable(self):
+        """"durable" is the product claim and may only describe an ADVANTAGE.
+
+        The margin test alone classified weak=-1 strong=-1.4 as "durable" — a
+        framework deficit that grew 40% printing as the thing the README calls
+        "the claim". Every judged row in r6/r7 was negative, so the first
+        two-tier run would have hit this.
+        """
+        d = Deltas(Arm.A2, Arm.A1)
+        d.add(self._comparison("weak", -1))
+        d.add(self._comparison("strong", -2))
+        assert d.classify_delta("entanglement", ["weak", "strong"]) == (
+            "deficit (widening)"
+        )
+
+    def test_a_narrowing_deficit_says_so(self):
+        d = Deltas(Arm.A2, Arm.A1)
+        d.add(self._comparison("weak", -2))
+        d.add(self._comparison("strong", -1))
+        assert d.classify_delta("entanglement", ["weak", "strong"]) == (
+            "deficit (narrowing)"
+        )
+
     def test_errored_comparisons_are_not_counted(self):
         d = Deltas(Arm.A2, Arm.A1)
         c = self._comparison("weak", 2)
@@ -1177,7 +1408,9 @@ class TestPositionBias:
     """
 
     @staticmethod
-    def _comparison(x_arm: Arm, y_score: int) -> Comparison:
+    def _comparison(
+        x_arm: Arm, y_score: int, session_label: str = "decide"
+    ) -> Comparison:
         """A comparison where the Y slot always scores `y_score` and X scores 3,
         whichever arm happens to be in Y."""
         a_is_x = x_arm is Arm.A2
@@ -1189,11 +1422,12 @@ class TestPositionBias:
             arm_a=Arm.A2,
             arm_b=Arm.A1,
             x_arm=x_arm,
+            session_label=session_label,
             scores={"entanglement": pair},
         )
 
     def test_measures_the_y_slot_advantage(self):
-        bias, n, split = position_bias(
+        bias, n, split, _strata = position_bias(
             [self._comparison(Arm.A2, 5), self._comparison(Arm.A1, 5)]
         )
         assert bias == 2.0
@@ -1220,8 +1454,66 @@ class TestPositionBias:
     def test_errored_comparisons_are_ignored(self):
         c = self._comparison(Arm.A2, 5)
         c.error = "judge failed"
-        bias, n, split = position_bias([c])
+        bias, n, split, _strata = position_bias([c])
         assert bias is None and n == 0 and split == {}
+
+    def test_an_even_total_split_can_hide_a_single_slot_session(self):
+        """The real r7 shape: 6/6 overall, 100% one slot inside every session.
+
+        The runner fed one counter across a pair's whole run, and every run
+        contributes its sessions in the same order — so `decide` always drew an
+        even ordinal and the wobble an odd one. The pair's split looked exact and
+        the `by session:` rows were each entirely one slot, admitting the bias at
+        full strength exactly where the report invites a per-session read.
+        `strata` is what makes that visible.
+        """
+        comparisons = [
+            self._comparison(Arm.A1, 5, "decide"),
+            self._comparison(Arm.A1, 5, "decide"),
+            self._comparison(Arm.A2, 5, "wobble_a"),
+            self._comparison(Arm.A2, 5, "wobble_a"),
+        ]
+        _bias, _n, split, strata = position_bias(comparisons)
+        assert split == {"A1": 2, "A2": 2}, "the pooled split looks balanced"
+        assert strata == {"decide": {"A1": 2}, "wobble_a": {"A2": 2}}
+        assert all(len(s) == 1 for s in strata.values()), (
+            "each stratum is single-slot — the condition the even total hides"
+        )
+
+    def test_report_flags_a_single_slot_session_stratum(self):
+        """The reader must be told before reaching the `by session:` rows."""
+        out = render_report(
+            [],
+            [
+                self._comparison(Arm.A1, 5, "decide"),
+                self._comparison(Arm.A2, 5, "wobble_a"),
+            ],
+            {},
+            ["strong"],
+        )
+        assert "Single-slot session stratum" in out
+        assert "read them as slot + content" in out
+
+    def test_bias_is_reported_per_arm_pair_not_pooled(self):
+        """r3's actual failure: A2/A1 = +0.08 and A2/A1.7 = +0.22 pooled to
+        +0.15, so the 0.2 warning never fired on the pair that breached it —
+        while the delta table it guards is rendered per pair."""
+        clean = [
+            self._comparison(Arm.A2, 3, "decide"),
+            self._comparison(Arm.A1, 3, "wobble_a"),
+        ]
+        biased = []
+        for label, x_arm in (("decide", Arm.A2), ("wobble_a", Arm.A1)):
+            c = self._comparison(x_arm, 5, label)
+            c.arm_b = Arm.A1_7
+            biased.append(c)
+        out = render_report([], clean + biased, {}, ["strong"])
+        # Two pairs rendered, and the breaching one carries its own warning.
+        assert "### A2 vs A1" in out and "### A2 vs A1.7" in out
+        a17 = out[out.index("### A2 vs A1.7") :]
+        assert "worth a fifth of a rubric" in a17, (
+            "the A2/A1.7 pair breached 0.2 and must say so in its own block"
+        )
 
 
 class TestCarryoverIsRecorded:
@@ -1295,6 +1587,22 @@ class TestParticularsReporting:
         assert "Case particulars carried" in text
         assert "1/2" in text
         assert "used 0.50" in text
+
+    def test_per_arm_means_carry_the_pooled_fact_count(self):
+        """A two-decimal rate over ~25 facts reads one fact as a trend.
+
+        Real case: r6 -> r7 printed A2 `used` 0.12 -> 0.17, which looks like a
+        40% improvement and is 3-of-26 -> 4-of-25 — a single fact. The count is
+        the figure a reader cannot over-interpret, so it sits beside the rate.
+        """
+        machine = {
+            "A2|weak|probe|1|wobble_a": self._scores(["a"], ["a", "b", "c"]),
+            "A2|weak|probe|2|wobble_a": self._scores([], ["d", "e"]),
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "(1/5 facts)" in text, (
+            "pooled numerator/denominator must appear next to the mean rate"
+        )
 
     def test_memory_and_use_are_separate_columns(self):
         """A high memory with a low use is a prompt defect, not a storage one.
@@ -1685,14 +1993,23 @@ class TestReportedBiasAndSessions:
         )
 
     def test_position_bias_is_stated_before_the_rows(self):
-        """It contaminates every row, so a reader must meet it first."""
+        """It contaminates every row, so a reader must meet it first.
+
+        Stated INSIDE each pair's block rather than once above them all: the
+        figure is per pair (pooling hid r3's over-threshold A2/A1.7 behind an
+        under-threshold average), so it sits under its own `###` header and
+        above its own dimension rows.
+        """
         comparisons = [
             self._comparison("decide", Arm.A2, 1),
             self._comparison("decide", Arm.A1, 1),
         ]
         text = render_report([], comparisons, {}, ["strong"])
         assert "position bias" in text.lower()
-        assert text.index("position bias") < text.index("### A2 vs A1")
+        block = text[text.index("### A2 vs A1") :]
+        assert block.index("position bias") < block.index("entanglement"), (
+            "the bias line must precede the numbers it contaminates"
+        )
 
     def test_a_large_bias_is_flagged_loudly(self):
         """+2.0 on a 5-point scale from the slot alone: unreadable deltas."""

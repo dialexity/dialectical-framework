@@ -106,6 +106,15 @@ class Deltas:
             return "unknown"
         if abs(gap_weak) < MEANINGFUL_GAP and abs(gap_strong) < MEANINGFUL_GAP:
             return "absent"
+        # "durable" is the product claim, so it may only be said of an ADVANTAGE.
+        # The margin test alone called weak=-1.0 strong=-1.4 "durable" — a
+        # deficit that grew 40% printing as the claim. A negative gap is a
+        # framework deficit; the honest question there is whether it is
+        # narrowing, not whether it persists.
+        if gap_weak < 0 and gap_strong < 0:
+            if gap_strong <= gap_weak:
+                return "deficit (widening)"
+            return "deficit (narrowing)"
         if gap_strong >= gap_weak - DEPRECIATION_MARGIN * abs(gap_weak or 1):
             return "durable"
         return "depreciating"
@@ -143,7 +152,9 @@ def _fmt(value: Optional[float], width: int = 6) -> str:
     return "   n/a" if value is None else f"{value:+{width}.2f}"
 
 
-def position_bias(comparisons: list[Comparison]) -> tuple[Optional[float], int, dict]:
+def position_bias(
+    comparisons: list[Comparison],
+) -> tuple[Optional[float], int, dict, dict]:
     """Mean (Y - X) score across every judged dimension, plus the X/Y split.
 
     A judge that scores the second transcript higher regardless of content
@@ -154,18 +165,37 @@ def position_bias(comparisons: list[Comparison]) -> tuple[Optional[float], int, 
     Returned rather than asserted because the sign is informative: the fix
     (`judge._x_is_a`'s `ordinal`) makes the SPLIT exact, which cancels the bias
     across arms without pretending it stopped existing.
+
+    Call this ONCE PER ARM PAIR. Pooling pairs dilutes the number the 0.2
+    threshold exists to catch: in `claim2-weak-r3` the true figures were
+    A2/A1 = +0.076 and A2/A1.7 = +0.222, and pooling printed +0.149 — under
+    threshold, warning suppressed, while the delta table it guards is rendered
+    per pair. The `split` is likewise unreadable when pooled (a 10/2 skew in one
+    pair hides inside an even total).
+
+    An even split is necessary but NOT sufficient. Slot bias only cancels within
+    a stratum whose own split is even, so `strata` reports the split per session
+    label — the granularity the `by session:` rows are read at. See the
+    stratified `ordinal` in `runner.judge_all`.
     """
     gaps: list[float] = []
     split: dict[str, int] = defaultdict(int)
+    strata: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for c in comparisons:
         if c.error:
             continue
         split[c.x_arm.value] += 1
+        strata[c.session_label][c.x_arm.value] += 1
         a_is_x = c.x_arm is c.arm_a
         for a, b in c.scores.values():
             x, y = (a, b) if a_is_x else (b, a)
             gaps.append(y - x)
-    return _mean(gaps), len(gaps), dict(split)
+    return (
+        _mean(gaps),
+        len(gaps),
+        dict(split),
+        {k: dict(v) for k, v in strata.items()},
+    )
 
 
 def render_report(
@@ -428,15 +458,35 @@ def render_report(
                 f"{cited}{flag}"
             )
         add("")
+        # The (a)/(b) PAIR is the unit, and that is the whole point of running
+        # both branches: an arm that always reassures scores 1/2 on cells and
+        # looks half-right, while it has in fact failed the discrimination
+        # entirely. So group the two variants of one (arm, tier, scenario,
+        # replicate) and require both. Measured: r6's A2 scored 0 of 3 pairs and
+        # the old per-cell average printed 0.50 — the exact flattery
+        # `WobbleScore` warns about, under a header promising the pair rule.
         add("Per-arm wobble accuracy (both variants must be right to score the pair):")
-        pair_correct: dict[str, list[bool]] = defaultdict(list)
+        by_pair: dict[tuple[str, str, str, str], dict[str, bool]] = defaultdict(dict)
         for key, scores in wobbles:
-            arm = key.split("|")[0]
-            if scores.wobble and scores.wobble.correct is not None:
-                pair_correct[arm].append(scores.wobble.correct)
-        for arm in sorted(pair_correct):
+            arm, tier, scenario_key, rep, _branch = key.split("|")
+            w = scores.wobble
+            if w and w.correct is not None and w.variant:
+                by_pair[(arm, tier, scenario_key, rep)][w.variant] = w.correct
+        pair_correct: dict[str, list[bool]] = defaultdict(list)
+        partial: dict[str, int] = defaultdict(int)
+        for (arm, _t, _s, _r), variants in sorted(by_pair.items()):
+            if len(variants) < 2:
+                # One half of the pair is missing; scoring it as a pair would
+                # invent the other half. Counted and reported, never averaged in.
+                partial[arm] += 1
+                continue
+            pair_correct[arm].append(all(variants.values()))
+        for arm in sorted(set(pair_correct) | set(partial)):
             got = pair_correct[arm]
-            add(f"  {arm:6} {sum(got)}/{len(got)} correct")
+            line = f"  {arm:6} {sum(got)}/{len(got)} pair(s) correct"
+            if partial[arm]:
+                line += f"   ({partial[arm]} incomplete pair(s) excluded)"
+            add(line)
         add("")
 
     # -- case particulars across the boundary ------------------------------
@@ -510,6 +560,20 @@ def render_report(
                 per_arm[arm].append(p.carry_rate)
             if p.memory_rate is not None:
                 per_arm_mem[arm].append(p.memory_rate)
+        # Pooled COUNTS next to the rates, because a two-decimal rate over ~25
+        # facts invites reading one fact as a trend. Real case: r6 -> r7 printed
+        # A2 `used` 0.12 -> 0.17, which looks like a 40% improvement and is
+        # 3-of-26 -> 4-of-25 — one single fact, well inside noise. The rate and
+        # the count disagree about nothing; the count is simply the one a reader
+        # cannot over-interpret.
+        pooled_used: dict[str, tuple[int, int]] = defaultdict(lambda: (0, 0))
+        pooled_mem: dict[str, tuple[int, int]] = defaultdict(lambda: (0, 0))
+        for key, p in carried:
+            arm = key.split("|")[0]
+            u, n = pooled_used[arm]
+            pooled_used[arm] = (u + len(p.carried), n + len(p.eligible))
+            m, n2 = pooled_mem[arm]
+            pooled_mem[arm] = (m + len(p.in_memory), n2 + len(p.eligible))
         for arm in sorted(per_arm):
             rates = per_arm[arm]
             mean_mem = _mean(per_arm_mem.get(arm, []))
@@ -519,8 +583,11 @@ def render_report(
                 mem = "n/a"
             else:
                 mem = "  --"
+            u, un = pooled_used[arm]
+            m, mn = pooled_mem[arm]
             add(
-                f"  {arm:6} used {_mean(rates):.2f}  memory {mem}"
+                f"  {arm:6} used {_mean(rates):.2f} ({u}/{un} facts)  "
+                f"memory {mem} ({m}/{mn})"
                 f"  over {len(rates)} cell(s)"
             )
         add("")
@@ -570,9 +637,25 @@ def render_report(
     if words:
         add("### Verbosity (judge is told to ignore length — verify it did)")
         add("")
-        for arm in sorted(words):
-            mean_words = _mean(words[arm])
+        means = {arm: _mean(vals) for arm, vals in sorted(words.items())}
+        for arm, mean_words in means.items():
             add(f"  {arm:6} mean assistant words/run: {mean_words:.0f}")
+        # A large gap makes the length-coupled dimensions unreadable, and the
+        # instruction to ignore length is not a control. Measured r6 -> r7: the
+        # gap went 0% -> +32% and `conversational_fit` went -0.92 -> -1.42 while
+        # the MEAN delta barely moved — the two rows that degraded are the two
+        # the rubric most couples to length. Flagged here, next to the numbers
+        # that produce it, rather than left to a reader to compute.
+        floor = min(m for m in means.values() if m)
+        top = max(means.values())
+        if floor and (top - floor) / floor >= 0.2:
+            add("")
+            add(f"!! Verbosity gap {100 * (top - floor) / floor:.0f}%. The judge is")
+            add("   INSTRUCTED to ignore length, which is not the same as")
+            add("   controlled for it. Read `conversational_fit` and `warmth` as")
+            add("   length-confounded at this gap; the structural dimensions")
+            add("   (entanglement, tension_coverage, blindspot_specificity) are")
+            add("   less exposed. A length-matched re-run is the only clean fix.")
         add("")
 
     # -- judged deltas -----------------------------------------------------
@@ -583,18 +666,6 @@ def render_report(
     add("folded into the headline.")
     add("")
 
-    # Position bias contaminates every row below and replication cannot remove
-    # it, so it is stated before the numbers rather than after.
-    bias, bias_n, split = position_bias(comparisons)
-    if bias is not None:
-        counts = ", ".join(f"{arm} first x{n}" for arm, n in sorted(split.items()))
-        add(f"Judge position bias: Y scored {bias:+.2f} vs X over {bias_n} scores")
-        add(f"   ({counts})")
-        if abs(bias) >= 0.2:
-            add("   !! The slot, not the content, is worth a fifth of a rubric")
-            add("      step or more. Deltas are only trustworthy insofar as the")
-            add("      X/Y split above is even — check it before reading rows.")
-        add("")
     deltas = collect_deltas(comparisons)
     # A single replicate cannot separate a real gap from run-to-run variance,
     # and the rubric's ±1 steps make that variance LOOK decisive. Measured on
@@ -620,6 +691,42 @@ def render_report(
     for (arm_a, arm_b), d in sorted(deltas.items(), key=lambda kv: (kv[0][0].value, kv[0][1].value)):
         add(f"### {arm_a.value} vs {arm_b.value}")
         add("")
+
+        # Position bias contaminates every row below and replication cannot
+        # remove it, so it is stated before the numbers rather than after. Per
+        # pair: this pair's own split is what enters this pair's table, and a
+        # pooled figure has hidden an over-threshold pair before (r3's +0.222
+        # diluted to +0.149, warning suppressed).
+        pair_comparisons = [
+            c for c in comparisons if c.arm_a is arm_a and c.arm_b is arm_b
+        ]
+        bias, bias_n, split, strata = position_bias(pair_comparisons)
+        if bias is not None:
+            counts = ", ".join(f"{arm} first x{n}" for arm, n in sorted(split.items()))
+            add(f"Judge position bias: Y scored {bias:+.2f} vs X over {bias_n} scores")
+            add(f"   ({counts})")
+            # An even TOTAL split cancels an additive slot effect in the tier
+            # rows only. The `by session:` rows below are read per stratum, and
+            # a stratum that is 100% one slot admits the bias at full strength.
+            lopsided = {
+                label: s
+                for label, s in sorted(strata.items())
+                if len(s) < 2 or min(s.values()) == 0
+            }
+            if len(strata) > 1 and lopsided:
+                add("   !! Single-slot session stratum: "
+                    + "; ".join(
+                        f"{label} = " + ", ".join(f"{a} x{n}" for a, n in sorted(s.items()))
+                        for label, s in lopsided.items()
+                    ))
+                add("      The tier rows still cancel an additive slot effect,")
+                add("      but the `by session:` rows for those labels do NOT —")
+                add("      read them as slot + content, never as content.")
+            if abs(bias) >= 0.2:
+                add("   !! The slot, not the content, is worth a fifth of a rubric")
+                add("      step or more. Deltas are only trustworthy insofar as the")
+                add("      X/Y split above is even — check it before reading rows.")
+            add("")
         header = f"{'dimension':24}" + "".join(f"{t:>12}" for t in tier_order)
         add(header + f"{'  trend':>26}")
         for dimension in d.dimensions():

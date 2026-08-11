@@ -228,6 +228,28 @@ class TurnRecord(BaseModel):
     error: Optional[str] = None
 
 
+def _graph_summary_is_populated(summary: Optional[str]) -> bool:
+    """True when a `perspectives=N decisions=M` summary reports any node at all.
+
+    Kept string-tolerant on purpose: the summary is a human-readable audit line,
+    so an unparseable one is treated as "cannot tell" (False) rather than
+    silently counted either way.
+    """
+    if not summary:
+        return False
+    found = False
+    for part in summary.split():
+        if "=" not in part:
+            continue
+        _, _, value = part.partition("=")
+        try:
+            if int(value) > 0:
+                found = True
+        except ValueError:
+            continue
+    return found
+
+
 class SessionRecord(BaseModel):
     label: str
     turns: list[TurnRecord] = Field(default_factory=list)
@@ -411,8 +433,25 @@ class RunRecord(BaseModel):
         Graph-building is model-initiated, so a short or badly-steered
         conversation can leave A2 with an empty graph. Reporting such a run as
         "A2" would silently compare A1 against A1.
+
+        Zero tool calls is NOT the same as zero framework activity. `Advisor.chat`
+        runs `_repair_unrecorded_decision` after every turn, and that pass can
+        commit Decision nodes with nothing in `tool_calls`. Measured: r6 rep3
+        `wobble_a` recorded 0 tool calls and 2 Decisions, and was reported as a
+        collapse — the ceiling-not-floor tripwire firing on a cell where the
+        framework demonstrably ran. So the predicate is "no tool calls AND no
+        framework-authored artifact", which keeps the tripwire honest in both
+        directions.
         """
-        return self.arm is Arm.A2 and not self.all_tool_calls
+        if self.arm is not Arm.A2:
+            return False
+        if self.all_tool_calls:
+            return False
+        if self.decision_hashes:
+            return False
+        return not any(
+            _graph_summary_is_populated(s.graph_summary) for s in self.sessions
+        )
 
     @property
     def turn_errors(self) -> list[str]:

@@ -388,6 +388,108 @@ the two-column split was built to do: had `memory` and `used` been one number,
 the obvious reading of r6 would have been "grounding did nothing" and the fix
 would have been to remove a lane that demonstrably works.
 
+### Measured: the read-side fix did not move `used` (`claim2-weak-r7-readside`)
+
+Same cell as r6 (`cofounder_equity`, weak, A1.7 vs A2, n=3, both branches;
+1h52m), first run with the read-side prompt change above and with the
+`Perspective has no Polarity connected` bug fixed.
+
+**The graph bug is gone and that part is unambiguous.** 0 occurrences (r6: 5),
+0 `anchor:FAILED` against 13 `anchor:ok`, and 6/6 A2 runs built a graph where r6
+managed 5/6. Mean session-1 perspectives went 1.8 → 6.0. `accepted_cost` is now
+grounded in 6/6 runs and **all six on a risk (T-)**, which is the position the
+wobble re-audit can actually reassure from.
+
+**The read-side fix is unproven.** Pooled, `used` went 3/26 → **4/25** — one
+fact. The per-cell mean prints 0.12 → 0.17 and looks like a 40% gain; it is not,
+and the report now prints the count beside the rate so the next reader cannot
+make that mistake. `memory` moved ~2 facts (17/26 → 19/25). No claim attaches.
+
+**Do not read the judged rows.** A2 lost all 12 dimensions again (−0.33 to
+−1.42), but the word gap widened from 0% to **32%** (3328 vs 2527), which lands
+squarely on the two rows that degraded most (`conversational_fit` −0.92 → −1.42,
+`warmth` −0.75 → −1.17). Those are the dimensions most mechanically coupled to
+length. The structural rows are less exposed and stable across r6/r7, which
+argues they measure something real — but no magnitude here is publishable until
+a length-matched run exists.
+
+#### Correction: `explore` at 0/6 was never a regression
+
+r6 drew 2 of 6 and r7 drew 0 of 6, and the report's validity check reads that as
+a steering defect. Pooled over **all 55 weak-tier A2 cells ever recorded** the
+rate is **6/55 = 11%**; at p=0.109 with n=6, **P(0) = 0.50** and P(≥2) = 0.13.
+r7's zero is the modal outcome and r6's 2/6 was the outlier. Fisher exact on
+2/6 vs 0/6 = 0.227. `git diff` over `tests/bench` between the two runs is
+README-only, so no harness mechanism could have suppressed it.
+
+The real effect is a **tier gate**, and it is enormous: **17/25 = 68% strong vs
+6/55 = 11% weak**, Fisher p ≈ 5e-07.
+
+Three explanations were tested and all three are dead:
+
+- **Not a missing instruction.** The rendered A2 prompt is 43,328 chars and
+  contains the `explore` doc, "Two mapped tensions are already enough", and
+  "A decision closes on pathways" (`tests/probe_explore_prompt.py`).
+- **Not missing hashes.** Both `anchor` branches return
+  `artifacts["perspective_hashes"]` (`tests/probe_anchor_report.py`), though
+  they sit at 62–94% payload depth and the summary line names no hash.
+- **Not weak-tier incapacity with hash arguments, and not retrieval.** The
+  direct probe (`probe_explore_reachability.py`, real LLM) had weak tier call
+  `anchor, anchor, explore, sync` **unprompted** on the first ask. Weak tier
+  also passes hashes routinely elsewhere (`inspect_node`, 47 calls / 55 runs).
+
+What the probe found instead is that a **`sync` nudge SUPPRESSED `explore`**
+(weak/no-nudge: `explore` called; weak/sync-nudge: `sync, ingest`, no `explore`,
+and the reply refused — *"I cannot build the causal pathways... without hearing
+the two positions you're actually torn between"*). So the live hypothesis is now
+the opposite of payload burial: `explore` fires when the model holds mapped
+tensions it trusts, and a mid-conversation re-read makes it re-litigate whether
+it has enough to map. The bench's `decide` script never asks for a causal map —
+the probe's `FOLLOW` turn does, explicitly — which is the most likely reason the
+matrix rate is low at both tiers relative to the probe. **Untested.** The next
+step is a scenario beat that asks for the map, not another prompt edit.
+
+### Harness defects found by audit (2026-08-11), and what they invalidate
+
+Three auditors read `scoring`/`models`, `judge`/`report`, and
+`driver`/`arms`/`runner` against the saved records. Every claim below was
+re-verified by hand before the fix, and every fix is pinned by a test that fails
+without it (14 failures on revert).
+
+| Defect | What it invalidated | Fix |
+|---|---|---|
+| `ordinal` counted per pair, and every run contributes sessions in the same order — so slot became a deterministic function of session | The whole **`by session:` table**: 6/6 overall while every column was 100% one slot. `position_bias` degenerated into the exact identity `(gap_decide − gap_wobble)/2`, verified across all 9 saved runs — the printed "+0.23" contained **zero** information about slot preference | `ordinal` stratified per (pair, session) in `runner.judge_all`; `position_bias` returns per-session `strata` and the report flags any single-slot stratum |
+| `position_bias` pooled across arm pairs | r3's A2/A1.7 was **+0.222** (over the 0.2 threshold) and printed as +0.149 — warning suppressed on the pair whose table it guards | Computed and printed **per pair**, inside that pair's block |
+| `collapsed_to_a1` = "no tool calls" | `Advisor.chat` runs `_repair_unrecorded_decision` every turn and can commit Decisions with zero tool calls. r6 rep3/`wobble_a`: 0 calls, **2 Decisions**, reported as a collapse — the ceiling-not-floor tripwire firing on a cell where the framework ran | Predicate is now "no tool calls **and** no framework-authored artifact" (decisions / populated graph summary) |
+| Wobble "accuracy" averaged per **cell** under a header promising the **pair** | An always-reassure arm scores 1-of-2 on every pair and prints 0.50. r6's A2 scored **0 of 3 pairs** and the report printed 0.50 | Pairs are formed; incomplete pairs excluded and counted, never averaged in |
+| `classify_delta` called a **widening deficit** "durable" | weak=−1.0 strong=−1.4 printed as the product claim. Every judged row in r6/r7 is negative, so the first two-tier run would have hit it | Negative-gap pairs return `deficit (widening)` / `deficit (narrowing)`; "durable" describes advantages only |
+| `4f9e479` left a dangling cross-reference in the **A1 baseline** prompt | A1 was told about a `Grounded in:` line (a graph-render artifact) and pointed at "Reading Your Understanding" (an A2-only section) — silent baseline degradation that inflates an A2 delta with nobody touching an A2 number | Rewritten in `_TOOL_REWRITES`; guarded by `test_no_dangling_section_cross_references`, which asserts every `(see X)` names a heading A1 actually has |
+| Rates printed to two decimals with no n | `used` 0.12 → 0.17 reads as +40% and is 3/26 → 4/25 | Pooled counts printed beside every rate |
+| Nothing controlled for length | See r7 above | Report computes the gap and flags ≥20% next to the numbers |
+
+**Confirmed and NOT fixed** (recorded so they are not re-discovered):
+
+- **A2 runs 2–12 LLM calls per turn; prompt arms run exactly 1.**
+  `ConversationFacilitator.submit` short-circuits to a single call when
+  `not self._tools`, so A1/A1.7 get one; A2 gets up to 10 tool rounds, a
+  structured-extraction call, and `_repair_unrecorded_decision`. Defensible as
+  "that is what tools mean", but the README's old "not a different decode path"
+  was wrong, and A2 gets more self-conditioning per turn — a prompt-side
+  advantage, not a graph-side one.
+- **A2's history is structurally different, not just longer** — after a tool turn
+  it is replaced by the provider's chain (tool_use/tool_result blocks, injected
+  "Provide your structured response." user turns). A2 re-reads its own tool
+  traces; A1.7 pays a turn to write its journal by hand.
+- **Blindness is broken by formatting.** Over r7's 48 turns/arm, A1.7 emitted
+  **zero** bullets and **zero** numbered lists; A2 used them in a third of its
+  turns, and 6/6 A2 runs used recorded-ledger phrasing against A1.7's 1/6. One
+  A2 reply leaked a raw graph hash (`[[aa8c610]]`). A judge can separate the arms
+  reliably, and `conversational_fit` explicitly docks replies that read "like a
+  report" — so that row is partly a formatting measurement.
+- **`carryover_in` was empty for A2 in r5 and every earlier run.** The
+  cross-session handoff only began delivering content at r6, so no trend line
+  may be drawn across r1→r7; it would be measuring a harness change.
+
 ### Known limits, stated rather than hidden
 
 - **`mean_share` cannot see reframing.** An arm that renames both poles into its

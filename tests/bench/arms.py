@@ -130,6 +130,19 @@ _TOOL_REWRITES: tuple[tuple[str, str], ...] = (
     # "the machinery", and A1 writes "That's T+" to the user.
     ("The machinery stays invisible: never reveal tools, internal processes, hash codes, or pipeline steps; never say \"let me analyze\" or \"I'm processing\"; never present findings as structural tables or labeled positions.", "Your reasoning stays invisible: never narrate your own analysis; never say \"let me analyze\" or \"I'm processing\"; never present findings as structural tables or labeled positions."),
     ("Statement text from the graph is raw material — rephrase it freely into their language; exactness matters only when referencing nodes internally by hash.", "The structure you work out is raw material — rephrase it freely into their language."),
+    # Speaking the person's own particulars verbatim is grounding DISCIPLINE,
+    # which a prompt-only arm owes just as much — so it is rewritten, not
+    # dropped. What must go is the cross-reference: `Grounded in:` is a
+    # graph-render artifact and "Reading Your Understanding" is an A2-only
+    # section, so unrewritten this pointed A1 at a construct and a heading
+    # neither of which exists in its own prompt. Landed in 4f9e479, between r6
+    # and r7 — exactly the class of baseline degradation that inflates an A2
+    # delta without anyone editing an A2 number.
+    # (`_HOW_YOU_SPEAK_SCOPED` carries the same sentence, but A1 never draws
+    # from the scoped section and the engine always renders `_SCORE_READING`, so
+    # the reference resolves there. A rewrite key for it would be stale by
+    # construction — see test_rewrite_table_has_no_stale_keys.)
+    ("The one\nexception is a `Grounded in:` line: those are the person's own facts, spoken\nas stated, not reworded (see Reading Your Understanding).", "The one\nexception is the person's own facts — their numbers, names, and dates are\nspoken back as stated, never reworded into your own phrasing."),
 )
 
 #: Paragraphs that remain purely about machinery AFTER rewriting are dropped —

@@ -25,6 +25,7 @@ finding can be re-checked in isolation without re-spending the matrix. See
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -273,10 +274,21 @@ class BenchRun:
         judge = BenchJudge(self._container, self._config.judge_model)
         index = {r.cell_key: r for r in self.runs}
         for arm_a, arm_b in pairs:
-            # Counts comparisons within THIS pair so the judge can alternate
-            # X/Y exactly (see judge._x_is_a). Per-pair, not global: each pair's
-            # own split is what enters its delta table.
-            ordinal = 0
+            # Counts comparisons within THIS pair AND session label so the judge
+            # alternates X/Y exactly (see judge._x_is_a). Per-pair, not global:
+            # each pair's own split is what enters its delta table.
+            #
+            # Stratified by session label, and that is load-bearing. A single
+            # per-pair counter makes slot a deterministic function of session:
+            # every run contributes its sessions in the same order (`decide`
+            # then one wobble branch), so `decide` always landed on an even
+            # ordinal and the wobble always on an odd one. The pair's split
+            # stayed even — 6/6 — while every column of the `by session:` table
+            # was 100% one slot, admitting slot bias at full strength there, and
+            # `position_bias` degenerated into (gap_decide - gap_wobble)/2: a
+            # session-heterogeneity statistic wearing a bias label. Verified as
+            # an exact identity across all 9 saved multi-session runs.
+            ordinals: dict[str, int] = defaultdict(int)
             for record in self.runs:
                 if record.arm is not arm_a or record.error:
                     continue
@@ -305,9 +317,9 @@ class BenchRun:
                         run_a=record,
                         run_b=other,
                         session_label=session.label,
-                        ordinal=ordinal,
+                        ordinal=ordinals[session.label],
                     )
-                    ordinal += 1
+                    ordinals[session.label] += 1
                     self.comparisons.append(comparison)
         return self.comparisons
 
