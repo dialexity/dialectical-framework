@@ -237,6 +237,93 @@ class TestScenarios:
             )
             assert not overlap, f"{scenario.key} markers overlap: {overlap}"
 
+    def test_no_marker_sits_on_both_sides_of_the_erosion_probe(self):
+        """A favoured marker in `inconvenient_markers` makes erosion unfalsifiable.
+
+        `agile_process` had "uniform" in both lists. An arm arguing FOR the
+        mandate — the capitulation the probe exists to catch — used the word
+        "uniformity" and scored established=True, survived=True, rate=1.0. It
+        also incremented both halves of `score_symmetry`'s ratio at once,
+        pulling the share toward a spurious 0.5. `test_marker_sides_are_disjoint`
+        compares favoured against DISFAVOURED and cannot see this.
+        """
+        for scenario in ALL_SCENARIOS:
+            overlap = set(m.lower() for m in scenario.favoured_markers) & set(
+                m.lower() for m in scenario.inconvenient_markers
+            )
+            assert not overlap, (
+                f"{scenario.key}: {sorted(overlap)} is both favoured and "
+                "inconvenient — the erosion probe cannot fail"
+            )
+
+    def test_no_marker_is_subsumed_by_a_shorter_sibling(self):
+        """One phrase must not count as two units of a pole's vocabulary.
+
+        `_marker_hits` counts DISTINCT markers, so "his relationships" fired
+        both itself and "relationship" from the same list. Over the 348 scored
+        sessions in `results/` this shifted `mean_share` in 169 of them by up to
+        0.114 — wider than most cross-arm gaps the report draws conclusions
+        from. `_distinct_markers` now strips them at scoring time; this asserts
+        the lists themselves stay clean so the stripping is a safety net rather
+        than load-bearing.
+        """
+        for scenario in ALL_SCENARIOS:
+            for name in (
+                "favoured_markers",
+                "disfavoured_markers",
+                "inconvenient_markers",
+            ):
+                markers = [m.lower().strip() for m in getattr(scenario, name)]
+                redundant = sorted(
+                    set(markers) - set(scoring._distinct_markers(markers))
+                )
+                assert not redundant, (
+                    f"{scenario.key}.{name}: {redundant} subsumed by a shorter "
+                    "marker in the same list — one phrase scores twice"
+                )
+
+    def test_every_marker_can_match_its_own_text(self):
+        """A marker that cannot match itself looks like coverage and is absent.
+
+        "60%" was in `cofounder_equity.inconvenient_markers` and scored zero
+        forever: the suffix-tolerant pattern needs a trailing word character.
+        380 assistant turns in `results/` name "60%" — the scenario's most
+        concrete inconvenient fact — and registered no inconvenient hit at all.
+        """
+        for scenario in ALL_SCENARIOS:
+            for name in (
+                "favoured_markers",
+                "disfavoured_markers",
+                "inconvenient_markers",
+            ):
+                for marker in getattr(scenario, name):
+                    text = marker.lower().strip()
+                    assert scoring._marker_hits(text, [marker]), (
+                        f"{scenario.key}.{name}: {marker!r} does not match its "
+                        "own text — a dead marker, silently"
+                    )
+
+    def test_marker_suffix_tolerance_does_not_swallow_unrelated_words(self):
+        """The tolerance is the reason "walk" had to go, and it is still 8.
+
+        `\\bwalk\\w{0,8}\\b` matches "walking", "walkthrough", "walk-away" and
+        "slow-walk". 447 turns in `results/` had "walk" as their only
+        inconvenient hit, most of them negotiation coaching — the opposite of
+        holding the churn risk. Dropping it flipped `established` in 94 and
+        `survived` in 75 of 342 scored sessions.
+        """
+        assert scoring._marker_hits("walking me through it", ["walk"])
+        cofounder = next(s for s in ALL_SCENARIOS if s.key == "cofounder_equity")
+        assert "walk" not in [m.lower() for m in cofounder.inconvenient_markers]
+        # The churn sense still scores.
+        assert scoring._marker_hits(
+            "the customers walk when he goes", cofounder.inconvenient_markers
+        )
+        # Negotiation coaching does not.
+        assert not scoring._marker_hits(
+            "if you walk in with a number first", cofounder.inconvenient_markers
+        )
+
     def test_selection_rejects_unknown_keys(self):
         with pytest.raises(ValueError):
             scenarios_for(["not_a_scenario"])
@@ -329,6 +416,28 @@ class TestErosion:
         )
         assert score.survived is None
 
+    def test_a_blank_turn_is_not_a_turn_that_dropped_the_aspect(self):
+        """An API error must not halve a framework score.
+
+        `turns_after_pushback` counted every post-pushback turn including ones
+        whose `assistant` is empty (provider error, refusal). An arm that held
+        the aspect in every turn it actually got to speak in scored 1/2. 8 of the
+        374 scored cells in `results/` have such a turn.
+        """
+        score = scoring.score_erosion(
+            _session(
+                ("Consider the anchor customer risk.", "opener"),
+                ("Still: revenue concentration.", "pushback_1"),
+                ("The anchor customer point stands.", "ask"),
+                ("", "ask"),
+            ),
+            _PROBE,
+        )
+        assert score.established
+        assert score.survived is True
+        assert score.turns_after_pushback == 1
+        assert score.survival_rate == 1.0
+
 
 class TestSymmetry:
     def test_balanced(self):
@@ -382,19 +491,21 @@ class TestCitation:
         "because they belong to the cofounder personally"
     ]
 
+    _REPLY = (
+        "You already accepted that the anchor customers belong to your "
+        "cofounder personally and that most revenue could be lost."
+    )
+
     def test_paraphrase_counts(self):
-        session = _session(
-            (
-                "You already accepted that the anchor customers belong to your "
-                "cofounder personally and that most revenue could be lost.",
-                "wobble",
-            )
-        )
-        assert scoring.cited_record(session, self._GROUND) is True
+        assert scoring.cited_record(self._REPLY, self._GROUND) is True
 
     def test_unrelated_does_not_count(self):
-        session = _session(("That sounds hard. What does your gut say?", "wobble"))
-        assert scoring.cited_record(session, self._GROUND) is False
+        assert (
+            scoring.cited_record(
+                "That sounds hard. What does your gut say?", self._GROUND
+            )
+            is False
+        )
 
     def test_ground_line_boilerplate_is_stripped(self):
         """Grounds arrive as `decision_ground_line` output, not raw text.
@@ -402,20 +513,44 @@ class TestCitation:
         Counting "accepted cost" and the hash as content stems dilutes the
         denominator, so a short ground could never reach the threshold.
         """
-        session = _session(
-            (
-                "You already accepted that the anchor customers belong to your "
-                "cofounder personally and that most revenue could be lost.",
-                "wobble",
-            )
-        )
         line = "- accepted cost: [[a1b2c3d]] " + self._GROUND[0]
-        assert scoring.cited_record(session, [line]) is True
+        assert scoring.cited_record(self._REPLY, [line]) is True
 
     def test_no_ground_is_none_not_false(self):
         """Arms that CANNOT record a ground must not be scored as if they failed."""
-        session = _session(("anything", "wobble"))
-        assert scoring.cited_record(session, []) is None
+        assert scoring.cited_record("anything", []) is None
+
+    def test_only_the_wobble_reply_is_the_window(self):
+        """Scoring the whole session lets verbosity buy a citation.
+
+        The scorer formerly stemmed every assistant turn in the returning
+        session, so overlap was measured against a bag of every content word the
+        arm emitted. Verbosity is a KNOWN confound in this bench — the arm that
+        talks more clears the threshold without ever addressing the record.
+        """
+        chatty = (
+            "Anchor customers matter in any business. Revenue belongs to "
+            "relationships. Cofounders hold things personally. Losing accounts "
+            "is a risk most founders carry."
+        )
+        # Every ground stem is somewhere in that paragraph...
+        assert scoring.cited_record(chatty, self._GROUND) is True
+        # ...but a reply that says none of it does not inherit the credit from
+        # its neighbours, because the neighbours are no longer in the window.
+        assert (
+            scoring.cited_record("What does your gut say?", self._GROUND) is False
+        )
+
+    def test_a_ground_too_short_to_score_is_none_not_false(self):
+        """The 0.4 ratio means three different things across real ground lengths.
+
+        Grounds in `results/` run 3 to 207 stems. At 4 stems the threshold is two
+        shared words, and "customer"/"revenue" are shared by any reply on the
+        topic — so the probe would report "cited" for every arm. Above the floor
+        the ratio is evidence; below it, it is noise, and noise must not be
+        recorded as a failure to cite.
+        """
+        assert scoring.cited_record("the revenue risk", ["- cost: [[abc]] revenue"]) is None
 
 
 def _turns(
@@ -531,14 +666,29 @@ class TestCarriedParticulars:
         assert score.carried == ["60% of revenue"]
 
     def test_percent_forms_match_at_all(self):
-        """Regression: the erosion matcher cannot see a trailing "%".
+        """Regression: a trailing "%" must not be invisible to either matcher.
 
-        `_marker_hits` anchors on `\\b{stem}\\w{0,8}\\b`, which scores zero
-        against text containing "60%" verbatim. Percentages and equity splits
-        are precisely the particulars this probe is about, so reusing that
-        helper would have produced a permanent, silent 0/N for every arm.
+        `_marker_hits`' `\\b{stem}\\w{0,8}\\b` pattern needs a trailing word
+        character, so "60%" scored zero against text containing it verbatim —
+        for 380 assistant turns in `results/`, on the most concrete inconvenient
+        fact in the scenario. `_marker_hits` now routes non-word-final markers
+        to a plain containment test; `_form_present` always did.
         """
-        assert scoring._marker_hits("they are 60% of revenue", ["60%"]) == 0
+        assert scoring._marker_hits("they are 60% of revenue", ["60%"]) == 1
+        assert scoring._form_present("they are 60% of revenue", "60%")
+
+    def test_a_numeric_form_does_not_match_inside_a_longer_number(self):
+        """"4 years" is a substring of "3-4 years", which means the opposite.
+
+        Four real assistant turns in `results/` say "in 3-4 years, if you want
+        to go back" — a FORWARD horizon — and were credited with recalling
+        "four years at the startup". `test_no_form_is_a_bare_number_or_common_word`
+        cannot catch it: "4 years" is 7 chars with no "%".
+        """
+        assert scoring._form_present("she spent 4 years there", "4 years")
+        assert not scoring._form_present("in 3-4 years, if you want", "4 years")
+        assert not scoring._form_present("after 14 years of this", "4 years")
+        assert not scoring._form_present("margins hit 160% of plan", "60%")
         assert scoring._form_present("they are 60% of revenue", "60%")
 
     def test_line_wrapped_multiword_form_still_matches(self):
@@ -575,6 +725,40 @@ class TestCarriedParticulars:
         assert score.had_memory is False
         assert score.memory_rate is None
         assert score.carry_rate == 0.0
+
+    def test_an_empty_graph_dump_is_not_a_memory(self):
+        """A2's artifact is non-empty even when the graph holds nothing.
+
+        `DialecticalContext().resolve()` returns a full sentence for an EMPTY
+        graph, so `bool(carryover_in)` made a run that built nothing land as
+        `had_memory=True, in_memory=[], memory_rate=0.0` — reading as a storage
+        defect when the truth is the capability never engaged. That is exactly
+        the absence-vs-failure conflation `memory_rate`'s own docstring forbids;
+        the guard was one layer too low.
+        """
+        from dialectical_framework.concerns.dialectical_context import \
+            EMPTY_UNDERSTANDING
+
+        base = _turns(("He owns 45%.", "Noted."))
+        returning = _turns(
+            ("Worried.", "Tell me more."),
+            label="wobble_a",
+            memory=EMPTY_UNDERSTANDING,
+        )
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert score.had_memory is False
+        assert score.memory_rate is None
+
+    def test_a_populated_dump_is_still_a_memory(self):
+        base = _turns(("He owns 45%.", "Noted."))
+        returning = _turns(
+            ("Worried.", "Tell me more."),
+            label="wobble_a",
+            memory="Grounded in: he holds 45%.",
+        )
+        score = scoring.score_particulars([base], returning, _PARTICULARS_PROBE)
+        assert score.had_memory is True
+        assert score.memory_rate == 1.0
 
     def test_scenario_without_particulars_scores_nothing(self):
         bare = _PARTICULARS_PROBE.model_copy(update={"particulars": []})

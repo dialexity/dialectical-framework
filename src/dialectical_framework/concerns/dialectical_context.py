@@ -41,6 +41,14 @@ from dialectical_framework.graph.repositories.perspective_repository import (
 from dialectical_framework.graph.repositories.wheel_repository import WheelRepository
 
 
+#: The dump for a graph holding nothing. A non-empty string, so `bool(dump)` is
+#: True even when there is no understanding at all — any caller treating a
+#: truthy dump as "this run built something" must compare against this constant
+#: instead. Named rather than re-typed so a wording change cannot silently
+#: break those comparisons.
+EMPTY_UNDERSTANDING = "No prior understanding — this is a fresh conversation."
+
+
 class DialecticalContext(ReasonableConcern[str], SettingsAware):
     """
     Reads the full graph state for the current Case (sid) and produces a
@@ -92,7 +100,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 return "\n\n".join(parts)
             self._report.ok = True
             self._report.summary = "Empty graph"
-            return "No prior understanding — this is a fresh conversation."
+            return EMPTY_UNDERSTANDING
 
         nexuses = nexus_repo.find_all()
 

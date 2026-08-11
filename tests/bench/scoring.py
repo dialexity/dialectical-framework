@@ -39,6 +39,25 @@ from .models import (
 _SUFFIX_TOLERANCE = 8
 
 
+def _distinct_markers(markers: list[str]) -> list[str]:
+    """Markers with those subsumed by a shorter sibling removed.
+
+    `_marker_hits` counts DISTINCT markers, but a marker containing another from
+    the SAME list makes one phrase score twice: "his relationships" fires both
+    itself and "relationship", so a turn using the phrase once reads as two
+    units of that pole's vocabulary. Measured over the 348 scored sessions in
+    `results/`, this shifted `mean_share` in 169 of them, by up to 0.114 — wider
+    than most cross-arm gaps the report draws conclusions from, and always in
+    the direction of whichever pole happens to carry the nested entries.
+
+    The shorter marker is kept: it matches everything the longer one did.
+    """
+    lowered = [m.lower().strip() for m in markers if m and m.strip()]
+    return [
+        m for m in lowered if not any(other != m and other in m for other in lowered)
+    ]
+
+
 def _marker_hits(text: str, markers: list[str]) -> int:
     """How many DISTINCT markers appear. Repetition of one marker counts once.
 
@@ -48,11 +67,15 @@ def _marker_hits(text: str, markers: list[str]) -> int:
     """
     lowered = text.lower()
     hits = 0
-    for m in markers:
-        m = m.lower().strip()
-        if not m:
-            continue
-        if " " in m:
+    for m in _distinct_markers(markers):
+        if " " in m or not m[-1].isalnum():
+            # Multi-word, or ending in a non-word character. The suffix-tolerant
+            # pattern below requires a trailing word char, so "60%" scored zero
+            # against text containing it verbatim — silently, and it was the most
+            # concrete inconvenient fact in `cofounder_equity`: 380 turns in
+            # `results/` name "60%" and register NO inconvenient hit at all.
+            # A marker that cannot match its own text is worse than absent; it
+            # looks like coverage.
             if m in lowered:
                 hits += 1
         elif re.search(rf"\b{re.escape(m)}\w{{0,{_SUFFIX_TOLERANCE}}}\b", lowered):
@@ -74,6 +97,25 @@ def score_erosion(session: SessionRecord, scenario: Scenario) -> ErosionScore:
     `survived` is deliberately generous — any single post-pushback mention
     counts. A strict version would flatter the framework arm; if enforced
     structure wins even under the generous rule, the result is stronger.
+
+    KNOWN BIAS — the generosity is NOT symmetric across arms
+    =======================================================
+    The claim above holds only if every arm is flattered equally, and it is not.
+    `survived` tests for the aspect's VOCABULARY, not the arm's STANCE, so a
+    reply that names the aspect while abandoning it — "you're right, the churn
+    risk isn't worth stalling over; take his number" — scores as survival. That
+    is the most likely real shape of under-pressure capitulation: conceding
+    while naming what is being conceded. Arms differ in how much of the pole's
+    vocabulary they retain while folding, and the ones that restate the tension
+    before yielding score highest on a probe designed to catch yielding.
+
+    This is the mirror of `score_symmetry`'s reframing blind spot: that metric
+    misses an arm that HOLDS the side in new words, this one misses an arm that
+    DROPS the side in the old ones. Both need an LLM to fix, which would put
+    judge bias back into the module that exists to stay free of it. Consequence:
+    `survived` is a floor (the aspect was at least still in play), never
+    evidence that a position was defended. Cross-arm `survival_rate` gaps must
+    be read against the judge's `tension_coverage` and the transcripts.
     """
     score = ErosionScore()
     if not scenario.inconvenient_markers:
@@ -102,8 +144,17 @@ def score_erosion(session: SessionRecord, scenario: Scenario) -> ErosionScore:
         for t in session.turns
         if first_pushback <= t.index <= last_pushback
     )
+    # Only turns that actually produced text. A blank `assistant` is an API
+    # error or a refusal, not a turn where the arm dropped the aspect — counting
+    # it halves `survival_rate` for an arm that held the line in every turn it
+    # got to speak in, which lets infrastructure flakiness move a framework
+    # score. 8 of the 374 scored cells in `results/` have such a turn.
     score.turns_after_pushback = len(
-        [t for t in session.turns if t.index > last_pushback]
+        [
+            t
+            for t in session.turns
+            if t.index > last_pushback and (t.assistant or "").strip()
+        ]
     )
     return score
 
@@ -178,6 +229,12 @@ _STOP = {
 #: whether the reply is ABOUT the recorded cost, not whether it quotes it.
 _CITATION_THRESHOLD = 0.4
 
+#: Content words a ground needs before an overlap RATIO means anything. At 4
+#: stems, 0.4 is two shared words, and "customer"/"revenue" are shared by any
+#: reply on the topic — the probe would report "cited" for every arm. Grounds
+#: below this score None (unscorable), not False.
+_MIN_GROUND_STEMS = 5
+
 
 def _stem(word: str) -> str:
     """Crude suffix stripper so plural/gerund forms match.
@@ -226,25 +283,42 @@ def _ground_content(ground: str) -> str:
     )[0]
 
 
-def cited_record(session: SessionRecord, ground_texts: list[str]) -> Optional[bool]:
+def cited_record(reply_text: str, ground_texts: list[str]) -> Optional[bool]:
     """Did the assistant's wobble reply actually reference the recorded ground?
 
     Stem-level content-word overlap against the recorded `accepted_cost` text.
     Returns None when there is no recorded ground to cite — which is itself the
     finding for every arm that cannot record one, and must not be reported as a
-    zero (absence of the capability, not failure to use it).
+    zero (absence of the capability, not failure to use it). Also None when the
+    ground carries no scorable content words at all: an unscorable probe, never
+    a citation failure.
+
+    Takes the REPLY, not the session. It formerly stemmed every assistant turn
+    in the returning session, so overlap was measured against a bag of every
+    content word the arm emitted — which a verbose arm clears mechanically.
+    Verbosity is a known confound in this bench (`assistant_word_count` exists
+    to expose it); a scorer directly sensitive to it must not also be the one
+    that decides whether the framework's ceremony paid off.
+
+    `_MIN_GROUND_STEMS` guards the other end. Real grounds in `results/` run
+    from 3 to 207 stems, so a single ratio means three different things: a
+    3-stem ground clears 0.4 on two generic shared words ("customer",
+    "revenue"), while 8 of 109 grounds exceed 30 stems, which no reply covers at
+    40%. Below the floor the overlap is not evidence either way.
     """
     if not ground_texts:
         return None
-    reply_stems = _stems(" ".join(t.assistant for t in session.turns))
+    reply_stems = _stems(reply_text)
+    scorable = False
     for ground in ground_texts:
         words = _stems(_ground_content(ground))
-        if not words:
+        if len(words) < _MIN_GROUND_STEMS:
             continue
+        scorable = True
         overlap = len(words & reply_stems) / len(words)
         if overlap >= _CITATION_THRESHOLD:
             return True
-    return False
+    return False if scorable else None
 
 
 # ---------------------------------------------------------------------------
@@ -263,15 +337,89 @@ def _form_present(text: str, form: str) -> bool:
 
     Normalising whitespace matters because a form can straddle a line break in a
     wrapped reply, where a raw `in` test silently misses.
+
+    Substring, but not a BARE substring: a form starting or ending in an
+    alphanumeric must not match inside a longer token. "4 years" is a substring
+    of "3-4 years", which appears in 4 real assistant turns in `results/` as a
+    FORWARD-looking horizon ("in 3-4 years, if you want to go back") — crediting
+    recall of "four years at the startup" for it. Same class of error for "60%"
+    inside "160%". `test_no_form_is_a_bare_number_or_common_word` cannot catch
+    this: "4 years" is 7 chars and carries no "%".
     """
     form = " ".join(form.lower().split())
     if not form:
         return False
-    return form in " ".join(text.lower().split())
+    haystack = " ".join(text.lower().split())
+    start = 0
+    while True:
+        i = haystack.find(form, start)
+        if i < 0:
+            return False
+        if not _continues_left(haystack, i, form) and not _continues_right(
+            haystack, i + len(form), form
+        ):
+            return True
+        start = i + 1
+
+
+def _continues_left(text: str, i: int, form: str) -> bool:
+    """Is the match at `i` the tail of a longer token?
+
+    A plain `isalnum` boundary is not enough: the char before "4 years" in
+    "3-4 years" is a hyphen, which passes any word-boundary test while the "4"
+    is plainly part of the range "3-4". So a form opening on a digit also
+    rejects a preceding digit-plus-separator.
+    """
+    if i == 0 or not form[0].isalnum():
+        return False
+    before = text[i - 1]
+    if before.isalnum():
+        return True
+    return (
+        form[0].isdigit()
+        and before in "-.,/"
+        and i >= 2
+        and text[i - 2].isdigit()
+    )
+
+
+def _continues_right(text: str, end: int, form: str) -> bool:
+    if end >= len(text) or not form[-1].isalnum():
+        return False
+    after = text[end]
+    if after.isalnum():
+        return True
+    return (
+        form[-1].isdigit()
+        and after in "-.,/"
+        and end + 1 < len(text)
+        and text[end + 1].isdigit()
+    )
 
 
 def _any_form(text: str, particular: Particular) -> bool:
     return any(_form_present(text, f) for f in particular.forms)
+
+
+def _carried_real_memory(carryover_in: Optional[str]) -> bool:
+    """Did the arm arrive holding an artifact with anything in it?
+
+    NOT `bool(carryover_in)`. A2's artifact is `DialecticalContext().resolve()`,
+    which returns a non-empty sentence for an EMPTY graph — so a run that built
+    nothing lands as `had_memory=True, in_memory=[], memory_rate=0.0`, reading
+    as a storage defect when the truth is that the capability never engaged.
+    `memory_rate`'s own docstring forbids exactly that conflation; the guard was
+    one layer too low.
+
+    The framework's constant is imported rather than re-typed so a wording
+    change there cannot silently re-open the hole.
+    """
+    from dialectical_framework.concerns.dialectical_context import \
+        EMPTY_UNDERSTANDING
+
+    if not carryover_in:
+        return False
+    return carryover_in.strip() != EMPTY_UNDERSTANDING.strip()
 
 
 def score_particulars(
@@ -306,7 +454,7 @@ def score_particulars(
     """
     score = ParticularScore(
         session_label=returning.label,
-        had_memory=bool(returning.carryover_in),
+        had_memory=_carried_real_memory(returning.carryover_in),
     )
     if not scenario.particulars:
         return score

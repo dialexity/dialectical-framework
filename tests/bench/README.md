@@ -467,6 +467,46 @@ without it (14 failures on revert).
 | Rates printed to two decimals with no n | `used` 0.12 → 0.17 reads as +40% and is 3/26 → 4/25 | Pooled counts printed beside every rate |
 | Nothing controlled for length | See r7 above | Report computes the gap and flags ≥20% next to the numbers |
 
+### Machine-scorer defects (audit 3), and what re-scoring showed
+
+A third audit read `scoring.py`/`models.py`/`scenarios.py`. **Its code-reading
+was sound; several of its empirical magnitudes did not reproduce.** Every number
+below is from re-scoring the 374 saved cells in `results/` myself.
+
+| Defect | Verified effect | Fix |
+|---|---|---|
+| `"walk"` in `cofounder_equity.inconvenient_markers`, with suffix tolerance 8, matched `walking` / `walkthrough` / `walk-away` / `slow-walk` | **447 turns** had `walk` as their ONLY inconvenient hit — mostly negotiation coaching ("if you walk in with a number"), the *opposite* of holding the churn risk. Dropping it flips `established` in **94** and `survived` in **75** of 342 scored sessions | Replaced with phrases that name the aspect (`customers walk`, `walk away with`, `walk with him`) |
+| `"uniform"` was in AGILE's `favoured_markers` **and** `inconvenient_markers` | The only such collision in any scenario, and it made the erosion probe unfalsifiable in the one direction it exists to catch: an arm arguing FOR the mandate scored `survived=True, rate=1.0`. It also incremented both halves of `score_symmetry`'s ratio, faking balance | Removed from `inconvenient_markers`; `"one size"` carries that sense |
+| `"60%"` could never match | The suffix-tolerant pattern needs a trailing word char, so the scenario's most concrete inconvenient fact was dead: **380 turns** name "60%" and scored **zero** inconvenient hits | `_marker_hits` routes non-word-final markers to containment |
+| Markers subsumed by a shorter sibling in the same list (`"his relationships"` under `"relationship"`) | One phrase counted as two units of a pole's vocabulary — shifted `mean_share` in **169 of 348** sessions, by up to **0.114**, wider than most cross-arm gaps in the report | `_distinct_markers` strips them; the lists are also cleaned, with a guard test |
+| `"4 years"` matched inside `"3-4 years"` | **4 real turns** say "in 3-4 years, if you want to go back" — a *forward* horizon — and were credited with recalling "four years at the startup" | `_form_present` rejects a match continuing left/right into a longer number |
+| `cited_record` stemmed the **whole returning session** | Overlap measured against every content word the arm emitted, so a verbose arm clears it mechanically — and verbosity is this bench's known confound. **A2's citations drop from 3→1 (r6) and 4→3 (r7)** once the window is the wobble reply alone | Takes the reply text; the ground floor (`_MIN_GROUND_STEMS=5`) returns `None` below it |
+| Blank post-pushback turns sat in `survival_rate`'s denominator | 8 of 374 cells; an API error halved a framework score. **A1.7's r6 rate goes 0.40 → 0.60, erasing the erosion gap A2 appeared to have** (both 0.60) | Only turns that produced text count |
+| `had_memory = bool(carryover_in)` | `DialecticalContext` returns a non-empty sentence for an EMPTY graph, so a collapsed A2 would read `memory_rate=0.0` — a storage defect — when the capability never engaged. Latent: **0 of 766** saved sessions hit it | Compares against `EMPTY_UNDERSTANDING`, now a named constant in the framework |
+
+**Audit claims that did NOT reproduce** — recorded so they are not re-fixed:
+
+- **Order-blind `restated` subtraction.** The mechanism is real (the whole
+  returning session's user text is subtracted regardless of whether the user
+  spoke before or after the assistant), but **0 of 48** cells change under an
+  order-aware rule: every restated fact is user-first or user-only. The claimed
+  "A2 0.031 → 0.073 erases its win over A1" is not checkable at all — **A1 has
+  no particulars cells in any saved run**. Left as-is; a guard would pin a
+  behaviour no data exercises.
+- **"One ground yields 0 stems, recorded as a citation failure."** **0 of 109**
+  grounds are zero-stem (min 3, median 6, max 207). The threshold *heterogeneity*
+  is real and is now fixed via the floor; the `None` leak never occurred.
+- **"`eligible` denominators include n=1, so one binary event is weighted 4×."**
+  Real distribution is {3: 4 cells, 4: 30, 5: 14}. No n=1 or n=2 cell exists.
+  Unweighted pooling of 3-vs-5 denominators remains a mild real issue.
+- **`score_erosion`'s "generosity is symmetric" claim.** Confirmed as a genuine
+  design limitation and **documented rather than fixed**: `survived` tests
+  vocabulary, not stance, so "you're right, the churn risk isn't worth stalling
+  over" scores as survival. It is the mirror of `score_symmetry`'s reframing
+  blind spot, and fixing either needs an LLM in the one module that exists to
+  stay judge-free. `survived` is now stated to be a floor, never evidence that a
+  position was defended.
+
 **Confirmed and NOT fixed** (recorded so they are not re-discovered):
 
 - **A2 runs 2–12 LLM calls per turn; prompt arms run exactly 1.**

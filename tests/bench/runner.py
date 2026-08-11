@@ -222,7 +222,7 @@ class BenchRun:
             # is citing it just as much as naming the price again. Scoring only
             # costs understated A2 on precisely the reply the ceremony is FOR.
             score.cited_record = cited_record(
-                session,
+                reply,
                 record.accepted_cost_grounds + record.adopted_pathway_grounds,
             )
             self.machine.setdefault(record.cell_key, MachineScores()).wobble = score

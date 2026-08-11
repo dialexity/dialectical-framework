@@ -181,10 +181,12 @@ class Advisor:
         if app_preamble:
             parts.append(app_preamble)
 
-        context_text = (
-            dialectical_context
-            or "No prior understanding — this is a fresh conversation."
-        )
+        # Deferred like the render call below — `dialectical_context` imports
+        # the graph layer, which imports back through the agent package.
+        from dialectical_framework.concerns.dialectical_context import \
+            EMPTY_UNDERSTANDING
+
+        context_text = dialectical_context or EMPTY_UNDERSTANDING
         # Rendered at construction (not the import-time SYSTEM_PROMPT
         # constant) so settings-derived prompt values (max_wheel_layer)
         # reflect the live DI configuration.
