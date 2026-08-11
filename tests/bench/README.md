@@ -363,6 +363,31 @@ re-audit.
 memory can now hold the person's case at all, which it demonstrably could not
 before, and the next blocker is one layer up from storage.
 
+#### The fix r6 pointed at (read side, applied 2026-08-11)
+
+`memory` high + `used` flat is the metric's own definition of a **prompt**
+defect, so that is where the next change went. Nothing in the Advisor's system
+prompt mentioned `Grounded in:` — the dump rendered the line and no instruction
+said what it was or that it must be spoken. Worse, the strongest style rule in
+the prompt worked against it: *"Statement text from the graph is raw material —
+rephrase it freely"* is right for a seven-word pole and wrong for `60% of
+revenue`, because a reworded number is a lost number.
+
+`_SCORE_READING` now names the marker, says lead WITH the particulars rather
+than with the shape of the tension (spelling out why: a restated structure reads
+to the person as having been forgotten), says ask for a fact you lack instead of
+filling the gap with a generality, and explains accretion order as a chronology
+with later disclosures current. Both `How You Speak` variants carve the line out
+of the rephrase licence. Locked by
+`tests/test_tetrad_grounding.py::TestPromptTeachesTheReadSide` (4/4 fail without
+the change).
+
+This is untested against a live run — no claim attaches to it until a bench run
+moves `used`. It is recorded here because the r6 numbers chose it, which is what
+the two-column split was built to do: had `memory` and `used` been one number,
+the obvious reading of r6 would have been "grounding did nothing" and the fix
+would have been to remove a lane that demonstrably works.
+
 ### Known limits, stated rather than hidden
 
 - **`mean_share` cannot see reframing.** An arm that renames both poles into its

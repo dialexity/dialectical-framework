@@ -734,8 +734,14 @@ evidence without touching the structure.
   there — rendering assessment prose would bury every tetrad in CC/DV text.
 
 Written by `concerns/tetrad_grounding.py` off `anchor(context=...)`, threaded as
-`ExpandPolarity(grounding_context=...)`. Fail-soft throughout: grounding is
-enrichment, never a gate.
+`ExpandPolarity(grounding_context=...)` (both `anchor` branches; the thesis-only
+one goes through `AnalysisPipeline(grounding_context=...)`). Fail-soft
+throughout: grounding is enrichment, never a gate.
+
+Reading it is instructed, not incidental: the Advisor prompt names the
+`Grounded in:` marker, requires the facts be spoken as stated, and exempts them
+from the rephrase licence that governs all other graph text. A rendered line
+nobody is told to use is a line nobody uses — measured, `claim2-weak-r6-grounding`.
 
 ## Critique Architecture
 

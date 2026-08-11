@@ -607,7 +607,30 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   correction is narrower and more useful than the original claim — BOTH arms barely use their memory, and the journal
   at least holds the particulars. Denominators exclude facts the person re-stated in the returning session (echoing
   the transcript is not memory) and facts only the ASSISTANT introduced (remembering its own inference proves
-  nothing). **This lane is not yet measured against a grounding-built graph — no win is claimed.**
+  nothing).
+  **Now measured against a grounding-built graph (`claim2-weak-r6-grounding`, 12 cells, first run with the lane
+  live), and it splits cleanly: storage moved, behaviour did not.** A2's `memory` went from structurally
+  unrecordable to 0.62 (A1.7's journal 0.92) — the graph demonstrably holds `45%`, `60% of revenue`, the
+  three-week holiday, the chaotic sales notes, verbatim in a grounding `Rationale`. `used` stayed a dead heat:
+  0.12 vs 0.11. So the two-column metric earned its keep on its first real use by sending the fix to the RIGHT
+  layer — this is textbook "high memory, low used = PROMPT defect", and had the columns been collapsed the
+  obvious reading would have been "grounding did nothing", i.e. rip out a lane that works. **Still no win
+  claimed**: A2 lost every judged dimension, but a third of the cells were structurally broken (1 run built no
+  graph, 3/6 prose-only decisions, 3/5 never called `explore`, 1 `anchor:FAILED`), so those rows are unreadable
+  by the report's own rules. Two machine scores did favour A2 (erosion 5/6 vs 3/6 survived; symmetry slope flat
+  or negative in 5/6).
+  **The read side needed the same instruction the write side did** (fixed 2026-08-11, from the r6 result): the
+  dump rendered `Grounded in:` and NOTHING in `SYSTEM_PROMPT` said what it was or that it must be spoken, so the
+  model held "60% of revenue" and replied about "the tension between moving decisively and protecting
+  relationships". `_SCORE_READING` now names the marker, says lead WITH the particulars (with the exact failure
+  it prevents — restating the tension's shape reads to the person as having been forgotten), says ask rather
+  than fill a gap with a generality, and explains the accretion order as a chronology with later disclosures
+  current. Critically it also carves the line OUT of the rephrase licence: both `_HOW_YOU_SPEAK` variants
+  license free rewording of graph text, which is right for a ~7-word pole and wrong for a number — a reworded
+  `60%` is a lost `60%` — so without the carve-out the prompt's strongest style rule instructs the model to
+  paraphrase away the only case-specific text it has. Generalises the write-side lesson one step further: a lane
+  needs a test at the WRITE caller seam AND at the READ instruction, because "the data is in the dump" and "the
+  model is told to use the data" are two different claims and only the first was ever tested.
   **Scope is the whole design, and the prompt is where it is enforced.** `SYSTEM_PROMPT` admits only situation facts
   (numbers, equity splits, dates, named commitments, concrete cited instances) and explicitly refuses four
   neighbours: restatements of the tension (already the tetrad's job), interpretation/diagnosis/advice (the counsel's
@@ -675,7 +698,10 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   and `docs/graph.md`'s Grounding section document the role vocabulary and must move with it. Locked by
   `tests/test_rationale_grounding_role.py` (edge-role round-trip, default-None for pre-existing callers,
   role-not-hashed so dedup survives), `tests/test_tetrad_grounding.py` (render in both views, assessment prose
-  excluded, accretion order, pole dedup), `tests/test_expand_polarities_grounding.py` (one extraction reused,
+  excluded, accretion order, pole dedup, plus `TestPromptTeachesTheReadSide` — the prompt names the marker in
+  BOTH scoped and unscoped renders, tells the model to speak the particulars, and exempts them from the
+  rephrase licence in whichever `How You Speak` variant renders),
+  `tests/test_expand_polarities_grounding.py` (one extraction reused,
   no-context no-op, failure isolation, grounding-before-validation, plus
   `TestAnchorBranchesGroundAlike` — both branches ground, `ingest` still does not), and
   `test_prompt_review_regressions.py::TestAnchorGroundingReachesTheToolDoc` (both docs demand context WITH
