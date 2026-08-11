@@ -283,6 +283,19 @@ class Advisor:
             if verdict is None or not verdict.is_recordable:
                 return
 
+            # The person is closing. Build the pathways their decision is
+            # supposed to rest on, if the model never did. Contained in its own
+            # guard: a richer grounding is worth attempting, never worth losing
+            # the record over — that failure mode is the one this whole method
+            # exists to prevent.
+            try:
+                await self._ensure_pathways_before_closing()
+            except Exception:
+                logger.exception(
+                    "Pathway construction before closing failed (fail-soft); "
+                    "recording the decision on tensions alone"
+                )
+
             recorder = RecordDecision()
             decision_hash = await recorder.resolve(
                 question=verdict.question,
@@ -299,6 +312,70 @@ class Advisor:
                 )
         except Exception:
             logger.exception("Decision confirmation repair failed (fail-soft)")
+
+    async def _ensure_pathways_before_closing(self) -> None:
+        """Build pathways for unwoven perspectives when a decision is closing.
+
+        The engine prompt already states the rule: "A decision closes on
+        pathways, not on tensions alone... Without pathways there is no paired
+        recipe to adopt, no trap version of the choice to name, and the counsel
+        at the closing turn is a single tension restated with more emphasis."
+        The model does not obey it. Measured over every saved bench run,
+        `explore` fires in 6 of 55 weak-tier runs (11%) against 17 of 25 at the
+        strong tier (68%, Fisher p ~ 5e-07) — and in the 6 cells of
+        `claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7
+        tensions per cell. Those runs closed decisions over a graph with no
+        nexus, no cycle, no wheel, no transformation and no synthesis: the
+        framework's actual differentiator never executed, so the arm was a
+        prompted model with tetrads bolted on. A direct probe confirmed the weak
+        tier CAN call `explore` unprompted when a turn asks for a causal map, so
+        this is election, not capability — the same failure mode, and the same
+        remedy, as `_repair_unrecorded_decision` itself.
+
+        Scope is deliberately narrow: this fires only once a decision has been
+        confirmed (the caller already established that), never mid-exploration.
+        It builds what the person's own closing entitles them to and nothing
+        more. Weaving obeys `run_exploration`'s existing per-call perspective
+        cap, so a wide graph is woven across successive closings rather than in
+        one latency spike.
+
+        Fail-soft and silent to the person: their reply has already been
+        delivered, and a pathway they never asked about must not surface as an
+        error. What it changes is the RECORD — `adopted_pathway` becomes
+        available, the re-audit has a recipe to reassure from, and the synthesis
+        exists.
+        """
+        from dialectical_framework.agents.advisor.tools.explore import \
+            run_exploration
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        repo = PerspectiveRepository()
+        perspectives = repo.find_all_active()
+        unwoven = [
+            p
+            for p in perspectives
+            if p.hash and not repo.is_in_use_by_cycle(p)
+        ]
+        # One tension has no arrangement to enumerate: a wheel needs a second
+        # opposition to be a pathway rather than a restatement. Below two, the
+        # honest state IS "tensions only".
+        if len(unwoven) < 2:
+            return
+
+        logger.info(
+            "Decision closing over %d unwoven perspective(s) — building "
+            "pathways the engine prompt requires and the model skipped",
+            len(unwoven),
+        )
+        await run_exploration(
+            perspective_hashes=[p.hash for p in unwoven],
+            intent=(
+                "The person is closing a decision on these tensions. Build the "
+                "causal arrangements so the decision rests on a pathway."
+            ),
+            nexus_hash=self._nexus_hash,
+        )
 
     @staticmethod
     def _accepted_cost_ground(verdict) -> list | None:

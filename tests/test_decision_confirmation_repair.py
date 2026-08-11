@@ -50,8 +50,14 @@ class _StubAdvisor:
     a stub keeps these tests at the seam instead of at the constructor.
     """
 
-    def __init__(self, tool_results=None, principal: str = "human") -> None:
+    def __init__(
+        self,
+        tool_results=None,
+        principal: str = "human",
+        nexus_hash: str | None = None,
+    ) -> None:
         self._principal = principal
+        self._nexus_hash = nexus_hash
 
         class _Conv:
             last_tool_results = list(tool_results or [])
@@ -60,6 +66,7 @@ class _StubAdvisor:
 
     _repair_unrecorded_decision = Advisor._repair_unrecorded_decision
     _recorded_decision_this_turn = Advisor._recorded_decision_this_turn
+    _ensure_pathways_before_closing = Advisor._ensure_pathways_before_closing
     _accepted_cost_ground = Advisor.__dict__["_accepted_cost_ground"]
 
 
@@ -422,3 +429,225 @@ class TestTurnWiring:
         # From ResponseComplete, not accumulated deltas: deltas cover the tool
         # rounds, the structured message is what the person receives.
         assert "ResponseComplete" in src
+
+
+class TestPathwaysBeforeClosing:
+    """A decision must not close over tensions that were never woven.
+
+    The engine prompt has always said so — "A decision closes on pathways, not
+    on tensions alone... Without pathways there is no paired recipe to adopt, no
+    trap version of the choice to name, and the counsel at the closing turn is a
+    single tension restated with more emphasis." The model does not obey it, in
+    exactly the tier-shaped way `record_decision` did not: `explore` fires in
+    6/55 weak-tier runs (11%) against 17/25 strong (68%), and in all 6 cells of
+    `claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7
+    tensions each. Those runs closed decisions over a graph holding no nexus, no
+    cycle, no wheel, no transformation and no synthesis — the framework's
+    differentiator never ran, so the arm was a prompted model with tetrads
+    bolted on, which is what the judged rows then measured.
+
+    A direct probe (`tests/bench/probe_explore_reachability.py`) confirmed the
+    weak tier CAN call `explore` unprompted when a turn asks for a causal map.
+    So this is election, not capability — same diagnosis, same remedy as the
+    decision repair above.
+    """
+
+    @staticmethod
+    def _perspectives(count: int, woven: int = 0):
+        """`count` committed perspectives, the first `woven` already in a cycle."""
+
+        class _PP:
+            def __init__(self, h: str, in_cycle: bool) -> None:
+                self.hash = h
+                self.in_cycle = in_cycle
+
+        return [_PP(f"h{i:04d}", i < woven) for i in range(count)]
+
+    def _patch_repo(self, monkeypatch, perspectives):
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        monkeypatch.setattr(
+            PerspectiveRepository, "find_all_active", lambda self: perspectives
+        )
+        monkeypatch.setattr(
+            PerspectiveRepository,
+            "is_in_use_by_cycle",
+            lambda self, pp: pp.in_cycle,
+        )
+
+    def _capture_exploration(self, monkeypatch):
+        calls = []
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            calls.append(
+                {
+                    "hashes": list(perspective_hashes),
+                    "intent": intent,
+                    "nexus_hash": nexus_hash,
+                }
+            )
+            return "{}"
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration", fake_run)
+        return calls
+
+    @pytest.mark.asyncio
+    async def test_unwoven_tensions_get_pathways(self, monkeypatch):
+        """The r7 shape exactly: several anchored tensions, no explore call."""
+        self._patch_repo(monkeypatch, self._perspectives(5))
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert len(calls) == 1
+        assert calls[0]["hashes"] == ["h0000", "h0001", "h0002", "h0003", "h0004"]
+
+    @pytest.mark.asyncio
+    async def test_already_woven_tensions_are_not_rewoven(self, monkeypatch):
+        """Idempotence: a model that DID explore must not pay for it twice."""
+        self._patch_repo(monkeypatch, self._perspectives(4, woven=4))
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_only_the_unwoven_remainder_is_woven(self, monkeypatch):
+        self._patch_repo(monkeypatch, self._perspectives(5, woven=3))
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert calls[0]["hashes"] == ["h0003", "h0004"]
+
+    @pytest.mark.asyncio
+    async def test_a_single_tension_is_left_alone(self, monkeypatch):
+        """One opposition has no arrangement to enumerate.
+
+        A wheel over a single tension is that tension restated, not a pathway,
+        so "tensions only" is the honest state and building anything would be
+        ceremony for its own sake.
+        """
+        self._patch_repo(monkeypatch, self._perspectives(1))
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_an_empty_graph_builds_nothing(self, monkeypatch):
+        self._patch_repo(monkeypatch, [])
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_the_scoped_nexus_pin_is_carried_through(self, monkeypatch):
+        """Counsel mode must weave INTO its nexus, never fork a second one."""
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([], nexus_hash="nex1234")._ensure_pathways_before_closing()
+
+        assert calls[0]["nexus_hash"] == "nex1234"
+
+    @pytest.mark.asyncio
+    async def test_pathways_are_built_before_the_record_is_written(self, monkeypatch):
+        """Order is the whole point: the record's grounds are read from the graph.
+
+        Weaving after the write would leave `adopted_pathway` unavailable on the
+        very record it exists for, and the later re-audit with nothing to
+        reassure from.
+        """
+        order = []
+
+        async def fake_check(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(
+                confirmed=True, question="q", stance="s", rationale="r"
+            )
+
+        async def fake_record(self, **kwargs):
+            order.append("record")
+            return "hash"
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        monkeypatch.setattr(RecordDecision, "resolve", fake_record)
+
+        self._patch_repo(monkeypatch, self._perspectives(3))
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            order.append("explore")
+            return "{}"
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration", fake_run)
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        assert order == ["explore", "record"]
+
+    @pytest.mark.asyncio
+    async def test_no_pathways_are_built_when_nothing_was_confirmed(
+        self, monkeypatch
+    ):
+        """This is not a background weaver — it fires only on a real closing.
+
+        Weaving on every turn would burn latency and tokens on arrangements the
+        conversation may never reach, and would make `explore`'s per-call
+        perspective cap meaningless.
+        """
+
+        async def fake_check(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(confirmed=False, question="", stance="")
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
+        self._patch_repo(monkeypatch, self._perspectives(5))
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._repair_unrecorded_decision("still thinking", "sure")
+
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_a_failed_exploration_never_breaks_the_turn(self, monkeypatch):
+        """The person's reply is already delivered; a pathway they never asked
+        about must not surface as an error, and the record must still be written."""
+        recorded = {}
+
+        async def fake_check(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(
+                confirmed=True, question="q", stance="s", rationale="r"
+            )
+
+        async def fake_record(self, **kwargs):
+            recorded.update(kwargs)
+            return "hash"
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        monkeypatch.setattr(RecordDecision, "resolve", fake_record)
+        self._patch_repo(monkeypatch, self._perspectives(3))
+
+        async def boom(*, perspective_hashes, intent, nexus_hash):
+            raise RuntimeError("memgraph went away")
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration", boom)
+
+        # Must not raise, and must still write the record — losing it here would
+        # reintroduce exactly the defect the repair exists to prevent.
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        assert recorded["stance"] == "s"

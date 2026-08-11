@@ -449,6 +449,48 @@ the probe's `FOLLOW` turn does, explicitly — which is the most likely reason t
 matrix rate is low at both tiers relative to the probe. **Untested.** The next
 step is a scenario beat that asks for the map, not another prompt edit.
 
+### The finding that invalidates every judged row so far: A2 never ran the framework
+
+Before any scorer or judge defect matters, this does. Reading the tool traces of
+the 6 `claim2-weak-r7-readside` A2 cells:
+
+| Cell | Tools called | `graph_summary` |
+|---|---|---|
+| all 6 | `anchor` ×1–3, plus `sync` / `inspect_node` / `record_decision` | `perspectives=5..7 decisions=1..2` |
+
+**`explore` was called zero times.** Zero nexuses, zero cycles, zero wheels,
+zero transformations, zero syntheses — across all six. So r7 compared **`anchor`
+against a prompted LLM**, not Structured Dialectics against a prompted LLM. The
+tetrad is the framework's *unit*; the pathway, the transformation and the
+synthesis are its *product*, and none of the product existed in any cell a judge
+scored. Every negative judged row in r5/r6/r7 was collected from an arm running
+with its differentiator switched off.
+
+This also retires the earlier framing in this file. I wrote that "the framework
+does not win." The defensible statement is narrower: **we never turned it on.**
+
+Rate across every saved run: `explore` fires in **6/55 weak-tier runs (11%)** vs
+**17/25 strong (68%)** — Fisher p ≈ 5e-07. The same tier-shaped signature as
+`record_decision` before its repair, and the same diagnosis: not capability
+(`probe_explore_reachability.py` shows the weak tier calling `explore`
+unprompted when a turn asks for a causal map) but **election**, at the moment the
+model is most inclined to simply answer well. The `decide` script's beats (opener
+→ deepen → pushback ×2 → ask_advice → commit) never ask for a map, so nothing in
+the run forces the election.
+
+**Fixed in code, not in the prompt** (2026-08-11), because
+`_DECISION_READINESS` had *already* mandated it in prose — "A decision closes on
+pathways, not on tensions alone… `explore` what you have before the ceremony" —
+and was ignored anyway; a fourth round of strengthening was not going to be the
+first one that worked. `Advisor._ensure_pathways_before_closing` weaves the
+unwoven perspectives once a confirmed decision is closing, before the record is
+written. Same seam and same ranking as the decision repair (see the systemic map
+entry for scope, idempotence, ordering and the two-tension floor).
+
+What the re-run must check, beyond the judged rows: `adopted_pathway` (was
+**0/6**), `cited_record`, and whether transformations and synthesis appear in the
+reply at all for the first time.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and

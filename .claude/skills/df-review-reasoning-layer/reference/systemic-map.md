@@ -544,6 +544,32 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   analyst/system_prompts.py — cannot record, never fakes an acknowledgment, and NEVER anchors the declared choice
   as a thesis (a decision is a stance, not a tension; anchoring it misfiles it as analytical structure); locked by
   `test_analyst_never_fakes_or_anchors_decisions`. No settings knobs (policy-not-config).
+  **Pathways before closing** (`Advisor._ensure_pathways_before_closing`, live since 2026-08-11) — the SECOND
+  application of the same code-not-prompt ranking, and the one that made the bench measure the framework at all.
+  `_DECISION_READINESS` has always carried the rule ("A decision closes on pathways, not on tensions alone...
+  Without pathways there is no paired recipe to adopt, no trap version of the choice to name, and the counsel at
+  the closing turn is a single tension restated with more emphasis"), and the model ignores it in the same
+  tier-shaped way it ignored `record_decision`: `explore` fires in **6/55 weak-tier runs (11%) vs 17/25 strong
+  (68%)**, Fisher p ~ 5e-07 — and in all 6 cells of `claim2-weak-r7-readside` it fired **ZERO** times while
+  `anchor` built 5-7 tensions each. Those cells closed decisions over a graph with no nexus, no cycle, no wheel,
+  no transformation and no synthesis: **the differentiator never executed**, so the "framework arm" was a prompted
+  model with tetrads bolted on and every judged row from it measured `anchor`, not Structured Dialectics. Not a
+  capability limit — `tests/bench/probe_explore_reachability.py` shows the weak tier calling `explore` unprompted
+  when a turn asks for a causal map — so it is ELECTION, and election at the closing turn is exactly what the
+  decision-repair lesson says belongs in code. The seam fires only inside `_repair_unrecorded_decision` AFTER the
+  confirmation verdict passes (never a background weaver: mid-exploration weaving would burn latency on
+  arrangements the conversation may never reach and make `explore`'s per-call perspective cap meaningless), weaves
+  only perspectives not already `is_in_use_by_cycle` (idempotent — a model that DID explore pays nothing), and
+  returns silently below two unwoven tensions (one opposition has no arrangement to enumerate; a wheel over it is
+  the tension restated, so "tensions only" is then the honest state). Ordering is load-bearing: pathways BEFORE
+  `RecordDecision`, because the record's grounds are read from the graph — weaving after the write leaves
+  `adopted_pathway` unavailable on the very record it exists for. Nested in its OWN try/except inside the repair's:
+  a richer grounding is worth attempting, never worth losing the record over. Reviewing prompts here: the
+  `_DECISION_READINESS` pathways paragraph and the `explore` threshold line stay exactly as written — the model
+  exploring on its own is still the path that produces the best-fitted arrangement, and the prompt stays silent
+  about the backstop for the same reason as above. Locked by `TestPathwaysBeforeClosing` in
+  `tests/test_decision_confirmation_repair.py` (fires on the r7 shape, skips woven/single/empty, carries the
+  counsel-mode `nexus_hash` pin, orders before the record, survives an exploration fault with the record intact).
   **Decision provenance** (live since 2026-08): the rationale's `agent` names the confirming PRINCIPAL — "human"
   iff a person confirmed the ceremony; delegated drivers (agent-to-agent runs) record "agent:<name>" instead.
   Host-attested at construction (`Advisor(principal=...)` → closed over by `build_record_decision`, same
