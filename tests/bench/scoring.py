@@ -494,3 +494,65 @@ def turn_by_tag(session: SessionRecord, tag: str) -> Optional[TurnRecord]:
         if t.tag == tag:
             return t
     return None
+
+
+#: Framework vocabulary the silent Advisor must never say to the person.
+#: Verbatim from `_HOW_YOU_SPEAK` in `advisor/system_prompts.py`, which bans
+#: exactly this list "unless the app preamble explicitly grants terminology
+#: disclosure" — the bench persona grants nothing, so any hit is a violation.
+#: Position labels are matched with punctuation/word boundaries because bare
+#: "T+" also appears in ordinary prose ("cost+benefit"), and `A-` would
+#: otherwise match every hyphenated "a-".
+_MACHINERY_TERMS = (
+    "thesis",
+    "antithesis",
+    "polarity",
+    "perspective",
+    "nexus",
+    "wheel",
+    "transformation",
+    "tetrad",
+    "dialectic",
+    "the framework",
+    "accepted cost",
+    "adopted pathway",
+)
+_POSITION_LABEL = re.compile(
+    r"(?<![A-Za-z0-9])(T[+-]|A[+-]|S[+-]|Ac[+-]|Re[+-])(?![A-Za-z0-9])"
+)
+
+
+def score_machinery_leak(session: SessionRecord) -> list[str]:
+    """Framework terms the reply said out loud. Empty is the passing state.
+
+    The silent-Advisor contract is a PRODUCT claim, not a style preference: A2 is
+    the consultant replacement, and a consultant who narrates their own method
+    ("the framework found four strong oppositions") has stopped being one. The
+    prompt states the ban plainly and the existing regression tests only check
+    that the PROMPT says so — nothing checked the reply, which is how
+    `claim2-weak-r10` leaked in 15 places across 6 A2 cells while A1.7 leaked in
+    zero, unnoticed.
+
+    Measured as a machine score because it needs no judge and cannot be
+    flattered by eloquence: the terms are either there or they are not. It also
+    reads directly on `conversational_fit` (-1.33 in r10) — being handed "**T+:
+    Solo leadership with unified strategic vision**" is a worse conversation
+    whatever the reasoning behind it was.
+
+    Returns the offending snippets rather than a count, because the fix depends
+    on which kind: a bare label leaking is a formatting slip, "the framework
+    flagged" is the machinery narrating itself.
+    """
+    hits: list[str] = []
+    for turn in session.turns:
+        text = turn.assistant or ""
+        lowered = text.lower()
+        for term in _MACHINERY_TERMS:
+            start = lowered.find(term)
+            if start != -1:
+                hits.append(text[max(0, start - 40) : start + len(term) + 40].strip())
+        for match in _POSITION_LABEL.finditer(text):
+            hits.append(
+                text[max(0, match.start() - 40) : match.end() + 40].strip()
+            )
+    return hits

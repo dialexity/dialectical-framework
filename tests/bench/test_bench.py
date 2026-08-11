@@ -2434,3 +2434,83 @@ class TestWovePathwayReadsTheGraph:
         text = render_report([run], [], {}, ["weak"])
         assert "NO woven" in text
         assert "woven=0" in text
+
+
+class TestMachineryLeak:
+    """The silent-Advisor contract, measured on the reply rather than the prompt.
+
+    Existing regressions assert the prompt SAYS "do not use framework
+    terminology". Nothing asserted the reply obeyed, which is how
+    `claim2-weak-r10` printed "**T+: Solo leadership with unified strategic
+    vision**" and "the framework flagged as avoidance" at the person 15 times
+    across 6 A2 cells — while A1.7 leaked once — with the report calling the
+    resulting `conversational_fit` loss a framework weakness.
+    """
+
+    @staticmethod
+    def _session(*replies: str) -> SessionRecord:
+        return SessionRecord(
+            label="decide",
+            turns=[
+                TurnRecord(index=i, user="u", assistant=r)
+                for i, r in enumerate(replies)
+            ],
+        )
+
+    def test_a_clean_reply_leaks_nothing(self):
+        assert scoring.score_machinery_leak(
+            self._session(
+                "You're trading speed for the relationships that pay your bills. "
+                "Which of those can you least afford to lose?"
+            )
+        ) == []
+
+    def test_the_verbatim_r10_leak_is_caught(self):
+        hits = scoring.score_machinery_leak(
+            self._session(
+                "Here's what that looks like structurally:\n\n"
+                "**T+: Solo leadership with unified strategic vision** — Yes."
+            )
+        )
+        assert hits, "the exact string that shipped to a person must be caught"
+
+    def test_the_machinery_narrating_itself_is_caught(self):
+        assert scoring.score_machinery_leak(
+            self._session("...which the framework flagged as avoidance.")
+        )
+
+    @pytest.mark.parametrize(
+        "term",
+        ["thesis", "antithesis", "polarity", "nexus", "wheel", "tetrad", "dialectic"],
+    )
+    def test_each_banned_term_is_caught(self, term):
+        assert scoring.score_machinery_leak(self._session(f"Consider the {term} here."))
+
+    @pytest.mark.parametrize(
+        "clean",
+        [
+            # Bare `A-` would match every hyphenated word without a boundary
+            # guard, and a false positive here would flag every arm forever.
+            "It's an all-or-nothing call, a-la-carte at best.",
+            "The cost+benefit maths is what matters.",
+            "Revenue was 60% T-shaped across A-list accounts.",
+        ],
+    )
+    def test_ordinary_prose_is_not_a_leak(self, clean):
+        assert scoring.score_machinery_leak(self._session(clean)) == []
+
+    def test_hits_carry_context_not_just_a_count(self):
+        """The fix differs by kind: a bare label is a formatting slip, "the
+        framework flagged" is the machinery narrating itself."""
+        hits = scoring.score_machinery_leak(
+            self._session("As the framework found, you're stuck.")
+        )
+        assert "framework" in hits[0]
+        assert len(hits[0]) > len("the framework")
+
+    def test_the_report_flags_it_as_validity(self):
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        run.sessions[0].turns[0].assistant = "**T+: Solo leadership** — yes."
+        text = render_report([run], [], {}, ["weak"])
+        assert "machinery LEAK" in text
+        assert text.index("machinery LEAK") < text.index("Machine scores")

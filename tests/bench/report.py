@@ -26,6 +26,7 @@ from .models import (
     NON_INFERIORITY_DIMENSIONS,
     RunRecord,
 )
+from .scoring import score_machinery_leak
 
 #: A per-dimension mean gap below this is noise at realistic replicate counts,
 #: not a finding. Stated explicitly so the report never dresses 0.1 of a
@@ -375,6 +376,36 @@ def render_report(
             )
         if len(swallowed) > 10:
             add(f"   ... and {len(swallowed) - 10} more (see JSON).")
+    # The silent-Advisor contract, measured on the OUTPUT. A2 is the consultant
+    # replacement; a consultant narrating their own method has stopped being
+    # one. Reported as validity rather than as a score because it invalidates
+    # `conversational_fit` in particular — being handed "**T+: Solo leadership**"
+    # is a worse conversation whatever the reasoning behind it was, so the
+    # dimension is measuring the leak, not the framework's counsel.
+    leaks = [
+        (r, snippet)
+        for r in runs
+        for s in r.sessions
+        for snippet in score_machinery_leak(s)
+    ]
+    if leaks:
+        leak_runs = {id(r) for r, _ in leaks}
+        add(
+            f"!! {len(leaks)} machinery LEAK(s) in {len(leak_runs)} run(s) — the"
+            " reply spoke"
+        )
+        add("   framework vocabulary to the person. The bench persona grants no")
+        add("   terminology disclosure, so an A2 hit breaks the silent-framework")
+        add("   contract, and `conversational_fit` is measuring the leak. Arms")
+        add("   A1/A1.5/A1.7 are HANDED the method text, so their hits are the")
+        add("   vocabulary they were given — compare the counts, not the fact.")
+        for r, snippet in leaks[:10]:
+            add(
+                f"   - {r.arm.value} rep={r.replicate} b={r.branch}: "
+                f"...{snippet[:120]}..."
+            )
+        if len(leaks) > 10:
+            add(f"   ... and {len(leaks) - 10} more (see JSON).")
     if len(tier_order) < 2:
         add(
             "!! Only one model tier ran — no delta can be classified as "
