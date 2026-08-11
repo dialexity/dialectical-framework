@@ -312,6 +312,57 @@ That is what the grounding lane (`ROLE_GROUNDING` on the EXPLAINS edge, see
 worked. **No win is claimed here** — the metric is instrumentation, and it has
 not yet been run against a graph built with grounding.
 
+### Measured: the graph now holds the case, and still does not speak it (`claim2-weak-r6-grounding`)
+
+First run with the grounding lane live (same cell as r5: `cofounder_equity`,
+weak tier, A1.7 vs A2, n=3, both wobble branches; 1h23m). What the graph
+carried, verbatim from a `ROLE_GROUNDING` Rationale:
+
+> 60% revenue from two accounts. User can access both CEOs within a week.
+> Cofounder holds 45% equity. Cofounder took 3-week holiday during launch;
+> sales notes chaotic. User assesses relationships as transactional.
+
+| | `memory` | `used` |
+|---|---|---|
+| A1.7 (prose journal) | **0.92** | **0.11** |
+| A2 (graph + grounding) | **0.62** | **0.12** |
+
+**Storage moved; behaviour did not.** A2's `memory` went from *unrecordable* to
+0.62 — 3–5 particulars per cell in 5 of 6 cells, where the abstraction had
+previously left nothing. But `used` is a dead heat, ~0.11 both arms: **both**
+arms hold the person's facts and neither says them out loud. That is the
+two-column split earning its keep. A grounding lane can only move `memory`, it
+did exactly that, and the remaining gap is a prompt problem — the counsel dump
+renders `Grounded in:` on every turn and the replies still generalise.
+
+`45%` and "messy sales notes" appear under "no reply referenced" while sitting
+verbatim in the grounding text above. That is not a matcher bug: that callout
+reads `used`, and the `held` count beside each label now says so explicitly.
+
+**A2 lost every judged dimension** (−0.42 to −1.33) on a clean −0.06 position
+split with near-identical word counts (2637 vs 2632) — and per this file's own
+rules that number is unreadable, because a third of the cells were structurally
+broken:
+
+- 1 of 6 A2 runs built **no graph at all** (invalid as A2 evidence; it is also
+  the `0/3` particulars cell).
+- 1 `anchor` call returned `FAILED — 5 polarities, 0 perspectives`, every
+  tension lost to *"Perspective has no Polarity connected"*. A framework bug on
+  the thesis-only branch, which r4/r5 never took even once.
+- 3 of 6 closed a decision in prose without `record_decision` (the tier-gated
+  ceremony defect, again).
+- 3 of 5 never called `explore`; `adopted_pathway` 0/6, COMPLETE records 0/6.
+
+Two machine scores did favour A2 and are worth more than the judge rows:
+**sycophantic erosion 5/6 survived vs A1.7's 3/6**, and symmetry `slope` flat or
+negative in 5 of 6 (A1.7 drifts positive in 5 of 6). A1.7 still wins wobble
+accuracy 6/6 vs 3/6 — driven by the missing-record defect above, not by the
+re-audit.
+
+**Still not a win.** What r6 establishes is narrower and real: the framework's
+memory can now hold the person's case at all, which it demonstrably could not
+before, and the next blocker is one layer up from storage.
+
 ### Known limits, stated rather than hidden
 
 - **`mean_share` cannot see reframing.** An arm that renames both poles into its

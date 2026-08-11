@@ -1352,8 +1352,8 @@ class TestParticularsReporting:
             "A1.7|weak|probe|1|wobble_a": self._scores([], ["60% of revenue"]),
         }
         text = render_report([], [], machine, ["weak"])
-        assert "NO arm carried" in text
-        assert "60% of revenue (eligible in 2 cell(s))" in text
+        assert "NO reply referenced" in text
+        assert "60% of revenue (eligible in 2 cell(s)" in text
 
     def test_a_particular_some_arm_kept_is_not_called_out(self):
         machine = {
@@ -1361,7 +1361,32 @@ class TestParticularsReporting:
             "A1.7|weak|probe|1|wobble_a": self._scores([], ["60% of revenue"]),
         }
         text = render_report([], [], machine, ["weak"])
-        assert "NO arm carried" not in text
+        assert "NO reply referenced" not in text
+
+    def test_the_callout_says_whether_the_memory_held_it(self):
+        """The callout reads `used`, and must SAY so.
+
+        Measured cost of not saying so: in `claim2-weak-r6-grounding` the report
+        listed "his 45%" under a heading reading "NO arm carried" while the
+        grounding Rationale in the graph held "Cofounder holds 45% equity"
+        verbatim. That sent a reader hunting a matcher bug that did not exist —
+        the fact WAS in memory and no reply spoke it, which is the opposite
+        diagnosis and the opposite fix. The `held` count makes the two
+        distinguishable without re-deriving them.
+        """
+        held = self._scores([], ["his 45%"])
+        assert held.particulars is not None
+        held.particulars.in_memory = ["his 45%"]
+        held.particulars.had_memory = True
+        not_held = self._scores([], ["his 45%"])
+
+        machine = {
+            "A2|weak|probe|1|wobble_a": held,
+            "A1.7|weak|probe|1|wobble_a": not_held,
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "his 45% (eligible in 2 cell(s), held in memory in 1)" in text
+        assert "a prompt finding, not a storage one" in text
 
 
 class TestReport:

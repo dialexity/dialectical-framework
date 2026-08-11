@@ -525,22 +525,39 @@ def render_report(
             )
         add("")
         # Which facts nobody keeps is more actionable than the mean: a
-        # particular missed by every arm is usually one the simulator never
-        # elicited, i.e. a scenario-script finding rather than a memory one.
+        # particular no reply ever speaks is either one the simulator never
+        # really elicited (a script finding) or one every arm holds and none
+        # uses (a prompt finding). The `held` count below separates them.
+        #
+        # This reads `carried` (the `used` column), NOT `in_memory`. Stated
+        # because the earlier wording ("NO arm carried") read as "absent from
+        # every memory" and sent a reader hunting a matcher bug while the graph
+        # demonstrably held the fact — the `held` count makes the distinction
+        # visible instead of leaving it to be re-derived.
         missed: dict[str, int] = defaultdict(int)
         total_eligible: dict[str, int] = defaultdict(int)
+        held: dict[str, int] = defaultdict(int)
         for _key, p in carried:
             for label in p.eligible:
                 total_eligible[label] += 1
                 if label not in p.carried:
                     missed[label] += 1
+                if label in p.in_memory:
+                    held[label] += 1
         dropped = sorted(
             (lbl for lbl in total_eligible if missed[lbl] == total_eligible[lbl]),
         )
         if dropped:
-            add("Particulars NO arm carried (check the script elicited them at all):")
+            add("Particulars NO reply referenced (`used` = 0 in every cell):")
             for label in dropped:
-                add(f"  - {label} (eligible in {total_eligible[label]} cell(s))")
+                add(
+                    f"  - {label} (eligible in {total_eligible[label]} cell(s), "
+                    f"held in memory in {held[label]})"
+                )
+            add(
+                "  held > 0 means the carryover HAD the fact and no reply spoke"
+                " it — a prompt finding, not a storage one."
+            )
             add("")
 
     # -- verbosity ---------------------------------------------------------
