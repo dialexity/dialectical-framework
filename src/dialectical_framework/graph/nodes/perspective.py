@@ -134,6 +134,24 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
         cardinality=(1, 1)  # Exactly one
     )
 
+    def _identity_for_error(self) -> str:
+        """Name THIS perspective in a T/A access failure.
+
+        The bare message said only "Perspective has no Polarity connected",
+        which names a condition and no node. In `claim2-weak-r6-grounding` it
+        surfaced five times in one `anchor` report, and because
+        `AnalysisPipeline` labels each error with the POLARITY hash it was
+        expanding, nothing in the log identified which Perspective was broken
+        or whether it was even saved. `_id`/`hash` separate the two states that
+        matter: unsaved (a caller bug) from committed-but-unreadable (graph
+        corruption).
+        """
+        return (
+            f"_id={self._id}, "
+            f"hash={self.hash[:7] + '...' if self.hash else None}, "
+            f"sid={self.sid}"
+        )
+
     # Convenience properties to access T and A through Polarity
     @property
     def t(self) -> BoundRelationshipManager[Statement]:
@@ -148,7 +166,10 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
         """
         polarity_result = self.polarity.get()
         if not polarity_result:
-            raise ValueError("Perspective has no Polarity connected - cannot access T")
+            raise ValueError(
+                f"Perspective has no Polarity connected - cannot access T "
+                f"({self._identity_for_error()})"
+            )
         pol, _ = polarity_result
         return pol.t
 
@@ -165,7 +186,10 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
         """
         polarity_result = self.polarity.get()
         if not polarity_result:
-            raise ValueError("Perspective has no Polarity connected - cannot access A")
+            raise ValueError(
+                f"Perspective has no Polarity connected - cannot access A "
+                f"({self._identity_for_error()})"
+            )
         pol, _ = polarity_result
         return pol.a
 

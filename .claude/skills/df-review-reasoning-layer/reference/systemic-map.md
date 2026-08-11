@@ -257,6 +257,28 @@ hashes out of the offered vocabulary); locked by `TestAspectsNeverDedupIntoTheir
 correctly want the full vocabulary — they are not generating developments of a specific pole.
 `edit_perspective` does not dedup at all (user wording survives verbatim, by design).
 
+**`ExpandPolarity`'s complete/partial split is a GRAPH READ, and a lying read re-runs generation.** The
+stage splits `existing_pps` on `Perspective.is_complete()`, which is `self.polarity.count() >= 1 and ...`
+over all five structural edges. `BoundRelationshipManager.all()`/`count()` used to return `[]`/`0` without
+querying whenever the source node's `_id` was None — a value indistinguishable from "genuinely no edges."
+A committed Perspective whose Python object lost its `_id` therefore counted zero `HAS_POLARITY` edges,
+was classified PARTIAL, was handed back to `AspectGeneration`, and raised
+`Perspective has no Polarity connected - cannot access T` about an edge that was in the database the whole
+time. Measured in `claim2-weak-r6-grounding` (A2 / cofounder_equity / rep 1 / `wobble_a`): one `anchor` call
+reported all five of its tensions failing that way, `0 perspectives`, and named a condition that was false;
+turn 2 of the same session succeeded, so it is state-dependent, not a code-shape defect. The asymmetry that
+allowed it: the WRITE path already recovered a lost `_id` by hash (`_connect_internal.get_node_id`) while
+the READ path did not, so writes silently repaired what reads mis-reported. Fixed by
+`BoundRelationshipManager._resolve_source_id()` — same hash fallback, scoped by `sid` because a hash is
+CONTENT-addressable (identical T/A content in two Cases hashes identically, so an unscoped match could read
+another scope's edges), with WARNING logs for recovered / hash-not-in-DB / ambiguous. An unsaved node's
+empty read stays empty and silent — that is the one empty read that is true. `Perspective.t`/`.a` errors now
+carry `_id`/`hash`/`sid` (`_identity_for_error`), because `AnalysisPipeline` labels each expansion error with
+the POLARITY hash it was expanding, so the bench log named no perspective at all. Locked by
+`tests/test_relationship_read_id_recovery.py`. **Any new early-return in a relationship read must
+distinguish "cannot locate the node" from "the node has no such edge"** — a silent conflation of the two
+propagates as a false structural verdict, not as an error.
+
 ### Exploration chain (`ExplorationPipeline.resolve`)
 **BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **depth gate
 `_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all —
@@ -830,6 +852,11 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   both heads surface the handover signal without auto-switching.
 - **`tests/test_prompt_vocabulary.py`** (1 test, `--real-llm`) — behavioral: a live Analyst response never
   labels T-/T+ as "blindspot." NAVIGATOR_APP + Analyst only. Skipped in the default suite.
+- **`tests/test_relationship_read_id_recovery.py`** (11 tests, no LLM) — the graph-read seam beneath the
+  analysis chain: a relationship read must not answer "no edges" for a node it merely failed to locate.
+  Covers recovery-by-hash for `count()`/`all()`/`Perspective.t`/`.a`/`is_complete()`, id caching, the WARNING
+  log, the still-legitimate silent empty read for an unsaved node, the pre-commit `save()`→connect build path
+  (where `_id` is the only identity), and the `_id`/`hash`/`sid` identity in both T and A error messages.
 
 ### Coverage gaps a systemic review should close (add a regression when you touch these)
 - **Cross-agent HS-band parity now tested** (`TestCrossAgentHsBandParity`: Analyst/Advisor HS-on-A

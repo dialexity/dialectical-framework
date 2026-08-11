@@ -16,6 +16,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, overload
 
 from dependency_injector.wiring import Provide, inject
@@ -26,6 +27,8 @@ from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.base_node import BaseNode
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound="BaseNode")
 
@@ -325,6 +328,89 @@ class BoundRelationshipManager(Generic[T]):
         self.relationship_model = relationship_model
         self.direction = direction
         self.cardinality = cardinality
+
+    @inject
+    def _resolve_source_id(
+        self,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> Optional[int]:
+        """Resolve the source node's internal id, recovering it by hash if lost.
+
+        `all()` and `count()` are READS, and a read whose source has no `_id`
+        used to return `[]`/`0` — indistinguishable from "this node genuinely
+        has no such edges". That silent lie is load-bearing: `is_complete()` is
+        `self.polarity.count() >= 1 and ...`, so a committed Perspective whose
+        Python object lost its `_id` was reported INCOMPLETE, sent back through
+        `AspectGeneration`, and raised "Perspective has no Polarity connected"
+        about a perspective whose HAS_POLARITY edge was sitting in the database
+        the whole time. Measured in `claim2-weak-r6-grounding`: all five
+        tensions of one `anchor` call failed that way, and the reported cause
+        named a condition that was not true.
+
+        A committed node is recoverable — its `hash` is its identity, which is
+        exactly how `_connect_internal.get_node_id` already re-finds nodes on
+        the WRITE path. Doing it here too makes reads and writes agree instead
+        of one repairing what the other silently mis-reports.
+
+        Uncommitted-and-unsaved (no `_id`, no `hash`) stays a legitimate empty
+        read: a node that was never persisted genuinely has no edges. That is
+        the one case worth no warning.
+        """
+        node = self.source_node
+        if node._id is not None:
+            return node._id
+
+        hash = getattr(node, "hash", None)
+        if hash is None:
+            # Never persisted — no edges is the truth, not a failure.
+            return None
+
+        # Scoped by sid like every other hash lookup (NodeRepository.find_by_hash):
+        # a hash is CONTENT-addressable, so the same T/A content in two Cases
+        # hashes identically. Matching on hash alone could resolve another
+        # scope's node and read its edges as this one's.
+        labels = node._label
+        query = (
+            f"MATCH (n:{labels} {{hash: $hash}}) "
+            f"WHERE ($sid IS NULL OR n.sid = $sid) "
+            f"RETURN id(n) as node_id"
+        )
+        result = list(
+            graph_db.execute_and_fetch(query, {"hash": hash, "sid": node.sid})
+        )
+        if len(result) > 1:
+            logger.warning(
+                "%s %s... matches %d nodes in scope %s; refusing to guess "
+                "which one owns the '%s' edges.",
+                type(node).__name__,
+                hash[:7],
+                len(result),
+                node.sid,
+                self.relationship_type,
+            )
+            return None
+        if not result:
+            logger.warning(
+                "%s %s... has a hash but no row in the database; reading "
+                "'%s' as empty. A committed node that is not stored is "
+                "corruption, not an absent edge.",
+                type(node).__name__,
+                hash[:7],
+                self.relationship_type,
+            )
+            return None
+
+        # Cache it, same as the write path does.
+        node._id = result[0]["node_id"]
+        logger.warning(
+            "%s %s... reached a relationship read with no _id; recovered it "
+            "by hash. Reads used to answer 0/[] here, which reports 'no %s "
+            "edge' for a node whose edges are in the database.",
+            type(node).__name__,
+            hash[:7],
+            self.relationship_type,
+        )
+        return node._id
 
     def _validate_scope_compatibility(self, target_node: BaseNode) -> None:
         """
@@ -1142,7 +1228,7 @@ class BoundRelationshipManager(Generic[T]):
             - relationship: Typed GQLAlchemy Relationship object (e.g., TRelationship with .alias)
         """
         db = graph_db  # Use injected db
-        if self.source_node._id is None:
+        if self._resolve_source_id() is None:
             return []
 
         # Resolve class names to labels, including subclass labels for polymorphic queries
@@ -1233,7 +1319,7 @@ class BoundRelationshipManager(Generic[T]):
             Number of connected nodes
         """
         db = graph_db  # Use injected db
-        if self.source_node._id is None:
+        if self._resolve_source_id() is None:
             return 0
 
         # Resolve class names to labels, including subclass labels for polymorphic queries
