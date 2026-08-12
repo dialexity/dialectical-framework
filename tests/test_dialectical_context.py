@@ -475,3 +475,174 @@ class TestDialecticalContextMultiNexus:
             dump = await DialecticalContext().resolve()
 
             assert "Same opposition family" not in dump
+
+
+def _ground(pp: Perspective, text: str) -> None:
+    """Attach a case-particulars note to a perspective, as the pipeline does."""
+    from dialectical_framework.graph.nodes.rationale import Rationale
+    from dialectical_framework.graph.relationships.explains_relationship import \
+        ROLE_GROUNDING
+
+    rationale = Rationale(text=text)
+    rationale.set_explanation_target(pp, role=ROLE_GROUNDING)
+    rationale.commit()
+
+
+class TestCaseParticularsAreHoisted:
+    """The person's facts open the dump instead of hiding inside a tetrad block.
+
+    Measured defect (`claim2-weak-r10`, 6 A2 cells at the weak tier): the
+    particulars were in the carryover 24/24 times and referenced in a reply 1/24
+    — 0.04, against 0.12 for a prose journal holding far fewer of them. The
+    prompt already instructed at length and did not bind; what the model actually
+    read was a `Grounded in:` line buried behind `insight=`/`HS=`/`Ks=`/`DV=`,
+    landing 14%-95% of the way through the dump and repeated across up to 7
+    near-duplicate lines. Placement, not instruction.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_case_opens_the_dump(self):
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            _ground(pp, "Cofounder holds 45% equity. Sales notes disorganized.")
+
+            result = await DialecticalContext().resolve()
+
+        assert "# The Person's Case" in result
+        # Before any structure: the facts are what the rest of the dump is about.
+        assert result.index("# The Person's Case") < result.index("45% equity", result.index("# The Person's Case") + 1)
+        assert "45% equity" in result
+
+    @pytest.mark.asyncio
+    async def test_the_facts_precede_the_tensions(self):
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            _ground(pp, "Took a three-week holiday during the product launch.")
+
+            result = await DialecticalContext().resolve()
+
+        assert result.index("three-week holiday") < result.index("Unexplored Tensions"), (
+            "The case must be readable before the structure — being buried after "
+            "it is the measured defect, not a formatting preference."
+        )
+
+    @pytest.mark.asyncio
+    async def test_identical_facts_are_stated_once(self):
+        """`commit()` dedup means one grounding note can sit on several
+        perspectives; the person should not be read their own fact twice."""
+        sid = _new_sid()
+        fact = "Two accounts are 60% of revenue."
+        with scope(sid):
+            first = _create_perspective_with_aspects(thesis_text="Speed")
+            second = _create_perspective_with_aspects(thesis_text="Care")
+            _ground(first, fact)
+            _ground(second, fact)
+
+            result = await DialecticalContext().resolve()
+
+        head = result[: result.index("# Unexplored Tensions")]
+        assert head.count(fact) == 1
+
+    @pytest.mark.asyncio
+    async def test_differently_worded_facts_are_both_kept(self):
+        """Choosing which phrasing of the person's own disclosure to drop is not
+        this renderer's call — a dropped variant reads as a forgotten fact."""
+        sid = _new_sid()
+        with scope(sid):
+            first = _create_perspective_with_aspects(thesis_text="Speed")
+            second = _create_perspective_with_aspects(thesis_text="Care")
+            _ground(first, "Cofounder holds 45%.")
+            _ground(second, "Owns 45% of the company.")
+
+            result = await DialecticalContext().resolve()
+
+        head = result[: result.index("# Unexplored Tensions")]
+        assert "Cofounder holds 45%." in head
+        assert "Owns 45% of the company." in head
+
+    @pytest.mark.asyncio
+    async def test_no_section_when_nothing_was_grounded(self):
+        """An empty header would read as "this person told you nothing"."""
+        sid = _new_sid()
+        with scope(sid):
+            _create_perspective_with_aspects()
+            result = await DialecticalContext().resolve()
+
+        assert "# The Person's Case" not in result
+
+    @pytest.mark.asyncio
+    async def test_machine_assessment_prose_is_never_hoisted(self):
+        """Only ROLE_GROUNDING notes are the person's words. Untagged rationales
+        are CC/DV scoring prose, and hoisting those to the top of the dump would
+        do the opposite of this fix."""
+        from dialectical_framework.graph.nodes.rationale import Rationale
+
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            machine = Rationale(text="Classification: COMPLEX. Opposition holds.")
+            machine.set_explanation_target(pp)
+            machine.commit()
+
+            result = await DialecticalContext().resolve()
+
+        assert "# The Person's Case" not in result
+        assert "Classification: COMPLEX" not in result
+
+    @pytest.mark.asyncio
+    async def test_the_per_tension_line_still_says_which_fact_grounds_what(self):
+        """The hoisted section answers "what do I know about this person"; the
+        per-perspective line answers "what is THIS tension built on". Removing
+        the latter would trade one loss for another."""
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            _ground(pp, "Cofounder holds 45% equity.")
+
+            result = await DialecticalContext().resolve()
+
+        assert "Grounded in: " in result
+        tensions = result[result.index("# Unexplored Tensions") :]
+        assert "45% equity" in tensions
+
+
+class TestScopedDumpCarriesTheCase:
+    @pytest.mark.asyncio
+    async def test_counsel_mode_sees_the_persons_facts(self):
+        """Counsel mode needs the case as much as the unscoped dump — arguably
+        more, being the head debriefing the person's own deliverable."""
+        sid = _new_sid()
+        with scope(sid):
+            pp = _create_perspective_with_aspects()
+            _ground(pp, "Cofounder holds 45% equity.")
+            nexus = Nexus()
+            nexus.save()
+            pp.nexus.connect(nexus)
+            nexus.commit()
+
+            result = await DialecticalContext(nexus_hash=nexus.short_hash).resolve()
+
+        assert "# The Person's Case" in result
+        assert "45% equity" in result
+
+    @pytest.mark.asyncio
+    async def test_an_outside_tensions_facts_are_not_this_explorations_to_speak(self):
+        """Same fence as the perspectives themselves: an outside tension appears
+        only as a count, so hoisting its particulars would leak around it."""
+        sid = _new_sid()
+        with scope(sid):
+            member = _create_perspective_with_aspects(thesis_text="Speed")
+            outsider = _create_perspective_with_aspects(thesis_text="Care")
+            _ground(member, "Cofounder holds 45% equity.")
+            _ground(outsider, "Founder's spouse co-signed the lease.")
+            nexus = Nexus()
+            nexus.save()
+            member.nexus.connect(nexus)
+            nexus.commit()
+
+            result = await DialecticalContext(nexus_hash=nexus.short_hash).resolve()
+
+        assert "45% equity" in result
+        assert "spouse co-signed" not in result

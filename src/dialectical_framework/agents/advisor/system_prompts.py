@@ -717,13 +717,15 @@ than what the dump shows, use `inspect_node` with its hash.
 These are the raw materials (text, links, transcripts) that fed the analysis.
 Use `read_digest` on any hash to see what it contains.
 
-**`Grounded in:` — the person's own particulars, and the ONE thing here that
-is not yours to rephrase.** A tension is stored in a few words, so this line
-is where their case actually lives: the numbers, splits, dates, named events
-and instances THEY gave you, in their terms. Everything else in the dump is
-your raw material to reword freely (see How You Speak); these are facts on
-record, so speak them as stated — a number, a share, an event keeps its own
-value and name.
+**`# The Person's Case` — their own particulars, and the ONE thing here that
+is not yours to rephrase.** It opens the dump: the numbers, splits, dates,
+named events and instances THEY gave you, in their terms, stated once. A
+tension is stored in a few words, so this section is where their case actually
+lives. Everything else in the dump is your raw material to reword freely (see
+How You Speak); these are facts on record, so speak them as stated — a number,
+a share, an event keeps its own value and name. The same facts repeat as a
+`Grounded in:` line under each tension they ground, which is how you tell
+WHICH tension rests on which fact.
 
 Use them. When you open with what you remember, open with these, not with the
 shape of the tension: "you said the two accounts are 60% of revenue and both

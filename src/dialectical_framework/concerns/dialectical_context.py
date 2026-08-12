@@ -116,6 +116,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         if inputs_dump:
             sections.append(inputs_dump)
+        # Before the decisions and the structure: the person's case is what the
+        # rest of this dump is ABOUT, and buried mid-block it went unread
+        # (0.04 of particulars referenced — see `_dump_case_particulars`).
+        particulars_dump = self._dump_case_particulars(perspectives)
+        if particulars_dump:
+            sections.append(particulars_dump)
         if decisions_dump:
             sections.append(decisions_dump)
 
@@ -174,6 +180,17 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if inputs_dump:
             sections.append(inputs_dump)
 
+        # Counsel mode needs the person's case as much as the unscoped dump —
+        # arguably more, since this is the head debriefing their own
+        # deliverable. Scoped to the nexus's own members: an outside tension's
+        # facts are not this exploration's to speak (same fence as the
+        # perspectives themselves, which appear only as a count).
+        particulars_dump = self._dump_case_particulars(
+            [pp for pp, _ in nexus.perspectives.all() if not pp.discarded]
+        )
+        if particulars_dump:
+            sections.append(particulars_dump)
+
         # Decisions are Case-level facts — the counsel head must see them
         # even when pinned to one exploration.
         decisions_dump = self._dump_decisions()
@@ -201,6 +218,70 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             f"{outside_count} outside"
         )
         return "\n\n".join(sections)
+
+    @staticmethod
+    def _dump_case_particulars(perspectives: list) -> Optional[str]:
+        """The person's own facts, hoisted to the top of the dump.
+
+        These facts already reach the model: `grounding_line` renders them on
+        each perspective block. They are still not USED. Measured over
+        `claim2-weak-r10` (weak tier, 6 A2 cells): the particulars were present
+        in the carryover 24/24 times and referenced in a reply 1/24 (0.04),
+        against 0.12 for a prose journal that stores far fewer of them. Three
+        facts — the founder's 55%, the messy sales notes, the three-week holiday
+        during the launch — were held in every eligible cell and spoken in none.
+        By the report's own two-column rule that is a PROMPT defect, not
+        storage: the case was there to read.
+
+        The prompt already instructs at length ("**`Grounded in:` — ... the ONE
+        thing here that is not yours to rephrase**", with a worked example), and
+        it did not bind. That is the "prune, don't instruct" signature: what the
+        model reads is a `Grounded in:` line buried mid-block behind `insight=`,
+        `HS=`, `Ks=`, `DV=`, `area=`, landing anywhere from 14% to 95% of the way
+        through the dump and repeated across up to 7 near-duplicate lines. So
+        the fix is placement, not more instruction: the case is stated ONCE, in
+        its own section, before any structure.
+
+        Deduplicated by exact text and ordered oldest-first — the accretion
+        order IS a chronology of what was learned when, which the per-perspective
+        rendering already relies on. Near-duplicates that differ in wording are
+        kept separately rather than merged: choosing which phrasing of the
+        person's own fact to discard is not this renderer's call, and a dropped
+        variant reads as a forgotten disclosure.
+
+        The per-perspective lines are deliberately KEPT. They say which tension
+        each fact grounds, which this section cannot — it answers "what do I know
+        about this person", not "what is this tension built on".
+        """
+        from dialectical_framework.graph.rendering import (GROUNDING_PREFIX,
+                                                           grounding_line)
+
+        seen: set[str] = set()
+        facts: list[str] = []
+        for pp in perspectives:
+            line = grounding_line(pp)
+            if not line:
+                continue
+            text = line[len(GROUNDING_PREFIX):].strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            facts.append(text)
+
+        if not facts:
+            return None
+
+        lines = [
+            "# The Person's Case (their own words — speak these, don't reword)",
+            "",
+            "Everything else below is your raw material to rephrase. These are "
+            "facts on record: a number, a share, a date, a named event keeps its "
+            "own value and name. Oldest first, so this is also a chronology of "
+            "what you learned when.",
+            "",
+        ]
+        lines.extend(f"- {fact}" for fact in facts)
+        return "\n".join(lines)
 
     @staticmethod
     def _dump_inputs() -> Optional[str]:

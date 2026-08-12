@@ -771,6 +771,27 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   is no observable event to classify, so the tool doc is the right layer. Machinery, not method — so `bench/arms.py`
   correctly does NOT carry it into the A1 baseline (tool docs are absent from `method_prompt`); a prompt-only arm's
   journal is its own equivalent lane.
+  **Instruction was not enough either — the fourth instance, and this time the fix is PLACEMENT** (2026-08-12, from
+  `claim2-weak-r10`, the first judged run free of confounds). With the read-side instruction live and emphatic, A2
+  scored `memory` **1.00** (24/24 of the person's particulars were in the carryover) against `used` **0.04** (1/24
+  referenced in a reply) — A1.7's prose journal 0.92 / 0.12. So a graph holding EVERY fact spoke fewer of them than a
+  journal holding fewer, which rules out both storage and instruction volume as the cause. What the model was actually
+  reading: one `Grounded in:` line per tetrad, buried mid-block behind `insight=`/`HS=`/`Ks=`/`DV=`/`area=`, landing
+  anywhere from 14% to 95% of the way through the dump, and repeated across up to 7 near-duplicate lines. `DialecticalContext.
+  _dump_case_particulars` now hoists them into a `# The Person's Case` section at the TOP of both dumps (after inputs,
+  before decisions), deduped by exact text, oldest-first as a chronology. This is the project's own **"prune, don't
+  instruct"** applied to a prompt that had already been written twice: when a section is present, correct, and
+  instructed-about and still goes unread, the next move is where it sits, not more words about it. Deliberately KEEPS
+  the per-perspective line — the hoisted section answers "what do I know about this person", the in-block line answers
+  "what is THIS tension built on", and those are different questions. Near-duplicate wordings are BOTH kept: choosing
+  which phrasing of the person's own disclosure to drop is not a renderer's call, and a dropped variant reads as a
+  forgotten fact. `_SCORE_READING`'s particulars paragraph names the new header and explains the two placements, so
+  the read-side instruction and the render cannot drift. The scoped render fences to nexus members only — same fence
+  as the perspectives themselves, since an outside tension appears in counsel mode as a count and hoisting its facts
+  would leak around that. Locked by `tests/test_dialectical_context.py::TestCaseParticularsAreHoisted` and
+  `TestScopedDumpCarriesTheCase` (incl. the outside-tension leak guard and "assessment prose is never hoisted" —
+  hoisting untagged rationales would do the exact opposite of this fix). **Unverified at the behaviour layer**: a
+  context change is a claim about the model's reply, and no `used`-rate re-measurement exists yet.
   Reviewing here: this prompt is the ONE place in the tree where concreteness beats
   abstraction, so the usual "condense to component_length" instinct is exactly wrong. `GRAPH_SCHEMA`'s EXPLAINS row
   and `docs/graph.md`'s Grounding section document the role vocabulary and must move with it. Locked by

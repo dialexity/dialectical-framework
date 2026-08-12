@@ -620,6 +620,23 @@ Three findings, in descending order of how much they explain:
    COMPLETE records are 0/6, *including the cells that called `explore`
    themselves*. A pathway exists and the model never grounds the decision on it.
 
+**Finding 2 is now addressed by placement, not more prompt** (2026-08-12,
+uncommitted at r10 time, in the tree for r11). The read-side instruction was
+already long and emphatic with a worked example, and `used` was still 0.04 — so
+the diagnosis is not "the model wasn't told". What the model was reading: one
+`Grounded in:` line per tetrad, buried mid-block behind `insight=`/`HS=`/`Ks=`/
+`DV=`/`area=`, landing between **14% and 95%** of the way through the dump, and
+repeated across up to **7** near-duplicate lines. `DialecticalContext.
+_dump_case_particulars` now opens both dumps with a `# The Person's Case`
+section — deduped by exact text, oldest-first, near-duplicate wordings both kept
+(dropping one reads as a forgotten fact). The per-tetrad line stays: the hoisted
+section says what you know about this person, the in-block line says which
+tension rests on which fact. This is the framework's own "prune, don't instruct"
+rule turned on its own prompt. **It is not verified yet**: a context change is a
+claim about the reply, so `used` has to be re-measured on the weak tier before
+this counts as a fix — and r10's A2 rows carry both this defect and the machinery
+leak, so r11 cannot attribute a movement to either alone.
+
 **A retraction about r10's own validity block:** it reported "4/6 live A2 runs
 never called explore", which was wrong. That flag read `tool_calls`, and the
 closing seam calls `run_exploration` directly — 5 of 6 cells did build nexuses.
