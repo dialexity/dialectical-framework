@@ -538,6 +538,29 @@ def render_report(
         add("   reading A2 as weak.")
         for outcome in failed_tools[:10]:
             add(f"   - {outcome[:140]}")
+    # A raise is worse than a reported failure and used to be INVISIBLE here:
+    # Mirascope catches the exception inside `Tool.execute` and hands the model
+    # `str(e)` as the tool result, so nothing in `src/` ever logged it and the
+    # recorded outcome was `report=None` — the same value a read-only tool
+    # produces. r11's A2 arm shows the shape: three `anchor` calls with no
+    # outcome recorded at all, one of them in the cell whose graph stayed at
+    # `perspectives=0`. The same events also appear under swallowed exceptions
+    # (the framework now logs them at ERROR); deliberately both, because this
+    # view names WHICH call died and that one names WHEN in the session.
+    raised_tools = [
+        outcome
+        for r in runs
+        for s in r.sessions
+        for t in s.turns
+        for outcome in t.tool_outcomes
+        if ":RAISED" in outcome
+    ]
+    if raised_tools:
+        add(f"!! {len(raised_tools)} tool call(s) RAISED — the model got an error")
+        add("   string where it expected a report, and built nothing. Not a weak")
+        add("   arm: a broken one. Fix before reading any score in this run.")
+        for outcome in raised_tools[:10]:
+            add(f"   - {outcome[:200]}")
     # A fail-soft `except` in `src/` logs and continues by design, so a turn can
     # lose a decision record, a pathway, or a whole exploration and still look
     # perfect here: reply present, no turn error, every tool ok. That is the

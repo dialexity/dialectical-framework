@@ -86,6 +86,23 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   real bench run made 16 successful calls and recorded zero outcomes); and read-only tools (`sync`, `inspect_node`)
   legitimately have no report, so "no report" can't be treated as failure. Locked by `test_conversation_tool_budget.py`
   and `test_bench.py::TestReport`.
+- **A tool that RAISED was invisible in a strictly worse way — and the framework's logging discipline could not have
+  caught it.** Mirascope's `AsyncTool.execute` (`mirascope/llm/tools/tools.py`) wraps the call in
+  `except Exception as e: result = str(e); error = ToolExecutionError(e)`. The exception never crosses back into
+  `src/`, so no `except: logger.exception(...)` in this codebase ever runs and nothing logs a traceback. The model
+  receives the exception *message* as if it were the tool's output. Worse, an error string cannot parse as an
+  `ExecutionReport`, so `report=None` — **byte-identical to what `sync` or `inspect_node` produce** — which means the
+  read-only exemption above silently absorbed crashes: `bench/arms.py::last_tool_outcomes` skipped them, and a dead
+  `anchor` recorded as a call in `tool_calls` with *no matching entry* in `tool_outcomes`. That is the forensic
+  signature to look for in any bench record saved before this fix (found in `claim2-weak-r11`: three A2 `anchor`
+  calls, one in the only cell whose graph stayed at `perspectives=0`, read as "the model chose not to build"). Fixed
+  by `ToolResult.error` (`agents/stream_events.py`) plus an ERROR-level log line in `_record_tool_results` — ERROR
+  specifically, because `bench/driver.py::_SwallowedErrorCapture` listens at that level on the `dialectical_framework`
+  logger; a `warning` would leave the same silence (which is why `_ground_tetrads`' fail-soft `logger.warning` also
+  left no trace in r11). The bench surfaces `<tool>:RAISED — <error>` in the **validity** section, above the scores:
+  a raised tool is not a weak arm but a broken one, and no score in that run is readable. Rule: any new consumer of
+  `ToolResult` must check `error` BEFORE treating `report=None` as "this tool just doesn't report".
+  Locked by `test_conversation_tool_budget.py::TestRaisedToolIsVisible`.
 - **The judge's rubric is a prompt, and its slot order outweighs some of what it scores.** `tests/bench/judge.py`'s
   `_JUDGE_PROMPT` explicitly discounts length, eloquence, framework vocabulary and agreement — and it works for those.
   It says nothing about position, and measurement says it cannot: whichever arm sat in the **Y** slot scored **+0.35** of

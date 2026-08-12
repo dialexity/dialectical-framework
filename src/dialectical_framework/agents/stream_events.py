@@ -48,11 +48,19 @@ class ToolResult:
 
     report is None for non-graph tools that return plain text
     (e.g., query_graph).
+
+    `error` carries the message when the tool RAISED. Mirascope catches the
+    exception inside `Tool.execute` and returns `str(e)` as the result, so
+    without this field a crashed tool is indistinguishable from a read-only one
+    that returned prose: both give `report=None`, and no framework logger ever
+    sees the traceback. Consumers must check `error` before treating
+    `report=None` as "this tool just does not report".
     """
 
     tool_name: str
     report: ExecutionReport | None
     raw_output: str
+    error: str | None = None
 
 
 @dataclass(frozen=True)

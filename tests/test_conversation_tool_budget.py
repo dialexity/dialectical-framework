@@ -310,3 +310,106 @@ class TestToolResultRecording:
         monkeypatch.setattr(ConversationFacilitator, "_call_with_tools", _no_tools)
         await facilitator.submit(_Chat, "again", max_tool_rounds=3)
         assert facilitator.last_tool_results == []
+
+
+class TestRaisedToolIsVisible:
+    """A tool that THREW must not be filed as a tool that returned prose.
+
+    Mirascope catches the exception inside `Tool.execute` and hands back
+    `ToolOutput(result=str(e), error=ToolExecutionError(e))`. The exception
+    therefore never crosses back into `src/`, so the framework's own
+    `except: logger.exception(...)` discipline does not apply and NOTHING logged
+    it. The recorded outcome was `report=None` — identical to what `sync` or
+    `inspect_node` produce — so a crashed `anchor` appeared in the record as a
+    call with no outcome at all.
+
+    Measured in `claim2-weak-r11`: three A2 `anchor` calls with no recorded
+    outcome, one of them in the only cell whose graph stayed at
+    `perspectives=0`. The turn read as a healthy reply over an empty graph,
+    which is the exact misdiagnosis shape ("the model declined to use its
+    tools") that the rest of this suite exists to prevent.
+    """
+
+    def test_the_error_is_recorded_on_the_result(self):
+        from mirascope.llm import ToolOutput
+        from mirascope.llm.exceptions import ToolExecutionError
+
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        cause = RuntimeError("Failed to acquire connection")
+        envelope = ToolOutput(
+            id="toolu_1",
+            name="anchor",
+            result=str(cause),
+            error=ToolExecutionError(cause),
+        )
+
+        recorded = facilitator._record_tool_results(
+            [_tool_call("toolu_1", name="anchor")], [envelope]
+        )
+
+        assert recorded[0].error is not None
+        assert "Failed to acquire connection" in recorded[0].error
+        # The report stays None (the output was never a report) — `error` is what
+        # distinguishes this from a read-only tool, so both must be checked.
+        assert recorded[0].report is None
+
+    def test_a_healthy_result_carries_no_error(self):
+        """The overwhelmingly common path. A truthy `error` here would make every
+        successful call read as a crash."""
+        from mirascope.llm import ToolOutput
+
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        report = ExecutionReport(tool="anchor", ok=True, summary="anchored")
+        envelope = ToolOutput(id="toolu_1", name="anchor", result=str(report))
+
+        recorded = facilitator._record_tool_results(
+            [_tool_call("toolu_1", name="anchor")], [envelope]
+        )
+
+        assert recorded[0].error is None
+
+    def test_the_raise_is_logged_at_error(self, caplog):
+        """The bench's swallowed-error capture listens on the
+        `dialectical_framework` logger at ERROR. Without this log line a raised
+        tool leaves no trace anywhere outside the returned dataclass, so a run
+        saved before this fix cannot be diagnosed at all."""
+        import logging
+
+        from mirascope.llm import ToolOutput
+        from mirascope.llm.exceptions import ToolExecutionError
+
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        envelope = ToolOutput(
+            id="toolu_1",
+            name="anchor",
+            result="pool exhausted",
+            error=ToolExecutionError(RuntimeError("pool exhausted")),
+        )
+
+        with caplog.at_level(logging.ERROR, logger="dialectical_framework"):
+            facilitator._record_tool_results(
+                [_tool_call("toolu_1", name="anchor")], [envelope]
+            )
+
+        raised = [
+            r
+            for r in caplog.records
+            if r.levelno >= logging.ERROR and "anchor" in r.getMessage()
+        ]
+        assert raised, "a raised tool left no ERROR-level trace"
+        # The cause must be in the line, not just the tool name — the whole point
+        # is that the run can be diagnosed from the log alone.
+        assert "pool exhausted" in raised[0].getMessage()
+
+    def test_a_plain_string_output_is_still_accepted(self):
+        """`_record_tool_results` is also called with bare strings in tests and
+        by any caller that pre-extracts the result. `getattr(output, "error")`
+        must degrade, not raise."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        recorded = facilitator._record_tool_results(
+            [_tool_call("toolu_1", name="sync")], ["here is the graph state"]
+        )
+
+        assert recorded[0].error is None
+        assert recorded[0].raw_output == "here is the graph state"

@@ -708,6 +708,50 @@ closing seam calls `run_exploration` directly — 5 of 6 cells did build nexuses
 graph (`wove_no_pathway`). Verified against a real graph: `woven=0 → 2`,
 `transformations=0 → 12` across the seam.
 
+#### `claim2-weak-r11-particulars` — unjudged, and its A2 rows are not readable
+
+The re-measurement of the hoisted `# The Person's Case` section (finding 2
+above). A1.7 vs A2, weak tier, 3 replicates, 6 cells per arm, no judge. Read the
+validity section and stop: **three of the six A2 cells contain `anchor` calls
+with no recorded outcome at all**, and that is the signature of a tool that
+RAISED, not one that declined to run.
+
+| cell | mutating calls | outcomes | graph |
+|---|---|---|---|
+| rep1 `wobble_a` | anchor ×3, record_decision | anchor:ok ×2, record_decision:ok | perspectives=1 |
+| rep1 `wobble_b` | anchor ×2 | *(none)* | **perspectives=0** |
+| rep2 `wobble_a` | anchor ×4, record_decision | anchor:ok ×3, record_decision:ok | perspectives=6 |
+
+Why it was invisible in both directions: Mirascope catches the exception inside
+`Tool.execute` and returns `str(e)` as the tool's result, so (a) no framework
+logger ever saw a traceback, and (b) the recorded `report` was `None` — the same
+value `sync` and `inspect_node` legitimately produce — so `last_tool_outcomes`
+skipped it as a read-only call. The record therefore showed an attempt, an empty
+graph, and nothing in between: exactly the shape that reads as "the model chose
+not to build". Fixed (`ToolResult.error` + an ERROR-level log line +
+`<tool>:RAISED — <error>` in the validity section); the underlying exception is
+still unidentified, which is what the fix makes identifiable on r12.
+
+**So the `memory` movement cannot be attributed yet.** The report prints A2
+`memory` 0.65 (13/23) against r10's 1.00, but rep1 `wobble_b` is the crashed
+cell (`--`, `carryover_in` = `EMPTY_UNDERSTANDING`, 54 chars, plus this run's one
+swallowed `GQLAlchemyError`) and rep3 `wobble_b` scores 0/4 with **zero
+`Grounded in:` lines written at all**. Grounding-line counts across the six
+cells: r10 `3,6,5,6,7,1` vs r11 `0,0,0,4,5,0`. The regression is in *writing*
+groundings, not in rendering them — `_dump_case_particulars` correctly renders
+nothing when there are no facts, and it demonstrably works in the four cells
+that have them (`# The Person's Case` at the top with particulars intact).
+`_ground_tetrads` fails soft at `logger.warning`, below the bench's ERROR
+capture threshold, so it too left no trace.
+
+What can be said: `used` moved 0.04 → 0.12 (1/24 → 3/23 facts), which is **two
+facts** and inside noise; the hoist is neither confirmed nor refuted. Machinery
+leaks fell 15 → 4 (3 A2 hits). `adopted_pathway` is 0/6 but the run predates
+`068f645`, so that row measures the old tool output and must be re-measured.
+New finding worth its own fix: **4 of 6 A2 runs closed a decision in prose
+without calling `record_decision`** — the person was told it was written down and
+it was not, which is the framework's own rule failing to bind.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and

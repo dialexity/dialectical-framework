@@ -365,12 +365,19 @@ class TurnRecord(BaseModel):
     #: construction; empty across a whole A2 run means A2 silently collapsed to
     #: A1 and the result must not be trusted (the A2!=A1 assert).
     tool_calls: list[str] = Field(default_factory=list)
-    #: Per-call outcome, `"<tool>:ok"` / `"<tool>:FAILED — <summary>"`, for tools
-    #: that returned an ExecutionReport. Names alone record only what the model
-    #: ATTEMPTED: a tool that ran and reported ok=False looks identical to one
-    #: that succeeded. That gap cost a 2.6h A2 run its diagnosis — the JSON
-    #: showed eight `anchor` calls against an empty graph and nothing in
-    #: between. Scan this before trusting any run whose graph looks thin.
+    #: Per-call outcome: `"<tool>:ok"` / `"<tool>:FAILED — <summary>"` for tools
+    #: that returned an ExecutionReport, `"<tool>:RAISED — <error>"` for one that
+    #: threw. Names alone record only what the model ATTEMPTED: a tool that ran
+    #: and reported ok=False looks identical to one that succeeded. That gap cost
+    #: a 2.6h A2 run its diagnosis — the JSON showed eight `anchor` calls against
+    #: an empty graph and nothing in between. Scan this before trusting any run
+    #: whose graph looks thin.
+    #:
+    #: RAISED is newer and was the harder blind spot: Mirascope catches a tool's
+    #: exception and returns `str(e)` as the result, so a crashed call recorded
+    #: `report=None` — the same as a read-only tool — and appeared here as
+    #: nothing at all. Records from before that fix show the signature as a call
+    #: in `tool_calls` with no matching entry in this list.
     tool_outcomes: list[str] = Field(default_factory=list)
     error: Optional[str] = None
     #: Framework exceptions the turn SWALLOWED. Every fail-soft block in `src/`

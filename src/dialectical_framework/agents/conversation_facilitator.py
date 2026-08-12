@@ -393,15 +393,37 @@ class ConversationFacilitator(SettingsAware):
         in order), but the name lookup stays defensive: a mismatch must degrade
         to `"unknown"` rather than raise, since this is observability code and
         must never be the reason a turn fails.
+
+        A tool that RAISED is logged here, because nothing else logs it.
+        Mirascope catches the exception inside `Tool.execute` and hands back
+        `ToolOutput(result=str(e), error=ToolExecutionError(e))` — so the
+        framework's own `except: logger.exception(...)` discipline never applies
+        (the exception never crosses back into `src/`), the traceback is gone,
+        and the recorded outcome is `report=None`, which is exactly what a
+        read-only tool produces. Measured cost: an `anchor` call that raised
+        recorded as a call with no outcome and a graph with nothing in it, and
+        the run had to be re-diagnosed by hand from the transcript. Logged at
+        ERROR so the bench's swallowed-error capture (which listens on the
+        `dialectical_framework` logger) puts it in the record.
         """
-        results = [
-            ToolResult(
-                tool_name=(tool_calls[i].name if i < len(tool_calls) else "unknown"),
-                report=self._try_parse_execution_report(_tool_output_text(output)),
-                raw_output=_tool_output_text(output),
+        results = []
+        for i, output in enumerate(tool_outputs):
+            name = tool_calls[i].name if i < len(tool_calls) else "unknown"
+            text = _tool_output_text(output)
+            error = getattr(output, "error", None)
+            if error is not None:
+                # `str(ToolExecutionError)` is the original exception's message.
+                logging.getLogger(__name__).error(
+                    "Tool %s raised: %s", name, error
+                )
+            results.append(
+                ToolResult(
+                    tool_name=name,
+                    report=self._try_parse_execution_report(text),
+                    raw_output=text,
+                    error=str(error) if error is not None else None,
+                )
             )
-            for i, output in enumerate(tool_outputs)
-        ]
         self.last_tool_results.extend(results)
         return results
 

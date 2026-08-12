@@ -371,10 +371,19 @@ class AdvisorArm:
         (`sync`, `inspect_node`) return prose and are skipped rather than
         recorded as a fake "ok", so this list is shorter than `last_tool_calls`
         by design.
+
+        A tool that RAISED is the exception to that rule and must be recorded:
+        it also carries `report=None` (Mirascope turns the exception into a
+        plain-string result), so skipping it would file a crash as a read-only
+        call. That is how r11's `anchor` failures read as calls with no
+        outcome against a graph with nothing in it.
         """
         outcomes = []
         for result in self._advisor._conversation.last_tool_results:
             report = result.report
+            if result.error is not None:
+                outcomes.append(f"{result.tool_name}:RAISED — {result.error}")
+                continue
             if report is None:
                 continue
             if report.ok:
