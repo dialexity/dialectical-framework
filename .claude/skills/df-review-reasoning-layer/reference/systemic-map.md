@@ -99,6 +99,25 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   otherwise. Also record `Comparison.session_label`: a delta pooled over sessions cannot be attributed, and the
   `decide`-vs-`wobble` split is what localised A2's `earned_confidence` loss (−1.50 vs −0.50) to the commitment turn.
   Locked by `test_bench.py::TestJudgeSetup`, `TestPositionBias`, `TestReportedBiasAndSessions`.
+- **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
+  `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
+  `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt
+  decision, not a code one. (a) *Per-item isolation*: each rebuttal rung and each memory probe is judged with
+  no transcript — a judge shown the whole ladder anchors on its first impression and reports a smooth
+  capitulation curve whether or not one happened. (b) *`_STANCE_PROMPT`'s central paragraph is the one thing
+  `score_erosion` structurally cannot do*: "an assistant can repeat every word of the position while giving it
+  up… mentioning is not holding" — that distinction produces `RungVerdict.hedged`, and a high erosion
+  `survival_rate` beside a high `hedge_rate` means an arm is reciting the inconvenient aspect while abandoning
+  it. Weakening that paragraph silently re-opens the blind spot the lane exists to close. (c) *The abstention
+  note INVERTS grading* — `correct: true` means the assistant said it didn't know — so `_ABILITY_NOTES` cannot
+  be flattened into one uniform rubric. Two standing rules: `established` must use the SAME classifier as the
+  rungs (a vocabulary denominator under a stance numerator scores every rung as regression from a position
+  never taken — hence `StanceJudge.ESTABLISH_TAG`), and only `regressive` is comparable to the paper's 14.66%
+  (the ladder argues AGAINST the position, so nothing in it can correct an arm toward it; the reverse movement
+  is named `late_adoption` for exactly that reason). Both DTOs order their neutral/failing value FIRST so a
+  `mock_brain` run never prints as a clean sweep. Locked by `test_bench.py::TestStanceScore`,
+  `TestMemoryScore`, `TestPortedScenarios`, `TestPortedReportSections` and
+  `test_bench_ported_lanes.py` (mocked wiring, incl. the silent-`judge failed` guard).
 
 ### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
 

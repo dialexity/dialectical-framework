@@ -31,6 +31,56 @@ Every arm answers through the same `ConversationFacilitator.submit(ChatResponse,
 ...)` on the same tier model with the same persona. A2 differs by having **tools
 and a graph**, not a better prompt or a different decode path.
 
+## Two lanes are ports of published protocols
+
+Everything above is homegrown: our scenarios, our rubric, our markers. That is
+unavoidable for counsel quality — no external benchmark scores it — but it means
+a positive result has no outside anchor. Two lanes fix that on the two things
+this bench measures worst, keeping the ablation ladder as the arm axis and
+borrowing only the **protocol**:
+
+| Scenario | Protocol | Published anchor |
+|----------|----------|------------------|
+| `cofounder_rebuttal_ladder` | SycEval's escalating rebuttal ladder (arXiv:2502.08177) | 14.66% regressive; 78.5% persistence |
+| `cofounder_memory` | LongMemEval's five memory abilities (arXiv:2410.10813) | ~30% accuracy drop |
+
+```bash
+# both ported lanes, one tier, the two Claim-2 arms
+DIALEXITY_BENCH_ARMS=A1.7,A2 \
+DIALEXITY_BENCH_SCENARIOS=cofounder_rebuttal_ladder,cofounder_memory \
+DIALEXITY_BENCH_TIERS=weak \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
+```
+
+**The rebuttal lane deliberately reuses the `cofounder_equity` case.** Both
+protocols then score the *same* position, and their disagreement is the finding:
+`score_erosion` says the aspect survived if its words appear, the stance judge
+says whether it was still held. On different cases those two numbers would be
+incomparable and the blind spot would stay invisible. The ladder's `rebuttal_*`
+tags count as pressure via `_PRESSURE_TAG_PREFIXES`, which is what puts both
+lanes on the same turns.
+
+**What is comparable, and what is not.** The rungs are LITERAL (a DIRECTED
+simulator improvising a "citation" rebuttal would vary its force per arm, so the
+per-rung comparison would measure the simulator). But SycEval scores against an
+answer key and counsel has none, so the substitute is the scenario's stipulated
+`contested_position`. That works in **one** direction only:
+
+- `regressive` (held, then dropped under pressure) **is** the paper's quantity —
+  compare it to 14.66%.
+- The reverse movement is **not**. The rebuttals argue *against* the position, so
+  nothing in the ladder could correct an arm toward it. It is reported as
+  `late_adoption` precisely so nobody lines it up against 43.52%.
+
+The memory lane's scale is not the paper's either: LongMemEval embeds its
+questions in ~115k-token histories, these sessions are a handful of turns. A
+failure here is therefore **more** damning and a success **much** weaker
+evidence. `abstention` is a control, not a win — richer memory makes
+confabulation easier — and it is counted into the accuracy figure on purpose.
+
+The report prints all of this above the tables, and both docstrings carry it, so
+a number cannot be quoted out of its caveat.
+
 ## Run it
 
 Requires Memgraph (`docker compose -f docker-compose.test.yml up -d`) and
@@ -58,7 +108,7 @@ re-spending the matrix:
 | Var | Default | Example |
 |-----|---------|---------|
 | `DIALEXITY_BENCH_ARMS` | `A0,A1,A1.7,A2` | `A1,A2` |
-| `DIALEXITY_BENCH_SCENARIOS` | all | `cofounder_equity,agile_process` |
+| `DIALEXITY_BENCH_SCENARIOS` | all | `cofounder_equity,cofounder_rebuttal_ladder` |
 | `DIALEXITY_BENCH_TIERS` | `weak,strong` | `weak` |
 | `DIALEXITY_BENCH_REPLICATES` | `1` | `3` |
 | `DIALEXITY_BENCH_BRANCHES` | all declared | `wobble_a` |
@@ -755,6 +805,14 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 - **Branch cells re-run session 1.** `wobble_a` and `wobble_b` are alternative
   continuations and a graph cannot be rolled back, so each branch gets its own
   Case and its own session 1. Costly, and the only clean comparison available.
+- **The ported lanes are anchored, not validated.** Different models, domains
+  and scales than the papers, and (for memory) three orders of magnitude less
+  context. A rate near the published one is reassurance about the harness, not a
+  replication; only `regressive` is comparable at all, and only in the one
+  direction the section above spells out.
+- **The ported lanes have not been run yet.** Written, unit-tested and
+  wiring-tested against the mock brain; no `--real-llm` numbers exist. Nothing
+  in this README claims a result for them.
 
 ## Files
 
@@ -768,9 +826,10 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `driver.py` | runs one cell |
 | `runner.py` | sequences the matrix, scores, judges |
 | `scoring.py` | machine scorers (pure functions) |
-| `judge.py` | blind paired LLM judge + wobble classifier |
+| `judge.py` | blind paired LLM judge + wobble classifier + the two ported judges |
 | `report.py` | deltas, depreciating/durable classification, validity flags |
 | `test_bench.py` | the harness's own tests (free) |
+| `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
 | `test_bench_run.py` | the `--real-llm` entry points |
 
 ## Reading a report

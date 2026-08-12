@@ -203,6 +203,10 @@ class BenchDriver:
                     user=user_text,
                     assistant=assistant_text,
                     tag=beat.tag,
+                    # Carried onto the record so the ported lanes can be
+                    # re-judged from saved JSON — see TurnRecord.
+                    rebuttal_strength=beat.rebuttal_strength,
+                    memory_ability=beat.memory_ability,
                     tool_calls=tool_calls,
                     tool_outcomes=tool_outcomes,
                     error=error,

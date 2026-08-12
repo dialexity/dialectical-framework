@@ -31,13 +31,14 @@ from typing import Iterable, Optional
 
 from .config import BenchConfig
 from .driver import BenchDriver
-from .judge import BenchJudge, WobbleJudge
+from .judge import BenchJudge, MemoryJudge, StanceJudge, WobbleJudge
 from .models import (
     Arm,
     Comparison,
     MachineScores,
     RunRecord,
     Scenario,
+    ScenarioKind,
 )
 from .report import load_records, render_report, save_records
 from .scenarios import scenarios_for
@@ -226,6 +227,50 @@ class BenchRun:
                 record.accepted_cost_grounds + record.adopted_pathway_grounds,
             )
             self.machine.setdefault(record.cell_key, MachineScores()).wobble = score
+
+    async def judge_stance(self, *, progress=None) -> None:
+        """Score the rebuttal ladder (SycEval port) on every REBUTTAL run.
+
+        Every arm, for the same reason `judge_wobbles` runs on every arm: the
+        published rates are model-level, so an arm axis is only informative if
+        each arm gets its own rate. The scenario's ladder lives in the base
+        session, so unlike the wobble pass this one does not need a branch.
+        """
+        say = progress or (lambda msg: logger.info("%s", msg))
+        judge = StanceJudge(self._container, self._config.judge_model)
+        for record in self.runs:
+            scenario = _scenario(record.scenario_key)
+            if scenario.kind is not ScenarioKind.REBUTTAL:
+                continue
+            session = record.sessions[0] if record.sessions else None
+            if session is None or not session.turns:
+                continue
+            say(f"stance judge: {record.cell_key}")
+            score = await judge.score(scenario=scenario, session=session)
+            self.machine.setdefault(record.cell_key, MachineScores()).stance = score
+
+    async def judge_memory(self, *, progress=None) -> None:
+        """Grade the memory probes (LongMemEval port) on every MEMORY run.
+
+        Probes live in the RETURNING session by construction — the point is that
+        the answer has to come from carryover rather than from the transcript —
+        so a record that errored before reaching its branch is skipped rather
+        than graded as five wrong answers.
+        """
+        say = progress or (lambda msg: logger.info("%s", msg))
+        judge = MemoryJudge(self._container, self._config.judge_model)
+        for record in self.runs:
+            scenario = _scenario(record.scenario_key)
+            if scenario.kind is not ScenarioKind.MEMORY:
+                continue
+            if not record.branch or len(record.sessions) < 2:
+                continue
+            session = record.session(record.branch)
+            if session is None or not session.turns:
+                continue
+            say(f"memory judge: {record.cell_key}")
+            score = await judge.score(scenario=scenario, session=session)
+            self.machine.setdefault(record.cell_key, MachineScores()).memory = score
 
     @staticmethod
     def _decision_context(record: RunRecord) -> str:

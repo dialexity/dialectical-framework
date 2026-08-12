@@ -175,6 +175,10 @@ async def test_bench_matrix(di_container):
 
     if not os.getenv("DIALEXITY_BENCH_JUDGE_OFF"):
         await run.judge_wobbles(progress=_say)
+        # Ported lanes. No-ops unless a REBUTTAL/MEMORY scenario ran, so they
+        # cost nothing on the counsel/decision matrix.
+        await run.judge_stance(progress=_say)
+        await run.judge_memory(progress=_say)
         pairs = [p for p in JUDGED_PAIRS if p[0] in arms and p[1] in arms]
         await run.judge_pairs(pairs=pairs, progress=_say)
 
@@ -221,6 +225,8 @@ async def test_bench_rejudge(di_container):
     _say(f"judging pairs: {[(a.value, b.value) for a, b in pairs]}")
 
     await run.judge_wobbles(progress=_say)
+    await run.judge_stance(progress=_say)
+    await run.judge_memory(progress=_say)
     await run.judge_pairs(pairs=pairs, progress=_say)
 
     out_stem = os.getenv("DIALEXITY_BENCH_STEM", f"{stem}-rejudged")
