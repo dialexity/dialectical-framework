@@ -1022,6 +1022,7 @@ def _run(
     *,
     tool_calls: list[str] | None = None,
     tool_outcomes: list[str] | None = None,
+    grounding_args: list[str] | None = None,
 ) -> RunRecord:
     return RunRecord(
         arm=arm,
@@ -1039,6 +1040,7 @@ def _run(
                         assistant="a",
                         tool_calls=tool_calls or [],
                         tool_outcomes=tool_outcomes or [],
+                        grounding_args=grounding_args or [],
                     )
                 ],
             )
@@ -1987,6 +1989,68 @@ class TestReport:
     def test_healthy_tools_do_not_trip_the_failure_flag(self):
         run = _run(Arm.A2, "strong", tool_calls=["anchor"], tool_outcomes=["anchor:ok"])
         assert "REPORTED FAILURE" not in render_report([run], [], {}, ["weak", "strong"])
+
+    def test_grounding_args_are_read_off_the_conversation(self):
+        """The arm reads names and args as parallel lists, so a read-only call
+        between two anchors must not shift the pairing — that would report one
+        anchor's context length against the other."""
+        from types import SimpleNamespace
+
+        from bench.arms import AdvisorArm
+
+        arm = object.__new__(AdvisorArm)
+        arm._advisor = SimpleNamespace(
+            _conversation=SimpleNamespace(
+                last_tool_calls=["anchor", "inspect_node", "anchor"],
+                last_tool_call_args=[
+                    {"thesis": "buy out", "context": "his 45%, three-week holiday"},
+                    {"node_hash": "abc"},
+                    {"thesis": "keep him"},
+                ],
+            )
+        )
+
+        assert arm.last_grounding_args == [
+            "anchor:context=27c",
+            "anchor:context=MISSING",
+        ]
+
+    def test_flags_a_grounding_call_that_carried_no_context(self):
+        """`anchor(context=...)` is optional and is the ONLY carrier of the
+        person's particulars into the next session. Omitting it yields a record
+        that looks perfect — `anchor:ok`, a populated graph — and carries nothing.
+        """
+        run = _run(
+            Arm.A2,
+            "weak",
+            tool_calls=["anchor"],
+            tool_outcomes=["anchor:ok"],
+            grounding_args=["anchor:context=MISSING"],
+        )
+        text = render_report([run], [], {}, ["weak"])
+        assert "passed NO `context`" in text
+        assert "PROMPT finding" in text
+
+    def test_context_present_says_the_prompt_side_is_clear(self):
+        """The other half of the split: with every call carrying `context`, an
+        empty `# The Person's Case` is a framework defect, not a prompt one.
+        Without this line the two are indistinguishable in the record."""
+        run = _run(
+            Arm.A2,
+            "weak",
+            tool_calls=["anchor"],
+            tool_outcomes=["anchor:ok"],
+            grounding_args=["anchor:context=1240c"],
+        )
+        text = render_report([run], [], {}, ["weak"])
+        assert "carried `context`" in text
+        assert "passed NO `context`" not in text
+
+    def test_no_grounding_calls_prints_neither_line(self):
+        """Arms without tools must not be reported as having failed to ground."""
+        run = _run(Arm.A1_7, "weak")
+        text = render_report([run], [], {}, ["weak"])
+        assert "`context`" not in text
 
     def test_flags_dead_runs_as_missing_data(self):
         run = _run(Arm.A2, "strong")

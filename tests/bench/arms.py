@@ -58,6 +58,14 @@ from .models import Arm
 
 logger = logging.getLogger(__name__)
 
+#: Tools with an optional `context` parameter that is the ONLY carrier of the
+#: person's particulars into the next session. Currently just `anchor`; `ingest`
+#: deliberately has none (one document holds several tensions, so a shared
+#: context would cross-contaminate them). Keep in step with the tool signatures
+#: — a new grounding-carrying tool that is missing here records as if it had no
+#: grounding to carry.
+_GROUNDING_TOOLS = frozenset({"anchor"})
+
 
 class ArmSession(Protocol):
     """One conversation with one arm."""
@@ -69,6 +77,9 @@ class ArmSession(Protocol):
 
     @property
     def last_tool_outcomes(self) -> list[str]: ...
+
+    @property
+    def last_grounding_args(self) -> list[str]: ...
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +334,10 @@ class PromptArm:
     def last_tool_outcomes(self) -> list[str]:
         return []  # no tools by construction
 
+    @property
+    def last_grounding_args(self) -> list[str]:
+        return []  # no tools by construction
+
     async def write_journal(self) -> str:
         """A1.7: have the model write its own carry-forward notes.
 
@@ -391,6 +406,36 @@ class AdvisorArm:
             else:
                 outcomes.append(f"{result.tool_name}:FAILED — {report.summary}")
         return outcomes
+
+    @property
+    def last_grounding_args(self) -> list[str]:
+        """Whether each grounding-carrying call actually carried its grounding.
+
+        `anchor(context=...)` is optional, and the person's particulars survive
+        ONLY through it — the tetrad itself keeps a few words per pole. So a
+        session can show `anchor:ok`, a healthy graph, and still carry nothing
+        into the next session, with no way to tell from the record whether the
+        model omitted `context` (a prompt defect) or the grounding lane dropped
+        it (a framework one). Both read identically: an ok call over a graph with
+        no grounding on it. Observed in `r12-raise-probe`: two `anchor:ok` calls,
+        two perspectives, ZERO `Grounded in:` lines in the carryover.
+
+        Recorded as a presence flag with a length, never the text: `context`
+        holds the person's whole case, and every saved record would carry a
+        second copy of the transcript.
+        """
+        flags = []
+        conversation = self._advisor._conversation
+        names = conversation.last_tool_calls
+        for name, args in zip(names, conversation.last_tool_call_args):
+            if name not in _GROUNDING_TOOLS:
+                continue
+            value = args.get("context") or ""
+            if value:
+                flags.append(f"{name}:context={len(value)}c")
+            else:
+                flags.append(f"{name}:context=MISSING")
+        return flags
 
     @property
     def messages(self) -> list:

@@ -413,3 +413,103 @@ class TestRaisedToolIsVisible:
 
         assert recorded[0].error is None
         assert recorded[0].raw_output == "here is the graph state"
+
+
+class TestToolCallArgsAreRecorded:
+    """Whether an OPTIONAL parameter was filled is its own question.
+
+    Names say what was called, reports say whether it worked, and neither can
+    answer "did the model pass `context`?" — which for `anchor` is the whole
+    difference between a prompt defect and a framework one, because `context` is
+    the only carrier of the person's particulars into the next session. Measured
+    in `r12-raise-probe`: two `anchor:ok` calls, two perspectives, and ZERO
+    grounding lines in the carryover, with no way to tell from the record which
+    side dropped them.
+    """
+
+    def test_args_are_parsed_alongside_the_names(self):
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        call = ToolCall(id="t1", name="anchor", args='{"thesis": "buy him out"}')
+
+        facilitator._record_tool_call_args([call])
+
+        assert facilitator.last_tool_call_args == [{"thesis": "buy him out"}]
+
+    def test_the_lists_stay_index_aligned(self):
+        """Consumers zip names against args, so a skipped entry would misattribute
+        one call's arguments to another call."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        facilitator._record_tool_call_args(
+            [
+                ToolCall(id="t1", name="anchor", args='{"context": "45% split"}'),
+                ToolCall(id="t2", name="sync", args=""),
+            ]
+        )
+
+        assert facilitator.last_tool_call_args == [{"context": "45% split"}, {}]
+
+    def test_unparseable_args_record_empty_rather_than_raising(self):
+        """This exists only to make a run diagnosable — it must never be the
+        reason a turn fails."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        facilitator._record_tool_call_args(
+            [ToolCall(id="t1", name="anchor", args="{not json")]
+        )
+
+        assert facilitator.last_tool_call_args == [{}]
+
+    def test_non_object_args_record_empty(self):
+        """Valid JSON that is not an object would break `.get()` downstream."""
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+
+        facilitator._record_tool_call_args(
+            [ToolCall(id="t1", name="anchor", args="[1, 2]")]
+        )
+
+        assert facilitator.last_tool_call_args == [{}]
+
+    @pytest.mark.asyncio
+    async def test_streaming_resets_results_between_turns(self, monkeypatch):
+        """`submit` reset `last_tool_results`; `submit_stream` did not. A turn
+        inheriting the previous turn's outcomes attributes a crash to a healthy
+        turn AND leaves the healthy turn's own tools looking unreported — the
+        same misdiagnosis this whole suite guards.
+        """
+        from pydantic import BaseModel
+
+        class _Chat(BaseModel):
+            message: str
+
+        facilitator = ConversationFacilitator(tools=[lambda: None])
+        facilitator.set_system_prompt("You are a test assistant.")
+
+        # Stale state from an earlier turn.
+        facilitator._record_tool_results([_tool_call("old", name="anchor")], ["x"])
+        facilitator._record_tool_call_args(
+            [ToolCall(id="old", name="anchor", args="{}")]
+        )
+        assert facilitator.last_tool_results
+
+        class _NoToolStream:
+            def __init__(self) -> None:
+                self.tool_calls = []
+                self.messages = []
+
+            async def chunk_stream(self):
+                return
+                yield  # pragma: no cover - makes this an async generator
+
+        async def _fake_open(self, max_attempts: int = 3):
+            return _NoToolStream()
+
+        monkeypatch.setattr(
+            ConversationFacilitator, "_open_stream_with_retry", _fake_open
+        )
+
+        async for _ in facilitator.submit_stream(_Chat, "go", max_tool_rounds=3):
+            pass
+
+        assert facilitator.last_tool_results == []
+        assert facilitator.last_tool_call_args == []

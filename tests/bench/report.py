@@ -561,6 +561,36 @@ def render_report(
         add("   arm: a broken one. Fix before reading any score in this run.")
         for outcome in raised_tools[:10]:
             add(f"   - {outcome[:200]}")
+    # `anchor(context=...)` is optional and is the ONLY carrier of the person's
+    # particulars into the next session. Omitting it produces a perfectly healthy
+    # record — `anchor:ok`, a populated graph — that carries nothing, which is
+    # indistinguishable from the grounding lane dropping the text. Splitting the
+    # two is the whole point of this line: MISSING is a prompt finding (the model
+    # was told to always pass it), while all-present alongside an empty
+    # `# The Person's Case` is a framework one.
+    grounding_args = [
+        flag
+        for r in runs
+        for s in r.sessions
+        for t in s.turns
+        for flag in t.grounding_args
+    ]
+    missing_context = [f for f in grounding_args if f.endswith("MISSING")]
+    if missing_context:
+        add(
+            f"!! {len(missing_context)} of {len(grounding_args)} grounding call(s) "
+            "passed NO `context` —"
+        )
+        add("   the person's particulars had nothing to travel in. The tetrad keeps")
+        add("   a few words per pole, so those specifics are simply gone from the")
+        add("   next session. A PROMPT finding: the tool doc says always pass it.")
+    elif grounding_args:
+        add(
+            f"ok  all {len(grounding_args)} grounding call(s) carried `context` "
+            "(the person's"
+        )
+        add("    particulars reached the graph). If `# The Person's Case` is still")
+        add("    empty below, the defect is in the grounding lane, not the prompt.")
     # A fail-soft `except` in `src/` logs and continues by design, so a turn can
     # lose a decision record, a pathway, or a whole exploration and still look
     # perfect here: reply present, no turn error, every tool ok. That is the

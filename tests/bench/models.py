@@ -379,6 +379,15 @@ class TurnRecord(BaseModel):
     #: nothing at all. Records from before that fix show the signature as a call
     #: in `tool_calls` with no matching entry in this list.
     tool_outcomes: list[str] = Field(default_factory=list)
+    #: For each call to a grounding-carrying tool: `"anchor:context=1240c"` or
+    #: `"anchor:context=MISSING"`. Names and outcomes together still cannot say
+    #: whether an OPTIONAL parameter was filled, and `anchor`'s `context` is the
+    #: only carrier of the person's particulars across sessions — so without this
+    #: an empty `# The Person's Case` has two indistinguishable explanations: the
+    #: model omitted the specifics (prompt) or the grounding lane dropped them
+    #: (framework). Length only, never the text: `context` holds the person's
+    #: whole case and would duplicate the transcript in every record.
+    grounding_args: list[str] = Field(default_factory=list)
     error: Optional[str] = None
     #: Framework exceptions the turn SWALLOWED. Every fail-soft block in `src/`
     #: logs and continues by design (a graph fault must not break a live

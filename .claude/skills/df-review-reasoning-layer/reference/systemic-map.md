@@ -103,6 +103,22 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   a raised tool is not a weak arm but a broken one, and no score in that run is readable. Rule: any new consumer of
   `ToolResult` must check `error` BEFORE treating `report=None` as "this tool just doesn't report".
   Locked by `test_conversation_tool_budget.py::TestRaisedToolIsVisible`.
+- **An OPTIONAL tool parameter going unfilled is a third, separate invisibility — and it lands squarely on a prompt
+  surface.** `anchor(context=...)` is the ONLY carrier of the person's particulars across sessions (the tetrad keeps
+  ~7 words per pole), and the Advisor tool doc says ALWAYS pass it. When the model doesn't, the record is
+  indistinguishable from a healthy run: `anchor:ok`, a populated graph, and an empty `# The Person's Case` next
+  session. That is the same reading as the grounding lane dropping the text — one is a prompt fix, the other a code
+  fix, and nothing separated them. `ConversationFacilitator.last_tool_call_args` now records each call's parsed args
+  parallel to `last_tool_calls`, and the bench derives `TurnRecord.grounding_args`
+  (`anchor:context=1240c` / `anchor:context=MISSING`) with a validity line that states the attribution in both
+  directions. **Presence flag plus length, never the text** — `context` holds the person's whole case, so storing it
+  would put a second copy of the transcript in every record. `_GROUNDING_TOOLS` in `bench/arms.py` must track the
+  tool signatures: a new grounding-carrying tool missing from it records as if it had no grounding to carry.
+  Found in `r12-raise-probe`: two `anchor:ok` calls, two perspectives, ZERO `Grounded in:` lines.
+  Locked by `test_conversation_tool_budget.py::TestToolCallArgsAreRecorded` and `test_bench.py`.
+- **`submit_stream` did not reset `last_tool_results` between turns** (`submit` always did). Stale outcomes attribute
+  a crash to a healthy turn *and* leave the healthy turn's own tools looking unreported — both halves of the
+  misdiagnosis this cluster keeps producing. Reset alongside `last_tool_calls` in both paths.
 - **The judge's rubric is a prompt, and its slot order outweighs some of what it scores.** `tests/bench/judge.py`'s
   `_JUDGE_PROMPT` explicitly discounts length, eloquence, framework vocabulary and agreement — and it works for those.
   It says nothing about position, and measurement says it cannot: whichever arm sat in the **Y** slot scored **+0.35** of

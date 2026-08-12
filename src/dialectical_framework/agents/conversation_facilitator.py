@@ -92,6 +92,14 @@ class ConversationFacilitator(SettingsAware):
         # run its diagnosis: the recorded JSON showed eight `anchor` calls and a
         # graph with nothing in it, and nothing in between.
         self.last_tool_results: list[ToolResult] = []
+        # The ARGUMENTS of those same calls, parallel to `last_tool_calls`.
+        # Names and outcomes together still cannot answer "did the model fill in
+        # this optional parameter?" — and for `anchor`'s `context` that question
+        # is the difference between a prompt defect (the model omitted the
+        # person's particulars) and a framework one (grounding dropped them).
+        # Both look identical from outside: `anchor:ok` over a graph with no
+        # grounding on it.
+        self.last_tool_call_args: list[dict[str, Any]] = []
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -166,6 +174,7 @@ class ConversationFacilitator(SettingsAware):
         self._messages.append(llm.messages.user(user_content))
         self.last_tool_calls = []
         self.last_tool_results = []
+        self.last_tool_call_args = []
 
         if not self._tools:
             return await self._call_with_response_model(response_model)
@@ -176,6 +185,7 @@ class ConversationFacilitator(SettingsAware):
             if not response.tool_calls:
                 break
             self.last_tool_calls.extend(tc.name for tc in response.tool_calls)
+            self._record_tool_call_args(response.tool_calls)
             self._log_tool_calls(response.tool_calls)
             tool_outputs = await response.execute_tools()
             self._record_tool_results(response.tool_calls, tool_outputs)
@@ -208,6 +218,11 @@ class ConversationFacilitator(SettingsAware):
         """
         self._messages.append(llm.messages.user(user_content))
         self.last_tool_calls = []
+        # Reset the results too, exactly as `submit` does. Without this a turn
+        # inherits the previous turn's outcomes, so a crash gets attributed to a
+        # healthy turn and the healthy turn's own tools look unreported.
+        self.last_tool_results = []
+        self.last_tool_call_args = []
 
         if not self._tools:
             result = await self._call_with_response_model(response_model)
@@ -233,6 +248,7 @@ class ConversationFacilitator(SettingsAware):
                 )
 
             self.last_tool_calls.extend(tc.name for tc in stream.tool_calls)
+            self._record_tool_call_args(stream.tool_calls)
             self._log_tool_calls(stream.tool_calls)
             tool_outputs = await stream.execute_tools()
 
@@ -330,6 +346,19 @@ class ConversationFacilitator(SettingsAware):
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "tool_use":
                     block.pop("caller", None)
+
+    def _record_tool_call_args(self, tool_calls: Sequence[Any]) -> None:
+        """Keep each call's parsed arguments alongside its name.
+
+        Fail-soft per call: unparseable args record as `{}` rather than breaking
+        a turn, since this exists purely to make a run diagnosable.
+        """
+        for tc in tool_calls:
+            try:
+                args = json.loads(tc.args) if tc.args else {}
+            except (TypeError, ValueError):
+                args = {}
+            self.last_tool_call_args.append(args if isinstance(args, dict) else {})
 
     @staticmethod
     def _log_tool_calls(tool_calls: list) -> None:

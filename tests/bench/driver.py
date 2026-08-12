@@ -188,12 +188,14 @@ class BenchDriver:
                         assistant_text = await arm.reply(user_text)
                     tool_calls = list(arm.last_tool_calls)
                     tool_outcomes = list(arm.last_tool_outcomes)
+                    grounding_args = list(getattr(arm, "last_grounding_args", []))
                     error = None
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("Arm failed at beat %s", index)
                     assistant_text = ""
                     tool_calls = []
                     tool_outcomes = []
+                    grounding_args = []
                     error = f"arm: {type(exc).__name__}: {exc}"
 
             simulator.observe("assistant", assistant_text)
@@ -209,6 +211,7 @@ class BenchDriver:
                     memory_ability=beat.memory_ability,
                     tool_calls=tool_calls,
                     tool_outcomes=tool_outcomes,
+                    grounding_args=grounding_args,
                     error=error,
                     swallowed_errors=list(swallowed),
                 )

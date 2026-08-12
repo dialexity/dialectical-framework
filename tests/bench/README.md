@@ -752,6 +752,36 @@ New finding worth its own fix: **4 of 6 A2 runs closed a decision in prose
 without calling `record_decision`** — the person was told it was written down and
 it was not, which is the framework's own rule failing to bind.
 
+#### `r12-raise-probe` — one A2 cell, and the grounding lane is empty anyway
+
+A single `decide`+`wobble_b` A2 cell run with the RAISED fix in place, to
+identify the exception behind r11's vanished `anchor` calls. **It did not
+reproduce**: every call matched an outcome (`anchor:ok` ×2, `explore:ok`,
+`record_decision:ok`), no swallowed errors, `carryover_in` at 22,292 chars.
+So r11's failures were intermittent, and finding the cause needs the full
+matrix rather than one cell.
+
+What the probe found instead is worse and reproducible: that healthy cell —
+2 successful anchors, 2 perspectives, 12 transformations — carried **zero
+`Grounded in:` lines** and no `# The Person's Case` section. The hoist has
+nothing to hoist. Two candidate causes, and **the record could not tell them
+apart**: the model omitted `anchor`'s optional `context=`, or the grounding
+lane dropped it. One is a prompt fix, the other a code fix, and both read as
+`anchor:ok` over a graph with no grounding on it.
+
+That gap is now closed the same way the RAISED one was —
+`ConversationFacilitator.last_tool_call_args` records each call's parsed
+arguments, and `TurnRecord.grounding_args` carries
+`anchor:context=1240c` / `anchor:context=MISSING` per call, with a validity
+line that names the attribution in both directions. Length only, never the
+text: `context` holds the person's whole case, and storing it would put a
+second copy of the transcript in every record. **So r11's and r12's grounding
+absence remains unattributed** — the next full run answers it in one line.
+
+Also fixed in passing: `submit_stream` never reset `last_tool_results` between
+turns (`submit` always did), so outcomes leaked forward — attributing a crash
+to a healthy turn while leaving that turn's own tools looking unreported.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
