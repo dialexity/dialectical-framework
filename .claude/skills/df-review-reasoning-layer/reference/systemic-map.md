@@ -611,6 +611,22 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   observable user event gets persisted, it belongs in code, not in a prompt at any distance.** Locked by
   `test_ritual_asks_once_and_never_gates_the_record`,
   `test_reading_the_record_back_is_not_speaking_as_them`, `test_prose_summary_is_not_a_substitute_for_recording`.
+  **The seam then broke the bench flag that measures it** (fixed 2026-08-12, and it is the THIRD arrival of one
+  mistake). `RunRecord.prose_only_decision` was "no `record_decision` on the commit turn", justified as "it is the
+  only tool that can close a decision" — true, and irrelevant, because the repair seam is not a tool: it commits
+  Decision nodes with nothing in `tool_calls`. So the cell where the framework CAUGHT the omission read identically
+  to the cell where the person was misled, under a message asserting the harm ("the person was told it was written
+  down and it was not"). Measured over the 95 saved A2 cells: 46 flagged, **27 hold a Decision**; `r13` printed the
+  contradiction on one page ("1 run closed a decision in PROSE" above "runs recording >=1 decision: 1/1") and r11's
+  headline "4 of 6 closed in prose" re-derives to 1 clean recordless cell. Fixed by reading the graph
+  (`if self.decision_hashes: return False`), with the election half preserved as
+  `closed_without_electing_the_tool` on its own informational line — that number is still the one that would move
+  if the prompt ever bound, and deleting it would hide the behaviour the seam exists to compensate for.
+  `collapsed_to_a1` and `wove_no_pathway` were each corrected for the same thing, so the rule is now general:
+  **every artefact in this framework has a non-tool writer (repair seams, `run_exploration` called directly,
+  pipelines invoked inside skills), so any bench predicate about whether an artefact EXISTS must read the graph,
+  never `tool_calls`.** `tool_calls` answers a strictly different question — did the model ELECT it — and the two
+  belong in separate predicates with separate report lines.
   Explorer side of the toggle: decision declarations are an IMMEDIATE handover signal (explorer/system_prompts.py
   "when the user tries to DECIDE" — the Explorer cannot record and must never fake an acknowledgment; reading
   recorded decisions stays available via query_graph/inspect_node, and NAVIGATOR_APP_ADVANCED_TOGGLE names Decision

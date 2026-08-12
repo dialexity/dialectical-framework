@@ -1313,13 +1313,19 @@ class TestProseOnlyDecision:
     """
 
     @staticmethod
-    def _commit_run(arm: Arm, assistant: str, tool_calls: list[str]) -> RunRecord:
+    def _commit_run(
+        arm: Arm,
+        assistant: str,
+        tool_calls: list[str],
+        decision_hashes: list[str] | None = None,
+    ) -> RunRecord:
         return RunRecord(
             arm=arm,
             tier="weak",
             model="m",
             scenario_key="cofounder_equity",
             replicate=1,
+            decision_hashes=decision_hashes or [],
             sessions=[
                 SessionRecord(
                     label="decide",
@@ -1365,6 +1371,40 @@ class TestProseOnlyDecision:
         )
         text = render_report([run], [], {}, ["weak", "strong"])
         assert "closed a decision in PROSE" in text
+
+    def test_a_record_written_by_the_repair_seam_is_not_a_prose_only_closure(self):
+        """The seam writes Decisions with NO tool call — so `tool_calls` alone
+        cannot answer "was the person misled". 27 of 46 flagged cells across the
+        saved runs held a record; the flag claimed a broken promise on all 46.
+        """
+        run = self._commit_run(
+            Arm.A2,
+            "**Your Decision: Buy out your cofounder.** You're paying these prices:",
+            [],
+            decision_hashes=["abc1234"],
+        )
+        assert run.prose_only_decision is False
+        # The election finding survives — it is what would move if the prompt bound.
+        assert run.closed_without_electing_the_tool is True
+
+    def test_the_repaired_case_is_reported_without_claiming_a_missing_record(self):
+        run = self._commit_run(
+            Arm.A2,
+            "**Your Decision: Buy out your cofounder.**",
+            [],
+            decision_hashes=["abc1234"],
+        )
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "closed a decision in PROSE" not in text
+        assert "without electing" in text
+        assert "repair seam wrote the record" in text
+
+    def test_a_recordless_prose_closure_is_both(self):
+        run = self._commit_run(
+            Arm.A2, "**Your Decision: Buy out your cofounder.**", []
+        )
+        assert run.prose_only_decision is True
+        assert run.closed_without_electing_the_tool is True
 
 
 class TestReadDecisions:

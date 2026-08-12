@@ -752,6 +752,17 @@ New finding worth its own fix: **4 of 6 A2 runs closed a decision in prose
 without calling `record_decision`** — the person was told it was written down and
 it was not, which is the framework's own rule failing to bind.
 
+**Half-retracted 2026-08-12 — the count is right, the consequence was wrong on
+half of it.** The predicate read `tool_calls` only, and
+`_repair_unrecorded_decision` writes Decisions without any tool call. Across all
+95 saved A2 cells the flag hit 46 and **27 held a record**. Re-derived for r11's
+own four flagged cells: rep2 `wobble_b` and rep3 `wobble_a` **hold Decisions**
+(the seam covered the omission — no victim, a prompt-binding finding), while
+rep1 `wobble_b` and rep3 `wobble_b` are genuinely recordless. And rep1
+`wobble_b` is the crashed cell, so the honest r11 statement is **1 clean cell in
+6 where the person was told it was written down and it was not**, not 4. See the
+audit table above.
+
 #### `r12-raise-probe` — one A2 cell, and the grounding lane is empty anyway
 
 A single `decide`+`wobble_b` A2 cell run with the RAISED fix in place, to
@@ -837,6 +848,7 @@ without it (14 failures on revert).
 | `4f9e479` left a dangling cross-reference in the **A1 baseline** prompt | A1 was told about a `Grounded in:` line (a graph-render artifact) and pointed at "Reading Your Understanding" (an A2-only section) — silent baseline degradation that inflates an A2 delta with nobody touching an A2 number | Rewritten in `_TOOL_REWRITES`; guarded by `test_no_dangling_section_cross_references`, which asserts every `(see X)` names a heading A1 actually has |
 | Rates printed to two decimals with no n | `used` 0.12 → 0.17 reads as +40% and is 3/26 → 4/25 | Pooled counts printed beside every rate |
 | Nothing controlled for length | See r7 above | Report computes the gap and flags ≥20% next to the numbers |
+| `prose_only_decision` = "no `record_decision` on the commit turn" (found 2026-08-12, the **third** arrival of the tool-calls-are-not-the-writer mistake, after `collapsed_to_a1` and `wove_no_pathway`) | The flag's own stated consequence — "the person was told it was written down and it was not". `_repair_unrecorded_decision` commits Decisions with nothing in `tool_calls`, so a cell the seam REPAIRED read identically to one where the person was misled. Across the 95 saved A2 cells: **46 flagged, 27 of them (59%) hold a Decision.** `r13` printed "1 run closed a decision in PROSE" directly above "runs recording >=1 decision: 1/1", and r11's headline "4 of 6 A2 runs closed a decision in prose" is unreadable until re-derived | Predicate gains `if self.decision_hashes: return False` — it reads the GRAPH, like every other existence check. The election finding is preserved as `closed_without_electing_the_tool` and reported on its own `i` line ("the repair seam wrote the record instead, so the person was not misled") |
 
 ### Machine-scorer defects (audit 3), and what re-scoring showed
 

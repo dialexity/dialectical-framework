@@ -501,14 +501,32 @@ def render_report(
     prose_only = [r for r in runs if r.prose_only_decision]
     if prose_only:
         add(
-            f"!! {len(prose_only)} A2 run(s) closed a decision in PROSE without"
-            " calling"
+            f"!! {len(prose_only)} A2 run(s) closed a decision in PROSE with NO"
+            " record on"
         )
-        add("   record_decision — the person was told it was written down and it")
-        add("   was not. This is the framework's own rule ('writing the record out")
-        add("   is not recording it') failing to bind, and it is the direct cause")
-        add("   of any missing-record row above.")
+        add("   disk — the person was told it was written down and it was not.")
+        add("   This is the framework's own rule ('writing the record out is not")
+        add("   recording it') failing to bind, and it is the direct cause of any")
+        add("   missing-record row above.")
         for r in prose_only:
+            add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate} b={r.branch}")
+    # Reported, but as a prompt finding with no victim. Separated because the
+    # combined flag claimed a broken promise on 27 of the 46 cells it hit, all
+    # of which held a Decision the repair seam wrote.
+    repaired = [
+        r
+        for r in runs
+        if r.closed_without_electing_the_tool and not r.prose_only_decision
+    ]
+    if repaired:
+        add(
+            f"i  {len(repaired)} A2 run(s) closed without electing"
+            " record_decision — the"
+        )
+        add("   framework's repair seam wrote the record instead, so the person")
+        add("   was not misled. Read this as the prompt rule not binding (the")
+        add("   number that would move if it did), never as a missing record.")
+        for r in repaired:
             add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate} b={r.branch}")
     errored = [r for r in runs if r.error]
     if errored:

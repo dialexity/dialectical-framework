@@ -571,19 +571,18 @@ class RunRecord(BaseModel):
         )
 
     @property
-    def prose_only_decision(self) -> bool:
-        """The person said "write it down" and the reply wrote it in prose.
+    def closed_without_electing_the_tool(self) -> bool:
+        """The commit turn presented a decision and called no `record_decision`.
 
-        The specific failure behind `wobble_a_without_a_record`: not a model
-        that declined to close, but one that closed in a MESSAGE. Detected on
-        the commit turn — an assistant that formats a decision under headings
-        while calling no tool. `record_decision` is the only tool that can close
-        a decision, so its absence on a turn tagged `commit` is the whole test.
+        An ELECTION measurement, and nothing more. It says the model did not
+        choose the tool at the moment the person closed — which is worth
+        tracking, because it is the behaviour `_repair_unrecorded_decision`
+        exists to compensate for and the number that would move if the prompt
+        ever bound.
 
-        Kept separate from the missing-record check because the two imply
-        different fixes: no closure at all is a steering problem, prose-only
-        closure is the "writing the record out is not recording it" rule failing
-        to bind.
+        It does NOT say the record is missing. That question is
+        `prose_only_decision`, and the two must stay apart: this one can be
+        true on a cell whose record is safely on disk.
         """
         if self.arm is not Arm.A2:
             return False
@@ -593,11 +592,49 @@ class RunRecord(BaseModel):
                     continue
                 if "record_decision" in turn.tool_calls:
                     continue
-                # The reply presents a decision as settled without recording it.
+                # The reply presents a decision as settled.
                 text = turn.assistant.lower()
                 if "decision" in text or "you're paying" in text:
                     return True
         return False
+
+    @property
+    def prose_only_decision(self) -> bool:
+        """The person was told it was written down and NOTHING was written.
+
+        The specific failure behind `wobble_a_without_a_record`: not a model
+        that declined to close, but one that closed in a MESSAGE. Detected on
+        the commit turn — an assistant that formats a decision under headings
+        while calling no tool AND leaving no Decision node behind.
+
+        **The graph clause is load-bearing, and this is the third arrival of the
+        same mistake.** The predicate used to be the election alone ("no
+        `record_decision` on the commit turn"), on the reasoning that it is the
+        only tool that can close a decision. It is not the only WRITER:
+        `Advisor._repair_unrecorded_decision` runs after every turn and commits
+        Decision nodes with nothing in `tool_calls` at all — the seam built
+        precisely because the weak tier does not elect the tool. So a cell where
+        the framework caught the omission and wrote the record read identically
+        to one where the person was misled. Measured across the 95 saved A2
+        cells: 46 flagged, and **27 of them (59%) hold a Decision** — the flag's
+        own stated consequence ("the person was told it was written down and it
+        was not") was false on the majority of its hits, and `r13` printed
+        "1 run closed a decision in PROSE" directly above "runs recording >=1
+        decision: 1/1". `collapsed_to_a1` and `wove_no_pathway` were corrected
+        for exactly this; the rule generalises: **any bench predicate about
+        whether an artefact EXISTS must read the graph, because every artefact
+        in this framework has a non-tool writer.**
+
+        Kept separate from `closed_without_electing_the_tool` because the two
+        imply different fixes: a prose-only closure with no record is a broken
+        promise to the person, while an unelected call the seam repaired is a
+        prompt-binding finding with no victim.
+        """
+        if self.arm is not Arm.A2:
+            return False
+        if self.decision_hashes:
+            return False
+        return self.closed_without_electing_the_tool
 
     @property
     def wove_no_pathway(self) -> bool:
