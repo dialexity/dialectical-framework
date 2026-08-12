@@ -535,7 +535,8 @@ and was ignored anyway; a fourth round of strengthening was not going to be the
 first one that worked. `Advisor._ensure_pathways_before_closing` weaves the
 unwoven perspectives once a confirmed decision is closing, before the record is
 written. Same seam and same ranking as the decision repair (see the systemic map
-entry for scope, idempotence, ordering and the two-tension floor).
+entry for scope, idempotence, ordering and the floor — which was `< 2` here and
+was itself a bug; see "The floor was the bug" below).
 
 #### Measured after the fix (`claim2-weak-r8-pathways`, 2 cells, judge off)
 
@@ -907,6 +908,91 @@ sentence). Note for anyone re-measuring this class: the canonical detector is
 said 5/48 A2 turns; the canonical scorer says 8 hits, of which 3 are the actor
 form and the rest are `accepted cost`, which the person's own decision record
 legitimately names).
+
+#### `claim2-weak-r15-voice` — the voice fixes hold, and they uncovered the floor
+
+Both r14 voice fixes are confirmed by measurement, and neither is the headline.
+
+| | r14 | r15 |
+|---|---|---|
+| `INTERNAL-PROMPT echo` (A2) | 2 | **0** — section absent from the report |
+| machinery leaks, A2 actor form | 3 | **1** |
+| machinery leaks total (A1.7 / A2) | 1 / 8 | 2 / 2 |
+| REGISTER mean (5 dims) | **−1.05** | **−0.08** |
+| SUBSTANCE mean (7 dims) | −0.58 | −0.17 |
+| all-dim mean | −0.78 | −0.13 |
+| dims where A2 ≥ A1.7 | 0/12 | 4/12 |
+| A2 mean words/run | 2841 | 2209 (A1.7 2628 — A2 now SHORTER) |
+
+The register collapse was the misattribution and the actor-leaks, and fixing
+them recovered ~1.0 rubric step on those five dimensions. `cross_turn_coherence`
+moved **−1.42 → +0.08**. The `decide` session alone is net positive on 9 of 12
+dimensions (`blindspot_specificity`, `cross_turn_coherence`, `earned_confidence`
+all +0.50).
+
+**It is still not a win**, and two things bound the reading before anything else:
+
+1. **Judge position bias Y +0.40 over 144 scores** on a 7/5 X/Y split — the
+   report flags this as ≥ a fifth of a rubric step, so every |delta| ≤ 0.33 in
+   the r15 table is inside bias range. The four positive rows are all +0.08.
+2. **3 of 6 live A2 cells closed with `perspectives=1 woven=0
+   transformations=0`** — `adopted_pathway` 0/6, COMPLETE records 0/6.
+
+#### The floor was the bug: `< 2` in the closing seam (fixed 2026-08-12)
+
+Splitting r15's wobble scores by whether the A2 graph had a woven pathway:
+
+| | UNWOVEN cells | woven cells |
+|---|---|---|
+| judged mean (36 scores each) | **−0.69** | **−0.25** |
+| `entanglement` | −1.67 | +0.33 |
+| `non_triviality` | −1.67 | +0.33 |
+| `blindspot_specificity` | −1.00 | +0.33 |
+| `tension_coverage` | −0.67 | +0.33 |
+
+Four dimensions flip sign. So most of A2's remaining loss is cells where the
+framework's product never got built — and the reason was ours, not the model's.
+
+All three unwoven cells called `anchor` **exactly once**. The closing seam
+`_ensure_pathways_before_closing` then returned without weaving, because its
+guard was `if len(unwoven) < 2`, commented "a wheel needs a second opposition to
+be a pathway rather than a restatement."
+
+**That comment contradicts the framework.** `PerspectiveCombination` treats a
+single PP as the circular-causality base case (`W(1)=1`, one Cycle, one Wheel),
+and `docs/theory/generative-rules.md` Rule 8 has layer-1 wheels covering the
+within-tetrad diagonals. Verified on a real provider at the weak tier
+(`tests/test_single_perspective_explore_real_llm.py`) rather than argued from the
+docs — a 1-PP exploration produces:
+
+```
+cycle_hashes: 1   deepened_wheel_hashes: 1   transformation_count: 6
+synthesis_generated: 1   pathways: 6   (named Ac+/Re+ pairs)
+```
+
+Six pathways and a synthesis from one tension. The guard was throwing that away
+and the report was reading the result as the framework failing to arrange what it
+had mapped.
+
+Fixed in three places at once, because the same "two" was written in all three
+and any one of them left behind reinstates the floor:
+
+- `Advisor._ensure_pathways_before_closing` — `len(unwoven) < 2` → `not unwoven`
+- `_DECISION_READINESS` — "Two mapped tensions are enough" → "ONE mapped tension
+  is enough… There is no minimum to reach"
+- the `explore` tool doc — same, plus "start with 1-2 perspectives" → "start with
+  the first perspective"
+
+Plus `bench/arms.py::_TOOL_REWRITES`, so A1/A1.7 are handed the same floor
+(fairness rule 4).
+
+**The lesson worth keeping: a floor stated as a count is a number the model can
+sit below.** "Two are enough" was written to stop the model waiting for a fuller
+map, and it became the thing that stopped it building at one. Also:
+`tests/test_pathways_before_closing_weak_tier.py` SKIPPED on its first run
+because the weak tier anchored one tension and the floor silenced the seam. That
+skip was the defect announcing itself, and it was filed as a test-instrument
+problem for two runs.
 
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 

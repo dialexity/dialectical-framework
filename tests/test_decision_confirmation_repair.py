@@ -525,14 +525,46 @@ class TestPathwaysBeforeClosing:
         assert calls[0]["hashes"] == ["h0003", "h0004"]
 
     @pytest.mark.asyncio
-    async def test_a_single_tension_is_left_alone(self, monkeypatch):
-        """One opposition has no arrangement to enumerate.
+    async def test_a_single_tension_is_woven_too(self, monkeypatch):
+        """ONE opposition is a complete arrangement, and this used to be skipped.
 
-        A wheel over a single tension is that tension restated, not a pathway,
-        so "tensions only" is the honest state and building anything would be
-        ceremony for its own sake.
+        The guard was `len(unwoven) < 2`, justified as "a wheel over a single
+        tension is that tension restated, not a pathway". That reasoning
+        contradicts the framework: `PerspectiveCombination` treats a single PP
+        as the circular-causality base case (W(1)=1), and
+        `docs/theory/generative-rules.md` Rule 8 has layer-1 wheels covering the
+        within-tetrad diagonals. Measured on a real provider at the weak tier
+        (`tests/test_single_perspective_explore_real_llm.py`): 1 cycle, 1
+        DEEPENED wheel, 6 transformations, 6 named Ac+/Re+ pathways, 1 synthesis
+        — from one perspective.
+
+        It cost `claim2-weak-r15-voice` half its A2 arm: 3 of 6 cells called
+        `anchor` exactly once, so the seam saw one unwoven perspective and
+        returned, and those cells closed on `woven=0 transformations=0` with the
+        report flagging the framework for not arranging what it had mapped.
+        Judged mean over those cells was -0.69 against -0.25 for the woven ones.
         """
         self._patch_repo(monkeypatch, self._perspectives(1))
+        calls = self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert len(calls) == 1, (
+            "a lone tension was left unwoven — the decision closes with no "
+            "pathway, so `adopted_pathway` cannot be grounded and the returning "
+            "session has no recipe to re-audit against"
+        )
+        assert calls[0]["hashes"] == ["h0000"]
+
+    @pytest.mark.asyncio
+    async def test_a_lone_already_woven_tension_is_not_rewoven(self, monkeypatch):
+        """Dropping the floor must not cost the idempotence the floor hid.
+
+        With `< 2` gone, a one-perspective graph reaches the weave call for the
+        first time — so the "already in a cycle" filter is now the only thing
+        standing between a re-closing and a duplicate exploration.
+        """
+        self._patch_repo(monkeypatch, self._perspectives(1, woven=1))
         calls = self._capture_exploration(monkeypatch)
 
         await _StubAdvisor([])._ensure_pathways_before_closing()

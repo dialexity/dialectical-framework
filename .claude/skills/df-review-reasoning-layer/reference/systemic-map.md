@@ -729,20 +729,37 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   confirmation verdict passes (never a background weaver: mid-exploration weaving would burn latency on
   arrangements the conversation may never reach and make `explore`'s per-call perspective cap meaningless), weaves
   only perspectives not already `is_in_use_by_cycle` (idempotent — a model that DID explore pays nothing), and
-  returns silently below two unwoven tensions (one opposition has no arrangement to enumerate; a wheel over it is
-  the tension restated, so "tensions only" is then the honest state). Ordering is load-bearing: pathways BEFORE
+  returns only on an EMPTY unwoven set. **The floor was `< 2` through r15 and it was wrong — one tension is
+  enough.** The justification ("one opposition has no arrangement to enumerate; a wheel over it is the tension
+  restated") contradicts the framework's own model: `PerspectiveCombination` treats a single PP as the
+  circular-causality BASE CASE (`W(1)=1`), and `docs/theory/generative-rules.md` Rule 8 has layer-1 wheels covering
+  the within-tetrad diagonals. Measured rather than argued —
+  `tests/test_single_perspective_explore_real_llm.py` (real provider, weak tier): a 1-PP exploration yields **1
+  cycle, 1 DEEPENED wheel, 6 transformations, 6 named Ac+/Re+ pathways, 1 synthesis**. Cost of the old floor, in
+  `claim2-weak-r15-voice`: 3 of 6 A2 cells called `anchor` exactly once, so the seam saw one unwoven perspective and
+  returned; those cells closed on `woven=0 transformations=0`, the report flagged the framework for not arranging
+  what it had mapped, and split by that state the judged mean was **-0.69 unwoven vs -0.25 woven** over 36 scores
+  each. **Standing caution: a floor stated as a count is a number the model can sit BELOW.** The same "two" lived in
+  three places at once — the seam guard, `_DECISION_READINESS`, and the `explore` tool doc — and all three now say
+  ONE plus "no minimum to reach"; changing one without the others reinstates the floor
+  (`test_the_explore_threshold_reaches_its_tool_doc_too` asserts the pair, and `bench/arms.py::_TOOL_REWRITES`
+  carries the A1/A1.7 rewrite so the baseline is handed the same floor — bench fairness rule 4). Ordering is
+  load-bearing: pathways BEFORE
   `RecordDecision`, because the record's grounds are read from the graph — weaving after the write leaves
   `adopted_pathway` unavailable on the very record it exists for. Nested in its OWN try/except inside the repair's:
   a richer grounding is worth attempting, never worth losing the record over. Reviewing prompts here: the
   `_DECISION_READINESS` pathways paragraph and the `explore` threshold line stay exactly as written — the model
   exploring on its own is still the path that produces the best-fitted arrangement, and the prompt stays silent
   about the backstop for the same reason as above. Locked by `TestPathwaysBeforeClosing` in
-  `tests/test_decision_confirmation_repair.py` (fires on the r7 shape, skips woven/single/empty, carries the
+  `tests/test_decision_confirmation_repair.py` (fires on the r7 shape, fires on a LONE tension, skips
+  woven/lone-woven/empty, carries the
   counsel-mode `nexus_hash` pin, orders before the record, survives an exploration fault with the record intact)
   + `tests/test_pathways_seam_real_llm.py` (`real_llm`, weak tier, tensions SEEDED: the conversational tripwire
   `tests/test_pathways_before_closing_weak_tier.py` skipped on its first run because the weak tier anchored only
-  ONE tension in three turns and the floor correctly silenced the seam — that measures `anchor` productivity, not
-  the seam, so the seeded pair is the instrument that can actually fail). Measured: `0 → 2` woven perspectives,
+  ONE tension in three turns and the floor silenced the seam — read then as "that measures `anchor` productivity,
+  not the seam", which is why the seeded pair was built. **That skip was the defect announcing itself and it was
+  filed as a test-instrument problem for two runs** — the floor it exercised was the bug, so a skip on the
+  framework's own behaviour is worth diagnosing before it is worked around). Measured: `0 → 2` woven perspectives,
   and weaving does NOT cost the record (both on the same turn), which was the live suspicion once the seam moved
   between the verdict and `RecordDecision`. It fires on BOTH closing branches — the model-recorded one is larger
   (50 saved cells recorded without exploring vs 48 with both) and weaker (an already-written record cannot take an

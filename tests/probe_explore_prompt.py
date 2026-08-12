@@ -23,7 +23,7 @@ def test_probe_explore_doc_renders():
     print("\n=== prompt chars:", len(prompt))
     for needle in (
         "`explore`",
-        "Two mapped tensions are already enough",
+        "ONE mapped tension is already enough",
         "A decision closes on pathways, not on tensions alone",
         "Grounded in:",
         "record_decision",

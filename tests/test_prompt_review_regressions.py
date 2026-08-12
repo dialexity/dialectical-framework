@@ -2016,14 +2016,26 @@ class TestDecisionReadiness:
         The rule is method, not machinery: a prompt-only arm owes the same
         reasoning, so `bench/arms.py` rewrites the tool verb rather than
         dropping the paragraph (asserted there).
+
+        The stated floor is ONE, and it was two until `claim2-weak-r15-voice`.
+        "Two are enough" reads as a minimum the model can sit below, and at one
+        anchored tension it did: 3 of 6 A2 cells closed on `woven=0
+        transformations=0`. One tension IS a complete arrangement — verified on
+        a real provider in
+        `tests/test_single_perspective_explore_real_llm.py` (1 deepened wheel, 6
+        transformations, 1 synthesis) — so the floor was wrong in the prompt and
+        in the closing seam alike.
         """
         for prompt in (self._unscoped(), self._scoped()):
             prompt = " ".join(prompt.split())
             assert "closes on pathways, not on tensions alone" in prompt
             # Names the mistake, not just the instruction.
             assert "permission to stop building" in prompt
-            # The threshold, because "enough structure" is what stalls it.
-            assert "Two mapped tensions are enough to explore" in prompt
+            # The floor, because "enough structure" is what stalls it — and it
+            # must not be quotable as a number the model has to reach.
+            assert "ONE mapped tension is enough to explore" in prompt
+            assert "no minimum to reach" in prompt
+            assert "Two mapped tensions are enough" not in prompt
 
     def test_ritual_asks_once_and_never_gates_the_record(self):
         """A soft ritual pressed twice is a hard gate on the person's own call.
@@ -2127,19 +2139,26 @@ class TestDecisionReadiness:
         `claim2-weak-r2`: 5 of 6 live A2 runs never called `explore`, so the
         closing turn had no pathway to adopt and no trap version of the choice
         to name — measured as 0/6 records carrying an `adopted_pathway` ground.
-        "Two mapped tensions are enough to explore" was stated only in Decision
-        Readiness; the explore tool doc said "use once tensions exist" without
-        naming the threshold, leaving "enough structure" to the model's
-        judgement at exactly the point where it stalls.
+        The floor was stated only in Decision Readiness; the explore tool doc
+        said "use once tensions exist" without naming it, leaving "enough
+        structure" to the model's judgement at exactly the point where it stalls.
+
+        The floor itself is ONE (was two through r15) — see
+        `test_decision_mode_closes_on_pathways_not_tensions_alone`. Both surfaces
+        must state the same number, or the tool doc reinstates the floor the
+        section dropped.
 
         Unscoped only: the scoped variant is already inside an exploration.
         """
         from dialectical_framework.agents.advisor import system_prompts as sp
 
         tool_doc = " ".join(sp._TOOL_DOCS["explore"].split())
-        assert "Two mapped tensions are already enough" in tool_doc
-        # Names the consequence, so the threshold is not read as arbitrary.
+        assert "ONE mapped tension is already enough" in tool_doc
+        # Names the consequence, so the floor is not read as arbitrary.
         assert "closes with no pathway" in tool_doc
+        # The old floor must not survive in either surface.
+        assert "Two mapped tensions" not in tool_doc
+        assert "1-2 perspectives" not in tool_doc
 
     def test_coherence_auditor_reads_accepted_cost_as_a_risk(self):
         """The re-audit's own auditor is a third surface teaching the role.

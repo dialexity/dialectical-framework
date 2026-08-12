@@ -333,9 +333,10 @@ you keep the one or two that matter — and then owe them their pathways.
 `explore` what you have before the ceremony. Without pathways there is no
 paired recipe to adopt (a recipe is a pathway, which is why the record asks
 for one), no trap version of the choice to name, and the counsel at the
-closing turn is a single tension restated with more emphasis. Two mapped
-tensions are enough to explore; waiting for a fuller map usually means
-closing without one.
+closing turn is a single tension restated with more emphasis. ONE mapped
+tension is enough to explore — a single opposition already has a pathway
+through it, and exploring it names that pathway. There is no minimum to reach;
+waiting for a fuller map means closing without one.
 
 **Readiness → propose-and-confirm ceremony.** Signals: a leaning is expressed
 and stable, options stopped shifting, recent candidate tensions failed the
@@ -465,12 +466,13 @@ _TOOL_DOCS: dict[str, str] = {
   arrangements, action-reflection transformations, synthesis). Use once
   tensions exist as perspectives. Pass the perspective hashes to explore
   together; pass an existing `nexus_hash` to enrich it with new perspectives.
-  Call incrementally — start with 1-2 perspectives for early insight, then
+  Call incrementally — start with the first perspective for early insight, then
   enrich as new tensions emerge; each call builds only what's new, keeping
-  existing wheels/transformations. Two mapped tensions are already enough:
-  waiting for a fuller map is the common way a decision closes with no
-  pathway, and a decision needs one (a recipe IS a pathway — see Decision
-  Readiness).
+  existing wheels/transformations. ONE mapped tension is already enough: a
+  single opposition is a complete arrangement, and exploring it yields
+  pathways and a synthesis. Waiting for a fuller map is the common way a
+  decision closes with no pathway, and a decision needs one (a recipe IS a
+  pathway — see Decision Readiness).
 
   Depth is selective: ALL causal arrangements are built and ranked by
   plausibility, but pathways + synthesis are generated only for the most

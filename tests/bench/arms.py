@@ -120,7 +120,7 @@ _TOOL_REWRITES: tuple[tuple[str, str], ...] = (
     # prompt-only arm owes the same reasoning, so this is rewritten rather
     # than dropped (and "explore" is deliberately not a drop token).
     ("`explore` what you have before the ceremony.", "Work out their pathways before the ceremony."),
-    ("Two mapped tensions are enough to explore; waiting for a fuller map usually means closing without one.", "Two mapped tensions are enough to work pathways from; waiting for a fuller map usually means closing without any."),
+    ("ONE mapped\ntension is enough to explore — a single opposition already has a pathway\nthrough it, and exploring it names that pathway. There is no minimum to reach;\nwaiting for a fuller map means closing without one.", "ONE mapped\ntension is enough to work pathways from — a single opposition already has a\npathway through it, and working it out names that pathway. There is no minimum\nto reach; waiting for a fuller map means closing without any."),
     ("offer to record the decision", "offer to set the decision down in writing"),
     ("Record ONLY on their explicit confirmation", "Write it down ONLY on their explicit confirmation"),
     ("Before proposing to record", "Before proposing to set it down"),

@@ -380,10 +380,26 @@ class Advisor:
             for p in perspectives
             if p.hash and not repo.is_in_use_by_cycle(p)
         ]
-        # One tension has no arrangement to enumerate: a wheel needs a second
-        # opposition to be a pathway rather than a restatement. Below two, the
-        # honest state IS "tensions only".
-        if len(unwoven) < 2:
+        # One tension is enough. This guard used to be `< 2` on the reasoning
+        # that "a wheel needs a second opposition to be a pathway rather than a
+        # restatement" — which contradicts the framework's own model.
+        # `PerspectiveCombination` treats a single PP as the circular-causality
+        # BASE CASE (W(1)=1: one Cycle, one Wheel, 2 edges, 1 pair), and
+        # `docs/theory/generative-rules.md` Rule 8 says layer-1 wheels are what
+        # covers the within-tetrad diagonals. Measured directly rather than
+        # argued (`tests/test_single_perspective_explore_real_llm.py`, weak tier,
+        # real provider): a 1-PP exploration yields 1 cycle, 1 DEEPENED wheel,
+        # 6 transformations, 6 named Ac+/Re+ pathways and 1 synthesis.
+        #
+        # The cost of the old floor, measured in `claim2-weak-r15-voice`: 3 of 6
+        # A2 cells called `anchor` exactly once, so the seam saw one unwoven
+        # perspective and returned. Those cells closed on `woven=0
+        # transformations=0`, and the report flagged them as the framework
+        # failing to arrange what it had mapped. Split by this state, the judged
+        # mean was -0.69 unwoven against -0.25 woven over 36 scores each — the
+        # single largest identified component of A2's remaining loss, and it was
+        # this `return`, not the model.
+        if not unwoven:
             return
 
         logger.info(
