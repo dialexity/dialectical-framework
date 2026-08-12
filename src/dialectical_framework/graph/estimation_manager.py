@@ -73,7 +73,19 @@ class EstimationManager:
         if existing:
             old_value = existing.value
             if old_value != value:
-                node.estimations.disconnect(existing)
+                # DELETE the superseded node, don't just cut the ESTIMATES edge.
+                # An Estimation's identity IS (type, value, target) — it has no
+                # meaning apart from the entity it estimates, so a detached one
+                # is garbage that `_get_or_create_estimation` cannot see (its
+                # lookup walks the ESTIMATES edge) but `commit()`'s hash dedup
+                # CAN: the hash is over the same three parts, so re-estimating
+                # the old value adopts the orphan's `_id` and then tries to
+                # attach a second provider to it. `provider` is cardinality
+                # (0,1), so that raises — measured in `claim2-weak-r14`, where
+                # Mode ping-ponged 0.4 → 0.1 → 0.4 across re-anchors and killed
+                # two whole `anchor` calls with a message about a relationship
+                # constraint nobody had asked to change.
+                self._delete_estimations(node, estimation_type, graph_db)
                 estimation = self._get_or_create_estimation(estimation_type, value, node, graph_db, provider)
             else:
                 estimation = existing

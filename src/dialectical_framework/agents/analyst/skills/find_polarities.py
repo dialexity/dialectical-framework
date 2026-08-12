@@ -169,9 +169,27 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             result.existing = existing_antitheses
             return result
 
-        thesis_results = await asyncio.gather(
-            *[_process_thesis(h) for h in unique_hashes]
+        # return_exceptions: one thesis whose extraction raises must not take
+        # the other theses' polarities with it. `ThesisResult.error` already
+        # exists for the per-thesis failure this converts to — and the whole
+        # skill raising is how `claim2-weak-r14` turned one bad Mode estimation
+        # into "polarity extraction failed" for a five-thesis fan-out.
+        gathered = await asyncio.gather(
+            *[_process_thesis(h) for h in unique_hashes],
+            return_exceptions=True,
         )
+
+        thesis_results: list[ThesisResult] = []
+        for thesis_hash, outcome in zip(unique_hashes, gathered):
+            if isinstance(outcome, BaseException):
+                thesis = self._resolve_component(thesis_hash)
+                failed = ThesisResult(thesis=thesis or Statement(text=""))
+                failed.error = (
+                    f"{type(outcome).__name__}: {outcome}"
+                )
+                thesis_results.append(failed)
+                continue
+            thesis_results.append(outcome)
 
         for result in thesis_results:
             results.append(result)
@@ -291,6 +309,20 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             summary += (
                 f" {suggestion_count} weaker pair(s) suggested for consolidation "
                 f"(acting on one merges 2 theses into 1 tension)."
+            )
+        # Failed theses must reach the summary. Isolating them (Phase 1's
+        # return_exceptions) stops one bad thesis from killing the fan-out, but
+        # silence about the survivors' missing siblings would just relocate the
+        # invisibility that cost `claim2-weak-r14` its diagnosis: the agent
+        # would read "Found 3 antitheses for 5 theses" as a complete answer.
+        failures = [r for r in results if r.error]
+        if failures:
+            self._report.artifacts["failed_theses"] = [
+                {"thesis_text": r.thesis.text, "error": r.error} for r in failures
+            ]
+            summary += (
+                f" {len(failures)} thesis(es) FAILED extraction: "
+                + "; ".join(f"{r.thesis.text!r} ({r.error})" for r in failures)
             )
         self._report.summary = summary
 

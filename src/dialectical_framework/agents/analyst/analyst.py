@@ -317,9 +317,18 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             ]
         except Exception as e:
             errors.append(StepError(step="find_polarities", message=str(e)))
-            self._report.ok = True
+            # ok=False and the message in the summary, for the same reason the
+            # expansion block below says so: `errors` rides home on
+            # AnalysisResult, which no tool renders, so a bare "polarity
+            # extraction failed" is the whole story the agent gets. In
+            # `claim2-weak-r14` that story was `anchor:ok` over a case where a
+            # cardinality ValueError had killed every polarity — the third time
+            # a swallowed message on this exact path cost a bench run its
+            # diagnosis.
+            self._report.ok = False
             self._report.summary = (
-                f"Found {len(thesis_hashes)} theses, polarity extraction failed"
+                f"Found {len(thesis_hashes)} theses, polarity extraction "
+                f"FAILED ({e})"
             )
             return AnalysisResult(
                 ideas_hash=ideas_hash,

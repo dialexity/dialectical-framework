@@ -237,8 +237,18 @@ class Estimation(BaseNode, label="Estimation"):
 
         # Auto-connect provider (rationale) if ref was stored
         # The connection is made from rationale -> estimation via provided_estimations
+        #
+        # Skipped when a provider edge already exists. `provider` is deliberately
+        # NOT in the hash (see set_provider), so committing the same (type,
+        # value, target) resolves — by design — onto an existing node that may
+        # already carry a DIFFERENT rationale's PROVIDES edge. Cardinality is
+        # (0,1), so connecting again raises. Two provenance claims on one
+        # content-identified estimation is not an error worth aborting the
+        # caller's whole write for: the first attribution stands and the second
+        # is redundant, which is exactly what content-addressing means here.
         if self._provider_ref:
-            self._provider_ref.provided_estimations.connect(self)
+            if self.provider.count() == 0:
+                self._provider_ref.provided_estimations.connect(self)
             self._provider_ref = None  # Clear transient ref
 
         return self

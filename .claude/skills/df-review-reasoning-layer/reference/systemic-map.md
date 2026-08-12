@@ -353,6 +353,21 @@ the POLARITY hash it was expanding, so the bench log named no perspective at all
 distinguish "cannot locate the node" from "the node has no such edge"** — a silent conflation of the two
 propagates as a false structural verdict, not as an error.
 
+**Estimation lifecycle: a detached Estimation is garbage, and hash-dedup can resurrect it.** An
+`Estimation` is content-identified by `(type, value, target)` and `provider` is deliberately OUT of the
+hash (`set_provider`: "the same estimation is the same regardless of provider"). That exclusion is what
+made value ping-pong fatal. `EstimationManager.upsert_estimation` used to `disconnect` the ESTIMATES edge
+when a value changed, leaving the old node alive still carrying its PROVIDES edge — invisible to
+`_get_or_create_estimation` (whose lookup walks ESTIMATES) but visible to `commit()`'s hash dedup (same
+three parts). So re-estimating a previously-held value adopted the orphan's `_id` and connected a second
+provider to it; `provider` cardinality is `(0,1)` → `ValueError`. Reachable by ordinary conversation:
+`AntithesisExtraction._persist_candidates` writes Mode AND Arousal on every repeat `anchor` of the same
+tension, and weak-tier models re-anchor freely. Two fixes: the manager DELETES the superseded node, and
+`Estimation.commit()` skips the provider connect when an edge exists (content-addressing means resolving
+onto another rationale's node is BY DESIGN — first attribution stands). Locked by
+`tests/test_estimation_upsert_lifecycle.py`. **Rule for any content-addressed node: detaching it is not
+deleting it, and the hash will find it again.**
+
 ### Exploration chain (`ExplorationPipeline.resolve`)
 **BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **depth gate
 `_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all —
@@ -411,6 +426,28 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
    Transformation, so a wheel that got none can only ground a cost and never a recipe for living with
    it — a silent "Exploration complete" yields a half-record that reads as whole. Locked by
    `tests/test_exploration_failure_visibility.py`. **A log line is not a report line.**
+
+   **Same defect, two levels deeper (`find_polarities` step, now guarded).** Two sites, and the pair is
+   the lesson. (a) `AnalysisPipeline.resolve`'s `except` around `FindPolarities` recorded a `StepError`
+   and summarised `"polarity extraction failed"` with **no message and `ok=True`** — the exception text
+   rode home on `AnalysisResult` like everything else in this section. (b) One level below, Phase 1 of
+   `FindPolarities` gathered per-thesis extraction **without `return_exceptions`**, so one raising thesis
+   aborted the fan-out for all of them. Together they turned a single bad `upsert_estimation` into
+   `anchor:ok` over a case with zero polarities. Measured in `claim2-weak-r14`: the A2/rep-1 run's
+   `anchor` raised twice, and the *reported* cause ("Perspective has no Polarity connected") was false —
+   `incremental_build_mixin.commit()` validates cardinality BEFORE hashing, so a committed Perspective
+   provably had its edge. **The same false-cause shape as `_resolve_source_id`'s docstring case
+   (`claim2-weak-r6-grounding`): when a graph error names a condition the commit path would have
+   rejected, suspect the message before the condition.** Isolating the failure is only half the fix —
+   the surviving summary now names the failed theses and their causes (`artifacts["failed_theses"]`),
+   because "3 antitheses for 5 theses" reads as complete to the agent. Root cause was
+   `EstimationManager.upsert_estimation` detaching rather than deleting a superseded Estimation, leaving
+   an orphan that hash-dedup later resurrected into a `provider` cardinality violation — see the
+   **Estimation lifecycle** note under Analysis chain. Locked by
+   `tests/test_find_polarities_failure_visibility.py` and `tests/test_estimation_upsert_lifecycle.py`.
+   Cost accounting for this section's rule: this one defect ate three separate r14 anomalies (the
+   `anchor` crash, the `perspectives=0 … decisions=1` contradiction flag, and the A2 `memory 0/4`
+   storage hole) — all the same run, since a case with no perspectives has nothing to carry over.
 
 ### Gates (score-based filters — the prompt that feeds each *is* a gate input)
 - **`_rank_polarities`** (`analyst/analyst.py`, `HS_THRESHOLD=0.7`, `MAX_POLARITIES_TO_EXPAND=5`): keeps
