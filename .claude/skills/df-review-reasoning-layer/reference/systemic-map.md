@@ -600,6 +600,37 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   between the verdict and `RecordDecision`. It fires on BOTH closing branches — the model-recorded one is larger
   (50 saved cells recorded without exploring vs 48 with both) and weaker (an already-written record cannot take an
   `adopted_pathway`; the pathway still serves the returning session's re-audit).
+  **The pathway existed and was still unnameable** (fixed 2026-08-12, from `claim2-weak-r10`) — and this one is
+  NOT the election failure the two above were, which is why three rounds of prompt work never touched it. r10's
+  seam worked: 6/6 decisions recorded, 6/6 with risk-grounded costs, 5/6 cells with woven pathways. And
+  `adopted_pathway` was **0/6**, *including the cells that called `explore` themselves*. Cause:
+  `ExplorationPipeline` published `transformation_count` and nothing else, so a model told "12 transformations"
+  had no hash to pass — the role was documented on a ground that did not exist in any tool's output. The general
+  rule this instance adds: **a documented ground must be constructible from what the tool RETURNS**; the doc, the
+  role vocabulary, and the storage can all be right while the artifact is unreachable, and nothing in the
+  prompt-review checklist catches that because every prompt surface reads correct. Fixes: `transformation_hashes`
+  on `ExplorationResult` plus a `pathways` artifact on the pipeline report and on `deepen` (which had the same
+  gap — it merged effects but never named an adoptable pathway). Rendered via a shared
+  `rendering.pathway_line` — hash + edge + Ac+/Re+ text, because a bare hash list is not a menu and
+  `adopted_pathway` asks the model to pick ONE recipe. Ac+/Re+ ONLY: those two ARE the circular causality
+  (Rule 5.1, T-→A+ and A-→T+ simultaneously), so they are what gets adopted, while Ac-/Re- are degradation modes
+  that belong to trap-naming — a menu listing them invites adopting a degradation. Two subtleties, each its own
+  test: the source is `.all` not `.new` (a wheel sharing edge pairs with an already-deepened one reuses every
+  transformation, so `.new` reports "no pathways" for a fully developed wheel — and the reuse case is the LIKELY
+  one, since `explore` already deepened the top wheel), and hashes dedup across wheels (opposite-edge
+  transformations are shared; the same hash twice reads as two recipes). `one_line` on the recipe text for the
+  same ledger-injection reason as `_dump_decisions`. Tool docs updated on all five surfaces that decide whether
+  the ground gets passed (`explore`, `explore_scoped`, `deepen`, `deepen_scoped`, `record_decision`) — the
+  `record_decision` doc now also rules out the two near-miss hashes BY NAME (a wheel names the arrangement, a
+  perspective names the tension) and says to omit the role rather than substitute, matching the repair seam's own
+  refusal to guess it (`test_adopted_pathway_is_never_guessed`). Locked by
+  `TestPipelineNamesThePathwaysItBuilt` (`tests/test_exploration_failure_visibility.py`),
+  `TestDeepenNamesThePathways` (`tests/test_advisor_deepen.py`), and `TestPathwayHashReachesTheModel` +
+  `TestPathwayLineIsPickable` (`tests/test_prompt_review_regressions.py`). Two pre-existing tests had hand-rolled
+  `ExploreTransformationsResult` stand-ins that broke on the new field read — both now use the real dataclass,
+  which is the durable lesson: **a hand-shaped stub covers only the fields the caller read the day it was
+  written**, and goes stale silently. NOT yet verified at the behaviour layer: whether the model actually passes
+  the role needs a bench re-measure of `adopted_pathway` per record.
   **Decision provenance** (live since 2026-08): the rationale's `agent` names the confirming PRINCIPAL — "human"
   iff a person confirmed the ceremony; delegated drivers (agent-to-agent runs) record "agent:<name>" instead.
   Host-attested at construction (`Advisor(principal=...)` → closed over by `build_record_decision`, same

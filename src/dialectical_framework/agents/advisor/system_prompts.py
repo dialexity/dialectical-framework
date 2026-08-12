@@ -476,7 +476,12 @@ _TOOL_DOCS: dict[str, str] = {
   plausibility, but pathways + synthesis are generated only for the most
   plausible one — counsel from that. The result lists the other arrangements
   (`shallow_wheel_hashes`): ranked alternatives whose pathways don't exist
-  yet. Don't present them as developed insight. Each call also weaves at
+  yet. Don't present them as developed insight. The pathways it DID build
+  come back as `pathways`, one line each: the hash, the edge it runs on, and
+  its Ac+/Re+ recipe. That is the menu you counsel from, and when a decision
+  closes it is where the `adopted_pathway` hash comes from — so read it now
+  rather than reaching for a wheel or perspective hash later, which names an
+  arrangement or a tension and not a recipe. Each call also weaves at
   most a couple of perspectives — extras come back as
   `deferred_perspective_hashes`; weave them with a follow-up explore call
   when the conversation warrants, they are never lost.
@@ -499,7 +504,10 @@ _TOOL_DOCS: dict[str, str] = {
   weave in. Everything lands in this exploration — there is nowhere else.
   Depth is selective: all new arrangements are built and ranked, but pathways
   + synthesis go only to the most plausible one; the rest are listed as
-  `shallow_wheel_hashes` (ranked, not yet developed). Extras beyond the
+  `shallow_wheel_hashes` (ranked, not yet developed). The pathways built come
+  back as `pathways` — hash, edge, and Ac+/Re+ recipe per line; that is the
+  menu you counsel from, and the source of an `adopted_pathway` hash when a
+  decision closes. Extras beyond the
   per-call weave budget come back as `deferred_perspective_hashes` — weave
   them with a follow-up call, they are never lost.""",
     "deepen": """- `deepen` — Develops an alternative causal arrangement: generates its
@@ -508,13 +516,17 @@ _TOOL_DOCS: dict[str, str] = {
   in the dump without pathways). Call it at the moment the person's lived
   reality picks a reading whose pathways don't exist yet — e.g. they resonate
   with the less-plausible arrangement during contrast, or keep returning to
-  it. Then counsel from the new pathways. Harmless on already-developed
-  wheels (reuses what exists).""",
+  it. Then counsel from the new pathways — they come back as `pathways`, one
+  line each (hash, edge, Ac+/Re+ recipe), which is also where an
+  `adopted_pathway` hash comes from if this is the arrangement they adopt.
+  Harmless on already-developed wheels (reuses what exists, and still lists
+  their pathways).""",
     "deepen_scoped": """- `deepen` — Develops an alternative causal arrangement of THIS
   exploration: generates action-reflection pathways (and synthesis) for a
   wheel that exists but has no pathways yet. Call it when the person's lived
   reality picks a reading whose pathways don't exist — then counsel from
-  them. Deepening only adds analytical depth to existing structure — it
+  them (`pathways` lists each: hash, edge, Ac+/Re+ recipe — and that hash is
+  what an `adopted_pathway` ground needs). Deepening only adds analytical depth to existing structure — it
   never changes what the exploration contains, so no consent ceremony is
   needed. Harmless on already-developed wheels.""",
     "record_decision": """- `record_decision` — Records a decision the person has EXPLICITLY
@@ -540,8 +552,15 @@ _TOOL_DOCS: dict[str, str] = {
   every aspect line — so the Perspective's own hash is never the closest thing
   available, it is a different ground (the tension). Use
   "adopted_pathway" for the pathway adopted as their ongoing
-  recipe, no role for plain grounds (tensions weighed, arrangements counseled
-  from). The result may carry a coherence verdict — if it flags a
+  recipe — that hash is a Transformation's, listed in `pathways` by whichever
+  explore/deepen call built it and on the pathway lines in the understanding
+  dump. A wheel hash names the arrangement and a perspective hash names the
+  tension, so neither is a near-miss for this role: they are different
+  grounds. If no pathway was built, leave the role out rather than
+  substituting one — but if the person is adopting a way of living with this
+  and pathways exist, the recipe is precisely what the later re-audit needs
+  alongside the cost. No role for plain grounds (tensions weighed,
+  arrangements counseled from). The result may carry a coherence verdict — if it flags a
   contradiction, raise it with the person immediately; the record stands
   either way. To replace or retract a recorded decision, use `discard` on it
   (reason naming the newer decision if one replaces it).""",

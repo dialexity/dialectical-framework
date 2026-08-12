@@ -37,9 +37,28 @@ async def run_deepen(wheel_hash: str) -> str:
     from dialectical_framework.agents.explorer.skills.generate_synthesis import \
         GenerateSynthesis
 
+    from dialectical_framework.graph.rendering import pathway_line
+
     explore_tr = ExploreTransformations(wheel_hash=wheel_hash)
-    await explore_tr.resolve()
+    tr_result = await explore_tr.resolve()
     combined_report = explore_tr.report
+
+    # Same reason as `explore`: the whole point of deepening is that the person's
+    # lived reality picked THIS arrangement, so the pathway they can adopt has to
+    # be nameable from the tool's own output. Idempotent re-runs return every
+    # transformation as `existing`, so `.all` is the only correct source — a
+    # second deepen on the same wheel would otherwise report no pathways at all.
+    pathways = [
+        line
+        for line in (
+            pathway_line(t)
+            for t in sorted(tr_result.all, key=lambda t: t.hash or "")
+            if t.hash
+        )
+        if line
+    ]
+    if pathways:
+        combined_report.artifacts["pathways"] = pathways
 
     try:
         synth = GenerateSynthesis(wheel_hash=wheel_hash)

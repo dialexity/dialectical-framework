@@ -24,6 +24,7 @@ from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
+from dialectical_framework.graph.rendering import pathway_line
 from dialectical_framework.graph.repositories.nexus_repository import \
     NexusRepository
 
@@ -193,6 +194,13 @@ class ExplorationResult(BaseModel):
     # pipeline was capped via max_deep_wheels). Synthesis should follow these.
     deepened_wheel_hashes: list[str] = []
     transformation_count: int = 0
+    #: Every transformation now ON the deepened wheels — newly generated AND
+    #: reused. An `adopted_pathway` ground IS a Transformation hash, so a caller
+    #: that reports only a count hands the model a pathway it cannot name; and a
+    #: count of NEW ones reads as zero on the common idempotent case (a wheel
+    #: sharing edge pairs with one already deepened reuses every transformation),
+    #: which says "no pathway exists" about a wheel that is fully developed.
+    transformation_hashes: list[str] = []
     errors: list[StepError] = []
     reports: list = []
 
@@ -272,16 +280,19 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
 
         deep_wheel_hashes = self._select_deep_wheels(build_result.new_wheels)
 
-        transformation_count = 0
-
-        async def _explore_wheel(wheel_hash: str) -> tuple[int, Optional[StepError]]:
+        async def _explore_wheel(
+            wheel_hash: str,
+        ) -> tuple[list, Optional[StepError]]:
             try:
                 explore_tr = ExploreTransformations(wheel_hash=wheel_hash)
                 tr_result = await explore_tr.resolve()
                 reports.append(explore_tr.report)
-                return len(tr_result.new), None
+                # `.all`, not `.new`: the question the caller is answering is
+                # "what pathways does this wheel now have", and a reused
+                # transformation is as adoptable as a freshly generated one.
+                return [t for t in tr_result.all if t.hash], None
             except Exception as e:
-                return 0, StepError(
+                return [], StepError(
                     step="explore_transformations",
                     message=str(e),
                     hash=wheel_hash,
@@ -290,10 +301,17 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         wheel_results = await asyncio.gather(
             *[_explore_wheel(wh) for wh in deep_wheel_hashes]
         )
-        for count, error in wheel_results:
-            transformation_count += count
+        transformations: list = []
+        for found, error in wheel_results:
+            transformations.extend(found)
             if error:
                 errors.append(error)
+        # Deduped by hash: opposite-edge transformations are shared across wheels
+        # sharing edge pairs, and one listed twice reads as two pathways. Sorted
+        # for the same reason rendered structures are (deterministic ordering).
+        by_hash = {t.hash: t for t in transformations}
+        transformation_hashes = sorted(by_hash)
+        transformation_count = len(transformation_hashes)
 
         shallow_count = len(wheel_hashes) - len(deep_wheel_hashes)
         # Same rule as AnalysisPipeline: degrade, but never silently. Every
@@ -328,6 +346,24 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
             )
             self._report.artifacts["errors"] = [e.model_dump() for e in errors]
         self._report.artifacts["transformation_count"] = transformation_count
+        # The count was never enough, and a bare hash list is not much better.
+        # `adopted_pathway` asks for ONE Transformation as the person's ongoing
+        # recipe; a caller handed "12 transformations" has nothing to pass, and
+        # one handed 12 opaque hashes cannot tell which recipe it is adopting.
+        # Measured as 0/6 records carrying an adopted pathway in
+        # `claim2-weak-r10`, INCLUDING the cells that called `explore`
+        # themselves — so this was never an election failure like `explore`
+        # itself was; the ground was unnameable from the tool's own output.
+        if transformation_hashes:
+            pathways = [
+                line
+                for line in (
+                    pathway_line(by_hash[h]) for h in transformation_hashes
+                )
+                if line
+            ]
+            if pathways:
+                self._report.artifacts["pathways"] = pathways
 
         return ExplorationResult(
             nexus_hash=self.nexus_hash,
@@ -335,6 +371,7 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
             wheel_hashes=wheel_hashes,
             deepened_wheel_hashes=deep_wheel_hashes,
             transformation_count=transformation_count,
+            transformation_hashes=transformation_hashes,
             errors=errors,
             reports=reports,
         )

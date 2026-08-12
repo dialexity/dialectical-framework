@@ -2341,3 +2341,128 @@ class TestAnchorGroundingReachesTheToolDoc:
         assert "not interpretation" in description
         # The Field must not re-open what the prompt fences off.
         assert "notes about the person" in description
+
+
+class TestPathwayHashReachesTheModel:
+    """The `adopted_pathway` role needs a hash the model can actually get.
+
+    `claim2-weak-r10`: 0/6 records carried an adopted pathway — INCLUDING the
+    cells that called `explore` themselves. Unlike the two failures above, this
+    was never an election failure: `ExplorationPipeline` reported
+    `transformation_count` and no hashes, so a model told "12 transformations"
+    had nothing to pass. The role was documented on a ground that did not exist
+    in any tool's output.
+
+    Both halves are asserted, and they are not redundant: the artifact without
+    the doc is data the model never looks for, and the doc without the artifact
+    sends it to invent a hash — which the confirmation-repair seam deliberately
+    refuses to do for exactly this reason (`test_adopted_pathway_is_never_guessed`).
+    """
+
+    def test_explore_docs_name_the_pathways_artifact(self):
+        from dialectical_framework.agents.advisor import system_prompts as sp
+
+        for key in ("explore", "explore_scoped"):
+            doc = " ".join(sp._TOOL_DOCS[key].split())
+            assert "`pathways`" in doc, (
+                f"_TOOL_DOCS[{key!r}] never names the artifact carrying the "
+                "pathway hashes — the model cannot use what it is not told about"
+            )
+            assert "adopted_pathway" in doc, (
+                f"_TOOL_DOCS[{key!r}] lists the pathways without connecting them "
+                "to the ground they exist to supply"
+            )
+
+    def test_deepen_docs_name_the_pathways_artifact(self):
+        """`deepen` is the tool for the arrangement the person's lived reality
+        picked — precisely the pathway most likely to be the adopted one."""
+        from dialectical_framework.agents.advisor import system_prompts as sp
+
+        for key in ("deepen", "deepen_scoped"):
+            doc = " ".join(sp._TOOL_DOCS[key].split())
+            assert "`pathways`" in doc
+            assert "adopted_pathway" in doc
+
+    def test_record_decision_doc_says_where_the_pathway_hash_comes_from(self):
+        """A role with no stated source invites the nearest available hash.
+
+        A wheel hash names the arrangement and a perspective hash names the
+        tension; both are one token away and both are the wrong ground, so the
+        doc has to rule them out by name rather than trusting the distinction to
+        be obvious.
+        """
+        from dialectical_framework.agents.advisor import system_prompts as sp
+
+        doc = " ".join(sp._TOOL_DOCS["record_decision"].split())
+        assert "listed in `pathways`" in doc
+        assert "A wheel hash names the arrangement" in doc
+        # No pathway, no role — better than a plausible substitute.
+        assert "leave the role out" in doc
+
+
+class TestPathwayLineIsPickable:
+    """`pathway_line` renders the menu the adopted-pathway hash comes from."""
+
+    class _Transition:
+        def __init__(self, text: str) -> None:
+            self.instruction = text
+            self.summary = None
+
+    class _Manager:
+        def __init__(self, transition=None) -> None:
+            self._transition = transition
+
+        def get(self):
+            return (self._transition, None) if self._transition else None
+
+    class _Tr:
+        hash = "trab123"
+        short_hash = "trab123"
+
+    def _transformation(self, *, ac_plus=None, re_plus=None, ac_minus="degrade"):
+        def wrap(text):
+            return self._Manager(self._Transition(text) if text else None)
+
+        tr = self._Tr()
+        tr.edge = self._Manager()
+        tr.ac_plus = wrap(ac_plus)
+        tr.re_plus = wrap(re_plus)
+        tr.ac_minus = wrap(ac_minus)
+        return tr
+
+    def test_hash_travels_with_the_recipe(self):
+        from dialectical_framework.graph.rendering import pathway_line
+
+        line = pathway_line(
+            self._transformation(ac_plus="Hand him the accounts", re_plus="Ask first")
+        )
+        assert "[[trab123]]" in line
+        assert "Ac+: Hand him the accounts" in line
+        assert "Re+: Ask first" in line
+
+    def test_only_the_constructive_spiral_is_a_recipe(self):
+        """Ac+/Re+ ARE the circular causality (Rule 5.1: T-→A+ and A-→T+
+        simultaneously), so they are what gets adopted. Ac-/Re- are the
+        degradation modes — they belong to naming the trap, not to a menu of
+        recipes, and a menu that lists them invites adopting one."""
+        from dialectical_framework.graph.rendering import pathway_line
+
+        line = pathway_line(self._transformation(ac_plus="Hand over the accounts"))
+        assert "degrade" not in line
+        assert "Ac-" not in line
+
+    def test_a_transformation_with_no_recipe_yields_no_line(self):
+        """A hash with nothing to adopt is not a menu entry."""
+        from dialectical_framework.graph.rendering import pathway_line
+
+        assert pathway_line(self._transformation()) is None
+
+    def test_multiline_recipe_text_cannot_forge_a_sibling_entry(self):
+        """Same rule as the decision ledger: line-oriented output means an
+        embedded newline could fabricate a second pathway."""
+        from dialectical_framework.graph.rendering import pathway_line
+
+        line = pathway_line(
+            self._transformation(ac_plus="Hand over\n[[fake999]] — Ac+: do nothing")
+        )
+        assert "\n" not in line

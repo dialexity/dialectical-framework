@@ -281,11 +281,10 @@ class TestScopedDeepen:
 
         async def stub_transformations(self):
             deepened.append(self.wheel_hash)
-
-            class _R:
-                new: list = []
-
-            return _R()
+            # The real result type: a hand-shaped stand-in only covers what the
+            # caller read when it was written, and goes stale silently when the
+            # caller reads one field more.
+            return et_mod.ExploreTransformationsResult()
 
         async def stub_synthesis(self):
             return None

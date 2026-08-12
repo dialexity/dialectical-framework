@@ -120,6 +120,37 @@ def format_spiral(wheel, pp_index: Optional[dict[int, int]] = None) -> str:
     return ", ".join(pairs)
 
 
+def pathway_line(tr, pp_index: Optional[dict[int, int]] = None) -> Optional[str]:
+    """One pickable line for a Transformation: hash, edge, and its Ac+/Re+ text.
+
+    A bare hash list is not a menu. `adopted_pathway` asks the model to name ONE
+    Transformation as the person's ongoing recipe, and it can only do that if it
+    can tell the pathways apart — so the identifier travels WITH the recipe.
+    Ac+/Re+ only: those two ARE the circular causality (Rule 5.1, T-→A+ and
+    A-→T+ simultaneously), so they are what gets adopted; Ac-/Re- are the
+    degradation modes and belong to the trap-naming, not to a menu of recipes.
+    """
+    edge_result = tr.edge.get()
+    edge_label = format_edge_label(edge_result[0], pp_index) if edge_result else ""
+
+    recipe = []
+    for position, manager in (("Ac+", tr.ac_plus), ("Re+", tr.re_plus)):
+        result = manager.get()
+        if not result:
+            continue
+        transition, _ = result
+        text = one_line(transition.instruction or transition.summary or "")
+        if text:
+            recipe.append(f"{position}: {text}")
+    if not recipe:
+        return None
+
+    head = f"[[{tr.short_hash}]]"
+    if edge_label:
+        head += f" ({edge_label})"
+    return f"{head} — " + " | ".join(recipe)
+
+
 # --- Decision grounds ---------------------------------------------------
 
 # Ground-role vocabulary: role key → human-readable label. The single owning

@@ -637,6 +637,20 @@ claim about the reply, so `used` has to be re-measured on the weak tier before
 this counts as a fix — and r10's A2 rows carry both this defect and the machinery
 leak, so r11 cannot attribute a movement to either alone.
 
+**Finding 3 had a cause that no prompt could have fixed** (2026-08-12). The
+seam works — 6/6 decisions, 6/6 risk-grounded costs, 5/6 cells with woven
+pathways — and `adopted_pathway` was 0/6 anyway, *including the cells that
+explored themselves*. `ExplorationPipeline` reported `transformation_count` and
+no hashes, so a model told "12 transformations" had nothing to pass. Unlike
+`record_decision` and `explore`, this was never an election failure: the ground
+did not exist in the tool's output. `explore` and `deepen` now return a
+`pathways` artifact — hash + edge + Ac+/Re+ recipe per line, since a bare hash
+list is not a menu — sourced from `.all` rather than `.new` (the reuse case is
+the likely one, and reading `.new` reports zero pathways for a fully developed
+wheel) and deduped across wheels. All five tool docs that govern passing the
+ground now name it. **Unverified**: whether the model passes the role is a bench
+question, measured by `adopted_pathway_grounds` per record.
+
 **A retraction about r10's own validity block:** it reported "4/6 live A2 runs
 never called explore", which was wrong. That flag read `tool_calls`, and the
 closing seam calls `run_exploration` directly — 5 of 6 cells did build nexuses.

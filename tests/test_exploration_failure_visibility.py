@@ -76,8 +76,35 @@ def _patch_build(monkeypatch, wheels: list[str]) -> None:
     )
 
 
+class _FakeTransition:
+    def __init__(self, text: str) -> None:
+        self.instruction = text
+        self.summary = None
+
+
+class _FakeManager:
+    def __init__(self, transition=None) -> None:
+        self._transition = transition
+
+    def get(self):
+        return (self._transition, None) if self._transition else None
+
+
+class _FakeTransformation:
+    """Only what `pathway_line` reads — a real one needs a committed wheel."""
+
+    def __init__(self, hash_: str) -> None:
+        self.hash = hash_
+        self.short_hash = hash_
+        self.edge = _FakeManager()
+        self.ac_plus = _FakeManager(_FakeTransition(f"recipe for {hash_}"))
+        self.re_plus = _FakeManager()
+
+
 def _patch_transformations(monkeypatch, behaviour) -> None:
     """`behaviour(wheel_hash)` -> new-transformation count, or raises."""
+    from dialectical_framework.agents.explorer.skills.explore_transformations \
+        import ExploreTransformationsResult
 
     class _FakeExplore:
         def __init__(self, wheel_hash: str, **kwargs) -> None:
@@ -86,11 +113,15 @@ def _patch_transformations(monkeypatch, behaviour) -> None:
 
         async def resolve(self):
             count = behaviour(self._wheel_hash)
-
-            class _Result:
-                new = list(range(count))
-
-            return _Result()
+            # Hashes namespaced per wheel: the pipeline dedups across wheels, so
+            # reusing "tr0" everywhere would make two wheels' pathways collapse
+            # into one and hide a real double-count.
+            return ExploreTransformationsResult(
+                new=[
+                    _FakeTransformation(f"{self._wheel_hash}-tr{i}")
+                    for i in range(count)
+                ]
+            )
 
     monkeypatch.setattr(
         "dialectical_framework.agents.explorer.skills.explore_transformations."
@@ -269,3 +300,106 @@ class TestExploreTransformationsSkill:
 
         assert skill.report.ok is True
         assert "1 edge pair(s) FAILED" in skill.report.summary
+
+
+class TestPipelineNamesThePathwaysItBuilt:
+    """A count is not a ground.
+
+    `adopted_pathway` takes a Transformation hash, and the pipeline reported
+    `transformation_count` and nothing else — so a model told "12
+    transformations" had no hash to pass. Measured in `claim2-weak-r10`: 0/6
+    decisions carried an adopted pathway, INCLUDING cells that called `explore`
+    themselves. Unlike `explore` itself (an election failure fixed by a code
+    seam), this one was never electable: the ground did not exist in the output.
+    """
+
+    @pytest.mark.asyncio
+    async def test_pathways_carry_hash_and_recipe(self, monkeypatch):
+        _patch_build(monkeypatch, ["wh1"])
+        _patch_transformations(monkeypatch, lambda wheel_hash: 2)
+
+        pipeline = ExplorationPipeline(nexus_hash="nx1")
+        result = await pipeline.resolve()
+
+        assert result.transformation_hashes == ["wh1-tr0", "wh1-tr1"]
+        rendered = str(pipeline.report)
+        assert "wh1-tr0" in rendered
+        assert "recipe for wh1-tr0" in rendered, (
+            "A hash with no recipe is not pickable — the model has to know "
+            "WHICH pathway it is adopting."
+        )
+
+    @pytest.mark.asyncio
+    async def test_reused_transformations_count_as_pathways(self, monkeypatch):
+        """A wheel sharing edge pairs with an already-deepened one reuses every
+        transformation. Reading `.new` reports zero pathways for a wheel that is
+        fully developed — and then says so to the model at the closing turn."""
+        from dialectical_framework.agents.explorer.skills.explore_transformations \
+            import ExploreTransformationsResult
+
+        _patch_build(monkeypatch, ["wh1"])
+
+        class _AllExisting:
+            def __init__(self, wheel_hash: str, **kwargs) -> None:
+                self.report = _FakeReport(True, "explored")
+
+            async def resolve(self):
+                return ExploreTransformationsResult(
+                    existing=[_FakeTransformation("shared-tr")]
+                )
+
+        monkeypatch.setattr(
+            "dialectical_framework.agents.explorer.skills."
+            "explore_transformations.ExploreTransformations",
+            _AllExisting,
+        )
+
+        pipeline = ExplorationPipeline(nexus_hash="nx1")
+        result = await pipeline.resolve()
+
+        assert result.transformation_hashes == ["shared-tr"]
+        assert result.transformation_count == 1
+        assert "1 transformations" in pipeline.report.summary
+
+    @pytest.mark.asyncio
+    async def test_a_shared_pathway_is_listed_once(self, monkeypatch):
+        """Opposite-edge transformations are shared across wheels with the same
+        edge pairs; the same hash twice reads as two distinct recipes."""
+        from dialectical_framework.agents.explorer.skills.explore_transformations \
+            import ExploreTransformationsResult
+
+        _patch_build(monkeypatch, ["wh1", "wh2"])
+
+        class _Shared:
+            def __init__(self, wheel_hash: str, **kwargs) -> None:
+                self.report = _FakeReport(True, "explored")
+
+            async def resolve(self):
+                return ExploreTransformationsResult(
+                    new=[_FakeTransformation("shared-tr")]
+                )
+
+        monkeypatch.setattr(
+            "dialectical_framework.agents.explorer.skills."
+            "explore_transformations.ExploreTransformations",
+            _Shared,
+        )
+
+        pipeline = ExplorationPipeline(nexus_hash="nx1")
+        result = await pipeline.resolve()
+
+        assert result.transformation_hashes == ["shared-tr"]
+        # The reference form, not the bare hash — the recipe text repeats it.
+        assert str(pipeline.report).count("[[shared-tr]]") == 1
+        assert len(pipeline.report.artifacts["pathways"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_no_pathways_key_when_nothing_was_built(self, monkeypatch):
+        """An empty list reads as an empty menu, not as "none exist yet"."""
+        _patch_build(monkeypatch, ["wh1"])
+        _patch_transformations(monkeypatch, lambda wheel_hash: 0)
+
+        pipeline = ExplorationPipeline(nexus_hash="nx1")
+        await pipeline.resolve()
+
+        assert "pathways" not in pipeline.report.artifacts
