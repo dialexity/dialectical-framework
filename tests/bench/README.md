@@ -182,7 +182,15 @@ conclusion. The guards, each with a test in `test_bench.py`:
   alternates within each arm pair). The report prints the measured bias and the
   split ABOVE the delta table, because a lopsided split makes every row below it
   unreadable — which is exactly how `decision-strong-r4` first reported an
-  8-of-12-dimension A2 "win" on a 10/2 split.
+  8-of-12-dimension A2 "win" on a 10/2 split. Both failures of this mechanism so
+  far were in the WIRING rather than in `_x_is_a`: r4's per-comparison hash
+  re-rolled the start every call (10/2), and r15's stratified counter left each
+  ODD stratum's 2/1 residual on the same hashed side so they added instead of
+  cancelling (7/5 under a +0.40 bias, larger than every delta it was supporting).
+  `stratum_index` flips the start on alternate strata; the split is now exact at
+  every replicate count, asserted through a reproduction of the runner's own loop
+  rather than of `_x_is_a` alone, since unit-level cover passed through both
+  breaks.
 - **Non-inferiority dimensions** (warmth, actionability, conversational fit) are
   judged but never folded into the headline. They are the base model's home turf.
 - **Machine scorers that no LLM can flatter** (`scoring.py`) reported beside the
@@ -935,6 +943,9 @@ all +0.50).
 1. **Judge position bias Y +0.40 over 144 scores** on a 7/5 X/Y split — the
    report flags this as ≥ a fifth of a rubric step, so every |delta| ≤ 0.33 in
    the r15 table is inside bias range. The four positive rows are all +0.08.
+   *(Fixed for r16: the 7/5 was a second wiring defect in the X/Y mechanism —
+   odd strata leaving their residuals on the same side. r15's exact shape now
+   splits 6/6. r15's own numbers keep this caveat; they were judged under it.)*
 2. **3 of 6 live A2 cells closed with `perspectives=1 woven=0
    transformations=0`** — `adopted_pathway` 0/6, COMPLETE records 0/6.
 

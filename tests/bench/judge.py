@@ -232,6 +232,7 @@ def _x_is_a(
     *,
     ordinal: int | None = None,
     pair_key: str | None = None,
+    stratum_index: int | None = None,
 ) -> bool:
     """Deterministic position assignment, balanced across a pair's comparisons.
 
@@ -267,10 +268,32 @@ def _x_is_a(
     by holding the key fixed while varying `ordinal` — which is not how the
     runner calls it. Omitting `pair_key` falls back to `comparison_key` for
     callers that pass no ordinal at all.
+
+    ODD STRATA — why `stratum_index` exists
+    =======================================
+    Alternation is exact only within an EVEN-sized stratum. `ordinal` is counted
+    per session label (stratification is itself load-bearing — see the runner),
+    so an odd-sized stratum leaves a one-comparison residual on whichever side it
+    started, and every stratum starts on the SAME hashed side. The residuals
+    therefore add instead of cancelling.
+
+    Measured in `claim2-weak-r15-voice` (3 replicates x 2 branches -> strata of
+    6 `decide`, 3 `wobble_a`, 3 `wobble_b`): both odd strata contributed 2/1 the
+    same way and the pair drew **7/5** under a **+0.40** Y-slot bias — larger
+    than every positive delta in that run (all +0.08), which is exactly the
+    situation the whole mechanism exists to prevent. Reproduced from the saved
+    record before changing anything.
+
+    `stratum_index` flips the starting side on alternate strata, so residuals
+    cancel pairwise: an odd number of odd strata can still leave a single
+    unavoidable one (12 comparisons can split 6/6, 11 cannot), which is the
+    floor of what any deterministic assignment can do.
     """
     seed = pair_key if pair_key is not None else comparison_key
     digest = hashlib.sha256(seed.encode()).hexdigest()
     start = int(digest[:8], 16) % 2 == 0
+    if stratum_index is not None and stratum_index % 2 == 1:
+        start = not start
     if ordinal is None:
         return start
     return start if ordinal % 2 == 0 else not start
@@ -297,12 +320,16 @@ class BenchJudge:
         run_b: RunRecord,
         session_label: str,
         ordinal: int | None = None,
+        stratum_index: int | None = None,
     ) -> Comparison:
         """Blind paired judgement of two runs on one session.
 
-        `ordinal` is this comparison's index within its arm pair; it makes the
-        X/Y split exact rather than merely unbiased in expectation. See
-        `_x_is_a` for the measured position bias that requires it.
+        `ordinal` is this comparison's index within its arm pair and session
+        label; `stratum_index` is that label's index among the labels being
+        judged. Together they make the X/Y split exact rather than merely
+        unbiased in expectation — `ordinal` alternates within a stratum,
+        `stratum_index` cancels the residuals odd-sized strata leave behind. See
+        `_x_is_a` for the measured position bias that requires both.
         """
         comparison = Comparison(
             scenario_key=scenario.key,
@@ -330,6 +357,7 @@ class BenchJudge:
             key,
             ordinal=ordinal,
             pair_key=f"{run_a.arm.value}|{run_b.arm.value}",
+            stratum_index=stratum_index,
         )
         comparison.x_arm = run_a.arm if a_is_x else run_b.arm
         transcript_x = session_a.transcript if a_is_x else session_b.transcript

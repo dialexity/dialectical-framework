@@ -979,6 +979,131 @@ class TestJudgeSetup:
                 "enters this column of the `by session:` table undiluted"
             )
 
+    def test_odd_strata_residuals_cancel_instead_of_adding(self):
+        """The gap the stratified counter left, reproduced from a real run.
+
+        Alternation is exact only inside an EVEN stratum. Every stratum starts on
+        the same hashed side, so each odd one leaves its 2/1 residual on that
+        same side and the residuals ADD. `claim2-weak-r15-voice` — 3 replicates x
+        2 branches, strata of 6 `decide` / 3 `wobble_a` / 3 `wobble_b` — drew
+        **7/5** under a **+0.40** Y-slot bias, larger than every positive delta
+        in the run (all +0.08). A mechanism built to keep bias out of the deltas
+        admitted it at full strength on the exact shape the bench runs most.
+
+        `stratum_index` flips the start on alternate strata. An odd NUMBER of odd
+        strata still leaves one unavoidable residual (9 comparisons cannot split
+        evenly), which is the floor for any deterministic assignment.
+        """
+        pair = "A2|A1.7"
+
+        def imbalance(sizes: list[int], *, fixed: bool) -> int:
+            x = 0
+            for stratum_index, size in enumerate(sizes):
+                for ordinal in range(size):
+                    x += _x_is_a(
+                        f"k|{stratum_index}|{ordinal}",
+                        ordinal=ordinal,
+                        pair_key=pair,
+                        stratum_index=stratum_index if fixed else None,
+                    )
+            return abs(2 * x - sum(sizes))
+
+        # The r15 shape: two odd strata alongside an even one.
+        assert imbalance([6, 3, 3], fixed=False) == 2, (
+            "the pre-fix reproduction is wrong, not the fix — r15's 7/5 must "
+            "reproduce from the shape alone"
+        )
+        assert imbalance([6, 3, 3], fixed=True) == 0
+
+        # Every replicate count the bench actually runs, both branches.
+        for reps in (1, 2, 3, 4, 5):
+            sizes = [reps * 2, reps, reps]
+            assert imbalance(sizes, fixed=True) == 0, (
+                f"{reps} replicate(s) still splits unevenly: {sizes}"
+            )
+
+        # An odd number of odd strata: one residual is unavoidable, but it must
+        # not be more than one.
+        assert imbalance([3, 3, 3], fixed=True) <= 1
+
+    def test_the_runner_loop_itself_reaches_a_balanced_split(self):
+        """Mirror `runner.judge_all`'s assignment, not just `_x_is_a`.
+
+        Every previous break in this mechanism was in the WIRING — what the
+        runner passes as `ordinal` and from what it derives the stratum — and
+        both times the unit tests over `_x_is_a` passed while the matrix drew
+        10/2 and then 7/5. So this reproduces the loop's own bookkeeping (runs
+        ordered, each yielding `decide` plus one branch, counters keyed by label,
+        strata numbered first-seen) and asserts the property the deltas depend
+        on: the pair splits evenly at every replicate count the bench runs.
+
+        Keep in step with `judge_all` if that loop's ordering changes.
+        """
+        from collections import defaultdict
+
+        def layout(replicates: int) -> list[tuple[bool, str]]:
+            ordinals: dict[str, int] = defaultdict(int)
+            strata: dict[str, int] = {}
+            out: list[tuple[bool, str]] = []
+            for rep in range(1, replicates + 1):
+                for branch in ("wobble_a", "wobble_b"):
+                    for label in ("decide", branch):
+                        if label not in strata:
+                            strata[label] = len(strata)
+                        out.append(
+                            (
+                                _x_is_a(
+                                    f"cofounder_equity|weak|{rep}|A2|A1.7|{label}",
+                                    ordinal=ordinals[label],
+                                    pair_key="A2|A1.7",
+                                    stratum_index=strata[label],
+                                ),
+                                label,
+                            )
+                        )
+                        ordinals[label] += 1
+            return out
+
+        for replicates in (1, 2, 3, 4, 5):
+            got = layout(replicates)
+            x = sum(1 for is_x, _ in got if is_x)
+            assert 2 * x == len(got), (
+                f"{replicates} replicate(s): split is {x}/{len(got) - x} — slot "
+                "bias enters the delta table as a per-arm effect (r15 drew 7/5 "
+                "under a +0.40 bias this way)"
+            )
+            per: dict[str, list[bool]] = {}
+            for is_x, label in got:
+                per.setdefault(label, []).append(is_x)
+            for label, sides in per.items():
+                assert abs(sides.count(True) - sides.count(False)) <= 1, (
+                    f"stratum {label!r} is unbalanced by more than one: {sides} "
+                    "— this column of `by session:` admits slot bias"
+                )
+
+    def test_stratum_index_does_not_disturb_alternation(self):
+        """Cancelling residuals must not cost the within-stratum alternation."""
+        for stratum_index in range(4):
+            sides = [
+                _x_is_a(
+                    "k", ordinal=i, pair_key="A2|A1.7", stratum_index=stratum_index
+                )
+                for i in range(6)
+            ]
+            assert sides.count(True) == sides.count(False) == 3, sides
+            # Strictly alternating, not merely balanced.
+            assert all(sides[i] != sides[i + 1] for i in range(len(sides) - 1)), sides
+
+    def test_omitting_stratum_index_is_the_old_behaviour(self):
+        """Callers that pass no stratum (single-session judging, direct probes)
+        must be unaffected — otherwise every saved run's layout changes and
+        re-judging a matrix no longer reproduces it."""
+        key = "probe|strong|1|A2|A1|decide"
+        for ordinal in range(4):
+            assert _x_is_a(key, ordinal=ordinal) == _x_is_a(
+                key, ordinal=ordinal, stratum_index=0
+            )
+
     def test_ordinal_layout_is_still_scenario_dependent(self):
         """The hash must still choose the STARTING side, or every pair would be
         laid out identically ("A always first at ordinal 0") and position bias

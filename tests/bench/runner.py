@@ -333,7 +333,17 @@ class BenchRun:
             # `position_bias` degenerated into (gap_decide - gap_wobble)/2: a
             # session-heterogeneity statistic wearing a bias label. Verified as
             # an exact identity across all 9 saved multi-session runs.
+            #
+            # Alternation is exact only inside an EVEN stratum, so each odd one
+            # leaves a 2/1 residual — and with one hashed starting side for all
+            # of them those residuals ADD. `claim2-weak-r15-voice` (strata 6/3/3)
+            # drew 7/5 under a +0.40 Y-slot bias, bigger than every delta it was
+            # asked to support. `stratum_index` flips the start on alternate
+            # strata so the residuals cancel; it is assigned in first-seen order
+            # (deterministic given the run list, which is itself ordered) so
+            # re-judging a saved matrix reproduces the same layout.
             ordinals: dict[str, int] = defaultdict(int)
+            strata: dict[str, int] = {}
             for record in self.runs:
                 if record.arm is not arm_a or record.error:
                     continue
@@ -357,12 +367,15 @@ class BenchRun:
                         f"judge {arm_a.value} vs {arm_b.value}: "
                         f"{record.cell_key} / {session.label}"
                     )
+                    if session.label not in strata:
+                        strata[session.label] = len(strata)
                     comparison = await judge.compare(
                         scenario=scenario,
                         run_a=record,
                         run_b=other,
                         session_label=session.label,
                         ordinal=ordinals[session.label],
+                        stratum_index=strata[session.label],
                     )
                     ordinals[session.label] += 1
                     self.comparisons.append(comparison)
