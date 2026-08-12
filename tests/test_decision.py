@@ -310,6 +310,60 @@ class TestRecordDecisionConcern:
             decision = DecisionRepository().find_all_active()[0]
             assert decision.validation is None  # not checked, never blocked
 
+    async def test_persisting_the_verdict_can_fail_without_losing_the_record(
+        self, monkeypatch
+    ):
+        """`decision.save()` is the only write here that runs after an `await`,
+        and it writes METADATA onto an already-committed node. A fault there
+        used to escape `resolve()` entirely, so the caller lost the hash of a
+        decision that exists — `claim2-weak-r11` lost one to a bare
+        `GQLAlchemyError` on this path. The annotation must never outrank the
+        record it annotates.
+        """
+        from dialectical_framework.concerns import decision_coherence_check
+        from dialectical_framework.concerns.decision_coherence_check import \
+            CoherenceVerdictDto
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from dialectical_framework.graph.nodes.decision import Decision
+
+        async def flag_it(self, **kwargs):
+            return CoherenceVerdictDto(
+                incoherent=True,
+                reasons=["contradicts a standing decision"],
+                conflicting_decision_hashes=[],
+            )
+
+        monkeypatch.setattr(
+            decision_coherence_check.DecisionCoherenceCheck, "resolve", flag_it
+        )
+
+        original_save = Decision.save
+
+        # `commit()` itself calls `save()` internally once the hash is set, so
+        # the target is the LATER call — the metadata write for `validation`.
+        def fail_metadata_save(self, *args, **kwargs):
+            if self.validation is not None:
+                raise RuntimeError("connection reset writing validation")
+            return original_save(self, *args, **kwargs)
+
+        monkeypatch.setattr(Decision, "save", fail_metadata_save)
+
+        sid = _new_sid()
+        with scope(sid):
+            concern = RecordDecision()
+            decision_hash = await concern.resolve(
+                question="Q?", stance="S", rationale="R"
+            )
+            # The record stands and the caller gets its hash.
+            assert decision_hash is not None
+            assert concern.report.ok
+            # The verdict is still reported, and the failure is named rather
+            # than silent — the agent can retry or discard.
+            assert concern.report.artifacts["coherence"]["passed"] is False
+            failures = concern.report.artifacts["attach_failures"]
+            assert any("coherence verdict not persisted" in f for f in failures)
+            assert "connection reset" in " ".join(failures)
+
 
 @pytest.mark.llm
 class TestDecisionProvenance:

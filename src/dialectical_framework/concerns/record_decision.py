@@ -226,16 +226,29 @@ class RecordDecision(ReasonableConcern[str | None]):
         except Exception:
             verdict = None
         if verdict is not None:
-            decision.validation = (
-                "passed" if verdict.passed else f"failed: {'; '.join(verdict.reasons)}"
-            )
-            decision.save()
-            self._report.node_updated(decision, patch={"validation": decision.validation})
+            # The verdict is worth reporting even if PERSISTING it fails: the
+            # decision is already committed, and this `save()` is the one write
+            # in the method that runs after an `await` — so a DB fault here
+            # would otherwise take the whole record's report down with it and
+            # leave the caller believing nothing was written. `claim2-weak-r11`
+            # lost a decision to a bare `GQLAlchemyError` on this path with no
+            # message recorded; whatever its cause, the annotation is metadata
+            # and must never outrank the record.
             self._report.artifacts["coherence"] = {
                 "passed": verdict.passed,
                 "reasons": verdict.reasons,
                 "conflicting_decision_hashes": verdict.conflicting_decision_hashes,
             }
+            decision.validation = (
+                "passed" if verdict.passed else f"failed: {'; '.join(verdict.reasons)}"
+            )
+            try:
+                decision.save()
+                self._report.node_updated(
+                    decision, patch={"validation": decision.validation}
+                )
+            except Exception as e:
+                attach_failures.append(f"coherence verdict not persisted ({e})")
 
         self._report.ok = True
         self._report.summary = f"Recorded decision [[{decision.short_hash}]]: {decision}"
