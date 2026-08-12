@@ -2427,6 +2427,53 @@ class TestSwallowedErrorCapture:
         # The exception TYPE is the diagnostic half — "failed fail-soft" without
         # it cannot distinguish a provider throttle from a code defect.
         assert "RuntimeError" in swallowed[0]
+        # And the MESSAGE is the other half. r11 captured "[GQLAlchemyError]"
+        # and nothing else on the one turn that lost a decision record — a bare
+        # class name cannot separate a dropped connection from a bad query.
+        assert "memgraph went away" in swallowed[0]
+
+    def test_a_very_long_exception_message_is_truncated(self):
+        """A Cypher error can carry the whole statement, and this field repeats
+        per turn in every saved record — the cause must be readable without the
+        record growing a second transcript."""
+        import logging
+
+        from bench.driver import _SwallowedErrorCapture, \
+            _capturing_swallowed_errors
+
+        with _capturing_swallowed_errors() as swallowed:
+            log = logging.getLogger("dialectical_framework.graph")
+            try:
+                raise RuntimeError("MATCH " + "n" * 5000)
+            except RuntimeError:
+                log.exception("Query failed")
+
+        assert len(swallowed) == 1
+        assert "MATCH nnn" in swallowed[0]
+        assert swallowed[0].endswith("…]")
+        assert len(swallowed[0]) < _SwallowedErrorCapture.MAX_DETAIL + 200
+
+    def test_an_exception_whose_str_raises_still_records_its_class(self):
+        """Lazy reprs exist; losing the class as well would make the turn
+        indistinguishable from a healthy one, which is the whole defect this
+        capture exists to prevent."""
+        import logging
+
+        from bench.driver import _capturing_swallowed_errors
+
+        class _Hostile(RuntimeError):
+            def __str__(self) -> str:
+                raise ValueError("cannot render")
+
+        with _capturing_swallowed_errors() as swallowed:
+            log = logging.getLogger("dialectical_framework.graph")
+            try:
+                raise _Hostile()
+            except _Hostile:
+                log.exception("Write failed")
+
+        assert len(swallowed) == 1
+        assert "_Hostile" in swallowed[0]
 
     def test_routine_warnings_are_not_swallowed_errors(self):
         """Warnings are normal traffic; treating them as losses would cry wolf

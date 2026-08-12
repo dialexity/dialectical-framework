@@ -91,20 +91,46 @@ class _SwallowedErrorCapture(logging.Handler):
     Attached to the `dialectical_framework` logger for the duration of one turn,
     so a swallowed exception lands in the RECORD instead of only in a terminal
     nobody kept. ERROR and above only: warnings are routine.
+
+    **The exception's MESSAGE is kept, not just its class.** This captured
+    `[GQLAlchemyError]` and nothing more on `claim2-weak-r11`'s one swallowed
+    fault, which is where a decision record was lost — and a bare class name
+    cannot distinguish a connection drop from a bad query from a constraint
+    violation, so the single line in the whole record that could have named the
+    cause named nothing. The class was never the useful half. Truncated at 400
+    chars because a graph error can carry an entire Cypher statement and this
+    field is repeated per turn in every saved record.
     """
+
+    #: Long enough for a Cypher error's own sentence, short enough that a
+    #: 40-turn run does not grow a second transcript inside its own record.
+    MAX_DETAIL = 400
 
     def __init__(self) -> None:
         super().__init__(level=logging.ERROR)
         self.messages: list[str] = []
 
     def emit(self, record: logging.LogRecord) -> None:
+        detail = None
         try:
-            exc = record.exc_info[0].__name__ if record.exc_info else None
+            if record.exc_info and record.exc_info[0] is not None:
+                exc_type, exc_value = record.exc_info[0], record.exc_info[1]
+                detail = exc_type.__name__
+                # str() on an exception is occasionally itself the thing that
+                # raises (lazy reprs); the class name is still worth keeping.
+                try:
+                    message = str(exc_value).strip()
+                except Exception:  # noqa: BLE001
+                    message = ""
+                if message:
+                    if len(message) > self.MAX_DETAIL:
+                        message = message[: self.MAX_DETAIL] + "…"
+                    detail = f"{detail}: {message}"
         except Exception:  # noqa: BLE001
-            exc = None
+            detail = None
         text = f"{record.name}: {record.getMessage()}"
-        if exc:
-            text = f"{text} [{exc}]"
+        if detail:
+            text = f"{text} [{detail}]"
         self.messages.append(text)
 
 
