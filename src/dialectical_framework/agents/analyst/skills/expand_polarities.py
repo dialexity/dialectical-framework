@@ -127,6 +127,10 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
 
         # Complete all partial PPs sequentially (each sees prior results)
         completed_pps: list[Perspective] = []
+        #: Already-committed tetrads that this call's generation collapsed onto.
+        #: They are not new, so they are not returned as `completed_pps` — but
+        #: this call's `grounding_context` is still about them.
+        dedup_targets: list[Perspective] = []
 
         for pp in partial_pps:
             not_like_these = complete_pps + completed_pps
@@ -156,6 +160,18 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
                         "duplicate_of": duplicate_of.short_hash,
                     }
                 )
+                # The tetrad is a duplicate; the CONTEXT is not. A second
+                # `anchor` on a tension already in the graph is the ordinary
+                # case — the person revealed more, so the model re-anchors —
+                # and the new particulars belong on the surviving node.
+                # Dropping them here made a returning session carry only what
+                # the FIRST turn happened to mention: in `r13-grounding-attrib`
+                # five near-identical turn-1 groundings and nothing at all from
+                # turn 2's richer context (the 60% revenue concentration, the
+                # two anchor CEOs). Accretion is this lane's stated contract
+                # (`tetrad_grounding.py`: "a person reveals more three turns
+                # later"), and dedup is exactly where it was silently skipped.
+                dedup_targets.append(duplicate_of)
                 continue
 
             # Name this reading of the tension: the generation already made
@@ -177,7 +193,11 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         # the conversation can later be held against the person's own facts
         # instead of the universal wording. Before validation: cheap, and a
         # validation crash must not cost the grounding.
-        await self._ground_tetrads(completed_pps)
+        #
+        # Dedup targets are included: this call's context is about them too, and
+        # `Rationale` is content-addressable on (text, target), so re-grounding
+        # a node with particulars it already holds is idempotent and free.
+        await self._ground_tetrads(completed_pps + dedup_targets)
 
         # Validate newly generated tetrads (CC + empirical inequalities) and
         # flag the verdict — non-blocking: a failed perspective stays usable,
@@ -213,12 +233,18 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         return all_pps
 
     async def _ground_tetrads(self, perspectives: list[Perspective]) -> None:
-        """Attach case particulars from `grounding_context` to each new tetrad.
+        """Attach case particulars from `grounding_context` to these tetrads.
 
         One extraction for the whole call, reused across the perspectives: the
         particulars describe the SITUATION, not one reading of it, and
         `Rationale` dedups on (text, target) so N tetrads sharing one context
         yield N edges to N nodes without redundant LLM work.
+
+        Takes tetrads NEWLY committed by this call AND already-committed ones its
+        generation deduped onto — both are readings of the situation this context
+        describes. The caller's list, not "new tetrads": grounding an existing
+        node again is how a person revealing more three turns later accretes a
+        chronology, and content-addressing makes a repeat free.
 
         Fail-soft and no-op without context: grounding is enrichment, never a
         gate. Sequential because GQLAlchemy graph writes are not

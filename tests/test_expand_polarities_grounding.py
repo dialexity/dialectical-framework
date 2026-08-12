@@ -305,6 +305,124 @@ class TestExpandPolarityGrounding:
             assert grounded and "55/45" in grounded[0]
 
 
+def _identical_aspect_stub(sid: str):
+    """Emit the SAME aspects every call, so the second expansion dedups.
+
+    The opposite of `_distinct_aspect_stub`: this reproduces the ordinary live
+    case where the model re-anchors a tension already in the graph.
+    """
+
+    async def _resolve(self, perspective, positions=None, text="", not_like_these=None):
+        with scope(sid):
+            results: list[AspectResult] = []
+            for pos, label in (
+                (POSITION_T_PLUS, "Decisive ownership"),
+                (POSITION_T_MINUS, "Isolated overreach"),
+                (POSITION_A_PLUS, "Shared accountability"),
+                (POSITION_A_MINUS, "Deadlocked deference"),
+            ):
+                comp = Statement(text=label, meaning=_ASPECT_MEANING)
+                comp.commit()
+                results.append(
+                    AspectResult(
+                        component=comp,
+                        position=pos,
+                        apex_concept="apex",
+                        heuristic_similarity=0.8,
+                        complementarity_t=0.7,
+                        complementarity_a=0.7,
+                    )
+                )
+        return results
+
+    return _resolve
+
+
+@pytest.mark.llm
+class TestGroundingAccretesOnDedup:
+    """A duplicate TETRAD does not make the context a duplicate.
+
+    Re-anchoring a tension already in the graph is the ordinary live case: the
+    person reveals more, so the model anchors the same opposition again with
+    richer material. The generated tetrad collapses onto the existing node — and
+    the new particulars used to be discarded with it, silently and with no
+    report artifact, because grounding ran over `completed_pps` only.
+
+    Measured in `r13-grounding-attrib`: both `anchor` calls carried `context`
+    (195c, then 422c), and the returning session's `# The Person's Case` held
+    five near-identical restatements of turn 1 and NOTHING from turn 2 — not the
+    60% revenue concentration, not the two anchor CEOs, the facts the whole
+    wobble turned on. Accretion is this lane's stated contract
+    (`tetrad_grounding.py`: "a person reveals more three turns later"), and
+    dedup was where it was skipped.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_later_call_grounds_the_tetrad_it_deduped_onto(self, monkeypatch):
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+            monkeypatch.setattr(
+                AspectGeneration, "resolve", _identical_aspect_stub(case_node.sid)
+            )
+
+            materials: list[str] = []
+
+            async def _extract(self, material: str) -> str:
+                materials.append(material)
+                return f"PARTICULARS[{len(materials)}]"
+
+            monkeypatch.setattr(TetradGrounding, "_extract", _extract)
+
+            first = ExpandPolarity(
+                polarity_hash=polarity.hash, grounding_context="He holds 45%."
+            )
+            await first.resolve()
+
+            second = ExpandPolarity(
+                polarity_hash=polarity.hash,
+                grounding_context="60% of revenue sits on two anchor CEOs.",
+            )
+            pps = await second.resolve()
+
+            # The tetrad was deduped away, so nothing NEW was committed...
+            assert second.report.artifacts["duplicates_discarded"]
+            # ...yet the surviving node was grounded in the new material.
+            assert len(materials) == 2, "the second call's context was never extracted"
+            assert "two anchor CEOs" in materials[1]
+            assert second.report.artifacts["grounded"]
+
+            line = grounding_line(pps[0])
+            assert line is not None
+            # BOTH turns are present: accretion, not replacement. A chronology
+            # of what was revealed when is the point of appending Rationales.
+            assert "PARTICULARS[1]" in line
+            assert "PARTICULARS[2]" in line
+
+    @pytest.mark.asyncio
+    async def test_no_context_still_means_no_call_on_the_dedup_path(self, monkeypatch):
+        """The Analyst path passes no context and must not gain an LLM call
+        merely because a tetrad deduped."""
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+            monkeypatch.setattr(
+                AspectGeneration, "resolve", _identical_aspect_stub(case_node.sid)
+            )
+            calls = _fixed_extraction(monkeypatch)
+
+            await ExpandPolarity(polarity_hash=polarity.hash).resolve()
+            second = ExpandPolarity(polarity_hash=polarity.hash)
+            pps = await second.resolve()
+
+            assert calls["n"] == 0
+            assert grounding_line(pps[0]) is None
+
+
 @pytest.mark.llm
 class TestAnchorBranchesGroundAlike:
     """Both `anchor` branches must ground, or the tool has two memories.

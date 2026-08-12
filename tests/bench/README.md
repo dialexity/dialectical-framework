@@ -782,6 +782,44 @@ Also fixed in passing: `submit_stream` never reset `last_tool_results` between
 turns (`submit` always did), so outcomes leaked forward — attributing a crash
 to a healthy turn while leaving that turn's own tools looking unreported.
 
+#### `r13-grounding-attrib` — the attribution worked, and it named a code defect
+
+One A2 `cofounder_equity` cell, run to spend the new instrumentation. The
+validity section answered r12's open question in one line:
+
+```
+ok  all 2 grounding call(s) carried `context` (the person's
+    particulars reached the graph).
+```
+
+Turn 1 passed 195 chars, turn 2 passed 422. So **not** a prompt defect: the
+model does fill `anchor(context=...)`. `memory` came back 3/4 — the carryover
+held `his 45%`, the messy sales notes, and the three-week holiday, and missed
+`60% of revenue`. Reading the carryover directly showed why: five near-identical
+restatements of what turn ONE said, and **nothing** from turn 2 (`'60%' →
+False`, `'anchor account' → False`, `'two CEOs' → False`). Turn 2's 422 chars
+entered the framework and left no trace in the graph.
+
+Root cause, reproduced with a throwaway probe and now pinned by
+`TestGroundingAccretesOnDedup`: `ExpandPolarities` called
+`_ground_tetrads(completed_pps)`, and `completed_pps` excludes any tetrad whose
+generation collapsed onto an existing node. A **second `anchor` on a tension
+already in the graph is the ordinary case** — the person revealed more, so the
+model re-anchors the same tension with richer particulars — and that is exactly
+the path where the context was dropped: no extraction, no `Rationale`, not even
+a report artifact. It contradicted `tetrad_grounding.py`'s own stated contract
+("Accretion, not mutation … a person reveals more three turns later"). Fixed by
+grounding `completed_pps + dedup_targets`; `Rationale` is content-addressable on
+`(text, target)`, so re-grounding a node with particulars it already holds is
+idempotent.
+
+This is the third bug in a chain where each fix made the next one visible:
+RAISED tools hid crashes → arg recording split prompt-vs-code → the split named
+the dedup path. **It also bounds every earlier grounding number**: r10's
+`memory` 1.00 and r11's 0.65 were both measured while returning turns could
+only re-store what the FIRST turn happened to mention. Neither is a reading of
+the grounding lane as it now stands.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and

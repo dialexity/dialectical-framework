@@ -875,6 +875,28 @@ annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advi
   `TestScopedDumpCarriesTheCase` (incl. the outside-tension leak guard and "assessment prose is never hoisted" —
   hoisting untagged rationales would do the exact opposite of this fix). **Unverified at the behaviour layer**: a
   context change is a claim about the model's reply, and no `used`-rate re-measurement exists yet.
+  **The lane silently dropped every RE-anchor, and that is a code defect no prompt altitude could have caught**
+  (2026-08-12, from `r13-grounding-attrib`). `_ground_tetrads(completed_pps)` was passed only tetrads this call
+  COMMITTED; a tetrad whose generation collapsed onto an existing node hits the `_find_duplicate` branch,
+  `discard_uncommitted`, `continue` — and its call's `grounding_context` went with it: no extraction, no
+  `Rationale`, no report artifact. But **re-anchoring an existing tension is the ordinary case, not the edge one**:
+  the person reveals more in turn 3, so the model anchors the same tension again with richer particulars, and dedup
+  is precisely where the richer particulars were thrown away. Measured: a two-turn cell where BOTH `anchor` calls
+  carried context (195c, 422c) produced a carryover holding five near-identical restatements of turn ONE and
+  nothing whatever from turn two. It contradicted this lane's own docstring contract ("Accretion, not mutation …
+  a person reveals more three turns later"). Fix: `_ground_tetrads(completed_pps + dedup_targets)`, safe because
+  `Rationale` is content-addressable on `(text, target)`, so re-grounding a node with particulars it already holds
+  is idempotent and free. **Two general rules.** First, `completed_pps` is a *creation* record and grounding needs a
+  *relevance* record — any lane that enriches "what this call was about" must ask whether dedup targets belong in
+  its input set, because a content-addressable graph makes "already exists" the common path, not the rare one.
+  Second, this was invisible to review at all three altitudes (the prompt asks correctly, the assembled context
+  renders correctly, the chain is coherent) and only surfaced once
+  `ConversationFacilitator.last_tool_call_args` could prove the model HAD passed the text — the third link in a
+  chain where each observability fix exposed the next defect (RAISED tools → arg recording → dedup path). Locked by
+  `tests/test_expand_polarities_grounding.py::TestGroundingAccretesOnDedup` (a second call's context lands on the
+  node it deduped onto, both turns present in one accreted line; no-context still means no call on that path).
+  **Bounds every earlier grounding measurement**: r10's `memory` 1.00 and r11's 0.65 were taken while a returning
+  turn could only re-store what the first turn happened to mention.
   Reviewing here: this prompt is the ONE place in the tree where concreteness beats
   abstraction, so the usual "condense to component_length" instinct is exactly wrong. `GRAPH_SCHEMA`'s EXPLAINS row
   and `docs/graph.md`'s Grounding section document the role vocabulary and must move with it. Locked by
