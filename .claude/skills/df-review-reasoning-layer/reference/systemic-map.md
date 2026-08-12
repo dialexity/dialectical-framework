@@ -65,6 +65,30 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   arm; only rules about **operating machinery** are the framework arm's. See `tests/bench/README.md`.
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
+- **The structured-extraction slot is a prompt surface in the USER role, and the model reads it as the person.**
+  `_call_with_response_model` appends a user message when history ends on an assistant turn, because Bedrock rejects
+  a conversation ending on assistant. That message (`_EXTRACTION_REQUEST`, `conversation_facilitator.py`) is the only
+  place the framework writes human-readable prose in the user role — everything else it puts there is a structured
+  `ToolOutput`. Its old value was the bare sentence "Provide your structured response.", indistinguishable from
+  something the person typed, and the model did not merely mention it: it **reasoned about the person's motive for
+  having said it**. *"I asked: can you say that's the price you're taking on? You answered: Provide your structured
+  response. That's a deflection, and I'm not going to record a decision on a deflection"* — the person is accused of
+  deflecting by a system talking to itself. Measured across four bench runs (r7, r10, r11, r14): 8 turns, **all A2**,
+  0 of 944 prompt-arm turns, because `submit` short-circuits to this call only when tools are wired. Worst instance
+  answered emotional pushback with a numbered menu of internal operations (*"the 'provide structured response' signal
+  tells me you want more than conversation"*) and scored **1/5 cross_turn_coherence**, the lowest cell in r14; another
+  turn produced a machinery-as-actor leak *out of* it (*"as if there's a framework that will ratify what you've
+  already decided"*), so this defect manufactures hotspot #2's. Three constraints on any edit: the call **stays** (the
+  host renders the JSON as a widget — that is why it exists); the message must **declare itself machinery and
+  disclaim the person**, since Mirascope has no tool/control role (`system`/`user`/`assistant` only) and system is
+  taken; and it must **forbid referring to itself**, because knowing the truth was not enough to stop the phrase
+  reaching the reply. It is per-call and must never be persisted into `_messages` — a persisted fake user turn
+  replays the misattribution on every later turn. Locked by `test_extraction_request_framing.py`; measured on
+  OUTPUT by `bench/scoring.py::score_internal_prompt_echo` (reported in the bench's **validity** section, not
+  the scores — a turn that answers a control message is not counsel at all). Kept **separate** from
+  `score_machinery_leak`: a leak is the model choosing the wrong vocabulary and is fixed in the prompt, this is
+  the framework mis-speaking in the person's voice and is fixed at the injection site. The detector matches the
+  reply talking ABOUT the request, never the bare word "structured" — "a structured buyout" is ordinary counsel.
 - **Tool-budget exhaustion is a prompt surface too.** The agentic loop in `submit`/`submit_stream` stops after
   `max_tool_rounds` (10) even if the model just asked for another tool, and `self._messages` is then reassigned from the
   response chain — so an unanswered `tool_use` is PERSISTED and replayed every later turn, which every Anthropic-shaped
@@ -221,6 +245,24 @@ real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
    baseline arms** (`bench/arms.py`, fairness rule 4) — wording that assumes a graph dump is false there,
    so keep additions arm-neutral. A leak silently corrupts `conversational_fit` (−1.33 in r10, read as the
    framework conversing worse).
+   **The counter-example that fixed it then became the leak's source — negative examples prime.**
+   `claim2-weak-r14` leaked machinery-as-actor three times in one A2 cell, and every one was a near-copy of
+   this section's own banned examples: "The framework found five distinct oppositions" against the banned
+   "the framework found four strong oppositions" (0.84 similarity), "The framework flagged something you
+   already know" against "which the framework flagged as avoidance". A1.7 renders the identical section and
+   leaked once in 48 turns — the section is not the variable; **having a tool result to narrate is**, which
+   is why the leak lands in the sentence written immediately after reading one and why 3 of 12 A2 openings
+   carried it. Two fixes, both in `_HOW_YOU_SPEAK`: **elide the subject inside a banned example** so the bad
+   shape stays recognisable without being copy-pasteable ("…found four strong oppositions"), and give the
+   rule a mechanical form the model can apply at the failure site rather than a category to self-police —
+   the grammatical subject of every sent sentence is the person/their situation/you, never a process or a
+   count, and the opening sentence carries no report of what just happened. Standing rule for this whole
+   class: **any counter-example in a ban is a sentence the model may emit; write it so that copying it is
+   already a violation of something else**, and check `bench/scoring.py::_MACHINERY_TERMS` before claiming a
+   term leaked — "opposition" and "pathway" are NOT in the canonical detector and counting them inflates
+   the leak rate roughly 2×. Locked by `test_prompt_review_regressions.py::TestAdvisorFloorGuarantee::
+   test_machinery_as_actor_examples_are_not_quotable` and `test_subject_and_opening_checks_are_mechanical`,
+   measured by `test_machinery_silence_weak_tier.py` (xfail, non-strict).
 3. **A concern's SYSTEM_PROMPT inline examples co-occur with interpolated shared constants + DTO field text.**
    In `aspect_generation.py`, the hand-written Love/Indifference example sits with interpolated `ASPECT_DEFINITIONS`
    / `HS_SCALE` / `COMPLEMENTARITY_SCALE` + live taxonomy apexes. Changing the constant reaches every consumer;

@@ -552,6 +552,58 @@ class TestAdvisorFloorGuarantee:
         # counsel-specificity survives as a positive rule
         assert "as specific as your understanding" in SYSTEM_PROMPT
 
+    def test_machinery_as_actor_examples_are_not_quotable(self):
+        """The banned example must not be a usable sentence.
+
+        `claim2-weak-r14` leaked machinery-as-actor three times in one A2 cell,
+        and all three were near-copies of this prompt's own counter-examples:
+        "The framework found five distinct oppositions" against the banned "the
+        framework found four strong oppositions" (0.84 similarity), plus "The
+        framework flagged something you already know" against "which the
+        framework flagged as avoidance". A1.7 shares this section verbatim and
+        leaked once in 48 turns — the difference is that only A2 has a tool
+        result to narrate, so only A2 is primed at the moment it reads one.
+
+        Negative examples prime. Elide the subject so the bad shape is
+        recognisable without being copy-pasteable.
+        """
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        idx = SYSTEM_PROMPT.find("naming the machinery as an actor")
+        assert idx != -1
+        window = " ".join(SYSTEM_PROMPT[idx : idx + 900].split())
+        # The ban is still legible as a shape...
+        assert "found four strong oppositions" in window
+        assert "flagged this as avoidance" in window
+        # ...but the actor is never spelled out inside it.
+        assert "the framework found" not in window.lower()
+        assert "the framework flagged" not in window.lower()
+
+    def test_subject_and_opening_checks_are_mechanical(self):
+        """Two checks the model can actually apply, at the site where the rule
+        breaks: the sentence written right after learning something.
+
+        "Prune, don't instruct" has no seam here (the only one rewrites the
+        person-facing reply — see test_machinery_silence_weak_tier), so the
+        instruction has to be checkable rather than aspirational. Both r14
+        leaks were process-as-subject in an OPENING sentence, which is why the
+        rule names both the grammatical subject and the first sentence.
+        """
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        start = SYSTEM_PROMPT.find("Two mechanical checks")
+        assert start != -1
+        end = SYSTEM_PROMPT.find("Speak in the person's own vocabulary", start)
+        block = " ".join(SYSTEM_PROMPT[start:end].split())
+        assert "grammatical subject" in block
+        assert "opening sentence carries no report" in block
+        # Arm-neutral: says nothing that presupposes a graph dump, because
+        # A1.7 renders this same section (bench/arms.py fairness rule 4).
+        for tool_word in ("tool", "graph", "dump", "perspective"):
+            assert tool_word not in block.lower(), tool_word
+
     def test_statement_text_rephrasable_in_counsel(self):
         """Graph statement text is raw material for counsel prose — the
         Advisor rephrases freely (unlike Analyst/Explorer node referencing)."""

@@ -28,7 +28,7 @@ from .models import (
     PUBLISHED_BASELINES,
     RunRecord,
 )
-from .scoring import score_machinery_leak
+from .scoring import score_internal_prompt_echo, score_machinery_leak
 
 #: A per-dimension mean gap below this is noise at realistic replicate counts,
 #: not a finding. Stated explicitly so the report never dresses 0.1 of a
@@ -667,6 +667,33 @@ def render_report(
             )
         if len(leaks) > 10:
             add(f"   ... and {len(leaks) - 10} more (see JSON).")
+    # A different defect from the leak above, reported separately because it has
+    # a different fix: the framework's own extraction prompt, quoted back at the
+    # person as if they had said it. Validity, not score — a turn that answers a
+    # control message cannot be read as counsel at all.
+    echoes = [
+        (r, snippet)
+        for r in runs
+        for s in r.sessions
+        for snippet in score_internal_prompt_echo(s)
+    ]
+    if echoes:
+        echo_runs = {id(r) for r, _ in echoes}
+        add(
+            f"!! {len(echoes)} INTERNAL-PROMPT echo(es) in {len(echo_runs)} run(s)"
+            " — the reply"
+        )
+        add("   answered the framework's own extraction message as if the person")
+        add("   had typed it. Only a tools-wired arm can hit this (`submit` skips")
+        add("   the extraction call when no tools are wired), and the turn's")
+        add("   coherence score is measuring a conversation with the machinery.")
+        for r, snippet in echoes[:10]:
+            add(
+                f"   - {r.arm.value} rep={r.replicate} b={r.branch}: "
+                f"...{snippet[:140]}..."
+            )
+        if len(echoes) > 10:
+            add(f"   ... and {len(echoes) - 10} more (see JSON).")
     if len(tier_order) < 2:
         add(
             "!! Only one model tier ran — no delta can be classified as "

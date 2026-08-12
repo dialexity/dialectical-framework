@@ -39,6 +39,20 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
+#: Injected in the user role before the structured-extraction call (see
+#: `_call_with_response_model`) because Bedrock requires a conversation to end
+#: with a user message. It is machinery, so it says so: the model must not read
+#: it as something the person said, must not answer it, and must not mention it.
+_EXTRACTION_REQUEST = (
+    "[FRAMEWORK NOTICE — machinery, not a message from the person you are"
+    " talking to. The person did not write this and cannot see it.]\n"
+    "Your reply to them is finished. This is the framework's own extraction step:"
+    " restate that same reply in the required structured format so the host"
+    " application can render it. Add nothing new, ask nothing, draw no conclusion"
+    " about why this was requested, and never refer to this notice or to"
+    " \"structured responses\" in anything the person reads."
+)
+
 
 def _tool_output_text(output: Any) -> str:
     """The tool's own return value as text, not the envelope's repr.
@@ -488,8 +502,27 @@ class ConversationFacilitator(SettingsAware):
         # Bedrock requires conversations to end with a user message.
         # After the agentic tool loop, messages end with assistant — inject a
         # user prompt so the extraction call is valid for all providers.
+        #
+        # It must not read as something the PERSON said. This slot is the only
+        # place the framework speaks human-readable prose in the user role, and
+        # the model attributed it to the person: measured in 8 turns across four
+        # bench runs (r7, r10, r11, r14), all A2 — prompt-only arms never hit it
+        # because only the tools path reaches this call. The failure is worse
+        # than a stray mention, because the model then interprets the person's
+        # imagined motive for "saying" it: "you asked for a structured response,
+        # which is code for 'tell me I've decided'", "That's a deflection, and
+        # I'm not going to record a decision on a deflection", and one turn
+        # answering with a numbered menu of internal operations ("the 'provide
+        # structured response' signal tells me you want more than
+        # conversation") — scored 1/5 on cross-turn coherence, the worst cell
+        # in r14. The person is then accused of deflecting by a system talking
+        # to itself.
+        #
+        # So it is marked as machinery, not speech, and says what it is for.
+        # The structured result is load-bearing (the host renders it), so the
+        # call stays — only its framing changes.
         if messages and messages[-1].role == "assistant":
-            messages = [*messages, llm.messages.user("Provide your structured response.")]
+            messages = [*messages, llm.messages.user(_EXTRACTION_REQUEST)]
 
         @use_brain(format=response_model)
         async def _llm_call():

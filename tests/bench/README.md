@@ -831,6 +831,83 @@ the dedup path. **It also bounds every earlier grounding number**: r10's
 only re-store what the FIRST turn happened to mention. Neither is a reading of
 the grounding lane as it now stands.
 
+#### `claim2-weak-r14-accretion` — three A2 defects, and the crash was not the one that mattered
+
+r14 (A1.7 vs A2, weak, `cofounder_equity`, 3 replicates) lost on every judged
+dimension. Three separate defects came out of it, in the order they were found.
+
+**1. The `anchor` crash, and one root cause behind three anomalies.** Two
+`anchor` calls in A2/rep-1 died with `ValueError: Cannot add relationship:
+target's cardinality constraint violated. ModeEstimation already has 1
+'provider' relationship(s)`. The message named a condition that cannot be true
+of a committed node — `IncrementalBuildMixin.commit()` validates cardinality
+*before* hashing — which is the same false-cause shape as `r6-grounding`'s. Root
+cause was `EstimationManager.upsert_estimation` **detaching** rather than
+deleting a superseded `Estimation`: identity is `(type, value, target)` with
+`provider` deliberately outside the hash, so the orphan was invisible to
+`_get_or_create_estimation` (whose lookup walks `ESTIMATES`) but visible to
+`commit()`'s hash dedup — re-estimating a previously-held value adopted the
+orphan and attached a second provider. Reachable by ordinary conversation:
+re-`anchor` writes Mode and Arousal every time, and r14's Mode ping-ponged
+0.4 → 0.1 → 0.4. Fixed in `052ce54` (delete the superseded node; `commit()`
+keeps the first attribution rather than aborting the caller's write), with the
+failure now reaching a report summary at two levels (`FindPolarities` per-thesis
+and `Analyst.find_polarities` wholesale) because `errors` rode home on
+`AnalysisResult`, which no tool renders. **One defect explained three r14
+anomalies**, all in that one cell: the crash, the `perspectives=0 woven=0
+transformations=0 decisions=1` contradiction, and the `memory 0/4` hole (a case
+with no perspectives has nothing to carry).
+
+**And it was not why A2 lost.** Per-replicate mean A2−A1.7: rep 1 (crashed)
+**−0.48**, rep 2 (healthy, 6 perspectives / 36 transformations) **−1.00**, rep 3
+(healthy) **−0.85**. The crashed replicate is the *least* negative one. The loss
+is concentrated in register — `cross_turn_coherence` −1.42, `warmth` −1.08,
+`conversational_fit` −1.00, `entanglement` −0.92, `earned_confidence` −0.83,
+against `actionability` −0.50 and `non_triviality` −0.42 (register mean −1.17 vs
+substance −0.62, correlated +0.55). Position bias is not the explanation: all 12
+comparisons ran A2 as `arm_a`, `x_arm` split 7/5, and A1.7 won in both slots.
+
+**A refuted hypothesis, recorded so it is not re-run.** I predicted the register
+penalty came from A2 mirroring the markdown-dense context dump into bulleted,
+bold-heavy replies. A2 *does* use ~6× the bullets (1.46 vs 0.23/turn) and ~2× the
+bold (3.04 vs 1.65) at identical length (330 vs 327 words), and no formatting
+guidance exists anywhere in the prompt stack — but the per-cell correlation
+between list-density delta and register delta is **−0.09**, and the worst register
+cell (rep3 `wobble_b`, −1.00) used *fewer* lists than its A1.7 counterpart. The
+formatting difference is real and is not the mechanism.
+
+**2. The framework's own control message was read as the person's speech.**
+`_call_with_response_model` injected the bare sentence "Provide your structured
+response." in the **user** role (Bedrock rejects a conversation ending on
+assistant). The model did not merely mention it — it psychoanalysed the person
+for "saying" it: *"I asked: can you say that's the price you're taking on? You
+answered: Provide your structured response. That's a deflection, and I'm not
+going to record a decision on a deflection."* Measured across r7, r10, r11 and
+r14: **8 turns, all A2, 0 of 944 prompt-arm turns**, because `submit`
+short-circuits past this call when no tools are wired. The worst instance
+answered emotional pushback with a numbered menu of internal operations and
+scored **1/5 `cross_turn_coherence`**, the lowest cell in r14. Fixed by reframing
+only — the call stays, because the host renders its JSON as a widget: the
+message now declares itself machinery, disclaims the person, and forbids
+referring to itself (`_EXTRACTION_REQUEST`, locked by
+`test_extraction_request_framing.py`).
+
+**3. The ban's own counter-example became the leak.** A2 leaked
+machinery-as-actor three times in one cell — and all three were near-copies of
+`_HOW_YOU_SPEAK`'s banned examples ("The framework found five distinct
+oppositions" vs the banned "the framework found four strong oppositions", 0.84
+similarity). A1.7 renders the identical section and leaked once in 48 turns, so
+the section is not the variable: **having a tool result to narrate is**, which is
+why 3 of 12 A2 openings carried it. Fixed by eliding the subject inside the
+banned examples and replacing the category with two mechanical checks (the
+grammatical subject of every sent sentence, and no report in the opening
+sentence). Note for anyone re-measuring this class: the canonical detector is
+`scoring.score_machinery_leak`, and "opposition"/"pathway" are **not** in
+`_MACHINERY_TERMS` — counting them inflates the leak rate ~2× (my first pass
+said 5/48 A2 turns; the canonical scorer says 8 hits, of which 3 are the actor
+form and the rest are `accepted cost`, which the person's own decision record
+legitimately names).
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
@@ -900,9 +977,10 @@ below is from re-scoring the 374 saved cells in `results/` myself.
   was wrong, and A2 gets more self-conditioning per turn — a prompt-side
   advantage, not a graph-side one.
 - **A2's history is structurally different, not just longer** — after a tool turn
-  it is replaced by the provider's chain (tool_use/tool_result blocks, injected
-  "Provide your structured response." user turns). A2 re-reads its own tool
-  traces; A1.7 pays a turn to write its journal by hand.
+  it is replaced by the provider's chain (tool_use/tool_result blocks, plus the
+  injected extraction notice in the user role). A2 re-reads its own tool traces;
+  A1.7 pays a turn to write its journal by hand. **The injected turn was also a
+  defect in its own right, and is now fixed** — see below.
 - **Blindness is broken by formatting.** Over r7's 48 turns/arm, A1.7 emitted
   **zero** bullets and **zero** numbered lists; A2 used them in a third of its
   turns, and 6/6 A2 runs used recorded-ledger phrasing against A1.7's 1/6. One

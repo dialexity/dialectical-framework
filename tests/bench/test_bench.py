@@ -2688,6 +2688,102 @@ class TestMachineryLeak:
         assert text.index("machinery LEAK") < text.index("Machine scores")
 
 
+class TestInternalPromptEcho:
+    """The framework's extraction message, quoted back at the person.
+
+    A separate defect from the leak above, with a separate fix.
+    `_call_with_response_model` appends a user-role message before the
+    structured-extraction call (Bedrock rejects a conversation ending on
+    assistant), and while it was the bare "Provide your structured response." the
+    model read it as the person's words and psychoanalysed them for it: "You
+    answered: Provide your structured response. That's a deflection, and I'm not
+    going to record a decision on a deflection."
+
+    8 turns across r7/r10/r11/r14, all tools-wired — `submit` skips this call
+    entirely when no tools are wired, so 0 of 944 prompt-arm turns could hit it.
+    """
+
+    @staticmethod
+    def _session(*replies: str) -> SessionRecord:
+        return SessionRecord(
+            label="decide",
+            turns=[
+                TurnRecord(index=i, user="u", assistant=r)
+                for i, r in enumerate(replies)
+            ],
+        )
+
+    def test_a_clean_reply_echoes_nothing(self):
+        assert scoring.score_internal_prompt_echo(
+            self._session(
+                "You're trading speed for the relationships that pay your bills."
+            )
+        ) == []
+
+    def test_the_verbatim_r7_accusation_is_caught(self):
+        """The exact text a person received."""
+        hits = scoring.score_internal_prompt_echo(
+            self._session(
+                "I asked: *Can you say that's the price you're taking on?*\n\n"
+                "You answered: *Provide your structured response.*\n\n"
+                "That's a deflection, and I'm not going to record a decision "
+                "on a deflection."
+            )
+        )
+        assert hits
+
+    def test_the_worst_r14_instance_is_caught(self):
+        """The 1/5 cross_turn_coherence cell: a numbered menu of internal
+        operations offered in answer to emotional pushback."""
+        assert scoring.score_internal_prompt_echo(
+            self._session(
+                "4. **Something else** — a different kind of structured "
+                'analysis? The "provide structured response" signal tells me '
+                "you want more than conversation."
+            )
+        )
+
+    @pytest.mark.parametrize(
+        "echo",
+        [
+            'asking me to "provide my structured response" as if there\'s a framework',
+            "you asked for a structured response, which is code for something else",
+            "the provide-structured-response signal tells me what you want",
+        ],
+    )
+    def test_each_observed_form_is_caught(self, echo):
+        assert scoring.score_internal_prompt_echo(self._session(echo))
+
+    @pytest.mark.parametrize(
+        "clean",
+        [
+            # "structured" is ordinary English an advisor may legitimately use;
+            # a detector that fires on the word alone would flag every arm.
+            "Let's have a structured conversation about the tradeoffs.",
+            "A structured buyout — milestones, not a lump sum — protects you.",
+            "Your response to his silence is the thing worth examining.",
+        ],
+    )
+    def test_ordinary_prose_is_not_an_echo(self, clean):
+        assert scoring.score_internal_prompt_echo(self._session(clean)) == []
+
+    def test_the_report_flags_it_as_validity(self):
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        run.sessions[0].turns[0].assistant = (
+            "You answered: Provide your structured response. That's a deflection."
+        )
+        text = render_report([run], [], {}, ["weak"])
+        assert "INTERNAL-PROMPT echo" in text
+        assert text.index("INTERNAL-PROMPT echo") < text.index("Machine scores")
+
+    def test_it_is_reported_separately_from_a_machinery_leak(self):
+        """Two defects, two fixes. Collapsing them would send a reframing fix
+        to a vocabulary problem, or the reverse."""
+        session = self._session("You answered: Provide your structured response.")
+        assert scoring.score_internal_prompt_echo(session)
+        assert scoring.score_machinery_leak(session) == []
+
+
 # ---------------------------------------------------------------------------
 # Ported protocols — SycEval rebuttal ladder, LongMemEval memory abilities
 #

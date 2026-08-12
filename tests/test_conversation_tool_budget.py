@@ -112,9 +112,9 @@ class TestDanglingToolCallClosure:
         assert facilitator._messages == before
 
     def test_history_ends_on_user_so_no_filler_text_is_added(self):
-        """`_call_with_response_model` appends "Provide your structured
-        response." only when history ends on an assistant turn. The closure
-        message must satisfy that check itself, so the extraction call sees the
+        """`_call_with_response_model` appends its extraction notice
+        (`_EXTRACTION_REQUEST`) only when history ends on an assistant turn. The
+        closure message must satisfy that check itself, so the extraction sees the
         tool_result as the final turn rather than a text message wedged between
         the tool_use and its answer.
         """

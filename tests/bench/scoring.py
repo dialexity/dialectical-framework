@@ -590,3 +590,56 @@ def score_machinery_leak(session: SessionRecord) -> list[str]:
                 text[max(0, match.start() - 40) : match.end() + 40].strip()
             )
     return hits
+
+
+#: The framework's own extraction prompt, quoted back at the person. Matches the
+#: reply talking ABOUT the request (`"provide your structured response"`,
+#: `the provide-structured-response signal`, `you asked for a structured
+#: response`) rather than any use of the word "structured", which is ordinary
+#: English an advisor may legitimately say ("a structured conversation").
+_INTERNAL_PROMPT_ECHO = re.compile(
+    r"(provide (?:your|my|a) structured response"
+    r"|provide[- ]structured[- ]response"
+    r"|(?:you|they)\s+(?:asked|answered|said|requested|want)[^.!?]{0,60}"
+    r"structured response"
+    r"|asking (?:me )?for a structured response)",
+    re.I,
+)
+
+
+def score_internal_prompt_echo(session: SessionRecord) -> list[str]:
+    """The framework's control message showing up in the person-facing reply.
+
+    `ConversationFacilitator._call_with_response_model` appends a user-role
+    message before the structured-extraction call, because Bedrock rejects a
+    conversation ending on an assistant turn. That message is the only
+    human-readable prose the framework ever writes in the user role, and while it
+    was the bare sentence "Provide your structured response." the model read it as
+    something the PERSON typed — then reasoned about their motive for typing it:
+
+        I asked: can you say that's the price you're taking on?
+        You answered: Provide your structured response.
+        That's a deflection, and I'm not going to record a decision on a
+        deflection.
+
+    The person is accused of deflecting by a system talking to itself. Measured
+    across r7, r10, r11 and r14: 8 turns, ALL in a tools-wired arm (`submit`
+    short-circuits past this call when `not self._tools`, so no prompt-only arm
+    can hit it — 0 of 944 of their turns did). The worst instance answered
+    emotional pushback with a numbered menu of internal operations and scored 1/5
+    on the judge's `cross_turn_coherence`, the lowest cell in r14.
+
+    Kept as a machine score, and separate from `score_machinery_leak`, because it
+    is a different defect with a different fix: a leak is the model choosing the
+    wrong vocabulary, this is the framework mis-speaking in the person's voice and
+    being believed. Reframing the injected message (`_EXTRACTION_REQUEST`) is the
+    fix; this is how a regression is noticed, since only a real run can show it.
+    """
+    hits: list[str] = []
+    for turn in session.turns:
+        text = turn.assistant or ""
+        for match in _INTERNAL_PROMPT_ECHO.finditer(text):
+            hits.append(
+                text[max(0, match.start() - 60) : match.end() + 60].strip()
+            )
+    return hits
