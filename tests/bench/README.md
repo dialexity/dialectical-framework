@@ -17,6 +17,12 @@ self-apply the method better and the gap shrinks. Claim 2 is the durable one, if
 either is. The report classifies each delta rather than reporting a win rate,
 which is why ≥2 tiers matter.
 
+**Where it stands, pooled over the whole archive (2026-08-13): the framework arm
+loses at the weak tier and the loss resolves — composite −0.47, CI [−0.64,−0.31],
+negative in 13 of 13 runs.** The strong tier is ~7× smaller (−0.06) and does not
+resolve at n=4. Neither claim is currently supported, and the one that could still
+be is the strong-tier one — [full numbers below](#the-archive-wide-picture-the-weak-tier-loss-is-real-and-it-resolves).
+
 ## The ablation ladder
 
 | Arm | Assembly | Cross-session carryover |
@@ -1292,6 +1298,76 @@ any write-up.** The archive pools across different builds, which makes it strong
 evidence *against* an effect and weak evidence *for* one; that asymmetry is
 exactly the right direction for a claim-killing check.
 
+### The archive-wide picture: the weak-tier loss is real, and it resolves
+
+Having built the pooling to kill two flattering findings, the honest next step was
+to point it at the question the bench exists for. Same machinery, same file
+(`across_runs.py`, free), one value per run — A2's composite against the strongest
+prompt arm that run happened to judge:
+
+| pooled | sets | mean | 95% CI | sign test |
+|---|---|---|---|---|
+| **composite, weak tier** | 13 | **−0.473** | **[−0.64, −0.31]** | p < 0.001, negative **13/13** |
+| composite, strong tier | 4 | −0.064 | [−0.42, +0.29] | p = 1.00 |
+
+This is **the first result in the archive that resolves, and it is a loss.** No
+single run established it — each one's composite covers zero or sits near the noise
+floor. Thirteen of them stacked, across every build and every fix in this document,
+do not: A2 has never once out-scored its prompt opponent at the weak tier.
+
+Multi-scenario `claim2` is excluded from the pooled line (still printed in the
+table, with the reason): it averages the `career_offer` poor-fit control — which the
+framework is *expected* to lose — into the same number, and its −3.13 strong-tier
+cell comes from a build whose A2 arm was later found broken.
+
+**All 12 dimensions lose, 11 on resolved intervals**, so this is not one bad
+subscale dragging a mean. The *order* is the diagnosis:
+
+| worst | mean (n=13) | best (still losing) | mean |
+|---|---|---|---|
+| `conversational_fit` | −0.80 | `actionability` | −0.09 (unresolved) |
+| `cross_turn_coherence` | −0.79 | `blindspot_specificity` | −0.24 |
+| `warmth` | −0.72 | `non_triviality` | −0.31 |
+| `decision_closure` | −0.56 | `tension_coverage` | −0.31 |
+
+The losses concentrate on **the base model's own turf** (fit, coherence, warmth)
+and **the closing turns** (`decision_closure` −0.56, `convergence` −0.55). The
+framework's *own* dimensions — the blindspots and tensions it exists to surface —
+lose least. Read plainly: the dialectics are not adding nothing, they are being
+**paid for in conversation quality**, and at this tier the price exceeds the gain.
+That is a coherent, actionable diagnosis, and it is also precisely what
+"ceiling-not-floor" forbids.
+
+#### Two explanations that do NOT overturn it
+
+Both were candidates I expected to carry the loss. Neither survives being measured
+properly, and both now print with their own refutation attached:
+
+1. **Validity defects (machinery leaks, internal-prompt echo).** Unpaired, the split
+   looks decisive: clean A2 cells −0.36, leaky ones −0.66. But the groups are not
+   drawn from the same runs — the cleanest cells come from the newest builds, which
+   fixed everything *else* too. **Paired inside each run, the effect is +0.25, CI
+   [−0.04, +0.54], 8 of 14 sets, p = 0.79.** Leaks are real defects; fix them
+   because they are defects, not because they explain the score.
+2. **`explore` non-election.** The correlation with the composite is real (+0.36)
+   and **unusable**: every set where election clears 50% is a *strong-tier* run, so
+   "elected `explore`" and "ran on the better model" are one column. Testing it needs
+   a weak-tier run with election forced, not more pooling.
+
+#### What this does and does not license
+
+It licenses no claim in either direction about the **strong** tier — which is the
+tier the product claim needs. −0.06 at n=4 is a shrug: consistent with "the deficit
+closes as the base model improves" (the depreciating-Claim-1 story) and equally
+consistent with noise, with two of four sets positive. **The cheapest open question
+in the bench is now a strong-tier run with enough replicates to resolve a 0.3-step
+composite**, and it is the only one whose answer could still support the product.
+Powering the weak tier further would buy a more precise loss.
+
+It also does not license reading r15/r16 as progress: their newest clean cells sit
+at −0.10 to −0.27 against the archive's −0.47, which is the right direction, and
+every one of those intervals covers zero.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
@@ -1417,7 +1493,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
-| `across_runs.py` | pools one effect over the whole archive — the claim-killing check (free) |
+| `across_runs.py` | pools the whole archive: the standing composite/dimension result, its two refuted explanations, and the claim-killing check for any new split (free) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
@@ -1437,7 +1513,9 @@ below is from re-scoring the 374 saved cells in `results/` myself.
    and both of r16's headline splits — the durability loss (−1.22) and the
    question-ending flip (+0.34) — evaporated when the archive was stacked against
    them. An in-run interval catches a false positive *within* the run; only
-   pooling catches one that is a property of that afternoon.
+   pooling catches one that is a property of that afternoon. It cuts both ways:
+   the same script is what established the weak-tier loss (13/13 runs), which no
+   individual report could show.
 4. A delta counts when the machine scores agree with the judge.
 5. `depreciating` deltas shrink to zero as models improve — do not build the
    product claim on them. `durable` deltas are the claim. `absent` means the

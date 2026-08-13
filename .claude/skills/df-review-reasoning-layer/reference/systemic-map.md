@@ -246,6 +246,32 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   functions of saved transcripts, so `rerender.py` re-runs them: a scorer added today reaches the whole archive for
   free (judge-derived `wobble`/`stance`/`memory` are preserved, never recomputed). Locked by
   `test_bench.py::TestDurabilityUnderPressure`, `TestClosureRateAcrossTheBoundary`, `TestPoolingAcrossRuns`.
+- **The standing bench result, pooled over the whole archive: A2 LOSES to a prompt at the weak tier, and the loss
+  resolves.** Any prompt review at this altitude starts from this number, not from the last run's report. One value
+  per run, A2's composite against the strongest prompt arm that run judged: **weak tier n=13, mean -0.473, CI
+  [-0.64,-0.31], negative in 13 of 13** (sign p<0.001); **strong tier n=4, mean -0.064, CI [-0.42,+0.29]**, two of
+  four positive. It is the first result in the archive that resolves, and no individual run could show it — every
+  single run's composite covers zero. The multi-scenario `claim2` set is excluded from the pooled line (it averages
+  in the `career_offer` poor-fit control the framework is *expected* to lose, and its -3.13 strong cell came from a
+  build whose A2 arm was later found broken). **All 12 dimensions lose, 11 on resolved intervals**, and the ORDER is
+  the diagnosis for prompt work: the largest losses are the base model's own turf (`conversational_fit` -0.80,
+  `cross_turn_coherence` -0.79, `warmth` -0.72) and the closing turns (`decision_closure` -0.56, `convergence`
+  -0.55), while the framework's OWN dimensions lose least (`actionability` -0.09 unresolved,
+  `blindspot_specificity` -0.24, `non_triviality` -0.31, `tension_coverage` -0.31). The dialectics are not adding
+  nothing — they are being **paid for in conversation quality**, which is exactly what `ceiling-not-floor` forbids,
+  so a prompt change that buys structure at the cost of fit/warmth/closure is moving the wrong way even when its
+  own subscale improves. Two explanations REFUTED, so neither is re-proposed as the cause. (a) *Validity defects* —
+  unpaired, clean A2 cells read -0.36 against leaky -0.66, but the groups differ by BUILD DATE (the cleanest cells
+  are the newest builds, which fixed everything else too); paired inside each run the effect is **+0.25, CI
+  [-0.04,+0.54], 8 of 14 sets, p=0.79**. Fix leaks because they are defects, not for the score. (b) *`explore`
+  non-election* — correlation with the composite is real (+0.36) and **unusable**: every set above 50% election is a
+  strong-tier run, so election and model strength are one column; testing it needs a weak-tier run with election
+  forced. What stays open is the tier the product claim actually needs: **-0.06 at n=4 is a shrug**, consistent both
+  with "the deficit closes as base models improve" and with noise, and a powered strong-tier run is the only
+  remaining measurement that could support the claim. Powering the weak tier further buys a more precise loss.
+  Printed by `tests/bench/across_runs.py` (free, no LLM); pooling helpers locked by
+  `test_bench.py::TestPoolingAcrossRuns` (baseline choice is the strongest prompt arm PRESENT, so pre-A1.7 runs
+  still pool and no easy A0 win enters the average).
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

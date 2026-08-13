@@ -27,7 +27,7 @@ from bench.arms import (
 from bench.config import BenchConfig
 from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
-from bench.across_runs import sign_test
+from bench.across_runs import _a2_deltas, _corr, sign_test
 from bench.judge_variance import se_of_mean, split_variance
 from bench.models import (
     Arm,
@@ -4204,3 +4204,56 @@ class TestPoolingAcrossRuns:
         assert scores.wobble is not None, "a judge-derived score was discarded"
         assert scores.closure is not None, "the free scorer did not run"
         assert scores.closure.rate_change == pytest.approx(-1.0)
+
+    @staticmethod
+    def _comparison(arm_b: Arm, gap: int) -> Comparison:
+        return Comparison(
+            scenario_key="probe",
+            tier="weak",
+            replicate=1,
+            arm_a=Arm.A2,
+            arm_b=arm_b,
+            x_arm=Arm.A2,
+            session_label="decide",
+            scores={"entanglement": (3 + gap, 3)},
+        )
+
+    def test_the_baseline_is_the_strongest_prompt_arm_present(self):
+        """Not the easiest one, and not a hardcoded A1.7.
+
+        A run that judged A2 against both A1 and A1.7 must pool the A1.7 number:
+        beating a weaker rung is something the ablation ladder already concedes,
+        so averaging in an A1 comparison would inflate every pooled mean.
+        """
+        picked = _a2_deltas(
+            [self._comparison(Arm.A1, +2), self._comparison(Arm.A1_7, -1)]
+        )
+        assert picked is not None
+        base, deltas = picked
+        assert base == "A1.7"
+        assert deltas.gap("weak", "entanglement") == pytest.approx(-1.0)
+
+    def test_a_run_with_only_a_weaker_rung_still_pools(self):
+        """The two Claim-1 runs predate A1.7 and are evidence, not noise.
+
+        Fixing the baseline at A1.7 would drop them silently — n=13 would read
+        n=11 with no line saying why.
+        """
+        picked = _a2_deltas([self._comparison(Arm.A1, -1)])
+        assert picked is not None
+        assert picked[0] == "A1"
+
+    def test_a_run_that_never_judged_a2_is_skipped(self):
+        comparison = self._comparison(Arm.A1, +1)
+        comparison.arm_a, comparison.arm_b = Arm.A1_7, Arm.A1
+        assert _a2_deltas([comparison]) is None
+
+    def test_correlation_refuses_a_constant_column(self):
+        """The `explore`-share column is often all zeros in a weak-tier archive.
+
+        Dividing by a zero spread would raise mid-report; None prints as "no
+        correlation available", which is the honest reading.
+        """
+        assert _corr([0.0, 0.0, 0.0], [1.0, 2.0, 3.0]) is None
+        assert _corr([1.0, 2.0], [1.0, 2.0]) is None, "n<3 is not a correlation"
+        assert _corr([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]) == pytest.approx(1.0)

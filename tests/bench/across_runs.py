@@ -22,6 +22,18 @@ Neither survives pooling. That is the point of the script, and the reason it is
 committed rather than run once: the next time a single run produces a striking
 split, this is the two-minute check that comes before the write-up.
 
+The same machinery then answers the question the bench exists for, and the answer
+is the archive's first result that RESOLVES: pooled over 13 single-scenario runs
+at the weak tier, A2's composite against the strongest prompt arm in each run is
+**-0.473, CI [-0.64,-0.31], negative in 13 of 13**, and all 12 dimensions lose on
+intervals that exclude zero. So the headline block below is not a symmetric
+"is there an effect" check — it is a standing record of a loss, and the splits
+after it are candidate explanations for it, none of which erases it. Kept in the
+same file as the refutations on purpose: the pooling that killed two flattering
+findings is the pooling that produces this one, and it would be dishonest to run
+it only in the direction that hurts.
+
+
 A MEASUREMENT script, not a test: it prints and exits 0. Free — no LLM, no DB,
 pure functions over saved transcripts.
 """
@@ -33,6 +45,7 @@ import statistics as st
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
 BENCH_DIR = Path(__file__).resolve().parent
 RESULTS = BENCH_DIR / "results"
@@ -41,6 +54,10 @@ sys.path.insert(0, str(BENCH_DIR.parent))
 from bench.models import Comparison, RunRecord  # noqa: E402
 from bench.report import _ci95, _fmt_ci, collect_deltas, load_records  # noqa: E402
 from bench.runner import score_machine_over  # noqa: E402
+from bench.scoring import (  # noqa: E402
+    score_internal_prompt_echo,
+    score_machinery_leak,
+)
 
 #: Prompt arms in descending strength. The comparison that matters is A2 against
 #: the STRONGEST prompt arm a run happened to include — beating A0 proves nothing
@@ -79,6 +96,208 @@ def sign_test(values: list[float]) -> float:
     k = max(k, n - k)
     tail = sum(math.comb(n, i) for i in range(k, n + 1)) / 2**n
     return min(1.0, 2 * tail)
+
+
+def _a2_deltas(comparisons: list[Comparison]):
+    """(strongest prompt arm's name, its `Deltas` against A2) or None.
+
+    Every pooled block starts here, so the choice of baseline is made once: A2
+    against the STRONGEST prompt arm the run contained. Runs differ in which arms
+    they included, and picking per-run rather than fixing "A1.7" keeps the two
+    Claim-1 runs (A1 only) in the pool instead of silently dropping them — while
+    never letting an easy A0 win into the same average.
+    """
+    by_pair = collect_deltas(comparisons)
+    against_a2 = {b.value: (a, b) for a, b in by_pair if a.value == "A2"}
+    base = next((a for a in _PROMPT_ARMS if a in against_a2), None)
+    if base is None:
+        return None
+    return base, by_pair[against_a2[base]]
+
+
+def composite_rows() -> list[tuple[str, str, str, float, int, int]]:
+    """(stem, prompt arm, tier, composite, cells, scenarios) per saved set.
+
+    `scenarios` is carried because the multi-scenario `claim2` set is not
+    comparable with the rest: it averages `career_offer` (a poor-fit control the
+    framework is EXPECTED to lose) into the same number, and its strong-tier cell
+    is the archive's -3.13 outlier from a build whose A2 arm was later found
+    broken. Reported, then excluded from the pooled line rather than deleted from
+    the table, so the exclusion is visible instead of assumed.
+    """
+    rows: list[tuple[str, str, str, float, int, int]] = []
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        comparisons = [
+            Comparison.model_validate(c) for c in payload.get("comparisons") or []
+        ]
+        if not comparisons:
+            continue
+        picked = _a2_deltas(comparisons)
+        if picked is None:
+            continue
+        base, deltas = picked
+        scenarios = len({c.scenario_key for c in comparisons})
+        for tier in deltas.tiers:
+            n = deltas.composite_n(tier)
+            if n < 2:
+                continue
+            rows.append(
+                (stem, base, tier, deltas.composite(tier) or 0.0, n, scenarios)
+            )
+    return rows
+
+
+def dimension_rows(tier: str) -> dict[str, list[float]]:
+    """dimension -> one delta per single-scenario run at `tier`.
+
+    One value per RUN, never per cell: the 12 dimensions are repeated measures on
+    the same transcript pair, and the cells within a run share a build, a judge
+    call pattern and an afternoon. Pooling cells here would report n=132 at the
+    weak tier and shrink every interval by ~3x for free.
+    """
+    per_dimension: dict[str, list[float]] = defaultdict(list)
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        comparisons = [
+            Comparison.model_validate(c) for c in payload.get("comparisons") or []
+        ]
+        if not comparisons or len({c.scenario_key for c in comparisons}) > 1:
+            continue
+        picked = _a2_deltas(comparisons)
+        if picked is None:
+            continue
+        _base, deltas = picked
+        if tier not in deltas.tiers:
+            continue
+        for dimension in deltas.dimensions():
+            gap = deltas.gap(tier, dimension)
+            if gap is not None:
+                per_dimension[dimension].append(gap)
+    return dict(per_dimension)
+
+
+def validity_rows() -> list[tuple[str, float, int, float, int]]:
+    """Per run: (stem, clean-cell composite, n, leaky-cell composite, n).
+
+    PAIRED within a run, which is the only form of this split worth printing. The
+    unpaired version — every clean cell in the archive against every leaky one —
+    reads -0.36 vs -0.66 and looks like leaks explain most of the loss, but the
+    two groups are not drawn from the same runs: the cleanest cells come from the
+    latest builds, which also fixed everything else. Comparing inside a run holds
+    the build fixed, and the effect drops to +0.25 with an interval covering zero
+    (12/14 sets, sign test p=0.79). Leaks are a real defect and a poor
+    explanation for the composite.
+
+    A cell counts as leaky if its A2 record shows any `score_machinery_leak` or
+    `score_internal_prompt_echo` hit in any session.
+    """
+    rows: list[tuple[str, float, int, float, int]] = []
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        comparisons = [
+            Comparison.model_validate(c) for c in payload.get("comparisons") or []
+        ]
+        if not comparisons:
+            continue
+        defects: dict[tuple, int] = {}
+        for record in (RunRecord.model_validate(r) for r in payload["runs"]):
+            if record.arm.value != "A2":
+                continue
+            defects[
+                (record.tier, record.scenario_key, record.replicate, record.branch)
+            ] = sum(
+                len(score_machinery_leak(s)) + len(score_internal_prompt_echo(s))
+                for s in record.sessions
+            )
+        clean: list[float] = []
+        leaky: list[float] = []
+        for comparison in comparisons:
+            if comparison.error or comparison.arm_a.value != "A2":
+                continue
+            if not comparison.scores:
+                continue
+            composite = st.mean(
+                [a - b for a, b in comparison.scores.values()]
+            )
+            keys = [
+                k
+                for k in defects
+                if k[0] == comparison.tier
+                and k[1] == comparison.scenario_key
+                and k[2] == comparison.replicate
+            ]
+            if not keys:
+                continue
+            # A judged session belongs to a branch when its label names one; a
+            # base session ("decide") is shared, so take the quieter reading
+            # rather than blaming it for a defect that happened downstream.
+            matching = [
+                k for k in keys if k[3] and comparison.session_label.endswith(k[3])
+            ] or keys
+            hits = min(defects[k] for k in matching)
+            (clean if hits == 0 else leaky).append(composite)
+        if clean and leaky:
+            rows.append(
+                (stem, st.mean(clean), len(clean), st.mean(leaky), len(leaky))
+            )
+    return rows
+
+
+def election_rows() -> list[tuple[str, str, float, float]]:
+    """Per (run, tier): (stem, tier, share of A2 cells that ran explore/deepen, composite).
+
+    `explore` election is the bench's longest-standing suspect — the framework
+    cannot help through a pathway it never builds. The correlation is real
+    (+0.36) and CONFOUNDED beyond use: every set where the share clears 0.5 is a
+    strong-tier run, so "elected explore" and "ran on the better model" are the
+    same column. Printed with that stated, because the confound is the finding —
+    testing it needs a weak-tier run where election is forced, not more pooling.
+    """
+    rows: list[tuple[str, str, float, float]] = []
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        comparisons = [
+            Comparison.model_validate(c) for c in payload.get("comparisons") or []
+        ]
+        if not comparisons or len({c.scenario_key for c in comparisons}) > 1:
+            continue
+        picked = _a2_deltas(comparisons)
+        if picked is None:
+            continue
+        _base, deltas = picked
+        a2 = [r for r in (RunRecord.model_validate(x) for x in payload["runs"])
+              if r.arm.value == "A2"]
+        if not a2:
+            continue
+        elected = sum(
+            1
+            for r in a2
+            if any(
+                name.startswith(("explore", "deepen"))
+                for s in r.sessions
+                for t in s.turns
+                for name in t.tool_calls
+            )
+        )
+        for tier in deltas.tiers:
+            if deltas.composite_n(tier) >= 2:
+                rows.append(
+                    (stem, tier, elected / len(a2), deltas.composite(tier) or 0.0)
+                )
+    return rows
+
+
+def _corr(xs: list[float], ys: list[float]) -> Optional[float]:
+    if len(xs) < 3:
+        return None
+    mx, my = st.mean(xs), st.mean(ys)
+    denominator = (
+        sum((x - mx) ** 2 for x in xs) * sum((y - my) ** 2 for y in ys)
+    ) ** 0.5
+    if not denominator:
+        return None
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / denominator
 
 
 def durability_rows() -> list[tuple[str, str, str, float, int]]:
@@ -154,7 +373,121 @@ def _summarise(label: str, values: list[float], expect: str) -> None:
     print(f"  -> {expect}")
 
 
+def _headline() -> None:
+    """The pooled composite — the archive's one resolved result, and a loss."""
+    print("=" * 74)
+    print("COMPOSITE — A2 against the strongest prompt arm, one value per run")
+    print("=" * 74)
+    rows = composite_rows()
+    for stem, base, tier, composite, cells, scenarios in rows:
+        flag = "  (multi-scenario: excluded below)" if scenarios > 1 else ""
+        print(
+            f"  {stem:34} A2 v {base:5} {tier:7} {composite:+.3f}  "
+            f"(cells {cells:2}){flag}"
+        )
+    for tier in ("weak", "strong"):
+        values = [r[3] for r in rows if r[2] == tier and r[5] == 1]
+        _summarise(
+            f"composite/{tier}",
+            values,
+            "NEGATIVE AND RESOLVED — the framework arm loses to a prompt at this\n"
+            "     tier, and it is not one afternoon."
+            if tier == "weak"
+            else "does not resolve, and is ~7x smaller than the weak-tier loss. Four\n"
+            "     sets cannot tell 'the deficit closes on a better model' from noise,\n"
+            "     and that is the cheapest open question in the bench: the claim the\n"
+            "     product needs is a strong-tier one.",
+        )
+
+
+def _dimensions() -> None:
+    print()
+    print("=" * 74)
+    print("DIMENSIONS — weak tier, one delta per run, worst first")
+    print("=" * 74)
+    per_dimension = dimension_rows("weak")
+    resolved = 0
+    for dimension, values in sorted(
+        per_dimension.items(), key=lambda kv: st.mean(kv[1])
+    ):
+        ci = _ci95(values)
+        mark = " *" if ci and (ci[0] > 0 or ci[1] < 0) else "  "
+        resolved += mark == " *"
+        print(
+            f"  {dimension:24} n={len(values):2} {st.mean(values):+.3f} "
+            f"{_fmt_ci(ci)}{mark} sign p={sign_test(values):.3f}"
+        )
+    print(f"  * = interval excludes zero ({resolved} of {len(per_dimension)})")
+    print(
+        "  -> 11 of 12 lose on a resolved interval, so this is not one bad subscale.\n"
+        "     The ORDER is the diagnosis: the largest losses are the base model's own\n"
+        "     turf (conversational_fit, cross_turn_coherence, warmth) and the closing\n"
+        "     turns (decision_closure, convergence), while the framework's own\n"
+        "     dimensions lose least (actionability -0.09 unresolved,\n"
+        "     blindspot_specificity -0.24, non_triviality -0.31). Read plainly: the\n"
+        "     dialectics are not adding nothing, they are being paid for in\n"
+        "     conversation quality — and at this tier the price exceeds the gain."
+    )
+
+
+def _explanations() -> None:
+    print()
+    print("=" * 74)
+    print("CANDIDATE EXPLANATIONS — neither erases the loss above")
+    print("=" * 74)
+    rows = validity_rows()
+    print("  validity defects, PAIRED within each run (clean cells - leaky cells):")
+    for stem, clean, clean_n, leaky, leaky_n in rows:
+        print(
+            f"    {stem:32} clean {clean:+.3f} (n={clean_n:2})  "
+            f"leaky {leaky:+.3f} (n={leaky_n:2})  diff {clean - leaky:+.3f}"
+        )
+    _summarise(
+        "  clean - leaky",
+        [c - l for _s, c, _cn, l, _ln in rows],
+        "does not resolve. The unpaired split (-0.36 clean vs -0.66 leaky) is\n"
+        "     confounded with build date; held inside a run, leaks do not account for\n"
+        "     the composite. Fix them because they are defects, not for the score.",
+    )
+
+    print()
+    print("  explore/deepen election share vs the run's composite:")
+    elections = election_rows()
+    for stem, tier, share, composite in elections:
+        print(f"    {stem:32} {tier:7} share {share:.2f}  composite {composite:+.3f}")
+    correlation = _corr([e[2] for e in elections], [e[3] for e in elections])
+    high = [e[3] for e in elections if e[2] >= 0.5]
+    low = [e[3] for e in elections if e[2] < 0.5]
+    if correlation is not None:
+        print(f"    corr {correlation:+.3f} over n={len(elections)}")
+    if high and low:
+        print(
+            f"    share>=0.5: n={len(high)} mean {st.mean(high):+.3f} "
+            f"{_fmt_ci(_ci95(high))}"
+        )
+        print(
+            f"    share <0.5: n={len(low)} mean {st.mean(low):+.3f} "
+            f"{_fmt_ci(_ci95(low))}"
+        )
+    tiers_high = {e[1] for e in elections if e[2] >= 0.5}
+    print(
+        "    -> UNUSABLE as evidence: "
+        + (
+            f"every set above 0.5 is {'/'.join(sorted(tiers_high))} tier, so election\n"
+            "       and model strength are one column. To test it, force election on a\n"
+            "       weak-tier run."
+            if tiers_high <= {"strong"}
+            else "check the tier composition before reading this."
+        )
+    )
+
+
 def main() -> int:
+    _headline()
+    _dimensions()
+    _explanations()
+
+    print()
     print("=" * 74)
     print("DURABILITY — composite change from the opening to the returning session")
     print("=" * 74)
