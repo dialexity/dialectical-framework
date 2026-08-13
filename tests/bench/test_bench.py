@@ -27,6 +27,7 @@ from bench.arms import (
 from bench.config import BenchConfig
 from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
+from bench.judge_variance import se_of_mean, split_variance
 from bench.models import (
     Arm,
     Beat,
@@ -3682,3 +3683,85 @@ class TestPortedReportSections:
         )
         assert "Memory abilities" in text
         assert "n/a" in text
+
+
+class TestWhatBuysPower:
+    """Splitting the noise decides what the NEXT run spends money on.
+
+    `noise_floor.py` says a delta's sd is ~1.11 rubric steps and cannot say where
+    it comes from. Two sources have wildly different prices: judging the same
+    transcripts again is cheap, generating more cells is an LLM hour each. The
+    estimator in `judge_variance.py` is the whole argument, so it is pinned here
+    rather than left to a script nobody re-runs.
+    """
+
+    def test_pure_judge_noise_is_attributed_to_the_judge(self):
+        """Identical cells, disagreeing passes: everything is judge noise.
+
+        Constructed so the two passes differ while the underlying pair does not,
+        which is the only unambiguous case — and the residual must come out at
+        zero rather than at some small positive number from a sd-space subtraction.
+        """
+        diffs = {"d": [2.0, -2.0, 2.0, -2.0]}
+        totals = {"d": [1.0, -1.0, 1.0, -1.0]}
+        _rows, s_judge, s_total, s_cell = split_variance(diffs, totals)
+        assert s_judge > s_total, "repeat spread exceeds total: judge dominates"
+        assert s_cell == 0.0, "judge noise alone explains it; no cell component"
+
+    def test_agreeing_passes_leave_the_variance_with_the_cells(self):
+        """A judge that reproduces itself means every gap is real variation."""
+        diffs = {"d": [0.0, 0.0, 0.0, 0.0]}
+        totals = {"d": [2.0, -2.0, 2.0, -2.0]}
+        _rows, s_judge, s_total, s_cell = split_variance(diffs, totals)
+        assert s_judge == 0.0
+        assert s_cell == pytest.approx(s_total)
+
+    def test_the_repeat_spread_is_halved_in_variance_not_in_sd(self):
+        """Var(pass1 - pass2) = 2*sigma^2, so sigma = sd(diffs)/sqrt(2).
+
+        Dividing the sd by 2 instead would understate judge noise by ~1.41x and
+        hand the difference to the cells — i.e. recommend buying the expensive
+        axis on the strength of an arithmetic slip.
+        """
+        diffs = {"d": [1.0, -1.0, 1.0, -1.0]}
+        totals = {"d": [3.0, -3.0, 3.0, -3.0]}
+        _rows, s_judge, _s_total, _s_cell = split_variance(diffs, totals)
+        import statistics as st
+
+        assert s_judge == pytest.approx(st.stdev(diffs["d"]) / 2**0.5)
+
+    def test_extra_judge_passes_cannot_reduce_cell_variation(self):
+        """The asymmetry that makes re-judging a limited purchase.
+
+        K passes divide only the judge term. With no judge noise at all, K=3
+        must equal K=1 — if it does not, the model is claiming free power.
+        """
+        one = se_of_mean(0.0, 1.0, cells=12, passes=1)
+        three = se_of_mean(0.0, 1.0, cells=12, passes=3)
+        assert one == pytest.approx(three)
+
+    def test_more_cells_reduce_both_components(self):
+        """Quadrupling the cells must halve the SE whatever the mix."""
+        assert se_of_mean(0.6, 0.9, cells=48, passes=1) == pytest.approx(
+            se_of_mean(0.6, 0.9, cells=12, passes=1) / 2
+        )
+
+    def test_a_dimension_with_too_few_repeats_is_dropped_not_guessed(self):
+        """n<3 has no usable spread; including it would fake precision."""
+        rows, _j, _t, _c = split_variance({"d": [1.0, -1.0]}, {"d": [1.0, -1.0]})
+        assert rows == []
+
+    def test_the_measured_split_says_cells_not_judge_passes(self):
+        """The actual finding, pinned so a later re-measure has to confront it.
+
+        Over the 9 pairs judged twice in `results/`, judge noise is ~30% of the
+        variance — so averaging judge passes cannot rescue a 12-cell run, and the
+        r17 sizing question stays "how many cells", not "how many passes".
+        """
+        s_judge, s_cell = 0.61, 0.94
+        judge_share = s_judge**2 / (s_judge**2 + s_cell**2)
+        assert 0.2 < judge_share < 0.4, judge_share
+        # Best case on the cheap axis at r16's size, against the 0.5-step effect
+        # this bench keeps trying to read:
+        best = se_of_mean(s_judge, s_cell, cells=12, passes=3)
+        assert best * 1.96 > 0.5, "if this fails, re-judging alone would suffice"

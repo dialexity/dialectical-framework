@@ -180,6 +180,20 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   1.38, paired_recipe 1.31, decision_closure 1.30; warmth 0.67 is the quietest), so a rubric-side reword that
   reduces variance buys more than a prompt-side gain of the same size. Locked by
   `test_bench.py::TestDeltasCarryTheirUncertainty` and the render tests in `TestReportedBiasAndSessions`.
+- **70% of that noise is the transcripts, not the judge — so a prompt-side reword cannot rescue an underpowered
+  run.** `tests/bench/judge_variance.py` uses the two runs that were re-judged from their own saved transcripts
+  (`decision-strong-r3`/`-rejudged`, `decision-strong-r4`/`-rejudged`) as a same-pair-twice design: matching
+  comparisons by (scenario, tier, replicate, arm pair, session) gives 9 pairs scored under two independent judge
+  passes, and `Var(pass1 - pass2) = 2*sigma_judge^2` isolates the judge component. Median sigma_judge **0.61**
+  against sigma_total **1.12** → sigma_cell **0.94**, a **30%** judge share. Consequence for anyone reviewing this
+  layer: **averaging judge passes is a bounded purchase** — it divides only the judge term, so at 12 pairs the SE
+  moves 0.32 → 0.29 across K=1..3 and the half-width stays wider than any effect the bench reads. Per dimension the
+  share spans 61% (`paired_recipe`: over half its spread is the judge re-reading its own rubric, which makes the
+  RUBRIC WORDING the highest-leverage edit for that row) to 9% (`actionability`: noisiest overall, and genuinely
+  run-to-run). Both scripts print and exit; their estimators are extracted as pure functions and pinned by
+  `TestWhatBuysPower`, because a subtraction done in sd space instead of variance space — or `/2` instead of
+  `/sqrt(2)` — yields a plausible figure recommending the opposite purchase. n=9, strong-tier decision runs only:
+  a direction, not a constant.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

@@ -1132,6 +1132,39 @@ and conversational_fit 0.79 are the quietest). Resolving a 0.5-step effect on
 `paired_recipe` needs ~54 pairs. 3 replicates (~12 pairs) resolves 0.94 and would
 reproduce r16's unreadability; 6 (~24) resolves 0.66; 12 (~48) resolves 0.47.
 
+#### The cheap way out does not exist: the noise is in the cells, not the judge
+
+Before paying for cells I checked whether the spread is just the judge
+disagreeing with itself — if it were, judging the SAME saved transcripts K times
+and averaging would buy power for judge dollars instead of LLM hours. Two runs in
+`results/` were re-judged from their own transcripts
+(`decision-strong-r3`/`-rejudged`, `decision-strong-r4`/`-rejudged`), which is
+exactly the same-pair-twice design that separates the two. `judge_variance.py`
+matches comparisons across the pair by (scenario, tier, replicate, arm pair,
+session) — 9 pairs, 12 dimensions — and splits the variance:
+
+| | value |
+|---|---|
+| median σ_judge (same pair, second pass) | **0.61** |
+| median σ_total | **1.12** |
+| implied σ_cell | **0.94** |
+| judge share of variance | **30%** |
+
+**So 70% of the noise is real cell-to-cell variation, and re-judging cannot touch
+it.** Averaging K passes divides only the judge term: at r16's 12 pairs the SE
+goes 0.32 → 0.30 → 0.29 for K=1/2/3. Three judge passes on 12 cells still leaves
+a ±0.57 half-width — wider than any effect this bench is trying to read. **r17
+needs cells.**
+
+Per-dimension the share ranges from **61%** (`paired_recipe` — over half its
+spread is the judge, so its rubric wording is the thing to fix) down to **9%**
+(`actionability`, the noisiest dimension overall, and its noise is genuine
+run-to-run variation). Caveat stated rather than buried: n=9 pairs, from
+strong-tier decision runs only, so treat the split as a direction and not a
+constant. The estimator is pinned by `TestWhatBuysPower` — a subtraction done in
+sd space instead of variance space, or `/2` instead of `/√2`, produces a
+plausible number pointing at the opposite purchase.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
@@ -1255,6 +1288,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `judge.py` | blind paired LLM judge + wobble classifier + the two ported judges |
 | `report.py` | deltas + their intervals, depreciating/durable classification, validity flags |
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
+| `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `rerender.py` | regenerates a saved run's `.txt` with current report code (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
