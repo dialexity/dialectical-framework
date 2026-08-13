@@ -718,6 +718,27 @@ class RunRecord(BaseModel):
         turns = [t for s in self.sessions for t in s.turns]
         return bool(turns) and all(t.error for t in turns)
 
+    @property
+    def invalid_as_evidence(self) -> bool:
+        """The arm was never exercised — MISSING data, not a weak result.
+
+        The report has always printed "These runs are INVALID as A2 evidence, not
+        merely weak" for `collapsed_to_a1`, and then every pooled cut averaged
+        their judged cells in anyway: `Deltas.add` and each `across_runs` loop
+        filtered `comparison.error` only, which is set when the JUDGE failed, not
+        when the arm did. A dead run scores like a very bad arm rather than like
+        no arm, because an empty transcript still gets a number.
+
+        Measured on the archive at the time this was added: `claim2`'s four dead
+        strong-tier A2 runs (every turn a 400, 0 words) carry the -3.13 outlier,
+        and dropping them moves A2-vs-A1 strong from -0.817 (resolving) to -0.188
+        (covers zero). No published figure moved, because `claim2` is multi-
+        scenario and `smoke-strong` is a smoke stem, so both were already outside
+        the pooled line for unrelated reasons — the guard was one ordinary round
+        away from mattering, which is why it is a predicate and not a note.
+        """
+        return self.all_turns_errored or self.collapsed_to_a1
+
     def session(self, label: str) -> Optional[SessionRecord]:
         for s in self.sessions:
             if s.label == label:
@@ -1351,6 +1372,46 @@ NON_INFERIORITY_DIMENSIONS: tuple[str, ...] = (
     "warmth",
     "actionability",
     "conversational_fit",
+)
+
+#: A second cut across the SAME 12 dimensions, orthogonal to the three groups
+#: above: does a gain come from HOW the arm talks, or from WHAT it found?
+#:
+#: The groups above answer "which dimensions does this scenario get judged on".
+#: These answer "did the loop improve the product or its manners", and the
+#: archive's answer is unambiguous — pooled by era at the weak tier, REGISTER
+#: went -0.519 -> -0.133 (+0.386, CI [+0.07,+0.70], resolves) while SUBSTANCE
+#: went -0.360 -> -0.333 (+0.027, CI [-0.39,+0.44], covers zero). Sixteen rounds
+#: bought manners.
+#:
+#: Why that is a problem and not a partial win: A2's replies went 416 -> 272
+#: words and 7.25 -> 2.71 bullets per turn over the same span, against A1.7's
+#: steady ~310/~1.1. The register gain came from the arm converging on its
+#: opponent's shape, which is the "ceiling-not-floor" failure in CLAUDE.md
+#: expressed as a number. A round that moves REGISTER is buying back a tax; only
+#: SUBSTANCE is evidence the framework does something a prompt cannot.
+#:
+#: `cross_turn_coherence` is deliberately REGISTER even though the graph is what
+#: should carry it: as judged it rewards a reply that refers back smoothly, which
+#: prose does natively. Moving it to SUBSTANCE would let a warmth gain read as a
+#: memory win — the exact confusion this split exists to prevent.
+REGISTER_DIMENSIONS: tuple[str, ...] = (
+    "warmth",
+    "conversational_fit",
+    "cross_turn_coherence",
+    "actionability",
+    "earned_confidence",
+)
+
+#: The framework's own turf: what it claims to find that a prompt does not.
+SUBSTANCE_DIMENSIONS: tuple[str, ...] = (
+    "entanglement",
+    "non_triviality",
+    "blindspot_specificity",
+    "tension_coverage",
+    "convergence",
+    "decision_closure",
+    "paired_recipe",
 )
 
 

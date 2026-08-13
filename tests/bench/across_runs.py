@@ -52,7 +52,13 @@ RESULTS = BENCH_DIR / "results"
 sys.path.insert(0, str(BENCH_DIR.parent))
 
 from bench.models import Comparison, RunRecord  # noqa: E402
-from bench.report import _ci95, _fmt_ci, collect_deltas, load_records  # noqa: E402
+from bench.report import (  # noqa: E402
+    _ci95,
+    _fmt_ci,
+    collect_deltas,
+    drop_invalid,
+    load_records,
+)
 from bench.runner import score_machine_over  # noqa: E402
 from bench.scoring import (  # noqa: E402
     score_internal_prompt_echo,
@@ -78,6 +84,56 @@ def _stems() -> list[str]:
         if not p.stem.endswith(("-runs", "-rejudged"))
         and not p.stem.startswith("smoke")
     )
+
+
+def valid_comparisons(stem: str) -> list[Comparison]:
+    """Judged cells from `stem` whose BOTH arms were actually exercised.
+
+    Every pooled cut goes through here rather than reading
+    `payload["comparisons"]` directly, because the filter has to hold in eight
+    loops and one forgotten loop silently readmits a dead arm as a bad score.
+    See `RunRecord.invalid_as_evidence` for what "exercised" means and for the
+    archive measurement that motivated it.
+    """
+    payload = load_records(RESULTS / f"{stem}.json")
+    comparisons = [
+        Comparison.model_validate(c) for c in payload.get("comparisons") or []
+    ]
+    runs = [RunRecord.model_validate(r) for r in payload.get("runs") or []]
+    kept, _dropped = drop_invalid(comparisons, runs)
+    return kept
+
+
+def excluded_rows() -> list[tuple[str, int, int, str]]:
+    """(stem, dropped cells, total cells, why) — printed, never silent.
+
+    A pooled number that quietly shrank its own n is the failure mode this whole
+    module exists to catch, so the exclusions get their own block in the output.
+    """
+    rows: list[tuple[str, int, int, str]] = []
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        comparisons = [
+            Comparison.model_validate(c) for c in payload.get("comparisons") or []
+        ]
+        runs = [RunRecord.model_validate(r) for r in payload.get("runs") or []]
+        _kept, dropped = drop_invalid(comparisons, runs)
+        if not dropped:
+            continue
+        dead = sum(1 for r in runs if r.all_turns_errored)
+        collapsed = sum(
+            1 for r in runs if r.collapsed_to_a1 and not r.all_turns_errored
+        )
+        why = ", ".join(
+            part
+            for part in (
+                f"{dead} run(s) every turn errored" if dead else "",
+                f"{collapsed} A2 run(s) built nothing" if collapsed else "",
+            )
+            if part
+        )
+        rows.append((stem, dropped, len(comparisons), why))
+    return rows
 
 
 def sign_test(values: list[float]) -> float:
@@ -160,10 +216,7 @@ def composite_rows() -> list[tuple[str, str, str, float, int, int]]:
     """
     rows: list[tuple[str, str, str, float, int, int]] = []
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        comparisons = [
-            Comparison.model_validate(c) for c in payload.get("comparisons") or []
-        ]
+        comparisons = valid_comparisons(stem)
         if not comparisons:
             continue
         picked = _a2_deltas(comparisons)
@@ -191,10 +244,7 @@ def dimension_rows(tier: str) -> dict[str, list[float]]:
     """
     per_dimension: dict[str, list[float]] = defaultdict(list)
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        comparisons = [
-            Comparison.model_validate(c) for c in payload.get("comparisons") or []
-        ]
+        comparisons = valid_comparisons(stem)
         if not comparisons or len({c.scenario_key for c in comparisons}) > 1:
             continue
         picked = _a2_deltas(comparisons)
@@ -242,9 +292,7 @@ def dimension_shape(tier: str) -> dict[str, tuple[int, int, int, float, float]]:
     """
     shape: dict[str, list[float]] = defaultdict(list)
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        for raw in payload.get("comparisons") or []:
-            comparison = Comparison.model_validate(raw)
+        for comparison in valid_comparisons(stem):
             if comparison.tier != tier or comparison.error:
                 continue
             arms = (comparison.arm_a.value, comparison.arm_b.value)
@@ -307,9 +355,7 @@ def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
     """
     per: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        for raw in payload.get("comparisons") or []:
-            comparison = Comparison.model_validate(raw)
+        for comparison in valid_comparisons(stem):
             if comparison.tier != tier or comparison.error:
                 continue
             arms = (comparison.arm_a.value, comparison.arm_b.value)
@@ -395,9 +441,7 @@ def visibility_rows() -> dict[str, tuple[float, int, float, int]]:
                 cells[(stem, run.scenario_key)] = spoken
     per: dict[str, dict[bool, list[float]]] = defaultdict(lambda: defaultdict(list))
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        for raw in payload.get("comparisons") or []:
-            comparison = Comparison.model_validate(raw)
+        for comparison in valid_comparisons(stem):
             if comparison.tier != "weak" or comparison.error:
                 continue
             arms = (comparison.arm_a.value, comparison.arm_b.value)
@@ -441,13 +485,11 @@ def validity_rows() -> list[tuple[str, float, int, float, int]]:
     """
     rows: list[tuple[str, float, int, float, int]] = []
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        comparisons = [
-            Comparison.model_validate(c) for c in payload.get("comparisons") or []
-        ]
+        comparisons = valid_comparisons(stem)
         if not comparisons:
             continue
         defects: dict[tuple, int] = {}
+        payload = load_records(RESULTS / f"{stem}.json")
         for record in (RunRecord.model_validate(r) for r in payload["runs"]):
             if record.arm.value != "A2":
                 continue
@@ -503,16 +545,14 @@ def election_rows() -> list[tuple[str, str, float, float]]:
     """
     rows: list[tuple[str, str, float, float]] = []
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        comparisons = [
-            Comparison.model_validate(c) for c in payload.get("comparisons") or []
-        ]
+        comparisons = valid_comparisons(stem)
         if not comparisons or len({c.scenario_key for c in comparisons}) > 1:
             continue
         picked = _a2_deltas(comparisons)
         if picked is None:
             continue
         _base, deltas = picked
+        payload = load_records(RESULTS / f"{stem}.json")
         a2 = [r for r in (RunRecord.model_validate(x) for x in payload["runs"])
               if r.arm.value == "A2"]
         if not a2:
@@ -623,10 +663,7 @@ def durability_rows() -> list[tuple[str, str, str, float, int]]:
     """(stem, arm pair, tier, mean composite change, replicates) per saved set."""
     rows: list[tuple[str, str, str, float, int]] = []
     for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        comparisons = [
-            Comparison.model_validate(c) for c in payload.get("comparisons") or []
-        ]
+        comparisons = valid_comparisons(stem)
         if not comparisons:
             continue
         for (arm_a, arm_b), deltas in collect_deltas(comparisons).items():
@@ -697,6 +734,15 @@ def _headline() -> None:
     print("=" * 74)
     print("COMPOSITE — A2 against the strongest prompt arm, one value per run")
     print("=" * 74)
+    # Printed FIRST and unconditionally when non-empty: every number below is
+    # computed over the surviving cells, and a reader who meets the n after the
+    # verdict cannot tell a filtered pool from a small one.
+    excluded = excluded_rows()
+    if excluded:
+        print("  cells excluded as MISSING data (an arm was never exercised):")
+        for stem, dropped, total, why in excluded:
+            print(f"    {stem:32} {dropped:3}/{total:<3} — {why}")
+        print()
     rows = composite_rows()
     for stem, base, tier, composite, cells, scenarios in rows:
         flag = "  (multi-scenario: excluded below)" if scenarios > 1 else ""

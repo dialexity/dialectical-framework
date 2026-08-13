@@ -299,7 +299,52 @@ class Deltas:
         return "depreciating"
 
 
+def invalid_cells(runs: list[RunRecord]) -> set[tuple[str, str, int, Optional[str]]]:
+    """(arm, tier, replicate, branch) of every run that is MISSING data.
+
+    Pass to `drop_invalid` to keep a dead or collapsed arm out of a pooled
+    average. Keyed on the fields a `Comparison` also carries, since comparisons
+    reference their runs only by those.
+    """
+    return {
+        (r.arm.value, r.tier, r.replicate, r.branch)
+        for r in runs
+        if r.invalid_as_evidence
+    }
+
+
+def drop_invalid(
+    comparisons: list[Comparison],
+    runs: list[RunRecord],
+) -> tuple[list[Comparison], int]:
+    """(comparisons whose BOTH arms were exercised, how many were dropped).
+
+    A comparison is only as good as its worse arm: if either side never ran, the
+    delta measures the harness. `Comparison.error` does not cover this — it flags
+    a failed JUDGE call, while an empty transcript judges fine and scores like an
+    extremely bad arm. See `RunRecord.invalid_as_evidence`.
+
+    `branch` is matched loosely because `Comparison.session_label` names a session
+    while `RunRecord.branch` names the cell: a run invalid in one branch is
+    invalid for every comparison of that (arm, tier, replicate), which is the
+    conservative direction.
+    """
+    bad = {key[:3] for key in invalid_cells(runs)}
+    kept = [
+        c
+        for c in comparisons
+        if (c.arm_a.value, c.tier, c.replicate) not in bad
+        and (c.arm_b.value, c.tier, c.replicate) not in bad
+    ]
+    return kept, len(comparisons) - len(kept)
+
+
 def collect_deltas(comparisons: list[Comparison]) -> dict[tuple[Arm, Arm], Deltas]:
+    """Group judged cells by arm pair.
+
+    Filter with `drop_invalid` FIRST when runs are available — this function
+    cannot see them, and a dead arm's cells look like ordinary bad scores here.
+    """
     out: dict[tuple[Arm, Arm], Deltas] = {}
     for c in comparisons:
         key = (c.arm_a, c.arm_b)
@@ -1374,7 +1419,20 @@ def render_report(
     add("folded into the headline.")
     add("")
 
-    deltas = collect_deltas(comparisons)
+    # The validity section above named the dead and collapsed runs; this table
+    # must not then average them in. Dropped here rather than at load time so the
+    # count is visible next to the numbers it changes.
+    judged, dropped_invalid = drop_invalid(comparisons, runs)
+    if dropped_invalid:
+        add(
+            f"!! {dropped_invalid} judged cell(s) EXCLUDED below: one of their arms"
+            " was dead or"
+        )
+        add("   collapsed (see validity checks). An unexercised arm still receives")
+        add("   scores, so leaving them in reports missing data as a weak result.")
+        add("")
+
+    deltas = collect_deltas(judged)
     # A single replicate cannot separate a real gap from run-to-run variance,
     # and the rubric's ±1 steps make that variance LOOK decisive. Measured on
     # the same cell (A2 vs A1, strong, agile_process) twice: the first run gave
@@ -1405,8 +1463,10 @@ def render_report(
         # pair: this pair's own split is what enters this pair's table, and a
         # pooled figure has hidden an over-threshold pair before (r3's +0.222
         # diluted to +0.149, warning suppressed).
+        # `judged`, not `comparisons`: this describes the split of the rows
+        # printed below, and excluded cells are not among them.
         pair_comparisons = [
-            c for c in comparisons if c.arm_a is arm_a and c.arm_b is arm_b
+            c for c in judged if c.arm_a is arm_a and c.arm_b is arm_b
         ]
         bias, bias_n, split, strata = position_bias(pair_comparisons)
         if bias is not None:

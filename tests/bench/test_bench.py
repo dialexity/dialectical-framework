@@ -27,12 +27,17 @@ from bench.arms import (
 from bench.config import BenchConfig
 from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
-from bench.across_runs import (RESULTS, _a2_deltas, _corr, _stems, fisher_exact,
-                               rung_rows, sign_test, visibility_rows)
+from bench.across_runs import (RESULTS, _a2_deltas, _corr, _stems,
+                               excluded_rows, fisher_exact, rung_rows,
+                               sign_test, valid_comparisons, visibility_rows)
 from bench.judge_notes import _derandomise
 from bench.judge_variance import se_of_mean, split_variance
 from bench.models import (
     Arm,
+    COUNSEL_DIMENSIONS,
+    DECISION_DIMENSIONS,
+    REGISTER_DIMENSIONS,
+    SUBSTANCE_DIMENSIONS,
     Beat,
     BeatKind,
     ClosureScore,
@@ -56,7 +61,14 @@ from bench.models import (
     TurnRecord,
     WobbleScore,
 )
-from bench.report import Deltas, load_records, position_bias, render_report
+from bench import probe_readside_reach, round_trend
+from bench.report import (
+    Deltas,
+    drop_invalid,
+    load_records,
+    position_bias,
+    render_report,
+)
 from bench.runner import BenchRun, JUDGED_PAIRS, score_machine_over
 from bench.scenarios import ALL_SCENARIOS, scenarios_for
 
@@ -4786,3 +4798,323 @@ class TestAMenuIsNotANumberedList:
         scores = MachineScores(menu=scoring.score_menu(run.sessions))
         text = render_report([run], [], {run.cell_key: scores}, ["weak"])
         assert "Choices handed back to the person" not in text
+
+
+class TestTheLoopIsNotConverging:
+    """The ledger's own numbers, pinned — because this is the finding that
+    changes what a round should COST, and it is the easiest one to forget.
+
+    Sixteen rounds each changed `src/`, judged ONE run, and read the result as
+    evidence about the change. `round_trend.py` measures whether that worked. It
+    did not: the between-round spread is 1.27x the spread a constant-mean archive
+    would show, and the trend points slightly down. These asserts fail the day
+    the archive stops saying so — which is the day a round-shape change worked.
+    """
+
+    def test_the_series_holds_scenario_tier_and_opponent_fixed(self):
+        """A trend line through a changing opponent measures the opponent.
+
+        `claim1-weak-r1/r2` face A1 rather than A1.7 and are the two most
+        favourable weak-tier points in the archive (-0.49, -0.07). Admitting them
+        would have manufactured a flat trend out of a weaker arm.
+        """
+        rows = round_trend.series()
+        stems = [row[0] for row in rows]
+        assert stems, "no comparable runs found"
+        assert not [s for s in stems if s.startswith("claim1")], (
+            f"A1-opponent runs leaked into the A1.7 series: {stems}"
+        )
+        assert "claim2" not in stems, "the multi-scenario control must stay out"
+        assert round_trend.series(opponent="A1"), "the opponent must be selectable"
+
+    def test_balancing_the_slot_does_not_rescue_the_trend(self):
+        """The judge favours the second transcript, so the round numbers are
+        re-derived twice before the trend is read. Both orderings survive it:
+        the point of balancing here is that it CANNOT explain the scatter."""
+        rows = {row[0]: row for row in round_trend.series()}
+        r14, r15 = rows["claim2-weak-r14-accretion"], rows["claim2-weak-r15-voice"]
+        # naive < slot < stratum need not be monotone, but the r14->r15 jump must
+        # survive every one of the three estimators or it is a slot artifact.
+        for index, name in ((1, "naive"), (2, "slot"), (3, "stratum")):
+            assert r15[index] > r14[index], f"the r15 jump vanishes under {name}"
+
+    def test_a_stratum_with_one_slot_falls_back_visibly(self):
+        """r6/r7 judged some session labels in a single slot. Averaging those
+        strata would print a balanced-looking number that is not balanced, so the
+        script repeats the slot figure and flags it."""
+        rows = {row[0]: row for row in round_trend.series()}
+        early = rows["claim2-weak-r6-grounding"]
+        assert early[5] is False, "r6 has a single-slot stratum"
+        assert early[2] == early[3], "the fallback must repeat the slot figure"
+        late = rows["claim2-weak-r16-floor"]
+        assert late[5] is True, "r16 is balanced in every stratum"
+
+    def test_the_rounds_are_one_distribution_resampled(self):
+        """The load-bearing number. If a single round's own se is ~0.20 and the
+        between-round sd is ~0.26, then the fixes are not distinguishable from
+        re-running the same build — no matter how good each fix's rationale."""
+        values = [row[3] for row in round_trend.series()]
+        assert len(values) >= 10, f"too few rounds to read a trend: {len(values)}"
+        _mean, sd, correlation, _slope = round_trend.convergence(values)
+        implied = round_trend.TYPICAL_HALF_WIDTH / 1.96
+        assert sd / implied < 2.0, (
+            f"between-round sd {sd:.3f} is now {sd / implied:.2f}x the within-round "
+            "se — the builds may genuinely differ, so re-read the trend"
+        )
+        assert correlation < 0.3, (
+            f"correlation with round order is now {correlation:+.3f} — if this is "
+            "positive and outside the scatter, the loop started converging"
+        )
+        assert all(v < 0 for v in values), "every round is still a loss"
+
+    def test_the_sizing_says_a_round_must_be_bigger_than_any_round_so_far(self):
+        """Why the conclusion is 'change the round shape', not 'run r17'.
+
+        A 12-cell round resolves about a full step. The archive's entire spread
+        is 0.8, so a fix small enough to be plausible is smaller than the
+        instrument.
+        """
+        values = [row[3] for row in round_trend.series()]
+        _mean, sd, _correlation, _slope = round_trend.convergence(values)
+        assert round_trend.runs_per_build(sd, 0.3) >= 8, (
+            "a 0.3-step fix should still need many runs per build"
+        )
+        assert round_trend.runs_per_build(sd, 0.8) <= 3, (
+            "a full-step fix should be reachable, or the endpoint is hopeless"
+        )
+
+
+class TestSixteenRoundsBoughtMannersNotProduct:
+    """The register/substance split, pinned — the answer to "is the loop working".
+
+    The composite says "still losing" and cannot say why. This split can: every
+    resolvable gain in the archive is REGISTER, and A2's replies got shorter and
+    flatter to earn it. If SUBSTANCE ever moves, these asserts fail and the
+    framework has its first real evidence.
+    """
+
+    def test_the_two_groups_partition_the_rubric_without_overlap(self):
+        """A dimension in both groups would let one gain count twice, which is
+        exactly the double-counting the composite already suffers from."""
+        register, substance = set(REGISTER_DIMENSIONS), set(SUBSTANCE_DIMENSIONS)
+        assert not register & substance, f"overlap: {register & substance}"
+        judged = set(COUNSEL_DIMENSIONS) | set(DECISION_DIMENSIONS) | set(
+            NON_INFERIORITY_DIMENSIONS
+        )
+        assert register | substance == judged, (
+            "every judged dimension must land in exactly one group; "
+            f"missing {judged - (register | substance)}, "
+            f"invented {(register | substance) - judged}"
+        )
+
+    def test_only_the_register_gain_resolves(self):
+        """The load-bearing assert. Sixteen rounds moved manners, not product."""
+        _table, moves = round_trend.register_versus_substance()
+        register_delta, register_se = moves["register"]
+        substance_delta, substance_se = moves["substance"]
+        assert register_delta > 1.96 * register_se, (
+            f"the register gain stopped resolving ({register_delta:+.3f} "
+            f"+-{1.96 * register_se:.3f}) — re-read the era table"
+        )
+        assert abs(substance_delta) < 1.96 * substance_se, (
+            f"SUBSTANCE now resolves ({substance_delta:+.3f} "
+            f"+-{1.96 * substance_se:.3f}). If positive, the framework has its "
+            "first evidence of doing something a prompt cannot — write it up."
+        )
+
+    def test_the_middle_era_that_turned_the_machinery_on_is_the_worst(self):
+        """r6-r14 added the record seam, the grounding lane and the pathway seam,
+        and scored worse than the era before it on BOTH groups. Turning the
+        framework on made the judged numbers go down; that is the diagnosis the
+        read-side probe explains."""
+        table = {row[0]: row for row in round_trend.register_versus_substance()[0]}
+        early, middle = table["r1-r5"], table["r6-r14"]
+        assert middle[1] < early[1], "middle era should be worse on register"
+        assert middle[2] < early[2], "middle era should be worse on substance"
+
+
+class TestTheProductDoesNotReachTheReply:
+    """`probe_readside_reach.py`'s finding, pinned: the same dump's decision
+    ledger lands in the reply and its pathways and synthesis do not.
+
+    This is the difference between "dialectics do not help" and "the framework's
+    output never got in front of the model", and only the second is fixable.
+    """
+
+    def test_the_decision_ledger_reaches_the_reply_and_the_pathways_do_not(self):
+        rows = probe_readside_reach.reach_rows()
+        assert len(rows) >= 12, f"too few sessions with a dump: {len(rows)}"
+        import statistics as _st
+
+        decisions = _st.mean([r["decisions"] for r in rows])
+        pathways = _st.mean([r["pathways"] for r in rows])
+        synthesis = _st.mean([r["synthesis"] for r in rows])
+        assert decisions > pathways and decisions > synthesis, (
+            "the pathways/synthesis now reach the reply as well as the decision "
+            f"ledger does (dec {decisions:.2f}, path {pathways:.2f}, "
+            f"syn {synthesis:.2f}) — the read-side defect may be fixed"
+        )
+        assert decisions > 0.4, f"the ledger stopped landing too: {decisions:.2f}"
+
+    def test_no_reply_in_the_archive_ever_cited_a_hash(self):
+        """The graph is hash-addressed and the person never sees one. Not a bug
+        by itself — it is the cheapest available proof that the reply is not
+        reading from the dump's structural sections."""
+        rows = probe_readside_reach.reach_rows()
+        assert sum(r["hashes"] for r in rows) == 0, "a reply now cites a node"
+
+    def test_the_first_session_builds_structure_it_cannot_read(self):
+        """The ordering bug: `_ensure_pathways_before_closing` runs after
+        `submit()` and `{dialectical_context}` is rendered once at construction,
+        so session 1 holds EMPTY_UNDERSTANDING while building 12-42
+        transformations."""
+        blind = [r for r in probe_readside_reach.build_without_context() if not r["had_dump"]]
+        built = [r for r in blind if r["transformations"]]
+        assert len(built) >= 10, (
+            f"only {len(built)} of {len(blind)} first sessions built structure "
+            "blind — if this dropped, the ordering may have been fixed"
+        )
+
+    def test_depth_does_not_predict_the_score_either_way(self):
+        """Guard against the tempting over-read in BOTH directions: more
+        structure neither helps nor hurts. A null is what an unread structure
+        predicts, and 'the deepest cell scored worst' is anecdote."""
+        correlations, n = probe_readside_reach.depth_against_score()
+        assert n >= 30, f"too few paired cells: {n}"
+        for measure, value in correlations.items():
+            assert abs(value) < 0.4, (
+                f"corr({measure}, delta) is now {value:+.3f} — depth started "
+                "mattering, in whichever direction; re-read the probe"
+            )
+
+
+class TestAnUnexercisedArmIsNotAWeakArm:
+    """The validity section named dead runs; the delta table then averaged them.
+
+    `Deltas.add` and every `across_runs` loop filtered `Comparison.error`, which
+    is set when the JUDGE call fails — not when the arm never ran. An empty
+    transcript judges fine and scores like an extremely bad arm, so a harness
+    fault entered the archive as evidence against the framework.
+
+    Measured on the archive when the guard was added: `claim2`'s four dead
+    strong-tier A2 runs (every turn a 400, 0 words) carry its -3.13 composite,
+    and excluding them moves A2-vs-A1 strong from -0.817 (resolving) to -0.188
+    (covers zero). No PUBLISHED number moved, because `claim2` is multi-scenario
+    and `smoke-strong` is a smoke stem — both were already outside the pooled
+    line for unrelated reasons. That is the reason this is a guard and not a
+    footnote: the defect was one ordinary round away from mattering.
+    """
+
+    @staticmethod
+    def _dead_run(arm: Arm) -> RunRecord:
+        """A run whose every turn errored — the harness fault, not a weak arm."""
+        return RunRecord(
+            arm=arm,
+            tier="weak",
+            model="m",
+            scenario_key="probe",
+            replicate=1,
+            sessions=[
+                SessionRecord(
+                    label="decide",
+                    turns=[
+                        TurnRecord(
+                            index=0, user="u", assistant="", error="400 bad shape"
+                        )
+                    ],
+                )
+            ],
+        )
+
+    @staticmethod
+    def _comparison(replicate: int = 1) -> Comparison:
+        return Comparison(
+            scenario_key="probe",
+            tier="weak",
+            replicate=replicate,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1_7,
+            x_arm=Arm.A2,
+            scores={"entanglement": (1.0, 5.0)},
+        )
+
+    def test_a_dead_arms_cells_are_dropped_not_averaged(self):
+        """The whole defect, in one assertion."""
+        runs = [self._dead_run(Arm.A2)]
+        kept, dropped = drop_invalid([self._comparison()], runs)
+        assert dropped == 1 and kept == [], (
+            "a run whose every turn errored still contributed a -4.0 delta"
+        )
+
+    def test_error_on_the_comparison_is_a_different_failure(self):
+        """`Comparison.error` cannot stand in for this, which is why it did not.
+
+        A judge that fails leaves no scores; an arm that fails leaves an empty
+        transcript the judge scores happily. Two faults, one of which was
+        unguarded.
+        """
+        healthy = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        kept, dropped = drop_invalid([self._comparison()], [healthy])
+        assert dropped == 0 and len(kept) == 1, (
+            "an exercised arm was dropped — the filter is too aggressive"
+        )
+
+    def test_a_collapsed_a2_is_dropped_too(self):
+        """`collapsed_to_a1` already said "INVALID as A2 evidence" in the report.
+
+        It printed that sentence above a table that included the run. A collapsed
+        A2 is A1 with A2's latency; averaging it in compares A1 against A1 and
+        calls the result a framework result.
+        """
+        collapsed = _run(Arm.A2, "weak")  # no tool calls, no decisions, no graph
+        assert collapsed.collapsed_to_a1, "fixture no longer models a collapse"
+        assert collapsed.invalid_as_evidence
+        _kept, dropped = drop_invalid([self._comparison()], [collapsed])
+        assert dropped == 1
+
+    def test_only_the_affected_replicate_is_dropped(self):
+        """A dead cell must not take its healthy siblings with it.
+
+        The conservative direction is per (arm, tier, replicate) — a run invalid
+        in one branch is invalid for that replicate's comparisons — but replicate
+        2 is untouched data and dropping it would trade one bias for another.
+        """
+        dead = self._dead_run(Arm.A2)
+        healthy = self._comparison(replicate=2)
+        kept, dropped = drop_invalid([self._comparison(1), healthy], [dead])
+        assert dropped == 1
+        assert [c.replicate for c in kept] == [2]
+
+    def test_the_archives_headline_is_unaffected_by_the_fix(self):
+        """The claim made in `RunRecord.invalid_as_evidence`, checked not asserted.
+
+        If a future round lands a collapsed arm inside a single-scenario stem,
+        this test starts failing — and that is the moment the guard earns itself.
+        Failing here means "the pooled headline now depends on the filter", which
+        is information, not a bug in the test.
+        """
+        pooled = [
+            stem
+            for stem, _dropped, _total, _why in excluded_rows()
+            if len(
+                {
+                    c.scenario_key
+                    for c in valid_comparisons(stem)
+                }
+            )
+            == 1
+        ]
+        assert not pooled, (
+            "a stem inside the pooled single-scenario line now has invalid "
+            f"cells: {pooled} — re-read the headline before quoting it"
+        )
+
+    def test_the_exclusions_are_printed_not_silent(self):
+        """A pool that quietly shrinks its own n is the error being prevented."""
+        rows = excluded_rows()
+        assert rows, "the archive has invalid cells; the block must list them"
+        stems = {stem for stem, *_ in rows}
+        assert "claim2" in stems
+        for _stem, dropped, total, why in rows:
+            assert 0 < dropped <= total
+            assert why, "an exclusion with no stated reason is not an exclusion"

@@ -17,11 +17,90 @@ self-apply the method better and the gap shrinks. Claim 2 is the durable one, if
 either is. The report classifies each delta rather than reporting a win rate,
 which is why ≥2 tiers matter.
 
+**What "A2 loses to A1.7" therefore means, stated precisely.** A1.7 is not an
+independent rung: it is `persona + method_prompt() + the model's own journal`.
+Measured against the live engine prompt, `method_prompt()` is **62% of its
+paragraphs verbatim engine text, 88% of its sentences, 93% at ≥0.60 similarity**,
+and every engine paragraph with no counterpart is tool-operation prose. That is
+the fairness rule working as designed (see [What keeps the comparison
+honest](#what-keeps-the-comparison-honest)) — but it means the archive's resolved
+loss is **not** "dialectics do not help". Both arms carry the dialectics. The
+comparison isolates the *delivery vehicle*: the same method run as machinery
+against the same method run as prose, with memory held roughly equal. Read every
+A1.7 row that way. The only rows that test dialectics-vs-no-dialectics are the
+A0/A1 ones, and they are **too thin to carry a verdict in either direction**: 3
+weak-tier runs (−0.10 [−0.52,+0.33]) and 2 strong (−0.11 [−0.53,+0.31]) against
+13 weak-tier A1.7 runs. Cell-level they cover zero at both tiers (weak −0.14
+[−0.46,+0.18] over 32 cells, strong −0.19 [−0.50,+0.12] over 30), but cells
+within a run share a build and an afternoon, so that interval is optimistic by
+roughly √n — quotable as "no A1 loss has been established", never as "A2 ties A1".
+**Resolving this is the archive's cheapest open question**, and it is the same
+`one run judging A0/A1 and A1.7 on the same build` that `rung_rows` has been
+asking for.
+
 **Where it stands, pooled over the whole archive (2026-08-13): the framework arm
 loses at the weak tier and the loss resolves — composite −0.47, CI [−0.64,−0.31],
 negative in 13 of 13 runs.** The strong tier is ~7× smaller (−0.06) and does not
 resolve at n=4. Neither claim is currently supported, and the one that could still
 be is the strong-tier one — [full numbers below](#the-archive-wide-picture-the-weak-tier-loss-is-real-and-it-resolves).
+
+## The round loop does not converge, and the round shape is why
+
+Sixteen rounds each changed `src/`, judged ONE run, and read the result as
+evidence about the change. `round_trend.py` asks whether that loop went anywhere.
+Four measurements, all free, all from saved records:
+
+1. **No trend.** Eleven comparable rounds (one scenario, one tier, one opponent,
+   slot- *and* stratum-balanced): mean **−0.547**, sd 0.258, all 11 negative,
+   correlation with round order **−0.34**, slope −0.026/round. Sixteen rounds of
+   fixes point, if anything, slightly down.
+2. **The rounds are one distribution resampled.** A round's own 95% half-width is
+   ≈±0.40, i.e. se ≈ 0.204 — so a constant-mean archive would show a
+   round-to-round sd of ≈0.204 by itself. Observed: 0.258. **Ratio 1.27.** The
+   archive cannot attribute its own variation to its own changes.
+3. **A round was never powered to confirm a fix.** At sd 0.258, detecting +0.2
+   needs **27 runs per build**, +0.3 needs 12, +0.5 needs 5. Every round spent
+   **one**. A single-run round can only register an effect larger than the entire
+   archive's spread — so the design could fail to see a fix but never confirm one,
+   which is exactly what "not deterministic toward better results" means.
+4. **What did move is manners, not product.** Splitting the same 12 dimensions
+   into REGISTER (warmth, fit, coherence, actionability, earned_confidence) and
+   SUBSTANCE (the framework's own turf) and pooling by era: register **+0.386
+   [+0.07,+0.70] resolves**; substance **+0.027 [−0.39,+0.44] covers zero**. The
+   mechanism is visible in the transcripts — A2 went **416→272 words and
+   7.25→2.71 bullets/turn** between r7 and r16 while A1.7 held ~310/~1.1. The arm
+   closed the gap by converging on its opponent's shape. That is
+   ceiling-not-floor failing, as a number.
+
+**And `probe_readside_reach.py` explains why that was cheap: the framework's
+product never reached the reply.** Overlap between the rendered dump and the
+replies written with it in context, best-matching line per section, same dump
+every time: decision ledger **0.56**, pathways **0.26**, synthesis **0.21**,
+hashes cited **0 across 18 sessions**. The read side is not broken in general —
+the memory section lands reliably — it is broken for exactly the sections that
+carry the differentiator. Worse, **14 of 18 first sessions built 390
+transformations while the system prompt held `EMPTY_UNDERSTANDING` for all 8
+turns**, because `_ensure_pathways_before_closing` runs *after* `submit()` and
+`{dialectical_context}` is rendered once at construction. Depth does not predict
+the score in either direction (corr −0.107 over 36 cells — a **null, not an
+inversion**), which is precisely what an unread structure predicts.
+
+So the loss is a **read-side/ordering defect first**, and the loop could shed
+structure cheaply because the structure was not being read anyway.
+
+**Consequences for how a round is run** — this supersedes the one-run-per-build
+habit, not any published number:
+
+- Do **not** read a single-run judged composite as a verdict on a build. State
+  the interval or say nothing.
+- Prefer **machine-countable endpoints** (the record-integrity block is the
+  template: binary, no judge, Fisher-testable) over the judged composite, which
+  is the one endpoint this bench cannot afford to move.
+- Before writing a prompt fix, **count the behaviour it targets**
+  (`probe_five_fixes.py` disqualified four of five).
+- A round that improves register is buying back a tax. **Only a substance move is
+  evidence the framework does something a prompt cannot** — and no round in the
+  ledger has produced one.
 
 ## The ablation ladder
 
@@ -177,6 +256,22 @@ conclusion. The guards, each with a test in `test_bench.py`:
 - **A2≠A1 assert.** Graph-building is model-initiated, so an A2 run with zero
   tool calls silently collapsed to A1. `RunRecord.collapsed_to_a1` flags it and
   the report calls those runs invalid, not weak.
+- **An unexercised arm is MISSING data, not a weak arm.** The report printed
+  "INVALID as A2 evidence" and then every pooled cut averaged those cells in
+  anyway: `Deltas.add` and each `across_runs` loop filtered `Comparison.error`,
+  which is set when the JUDGE call fails — not when the arm never ran. An empty
+  transcript judges fine and scores like an extremely bad arm, so a harness fault
+  entered as evidence against the framework. `RunRecord.invalid_as_evidence` +
+  `report.drop_invalid` now drop those cells at every seam, and
+  `across_runs.excluded_rows` prints what was dropped *above* the numbers, since a
+  reader who meets the n after the verdict cannot tell a filtered pool from a
+  small one. Measured: `claim2`'s four dead strong-tier A2 runs (every turn a 400,
+  0 words) carry its −3.13 composite, and excluding them moves A2-vs-A1 strong
+  from −0.82 (resolving) to −0.19 (covers zero). **No published figure moved** —
+  `claim2` is multi-scenario and `smoke-strong` is a smoke stem, so both were
+  already outside the pooled line for unrelated reasons, which is why this is a
+  guard rather than a correction. `TestAnUnexercisedArmIsNotAWeakArm` pins it, and
+  one of its cases fails the moment a *pooled* stem acquires an invalid cell.
 - **Blind, paired, position-randomised judging**, per-dimension, with length and
   eloquence explicitly discounted — and raw word counts printed anyway, because
   "instructed to ignore" is not "did ignore".
@@ -1735,6 +1830,8 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `across_runs.py` | pools the whole archive: the standing composite/dimension result, the two loss shapes (`dimension_shape`), the opponent-rung split (`rung_rows`), the record-integrity win and why it did not convert (`visibility_rows`), the two refuted explanations, and the claim-killing check for any new split (free) |
 | `judge_notes.py` | extracts the judge's own per-dimension rationale for the cells an arm LOST, X/Y de-randomised (free) |
 | `probe_five_fixes.py` | counts the behaviours the five r17 prompt fixes target, before paying for a judged run; its docstring records the four that are NOT measurable and why (free) |
+| `round_trend.py` | asks whether the round-by-round loop converges: the balanced 11-round series, between-round scatter against within-round noise, the trend, the register/substance split, and what a round would have to cost to settle its own question (free) |
+| `probe_readside_reach.py` | asks whether the framework's product reaches the reply — per-section overlap between the rendered dump and the replies written with it in context, plus the ordering bug's fingerprint (free) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
