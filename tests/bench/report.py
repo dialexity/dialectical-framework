@@ -112,6 +112,17 @@ class Deltas:
         self._by_session: dict[str, dict[str, list[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
+        #: tier -> one composite per PAIR: the mean over that pair's dimensions.
+        #: The 12 dimensions are repeated measures on the same transcript pair,
+        #: so they cannot be pooled as independent observations — but averaging
+        #: them within a pair yields one genuinely independent number per pair,
+        #: and it is much quieter than any single row. Measured across all 25
+        #: saved (run, arm-pair) sets: sd 0.76 against a per-dimension 1.08, a
+        #: ratio of 0.70 that barely moves between runs. That halves the n a
+        #: given effect needs, which makes this the ONLY endpoint this bench can
+        #: resolve at feasible cost — and until 2026-08-13 the report did not
+        #: print it, so it was hand-computed in the README for exactly one run.
+        self._composite: dict[str, list[float]] = defaultdict(list)
 
     def add(self, comparison: Comparison) -> None:
         if comparison.error:
@@ -119,6 +130,24 @@ class Deltas:
         for dimension, (a, b) in comparison.scores.items():
             self._gaps[comparison.tier][dimension].append(a - b)
             self._by_session[comparison.session_label or "?"][dimension].append(a - b)
+        if comparison.scores:
+            self._composite[comparison.tier].append(
+                _mean([a - b for a, b in comparison.scores.values()]) or 0.0
+            )
+
+    def composite(self, tier: str) -> Optional[float]:
+        """Mean over pairs of the pair's own across-dimension mean."""
+        return _mean(self._composite.get(tier, []))
+
+    def composite_n(self, tier: str) -> int:
+        """PAIRS, not scores. The distinction is the whole point of this row."""
+        return len(self._composite.get(tier, []))
+
+    def composite_ci(self, tier: str) -> Optional[tuple[float, float]]:
+        return _ci95(self._composite.get(tier, []))
+
+    def composite_sd(self, tier: str) -> Optional[float]:
+        return _stdev(self._composite.get(tier, []))
 
     def sessions(self) -> list[str]:
         return sorted(self._by_session)
@@ -1178,6 +1207,30 @@ def render_report(
                 add("      step or more. Deltas are only trustworthy insofar as the")
                 add("      X/Y split above is even — check it before reading rows.")
             add("")
+        # PRIMARY ENDPOINT, printed before the dimension table because it is the
+        # only row that can resolve at this bench's affordable n. One composite
+        # per transcript pair (that pair's mean over dimensions) — the pairs are
+        # independent, the 12 dimensions within a pair are not. sd 0.76 vs 1.08
+        # per-dimension across every saved run, so a 0.5-step effect needs ~19
+        # pairs here against ~37 there.
+        if any(d.composite_n(t) for t in tier_order):
+            add("primary endpoint — composite over dimensions, one value per pair:")
+            for tier in tier_order:
+                cn = d.composite_n(tier)
+                if not cn:
+                    continue
+                ci = d.composite_ci(tier)
+                mark = ""
+                if ci and (ci[0] > 0 or ci[1] < 0):
+                    mark = "  RESOLVED (interval excludes zero)"
+                add(
+                    f"  {tier:>8}  {_fmt(d.composite(tier))}  "
+                    f"pairs={cn}  {_fmt_ci(ci)}{mark}"
+                )
+            add("   Every dimension row below is a SUBSCALE of this: 12 repeated")
+            add("   measures on the same pairs, so they cannot be pooled as 12x")
+            add("   the evidence, and each is individually noisier than this row.")
+            add("")
         header = f"{'dimension':24}" + "".join(
             f"{t:>12}{'  n':>4}{'  95% CI':>17}" for t in tier_order
         )
@@ -1248,6 +1301,23 @@ def render_report(
                         "   DIALEXITY_BENCH_REPLICATES accordingly BEFORE the run,"
                     )
                     add("   or the result will be another unreadable mean.")
+                    # Both numbers, because which is LARGER is not fixed and the
+                    # tempting shortcut ("the composite is quieter, so it always
+                    # needs fewer pairs") is false: it is ~30% quieter AND its
+                    # effect is diluted by the dimensions that show nothing, so
+                    # r16 reads 21 pairs on `convergence` against 27 on the
+                    # composite. Size on the composite anyway — it is the endpoint
+                    # the product claim rests on, and picking whichever subscale
+                    # happened to move furthest is choosing the endpoint after
+                    # seeing the data.
+                    csd = d.composite_sd(tier)
+                    ceff = abs(d.composite(tier) or 0.0)
+                    if csd and ceff > 0:
+                        cneeded = math.ceil((2.8 * csd / ceff) ** 2)
+                        add(
+                            f"   On the primary endpoint instead ({ceff:.2f}, sd "
+                            f"{csd:.2f}): n≈{cneeded} pairs."
+                        )
             add("")
         # Where the delta lives. A gap concentrated in one session is a targeted
         # defect (r3: A2's earned_confidence was -1.50 in `decide` against

@@ -194,6 +194,24 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   `TestWhatBuysPower`, because a subtraction done in sd space instead of variance space — or `/2` instead of
   `/sqrt(2)` — yields a plausible figure recommending the opposite purchase. n=9, strong-tier decision runs only:
   a direction, not a constant.
+- **The 12 rubric dimensions are SUBSCALES of one endpoint, and reading them as 12 findings is the standing
+  error at this altitude.** They are repeated measures on the same transcript pair (which is why r16's delta is
+  n=12, not n=144), so `report.py` now prints a **composite** — each pair's mean across dimensions, one
+  independent value per pair — ABOVE the dimension table, with n counted in PAIRS and an explicit "every row
+  below is a subscale of this" line. `tests/bench/endpoint_power.py` measures why over all 25 saved (run,
+  arm-pair) sets: composite sd **0.76** vs per-dimension median **1.08**, ratio **0.70** with a narrow spread
+  (0.47-0.94), so the advantage is a property of the rubric rather than of one run. A 0.5-step effect needs ~19
+  pairs on the composite against ~37 on a single dimension, and **nothing under ~0.4 steps is reachable at any
+  run size this bench has used**. Three consequences for reviewing a prompt change here. (a) A change is worth
+  benching only if you expect it to move the COMPOSITE by ~0.5 steps; a change that moves one dimension is
+  unmeasurable in practice. (b) `paired_recipe` being 61% judge noise (above) means a rubric reword is the
+  cheaper lever for that row than any prompt edit. (c) The composite is quieter AND its effect is diluted by
+  dimensions that show nothing, so it does NOT always need fewer pairs than whichever subscale moved furthest
+  (r16: 21 on `convergence` vs 27 on the composite) — size on the composite anyway, because picking the subscale
+  that happened to move is choosing an endpoint after seeing the data. Before 2026-08-13 the composite was
+  hand-computed in the README for exactly one run, which is how "read this delta as underpowered" ended up as an
+  after-the-fact paragraph instead of a printed interval. Locked by
+  `test_bench.py::TestThePrimaryEndpointIsPrinted`.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

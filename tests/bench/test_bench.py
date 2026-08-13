@@ -3765,3 +3765,96 @@ class TestWhatBuysPower:
         # this bench keeps trying to read:
         best = se_of_mean(s_judge, s_cell, cells=12, passes=3)
         assert best * 1.96 > 0.5, "if this fails, re-judging alone would suffice"
+
+
+class TestThePrimaryEndpointIsPrinted:
+    """The 12 dimensions are repeated measures; only the composite is powered.
+
+    The report printed 12 subscales and no composite, so the one number the
+    product claim rests on was hand-computed in the README for exactly one run —
+    and hand-computed numbers are how "read the delta as underpowered" ended up
+    being an after-the-fact paragraph instead of a printed interval.
+    """
+
+    @staticmethod
+    def _pair(gaps: dict[str, int], session: str = "decide") -> Comparison:
+        return Comparison(
+            scenario_key="probe",
+            tier="weak",
+            replicate=1,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1_7,
+            x_arm=Arm.A2,
+            session_label=session,
+            scores={dim: (3 + g, 3) for dim, g in gaps.items()},
+        )
+
+    def test_the_composite_is_one_value_per_pair_not_per_score(self):
+        """n is PAIRS. Counting scores would claim 12x the evidence it has."""
+        d = Deltas(Arm.A2, Arm.A1_7)
+        for _ in range(4):
+            d.add(self._pair({"a": 2, "b": 0, "c": -2}))
+        assert d.composite_n("weak") == 4, "n must count pairs, not scores"
+        assert d.composite("weak") == pytest.approx(0.0)
+
+    def test_a_consistent_direction_resolves_where_no_subscale_does(self):
+        """Why the composite exists: agreement across dimensions is evidence.
+
+        Each subscale here is 1-vs-noise and unresolvable alone; every pair
+        pointing the same way is not.
+        """
+        d = Deltas(Arm.A2, Arm.A1_7)
+        for gaps in ({"a": 1, "b": 2, "c": 0}, {"a": 2, "b": 0, "c": 1},
+                     {"a": 1, "b": 1, "c": 2}, {"a": 0, "b": 2, "c": 2},
+                     {"a": 2, "b": 1, "c": 1}, {"a": 1, "b": 2, "c": 1}):
+            d.add(self._pair(gaps))
+        ci = d.composite_ci("weak")
+        assert ci is not None and ci[0] > 0, f"consistent gains not resolved: {ci}"
+
+    def test_the_composite_is_quieter_than_its_subscales(self):
+        """The measured property (0.76 vs 1.08 over all saved runs), in miniature.
+
+        Dimensions disagreeing within a pair cancel in the composite while each
+        row keeps its full spread — which is the entire reason this endpoint is
+        affordable and the rows are not.
+        """
+        d = Deltas(Arm.A2, Arm.A1_7)
+        for gaps in ({"a": 2, "b": -2}, {"a": -2, "b": 2},
+                     {"a": 2, "b": -2}, {"a": -2, "b": 2}):
+            d.add(self._pair(gaps))
+        assert d.composite_sd("weak") == pytest.approx(0.0)
+        assert (d.gap_sd("weak", "a") or 0) > 1.0
+
+    def test_it_is_rendered_above_the_dimension_table(self):
+        """Order is the message: a reader must meet the powered row first."""
+        comparisons = [self._pair({"entanglement": -1}) for _ in range(4)]
+        text = render_report([], comparisons, {}, ["weak"])
+        assert "primary endpoint" in text
+        assert text.index("primary endpoint") < text.index("entanglement")
+        assert "pairs=4" in text
+
+    def test_the_subscale_warning_travels_with_it(self):
+        """Without it the 12 rows below read as 12 independent findings."""
+        comparisons = [self._pair({"entanglement": -1}) for _ in range(4)]
+        text = render_report([], comparisons, {}, ["weak"])
+        assert "SUBSCALE" in text
+        assert "cannot be pooled" in text
+
+    def test_a_resolved_composite_says_so(self):
+        comparisons = [self._pair({"a": -2, "b": -2}) for _ in range(4)]
+        text = render_report([], comparisons, {}, ["weak"])
+        assert "RESOLVED" in text
+
+    def test_the_plan_prints_the_composite_n_too(self):
+        """Both endpoints, because which needs more pairs is not fixed.
+
+        r16: 21 pairs on `convergence` against 27 on the composite — the
+        composite is quieter but its effect is diluted, so assuming the quieter
+        endpoint is always cheaper picks the wrong number.
+        """
+        comparisons = [
+            self._pair({"a": g, "b": 0})
+            for g in (2, -1, 1, -2, 1, 0)
+        ]
+        text = render_report([], comparisons, {}, ["weak"])
+        assert "On the primary endpoint instead" in text

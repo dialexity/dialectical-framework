@@ -1165,6 +1165,43 @@ constant. The estimator is pinned by `TestWhatBuysPower` — a subtraction done 
 sd space instead of variance space, or `/2` instead of `/√2`, produces a
 plausible number pointing at the opposite purchase.
 
+#### The one affordable endpoint, and the report was not printing it
+
+The 12 dimensions are **repeated measures on the same transcript pair** — which
+is why r16's delta is n=12 and not n=144. Averaging them *within* a pair gives one
+genuinely independent number per pair, and `endpoint_power.py` shows across all
+**25** saved (run, arm-pair) sets that it is much quieter: composite sd **0.76**
+against a per-dimension median **1.08**, a ratio of **0.70** whose own spread is
+narrow (median 0.66, min 0.47, max 0.94). A stable ratio means the advantage is a
+property of the rubric, not of one lucky run.
+
+| effect (rubric steps) | pairs needed, composite | pairs needed, single dimension |
+|---|---|---|
+| 0.3 | 51 | 103 |
+| 0.5 | **19** | 37 |
+| 0.7 | 10 | 19 |
+| 1.0 | 5 | 10 |
+
+**The report now prints this ABOVE the dimension table**, with n counted in
+*pairs* and the standing warning that every row below is a subscale of it. Until
+2026-08-13 it printed 12 subscales and no composite, so the number the product
+claim actually rests on was hand-computed in the README for one run — which is
+precisely how "read the delta as underpowered" became an after-the-fact paragraph
+rather than a printed interval. Re-rendering r16 reproduces the hand-computed
+figure exactly: **−0.37, pairs=12, [−0.80,+0.06]**.
+
+**The trap, printed alongside it.** The composite is quieter *and* its effect is
+diluted by the dimensions that show nothing, so it does not always need fewer
+pairs than whichever subscale moved furthest — r16 reads **21 pairs on
+`convergence` against 27 on the composite**. Size on the composite anyway: picking
+the subscale that happened to move is choosing an endpoint after seeing the data.
+
+**Net for r17.** Even on the affordable endpoint, nothing under ~0.4 steps is
+reachable at any run size this bench has used. So either the run buys ~19+ pairs
+(6 replicates, since r16's 6 A2 runs yielded 12 pairs) or the fix under test has
+to be big enough to clear 0.5 steps. There is no third option, and no amount of
+re-judging creates one.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
@@ -1289,6 +1326,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `report.py` | deltas + their intervals, depreciating/durable classification, validity flags |
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
+| `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
 | `rerender.py` | regenerates a saved run's `.txt` with current report code (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
@@ -1298,10 +1336,12 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 
 1. **Validity section first.** A collapsed A2 arm or a single-tier run bounds
    what every number below can mean.
-2. **Read the CI, not the mean.** A row whose interval covers zero was not
-   measured — comparing its mean against a previous run's mean is how r15 and
-   r16 were read as a movement when they overlap heavily. `noise_floor.py`
-   prints what this bench can resolve at a given n.
+2. **The primary endpoint, then the CI, then the rows.** The composite (one value
+   per transcript pair) is the powered number; the 12 dimensions are its
+   subscales and cannot be read as 12 independent findings. A row whose interval
+   covers zero was not measured — comparing its mean against a previous run's
+   mean is how r15 and r16 were read as a movement when they overlap heavily.
+   `noise_floor.py` and `endpoint_power.py` print what is resolvable at a given n.
 3. A delta counts when the machine scores agree with the judge.
 4. `depreciating` deltas shrink to zero as models improve — do not build the
    product claim on them. `durable` deltas are the claim. `absent` means the
