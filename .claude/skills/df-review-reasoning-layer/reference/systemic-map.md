@@ -417,7 +417,16 @@ the Explorer agent path; the Advisor's `run_exploration` pins `MAX_DEEP_WHEELS =
 `advisor/tools/explore.py`) → **ExploreTransformations ×deepened-wheels**
 (Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
 `_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
-annotation) → **GenerateSynthesis** (`SynthesisGeneration` → S+/S-; the Advisor path syntheses only
+annotation) → **GenerateSynthesis**
+  **Phase 1 fans out 3×, and that sets the whole stage's cost.** `ActionExtraction` runs one LLM call per
+  `INSIGHT_CATEGORIES` entry (Generative/Configurational/Corrective) and returns THREE Ac+ candidates per edge;
+  Phase 2 loops over them (`_find_matching_category` pairs each with the opposite edge's same-category
+  candidate), so an edge yields 3 Transformations, not 1 — **6N per N-PP wheel**, i.e. 6 for a 1-PP wheel
+  (verified on a real provider, `tests/test_single_perspective_explore_real_llm.py`). Per deepened wheel that is
+  2N×(1 apex + 3 extraction) + 6N×(4 generation + 2 audit) calls. CLAUDE.md said "2N Transformations" until
+  2026-08-13 — it was counting edges. If you are reasoning about explore latency or about how many pathways the
+  model gets to choose between, this multiplier is the number that matters, and adding an insight category
+  multiplies the whole stage. (`SynthesisGeneration` → S+/S-; the Advisor path syntheses only
 `deepened_wheel_hashes`, and its explore tool docs must keep telling the model that
 `shallow_wheel_hashes` are ranked-but-undeveloped — not presentable as insight).
 

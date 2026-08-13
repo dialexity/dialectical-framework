@@ -81,7 +81,7 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **Circular causality within Transformations:** Each Transformation already encodes both spiral directions — Ac+ (its own edge direction) and Re+ (the opposite edge's direction). A Transformation IS a complete circular causality statement.
 
-**Scaling:** N-PP wheel = 2N edges, N edge pairs, 2N Transformations. Opposite-edge Transformations are Ac+/Re+ role-swapped (E1's Ac+ = E3's Re+). 1-PP = 2 edges/1 pair/2 Transformations (Ac/Re swap).
+**Scaling:** N-PP wheel = 2N edges, N edge pairs. Opposite-edge Transformations are Ac+/Re+ role-swapped (E1's Ac+ = E3's Re+). **Transformations = 2N × |`INSIGHT_CATEGORIES`| = 6N**, not 2N: `ActionExtraction` returns one Ac+ candidate per insight category (Generative/Configurational/Corrective, `concerns/action_extraction.py`) and `ExploreTransformations` Phase 2 generates a tetrad per candidate, so each edge carries 3 depth alternatives (`docs/graph.md` "multiple Transformation alternatives", paper Fig. 8). 1-PP = 2 edges/1 pair/**6** Transformations — measured on a real provider in `tests/test_single_perspective_explore_real_llm.py` (3 × `A → T`, 3 × `T → A`). Cost follows the same multiplier: each Transformation is 4 sequential `TransformationGeneration` calls + 2 audit calls.
 
 **Discrete spiral:** Wheel edges form a directed circle where each step transforms the minus of one segment into the plus of the next (T1-→A2+→T2-→A1+→...). S+ emerges from ALL Transformations operating simultaneously.
 
